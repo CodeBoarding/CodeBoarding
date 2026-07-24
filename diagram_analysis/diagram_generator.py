@@ -1105,8 +1105,13 @@ class DiagramGenerator:
                 for component in analysis.components
                 if component.component_id
             }
+            live_qnames = {
+                qualified_name
+                for lang in self.static_analysis.get_languages()
+                for qualified_name in self.static_analysis.get_cfg(lang).nodes
+            }
             global_relations = preserve_unchanged_relations(
-                global_relations, self._baseline_global_relations, changed_ids, live_ids
+                global_relations, self._baseline_global_relations, changed_ids, live_ids, live_qnames
             )
         root_analysis.components_relations = global_relations
         return global_relations

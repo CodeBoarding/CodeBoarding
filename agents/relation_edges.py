@@ -52,11 +52,28 @@ def index_relation_endpoints(analysis: AnalysisInsights, repo_dir: Path) -> None
             entry.merge_method_spans(spans)
 
 
+def _relation_backing_survives(relation: Relation, live_qnames: set[str]) -> bool:
+    """Whether a baseline relation's static backing still exists in live code.
+
+    A relation restored verbatim keeps its call edges. If the only edges connecting the two
+    components pointed at a symbol since deleted, restoring the relation resurrects an edge
+    citing code that is gone — a phantom. A relation with no static edge at all is a
+    runtime/config relation with nothing to invalidate, so it is left alone.
+    """
+    edges = relation.all_edges or relation.key_edges
+    if not edges:
+        return True
+    return any(
+        edge.source.qualified_name in live_qnames and edge.target.qualified_name in live_qnames for edge in edges
+    )
+
+
 def preserve_unchanged_relations(
     rebuilt_relations: list[Relation],
     baseline_by_pair: dict[tuple[str, str], Relation],
     changed_component_ids: set[str],
     live_ids: set[str],
+    live_qnames: set[str],
 ) -> list[Relation]:
     """Keep the wording a reader already read for any relation whose endpoints did not move.
 
@@ -67,8 +84,11 @@ def preserve_unchanged_relations(
     from the baseline. Pairs touching a changed component keep the fresh version outright.
 
     A baseline relation between two unchanged, still-live components that regeneration
-    dropped is restored, and a fresh edge invented between two unchanged components is
-    discarded, so structural drift against untouched components is eliminated too.
+    dropped is restored — but only when its backing edges still exist in live code. The
+    deterministic rebuild drops a pair when the code connecting the two components was
+    deleted; restoring it then would resurrect an edge citing a symbol that no longer
+    exists. A fresh edge invented between two unchanged components is discarded, so
+    structural drift against untouched components is eliminated too.
 
     Keyed on ``(src_id, dst_id)``, the stable component identity, not on displayed names.
     """
@@ -89,6 +109,8 @@ def preserve_unchanged_relations(
             kept.append(relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence}))
     for pair, relation in baseline_by_pair.items():
         if pair in rebuilt_pairs or touches_change(*pair) or pair[0] not in live_ids or pair[1] not in live_ids:
+            continue
+        if not _relation_backing_survives(relation, live_qnames):
             continue
         kept.append(relation)
     return sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id))

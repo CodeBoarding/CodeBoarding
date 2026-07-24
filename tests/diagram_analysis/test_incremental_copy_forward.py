@@ -256,7 +256,9 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         rebuilt = [self._relation("1", "2", "rebuilt wording")]
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 
-        kept = preserve_unchanged_relations(rebuilt, baseline, changed_component_ids=set(), live_ids={"1", "2"})
+        kept = preserve_unchanged_relations(
+            rebuilt, baseline, changed_component_ids=set(), live_ids={"1", "2"}, live_qnames=set()
+        )
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
 
@@ -268,7 +270,7 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         stale = self._relation("1", "2", "baseline wording")
         stale.key_edges = [RelationEdge(source=_ref("gone.caller"), target=_ref("gone.callee"))]
 
-        kept = preserve_unchanged_relations([fresh], {("1", "2"): stale}, set(), {"1", "2"})
+        kept = preserve_unchanged_relations([fresh], {("1", "2"): stale}, set(), {"1", "2"}, set())
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
         self.assertEqual([edge.source.qualified_name for edge in kept[0].key_edges], ["live.caller"])
@@ -277,30 +279,58 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         rebuilt = [self._relation("1", "2", "rebuilt wording")]
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 
-        kept = preserve_unchanged_relations(rebuilt, baseline, changed_component_ids={"2"}, live_ids={"1", "2"})
+        kept = preserve_unchanged_relations(
+            rebuilt, baseline, changed_component_ids={"2"}, live_ids={"1", "2"}, live_qnames=set()
+        )
 
         self.assertEqual([rel.relation for rel in kept], ["rebuilt wording"])
 
     def test_baseline_edge_the_rebuild_dropped_is_restored(self):
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 
-        kept = preserve_unchanged_relations([], baseline, changed_component_ids=set(), live_ids={"1", "2"})
+        kept = preserve_unchanged_relations(
+            [], baseline, changed_component_ids=set(), live_ids={"1", "2"}, live_qnames=set()
+        )
 
         self.assertEqual([(rel.src_id, rel.dst_id) for rel in kept], [("1", "2")])
 
     def test_baseline_edge_to_a_component_that_no_longer_exists_is_dropped(self):
         baseline = {("1", "9"): self._relation("1", "9", "baseline wording")}
 
-        kept = preserve_unchanged_relations([], baseline, changed_component_ids=set(), live_ids={"1", "2"})
+        kept = preserve_unchanged_relations(
+            [], baseline, changed_component_ids=set(), live_ids={"1", "2"}, live_qnames=set()
+        )
 
         self.assertEqual(kept, [])
 
     def test_spurious_rebuilt_edge_between_untouched_components_is_discarded(self):
         rebuilt = [self._relation("1", "2", "invented")]
 
-        kept = preserve_unchanged_relations(rebuilt, {}, changed_component_ids=set(), live_ids={"1", "2"})
+        kept = preserve_unchanged_relations(
+            rebuilt, {}, changed_component_ids=set(), live_ids={"1", "2"}, live_qnames=set()
+        )
 
         self.assertEqual(kept, [])
+
+    def test_restored_relation_whose_backing_symbol_was_deleted_is_dropped(self):
+        # The rebuild dropped this pair because the only edge connecting the two components
+        # cited a method the diff deleted; restoring it verbatim resurrects a phantom edge.
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [RelationEdge(source=_ref("gone.caller"), target=_ref("still.here"))]
+
+        kept = preserve_unchanged_relations([], {("1", "2"): stale}, set(), {"1", "2"}, live_qnames={"still.here"})
+
+        self.assertEqual(kept, [])
+
+    def test_restored_relation_with_a_live_backing_edge_is_kept(self):
+        live = self._relation("1", "2", "baseline wording")
+        live.all_edges = [RelationEdge(source=_ref("a.caller"), target=_ref("b.callee"))]
+
+        kept = preserve_unchanged_relations(
+            [], {("1", "2"): live}, set(), {"1", "2"}, live_qnames={"a.caller", "b.callee"}
+        )
+
+        self.assertEqual([(rel.src_id, rel.dst_id) for rel in kept], [("1", "2")])
 
 
 class TestGraftEnteredMethods(unittest.TestCase):

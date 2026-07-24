@@ -340,8 +340,14 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
         if baseline_by_pair:
             live_ids = {component.component_id for component in scope.components if component.component_id}
+            live_qnames = {
+                qualified_name
+                for cluster_result in context.cluster_results.values()
+                for members in cluster_result.clusters.values()
+                for qualified_name in members
+            }
             scope.components_relations = preserve_unchanged_relations(
-                scope.components_relations, baseline_by_pair, set(context.changed_ids), live_ids
+                scope.components_relations, baseline_by_pair, set(context.changed_ids), live_ids, live_qnames
             )
             rels = scope.components_relations
         return rels
