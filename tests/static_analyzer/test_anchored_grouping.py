@@ -13,7 +13,13 @@ import networkx as nx
 from static_analyzer.cluster_helpers import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
+    _absorb_leftovers,
+    _build_meta_graph,
+    _method_counts,
+    _modularity,
+    _seeds_from_partition,
     anchored_grouping,
+    supercluster_by_modularity_peak,
 )
 from static_analyzer.graph import ClusterResult
 
@@ -191,6 +197,35 @@ class TestAnchoredGrouping(unittest.TestCase):
 
         self.assertFalse(result.regrouped)
         self.assertEqual(len(result.groups), 4)
+
+    def test_reported_modularity_scores_the_returned_grouping(self):
+        # The score must describe the groups actually returned, never the pre-absorption
+        # partition -- the drift gate and the expansion threshold both read it, and a stale
+        # score judges a grouping that was never applied.
+        cr, graph = blocks(n_blocks=5, per_block=4)
+
+        groups, modularity = supercluster_by_modularity_peak(cr, graph)
+
+        meta = _build_meta_graph(cr, graph)
+        self.assertEqual(round(modularity, 10), round(_modularity(meta, groups), 10))
+
+    def test_absorbing_an_edged_leftover_moves_the_score(self):
+        # Guards the seam the fix protects: when a non-singleton community is demoted past
+        # ``high`` and absorbed into a seed it shares edges with, the merged grouping scores
+        # differently from the pre-absorption partition, so the two must not be conflated.
+        cr, graph = blocks(n_blocks=9, per_block=2)
+        meta = _build_meta_graph(cr, graph)
+        method_count = _method_counts(cr)
+        # Force the overflow demotion directly: nine 2-cluster communities, capped at high=8.
+        communities = [{2 * b + 1, 2 * b + 2} for b in range(9)]
+        seeds, leftovers = _seeds_from_partition(communities, method_count, low=5, high=8)
+        self.assertTrue(leftovers, "the ninth community must be demoted to a leftover")
+        _absorb_leftovers(seeds, leftovers, meta, cr, method_count)
+
+        self.assertNotEqual(
+            round(_modularity(meta, [set(c) for c in communities]), 10),
+            round(_modularity(meta, seeds), 10),
+        )
 
 
 if __name__ == "__main__":

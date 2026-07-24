@@ -381,11 +381,14 @@ def _optimize_grouping(
 
     high = min(high, n_leaf)
     communities = _pick_peak_partition(meta_graph, low, high, seed)
-    modularity = _modularity(meta_graph, communities)
     seeds, leftovers = _seeds_from_partition(communities, method_count, low, high)
     if seeds:
         _absorb_leftovers(seeds, leftovers, meta_graph, cluster_result, method_count)
-    return seeds, modularity
+    # Score the grouping we actually return, not the pre-absorption communities: absorbing
+    # singletons into seeds changes the modularity, and callers compare this number against
+    # the carried grouping's own modularity (the drift gate) and against the expansion
+    # threshold. A stale pre-absorption score would misjudge both.
+    return seeds, _modularity(meta_graph, seeds if seeds else communities)
 
 
 def supercluster_by_modularity_peak(
