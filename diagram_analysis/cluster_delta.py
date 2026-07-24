@@ -29,7 +29,7 @@ from agents.content_hash import (
 from agents.file_index_models import FileEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry
-from diagram_analysis.io_utils import normalize_repo_path
+from repo_utils.path_utils import normalize_repo_path
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from constants import DEFAULT_STATIC_RELATION_LABEL
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
 from agents.relation_edges import append_or_merge_relation
-from static_analyzer.graph import CallGraph, Edge
+from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
 

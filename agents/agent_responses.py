@@ -6,13 +6,13 @@ from abc import abstractmethod
 from collections.abc import Hashable
 from enum import StrEnum
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, get_origin, Optional
+from typing import TYPE_CHECKING, get_origin
 
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
 from agents.cluster_ids import CodeBoardingClusterId, GraphClusterId
-from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
+from agents.file_index_models import FileEntry, FileMethodGroup
 from agents.scope_ids import ROOT_SCOPE_ID
 
 logger = logging.getLogger(__name__)
@@ -803,17 +803,6 @@ class ComponentFiles(LLMBaseModel):
         title = "# Component File Classifications\n"
         body = "\n".join(f"- `{fc.file_path}` -> Component: `{fc.component_name}`" for fc in self.file_paths)
         return title + body
-
-
-class ScopeRelations(LLMBaseModel):
-    """Relations between components within a single scope."""
-
-    components_relations: list[Relation] = Field(description="Inter-component relationships within this scope.")
-
-    def llm_str(self):
-        if not self.components_relations:
-            return "No relations found."
-        return "\n".join(r.llm_str() for r in self.components_relations)
 
 
 class ScopeOperationAction(StrEnum):

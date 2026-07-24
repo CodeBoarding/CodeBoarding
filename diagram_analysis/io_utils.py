@@ -31,7 +31,6 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from diagram_analysis.run_context import DEFAULT_DEPTH_LEVEL
-from repo_utils.path_utils import normalize_repo_path
 from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, FINGERPRINT_FILENAME, RUN_OUTPUT_DIR_NAME
 
 logger = logging.getLogger(__name__)

@@ -8,11 +8,7 @@ from types import MappingProxyType
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
-from static_analyzer.constants import (
-    GRAPH_NODE_TYPES,
-    ClusteringConfig,
-    NodeType,
-)
+from static_analyzer.constants import ClusteringConfig, NodeType
 from static_analyzer.leiden_utils import find_partition as _leiden_find_partition
 from static_analyzer.method_cluster_paths import MethodClusterPaths
 from static_analyzer.node import Node
