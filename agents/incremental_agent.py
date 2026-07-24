@@ -213,8 +213,14 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             component.description = operation.description
         if operation.key_entities:
             component.key_entities = operation.key_entities
-        merged_cluster_ids = set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
-        component.source_cluster_ids = CodeBoardingClusterIds.sort(merged_cluster_ids)
+        # Replace, don't union. The planner emits the component's complete new cluster set on
+        # every UPDATE, so a cluster it no longer lists is gone — merged with the prior ids, a
+        # deleted cluster would cling to the component and mis-anchor a later reused id.
+        # ``_remove_reassigned_clusters`` already stripped these ids from every component,
+        # including this one, so assigning the operation's refs is the whole set.
+        component.source_cluster_ids = CodeBoardingClusterIds.sort(
+            set(_operation_source_cluster_ids(scope_id, operation))
+        )
 
     def _patch_scope_file_methods(
         self,
