@@ -88,6 +88,24 @@ class TestClusterHelpers(unittest.TestCase):
         self.assertTrue(js_ids.isdisjoint(py_ids), f"Overlap detected: {js_ids & py_ids}")
         self.assertEqual(len(js_ids) + len(py_ids), 20)
 
+    def test_reindex_across_languages_leaves_already_disjoint_ids_alone(self):
+        # The seeded incremental path returns the previous run's scoped ids, already
+        # disjoint across languages. Re-offsetting them would drift the namespace each run.
+        py = _make_cluster_result("py", 3)  # ids 1-3
+        ts = ClusterResult(
+            clusters={cid: {f"ts.node_{cid}"} for cid in (30, 31, 32)},
+            cluster_to_files={cid: {f"/repo/ts_{cid}.ts"} for cid in (30, 31, 32)},
+            file_to_clusters={f"/repo/ts_{cid}.ts": {cid} for cid in (30, 31, 32)},
+            strategy="test",
+        )
+        cluster_results = {"python": py, "typescript": ts}
+
+        reindex_across_languages(cluster_results)
+
+        self.assertIs(cluster_results["python"], py)
+        self.assertIs(cluster_results["typescript"], ts)
+        self.assertEqual(set(cluster_results["typescript"].clusters), {30, 31, 32})
+
     def test_reindex_across_languages_noop_for_single_language(self):
         cr = _make_cluster_result("py", 10)
         cluster_results = {"python": cr}

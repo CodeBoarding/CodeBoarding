@@ -85,6 +85,14 @@ def reindex_across_languages(cluster_results: dict[str, ClusterResult]) -> None:
     """
     if len(cluster_results) <= 1:
         return
+    # Already disjoint across languages — e.g. the seeded incremental path returned the
+    # previous run's scoped ids. Re-offsetting would drift a stable namespace every run,
+    # so a TypeScript sub-cluster saved as 2/3 would become 4/5 next time and the persisted
+    # lineage would never settle. Only the cold path (each language freshly clustered from 1)
+    # overlaps and needs reindexing.
+    ranges = sorted((min(r.clusters), max(r.clusters)) for r in cluster_results.values() if r.clusters)
+    if all(ranges[i][0] > ranges[i - 1][1] for i in range(1, len(ranges))):
+        return
     offset = 0
     for lang in sorted(cluster_results):
         result = cluster_results[lang]
