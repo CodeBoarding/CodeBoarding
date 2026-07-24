@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agents.content_hash import hash_method_body, hash_whole_file, read_source_lines
+from agents.content_hash import MethodSpan, hash_file_residual, hash_method_body, hash_whole_file, read_source_lines
 from agents.file_index_models import FileEntry, MethodEntry
 from diagram_analysis.cluster_delta import (
     ClusterRef,
@@ -664,6 +664,65 @@ class TestMemberGranularDirty(unittest.TestCase):
 
             # m1's body changed; m2's body is unchanged despite its line shift.
             self.assertEqual(changed.members, {"pkg.m1"})
+            self.assertEqual(changed.unattributed_files, set())
+
+    def test_a_module_level_variable_does_not_dirty_the_whole_file(self) -> None:
+        # The CFG holds module-level variables as nodes so they can be edge endpoints,
+        # but build_files_index only persists component-owned methods, so the index never
+        # carries them. If the residual excised their spans it would disagree with the
+        # persisted module_hash forever, and every component owning any method in the file
+        # would be marked changed on every run.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            source = "CONSTANT = 1\n\ndef m1():\n    return 1\n\ndef m2():\n    return 2\n"
+            (repo / "shared.py").write_text(source, encoding="utf-8")
+            lines = read_source_lines(repo, "shared.py", {})
+            method_spans = [MethodSpan(3, 4), MethodSpan(6, 7)]
+            # The index carries only the two methods — exactly what build_files_index persists.
+            baseline_files = {
+                "shared.py": FileEntry(
+                    content_hash=hash_whole_file(lines),
+                    module_hash=hash_file_residual(lines, method_spans),
+                    methods=[
+                        MethodEntry(
+                            qualified_name=f"pkg.m{i}",
+                            start_line=span.start_line,
+                            end_line=span.end_line,
+                            node_type="FUNCTION",
+                            content_hash=hash_method_body(lines, span.start_line, span.end_line),
+                        )
+                        for i, span in enumerate(method_spans, start=1)
+                    ],
+                )
+            }
+            graph = CallGraph(language="python")
+            for i, span in enumerate(method_spans, start=1):
+                graph.add_node(
+                    Node(
+                        fully_qualified_name=f"pkg.m{i}",
+                        node_type=NodeType.FUNCTION,
+                        file_path=str(repo / "shared.py"),
+                        line_start=span.start_line,
+                        line_end=span.end_line,
+                    )
+                )
+            # The CFG additionally holds the module-level constant, as an edge endpoint.
+            graph.add_node(
+                Node(
+                    fully_qualified_name="pkg.CONSTANT",
+                    node_type=NodeType.VARIABLE,
+                    file_path=str(repo / "shared.py"),
+                    line_start=1,
+                    line_end=1,
+                )
+            )
+            static = StaticAnalysisResults()
+            static.add_cfg(Language.PYTHON, graph)
+            changes = ChangeSet(files=[FileChange(status_code="M", file_path="shared.py")])
+
+            changed = compute_changed_members(baseline_files, static, changes, repo)
+
+            self.assertEqual(changed.members, set())
             self.assertEqual(changed.unattributed_files, set())
 
     def test_only_owning_cluster_is_modified(self) -> None:

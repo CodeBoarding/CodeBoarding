@@ -225,7 +225,16 @@ def _live_member_hashes(
     changed_paths: set[str],
     file_cache: SourceCache,
 ) -> tuple[dict[str, dict[str, str]], dict[str, list[MethodSpan]]]:
-    """``({file_path -> {qname -> body_hash}}, {file_path -> [method spans]})`` for changed files."""
+    """``({file_path -> {qname -> body_hash}}, {file_path -> [method spans]})`` for changed files.
+
+    Data nodes are skipped so this population matches the persisted file index, which
+    ``build_files_index`` fills from component-owned methods only. A module-level variable
+    lives in the CFG but never in the index, so counting it here would report it as a
+    brand-new method on every run and — because its span would be excised from the
+    module-level residual that the index never excised — make ``module_hash`` differ from
+    the baseline for any file that has one, permanently. An edit to such a variable still
+    surfaces: its lines stay in the residual, so the module hash moves.
+    """
     hashes: dict[str, dict[str, str]] = {}
     spans: dict[str, list[MethodSpan]] = {}
     for language in new_static.get_languages():
@@ -235,7 +244,7 @@ def _live_member_hashes(
             continue
         for qname, node in cfg.nodes.items():
             path = normalize_repo_path(node.file_path, repo_dir)
-            if path not in changed_paths:
+            if path not in changed_paths or node.is_data():
                 continue
             source_lines = read_source_lines(repo_dir, path, file_cache)
             hashes.setdefault(path, {})[qname] = hash_method_body(source_lines, node.line_start, node.line_end)
