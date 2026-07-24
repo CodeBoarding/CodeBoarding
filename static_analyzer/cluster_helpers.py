@@ -546,12 +546,22 @@ def anchored_grouping(
 
     owners = sorted(carried)
     groups = [carried[owner] for owner in owners]
-    newcomers = sorted(live - {cid for group in groups for cid in group})
-    if newcomers:
-        _absorb_leftovers(groups, newcomers, meta_graph, cluster_result, method_count)
+    fresh_groups, fresh_modularity = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
+    newcomers = set(live) - {cid for group in groups for cid in group}
+
+    # A whole new subsystem arriving must become its own component, not be scattered into
+    # the existing ones by absorption. The from-scratch partition already isolates it: a
+    # fresh community made *entirely* of new clusters is a subsystem the carried grouping
+    # has no home for. Promote those as new (unowned) groups; absorb only the rest.
+    new_subsystems = [group for group in fresh_groups if len(group) >= 2 and group <= newcomers]
+    for subsystem in new_subsystems:
+        groups.append(set(subsystem))
+        owners.append("")
+    absorbed = sorted(newcomers - {cid for subsystem in new_subsystems for cid in subsystem})
+    if absorbed:
+        _absorb_leftovers(groups, absorbed, meta_graph, cluster_result, method_count)
 
     modularity = _modularity(meta_graph, groups)
-    fresh_groups, fresh_modularity = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
     if fresh_modularity - modularity > drift_budget:
         logger.info(
             f"[Anchored] carried grouping scores {modularity:.4f} vs {fresh_modularity:.4f} fresh "
@@ -561,6 +571,7 @@ def anchored_grouping(
 
     logger.info(
         f"[Anchored] {len(live)} leaf clusters -> {len(groups)} components carried forward "
-        f"({len(newcomers)} new clusters absorbed, modularity={modularity:.4f} vs {fresh_modularity:.4f} fresh)"
+        f"({len(new_subsystems)} new component(s), {len(absorbed)} clusters absorbed, "
+        f"modularity={modularity:.4f} vs {fresh_modularity:.4f} fresh)"
     )
     return AnchoredGrouping(groups, owners, False)

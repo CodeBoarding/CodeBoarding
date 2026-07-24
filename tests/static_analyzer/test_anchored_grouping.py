@@ -78,6 +78,39 @@ class TestAnchoredGrouping(unittest.TestCase):
         for member, owner in owners_by_member(result, cr).items():
             self.assertEqual(owner, previous[int(member.split("_")[0][1:])], member)
 
+    def test_a_new_subsystem_becomes_its_own_component(self):
+        # A whole new package arriving must be its own component, not scattered into the
+        # existing ones. The clusters have no previous owner and form a tight island.
+        cr, graph = blocks(n_blocks=5, per_block=4)
+        previous = self._previous(cr, graph)  # one component per existing block; excludes the new ids
+
+        new_ids = [100, 101, 102, 103]
+        for cid in new_ids:
+            nodes = [f"nw{cid}_{j}" for j in range(3)]
+            cr.clusters[cid] = set(nodes)
+            path = f"/repo/newpkg/c{cid}.py"
+            cr.cluster_to_files[cid] = {path}
+            cr.file_to_clusters[path] = {cid}
+            for node in nodes:
+                graph.add_node(node, file_path=path)
+        for a in new_ids:
+            for b in new_ids:
+                if a != b:
+                    graph.add_edge(f"nw{a}_0", f"nw{b}_1")
+        graph.add_edge("n1_0", "nw100_1")  # one weak bridge into the existing graph
+
+        result = anchored_grouping(cr, graph, previous)
+
+        unowned = [group for group, owner in zip(result.groups, result.owners) if not owner]
+        self.assertTrue(
+            any(group == set(new_ids) for group in unowned),
+            f"new subsystem was not promoted to its own component; unowned groups: {unowned}",
+        )
+        for member, owner in owners_by_member(result, cr).items():
+            if member.startswith("nw"):
+                continue
+            self.assertEqual(owner, previous[int(member.split("_")[0][1:])], member)
+
     def test_a_new_cluster_is_absorbed_and_moves_nothing_else(self):
         cr, graph = blocks(n_blocks=5, per_block=4)
         previous = self._previous(cr, graph)
@@ -197,6 +230,30 @@ class TestAnchoredGrouping(unittest.TestCase):
 
         self.assertFalse(result.regrouped)
         self.assertEqual(len(result.groups), 4)
+
+    def test_a_new_subsystem_is_promoted_at_the_sub_component_range_too(self):
+        # New components can appear at any depth: the promotion runs per scope, so a new
+        # island inside an already-expanded component becomes a new sub-component.
+        cr, graph = blocks(n_blocks=4, per_block=3)
+        previous = {cid: f"C{(cid - 1) // 3}" for cid in cr.clusters}
+
+        new_ids = [200, 201]
+        for cid in new_ids:
+            nodes = [f"nw{cid}_{j}" for j in range(3)]
+            cr.clusters[cid] = set(nodes)
+            path = f"/repo/newsub/c{cid}.py"
+            cr.cluster_to_files[cid] = {path}
+            cr.file_to_clusters[path] = {cid}
+            for node in nodes:
+                graph.add_node(node, file_path=path)
+        graph.add_edge("nw200_0", "nw201_1")
+        graph.add_edge("nw201_0", "nw200_1")
+        graph.add_edge("n1_0", "nw200_1")
+
+        result = anchored_grouping(cr, graph, previous, SUBCOMPONENTS_MIN, SUBCOMPONENTS_MAX)
+
+        unowned = [group for group, owner in zip(result.groups, result.owners) if not owner]
+        self.assertTrue(any(group == set(new_ids) for group in unowned), f"unowned groups: {unowned}")
 
     def test_reported_modularity_scores_the_returned_grouping(self):
         # The score must describe the groups actually returned, never the pre-absorption
