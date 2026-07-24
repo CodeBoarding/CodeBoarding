@@ -237,7 +237,6 @@ class TestConvenienceFunctions(unittest.TestCase):
             concrete_prompts = [
                 factory.get_final_analysis_message(),
                 factory.get_details_message(),
-                factory.get_incremental_grouping_message(),
                 factory.get_scope_relations_message(),
                 factory.get_api_surfaces_message(),
                 factory.get_relation_analysis_message(),

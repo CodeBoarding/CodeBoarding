@@ -183,10 +183,6 @@ def get_details_message() -> str:
     return get_global_factory()._prompt_factory.get_details_message()
 
 
-def get_incremental_grouping_message() -> str:
-    return get_global_factory()._prompt_factory.get_incremental_grouping_message()
-
-
 def get_scope_relations_message() -> str:
     return get_global_factory()._prompt_factory.get_scope_relations_message()
 

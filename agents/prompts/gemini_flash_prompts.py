@@ -244,32 +244,6 @@ Constraints:
 Justify component choices based on fundamental architectural importance."""
 
 
-INCREMENTAL_GROUPING_MESSAGE = """Update the architecture by routing changed and new CFG clusters to the right components.
-
-The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
-
-### Existing components
-{existing_components}
-
-### Cluster groups to assign
-{cfg_clusters}
-
-Your Task:
-For each cluster shown above, decide which component it belongs to. Work through the clusters and for each one choose one of two paths:
-
-1. **Route to an existing component.** Reference the component by its exact **component_id** from the list above (e.g. `1.3`). Carry over the component's **name** and a short **description** unchanged, and list the cluster ids that should land here. Multiple groups of clusters can point to the same existing component — that is fine and expected.
-
-   For each routed cluster, also indicate whether a **redetail** pass is needed. Default to yes. Only say no when the change is cosmetic — a refactor, internal rename, small bug fix, or formatting change that leaves the component's high-level purpose untouched. When redetail is not needed, the existing description is preserved as-is and no follow-up pass runs. If you are unsure, lean toward yes.
-
-2. **Create a new component.** Give it a fresh **name** that does not duplicate any existing component, write a **description** explaining what this component does and why these clusters belong together, and choose a **parent_id** — the existing component whose scope most naturally encloses the new one, or leave it null for a root-level component.
-
-Important rules:
-- Identity is tracked by **component_id**, not by name. Reusing an existing component's name without pointing to its component_id will create a duplicate — that is wrong. If clusters belong in an existing component, you must reference its **component_id**.
-- Route each changed cluster to the most specific owning component. If both a parent and one of its children seem relevant, choose the child only; parent/ancestor ownership is updated deterministically after routing. Do not route a cluster to broad callers, registries, or result models just because they import or use the changed implementation.
-- `redetail_needed=False` means the component boundary is unchanged. Do not use a NOOP route to absorb new files, new responsibilities, or clusters that primarily belong to another component.
-- Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one entry's **cluster_ids**."""
-
-
 class GeminiFlashPromptFactory(AbstractPromptFactory):
     """Prompt factory for Gemini Flash models."""
 
@@ -311,9 +285,6 @@ class GeminiFlashPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
-
-    def get_incremental_grouping_message(self) -> str:
-        return INCREMENTAL_GROUPING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

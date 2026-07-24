@@ -279,38 +279,6 @@ The clusters have already been partitioned into a fixed set of groups by graph c
 # Justification
 Base component choices on fundamental architectural importance."""
 
-INCREMENTAL_GROUPING_MESSAGE = """# Task
-Route each changed or new CFG cluster into the correct component — either an existing one or a brand new one.
-
-The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
-
-# Existing components
-Each line shows the component id and its name:
-{existing_components}
-
-# Cluster groups to assign
-{cfg_clusters}
-
-# Instructions
-
-1. For each cluster group listed above, decide whether it belongs in an existing component or requires a new one.
-
-2. If routing to an existing component, reference it by its exact component id from the list above (e.g. `"1.3"`). Reuse that component's current name. Include the cluster ids that now belong there. Multiple groups of clusters can route to the same component if they are functionally related.
-
-3. Decide whether the component's description needs updating. Default to yes. Only skip the update when the change is cosmetic — a refactor, internal rename, small bug fix, or formatting change that does not alter the component's high-level purpose. When in doubt, request the update.
-
-4. If creating a new component, give it a fresh name distinct from every existing component, write a description explaining what this component does and why these clusters belong together, and specify a parent component id to attach it under (or leave it at root level). Choose the parent whose scope most naturally encloses the new component.
-
-# Critical rule
-Identity is by component id, not by name. Reusing an existing component's name without explicitly referencing its component id will fork a duplicate — that is wrong. When clusters belong in an existing component, always reference that component by its id.
-
-# Boundary rules
-- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only.
-- redetail_needed=False means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component.
-
-# Coverage
-Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one output entry."""
-
 
 class DeepSeekPromptFactory(AbstractPromptFactory):
     """Prompt factory for DeepSeek models optimized for direct, structured instructions."""
@@ -353,9 +321,6 @@ class DeepSeekPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
-
-    def get_incremental_grouping_message(self) -> str:
-        return INCREMENTAL_GROUPING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

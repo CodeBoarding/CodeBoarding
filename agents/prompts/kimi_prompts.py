@@ -282,32 +282,6 @@ Constraints:
 
 Justify component choices based on fundamental architectural importance."""
 
-INCREMENTAL_GROUPING_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
-
-Reason step-by-step about how the architecture should change as new and modified CFG clusters arrive. Use tools proactively to verify any cluster placement you're not confident about.
-
-The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
-
-Existing components (each line shows component_id "name"):
-{existing_components}
-
-Cluster groups to assign:
-{cfg_clusters}
-
-Think aloud first about whether each cluster belongs to an existing component or warrants a new one, then commit to a routing decision. For each cluster group above, choose exactly one of these two paths:
-
-1. **Route to an existing component.** If the cluster fits naturally into one of the existing components listed above, reference it by its exact component_id (e.g. "1.3"). Reuse that component's name and a short description verbatim, and list the cluster ids you are routing into it. Multiple cluster groups can share the same existing component if they all belong there.
-
-   For each routing decision, consider whether the component's description needs updating. Default to yes — only skip the update when the change is purely cosmetic (a refactor, internal rename, small bug fix, or formatting tweak that leaves the component's high-level purpose untouched). When you skip the update, the existing description is preserved as-is and no follow-up redetail runs. If you're unsure, it's safer to request the update.
-
-2. **Create a new component.** If no existing component is a good fit, create a fresh one. Give it a distinct name that doesn't duplicate any existing component, write a description paragraph explaining what this new component does and why these clusters belong together, and choose a parent component whose scope most naturally encloses the new one (or leave it at root level if nothing fits).
-
-A critical note on identity: components are identified by their component_id, not by name. Reusing an existing component's name without explicitly routing to its component_id will fork a duplicate — that is wrong. If clusters belong in an existing component, you must route to it by component_id.
-
-Boundary rules: route each changed cluster to the most specific owning component; if both a parent and a child seem relevant, choose the child only. `redetail_needed=False` means the component boundary is unchanged, so do not use it to absorb new files, new responsibilities, or clusters owned by another component.
-
-Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one routing entry."""
-
 
 class KimiPromptFactory(AbstractPromptFactory):
     """Prompt factory for Kimi models optimized for proactive tool use and agent swarms."""
@@ -350,9 +324,6 @@ class KimiPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
-
-    def get_incremental_grouping_message(self) -> str:
-        return INCREMENTAL_GROUPING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

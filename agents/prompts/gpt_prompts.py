@@ -333,31 +333,6 @@ Constraints:
 
 Justify component choices based on fundamental architectural importance."""
 
-INCREMENTAL_GROUPING_MESSAGE = """**Task:** Update the architecture by routing changed and new CFG clusters into the correct components.
-
-The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
-
-**Existing components** (each line shows component_id and name):
-{existing_components}
-
-**Cluster groups to assign:**
-{cfg_clusters}
-
-**Instructions:**
-
-For each cluster group above, decide whether it belongs in an existing component or warrants a brand-new one.
-
-1. **Analyze the clusters** and identify which existing component each one naturally fits into based on functional relationships, shared purpose, and architectural role
-2. **Route to an existing component** when the cluster's purpose aligns with something already defined. Reference the existing component by its exact **component_id** (e.g. 1.3), carry forward the current name, and list the cluster ids that now belong there. Multiple cluster groups can route to the same existing component if they share its scope
-3. **Flag whether a description refresh is needed.** By default assume **redetail_needed** is True — the cluster change is substantive enough that the component description should be regenerated. Only set it to False when the delta is purely cosmetic: a refactor, internal rename, small bug fix, or formatting change that leaves the component's high-level purpose untouched. When in doubt, keep it True
-4. **Create a new component** when no existing one is a good fit. Give it a fresh name distinct from every existing component, write a description paragraph explaining what it does and why these clusters belong together, and specify a **parent_id** pointing to the component whose scope most naturally encloses this new one (or leave it null for a root-level component)
-
-**Important rules:**
-- Identity is tracked by **component_id**, not by name. If clusters belong in an existing component, you must reference its **component_id** explicitly — reusing a name without the correct id will fork a duplicate
-- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only
-- **redetail_needed=False** means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component
-- Every cluster id listed in the cluster groups above must appear in exactly one routing entry"""
-
 SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope.
 
 **Components in this scope:**
@@ -423,9 +398,6 @@ class GPTPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
-
-    def get_incremental_grouping_message(self) -> str:
-        return INCREMENTAL_GROUPING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE
