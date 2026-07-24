@@ -12,6 +12,7 @@ The anchor is the previous run's *methods*, not its cluster ids — see
 
 import logging
 from collections import Counter
+from pathlib import Path
 
 import networkx as nx
 
@@ -25,6 +26,7 @@ from agents.agent_responses import (
 from agents.cluster_ids import CodeBoardingClusterIds
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
+from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cluster_helpers import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
@@ -40,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 def previous_ownership(
-    scope: AnalysisInsights, cluster_results: dict[str, ClusterResult], scope_id: str
+    scope: AnalysisInsights, cluster_results: dict[str, ClusterResult], scope_id: str, repo_dir: Path
 ) -> dict[int, str]:
     """Leaf cluster id -> the component that previously owned most of its methods.
 
@@ -55,6 +57,12 @@ def previous_ownership(
     A file belongs to exactly one language's clusters, so restricting each language's
     owner map to its own files keeps the two apart. Cluster ids are already disjoint
     across languages, so the per-language results merge without collision.
+
+    Both sides are normalized to repo-relative posix before the file match: ``cluster_to_files``
+    carries the CFG's absolute paths (the static-analysis cache expands them under the repo)
+    while ``file_methods`` is persisted relative, so a raw comparison would never match and
+    strand method anchoring on the ``source_cluster_ids`` fallback — the very cluster-id
+    anchoring this function exists to replace.
 
     A component can be cluster-backed yet hold no methods — a data-only cluster, which
     ``_cluster_backed_empty_component_ids`` deliberately protects from pruning. Methods
@@ -71,7 +79,9 @@ def previous_ownership(
     }
     owner: dict[int, str] = {}
     for cluster_result in cluster_results.values():
-        language_files = {path for files in cluster_result.cluster_to_files.values() for path in files}
+        language_files = {
+            normalize_repo_path(path, repo_dir) for files in cluster_result.cluster_to_files.values() for path in files
+        }
         owner_of_method: dict[str, str] = {
             method.qualified_name: component.component_id
             for component in scope.components
@@ -80,7 +90,7 @@ def previous_ownership(
             # A language without a file index (cluster_to_files empty) falls back to every
             # method, preserving single-language behaviour; the split only matters when two
             # languages carry colliding qnames, and then both have file indexes.
-            if not language_files or group.file_path in language_files
+            if not language_files or normalize_repo_path(group.file_path, repo_dir) in language_files
             for method in group.methods
         }
         for cluster_id, members in cluster_result.clusters.items():
@@ -103,6 +113,7 @@ def plan_scope_update(
     cluster_results: dict[str, ClusterResult],
     cfg_graphs: dict[str, nx.DiGraph],
     changed_members: set[str],
+    repo_dir: Path,
 ) -> ScopeUpdateDecision:
     """The operations that carry this scope's components onto the new clustering.
 
@@ -150,7 +161,7 @@ def plan_scope_update(
     low = TOP_LEVEL_COMPONENTS_MIN if is_root else SUBCOMPONENTS_MIN
     high = TOP_LEVEL_COMPONENTS_MAX if is_root else SUBCOMPONENTS_MAX
 
-    previous = previous_ownership(scope, cluster_results, scope_id)
+    previous = previous_ownership(scope, cluster_results, scope_id, repo_dir)
     grouping = anchored_grouping(combined, combined_cfg, previous, low, high)
 
     language_of: dict[int, str] = {

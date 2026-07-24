@@ -6,6 +6,7 @@ These tests pin the planner to the anchor that does survive: the methods themsel
 """
 
 import unittest
+from pathlib import Path
 
 import networkx as nx
 
@@ -18,6 +19,7 @@ from static_analyzer.graph import ClusterResult
 
 FILE = "pkg/mod.py"
 DELETE = ScopeOperationAction.DELETE_COMPONENT
+REPO = Path("/repo")
 
 
 def method(qualified_name: str) -> MethodEntry:
@@ -72,14 +74,16 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner = previous_ownership(scope, {"python": clustering({7: {"a.one", "a.two", "b.one"}})}, ROOT_SCOPE_ID)
+        owner = previous_ownership(scope, {"python": clustering({7: {"a.one", "a.two", "b.one"}})}, ROOT_SCOPE_ID, REPO)
 
         self.assertEqual(owner, {7: "1"})
 
     def test_a_cluster_of_entirely_new_methods_has_no_owner(self):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
-        owner = previous_ownership(scope, {"python": clustering({1: {"a.one"}, 2: {"fresh.thing"}})}, ROOT_SCOPE_ID)
+        owner = previous_ownership(
+            scope, {"python": clustering({1: {"a.one"}, 2: {"fresh.thing"}})}, ROOT_SCOPE_ID, REPO
+        )
 
         self.assertEqual(owner, {1: "1"})
 
@@ -92,7 +96,7 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner = previous_ownership(scope, {"python": clustering({5: {"a.one", "b.one"}})}, ROOT_SCOPE_ID)
+        owner = previous_ownership(scope, {"python": clustering({5: {"a.one", "b.one"}})}, ROOT_SCOPE_ID, REPO)
 
         self.assertEqual(owner, {5: "1"})
 
@@ -134,9 +138,39 @@ class TestPreviousOwnership(unittest.TestCase):
             ),
         }
 
-        owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID)
+        owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
 
         self.assertEqual(owner, {1: "1", 30: "2"})
+
+    def test_anchors_by_method_when_cfg_paths_are_absolute(self):
+        # The real production mismatch: cluster_to_files carries the CFG's absolute paths
+        # while file_methods is repo-relative. Without normalizing both sides the file
+        # filter excludes every method and anchoring silently falls back to cluster ids.
+        # The cluster has RENUMBERED (id 99, not the component's stored "1"), so the two
+        # anchors diverge: method-anchoring still finds the owner, the id fallback cannot.
+        py = Component(
+            name="Py",
+            description="",
+            key_entities=[],
+            component_id="1",
+            source_cluster_ids=["1"],
+            file_methods=[FileMethodGroup(file_path="src/index.py", methods=[method("src.index.run")])],
+        )
+        scope = AnalysisInsights(description="", components=[py], components_relations=[])
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={99: {"src.index.run"}},
+                cluster_to_files={99: {str(REPO / "src/index.py")}},  # absolute, as the CFG emits
+                file_to_clusters={str(REPO / "src/index.py"): {99}},
+                strategy="t",
+            )
+        }
+
+        owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
+
+        # Method-anchored: renumbered cluster 99 still resolves to component 1. The id
+        # fallback would leave it unowned, so an empty result means anchoring broke.
+        self.assertEqual(owner, {99: "1"})
 
 
 class TestPlanScopeUpdate(unittest.TestCase):
@@ -161,7 +195,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
         self.assertFalse({str(cid) for cid in renumbered} & set(members))
 
         decision = plan_scope_update(
-            "2", scope, {"python": clustering(renumbered)}, {"python": cfg_for(renumbered)}, set()
+            "2", scope, {"python": clustering(renumbered)}, {"python": cfg_for(renumbered)}, set(), REPO
         )
 
         self.assertEqual(
@@ -189,7 +223,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set()
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set(), REPO
         )
 
         self.assertEqual(decision.operations, [])
@@ -207,7 +241,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, {"b.one"}
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, {"b.one"}, REPO
         )
 
         self.assertEqual(actions(decision), {"2": ScopeOperationAction.UPDATE_COMPONENT})
@@ -226,7 +260,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set()
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set(), REPO
         )
 
         self.assertEqual(actions(decision)["4"], ScopeOperationAction.DELETE_COMPONENT)
@@ -244,7 +278,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set()
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set(), REPO
         )
 
         # Only the absorbing component is touched; its siblings stay out of the plan.
@@ -263,7 +297,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set()
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set(), REPO
         )
 
         for op in decision.operations:
@@ -286,7 +320,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set()
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set(), REPO
         )
 
         self.assertNotIn("3", [op.component_id for op in decision.operations if op.action == DELETE])
@@ -302,7 +336,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
             components_relations=[],
         )
 
-        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set())
+        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set(), REPO)
 
         self.assertEqual(actions(decision), {"1": DELETE, "2": DELETE})
 
@@ -312,12 +346,12 @@ class TestPlanScopeUpdate(unittest.TestCase):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
         with self.assertRaises(IncrementalClusteringError):
-            plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set())
+            plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set(), REPO)
 
     def test_an_empty_scope_plans_nothing(self):
         scope = AnalysisInsights(description="", components=[], components_relations=[])
 
-        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set())
+        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set(), REPO)
 
         self.assertEqual(decision.operations, [])
 

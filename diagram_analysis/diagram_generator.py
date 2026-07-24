@@ -1235,7 +1235,9 @@ class DiagramGenerator:
     ) -> RecursiveScopeUpdateResult:
         assert self.incremental_agent is not None
         # Structure is derived, not asked for — see diagram_analysis/scope_plan.py.
-        decision = plan_scope_update(scope_id, scope, cluster_results, cfg_graphs, self._changed_members)
+        decision = plan_scope_update(
+            scope_id, scope, cluster_results, cfg_graphs, self._changed_members, self.repo_location
+        )
         apply_result = self.incremental_agent.update_scope(scope_id, scope, decision, cluster_results)
         result = RecursiveScopeUpdateResult(
             refresh_ids=set(apply_result.refresh_ids),
