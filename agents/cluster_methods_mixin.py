@@ -28,6 +28,7 @@ from static_analyzer.cluster_helpers import (
     TOP_LEVEL_COMPONENTS_MAX,
     TOP_LEVEL_COMPONENTS_MIN,
     combine_cluster_results,
+    group_symbols,
     reindex_across_languages,
     supercluster_leaf_ids,
 )
@@ -43,12 +44,6 @@ from static_analyzer.node import Node
 logger = logging.getLogger(__name__)
 
 
-def _group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> list[str]:
-    """Qualified names in a group, most top-level first (fewest name segments)."""
-    names = {qname for cid in cluster_ids for qname in node_lookup.get(cid, set())}
-    return sorted(names, key=lambda qname: (qname.count("."), qname))
-
-
 def _summarize_group(
     group: set[int],
     node_lookup: dict[int, set[str]],
@@ -57,7 +52,7 @@ def _summarize_group(
     max_files: int = 8,
 ) -> str:
     """A deterministic, name-rich blurb so the LLM can name a group without re-clustering."""
-    symbols = _group_symbols(sorted(group), node_lookup)
+    symbols = group_symbols(sorted(group), node_lookup)
     files = sorted({path for cid in group for path in file_lookup.get(cid, set())})
     file_names = [Path(path).name for path in files]
 
@@ -73,7 +68,7 @@ def _summarize_group(
 
 def _fallback_component(group: ClustersComponent, node_lookup: dict[int, set[str]]) -> Component:
     """Deterministic component for a group the LLM failed to name (merged/dropped it)."""
-    symbols = _group_symbols(group.cluster_ids, node_lookup)
+    symbols = group_symbols(group.cluster_ids, node_lookup)
     name = symbols[0].split(".")[-1] if symbols else group.name
     return Component(name=name, description=group.description, key_entities=[])
 

@@ -14,7 +14,8 @@ Two stages, both deterministic:
 
 import logging
 import os
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
+from dataclasses import dataclass
 
 import networkx as nx
 import networkx.algorithms.community as nx_comm
@@ -149,6 +150,12 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
         meta_graph.add_edge(src_cid, dst_cid, weight=weight)
 
     return meta_graph
+
+
+def group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> list[str]:
+    """Qualified names in a group, most top-level first (fewest name segments)."""
+    names = {qname for cid in cluster_ids for qname in node_lookup.get(cid, set())}
+    return sorted(names, key=lambda qname: (qname.count("."), qname))
 
 
 def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> ClusterResult:
@@ -347,6 +354,40 @@ def _absorb_leftovers(
 # ---------------------------------------------------------------------------
 
 
+def _method_counts(cluster_result: ClusterResult) -> dict[int, int]:
+    return {cid: len(members) for cid, members in cluster_result.clusters.items()}
+
+
+def _modularity(meta_graph: nx.DiGraph, groups: list[set[int]]) -> float:
+    """0.0 on an edgeless meta-graph — there is nothing to separate."""
+    return nx_comm.modularity(meta_graph, groups, weight="weight") if meta_graph.number_of_edges() else 0.0
+
+
+def _optimize_grouping(
+    meta_graph: nx.DiGraph,
+    cluster_result: ClusterResult,
+    method_count: dict[int, int],
+    low: int,
+    high: int,
+    seed: int,
+) -> tuple[list[set[int]], float]:
+    """The from-scratch partition of a prebuilt meta-graph, with every leftover absorbed."""
+    n_leaf = meta_graph.number_of_nodes()
+    if n_leaf == 0:
+        return [], 0.0
+    if n_leaf <= low:
+        # Fewer leaf clusters than the floor — each is its own component.
+        return [{cid} for cid in meta_graph.nodes], 0.0
+
+    high = min(high, n_leaf)
+    communities = _pick_peak_partition(meta_graph, low, high, seed)
+    modularity = _modularity(meta_graph, communities)
+    seeds, leftovers = _seeds_from_partition(communities, method_count, low, high)
+    if seeds:
+        _absorb_leftovers(seeds, leftovers, meta_graph, cluster_result, method_count)
+    return seeds, modularity
+
+
 def supercluster_by_modularity_peak(
     cluster_result: ClusterResult,
     cfg_graph: nx.DiGraph,
@@ -364,29 +405,15 @@ def supercluster_by_modularity_peak(
 
     The returned modularity scores the partition the sweep chose, so a caller
     deciding *whether* to split and a caller performing the split read the same
-    number. It is 0.0 when the meta-graph has no edges — nothing to separate.
+    number.
     """
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
-    n_leaf = meta_graph.number_of_nodes()
-    if n_leaf == 0:
-        return [], 0.0
-    if n_leaf <= low:
-        # Fewer leaf clusters than the floor — each is its own component.
-        return [{cid} for cid in meta_graph.nodes], 0.0
-
-    high = min(high, n_leaf)
-    method_count = {cid: len(members) for cid, members in cluster_result.clusters.items()}
-    communities = _pick_peak_partition(meta_graph, low, high, seed)
-    modularity = nx_comm.modularity(meta_graph, communities, weight="weight") if meta_graph.number_of_edges() else 0.0
-    seeds, leftovers = _seeds_from_partition(communities, method_count, low, high)
-    if seeds:
-        _absorb_leftovers(seeds, leftovers, meta_graph, cluster_result, method_count)
-
+    groups, modularity = _optimize_grouping(meta_graph, cluster_result, _method_counts(cluster_result), low, high, seed)
     logger.info(
-        f"[SuperCluster] {n_leaf} leaf clusters -> {len(seeds)} components "
-        f"(modularity={modularity:.4f}, sizes {sorted((len(s) for s in seeds), reverse=True)})"
+        f"[SuperCluster] {meta_graph.number_of_nodes()} leaf clusters -> {len(groups)} components "
+        f"(modularity={modularity:.4f}, sizes {sorted((len(g) for g in groups), reverse=True)})"
     )
-    return seeds, modularity
+    return groups, modularity
 
 
 def supercluster_leaf_ids(
@@ -406,3 +433,123 @@ def supercluster_leaf_ids(
     combined = combine_cluster_results(cluster_results)
     combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
     return supercluster_by_modularity_peak(combined, combined_cfg, low, high, seed)
+
+
+# ---------------------------------------------------------------------------
+# Anchored regrouping (the incremental path)
+# ---------------------------------------------------------------------------
+
+# How far the carried-forward grouping may fall behind a freshly optimized one
+# before the structure is re-derived from scratch. Modularity difference, so it
+# is comparable across repos. Below it, identity is worth more than the last
+# few points of coupling; above it, the diagram no longer describes the code.
+REGROUP_DRIFT_BUDGET = 0.10
+
+
+def _inherit_ids(
+    groups: list[set[int]],
+    previous_owner: dict[int, str],
+    method_count: dict[int, int],
+) -> list[str]:
+    """Give each group the id of the previous component whose code it mostly holds.
+
+    Used even when the structure is re-derived from scratch: a regrouping that renamed
+    every component would light up the whole diagram, when in truth most of the code
+    stayed where it was. Weighted by method count, biggest claim first, one id per
+    group, so the dominant successor of a component keeps its identity and only
+    genuinely new groups come out unnamed.
+    """
+    claims: list[tuple[int, Counter[str]]] = []
+    for index, group in enumerate(groups):
+        tally: Counter[str] = Counter()
+        for cid in group:
+            owner = previous_owner.get(cid)
+            if owner:
+                tally[owner] += method_count.get(cid, 0)
+        claims.append((index, tally))
+
+    owners = [""] * len(groups)
+    taken: set[str] = set()
+    for index, tally in sorted(claims, key=lambda claim: (-max(claim[1].values(), default=0), claim[0])):
+        for owner, _weight in tally.most_common():
+            if owner not in taken:
+                taken.add(owner)
+                owners[index] = owner
+                break
+    return owners
+
+
+@dataclass(frozen=True)
+class AnchoredGrouping:
+    """A grouping carried forward from the previous run, plus what it cost."""
+
+    groups: list[set[int]]
+    #: index into ``groups`` -> the component id it inherited, or "" when new.
+    owners: list[str]
+    #: True when drift forced a from-scratch re-derivation rather than a carry-forward.
+    regrouped: bool
+
+
+def anchored_grouping(
+    cluster_result: ClusterResult,
+    cfg_graph: nx.DiGraph,
+    previous_owner: dict[int, str],
+    low: int = TOP_LEVEL_COMPONENTS_MIN,
+    high: int = TOP_LEVEL_COMPONENTS_MAX,
+    seed: int = ClusteringConfig.CLUSTERING_SEED,
+    drift_budget: float = REGROUP_DRIFT_BUDGET,
+) -> AnchoredGrouping:
+    """Repair the previous grouping against a new clustering instead of re-deriving one.
+
+    ``supercluster_by_modularity_peak`` re-optimizes from scratch. Modularity has a
+    degenerate solution landscape — many partitions score within noise of each other —
+    so a two-line diff can select a different near-optimal partition and reshuffle which
+    component owns what. Deterministic, but not continuous, and the incremental path
+    needs continuity: a component's identity has to survive a change that did not touch it.
+
+    So each live leaf cluster simply keeps the component that owned it
+    (``previous_owner``, from the baseline's ``source_cluster_ids``); genuinely new
+    clusters are absorbed into the nearest existing group; and a component left holding
+    nothing is dropped. No re-partitioning at all in the steady state.
+
+    The escape hatch is ``drift_budget``: when the carried-forward grouping scores that
+    much worse than a fresh optimum, the code really has moved on, and the result is a
+    from-scratch regrouping with ``regrouped=True`` so the caller can say so out loud.
+    """
+    meta_graph = _build_meta_graph(cluster_result, cfg_graph)
+    live = set(meta_graph.nodes)
+    if not live:
+        return AnchoredGrouping([], [], False)
+    method_count = _method_counts(cluster_result)
+
+    # Carry forward: one group per surviving component, in a stable id order.
+    carried: dict[str, set[int]] = defaultdict(set)
+    for cid in sorted(live):
+        owner = previous_owner.get(cid)
+        if owner:
+            carried[owner].add(cid)
+    if not carried:
+        # Nothing to anchor to — a first run, or a baseline that shares no cluster.
+        fresh, _ = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
+        return AnchoredGrouping(fresh, [""] * len(fresh), True)
+
+    owners = sorted(carried)
+    groups = [carried[owner] for owner in owners]
+    newcomers = sorted(live - {cid for group in groups for cid in group})
+    if newcomers:
+        _absorb_leftovers(groups, newcomers, meta_graph, cluster_result, method_count)
+
+    modularity = _modularity(meta_graph, groups)
+    fresh_groups, fresh_modularity = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
+    if fresh_modularity - modularity > drift_budget:
+        logger.info(
+            f"[Anchored] carried grouping scores {modularity:.4f} vs {fresh_modularity:.4f} fresh "
+            f"(> {drift_budget} budget); re-deriving structure from scratch"
+        )
+        return AnchoredGrouping(fresh_groups, _inherit_ids(fresh_groups, previous_owner, method_count), True)
+
+    logger.info(
+        f"[Anchored] {len(live)} leaf clusters -> {len(groups)} components carried forward "
+        f"({len(newcomers)} new clusters absorbed, modularity={modularity:.4f} vs {fresh_modularity:.4f} fresh)"
+    )
+    return AnchoredGrouping(groups, owners, False)

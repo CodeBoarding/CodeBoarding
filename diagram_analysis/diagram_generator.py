@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import networkx as nx
 from langchain_core.language_models import BaseChatModel
 
 from agents.abstraction_agent import AbstractionAgent
@@ -29,7 +30,6 @@ from agents.incremental_agent import (
     prune_empty_components,
     remove_deleted_files,
 )
-from agents.incremental_planning_agent import IncrementalPlanningAgent
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_llms
@@ -60,7 +60,9 @@ from diagram_analysis.cluster_snapshot import (
 from diagram_analysis.exceptions import IncrementalCacheMissingError, ScopeContainmentError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
-from diagram_analysis.io_utils import load_analysis_metadata, normalize_repo_path, save_analysis, write_fingerprint
+from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
+from repo_utils.path_utils import normalize_repo_path
+from diagram_analysis.scope_plan import plan_scope_update
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
@@ -105,7 +107,7 @@ def _member_keys(component: Component) -> frozenset[tuple[str, str]]:
 
 def _owned_method_keys(components: Iterable[Component]) -> set[tuple[str, str]]:
     """The ``(file_path, qualified_name)`` set the given components collectively own."""
-    return set().union(*(_member_keys(component) for component in components)) if components else set()
+    return {key for component in components for key in _member_keys(component)}
 
 
 def _reconcile_child_scope(
@@ -559,7 +561,6 @@ class DiagramGenerator:
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
-        self.incremental_planning_agent: IncrementalPlanningAgent | None = None
         self.incremental_agent: IncrementalAgent | None = None
         self.meta_context: MetaAnalysisInsights | None = None
         self.file_coverage_data: dict | None = None
@@ -870,15 +871,6 @@ class DiagramGenerator:
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        self.incremental_planning_agent = IncrementalPlanningAgent(
-            repo_dir=self.repo_location,
-            static_analysis=static_analysis,
-            project_name=self.repo_name,
-            meta_context=meta_context,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-            changes=self.changes,
-        )
         self.incremental_agent = IncrementalAgent(
             repo_dir=self.repo_location,
             static_analysis=static_analysis,
@@ -892,7 +884,6 @@ class DiagramGenerator:
             {
                 "DetailsAgent": self.details_agent,
                 "AbstractionAgent": self.abstraction_agent,
-                "IncrementalPlanningAgent": self.incremental_planning_agent,
                 "IncrementalAgent": self.incremental_agent,
             }
         )
@@ -1250,19 +1241,14 @@ class DiagramGenerator:
         self,
         scope_id: str,
         scope: AnalysisInsights,
-        structural_diff: StructuralClusterDiff,
         cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, nx.DiGraph],
         sub_analyses: dict[str, AnalysisInsights],
         changed_members: ChangedMembers | None,
     ) -> RecursiveScopeUpdateResult:
-        assert self.incremental_planning_agent is not None
         assert self.incremental_agent is not None
-        decision = self.incremental_planning_agent.decide_scope_update(
-            scope_id,
-            scope,
-            structural_diff,
-            cluster_results,
-        )
+        # Structure is derived, not asked for — see diagram_analysis/scope_plan.py.
+        decision = plan_scope_update(scope_id, scope, cluster_results, cfg_graphs)
         apply_result = self.incremental_agent.update_scope(scope_id, scope, decision, cluster_results)
         result = RecursiveScopeUpdateResult(
             refresh_ids=set(apply_result.refresh_ids),
@@ -1281,7 +1267,7 @@ class DiagramGenerator:
             child_component = components_by_id.get(component_id)
             if child_scope is None or child_component is None or _component_depth(component_id) >= self.depth_level:
                 continue
-            child_cluster_results, child_diff = _build_scope_incremental_inputs(
+            child_cluster_results, child_cfgs, child_diff = _build_scope_incremental_inputs(
                 child_component,
                 component_id,
                 self.incremental_agent,
@@ -1296,8 +1282,8 @@ class DiagramGenerator:
             child_result = self._apply_incremental_scope_recursively(
                 component_id,
                 child_scope,
-                child_diff,
                 child_cluster_results,
+                child_cfgs,
                 sub_analyses,
                 changed_members,
             )
@@ -1319,11 +1305,10 @@ class DiagramGenerator:
         then ``_generate_subcomponents`` seeded with the changed components.
         Raises when no trustworthy baseline or scoped update plan is available.
         """
-        if self.details_agent is None or self.incremental_planning_agent is None or self.incremental_agent is None:
+        if self.details_agent is None or self.incremental_agent is None:
             self.pre_analysis()
         assert self.static_analysis is not None
         assert self.details_agent is not None
-        assert self.incremental_planning_agent is not None
         assert self.incremental_agent is not None
 
         # Snapshot the loaded baseline before any mutation: its global relations (deepest
@@ -1417,22 +1402,20 @@ class DiagramGenerator:
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
-            structural_diff = structural_diff_from_delta(
-                old_snapshot,
-                delta,
-                changes=self.changes,
-                repo_dir=self.repo_location,
-                changed=changed_members,
-            )
             protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             # Full membership baseline for the restore/rescope passes, captured AFTER the deletion
             # scrub so a deleted method is never re-injected from the baseline into a live scope.
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
+            root_cluster_results = delta.cluster_results()
+            root_cfgs = {
+                language: self.static_analysis.get_cfg(Language(language)).clustering_networkx()
+                for language in root_cluster_results
+            }
             apply_result = self._apply_incremental_scope_recursively(
                 ROOT_SCOPE_ID,
                 root_analysis,
-                structural_diff,
-                delta.cluster_results(),
+                root_cluster_results,
+                root_cfgs,
                 sub_analyses,
                 changed_members,
             )
@@ -1630,12 +1613,12 @@ def _build_scope_incremental_inputs(
     changes: ChangeSet | None,
     repo_dir: Path,
     changed_members: ChangedMembers | None,
-) -> tuple[dict[str, ClusterResult], StructuralClusterDiff]:
+) -> tuple[dict[str, ClusterResult], dict[str, nx.DiGraph], StructuralClusterDiff]:
     old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
     if not old_snapshot.all_cluster_ids():
-        return {}, StructuralClusterDiff()
+        return {}, {}, StructuralClusterDiff()
 
-    cluster_results, _subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
+    cluster_results, subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
         component,
         source_cluster_id_prefix=scope_id,
     )
@@ -1653,7 +1636,7 @@ def _build_scope_incremental_inputs(
         scope_id=scope_id,
         changed=changed_members,
     )
-    return cluster_results, structural_diff
+    return cluster_results, {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}, structural_diff
 
 
 def scoped_snapshot_for_component(

@@ -404,8 +404,7 @@ def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> 
 
 
 def _operation_source_cluster_ids(scope_id: str, operation: ScopeOperation) -> list[str]:
-    # Match how the validator reads refs (cluster_ref_from_scoped_ref treats a blank scope as root),
-    # so a ref the validator counted is not silently dropped here and orphaned.
+    # A blank scope on a ref means root, matching how refs are read elsewhere.
     local_ids = {ref.cluster_id for ref in operation.cluster_refs if (ref.scope_id or ROOT_SCOPE_ID) == scope_id}
     return CodeBoardingClusterIds.qualify_local_ids(
         CodeBoardingClusterIds.from_graph_ids(local_ids),

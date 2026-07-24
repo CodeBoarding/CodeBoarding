@@ -333,45 +333,6 @@ Every cluster id listed in the CLUSTER GROUPS TO ASSIGN section MUST appear in e
 Return one routing decision per cluster group. Each decision MUST clearly indicate whether it routes to an existing component (referenced by its exact id from the list above) or proposes a new component with a distinct name, a description paragraph, and the parent it should attach to."""
 
 
-PLANNING_MESSAGE = """You are a software architecture incremental-update analyst. STRICTLY follow these rules.
-
-TASK:
-Update one scope of the architecture diagram.
-
-CONTEXT:
-- Scope: `{scope_id}` (`root` means the top-level diagram)
-
-EXISTING COMPONENTS IN THIS SCOPE:
-{existing_components}
-
-CHANGED FILES:
-{changed_files}
-
-STRUCTURAL CLUSTER DIFF:
-{structural_diff}
-
-
-REQUIRED STEPS:
-1. Return operations for this scope only.
-2. Keep unchanged clusters out of operations unless the diff makes the component semantically dirty.
-3. For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
-4. For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
-5. For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
-6. Use listGitChanges ONLY when the structural diff is not enough to judge semantic impact.
-
-MANDATORY RULES:
-- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
-- Every modified/new/reshaped new-side cluster listed below MUST appear in exactly one operation's cluster_refs.
-
-ARCHITECTURE OUTPUT CONTRACT:
-- This step plans component boundaries only. Do NOT define component relations; API surfaces and relations are generated later.
-- Choose exactly one of these mutually exclusive branches for each operation:
-  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
-  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
-  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
-"""
-
-
 class GLMPromptFactory(AbstractPromptFactory):
     """Prompt factory for GLM models optimized for firm directive prompts with strong role-playing."""
 
@@ -416,9 +377,6 @@ class GLMPromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
-
-    def get_planning_message(self) -> str:
-        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

@@ -309,38 +309,6 @@ Boundary rules: route each changed cluster to the most specific owning component
 Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one routing entry."""
 
 
-PLANNING_MESSAGE = """Reason about ownership, then return operations for one architecture scope only.
-
-- Scope: `{scope_id}` (`root` means the top-level diagram)
-
-Existing components in this scope:
-{existing_components}
-
-Changed files:
-{changed_files}
-
-Structural cluster diff:
-{structural_diff}
-
-
-Rules:
-- Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
-- For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
-- For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
-- For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
-- Use listGitChanges proactively but narrowly when the structural diff is not enough to judge semantic impact.
-- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
-- Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
-
-Architecture output contract:
-- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
-- Choose exactly one of these mutually exclusive branches for each operation:
-  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
-  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
-  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
-"""
-
-
 class KimiPromptFactory(AbstractPromptFactory):
     """Prompt factory for Kimi models optimized for proactive tool use and agent swarms."""
 
@@ -385,9 +353,6 @@ class KimiPromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
-
-    def get_planning_message(self) -> str:
-        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

@@ -43,16 +43,6 @@ class IncrementalCacheMissingError(RuntimeError):
         self.artifact_dir = artifact_dir
 
 
-class InvalidIncrementalPlanError(RuntimeError):
-    """Raised when the planner cannot produce a trustworthy scoped update."""
-
-    def __init__(self, scope_id: str, issues: list[str]):
-        issue_summary = "; ".join(issues)
-        super().__init__(f"Incremental plan for scope {scope_id!r} is invalid: {issue_summary}")
-        self.scope_id = scope_id
-        self.issues = issues
-
-
 class ScopeContainmentError(RuntimeError):
     """Raised when a child scope owns methods its parent component does not.
 
