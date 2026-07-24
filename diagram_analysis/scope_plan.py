@@ -99,24 +99,22 @@ def plan_scope_update(
     }
 
     prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
-    held_by: dict[str, set[str]] = {
-        component.component_id: set(component.source_cluster_ids)
-        for component in scope.components
-        if component.component_id
-    }
-    edited: set[str] = {
-        component.component_id
-        for component in scope.components
-        if component.component_id
-        and any(
-            method.qualified_name in changed_members for group in component.file_methods for method in group.methods
-        )
-    }
+    held_clusters: dict[str, set[str]] = {}
+    held_methods: dict[str, set[str]] = {}
+    edited: set[str] = set()
+    for component in scope.components:
+        if not component.component_id:
+            continue
+        methods = {method.qualified_name for group in component.file_methods for method in group.methods}
+        held_clusters[component.component_id] = set(component.source_cluster_ids)
+        held_methods[component.component_id] = methods
+        if methods & changed_members:
+            edited.add(component.component_id)
 
     operations: list[ScopeOperation] = []
     kept: set[str] = set()
     untouched = 0
-    for group, owner in zip(grouping.groups, grouping.owners):
+    for group, owner in zip(grouping.groups, grouping.owners, strict=True):
         refs = [
             ScopedClusterRef(scope_id=scope_id, language=language_of.get(cluster_id, ""), cluster_id=cluster_id)
             for cluster_id in sorted(group)
@@ -126,7 +124,17 @@ def plan_scope_update(
             qualified = set(
                 CodeBoardingClusterIds.qualify_local_ids(CodeBoardingClusterIds.from_graph_ids(group), prefix)
             )
-            if qualified == held_by.get(owner) and owner not in edited:
+            # Both the cluster ids and the methods behind them must be unchanged. Cluster
+            # ids alone are not enough: a newly added method is absorbed into an existing
+            # cluster, leaving the id set identical, and it is absent from the component's
+            # pre-update file_methods so ``edited`` cannot see it either. Skipping then
+            # would drop the addition from the analysis entirely.
+            group_methods = {qname for cluster_id in group for qname in combined.clusters.get(cluster_id, ())}
+            if (
+                qualified == held_clusters.get(owner)
+                and group_methods == held_methods.get(owner)
+                and owner not in edited
+            ):
                 untouched += 1
                 continue
             operations.append(
@@ -143,7 +151,7 @@ def plan_scope_update(
                     action=ScopeOperationAction.CREATE_COMPONENT,
                     cluster_refs=refs,
                     name=_provisional_name(group, combined),
-                    description="",
+                    description=_provisional_description(group, combined),
                     rationale="clusters with no predecessor in this scope",
                 )
             )
@@ -170,3 +178,20 @@ def _provisional_name(group: set[int], combined: ClusterResult) -> str:
     """A stable placeholder for a component the LLM has not named yet."""
     symbols = group_symbols(sorted(group), combined.clusters)
     return symbols[0].split(".")[-1] if symbols else "New Component"
+
+
+def _provisional_description(group: set[int], combined: ClusterResult) -> str:
+    """Say what the component holds, so a created component never ships blank.
+
+    Only the create path sets a new component's metadata — the re-detail pass that follows
+    analyses its children, not its own wording — so an empty string here reaches the saved
+    diagram. Naming it properly is the LLM's job and still to come; until then this states
+    the code it owns rather than nothing.
+    """
+    files = sorted({path for cluster_id in group for path in combined.cluster_to_files.get(cluster_id, set())})
+    symbols = group_symbols(sorted(group), combined.clusters)
+    if not files and not symbols:
+        return "New component with no resolved source files."
+    named = ", ".join(symbols[:3])
+    shown = ", ".join(files[:3]) + (f" (+{len(files) - 3} more)" if len(files) > 3 else "")
+    return f"New component covering {len(symbols)} symbol(s) in {shown}. Entry points include {named}."

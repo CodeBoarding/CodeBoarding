@@ -268,19 +268,28 @@ def compute_cluster_delta(
     """
     delta = ClusterDelta()
     diff_files = _changeset_to_path_set(changes) if changes is not None else None
+    # One ID namespace across languages, as the full run produces: a fresh cluster must not
+    # reuse an ID another language already owns, or combining the per-language results would
+    # silently overwrite one of them. Allocation continues above every ID seen so far.
+    next_new_id = (
+        max((cluster_id for clusters in old_snapshot.by_language.values() for cluster_id in clusters), default=0) + 1
+    )
     for language in new_static.get_languages():
         cfg = new_static.get_cfg(language)
         # Cluster the same reference-augmented graph the full run uses; a call-only graph would
         # re-cluster type-coupled methods differently and drift from what a full analysis produces.
         nx_graph = cfg.clustering_networkx()
         old_clusters = old_snapshot.get_language(language)
-        delta.by_language[language] = _delta_for_language(
+        language_delta = _delta_for_language(
             language,
             nx_graph,
             old_clusters,
             diff_files,
             repo_dir,
+            next_new_id,
         )
+        delta.by_language[language] = language_delta
+        next_new_id = max(next_new_id, max(language_delta.cluster_results.clusters, default=0) + 1)
     return delta
 
 
@@ -572,6 +581,7 @@ def _delta_for_language(
     old_clusters: dict[int, ClusterSnapshotEntry],
     diff_files: set[str] | None = None,
     repo_dir: Path | None = None,
+    next_new_id: int = 0,
 ) -> LanguageDelta:
     # Why raw nodes (not a fresh clustering): seeded Leiden runs on the live
     # graph directly. Singletons in the live graph become added qnames; diff
@@ -649,7 +659,7 @@ def _delta_for_language(
             len(inconsistent_removed),
             sorted(inconsistent_removed)[:10],
         )
-    return _flavor_b_seeded(language, nx_graph, old_clusters, added_nodes, removed_nodes)
+    return _flavor_b_seeded(language, nx_graph, old_clusters, added_nodes, removed_nodes, next_new_id)
 
 
 # ---------------------------------------------------------------------------
@@ -661,6 +671,7 @@ def _flavor_b_seeded(
     old_clusters: dict[int, ClusterSnapshotEntry],
     added_nodes: set[str],
     removed_nodes: set[str],
+    next_new_id: int = 0,
 ) -> LanguageDelta:
     """Seeded Leiden with the prior partition as initial state and the non-frontier vertices locked.
 
@@ -744,6 +755,7 @@ def _flavor_b_seeded(
     new_cluster_ids, changed_cluster_ids, dropped_cluster_ids, final_clusters = _reconcile_seeded_partition(
         leiden_clusters,
         old_clusters,
+        next_new_id,
     )
     _absorb_new_file_overlap_clusters(
         final_clusters,
@@ -808,6 +820,7 @@ def _affected_frontier(
 def _reconcile_seeded_partition(
     leiden_clusters: dict[int, set[str]],
     old_clusters: dict[int, ClusterSnapshotEntry],
+    next_new_id: int = 0,
 ) -> tuple[set[int], set[int], set[int], dict[int, set[str]]]:
     """Map leiden's renumbered output IDs back onto prior IDs by greedy max-overlap.
 
@@ -830,7 +843,7 @@ def _reconcile_seeded_partition(
         leiden_to_prior[lcid] = prior_cid
         used_prior.add(prior_cid)
 
-    next_new_id = max(old_clusters.keys(), default=0) + 1
+    next_new_id = max(next_new_id, max(old_clusters.keys(), default=0) + 1)
     final_clusters: dict[int, set[str]] = {}
     new_cluster_ids: set[int] = set()
     changed_cluster_ids: set[int] = set()
