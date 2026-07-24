@@ -39,7 +39,9 @@ from static_analyzer.graph import ClusterResult
 logger = logging.getLogger(__name__)
 
 
-def previous_ownership(scope: AnalysisInsights, cluster_result: ClusterResult, scope_id: str) -> dict[int, str]:
+def previous_ownership(
+    scope: AnalysisInsights, cluster_results: dict[str, ClusterResult], scope_id: str
+) -> dict[int, str]:
     """Leaf cluster id -> the component that previously owned most of its methods.
 
     Anchoring on methods rather than on the stored ``source_cluster_ids``: a scope's
@@ -47,19 +49,19 @@ def previous_ownership(scope: AnalysisInsights, cluster_result: ClusterResult, s
     renumber whenever the code inside the scope changes — exactly when anchoring
     matters. Qualified names survive that; they only disappear when the method does.
 
+    Attributed one language at a time. A qualified name drops its file suffix
+    (``src/index.py`` and ``src/index.ts`` both yield ``src.index.run``), so a single
+    map keyed by bare qname would let one language's component claim the other's cluster.
+    A file belongs to exactly one language's clusters, so restricting each language's
+    owner map to its own files keeps the two apart. Cluster ids are already disjoint
+    across languages, so the per-language results merge without collision.
+
     A component can be cluster-backed yet hold no methods — a data-only cluster, which
     ``_cluster_backed_empty_component_ids`` deliberately protects from pruning. Methods
     cannot speak for it, so any cluster left unclaimed falls back to whoever lists it in
     ``source_cluster_ids``; without that the planner would delete a stable leaf and
     create a replacement holding the same code.
     """
-    owner_of_method: dict[str, str] = {
-        method.qualified_name: component.component_id
-        for component in scope.components
-        if component.component_id
-        for group in component.file_methods
-        for method in group.methods
-    }
     prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
     claimed_ids: dict[str, str] = {
         cluster_id: component.component_id
@@ -68,15 +70,30 @@ def previous_ownership(scope: AnalysisInsights, cluster_result: ClusterResult, s
         for cluster_id in component.source_cluster_ids
     }
     owner: dict[int, str] = {}
-    for cluster_id, members in cluster_result.clusters.items():
-        tally = Counter(owner_of_method[member] for member in members if member in owner_of_method)
-        if tally:
-            # Ties go to the lowest component id, so the mapping is run-independent.
-            owner[cluster_id] = min(tally.items(), key=lambda claim: (-claim[1], claim[0]))[0]
-            continue
-        qualified = CodeBoardingClusterIds.qualify_local_id(CodeBoardingClusterIds.from_graph_id(cluster_id), prefix)
-        if qualified in claimed_ids:
-            owner[cluster_id] = claimed_ids[qualified]
+    for cluster_result in cluster_results.values():
+        language_files = {path for files in cluster_result.cluster_to_files.values() for path in files}
+        owner_of_method: dict[str, str] = {
+            method.qualified_name: component.component_id
+            for component in scope.components
+            if component.component_id
+            for group in component.file_methods
+            # A language without a file index (cluster_to_files empty) falls back to every
+            # method, preserving single-language behaviour; the split only matters when two
+            # languages carry colliding qnames, and then both have file indexes.
+            if not language_files or group.file_path in language_files
+            for method in group.methods
+        }
+        for cluster_id, members in cluster_result.clusters.items():
+            tally = Counter(owner_of_method[member] for member in members if member in owner_of_method)
+            if tally:
+                # Ties go to the lowest component id, so the mapping is run-independent.
+                owner[cluster_id] = min(tally.items(), key=lambda claim: (-claim[1], claim[0]))[0]
+                continue
+            qualified = CodeBoardingClusterIds.qualify_local_id(
+                CodeBoardingClusterIds.from_graph_id(cluster_id), prefix
+            )
+            if qualified in claimed_ids:
+                owner[cluster_id] = claimed_ids[qualified]
     return owner
 
 
@@ -133,7 +150,7 @@ def plan_scope_update(
     low = TOP_LEVEL_COMPONENTS_MIN if is_root else SUBCOMPONENTS_MIN
     high = TOP_LEVEL_COMPONENTS_MAX if is_root else SUBCOMPONENTS_MAX
 
-    previous = previous_ownership(scope, combined, scope_id)
+    previous = previous_ownership(scope, cluster_results, scope_id)
     grouping = anchored_grouping(combined, combined_cfg, previous, low, high)
 
     language_of: dict[int, str] = {

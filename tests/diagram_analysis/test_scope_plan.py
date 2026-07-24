@@ -72,14 +72,14 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner = previous_ownership(scope, clustering({7: {"a.one", "a.two", "b.one"}}), ROOT_SCOPE_ID)
+        owner = previous_ownership(scope, {"python": clustering({7: {"a.one", "a.two", "b.one"}})}, ROOT_SCOPE_ID)
 
         self.assertEqual(owner, {7: "1"})
 
     def test_a_cluster_of_entirely_new_methods_has_no_owner(self):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
-        owner = previous_ownership(scope, clustering({1: {"a.one"}, 2: {"fresh.thing"}}), ROOT_SCOPE_ID)
+        owner = previous_ownership(scope, {"python": clustering({1: {"a.one"}, 2: {"fresh.thing"}})}, ROOT_SCOPE_ID)
 
         self.assertEqual(owner, {1: "1"})
 
@@ -92,9 +92,51 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner = previous_ownership(scope, clustering({5: {"a.one", "b.one"}}), ROOT_SCOPE_ID)
+        owner = previous_ownership(scope, {"python": clustering({5: {"a.one", "b.one"}})}, ROOT_SCOPE_ID)
 
         self.assertEqual(owner, {5: "1"})
+
+    def test_a_qname_shared_across_languages_stays_with_its_own_language(self):
+        # src/index.py and src/index.ts both yield the qname 'src.index.run'; each language's
+        # cluster must be attributed to that language's component, not to whoever was seen last.
+        def group(file_path: str, qname: str) -> FileMethodGroup:
+            return FileMethodGroup(file_path=file_path, methods=[method(qname)])
+
+        py = Component(
+            name="Py",
+            description="",
+            key_entities=[],
+            component_id="1",
+            source_cluster_ids=["1"],
+            file_methods=[group("src/index.py", "src.index.run")],
+        )
+        ts = Component(
+            name="Ts",
+            description="",
+            key_entities=[],
+            component_id="2",
+            source_cluster_ids=["30"],
+            file_methods=[group("src/index.ts", "src.index.run")],
+        )
+        scope = AnalysisInsights(description="", components=[py, ts], components_relations=[])
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={1: {"src.index.run"}},
+                cluster_to_files={1: {"src/index.py"}},
+                file_to_clusters={"src/index.py": {1}},
+                strategy="t",
+            ),
+            "typescript": ClusterResult(
+                clusters={30: {"src.index.run"}},
+                cluster_to_files={30: {"src/index.ts"}},
+                file_to_clusters={"src/index.ts": {30}},
+                strategy="t",
+            ),
+        }
+
+        owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID)
+
+        self.assertEqual(owner, {1: "1", 30: "2"})
 
 
 class TestPlanScopeUpdate(unittest.TestCase):
