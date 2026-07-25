@@ -664,3 +664,33 @@ def test_clustering_networkx_includes_configured_reference_kinds():
     assert cg.clustering_networkx().has_edge("mod.A", "mod.B")
     # restricting to a kind that isn't present -> edge absent (call graph had no edges)
     assert not cg.clustering_networkx(reference_kinds={"import"}).has_edge("mod.A", "mod.B")
+
+
+class TestIgnoredFilesExcluded:
+    """The LSP indexes the whole workspace, so ignored files (tests) reach the symbol
+    table; the converter must keep them out of the call graph."""
+
+    def test_symbols_in_ignored_files_are_dropped(self):
+        from repo_utils.ignore import RepoIgnoreManager
+
+        adapter = _make_adapter()
+        st = SymbolTable(adapter)
+        _register(st, [_lsp_sym("run", NodeType.FUNCTION, 0, 1)], file="app.py", root="/root")
+        _register(st, [_lsp_sym("test_run", NodeType.FUNCTION, 0, 1)], file="tests/test_app.py", root="/root")
+
+        result = convert_to_codeboarding_format(st, _empty_result(), adapter, RepoIgnoreManager(Path("/root")))
+
+        node_files = {node.file_path for node in result["call_graph"].nodes.values()}
+        assert not any("tests/" in f for f in node_files), node_files
+        assert any("app.py" in f for f in node_files)
+        ref_files = {ref.file_path for ref in result["references"]}
+        assert not any("tests/" in f for f in ref_files), ref_files
+
+    def test_without_ignore_manager_nothing_is_dropped(self):
+        adapter = _make_adapter()
+        st = SymbolTable(adapter)
+        _register(st, [_lsp_sym("test_run", NodeType.FUNCTION, 0, 1)], file="tests/test_app.py", root="/root")
+
+        result = convert_to_codeboarding_format(st, _empty_result(), adapter)
+
+        assert any("tests/" in node.file_path for node in result["call_graph"].nodes.values())
