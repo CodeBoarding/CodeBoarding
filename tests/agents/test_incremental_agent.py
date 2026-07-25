@@ -543,8 +543,15 @@ class TestIncrementalRelations(unittest.TestCase):
         self.assertEqual(len(scope.components_relations), 1)
         relation = scope.components_relations[0]
         self.assertEqual(relation.evidence, "Queue-backed job dispatch.")
-        self.assertEqual(relation.key_edges, [key_edge])
+        # The LLM highlighted this pair, so it survives as a key edge — but grounded to the
+        # real CFG edge (carrying its call sites and the LLM's description), not kept as the
+        # LLM's under-specified duplicate. all_edges is exactly the deterministic CFG edge.
         self.assertTrue(relation.is_static)
+        self.assertEqual(len(relation.all_edges), 1)
+        self.assertEqual(len(relation.key_edges), 1)
+        self.assertEqual(relation.key_edges[0].identity(), relation.all_edges[0].identity())
+        self.assertEqual(relation.key_edges[0].description, "API dispatches work.")
+        self.assertEqual(relation.all_edges[0].source.qualified_name, source.fully_qualified_name)
         self.assertTrue(any(edge.call_sites[0].line == 3 for edge in relation.all_edges if edge.call_sites))
         self.assertEqual(scope.files["api.py"].methods[0].qualified_name, source.fully_qualified_name)
         self.assertEqual(scope.files["api.py"].methods[0].node_type, NodeType.FUNCTION.name)
@@ -555,9 +562,9 @@ class TestIncrementalRelations(unittest.TestCase):
         root = AnalysisInsights(description="root", components=[], components_relations=[])
         context = ScopeRelationContext(cluster_results={}, cfg_graphs={})
 
-        agent.generate_all_scope_relations(root, {}, {"root": context})
+        agent.generate_all_scope_relations(root, {}, {"root": context}, {"pkg.changed"})
 
-        agent.generate_scope_relations.assert_called_once_with(root, "root", context)
+        agent.generate_scope_relations.assert_called_once_with(root, "root", context, {"pkg.changed"})
 
     def test_single_component_scope_clears_stale_relations_and_resolves_references(self) -> None:
         agent = object.__new__(IncrementalAgent)

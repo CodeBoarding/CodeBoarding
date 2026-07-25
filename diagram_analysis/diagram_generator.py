@@ -1111,7 +1111,12 @@ class DiagramGenerator:
                 for qualified_name in self.static_analysis.get_cfg(lang).nodes
             }
             global_relations = preserve_unchanged_relations(
-                global_relations, self._baseline_global_relations, changed_ids, live_ids, live_qnames
+                global_relations,
+                self._baseline_global_relations,
+                changed_ids,
+                live_ids,
+                live_qnames,
+                self._changed_members,
             )
         root_analysis.components_relations = global_relations
         return global_relations
@@ -1475,6 +1480,7 @@ class DiagramGenerator:
                         scope_id: replace(context, changed_ids=context.changed_ids & settled)
                         for scope_id, context in apply_result.relation_contexts.items()
                     },
+                    self._changed_members,
                 )
 
             self._refresh_files_index(root_analysis, sub_analyses)

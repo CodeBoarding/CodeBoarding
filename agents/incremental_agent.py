@@ -314,6 +314,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope: AnalysisInsights,
         scope_name: str,
         context: ScopeRelationContext,
+        changed_members: set[str] | None = None,
     ) -> list[Relation]:
         """Run the API-surface and relation stages for one updated scope."""
         if len(scope.components) < 2:
@@ -347,7 +348,12 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 for qualified_name in members
             }
             scope.components_relations = preserve_unchanged_relations(
-                scope.components_relations, baseline_by_pair, set(context.changed_ids), live_ids, live_qnames
+                scope.components_relations,
+                baseline_by_pair,
+                set(context.changed_ids),
+                live_ids,
+                live_qnames,
+                changed_members,
             )
             rels = scope.components_relations
         return rels
@@ -358,18 +364,19 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
         relation_contexts: dict[str, ScopeRelationContext],
+        changed_members: set[str] | None = None,
     ) -> None:
         """Generate LLM relations for every touched scope with at least two components."""
         all_llm_rels: list[tuple[str, list[Relation]]] = []
         root_context = relation_contexts.get(ROOT_SCOPE_ID)
         if root_context is not None:
-            rels = self.generate_scope_relations(root_analysis, ROOT_SCOPE_ID, root_context)
+            rels = self.generate_scope_relations(root_analysis, ROOT_SCOPE_ID, root_context, changed_members)
             if rels:
                 all_llm_rels.append((ROOT_SCOPE_ID, rels))
         for scope_id in sorted(relation_contexts.keys() - {ROOT_SCOPE_ID}):
             sub = sub_analyses.get(scope_id)
             if sub is not None:
-                rels = self.generate_scope_relations(sub, scope_id, relation_contexts[scope_id])
+                rels = self.generate_scope_relations(sub, scope_id, relation_contexts[scope_id], changed_members)
                 if rels:
                     all_llm_rels.append((scope_id, rels))
 

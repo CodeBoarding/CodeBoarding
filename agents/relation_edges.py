@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Relation
+from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
 from repo_utils.path_utils import normalize_repo_path
 
 
@@ -85,12 +85,44 @@ def _relation_edges_unmoved(rebuilt: Relation, previous: Relation) -> bool:
     return bool(rebuilt_edges) and rebuilt_edges == _backing_edge_pairs(previous)
 
 
+def _edge_touches_changed_method(edge: RelationEdge, changed_members: set[str]) -> bool:
+    return edge.source.qualified_name in changed_members or edge.target.qualified_name in changed_members
+
+
+def _reconcile_unchanged_edges(fresh: Relation, previous: Relation, changed_members: set[str]) -> Relation:
+    """Carry the baseline's edges forward for calls between two byte-identical methods.
+
+    A call is written inside its source method's body, so an unchanged source cannot have
+    changed which methods it calls; a rebuild that adds or drops an edge between two unchanged
+    methods did so by re-attributing the graph, not because the code moved. Within a pair the
+    fresh rebuild is trusted only for edges that touch a changed/added/deleted method (the
+    structural truth); every edge between two unchanged methods is taken from the baseline.
+
+    ``changed_members`` includes added and deleted qnames (present on exactly one side), so a
+    baseline edge kept here can never cite a symbol that no longer exists — the deleted-symbol
+    phantom is excluded at the source.
+    """
+
+    def split(fresh_edges: list[RelationEdge], baseline_edges: list[RelationEdge]) -> list[RelationEdge]:
+        fresh_grounded = [e for e in fresh_edges if _edge_touches_changed_method(e, changed_members)]
+        baseline_stable = [e for e in baseline_edges if not _edge_touches_changed_method(e, changed_members)]
+        return Relation._unique_edges([*fresh_grounded, *baseline_stable])
+
+    return fresh.model_copy(
+        update={
+            "all_edges": split(fresh.all_edges, previous.all_edges),
+            "key_edges": split(fresh.key_edges, previous.key_edges),
+        }
+    )
+
+
 def preserve_unchanged_relations(
     rebuilt_relations: list[Relation],
     baseline_by_pair: dict[tuple[str, str], Relation],
     changed_component_ids: set[str],
     live_ids: set[str],
     live_qnames: set[str],
+    changed_members: set[str] | None = None,
 ) -> list[Relation]:
     """Keep the wording a reader already read for any relation whose call edges did not move.
 
@@ -126,17 +158,24 @@ def preserve_unchanged_relations(
         pair = (relation.src_id, relation.dst_id)
         rebuilt_pairs.add(pair)
         previous = baseline_by_pair.get(pair)
-        if touches_change(*pair):
-            # An endpoint is flagged changed, but keep the reader's wording when this pair's
-            # own call edges are identical to the baseline — the connection did not move, so
-            # a re-paraphrase is churn, not a real change. Re-word only a moved connection.
-            if previous is not None and _relation_edges_unmoved(relation, previous):
-                kept.append(relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence}))
-            else:
+        if previous is None:
+            # No baseline for this pair. A genuinely new connection into a changed area is
+            # kept; a fresh edge invented between two untouched components is a re-attribution
+            # artifact and is dropped.
+            if touches_change(*pair):
                 kept.append(relation)
             continue
-        if previous is not None:
-            kept.append(relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence}))
+        # Every edge between two byte-identical methods is taken from the baseline; only edges
+        # that touch a changed/added/deleted method come from the fresh rebuild. This stops
+        # re-attribution over untouched code from flipping edges, in touched and untouched
+        # pairs alike.
+        if changed_members is not None:
+            relation = _reconcile_unchanged_edges(relation, previous, changed_members)
+        # Keep the reader's wording unless a real, code-backed edge change re-worded it: an
+        # untouched pair, or one whose edges came through unmoved, carries its label over.
+        if not touches_change(*pair) or _relation_edges_unmoved(relation, previous):
+            relation = relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence})
+        kept.append(relation)
     for pair, relation in baseline_by_pair.items():
         if pair in rebuilt_pairs or touches_change(*pair) or pair[0] not in live_ids or pair[1] not in live_ids:
             continue

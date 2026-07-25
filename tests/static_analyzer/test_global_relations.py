@@ -421,7 +421,16 @@ class TestLabelInheritance(unittest.TestCase):
         relation = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.2"))
 
         self.assertEqual(relation.evidence, root_relation.evidence)
-        self.assertEqual(relation.key_edges, root_relation.key_edges)
+        # The ancestor's highlight is inherited, grounded to the real CFG edge: same symbols
+        # and the LLM's description, now carrying the CFG's line spans, and present in all_edges.
+        self.assertEqual([e.description for e in relation.key_edges], ["List requests load profiles."])
+        self.assertEqual(
+            [(e.source.qualified_name, e.target.qualified_name) for e in relation.key_edges],
+            [("api.rest.list", "core.profiles.get")],
+        )
+        self.assertTrue(
+            all(edge.identity() in {e.identity() for e in relation.all_edges} for edge in relation.key_edges)
+        )
         self.assertGreaterEqual(len(relation.all_edges), 1)
         unrelated = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.1"))
         self.assertEqual(unrelated.key_edges, [])

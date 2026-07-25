@@ -309,6 +309,26 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual([rel.relation for rel in kept], ["rebuilt wording"])
 
+    def test_touched_pair_carries_baseline_edges_between_unchanged_methods(self):
+        # Pair (1, 2) is flagged changed. The rebuild's edge between two unchanged methods
+        # (pkg.a -> pkg.stable) that the baseline did not have is dropped; the baseline's edge
+        # between two unchanged methods (pkg.old -> pkg.stable) is carried forward; and the
+        # edge that touches a changed method (pkg.changed -> pkg.stable) is taken from the rebuild.
+        baseline = self._relation("1", "2", "baseline")
+        baseline.all_edges = [RelationEdge(source=_ref("pkg.old"), target=_ref("pkg.stable"))]
+        fresh = self._relation("1", "2", "rebuilt")
+        fresh.all_edges = [
+            RelationEdge(source=_ref("pkg.a"), target=_ref("pkg.stable")),
+            RelationEdge(source=_ref("pkg.changed"), target=_ref("pkg.stable")),
+        ]
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): baseline}, {"2"}, {"1", "2"}, set(), changed_members={"pkg.changed"}
+        )
+
+        edge_pairs = {(e.source.qualified_name, e.target.qualified_name) for e in kept[0].all_edges}
+        self.assertEqual(edge_pairs, {("pkg.old", "pkg.stable"), ("pkg.changed", "pkg.stable")})
+
     def test_baseline_edge_the_rebuild_dropped_is_restored(self):
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 

@@ -15,6 +15,7 @@ from static_analyzer.cluster_relations import (
     ClusterRelation,
     build_node_to_component_map,
     build_component_relations,
+    ground_relation_edges,
     is_self_or_descendant,
     merge_relations,
 )
@@ -364,3 +365,57 @@ class TestIsSelfOrDescendant(unittest.TestCase):
         self.assertFalse(is_self_or_descendant("10", "1"))
         self.assertFalse(is_self_or_descendant("1", "1.2"))
         self.assertFalse(is_self_or_descendant("2.1", "1"))
+
+
+def _edge(source: str, target: str, description: str = "", file: str = "src/pkg/mod.py", lines=(1, 5)) -> RelationEdge:
+    return RelationEdge(
+        source=SourceCodeReference(
+            qualified_name=source, reference_file=file, reference_start_line=lines[0], reference_end_line=lines[1]
+        ),
+        target=SourceCodeReference(
+            qualified_name=target, reference_file=file, reference_start_line=lines[0], reference_end_line=lines[1]
+        ),
+        description=description,
+    )
+
+
+class TestGroundRelationEdges(unittest.TestCase):
+    def test_all_edges_is_the_static_set_and_llm_only_edges_are_dropped(self):
+        static = [_edge("src.pkg.a.run", "src.pkg.b.load")]
+        llm = [
+            _edge("src.pkg.a.run", "src.pkg.b.load", description="real"),
+            _edge("src.pkg.a.run", "src.pkg.c.invented", description="hallucinated"),
+        ]
+        key_edges, all_edges = ground_relation_edges(llm, static)
+        # all_edges is exactly the deterministic CFG set; the invented edge never enters it.
+        self.assertEqual(
+            [(e.source.qualified_name, e.target.qualified_name) for e in all_edges],
+            [("src.pkg.a.run", "src.pkg.b.load")],
+        )
+        self.assertEqual(
+            [(e.source.qualified_name, e.target.qualified_name) for e in key_edges],
+            [("src.pkg.a.run", "src.pkg.b.load")],
+        )
+        self.assertEqual(key_edges[0].description, "real")
+        self.assertTrue(all(e.identity() in {s.identity() for s in all_edges} for e in key_edges))
+
+    def test_non_canonical_llm_spelling_still_grounds(self):
+        # A ':' class separator and a missing 'src.' prefix both denote the same symbol.
+        static = [_edge("src.pkg.types.File.convert", "src.pkg.utils.open_file")]
+        llm = [_edge("pkg.types.File:convert", "utils.open_file", description="opens")]
+        key_edges, all_edges = ground_relation_edges(llm, static)
+        self.assertEqual(len(all_edges), 1)
+        self.assertEqual([e.description for e in key_edges], ["opens"])
+        self.assertEqual(key_edges[0].source.qualified_name, "src.pkg.types.File.convert")
+
+    def test_runtime_relation_without_static_keeps_llm_edges(self):
+        llm = [_edge("svc.queue.publish", "worker.consume", description="via queue")]
+        key_edges, all_edges = ground_relation_edges(llm, [])
+        self.assertEqual(key_edges, all_edges)
+        self.assertEqual([e.description for e in all_edges], ["via queue"])
+
+    def test_static_set_is_deduplicated(self):
+        dup = _edge("src.a.f", "src.b.g")
+        key_edges, all_edges = ground_relation_edges([], [dup, dup])
+        self.assertEqual(len(all_edges), 1)
+        self.assertEqual(key_edges, [])
