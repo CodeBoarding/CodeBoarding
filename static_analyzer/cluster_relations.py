@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 from constants import DEFAULT_STATIC_RELATION_LABEL
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
-from agents.relation_edges import append_or_merge_relation
+from agents.relation_edges import append_or_merge_relation, drop_internal_self_relations
 from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
@@ -278,7 +278,7 @@ def build_global_relations(
             continue
         global_relations[pair] = llm_rel.with_merged_edges()
 
-    return sorted(global_relations.values(), key=lambda rel: (rel.src_id, rel.dst_id))
+    return drop_internal_self_relations(sorted(global_relations.values(), key=lambda rel: (rel.src_id, rel.dst_id)))
 
 
 def merge_relations(
@@ -369,6 +369,7 @@ def merge_relations(
                 ),
             )
 
+    merged = drop_internal_self_relations(merged)
     logger.info(
         f"Merged relations: {len(merged)} total "
         f"({sum(1 for relation in merged if relation.is_static)} static-backed, "

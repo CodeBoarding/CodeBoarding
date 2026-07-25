@@ -733,5 +733,86 @@ class TestLlmOnlyRelations(unittest.TestCase):
         self.assertNotIn(("1", "9"), {(r.src_id, r.dst_id) for r in rels})
 
 
+class TestSelfLoopSuppression(unittest.TestCase):
+    """A component self-loop is a real intra-component call that has no cross-component
+    connection to draw at the current granularity. It is dropped from the assembled
+    relations, but the backing CFG edge is untouched and re-surfaces as a cross-component
+    relation the moment the component splits into children that separate its endpoints.
+    """
+
+    @staticmethod
+    def _cfg() -> CallGraph:
+        nodes = {
+            "a.foo": _node("a.foo", "pkg/a.py"),
+            "a.bar": _node("a.bar", "pkg/a.py"),
+        }
+        return CallGraph(nodes=nodes, edges=[Edge(nodes["a.foo"], nodes["a.bar"])])
+
+    @staticmethod
+    def _self_relation() -> Relation:
+        # The LLM emitted an A -> A self-relation carrying the intra-component call.
+        return Relation(
+            relation="uses",
+            src_name="A",
+            dst_name="A",
+            src_id="1",
+            dst_id="1",
+            key_edges=[
+                RelationEdge(
+                    source=SourceCodeReference(qualified_name="a.foo", reference_file="pkg/a.py"),
+                    target=SourceCodeReference(qualified_name="a.bar", reference_file="pkg/a.py"),
+                )
+            ],
+        )
+
+    def _root(self) -> AnalysisInsights:
+        analysis = AnalysisInsights(
+            description="app",
+            components=[_comp("A", [("a.foo", "pkg/a.py"), ("a.bar", "pkg/a.py")])],
+            components_relations=[self._self_relation()],
+        )
+        assign_component_ids(analysis)
+        return analysis
+
+    def test_self_loop_dropped_but_cfg_edge_untouched(self):
+        cfg = {"python": self._cfg()}
+        relations = build_global_relations(self._root(), {}, cfg)
+        self.assertEqual([], [(r.src_id, r.dst_id) for r in relations if r.src_id == r.dst_id])
+        # The filter operates on the relation list only; the backing CFG edge still exists.
+        cfg_pairs = {(e.get_source(), e.get_destination()) for e in cfg["python"].edges}
+        self.assertIn(("a.foo", "a.bar"), cfg_pairs)
+
+    def test_edge_resurfaces_cross_component_on_expansion(self):
+        cfg = {"python": self._cfg()}
+        root = self._root()
+        child = AnalysisInsights(
+            description="A",
+            components=[
+                _comp("Foo", [("a.foo", "pkg/a.py")]),
+                _comp("Bar", [("a.bar", "pkg/a.py")]),
+            ],
+            components_relations=[],
+        )
+        assign_component_ids(child, parent_id="1")
+        relations = build_global_relations(root, {"1": child}, cfg)
+        pairs = {(r.src_id, r.dst_id) for r in relations}
+        # foo and bar now live in different children, so the same CFG edge is a real relation.
+        self.assertIn(("1.1", "1.2"), pairs)
+        self.assertNotIn(("1.1", "1.1"), pairs)
+
+    def test_edgeless_self_relation_is_preserved(self):
+        # A runtime/config self-relation with no backing call has nothing in the CFG to
+        # re-materialise it, so it must not be silently discarded.
+        edgeless = Relation(relation="reentrant via config", src_name="A", dst_name="A", src_id="1", dst_id="1")
+        root = AnalysisInsights(
+            description="app",
+            components=[_comp("A", [("a.foo", "pkg/a.py")])],
+            components_relations=[edgeless],
+        )
+        assign_component_ids(root)
+        relations = build_global_relations(root, {}, {"python": CallGraph()})
+        self.assertIn(("1", "1"), {(r.src_id, r.dst_id) for r in relations})
+
+
 if __name__ == "__main__":
     unittest.main()

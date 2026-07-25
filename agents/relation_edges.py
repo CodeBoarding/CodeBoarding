@@ -52,6 +52,27 @@ def index_relation_endpoints(analysis: AnalysisInsights, repo_dir: Path) -> None
             entry.merge_method_spans(spans)
 
 
+def _is_internal_self_relation(relation: Relation) -> bool:
+    """A component related to itself by concrete intra-component calls.
+
+    The backing edges are real CFG calls whose endpoints currently fall in the same
+    component, so at this granularity there is no cross-component connection to draw — the
+    loop is the residue of a rollup that collapsed a cross-child edge onto its shared parent.
+    The CFG still holds every such edge, so expanding the component re-materialises it across
+    the split children as a real cross-component relation. An edgeless self-relation (a
+    runtime/config label with no backing call) is kept: nothing in the CFG would bring it
+    back, so dropping it would lose evidence that lives nowhere else.
+    """
+    return (
+        bool(relation.src_id) and relation.src_id == relation.dst_id and bool(relation.all_edges or relation.key_edges)
+    )
+
+
+def drop_internal_self_relations(relations: list[Relation]) -> list[Relation]:
+    """Remove statically-backed self-loops from an assembled relation list (CFG untouched)."""
+    return [relation for relation in relations if not _is_internal_self_relation(relation)]
+
+
 def _relation_backing_survives(relation: Relation, live_qnames: set[str]) -> bool:
     """Whether a baseline relation's static backing still exists in live code.
 
@@ -182,4 +203,4 @@ def preserve_unchanged_relations(
         if not _relation_backing_survives(relation, live_qnames):
             continue
         kept.append(relation)
-    return sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id))
+    return drop_internal_self_relations(sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id)))
