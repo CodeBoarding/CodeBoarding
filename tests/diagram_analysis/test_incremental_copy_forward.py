@@ -285,6 +285,30 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual([rel.relation for rel in kept], ["rebuilt wording"])
 
+    def test_touched_pair_with_identical_backing_edges_keeps_the_baseline_wording(self):
+        # An endpoint is flagged changed (a file it co-owns had a module-level edit), but the
+        # call edges between the two components are byte-identical, so the connection did not
+        # move: the reader's wording carries over even though the endpoint is "changed".
+        fresh = self._relation("1", "2", "rebuilt wording")
+        fresh.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
+
+        kept = preserve_unchanged_relations([fresh], {("1", "2"): stale}, {"2"}, {"1", "2"}, set())
+
+        self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
+        self.assertEqual([edge.source.qualified_name for edge in kept[0].all_edges], ["pkg.caller"])
+
+    def test_touched_pair_whose_edges_moved_is_re_worded(self):
+        fresh = self._relation("1", "2", "rebuilt wording")
+        fresh.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.new_callee"))]
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.old_callee"))]
+
+        kept = preserve_unchanged_relations([fresh], {("1", "2"): stale}, {"2"}, {"1", "2"}, set())
+
+        self.assertEqual([rel.relation for rel in kept], ["rebuilt wording"])
+
     def test_baseline_edge_the_rebuild_dropped_is_restored(self):
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 

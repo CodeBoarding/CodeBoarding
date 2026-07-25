@@ -68,6 +68,23 @@ def _relation_backing_survives(relation: Relation, live_qnames: set[str]) -> boo
     )
 
 
+def _backing_edge_pairs(relation: Relation) -> set[tuple[str, str]]:
+    edges = relation.all_edges or relation.key_edges
+    return {(edge.source.qualified_name, edge.target.qualified_name) for edge in edges}
+
+
+def _relation_edges_unmoved(rebuilt: Relation, previous: Relation) -> bool:
+    """True when a rebuilt pair carries the same call edges the baseline did.
+
+    Compares the set of (source, target) qualified-name pairs, not call-site lines: a call
+    that merely shifted rows still connects the same two symbols, so the architectural label
+    the reader already saw is still accurate. An edgeless (runtime/config) pair returns False
+    so it falls through to the endpoint-change gate rather than matching on an empty set.
+    """
+    rebuilt_edges = _backing_edge_pairs(rebuilt)
+    return bool(rebuilt_edges) and rebuilt_edges == _backing_edge_pairs(previous)
+
+
 def preserve_unchanged_relations(
     rebuilt_relations: list[Relation],
     baseline_by_pair: dict[tuple[str, str], Relation],
@@ -75,13 +92,20 @@ def preserve_unchanged_relations(
     live_ids: set[str],
     live_qnames: set[str],
 ) -> list[Relation]:
-    """Keep the wording a reader already read for any relation whose endpoints did not move.
+    """Keep the wording a reader already read for any relation whose call edges did not move.
 
     Regeneration re-derives every relation in its scope and re-words even the edges between
-    two untouched components, so a one-line diff relabels the whole diagram. For a pair
-    neither of whose endpoints changed, the call edges come from the fresh rebuild — they
-    are the structural truth and must never go stale — while the label and evidence come
-    from the baseline. Pairs touching a changed component keep the fresh version outright.
+    components whose connection is unchanged, so a one-line diff relabels the whole diagram.
+    The label carries forward whenever the pair's backing call edges are identical to the
+    baseline; the call edges themselves always come from the fresh rebuild — they are the
+    structural truth and must never go stale. A pair is re-worded only when its connection
+    genuinely moved (an edge appeared, vanished, or repointed).
+
+    The endpoint-change set alone is too coarse to gate wording: a component is flagged
+    changed for any module-level edit to a file it merely co-owns, and clustering disperses
+    a file's methods across the graph, so a two-method commit can flag most components while
+    their inter-component edges are byte-identical. Gating on the pair's own edges instead of
+    on its endpoints' change flags is what keeps those untouched connections stable.
 
     A baseline relation between two unchanged, still-live components that regeneration
     dropped is restored — but only when its backing edges still exist in live code. The
@@ -101,10 +125,16 @@ def preserve_unchanged_relations(
     for relation in rebuilt_relations:
         pair = (relation.src_id, relation.dst_id)
         rebuilt_pairs.add(pair)
-        if touches_change(*pair):
-            kept.append(relation)
-            continue
         previous = baseline_by_pair.get(pair)
+        if touches_change(*pair):
+            # An endpoint is flagged changed, but keep the reader's wording when this pair's
+            # own call edges are identical to the baseline — the connection did not move, so
+            # a re-paraphrase is churn, not a real change. Re-word only a moved connection.
+            if previous is not None and _relation_edges_unmoved(relation, previous):
+                kept.append(relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence}))
+            else:
+                kept.append(relation)
+            continue
         if previous is not None:
             kept.append(relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence}))
     for pair, relation in baseline_by_pair.items():
