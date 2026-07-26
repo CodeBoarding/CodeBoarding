@@ -36,3 +36,7 @@ class ModelCapabilities:
         "kimi": "moonshotai",
         "glm": "z-ai",
     }
+
+    PROVIDER_CONTEXT_WINDOWS = {
+        ("atlascloud", "deepseek-ai/deepseek-v4-pro"): (1_000_000, FALLBACK_OUTPUT),
+    }

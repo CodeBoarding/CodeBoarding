@@ -167,6 +167,16 @@ class TestLoadUserConfig:
 
 
 class TestEnsureConfigTemplate:
+    def test_appends_atlascloud_key_under_provider_when_missing(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text('[provider]\n# openai_api_key = "sk-..."\n\n[llm]\n# agent_model = "x"\n')
+
+        ensure_config_template(path)
+
+        text = path.read_text()
+        assert "atlascloud_api_key" in text
+        assert text.index("[provider]") < text.index("atlascloud_api_key") < text.index("[llm]")
+
     def test_appends_context_window_under_llm_when_missing(self, tmp_path):
         path = tmp_path / "config.toml"
         path.write_text('[provider]\n# openai_api_key = "sk-..."\n\n[llm]\n# agent_model = "x"\n')
@@ -179,14 +189,24 @@ class TestEnsureConfigTemplate:
         llm_idx = text.index("[llm]")
         assert text.index("context_window") > llm_idx
 
-    def test_noop_when_key_already_present(self, tmp_path):
+    def test_noop_when_keys_already_present(self, tmp_path):
         path = tmp_path / "config.toml"
-        original = "[llm]\n# context_window = 42  # already here\n"
+        original = '[provider]\n# atlascloud_api_key = "..."\n\n[llm]\n# context_window = 42  # already here\n'
         path.write_text(original)
 
         ensure_config_template(path)
 
         assert path.read_text() == original
+
+    def test_adds_provider_section_if_absent(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text("[llm]\n# context_window = 42\n")
+
+        ensure_config_template(path)
+
+        text = path.read_text()
+        assert "[provider]" in text
+        assert "atlascloud_api_key" in text
 
     def test_adds_llm_section_if_absent(self, tmp_path):
         path = tmp_path / "config.toml"

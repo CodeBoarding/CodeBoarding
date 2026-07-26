@@ -181,16 +181,17 @@ def ensure_config_template(path: Path = CONFIG_PATH) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(CONFIG_TEMPLATE)
         return
-    _append_commented_key(path, "context_window", "# context_window = 272000   # override if needed")
+    _append_commented_key(path, "provider", "atlascloud_api_key", '# atlascloud_api_key        = "..."')
+    _append_commented_key(path, "llm", "context_window", "# context_window = 272000   # override if needed")
 
 
-def _append_commented_key(path: Path, key: str, commented_line: str) -> None:
-    """Insert `commented_line` under [llm] if `key` is missing anywhere in the file."""
+def _append_commented_key(path: Path, section: str, key: str, commented_line: str) -> None:
+    """Insert a missing commented key into its TOML section."""
     text = path.read_text()
-    if key in text:
+    if re.search(rf"^\s*#?\s*{re.escape(key)}\s*=", text, flags=re.MULTILINE):
         return
-    injected, n = re.subn(r"(^\[llm\]\s*\n)", r"\1" + commented_line + "\n", text, count=1, flags=re.MULTILINE)
+    section_pattern = rf"(^\[{re.escape(section)}\]\s*\n)"
+    injected, n = re.subn(section_pattern, r"\1" + commented_line + "\n", text, count=1, flags=re.MULTILINE)
     if n == 0:
-        # Why: no [llm] section yet -- append a fresh one so the key lands in the right table.
-        injected = text.rstrip() + "\n\n[llm]\n" + commented_line + "\n"
+        injected = text.rstrip() + f"\n\n[{section}]\n" + commented_line + "\n"
     path.write_text(injected)

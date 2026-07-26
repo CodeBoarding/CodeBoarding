@@ -31,6 +31,7 @@ def get_context_window(provider: str, model_name: str) -> ContextWindow:
     resolvers = (
         _resolve_env,
         _resolve_user_config,
+        _resolve_provider_default,
         _resolve_ollama,
         _resolve_modelsdev,
         _resolve_litellm,
@@ -68,6 +69,10 @@ def _resolve_user_config(provider: str, model_name: str) -> tuple[int, int] | No
     if cw is None:
         return None
     return cw, ModelCapabilities.FALLBACK_OUTPUT
+
+
+def _resolve_provider_default(provider: str, model_name: str) -> tuple[int, int] | None:
+    return ModelCapabilities.PROVIDER_CONTEXT_WINDOWS.get((provider, model_name))
 
 
 @lru_cache(maxsize=1)
