@@ -530,7 +530,9 @@ class TestIncrementalRelations(unittest.TestCase):
         generated = agent.generate_scope_relations(
             scope,
             "root",
-            ScopeRelationContext(cluster_results=cluster_results, cfg_graphs={"python": cfg}),
+            ScopeRelationContext(
+                cluster_results=cluster_results, cfg_graphs={"python": cfg}, changed_ids=frozenset({"1", "2"})
+            ),
         )
 
         self.assertEqual(generated, relation_result.components_relations)
@@ -539,7 +541,7 @@ class TestIncrementalRelations(unittest.TestCase):
         relation_call = agent._invoke_validate.call_args
         self.assertEqual(relation_call.args[1], ComponentRelations)
         self.assertNotIn("legacy relation", relation_call.args[0])
-        self.assertEqual(relation_call.kwargs["validators"][0].__name__, "validate_relations")
+        self.assertEqual(relation_call.kwargs["validators"][0].__name__, "validate_relation_component_names")
         self.assertEqual(len(scope.components_relations), 1)
         relation = scope.components_relations[0]
         self.assertEqual(relation.evidence, "Queue-backed job dispatch.")
