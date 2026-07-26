@@ -191,17 +191,21 @@ class RepoIgnoreManager:
         self.spec = pathspec.PathSpec.from_lines("gitwildmatch", all_patterns)
 
     def _load_gitignore_patterns(self) -> list[str]:
-        """Load and parse .gitignore file if it exists."""
+        """Load .gitignore if it is present and readable.
+
+        Opens directly rather than checking ``exists()`` first: ``Path.exists()``
+        re-raises ``PermissionError`` (it only swallows not-found errors), so an
+        unreadable ignore file must be treated as "no patterns", never a crash.
+        """
         gitignore_path = self.repo_root / GITIGNORE_FILENAME
-
-        if gitignore_path.exists():
-            try:
-                with gitignore_path.open("r", encoding="utf-8") as f:
-                    return f.readlines()
-            except Exception as e:
-                logger.warning(f"Failed to read .gitignore at {gitignore_path}: {e}")
-
-        return []
+        try:
+            with gitignore_path.open("r", encoding="utf-8") as f:
+                return f.readlines()
+        except FileNotFoundError:
+            return []
+        except OSError as e:
+            logger.warning(f"Failed to read .gitignore at {gitignore_path}: {e}")
+            return []
 
     def _load_codeboardingignore_patterns(self) -> list[str]:
         """Load and parse .codeboardingignore file from .codeboarding directory.
@@ -212,12 +216,13 @@ class RepoIgnoreManager:
         """
         codeboardingignore_path = self.repo_root / CODEBOARDING_DIR_NAME / CODEBOARDINGIGNORE_FILENAME
 
-        if codeboardingignore_path.exists():
-            try:
-                with codeboardingignore_path.open("r", encoding="utf-8") as f:
-                    return f.readlines()
-            except Exception as e:
-                logger.warning(f"Failed to read .codeboardingignore at {codeboardingignore_path}: {e}")
+        try:
+            with codeboardingignore_path.open("r", encoding="utf-8") as f:
+                return f.readlines()
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            logger.warning(f"Failed to read .codeboardingignore at {codeboardingignore_path}: {e}")
 
         # Fall back to the default template so analysis works before the file is created
         return list(CODEBOARDINGIGNORE_TEMPLATE.splitlines(keepends=True))
