@@ -53,7 +53,9 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     """
     cluster_results: dict[str, ClusterResult] = {}
     offset = 0
-    for lang in static_analysis.get_languages():
+    # Sort languages so cross-language ID ranges are reproducible regardless of detection
+    # order, matching compute_cluster_delta and reindex_across_languages.
+    for lang in sorted(static_analysis.get_languages(), key=str):
         result = static_analysis.get_cfg(lang).cluster()
         if offset:
             result = reindex_cluster_result(result, offset)
