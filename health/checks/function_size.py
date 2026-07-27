@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from health.models import (
     FindingEntity,
@@ -25,13 +26,15 @@ def collect_function_sizes(call_graph: CallGraph) -> list[float]:
     return sizes
 
 
-def check_function_size(call_graph: CallGraph, config: HealthCheckConfig) -> StandardCheckSummary:
+def check_function_size(
+    call_graph: CallGraph, config: HealthCheckConfig, ignore_manager: RepoIgnoreManager | None = None
+) -> StandardCheckSummary:
     """E1: Check function/method sizes across the call graph.
 
-    Flags functions that exceed line count thresholds. Large functions are
-    harder to understand, test, and maintain.
-
-    Excludes test and infrastructure files as they have different size norms.
+    Flags functions that exceed line count thresholds. File exclusion follows the
+    live ``.codeboardingignore`` via ``ignore_manager`` so the metric measures exactly
+    what the rendered architecture contains. ``ignore_manager`` is None only when no
+    repo root is available; the call graph is already ignore-filtered upstream regardless.
     """
     findings: list[FindingEntity] = []
     total_checked = 0
@@ -41,8 +44,7 @@ def check_function_size(call_graph: CallGraph, config: HealthCheckConfig) -> Sta
         if node.is_class() or node.is_data():
             continue
 
-        # Skip test/infrastructure files
-        if RepoIgnoreManager.should_skip_file(node.file_path):
+        if ignore_manager is not None and ignore_manager.should_ignore(Path(node.file_path)):
             continue
 
         size = node.line_end - node.line_start

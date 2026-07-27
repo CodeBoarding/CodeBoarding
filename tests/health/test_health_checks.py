@@ -1,5 +1,6 @@
-import os
+import tempfile
 import unittest
+from pathlib import Path
 
 from health.checks.circular_deps import check_circular_dependencies
 from health.checks.cohesion import check_component_cohesion
@@ -9,6 +10,7 @@ from health.checks.god_class import check_god_classes
 from health.checks.inheritance import check_inheritance_depth
 from health.checks.instability import check_package_instability
 from health.models import HealthCheckConfig, Severity
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.graph import CallGraph
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
@@ -526,22 +528,44 @@ class TestInheritanceDepthFixedThreshold(unittest.TestCase):
 
 
 class TestFunctionSizeTestFileExclusions(unittest.TestCase):
-    """Tests that test/infrastructure files are excluded from function size checks."""
+    """Tests that function_size honors the live .codeboardingignore for file exclusion."""
 
-    def test_test_file_excluded_from_function_size(self):
-        """Large functions in test files should not be flagged."""
+    def test_ignored_test_file_excluded_from_function_size(self):
+        """A large function the live ignore covers (default template ignores __tests__) is not flagged."""
         graph = CallGraph()
-        # Large function in test file
         graph.add_node(_make_node("test.big_test", "/project/__tests__/test.ts", 1, 300))
-        # Large function in production code
         graph.add_node(_make_node("mod.big_func", "/project/mod/utils.py", 1, 300))
+        config = HealthCheckConfig(function_size_max=100)
+        ignore_manager = RepoIgnoreManager(Path("/project"))
+        result = check_function_size(graph, config, ignore_manager)
+        entity_names = {f.entity_name for f in result.findings}
+        self.assertNotIn("test.big_test", entity_names)
+        self.assertIn("mod.big_func", entity_names)
+
+    def test_opted_in_test_file_is_scored(self):
+        """When the live .codeboardingignore opts a test dir back in, its large functions ARE
+        scored — the metric measures exactly what the rendered architecture contains."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cb_dir = Path(tmp) / ".codeboarding"
+            cb_dir.mkdir()
+            (cb_dir / ".codeboardingignore").write_text("# opt everything in: no patterns\n")
+            ignore_manager = RepoIgnoreManager(Path(tmp))
+            graph = CallGraph()
+            graph.add_node(_make_node("test.big_test", str(Path(tmp) / "__tests__" / "test.ts"), 1, 300))
+            config = HealthCheckConfig(function_size_max=100)
+            result = check_function_size(graph, config, ignore_manager)
+        entity_names = {f.entity_name for f in result.findings}
+        self.assertIn("test.big_test", entity_names)
+
+    def test_no_ignore_manager_scores_everything(self):
+        """With no repo context (ignore_manager=None), nothing is excluded — production callers
+        always pass one, and the call graph is already ignore-filtered upstream."""
+        graph = CallGraph()
+        graph.add_node(_make_node("test.big_test", "/project/__tests__/test.ts", 1, 300))
         config = HealthCheckConfig(function_size_max=100)
         result = check_function_size(graph, config)
         entity_names = {f.entity_name for f in result.findings}
-        # Test file function should not be flagged
-        self.assertNotIn("test.big_test", entity_names)
-        # Production function should be flagged
-        self.assertIn("mod.big_func", entity_names)
+        self.assertIn("test.big_test", entity_names)
 
 
 class TestNodeCallbackDetection(unittest.TestCase):

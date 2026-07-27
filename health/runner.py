@@ -23,6 +23,7 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 
@@ -72,6 +73,7 @@ def _collect_checks_for_language(
     static_analysis: StaticAnalysisResults,
     language: Language,
     config: HealthCheckConfig,
+    ignore_manager: RepoIgnoreManager | None,
 ) -> CheckSummaryList:
     """Run all applicable health checks for a single language and return the summaries."""
     summaries: CheckSummaryList = []
@@ -82,7 +84,7 @@ def _collect_checks_for_language(
     except ValueError:
         hierarchy = None
 
-    summaries.append(check_function_size(call_graph, config))
+    summaries.append(check_function_size(call_graph, config, ignore_manager))
     summaries.append(check_fan_out(call_graph, config))
     summaries.append(check_fan_in(call_graph, config))
     summaries.append(check_god_classes(call_graph, hierarchy, config))
@@ -217,11 +219,14 @@ def run_health_checks(
         return None
 
     repo_root = str(repo_path) if repo_path is not None else None
+    # Live .codeboardingignore so function_size scores exactly what the architecture renders,
+    # rather than the hard-coded default template. None only when the caller omits a repo root.
+    ignore_manager = RepoIgnoreManager(Path(repo_path)) if repo_path is not None else None
 
     check_summaries: CheckSummaryList = []
 
     for language in languages:
-        lang_summaries = _collect_checks_for_language(static_analysis, language, config)
+        lang_summaries = _collect_checks_for_language(static_analysis, language, config, ignore_manager)
         if len(languages) > 1:
             for summary in lang_summaries:
                 summary.language = language
