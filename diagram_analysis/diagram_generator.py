@@ -1453,9 +1453,20 @@ class DiagramGenerator:
                 apply_result.new_component_ids -= removed_ids
             _drop_removed_subtree_analyses(sub_analyses, apply_result.removed_ids | removed_ids)
 
+            created_components = _collect_components_by_id(
+                apply_result.new_component_ids,
+                root_analysis,
+                sub_analyses,
+            )
+            if created_components:
+                self.incremental_agent.detail_new_components(
+                    created_components,
+                    apply_result.relation_contexts,
+                )
+
             new_components = [
                 component
-                for component in _collect_components_by_id(apply_result.new_component_ids, root_analysis, sub_analyses)
+                for component in created_components
                 if _component_depth(component.component_id) < self.depth_level
             ]
             if new_components:

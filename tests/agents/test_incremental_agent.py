@@ -6,8 +6,9 @@ from agents.agent_responses import (
     AnalysisInsights,
     ComponentApiSurface,
     ComponentApiSurfaces,
-    ComponentRelations,
     Component,
+    ComponentArchitecture,
+    ComponentRelations,
     Relation,
     RelationEdge,
     SourceCodeReference,
@@ -19,6 +20,7 @@ from agents.agent_responses import (
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.incremental_agent import (
     IncrementalAgent,
+    IncrementalComponentDetailingError,
     _cluster_analysis_for_scope,
     _patch_file_methods,
     prune_empty_components,
@@ -349,6 +351,107 @@ class TestUpdateScope(unittest.TestCase):
 
         self.assertEqual(scope.components, [])
         self.assertEqual(result.new_component_ids, set())
+
+    def test_detail_new_components_replaces_only_provisional_metadata(self) -> None:
+        created = _component("worker.run", "2", source_cluster_ids=["7"])
+        created.description = "New component covering 1 symbol(s) in worker.py."
+        created.file_methods = [
+            FileMethodGroup(
+                file_path="worker.py",
+                methods=[
+                    MethodEntry(
+                        qualified_name="worker.run",
+                        start_line=1,
+                        end_line=5,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ]
+        detailed_entity = SourceCodeReference(qualified_name="worker.run", reference_file="worker.py")
+        detailed = Component(
+            name="Background Job Worker",
+            description="Executes queued background jobs through the worker entry point.",
+            key_entities=[detailed_entity],
+            source_group_names=["Incremental Group 2"],
+        )
+        agent = self._agent()
+        prompt = MagicMock()
+        prompt.format.return_value = "DETAIL NEW COMPONENTS"
+        agent.prompts = {"new_component_details": prompt}
+        agent._invoke_repair_validate = MagicMock(
+            return_value=ComponentArchitecture(
+                description="New background processing capability.",
+                components=[detailed],
+            )
+        )
+        context = ScopeRelationContext(
+            cluster_results={
+                "python": ClusterResult(
+                    clusters={7: {"worker.run"}},
+                    cluster_to_files={7: {"worker.py"}},
+                    file_to_clusters={"worker.py": {7}},
+                )
+            },
+            cfg_graphs={},
+        )
+
+        agent.detail_new_components([created], {"root": context})
+
+        self.assertEqual(created.name, "Background Job Worker")
+        self.assertEqual(
+            created.description,
+            "Executes queued background jobs through the worker entry point.",
+        )
+        self.assertEqual(created.key_entities, [detailed_entity])
+        self.assertEqual(created.component_id, "2")
+        self.assertEqual(created.source_cluster_ids, ["7"])
+        self.assertEqual(created.source_group_names, ["worker.run"])
+        self.assertIn("worker.run", prompt.format.call_args.kwargs["cluster_analysis"])
+        self.assertIs(
+            agent._invoke_repair_validate.call_args.args[1],
+            ComponentArchitecture,
+        )
+
+    def test_detail_new_components_refuses_a_provisional_description(self) -> None:
+        created = _component("worker.run", "2", source_cluster_ids=["7"])
+        created.file_methods = [
+            FileMethodGroup(
+                file_path="worker.py",
+                methods=[
+                    MethodEntry(
+                        qualified_name="worker.run",
+                        start_line=1,
+                        end_line=5,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ]
+        agent = self._agent()
+        prompt = MagicMock()
+        prompt.format.return_value = "DETAIL NEW COMPONENTS"
+        agent.prompts = {"new_component_details": prompt}
+        agent._invoke_repair_validate = MagicMock(
+            return_value=ComponentArchitecture(
+                description="",
+                components=[
+                    Component(
+                        name="worker.run",
+                        description="New component covering 1 symbol(s) in worker.py.",
+                        key_entities=[SourceCodeReference(qualified_name="worker.run")],
+                        source_group_names=["Incremental Group 2"],
+                    )
+                ],
+            )
+        )
+        context = ScopeRelationContext(
+            cluster_results={"python": ClusterResult(clusters={7: {"worker.run"}})},
+            cfg_graphs={},
+        )
+
+        with self.assertRaises(IncrementalComponentDetailingError):
+            agent.detail_new_components([created], {"root": context})
 
     def test_delete_component_removes_relations(self) -> None:
         first = _component("A", "1")

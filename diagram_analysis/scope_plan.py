@@ -119,8 +119,9 @@ def plan_scope_update(
 
     ``UPDATE_COMPONENT`` for a component whose cluster set moved or whose code was edited;
     ``CREATE_COMPONENT`` only for a group with no predecessor; ``DELETE_COMPONENT`` only
-    for a component left with nothing. Names and descriptions are deliberately absent —
-    ``update_scope`` leaves the existing wording alone.
+    for a component left with nothing. Updates deliberately omit names and descriptions
+    so ``update_scope`` leaves existing wording alone. Creates carry stable provisional
+    metadata until ``IncrementalAgent.detail_new_components`` sees their final membership.
 
     A component that comes out of the grouping holding exactly what it already held gets
     **no operation at all**. An operation is not free: ``update_scope`` puts its target in
@@ -251,14 +252,7 @@ def _provisional_name(group: set[int], combined: ClusterResult) -> str:
 
 
 def _provisional_description(group: set[int], combined: ClusterResult, repo_dir: Path) -> str:
-    """Say what the component holds, so a created component never ships blank.
-
-    Only the create path sets a new component's metadata — the re-detail pass that follows
-    analyses its children, not its own wording — so an empty string here reaches the saved
-    diagram. Naming it properly is the LLM's job and still to come; until then this states
-    the code it owns rather than nothing. Paths are repo-normalized so the persisted
-    description does not leak the analysis host's absolute paths.
-    """
+    """Describe provisional membership until the incremental detail pass replaces it."""
     files = sorted(
         {
             normalize_repo_path(path, repo_dir)

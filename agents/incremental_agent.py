@@ -32,12 +32,19 @@ from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
 from agents.prompts import (
     format_project_system_message,
     get_api_surfaces_message,
+    get_final_analysis_message,
     get_relation_analysis_message,
     get_system_message,
 )
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
+from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
 from agents.scope_ids import ROOT_SCOPE_ID
-from agents.validation import ValidationContext, validate_relations
+from agents.validation import (
+    ValidationContext,
+    validate_group_name_coverage,
+    validate_key_entities,
+    validate_relations,
+)
 from diagram_analysis.file_index import build_files_index
 from monitoring import trace
 from repo_utils.change_detector import ChangeSet
@@ -46,6 +53,10 @@ from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
+
+
+class IncrementalComponentDetailingError(RuntimeError):
+    """Raised when a new component cannot be given grounded final metadata."""
 
 
 class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
@@ -68,6 +79,10 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.project_name = project_name
         self.meta_context = meta_context
         self.prompts = {
+            "new_component_details": PromptTemplate(
+                template=get_final_analysis_message(),
+                input_variables=["cluster_analysis"],
+            ),
             "api_surfaces": PromptTemplate(
                 template=get_api_surfaces_message(),
                 input_variables=[
@@ -178,6 +193,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         refresh_ids: set[str],
         new_component_ids: set[str],
     ) -> None:
+        """Materialize a provisional component whose metadata is finalized later."""
         source_cluster_ids = _operation_source_cluster_ids(scope_id, operation)
         if not source_cluster_ids:
             logger.error(
@@ -200,6 +216,146 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             refresh_ids.add(component.component_id)
             new_component_ids.add(component.component_id)
             components_by_id[component.component_id] = component
+
+    @trace
+    def detail_new_components(
+        self,
+        components: list[Component],
+        relation_contexts: dict[str, ScopeRelationContext],
+    ) -> None:
+        """Replace provisional metadata after new-component membership has settled."""
+        components_by_scope: dict[str, list[Component]] = {}
+        for component in components:
+            if not component.component_id:
+                raise IncrementalComponentDetailingError("A new component has no component_id.")
+            scope_id = _parent_scope_id(component.component_id)
+            components_by_scope.setdefault(scope_id, []).append(component)
+
+        for scope_id in sorted(components_by_scope):
+            context = relation_contexts.get(scope_id)
+            if context is None:
+                ids = sorted(component.component_id for component in components_by_scope[scope_id])
+                raise IncrementalComponentDetailingError(
+                    f"No cluster context is available to detail new component(s) {ids} in scope {scope_id}."
+                )
+            self._detail_new_components_in_scope(scope_id, components_by_scope[scope_id], context)
+
+    def _detail_new_components_in_scope(
+        self,
+        scope_id: str,
+        components: list[Component],
+        context: ScopeRelationContext,
+    ) -> None:
+        valid_cluster_ids = {
+            cluster_id for cluster_result in context.cluster_results.values() for cluster_id in cluster_result.clusters
+        }
+        groups: list[ClustersComponent] = []
+        target_by_group: dict[str, Component] = {}
+        owned_qnames_by_group: dict[str, set[str]] = {}
+
+        for component in sorted(components, key=lambda item: item.component_id):
+            group_name = f"Incremental Group {component.component_id}"
+            local_cluster_ids = _local_graph_cluster_ids(
+                component.source_cluster_ids,
+                scope_id,
+                valid_cluster_ids,
+            )
+            if not local_cluster_ids:
+                raise IncrementalComponentDetailingError(
+                    f"New component {component.component_id} has no live clusters in scope {scope_id}."
+                )
+            owned_qnames = {
+                method.qualified_name for file_group in component.file_methods for method in file_group.methods
+            }
+            if not owned_qnames:
+                raise IncrementalComponentDetailingError(
+                    f"New component {component.component_id} has no final members to describe."
+                )
+            groups.append(
+                ClustersComponent(
+                    name=group_name,
+                    cluster_ids=local_cluster_ids,
+                    description=_new_component_membership_summary(component, local_cluster_ids),
+                )
+            )
+            target_by_group[group_name] = component
+            owned_qnames_by_group[group_name] = owned_qnames
+
+        cluster_analysis = ClusterAnalysis(cluster_components=groups)
+        prompt = self.prompts["new_component_details"].format(cluster_analysis=cluster_analysis.llm_str())
+        group_names = [group.name for group in groups]
+        prompt += (
+            f"\n\n## New Component Groups ({len(group_names)} total)\n"
+            f"Return exactly one semantically named component for each of these fixed groups: {group_names}.\n"
+            "These components have final deterministic membership. Replace their provisional metadata; "
+            "do not merge, split, or reassign their symbols."
+        )
+        repair_context = ComponentRepairContext(
+            reference_resolver=self.reference_resolver,
+            cluster_results=context.cluster_results,
+            llm_cluster_analysis=cluster_analysis,
+        )
+        validation_context = ValidationContext(
+            cluster_results=context.cluster_results,
+            static_analysis=self.static_analysis,
+            llm_cluster_analysis=cluster_analysis,
+        )
+        architecture = self._invoke_repair_validate(
+            prompt,
+            ComponentArchitecture,
+            repairs=[repair_component_group_names, repair_key_entities],
+            validators=[validate_group_name_coverage, validate_key_entities],
+            repair_context=repair_context,
+            validation_context=validation_context,
+            max_validation_attempts=3,
+        )
+
+        detailed_by_group: dict[str, Component] = {}
+        expected_names = {name.lower(): name for name in group_names}
+        for detailed in architecture.components:
+            if len(detailed.source_group_names) != 1:
+                raise IncrementalComponentDetailingError(
+                    f"Detailed component {detailed.name!r} must reference exactly one new-component group."
+                )
+            returned_name = detailed.source_group_names[0]
+            canonical_name = expected_names.get(returned_name.lower())
+            if canonical_name is None:
+                raise IncrementalComponentDetailingError(
+                    f"Detailed component {detailed.name!r} references unknown group {returned_name!r}."
+                )
+            if canonical_name in detailed_by_group:
+                raise IncrementalComponentDetailingError(
+                    f"Multiple detailed components reference group {canonical_name!r}."
+                )
+            detailed_by_group[canonical_name] = detailed
+
+        missing = sorted(set(group_names) - set(detailed_by_group))
+        if missing:
+            raise IncrementalComponentDetailingError(f"No semantic metadata was returned for group(s) {missing}.")
+
+        for group_name, target in target_by_group.items():
+            detailed = detailed_by_group[group_name]
+            detailed.key_entities = [
+                entity for entity in detailed.key_entities if entity.qualified_name in owned_qnames_by_group[group_name]
+            ]
+            name = detailed.name.strip()
+            description = detailed.description.strip()
+            if not name or name == group_name:
+                raise IncrementalComponentDetailingError(
+                    f"New component {target.component_id} did not receive a semantic name."
+                )
+            if not description or _is_provisional_description(description):
+                raise IncrementalComponentDetailingError(
+                    f"New component {target.component_id} retained a provisional description."
+                )
+            if not detailed.key_entities:
+                raise IncrementalComponentDetailingError(
+                    f"New component {target.component_id} has no grounded key entities after detailing."
+                )
+
+            target.name = name
+            target.description = description
+            target.key_entities = detailed.key_entities
 
     def _update_component_from_operation(
         self,
@@ -415,6 +571,29 @@ def _local_graph_cluster_ids(
         if local_id.isdigit() and int(local_id) in valid_cluster_ids:
             local_ids.add(int(local_id))
     return sorted(local_ids)
+
+
+def _parent_scope_id(component_id: str) -> str:
+    parent, separator, _local_id = component_id.rpartition(".")
+    return parent if separator else ROOT_SCOPE_ID
+
+
+def _new_component_membership_summary(component: Component, local_cluster_ids: list[int]) -> str:
+    files = sorted(group.file_path for group in component.file_methods)
+    symbols = sorted(
+        {method.qualified_name for group in component.file_methods for method in group.methods},
+        key=lambda qualified_name: (qualified_name.count("."), qualified_name),
+    )
+    shown_files = ", ".join(files[:8]) + (", ..." if len(files) > 8 else "")
+    shown_symbols = ", ".join(symbols[:12]) + (", ..." if len(symbols) > 12 else "")
+    return (
+        f"Final membership: {len(local_cluster_ids)} leaf cluster(s), {len(symbols)} symbols across "
+        f"{len(files)} files. Files: {shown_files}. Representative symbols: {shown_symbols}."
+    )
+
+
+def _is_provisional_description(description: str) -> bool:
+    return description.startswith(("New component covering", "New component with no resolved source files"))
 
 
 def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> None:
