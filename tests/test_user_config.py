@@ -174,8 +174,9 @@ class TestEnsureConfigTemplate:
         ensure_config_template(path)
 
         text = path.read_text()
-        assert "atlascloud_api_key" in text
-        assert text.index("[provider]") < text.index("atlascloud_api_key") < text.index("[llm]")
+        expected = '# atlascloud_api_key        = "..."'
+        provider_block = text[text.index("[provider]") : text.index("[llm]")]
+        assert expected in provider_block
 
     def test_appends_context_window_under_llm_when_missing(self, tmp_path):
         path = tmp_path / "config.toml"
@@ -206,7 +207,33 @@ class TestEnsureConfigTemplate:
 
         text = path.read_text()
         assert "[provider]" in text
-        assert "atlascloud_api_key" in text
+        assert '# atlascloud_api_key        = "..."' in text[text.index("[provider]") :]
+
+    def test_adds_key_when_same_key_exists_outside_provider(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text(
+            '[other]\natlascloud_api_key = "wrong-section"\n\n'
+            '[provider]\n# openai_api_key = "sk-..."\n\n'
+            "[llm]\n# context_window = 42\n"
+        )
+
+        ensure_config_template(path)
+
+        text = path.read_text()
+        provider_block = text[text.index("[provider]") : text.index("[llm]")]
+        assert '# atlascloud_api_key        = "..."' in provider_block
+
+    def test_recognizes_provider_header_with_inline_comment(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text('[provider] # credentials\n# openai_api_key = "sk-..."\n\n' "[llm]\n# context_window = 42\n")
+
+        ensure_config_template(path)
+
+        text = path.read_text()
+        assert text.count("[provider]") == 1
+        provider_block = text[text.index("[provider]") : text.index("[llm]")]
+        assert '# atlascloud_api_key        = "..."' in provider_block
+        assert load_user_config(path).provider.atlascloud_api_key is None
 
     def test_adds_llm_section_if_absent(self, tmp_path):
         path = tmp_path / "config.toml"

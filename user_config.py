@@ -188,10 +188,20 @@ def ensure_config_template(path: Path = CONFIG_PATH) -> None:
 def _append_commented_key(path: Path, section: str, key: str, commented_line: str) -> None:
     """Insert a missing commented key into its TOML section."""
     text = path.read_text()
-    if re.search(rf"^\s*#?\s*{re.escape(key)}\s*=", text, flags=re.MULTILINE):
-        return
-    section_pattern = rf"(^\[{re.escape(section)}\]\s*\n)"
-    injected, n = re.subn(section_pattern, r"\1" + commented_line + "\n", text, count=1, flags=re.MULTILINE)
-    if n == 0:
+    section_pattern = rf"^[ \t]*\[{re.escape(section)}\][ \t]*(?:#[^\n]*)?\n"
+    section_match = re.search(section_pattern, text, flags=re.MULTILINE)
+    if section_match:
+        body_start = section_match.end()
+        next_section = re.search(
+            r"^[ \t]*\[[^\]\n]+\][ \t]*(?:#[^\n]*)?\n",
+            text[body_start:],
+            flags=re.MULTILINE,
+        )
+        body_end = body_start + next_section.start() if next_section else len(text)
+        section_body = text[body_start:body_end]
+        if re.search(rf"^\s*#?\s*{re.escape(key)}\s*=", section_body, flags=re.MULTILINE):
+            return
+        injected = text[:body_start] + commented_line + "\n" + text[body_start:]
+    else:
         injected = text.rstrip() + f"\n\n[{section}]\n" + commented_line + "\n"
     path.write_text(injected)
