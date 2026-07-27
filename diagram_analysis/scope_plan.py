@@ -221,7 +221,7 @@ def plan_scope_update(
                     action=ScopeOperationAction.CREATE_COMPONENT,
                     cluster_refs=refs,
                     name=_provisional_name(group, combined),
-                    description=_provisional_description(group, combined),
+                    description=_provisional_description(group, combined, repo_dir),
                     rationale="clusters with no predecessor in this scope",
                 )
             )
@@ -250,15 +250,22 @@ def _provisional_name(group: set[int], combined: ClusterResult) -> str:
     return symbols[0].split(".")[-1] if symbols else "New Component"
 
 
-def _provisional_description(group: set[int], combined: ClusterResult) -> str:
+def _provisional_description(group: set[int], combined: ClusterResult, repo_dir: Path) -> str:
     """Say what the component holds, so a created component never ships blank.
 
     Only the create path sets a new component's metadata — the re-detail pass that follows
     analyses its children, not its own wording — so an empty string here reaches the saved
     diagram. Naming it properly is the LLM's job and still to come; until then this states
-    the code it owns rather than nothing.
+    the code it owns rather than nothing. Paths are repo-normalized so the persisted
+    description does not leak the analysis host's absolute paths.
     """
-    files = sorted({path for cluster_id in group for path in combined.cluster_to_files.get(cluster_id, set())})
+    files = sorted(
+        {
+            normalize_repo_path(path, repo_dir)
+            for cluster_id in group
+            for path in combined.cluster_to_files.get(cluster_id, set())
+        }
+    )
     symbols = group_symbols(sorted(group), combined.clusters)
     if not files and not symbols:
         return "New component with no resolved source files."
