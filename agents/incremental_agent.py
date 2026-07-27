@@ -443,10 +443,14 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 scope, scope_id, relation_contexts[scope_id], changed_members
             )
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            results = list(executor.map(run_one, tasks))
-        for worker in workers:
-            self.agent_stats.merge(worker.agent_stats)
+        try:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                results = list(executor.map(run_one, tasks))
+        finally:
+            # Merge even if a scope raised, so a failed run still reports the token/tool
+            # usage the workers already incurred.
+            for worker in workers:
+                self.agent_stats.merge(worker.agent_stats)
         return results
 
     def _clone_for_worker(self) -> "IncrementalAgent":
