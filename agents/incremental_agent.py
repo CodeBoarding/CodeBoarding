@@ -293,9 +293,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         relation_result: ComponentRelations = self._invoke_validate(
             prompt,
             ComponentRelations,
-            # Retry only to recover unknown endpoint names; unsupported/degenerate relations are
-            # dropped downstream (merge_relations + reference cleanup), so evidence re-rolls change
-            # nothing in the saved output.
+            # Retry only to recover unknown endpoint names; bad relations are dropped downstream.
             validators=[validate_relation_component_names],
             validation_context=ValidationContext(
                 cluster_results=cluster_results,
@@ -314,9 +312,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
     def _attach_static_relations(self, scope: AnalysisInsights, cfg_graphs: dict[str, CallGraph]) -> None:
         """Ground the scope's relations in the live CFG and resolve their source references.
 
-        Merges the current LLM/baseline relations with the deterministic cross-component call
-        edges, assigns relation ids, and fills endpoint spans. Shared by the LLM path and the
-        no-change path (which passes no LLM relations, leaving only the static edges).
+        Why: shared by the LLM and no-change paths; the latter passes no LLM relations, so only
+        the deterministic static call edges remain.
         """
         assign_relation_ids(scope)
         self.build_static_relations(scope, cfg_graphs)
@@ -357,11 +354,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 context.cfg_graphs,
             )
         else:
-            # No component in this scope genuinely changed (its changed set was narrowed to empty
-            # by the copy-forward pass), so the LLM relation output is fully discarded by
-            # preserve_unchanged_relations below: every rebuilt pair either restores its baseline
-            # label or, being a fresh static pair touching nothing changed, is dropped. Skip both
-            # LLM round-trips and rebuild the scope's edges deterministically from the live CFG.
+            # Nothing in this scope changed, so preserve_unchanged_relations below would discard any
+            # LLM output anyway; skip both round-trips and rebuild edges from the live CFG.
             scope.components_relations = []
             self._attach_static_relations(scope, context.cfg_graphs)
             rels = scope.components_relations
@@ -395,9 +389,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
     ) -> None:
         """Regenerate relations for every touched scope with at least two components.
 
-        Scopes are independent (each owns its own clustering, cfg, and analysis object), so they
-        run concurrently — the dominant cost in an incremental update. A single scope, or none,
-        runs inline to avoid worker/agent setup on trivial changes.
+        Why: scopes are independent (own clustering, cfg, analysis object), so they run
+        concurrently; a single scope or none runs inline to skip worker setup.
         """
         tasks: list[tuple[str, AnalysisInsights]] = []
         if relation_contexts.get(ROOT_SCOPE_ID) is not None:
@@ -415,7 +408,9 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         else:
             results = self._generate_scope_relations_parallel(tasks, relation_contexts, changed_members)
 
-        all_llm_rels = [(scope_id, rels) for scope_id, rels in results if rels]
+        all_llm_rels = [
+            (scope_id, rels) for scope_id, rels in results if rels and relation_contexts[scope_id].changed_ids
+        ]
 
         if all_llm_rels:
             _log_scope_relations_summary(all_llm_rels)
@@ -426,16 +421,15 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         relation_contexts: dict[str, ScopeRelationContext],
         changed_members: set[str] | None,
     ) -> list[tuple[str, list[Relation]]]:
-        """Regenerate each scope's relations concurrently, one isolated agent per worker thread.
+        """Regenerate each scope's relations concurrently, one agent clone per worker thread.
 
-        Why: ``step_relation_analysis`` writes the scope's clustering onto ``self.toolkit.context``,
-        which ``ComponentBridgeEdgesTool`` reads mid-invocation; a shared agent would let two
-        scopes clobber each other's context. Each worker builds its own sibling agent, so the only
-        shared state is read-only static analysis and each scope's own (distinct) analysis object.
-        ``executor.map`` preserves order, keeping the relation log deterministic.
+        Why: step_relation_analysis writes clustering onto the agent's shared toolkit.context, so
+        scopes must not share an agent. executor.map preserves order for a deterministic log.
         """
         max_workers = min(len(tasks), os.cpu_count() or 4, 8)
         worker_local = threading.local()
+        workers: list[IncrementalAgent] = []
+        workers_lock = threading.Lock()
 
         def run_one(task: tuple[str, AnalysisInsights]) -> tuple[str, list[Relation]]:
             scope_id, scope = task
@@ -443,12 +437,17 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             if worker is None:
                 worker = self._clone_for_worker()
                 worker_local.agent = worker
+                with workers_lock:
+                    workers.append(worker)
             return scope_id, worker.generate_scope_relations(
                 scope, scope_id, relation_contexts[scope_id], changed_members
             )
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            return list(executor.map(run_one, tasks))
+            results = list(executor.map(run_one, tasks))
+        for worker in workers:
+            self.agent_stats.merge(worker.agent_stats)
+        return results
 
     def _clone_for_worker(self) -> "IncrementalAgent":
         """A sibling agent with its own toolkit context, for concurrent scope regeneration."""

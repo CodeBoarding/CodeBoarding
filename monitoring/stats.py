@@ -25,6 +25,19 @@ class RunStats:
             self.tool_errors = defaultdict(int)
             self.tool_latency_ms = defaultdict(list)
 
+    def merge(self, other: "RunStats") -> None:
+        """Fold another RunStats' token and tool totals into this one (thread-safe)."""
+        with self._lock, other._lock:
+            self.total_tokens += other.total_tokens
+            self.input_tokens += other.input_tokens
+            self.output_tokens += other.output_tokens
+            for tool, count in other.tool_counts.items():
+                self.tool_counts[tool] += count
+            for tool, count in other.tool_errors.items():
+                self.tool_errors[tool] += count
+            for tool, latencies in other.tool_latency_ms.items():
+                self.tool_latency_ms[tool].extend(latencies)
+
     def to_dict(self):
         """Convert stats to a dictionary representation."""
         with self._lock:

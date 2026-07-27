@@ -175,9 +175,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         relation_result = self._invoke_validate(
             prompt,
             ComponentRelations,
-            # Retry only to recover unknown endpoint names; unsupported/degenerate relations are
-            # dropped downstream (merge_relations + reference cleanup), so evidence re-rolls change
-            # nothing in the saved output.
+            # Retry only to recover unknown endpoint names; bad relations are dropped downstream.
             validators=[validate_relation_component_names],
             validation_context=ValidationContext(
                 cluster_results=cluster_results,
