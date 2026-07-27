@@ -40,7 +40,7 @@ from agents.prompts import (
 )
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
-from agents.validation import ValidationContext, validate_relation_component_names
+from agents.validation import ValidationContext, validate_relations
 from diagram_analysis.file_index import build_files_index
 from monitoring import trace
 from repo_utils.change_detector import ChangeSet
@@ -293,8 +293,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         relation_result: ComponentRelations = self._invoke_validate(
             prompt,
             ComponentRelations,
-            # Retry only to recover unknown endpoint names; bad relations are dropped downstream.
-            validators=[validate_relation_component_names],
+            validators=[validate_relations],
             validation_context=ValidationContext(
                 cluster_results=cluster_results,
                 cfg_graphs=cfg_graphs,

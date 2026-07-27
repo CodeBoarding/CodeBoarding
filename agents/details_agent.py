@@ -32,7 +32,7 @@ from agents.validation import (
     ValidationContext,
     validate_group_name_coverage,
     validate_key_entities,
-    validate_relation_component_names,
+    validate_relations,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -215,8 +215,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         relation_result = self._invoke_validate(
             prompt,
             ComponentRelations,
-            # Retry only to recover unknown endpoint names; bad relations are dropped downstream.
-            validators=[validate_relation_component_names],
+            validators=[validate_relations],
             validation_context=ValidationContext(
                 cluster_results=cluster_results,
                 cfg_graphs=cfg_graphs,

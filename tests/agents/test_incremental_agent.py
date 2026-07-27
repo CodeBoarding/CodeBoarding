@@ -541,7 +541,7 @@ class TestIncrementalRelations(unittest.TestCase):
         relation_call = agent._invoke_validate.call_args
         self.assertEqual(relation_call.args[1], ComponentRelations)
         self.assertNotIn("legacy relation", relation_call.args[0])
-        self.assertEqual(relation_call.kwargs["validators"][0].__name__, "validate_relation_component_names")
+        self.assertEqual(relation_call.kwargs["validators"][0].__name__, "validate_relations")
         self.assertEqual(len(scope.components_relations), 1)
         relation = scope.components_relations[0]
         self.assertEqual(relation.evidence, "Queue-backed job dispatch.")
