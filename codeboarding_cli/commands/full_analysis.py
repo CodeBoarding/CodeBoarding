@@ -11,7 +11,7 @@ from codeboarding_workflows.analysis import run_full
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.rendering import render_docs
 from codeboarding_workflows.sources import SourceContext, local_source, remote_source
-from diagram_analysis import RunContext, RunPaths
+from diagram_analysis import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_branch, store_token
@@ -46,8 +46,12 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
     parser.add_argument(
         "--depth-level",
         type=int,
-        default=1,
-        help="Depth level for diagram generation (default: 1)",
+        default=DEFAULT_DEPTH_LEVEL,
+        help=(
+            "Safety-valve ceiling on component-hierarchy depth (default: "
+            f"{DEFAULT_DEPTH_LEVEL}). Expansion is driven by structural separability, "
+            "not this cap; raise it only if a large repo's diagram is being cut short."
+        ),
     )
 
 

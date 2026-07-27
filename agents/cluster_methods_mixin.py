@@ -9,7 +9,9 @@ import networkx as nx
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
+    ClustersComponent,
     Component,
+    ComponentArchitecture,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.cluster_budget import ClusterPromptBudget
@@ -30,8 +32,11 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
     MAX_LLM_CLUSTERS,
+    TOP_LEVEL_COMPONENTS_MAX,
+    TOP_LEVEL_COMPONENTS_MIN,
     enforce_cross_language_budget,
     merge_clusters,
+    supercluster_leaf_ids,
 )
 from static_analyzer.cluster_relations import (
     build_component_relations,
@@ -43,6 +48,56 @@ from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
+
+
+def _leaf_cluster_lookups(
+    cluster_results: dict[str, ClusterResult],
+) -> tuple[dict[int, set[str]], dict[int, set[str]]]:
+    """Flatten per-language cluster results into id -> members and id -> files.
+
+    Leaf-cluster IDs are globally unique across languages, so a plain merge is safe.
+    """
+    node_lookup: dict[int, set[str]] = {}
+    file_lookup: dict[int, set[str]] = {}
+    for cr in cluster_results.values():
+        node_lookup.update(cr.clusters)
+        file_lookup.update(cr.cluster_to_files)
+    return node_lookup, file_lookup
+
+
+def _group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> list[str]:
+    """Qualified names in a group, most top-level first (fewest name segments)."""
+    names = {qname for cid in cluster_ids for qname in node_lookup.get(cid, set())}
+    return sorted(names, key=lambda qname: (qname.count("."), qname))
+
+
+def _summarize_group(
+    group: set[int],
+    node_lookup: dict[int, set[str]],
+    file_lookup: dict[int, set[str]],
+    max_symbols: int = 12,
+    max_files: int = 8,
+) -> str:
+    """A deterministic, name-rich blurb so the LLM can name a group without re-clustering."""
+    symbols = _group_symbols(sorted(group), node_lookup)
+    files = sorted({path for cid in group for path in file_lookup.get(cid, set())})
+    file_names = [Path(path).name for path in files]
+
+    parts = [f"{len(group)} leaf clusters, {len(symbols)} symbols across {len(files)} files."]
+    if file_names:
+        shown = ", ".join(file_names[:max_files])
+        parts.append(f"Files: {shown}{', ...' if len(file_names) > max_files else ''}")
+    if symbols:
+        shown = ", ".join(symbols[:max_symbols])
+        parts.append(f"Key symbols: {shown}{', ...' if len(symbols) > max_symbols else ''}")
+    return " ".join(parts)
+
+
+def _fallback_component(group: ClustersComponent, node_lookup: dict[int, set[str]]) -> Component:
+    """Deterministic component for a group the LLM failed to name (merged/dropped it)."""
+    symbols = _group_symbols(group.cluster_ids, node_lookup)
+    name = symbols[0].split(".")[-1] if symbols else group.name
+    return Component(name=name, description=group.description, key_entities=[])
 
 
 @dataclass(frozen=True)
@@ -111,6 +166,77 @@ class ClusterMethodsMixin:
     # These attributes must be provided by the class using this mixin
     repo_dir: Path
     static_analysis: StaticAnalysisResults
+
+    def deterministic_cluster_grouping(
+        self,
+        cluster_results: dict[str, ClusterResult],
+        low: int = TOP_LEVEL_COMPONENTS_MIN,
+        high: int = TOP_LEVEL_COMPONENTS_MAX,
+    ) -> ClusterAnalysis:
+        """Partition leaf clusters into fixed component groups via resolution-tuned Leiden.
+
+        The count (modularity peak over ``[low, high]``) and membership are chosen
+        deterministically, so the structure is stable across re-runs — the LLM no
+        longer decides it. Each group gets a stable ``Group i`` label and a summary
+        of its members; the final-analysis step only names and describes them.
+        """
+        cfg_graphs = {
+            lang: self.static_analysis.get_cfg(Language(lang)).clustering_networkx() for lang in cluster_results
+        }
+        groups = supercluster_leaf_ids(cluster_results, cfg_graphs, low, high)
+        node_lookup, file_lookup = _leaf_cluster_lookups(cluster_results)
+        cluster_components = [
+            ClustersComponent(
+                name=f"Group {i}",
+                cluster_ids=sorted(group),
+                description=_summarize_group(group, node_lookup, file_lookup),
+            )
+            for i, group in enumerate(groups, start=1)
+        ]
+        logger.info(
+            f"[{type(self).__name__}] Partitioned {sum(len(g) for g in groups)} leaf clusters "
+            f"into {len(cluster_components)} deterministic groups"
+        )
+        return ClusterAnalysis(cluster_components=cluster_components)
+
+    @staticmethod
+    def assemble_one_component_per_group(
+        architecture: ComponentArchitecture,
+        cluster_analysis: ClusterAnalysis,
+        cluster_results: dict[str, ClusterResult],
+    ) -> None:
+        """Force exactly one component per fixed group — the count is Leiden's, not the LLM's.
+
+        The groups (and their membership) are decided deterministically upstream;
+        the LLM only names and describes them. Whatever the LLM returns, we pin the
+        result to one component per group: the LLM's component that claimed a group
+        keeps its name/description/key_entities; any group the LLM merged away or
+        dropped gets a deterministic fallback so the count never drifts.
+        """
+        node_lookup, _ = _leaf_cluster_lookups(cluster_results)
+        claimant: dict[str, Component] = {}
+        for comp in architecture.components:
+            for group_name in comp.source_group_names:
+                claimant.setdefault(group_name.lower(), comp)
+
+        used: set[int] = set()
+        final: list[Component] = []
+        for group in cluster_analysis.cluster_components:
+            comp = claimant.get(group.name.lower())
+            if comp is None or id(comp) in used:
+                comp = _fallback_component(group, node_lookup)
+            else:
+                used.add(id(comp))
+                comp = comp.model_copy(deep=True)
+            comp.source_group_names = [group.name]
+            final.append(comp)
+
+        if len(final) != len(architecture.components):
+            logger.info(
+                f"[ClusterMethods] Reconciled {len(architecture.components)} LLM components "
+                f"to {len(final)} (one per deterministic group)"
+            )
+        architecture.components = final
 
     def _build_cluster_string(
         self,
@@ -475,7 +601,7 @@ class ClusterMethodsMixin:
                 if seeded_snapshot:
                     scoped_delta = _delta_for_language(
                         str(lang),
-                        sub_cfg.to_networkx(),
+                        sub_cfg.clustering_networkx(),
                         seeded_snapshot,
                     )
                     sub_cluster_result = scoped_delta.cluster_results
@@ -486,7 +612,9 @@ class ClusterMethodsMixin:
                 # Merge into super-clusters if too many (same limit as AbstractionAgent)
                 if len(sub_cluster_result.clusters) > MAX_LLM_CLUSTERS:
                     n_before = len(sub_cluster_result.clusters)
-                    sub_cluster_result = merge_clusters(sub_cluster_result, sub_cfg.to_networkx(), MAX_LLM_CLUSTERS)
+                    sub_cluster_result = merge_clusters(
+                        sub_cluster_result, sub_cfg.clustering_networkx(), MAX_LLM_CLUSTERS
+                    )
                     logger.info(
                         f"[DetailsAgent] Subgraph for '{component.name}': "
                         f"merged {n_before} -> {len(sub_cluster_result.clusters)} super-clusters"
@@ -498,7 +626,7 @@ class ClusterMethodsMixin:
 
         # Cross-language: enforce combined budget and unique IDs
         if len(cluster_results) > 1:
-            cfg_nx = {lang: subgraph_cfgs[lang].to_networkx() for lang in cluster_results}
+            cfg_nx = {lang: subgraph_cfgs[lang].clustering_networkx() for lang in cluster_results}
             enforce_cross_language_budget(cluster_results, cfg_nx)
 
         if source_cluster_id_prefix:

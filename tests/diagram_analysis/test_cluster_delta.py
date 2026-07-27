@@ -1,14 +1,18 @@
 """Tests for ``diagram_analysis.cluster_delta`` (seeded Leiden, no fallback)."""
 
+import tempfile
 import unittest
 from pathlib import Path
 
+from agents.content_hash import hash_method_body, hash_whole_file, read_source_lines
+from agents.file_index_models import FileEntry, MethodEntry
 from diagram_analysis.cluster_delta import (
     ClusterRef,
     ClusterDelta,
     LanguageDelta,
     _affected_frontier,
     _flavor_b_seeded,
+    compute_changed_members,
     compute_cluster_delta,
     structural_diff_from_delta,
 )
@@ -564,6 +568,176 @@ class TestSeededLockGuarantee(unittest.TestCase):
         # must reach the frontier via the 1-hop expansion.
         self.assertIn("added.x", frontier)
         self.assertIn("callee.x", frontier)
+
+
+class TestMemberGranularDirty(unittest.TestCase):
+    """A body-only edit to a file whose methods span two clusters marks only the owning cluster."""
+
+    def _fixture(self, tmp: str) -> tuple[dict[str, FileEntry], StaticAnalysisResults, ChangeSet, Path]:
+        repo = Path(tmp)
+        # shared.py: m1 (cluster 1) and m2 (cluster 2) live in the same file.
+        original = "def m1():\n    return 1\n\ndef m2():\n    return 2\n"
+        (repo / "shared.py").write_text(original, encoding="utf-8")
+        orig_lines = read_source_lines(repo, "shared.py", {})
+        baseline_files = {
+            "shared.py": FileEntry(
+                content_hash=hash_whole_file(orig_lines),
+                methods=[
+                    MethodEntry(
+                        qualified_name="pkg.m1",
+                        start_line=1,
+                        end_line=2,
+                        node_type="FUNCTION",
+                        content_hash=hash_method_body(orig_lines, 1, 2),
+                    ),
+                    MethodEntry(
+                        qualified_name="pkg.m2",
+                        start_line=4,
+                        end_line=5,
+                        node_type="FUNCTION",
+                        content_hash=hash_method_body(orig_lines, 4, 5),
+                    ),
+                ],
+            )
+        }
+
+        # Edit m1's body only; an inserted line shifts m2 down. m2's body text is
+        # byte-for-byte identical, so its content hash must not change.
+        edited = "def m1():\n    x = 5\n    return 1\n\ndef m2():\n    return 2\n"
+        (repo / "shared.py").write_text(edited, encoding="utf-8")
+
+        graph = CallGraph(language="python")
+        graph.add_node(
+            Node(
+                fully_qualified_name="pkg.m1",
+                node_type=NodeType.FUNCTION,
+                file_path=str(repo / "shared.py"),
+                line_start=1,
+                line_end=3,
+            )
+        )
+        graph.add_node(
+            Node(
+                fully_qualified_name="pkg.m2",
+                node_type=NodeType.FUNCTION,
+                file_path=str(repo / "shared.py"),
+                line_start=5,
+                line_end=6,
+            )
+        )
+        static = StaticAnalysisResults()
+        static.add_cfg(Language.PYTHON, graph)
+        changes = ChangeSet(files=[FileChange(status_code="M", file_path="shared.py")])
+        return baseline_files, static, changes, repo
+
+    def _snapshot_and_delta(self) -> tuple[ClusterSnapshot, ClusterDelta]:
+        old_snapshot = ClusterSnapshot(
+            by_language={
+                "python": {
+                    1: ClusterSnapshotEntry(
+                        members={"pkg.m1"}, files={"shared.py"}, member_files={"pkg.m1": "shared.py"}
+                    ),
+                    2: ClusterSnapshotEntry(
+                        members={"pkg.m2"}, files={"shared.py"}, member_files={"pkg.m2": "shared.py"}
+                    ),
+                }
+            }
+        )
+        delta = ClusterDelta(
+            by_language={
+                "python": LanguageDelta(
+                    language="python",
+                    cluster_results=ClusterResult(
+                        clusters={1: {"pkg.m1"}, 2: {"pkg.m2"}},
+                        cluster_to_files={1: {"shared.py"}, 2: {"shared.py"}},
+                    ),
+                )
+            }
+        )
+        return old_snapshot, delta
+
+    def test_changed_members_pins_edit_to_its_method(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            baseline_files, static, changes, repo = self._fixture(tmp)
+
+            changed = compute_changed_members(baseline_files, static, changes, repo)
+
+            # m1's body changed; m2's body is unchanged despite its line shift.
+            self.assertEqual(changed.members, {"pkg.m1"})
+            self.assertEqual(changed.unattributed_files, set())
+
+    def test_only_owning_cluster_is_modified(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            baseline_files, static, changes, repo = self._fixture(tmp)
+            changed = compute_changed_members(baseline_files, static, changes, repo)
+            old_snapshot, delta = self._snapshot_and_delta()
+
+            structural = structural_diff_from_delta(
+                old_snapshot, delta, changes=changes, repo_dir=repo, changed=changed
+            )
+            lang = structural.by_language["python"]
+
+            self.assertEqual({d.old_cluster.cluster_id for d in lang.modified}, {1})
+            self.assertEqual({d.old_cluster.cluster_id for d in lang.unchanged}, {2})
+            self.assertEqual(lang.modified[0].dirty_members, {"pkg.m1"})
+            # A hashed body edit needs no file-level fallback.
+            self.assertEqual(lang.modified[0].dirty_files, set())
+
+    def test_without_member_signal_file_granular_over_reports(self) -> None:
+        # Contrast: the legacy path (no ``changed``) marks *both* clusters modified
+        # because both own the changed file — the bug this fix removes.
+        with tempfile.TemporaryDirectory() as tmp:
+            _baseline_files, _static, changes, repo = self._fixture(tmp)
+            old_snapshot, delta = self._snapshot_and_delta()
+
+            structural = structural_diff_from_delta(old_snapshot, delta, changes=changes, repo_dir=repo)
+            lang = structural.by_language["python"]
+
+            self.assertEqual({d.old_cluster.cluster_id for d in lang.modified}, {1, 2})
+
+    def test_module_level_edit_falls_back_to_file_level(self) -> None:
+        # An edit outside any hashed method (module scope) cannot be pinned to a
+        # member, so the narrow file-level fallback dirties clusters owning the file.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            original = "CONST = 1\n\ndef m1():\n    return 1\n"
+            (repo / "shared.py").write_text(original, encoding="utf-8")
+            orig_lines = read_source_lines(repo, "shared.py", {})
+            baseline_files = {
+                "shared.py": FileEntry(
+                    content_hash=hash_whole_file(orig_lines),
+                    methods=[
+                        MethodEntry(
+                            qualified_name="pkg.m1",
+                            start_line=3,
+                            end_line=4,
+                            node_type="FUNCTION",
+                            content_hash=hash_method_body(orig_lines, 3, 4),
+                        )
+                    ],
+                )
+            }
+            # Change only the module-level constant; m1's body is untouched.
+            (repo / "shared.py").write_text("CONST = 999\n\ndef m1():\n    return 1\n", encoding="utf-8")
+
+            graph = CallGraph(language="python")
+            graph.add_node(
+                Node(
+                    fully_qualified_name="pkg.m1",
+                    node_type=NodeType.FUNCTION,
+                    file_path=str(repo / "shared.py"),
+                    line_start=3,
+                    line_end=4,
+                )
+            )
+            static = StaticAnalysisResults()
+            static.add_cfg(Language.PYTHON, graph)
+            changes = ChangeSet(files=[FileChange(status_code="M", file_path="shared.py")])
+
+            changed = compute_changed_members(baseline_files, static, changes, repo)
+
+            self.assertEqual(changed.members, set())
+            self.assertEqual(changed.unattributed_files, {"shared.py"})
 
 
 class TestDisconnectedAdditions(unittest.TestCase):

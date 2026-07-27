@@ -24,8 +24,8 @@ Handles the high-level logic of transforming static analysis data into historica
 **Source Files:**
 
 - [`agents/incremental_planning_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py)
-  - `agents.incremental_planning_agent._format_member_delta` ([L219-L227](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L219-L227)) - Function
-  - `agents.incremental_planning_agent._format_reshape` ([L239-L257](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L239-L257)) - Function
+  - `agents.incremental_planning_agent._format_member_delta` ([L219-L229](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L219-L229)) - Function
+  - `agents.incremental_planning_agent._format_reshape` ([L241-L264](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L241-L264)) - Function
 
 
 ### Pipeline Intelligence Cache
@@ -38,7 +38,7 @@ Implements specialized caching layers for LLM reasoning results and project-wide
 **Source Files:**
 
 - [`agents/incremental_planning_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py)
-  - `agents.incremental_planning_agent._sort_cluster_refs` ([L304-L305](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L304-L305)) - Function
+  - `agents.incremental_planning_agent._sort_cluster_refs` ([L311-L312](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L311-L312)) - Function
 
 
 ### Persistent Storage Provider
@@ -51,7 +51,7 @@ The foundational persistence layer providing a thread-safe, SQLite-backed key-va
 **Source Files:**
 
 - [`agents/incremental_planning_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py)
-  - `agents.incremental_planning_agent._format_new_cluster` ([L230-L236](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L230-L236)) - Function
+  - `agents.incremental_planning_agent._format_new_cluster` ([L232-L238](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L232-L238)) - Function
 
 
 

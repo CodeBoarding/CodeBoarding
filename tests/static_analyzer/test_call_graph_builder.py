@@ -55,6 +55,7 @@ def _make_adapter() -> MagicMock:
     adapter.build_edges.return_value = set()
     adapter.get_probe_timeout_minimum.return_value = 0
     adapter.probe_before_open = False
+    adapter.interleave_did_open_with_symbols = False
     return adapter
 
 
@@ -169,6 +170,25 @@ class TestDiscoverSymbols:
 
         probe_call = lsp.document_symbol.call_args_list[0]
         assert probe_call.kwargs.get("timeout") == 1800
+
+    def test_interleaves_did_open_with_symbol_queries(self):
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.interleave_did_open_with_symbols = True
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        files = [Path("/project/a.go"), Path("/project/b.go")]
+
+        builder._discover_symbols(files)
+
+        calls = [(item[0], item.args[0]) for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == [
+            ("document_symbol", files[0]),
+            ("did_open", files[0]),
+            ("document_symbol", files[0]),
+            ("did_open", files[1]),
+            ("document_symbol", files[1]),
+        ]
+        assert [item.kwargs.get("timeout") for item in lsp.document_symbol.call_args_list[1:]] == [64, 64]
 
 
 class TestBuild:

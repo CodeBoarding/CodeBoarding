@@ -249,7 +249,14 @@ def normalize_path(path: str | Path, root: str | Path | None = None) -> Path:
         try:
             path_obj = path_obj.relative_to(root_obj)
         except (ValueError, TypeError):
-            pass
+            try:
+                # Reconcile symlinked roots (e.g. macOS /var -> /private/var) that make a
+                # plain relative_to fail even though the file really is under root. Without
+                # this the path stays absolute and never matches the relative all-files set,
+                # so file-coverage counts it as not-analyzed (totals then fail to add up).
+                path_obj = path_obj.resolve().relative_to(root_obj.resolve())
+            except (ValueError, TypeError):
+                pass
 
     return Path(normalize_repo_path(path_obj))
 

@@ -2,8 +2,11 @@ import json
 import logging
 import os
 import time
+from collections import Counter, defaultdict
+from collections.abc import Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,6 +18,9 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     MetaAnalysisInsights,
+    Relation,
+    SourceCodeReference,
+    index_components_by_id,
 )
 from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
 from agents.details_agent import DetailsAgent
@@ -25,11 +31,11 @@ from agents.incremental_agent import (
 )
 from agents.incremental_planning_agent import IncrementalPlanningAgent
 from agents.incremental_results import RecursiveScopeUpdateResult
-from agents.file_index_models import FileEntry
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
-from agents.planner_agent import get_expandable_components
+from agents.planner_agent import component_is_separable, get_expandable_components
 from agents.relation_edges import index_relation_endpoints
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
@@ -39,9 +45,11 @@ from diagram_analysis.analysis_json import (
     NotAnalyzedFile,
 )
 from diagram_analysis.cluster_delta import (
+    ChangedMembers,
     ClusterDelta,
     LanguageDelta,
     StructuralClusterDiff,
+    compute_changed_members,
     compute_cluster_delta,
     structural_diff_from_delta,
 )
@@ -49,7 +57,7 @@ from diagram_analysis.cluster_snapshot import (
     ClusterSnapshot,
     snapshot_from_static_analysis,
 )
-from diagram_analysis.exceptions import IncrementalCacheMissingError
+from diagram_analysis.exceptions import IncrementalCacheMissingError, ScopeContainmentError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, normalize_repo_path, save_analysis, write_fingerprint
@@ -88,6 +96,412 @@ def _component_expansion_seeds(components: list[Component], max_depth: int) -> l
     ]
 
 
+def _owned_method_keys(components: Iterable[Component]) -> set[tuple[str, str]]:
+    """The ``(file_path, qualified_name)`` set the given components collectively own."""
+    return {
+        (group.file_path, method.qualified_name)
+        for component in components
+        for group in component.file_methods
+        for method in group.methods
+    }
+
+
+def _reconcile_child_scope(
+    parent: Component,
+    child_scope: AnalysisInsights,
+    parent_keys: set[tuple[str, str]],
+    child_keys: set[tuple[str, str]],
+    repo_dir: Path,
+) -> None:
+    """Bring a child scope's membership up to its parent's, preserving unchanged placements.
+
+    ``update_scope`` may shift a handful of methods into or out of a parent. Re-clustering
+    the whole subtree to absorb that would renumber sub-components nothing touched, so
+    instead drop only the departed methods — the double-ownership fix — and graft each
+    entered method onto the child component with the strongest same-file affinity, leaving
+    every method that stayed exactly where it was.
+    """
+    departed = child_keys - parent_keys
+    entered = parent_keys - child_keys
+    if departed:
+        for child in child_scope.components:
+            for group in child.file_methods:
+                group.methods = [m for m in group.methods if (group.file_path, m.qualified_name) not in departed]
+            child.file_methods = [group for group in child.file_methods if group.methods]
+    if entered:
+        parent_methods = {
+            (group.file_path, method.qualified_name): method
+            for group in parent.file_methods
+            for method in group.methods
+        }
+        _graft_entered_methods(child_scope, entered, parent_methods)
+    if departed or entered:
+        # Membership moved, so the scoped LLM relations may reference a method that just left
+        # this scope. They are consumed as authoritative by ``build_global_relations``; clear
+        # them so the deterministic rebuild re-derives edges for the reconciled membership.
+        child_scope.components_relations = []
+    child_scope.files = build_files_index(child_scope, repo_dir)
+
+
+def _graft_entered_methods(
+    child_scope: AnalysisInsights,
+    entered: set[tuple[str, str]],
+    parent_methods: dict[tuple[str, str], MethodEntry],
+) -> None:
+    """Place each entered method on the child component that already owns most of its file."""
+    file_owner_counts: defaultdict[str, Counter[str]] = defaultdict(Counter)
+    child_by_id: dict[str, Component] = {}
+    for child in child_scope.components:
+        child_by_id[child.component_id] = child
+        for group in child.file_methods:
+            file_owner_counts[group.file_path][child.component_id] += len(group.methods)
+    # Deterministic home for a method whose file no child owns yet.
+    fallback = max(
+        child_scope.components,
+        key=lambda c: (sum(len(g.methods) for g in c.file_methods), c.component_id),
+    )
+    for file_path, qualified_name in sorted(entered):
+        counts = file_owner_counts.get(file_path)
+        target = child_by_id[max(counts, key=lambda cid: (counts[cid], cid))] if counts else fallback
+        _append_method(target, file_path, parent_methods[(file_path, qualified_name)])
+        file_owner_counts[file_path][target.component_id] += 1
+
+
+def _append_method(component: Component, file_path: str, method: MethodEntry) -> None:
+    for group in component.file_methods:
+        if group.file_path == file_path:
+            if all(existing.qualified_name != method.qualified_name for existing in group.methods):
+                group.methods.append(method)
+            return
+    component.file_methods.append(FileMethodGroup(file_path=file_path, methods=[method]))
+
+
+@dataclass
+class _ComponentBaseline:
+    """One component's pre-update metadata and membership, for verbatim restoration."""
+
+    name: str
+    description: str
+    key_entities: list[SourceCodeReference]
+    source_group_names: list[str]
+    source_cluster_ids: list[str]
+    member_keys: frozenset[tuple[str, str]]
+    member_qnames: frozenset[str]
+
+
+@dataclass
+class _MembershipBaseline:
+    """Pre-update snapshot the incremental restores unchanged components from."""
+
+    # scope_id -> (file_path, qname) -> owning component_id
+    owner_by_scope: dict[str, dict[tuple[str, str], str]] = field(default_factory=dict)
+    # scope_id -> (file_path, qname) -> the baseline method entry (restored verbatim)
+    entry_by_scope: dict[str, dict[tuple[str, str], MethodEntry]] = field(default_factory=dict)
+    meta_by_id: dict[str, _ComponentBaseline] = field(default_factory=dict)
+    # sub-scope_id -> a verbatim deep copy of the child-scope analysis, so a component with
+    # no changed member anywhere in its subtree can have its whole sub-component structure
+    # (which method sits in which child) restored, not just its top-level ownership.
+    scope_by_id: dict[str, AnalysisInsights] = field(default_factory=dict)
+
+
+def _iter_incremental_scopes(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> Iterator[tuple[str, AnalysisInsights]]:
+    """Yield ``(scope_id, analysis)`` for the root and every expanded sub-scope."""
+    yield ROOT_SCOPE_ID, root_analysis
+    for scope_id, sub in sub_analyses.items():
+        yield scope_id, sub
+
+
+def _capture_baseline_member_keys(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> dict[str, frozenset[tuple[str, str]]]:
+    """Per-component ``{id -> frozenset((file, qname))}`` — the member-key half of the baseline.
+
+    Captured before ``remove_deleted_files`` so a deleted method still shows as a membership
+    change at save-time relation preservation. Deliberately lighter than
+    ``_capture_membership_baseline`` (no deep copies of scopes/metadata), which the restore
+    passes need captured *after* the scrub so they don't re-inject a deleted method.
+    """
+    keys: dict[str, frozenset[tuple[str, str]]] = {}
+    for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        for component in analysis.components:
+            if not component.component_id:
+                continue
+            keys[component.component_id] = frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+    return keys
+
+
+def _capture_membership_baseline(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> _MembershipBaseline:
+    """Snapshot per-scope method ownership and per-component metadata before the update.
+
+    The incremental re-partitions clusters, which can shuffle unchanged methods between
+    components. This snapshot lets a later pass pin every unchanged method back to the
+    component that owned it and restore the metadata of components that end up identical.
+    """
+    baseline = _MembershipBaseline()
+    for scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        if scope_id != ROOT_SCOPE_ID:
+            baseline.scope_by_id[scope_id] = analysis.model_copy(deep=True)
+        owner = baseline.owner_by_scope.setdefault(scope_id, {})
+        entries = baseline.entry_by_scope.setdefault(scope_id, {})
+        for component in analysis.components:
+            if not component.component_id:
+                continue
+            keys: set[tuple[str, str]] = set()
+            qnames: set[str] = set()
+            for group in component.file_methods:
+                for method in group.methods:
+                    key = (group.file_path, method.qualified_name)
+                    owner[key] = component.component_id
+                    entries[key] = method.model_copy(deep=True)
+                    keys.add(key)
+                    qnames.add(method.qualified_name)
+            baseline.meta_by_id[component.component_id] = _ComponentBaseline(
+                name=component.name,
+                description=component.description,
+                key_entities=[entity.model_copy(deep=True) for entity in component.key_entities],
+                source_group_names=list(component.source_group_names),
+                source_cluster_ids=list(component.source_cluster_ids),
+                member_keys=frozenset(keys),
+                member_qnames=frozenset(qnames),
+            )
+    return baseline
+
+
+def _restore_unchanged_membership(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    baseline: _MembershipBaseline,
+    changed_members: set[str],
+    protected_ids: set[str],
+) -> None:
+    """Pin every unchanged method back to the component that owned it in the baseline.
+
+    A method whose body did not change (absent from ``changed_members``) and whose baseline
+    owner still exists is returned to that owner, overriding wherever the re-partition placed
+    it — this is what stops an untouched top-level component from silently gaining or losing
+    methods. Body-changed methods, added methods, methods whose owner was removed, and every
+    method inside a freshly created component (``protected_ids``) keep the re-partition's
+    placement, so a genuinely changed component still re-clusters. Each live method resolves
+    to exactly one owner, so nothing is dropped or duplicated.
+    """
+    for scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        owner = baseline.owner_by_scope.get(scope_id, {})
+        entries = baseline.entry_by_scope.get(scope_id, {})
+        live_ids = {component.component_id for component in analysis.components if component.component_id}
+        assigned: dict[str, dict[str, list[MethodEntry]]] = defaultdict(lambda: defaultdict(list))
+        for component in analysis.components:
+            protected = component.component_id in protected_ids
+            for group in component.file_methods:
+                for method in group.methods:
+                    key = (group.file_path, method.qualified_name)
+                    base_owner = owner.get(key)
+                    if not protected and method.qualified_name not in changed_members and base_owner in live_ids:
+                        assigned[base_owner][group.file_path].append(entries.get(key, method))
+                    else:
+                        assigned[component.component_id][group.file_path].append(method)
+        for component in analysis.components:
+            by_file = assigned.get(component.component_id, {})
+            component.file_methods = [
+                FileMethodGroup(
+                    file_path=file_path,
+                    methods=sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name)),
+                )
+                for file_path, methods in sorted(by_file.items())
+            ]
+
+
+def _restore_unchanged_metadata(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    baseline: _MembershipBaseline,
+    changed_members: set[str],
+    changed_files: set[str],
+) -> set[str]:
+    """Restore name/description/key_entities of components identical to their baseline.
+
+    A component with the same membership as the baseline, no body-changed member, and no
+    module-level edit in a file it owns did not genuinely change; the planner may still have
+    reworded it. Restoring its metadata and returning its id lets the caller drop it from the
+    refresh set, so its relations to other unchanged components are carried over verbatim
+    rather than re-derived.
+    """
+    unchanged_ids: set[str] = set()
+    for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        for component in analysis.components:
+            meta = baseline.meta_by_id.get(component.component_id)
+            if meta is None:
+                continue
+            final_keys = frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            owns_changed_file = any(group.file_path in changed_files for group in component.file_methods)
+            if final_keys != meta.member_keys or (meta.member_qnames & changed_members) or owns_changed_file:
+                continue
+            component.name = meta.name
+            component.description = meta.description
+            component.key_entities = [entity.model_copy(deep=True) for entity in meta.key_entities]
+            component.source_group_names = list(meta.source_group_names)
+            # Restore the paired cluster ids too: membership is baseline-identical here, so the
+            # repartition's ids would leave the component claiming clusters it no longer owns and
+            # misroute the next incremental's changes for them.
+            component.source_cluster_ids = list(meta.source_cluster_ids)
+            unchanged_ids.add(component.component_id)
+    return unchanged_ids
+
+
+def _fully_unchanged_component_ids(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    baseline: _MembershipBaseline,
+    changed_members: set[str],
+    changed_files: set[str],
+    protected_ids: set[str],
+) -> set[str]:
+    """Ids of components whose entire subtree is byte-identical to the baseline.
+
+    A component qualifies when, at every depth, no member changed, no file it owns had a
+    module-level edit, and it neither gained nor lost a member. Containment (parent is a
+    superset of every descendant) means a component's own top-level member set already spans
+    its whole subtree, so testing that set is enough: no member qname is in ``changed_members``,
+    no owned file is in ``changed_files``, and the live keys equal the baseline. A subtree
+    holding a freshly created component is excluded — restoring it verbatim would delete that
+    component, and new components are never restored.
+    """
+    fully_unchanged: set[str] = set()
+    for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        for component in analysis.components:
+            cid = component.component_id
+            meta = baseline.meta_by_id.get(cid)
+            if meta is None or meta.member_qnames & changed_members:
+                continue
+            if any(group.file_path in changed_files for group in component.file_methods):
+                continue
+            if any(is_self_or_descendant(protected_id, cid) for protected_id in protected_ids):
+                continue
+            live_keys = frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            if live_keys == meta.member_keys:
+                fully_unchanged.add(cid)
+    return fully_unchanged
+
+
+def _restore_unchanged_subtrees(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    baseline: _MembershipBaseline,
+    changed_members: set[str],
+    changed_files: set[str],
+    protected_ids: set[str],
+) -> set[str]:
+    """Restore the whole child-scope subtree of every fully-unchanged component, verbatim.
+
+    ``_restore_unchanged_membership`` pins top-level ownership, but a component's child
+    sub-components live in separate scopes that the re-partition — or the later
+    ``_rescope_child_analyses`` reconcile — can still reshuffle, moving a method from one
+    child to a sibling. That shifts the node->deepest-component map and churns the
+    deepest-granularity relations even though nothing in the component changed. For every
+    component whose subtree has no changed member, replace each descendant scope with its
+    baseline deep copy so which method sits in which child is identical to the baseline.
+
+    Returns the full set of preserved ids so the caller can skip them in the reconcile pass;
+    the restore itself only rewrites each maximal subtree once (restoring a root already
+    covers its descendants).
+    """
+    fully_unchanged = _fully_unchanged_component_ids(
+        root_analysis, sub_analyses, baseline, changed_members, changed_files, protected_ids
+    )
+    for scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        # A component whose parent scope is also fully unchanged is restored by that parent.
+        if scope_id != ROOT_SCOPE_ID and scope_id in fully_unchanged:
+            continue
+        for component in analysis.components:
+            cid = component.component_id
+            if cid not in fully_unchanged:
+                continue
+            for descendant_id, baseline_scope in baseline.scope_by_id.items():
+                if is_self_or_descendant(descendant_id, cid):
+                    sub_analyses[descendant_id] = baseline_scope.model_copy(deep=True)
+    return fully_unchanged
+
+
+def _incremental_changed_component_ids(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    baseline_component_ids: set[str],
+    baseline_member_keys: dict[str, frozenset[tuple[str, str]]],
+    changed_members: set[str],
+    changed_files: set[str],
+) -> set[str]:
+    """Component ids whose global relations may legitimately differ from the baseline.
+
+    A live component counts as changed when it is absent from the baseline (freshly
+    created), owns a body-changed member, owns a file with a module-level edit no member
+    represents (``changed_files``), or its live member-key set differs from the baseline —
+    it gained or lost a member. Membership churn alone (a new caller of another component,
+    or the last caller removed) relabels the edges between the two components even with no
+    surviving body-hash change, so it must be treated as changed or the genuinely-new edge
+    is dropped / the stale baseline edge restored. Because every ancestor scope lists a
+    method in its own ``file_methods``, the owner of a change and all of its ancestors are
+    captured together. Everything else is preserved verbatim.
+    """
+    changed: set[str] = set()
+    for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        for component in analysis.components:
+            component_id = component.component_id
+            if not component_id:
+                continue
+            live_keys = frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            body_changed = any(
+                method.qualified_name in changed_members for group in component.file_methods for method in group.methods
+            )
+            file_changed = any(group.file_path in changed_files for group in component.file_methods)
+            membership_changed = live_keys != baseline_member_keys.get(component_id, frozenset())
+            if component_id not in baseline_component_ids or body_changed or file_changed or membership_changed:
+                changed.add(component_id)
+    return changed
+
+
+def _preserve_unchanged_global_relations(
+    rebuilt_relations: list[Relation],
+    baseline_by_pair: dict[tuple[str, str], Relation],
+    changed_component_ids: set[str],
+    live_ids: set[str],
+) -> list[Relation]:
+    """Carry a global relation over from the baseline when neither endpoint changed.
+
+    The save-time rebuild re-derives every relation at the deepest granularity, re-labelling
+    even edges between two untouched components. For each pair whose endpoints are both
+    unchanged we drop the rebuilt edge and take the baseline verbatim; edges touching a
+    changed component keep the fresh rebuild. A baseline relation between two unchanged,
+    still-live components that the rebuild dropped is restored, and a spurious rebuilt edge
+    between two unchanged components is discarded — so both relabel and structural drift
+    against untouched components is eliminated. Relations are keyed by ``(src_id, dst_id)``,
+    the stable component identity; the rebuild always populates both ids.
+    """
+
+    def touches_change(src_id: str, dst_id: str) -> bool:
+        return src_id in changed_component_ids or dst_id in changed_component_ids
+
+    kept = [rel for rel in rebuilt_relations if touches_change(rel.src_id, rel.dst_id)]
+    for (src_id, dst_id), relation in baseline_by_pair.items():
+        if touches_change(src_id, dst_id) or src_id not in live_ids or dst_id not in live_ids:
+            continue
+        kept.append(relation)
+    return sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id))
+
+
 class DiagramGenerator:
     def __init__(
         self,
@@ -118,6 +532,26 @@ class DiagramGenerator:
         # the prior analysis (see ``compute_cluster_delta``). ``None`` runs
         # unscoped (no drift filtering).
         self.changes: ChangeSet | None = changes
+        # Qnames whose method body changed vs the baseline, derived once per incremental run
+        # from the member-granular change signal. Drives copy-forward: an unchanged method is
+        # pinned back to its baseline owner, and the save-time global relation rebuild treats a
+        # component owning one of these as changed.
+        self._changed_members: set[str] = set()
+        # Changed files whose edit no hashed member represents (module-level/config content).
+        # A component owning one of these counts as changed even with no body-hash or membership
+        # change, so its metadata and global relations are re-derived, not carried over stale.
+        self._changed_unattributed_files: set[str] = set()
+        # Incremental-only baseline captured at the top of ``generate_analysis_incremental``,
+        # so the save-time global relation rebuild can carry an edge between two unchanged
+        # components over verbatim instead of re-deriving (and re-labelling) it.
+        # ``None`` => full analysis: rebuild every relation. Keyed by ``(src_id, dst_id)``.
+        self._baseline_global_relations: dict[tuple[str, str], Relation] | None = None
+        self._baseline_component_ids: set[str] = set()
+        # Per-component baseline member-key set, captured with the membership baseline. A
+        # component whose live member keys differ from these gained or lost a member (without
+        # necessarily a body-hash change), so its relations may legitimately relabel — the
+        # save-time global rebuild must treat it as changed.
+        self._baseline_member_keys: dict[str, frozenset[tuple[str, str]]] = {}
         # Whole-tree content hash, stamped into the pkl's sibling .sha file as the
         # diff base for the next warm-start (NOT a cache gate). ``pre_analysis``
         # fills it from the live tree when unset; ``None`` is a tag-less save.
@@ -146,6 +580,30 @@ class DiagramGenerator:
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
         return self._process_component(component)
 
+    def _component_separable(self, component: Component) -> bool:
+        """Deterministic gate: does this component's own call structure actually split?
+
+        Builds the component's subgraph (no side effects — empty scope prefix) and
+        asks whether its inter-cluster meta-graph has a genuine community split.
+        Cohesive components stay leaves instead of being force-expanded to the cap.
+        If the subgraph can't be built (e.g. a legacy static-analysis baseline whose
+        pickled edges predate the current schema), fall back to the structural
+        default of expanding rather than aborting the run.
+        """
+        assert self.details_agent is not None
+        try:
+            _str, cluster_results, subgraph_cfgs = self.details_agent._create_strict_component_subgraph(component)
+        except Exception:
+            logger.exception("Separability check failed for '%s'; defaulting to expandable", component.name)
+            return True
+        if not cluster_results:
+            return False
+        # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
+        # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
+        # must not be judged cohesive on a call-only graph.
+        cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
+        return component_is_separable(cluster_results, cfg_graphs)
+
     def _process_component(
         self, component: Component
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
@@ -158,8 +616,11 @@ class DiagramGenerator:
             # Track whether parent had clusters for expansion decision
             parent_had_clusters = bool(component.source_cluster_ids)
 
-            # Get new components to analyze (deterministic, no LLM)
-            new_components = get_expandable_components(analysis, parent_had_clusters=parent_had_clusters)
+            # Get new components to analyze (deterministic, no LLM). The separability
+            # gate keeps cohesive sub-components as leaves rather than splitting them.
+            new_components = get_expandable_components(
+                analysis, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+            )
 
             return component.component_id, analysis, new_components
         except LLMAuthError:
@@ -518,6 +979,7 @@ class DiagramGenerator:
                                 repo_name=self.repo_name,
                                 repo_dir=self.repo_location,
                                 source_tree_hash=self._source_tree_hash(),
+                                depth_cap=self.depth_level,
                             )
 
                         if new_components and level + 1 < self.depth_level:
@@ -564,8 +1026,9 @@ class DiagramGenerator:
             assert self.abstraction_agent is not None
 
             analysis, cluster_results = self.abstraction_agent.run()
-            # Get the initial components to analyze (deterministic, no LLM)
-            root_components = get_expandable_components(analysis)
+            # Get the initial components to analyze (deterministic, no LLM). The
+            # separability gate keeps cohesive top-level components as leaves.
+            root_components = get_expandable_components(analysis, separable=self._component_separable)
             logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
             # Process components using a frontier queue: submit children as soon as parent finishes.
@@ -590,6 +1053,26 @@ class DiagramGenerator:
             return []
         cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
         global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs)
+        if self._baseline_global_relations is not None:
+            # Incremental: the wholesale rebuild would relabel edges between two untouched
+            # components, so carry those over verbatim from the baseline.
+            changed_ids = _incremental_changed_component_ids(
+                root_analysis,
+                sub_analyses,
+                self._baseline_component_ids,
+                self._baseline_member_keys,
+                self._changed_members,
+                self._changed_unattributed_files,
+            )
+            live_ids = {
+                component.component_id
+                for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
+                for component in analysis.components
+                if component.component_id
+            }
+            global_relations = _preserve_unchanged_global_relations(
+                global_relations, self._baseline_global_relations, changed_ids, live_ids
+            )
         root_analysis.components_relations = global_relations
         return global_relations
 
@@ -606,6 +1089,7 @@ class DiagramGenerator:
         """
         self.rebuild_global_relations(root_analysis, sub_analyses)
         self._strip_ignored(root_analysis, sub_analyses)
+        assert_scope_containment(root_analysis, sub_analyses)
 
     def finalize_and_save(
         self,
@@ -635,6 +1119,33 @@ class DiagramGenerator:
             # Partial: keep the prior hash so metadata matches the unrewritten sidecar.
             prior_metadata = load_analysis_metadata(Path(self.output_dir)) or {}
             source_tree_hash = prior_metadata.get("source_tree_hash", "") or self._source_tree_hash()
+        # Persist the separability-respecting expandable set so a cohesive component the run kept
+        # as a leaf isn't advertised as expandable by the save-time recompute (which is structural-only).
+        # Only when the details agent is live (the analysis flows); a bare re-save without it keeps
+        # the deterministic default (``None`` -> structural computation) rather than risk a crash.
+        expandable_component_ids: list[str] | None = None
+        sub_expandable_ids: dict[str, list[str]] | None = None
+        if self.details_agent is not None:
+            expandable_component_ids = [
+                component.component_id
+                for component in get_expandable_components(root_analysis, separable=self._component_separable)
+                if component.component_id
+            ]
+            # Same separability-respecting decision for each nested scope, so a cohesive
+            # sub-component kept as a leaf isn't advertised as expandable by the save-time
+            # structural recompute either.
+            component_lookup = index_components_by_id(root_analysis, sub_analyses)
+            sub_expandable_ids = {}
+            for cid, sub in sub_analyses.items():
+                parent = component_lookup.get(cid)
+                parent_had_clusters = bool(parent.source_cluster_ids) if parent else True
+                sub_expandable_ids[cid] = [
+                    component.component_id
+                    for component in get_expandable_components(
+                        sub, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+                    )
+                    if component.component_id
+                ]
         analysis_path = save_analysis(
             analysis=root_analysis,
             output_dir=Path(self.output_dir),
@@ -643,6 +1154,9 @@ class DiagramGenerator:
             file_coverage_summary=self._build_file_coverage_summary(),
             repo_dir=self.repo_location,
             source_tree_hash=source_tree_hash,
+            expandable_component_ids=expandable_component_ids,
+            sub_expandable_ids=sub_expandable_ids,
+            depth_cap=self.depth_level,
         ).resolve()
         if seed_delta is not None:
             self._seed_incremental_cluster_cache(seed_delta)
@@ -665,6 +1179,42 @@ class DiagramGenerator:
             not_analyzed_by_reason=summary["not_analyzed_by_reason"],
         )
 
+    def _rescope_child_analyses(
+        self,
+        scope: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+        preserved_ids: set[str],
+    ) -> None:
+        """Reconcile each child scope whose membership diverges from its parent's, surgically.
+
+        Why: ``update_scope`` re-partitions a parent against the live clustering, but a
+        child scope is a separate ``AnalysisInsights`` that no patch touches — a method
+        that moved to another component would otherwise stay in the old owner's subtree
+        and appear under two components.
+
+        Only reconcile a scope whose parent's live method set differs from what its
+        children currently reflect; an agreeing scope is left byte-for-byte, so a small
+        change stops rippling into subtrees nothing touched. The reconcile itself is
+        surgical (drop departed, graft entered) rather than a fresh re-cluster, so even a
+        genuinely-changed component keeps its unchanged methods where they already were.
+        Recurse into every scope so a deeper boundary that shifted is still caught.
+
+        ``preserved_ids`` are components whose subtree was already restored verbatim from
+        the baseline; reconciling them would graft the parent's undistributed methods into
+        children and re-drift the very structure the restore froze, so skip them entirely.
+        """
+        for component in scope.components:
+            if component.component_id in preserved_ids:
+                continue
+            child_scope = sub_analyses.get(component.component_id)
+            if child_scope is None or not child_scope.components:
+                continue
+            parent_keys = _owned_method_keys([component])
+            child_keys = _owned_method_keys(child_scope.components)
+            if parent_keys != child_keys:
+                _reconcile_child_scope(component, child_scope, parent_keys, child_keys, self.repo_location)
+            self._rescope_child_analyses(child_scope, sub_analyses, preserved_ids)
+
     def _apply_incremental_scope_recursively(
         self,
         scope_id: str,
@@ -672,6 +1222,7 @@ class DiagramGenerator:
         structural_diff: StructuralClusterDiff,
         cluster_results: dict[str, ClusterResult],
         sub_analyses: dict[str, AnalysisInsights],
+        changed_members: ChangedMembers | None,
     ) -> RecursiveScopeUpdateResult:
         assert self.incremental_planning_agent is not None
         assert self.incremental_agent is not None
@@ -705,6 +1256,7 @@ class DiagramGenerator:
                 self.incremental_agent,
                 self.changes,
                 self.repo_location,
+                changed_members,
             )
             if not child_diff.has_changes:
                 continue
@@ -716,6 +1268,7 @@ class DiagramGenerator:
                 child_diff,
                 child_cluster_results,
                 sub_analyses,
+                changed_members,
             )
             result.refresh_ids |= child_result.refresh_ids
             result.new_component_ids |= child_result.new_component_ids
@@ -742,6 +1295,28 @@ class DiagramGenerator:
         assert self.incremental_planning_agent is not None
         assert self.incremental_agent is not None
 
+        # Snapshot the loaded baseline before any mutation: its global relations (deepest
+        # granularity, keyed by component id) are carried over verbatim at save time for any
+        # edge between two components that did not change. This is what marks the run as
+        # incremental for ``rebuild_global_relations``; a full run leaves it ``None``.
+        self._baseline_component_ids = {
+            component.component_id
+            for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
+            for component in analysis.components
+            if component.component_id
+        }
+        self._baseline_global_relations = {
+            (relation.src_id, relation.dst_id): relation.model_copy(deep=True)
+            for relation in root_analysis.components_relations
+            if relation.src_id and relation.dst_id
+        }
+        # Capture per-component member keys BEFORE remove_deleted_files scrubs ownership: a deleted
+        # method must still register as a membership change so its component isn't treated as
+        # unchanged and its stale baseline relations restored. Kept separate from the full
+        # membership baseline (captured post-scrub below) so the restore passes never re-inject a
+        # deleted method. Also drives the empty-delta path, which returns before that capture.
+        self._baseline_member_keys = _capture_baseline_member_keys(root_analysis, sub_analyses)
+
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
             # Scrub before cluster math: orphan-routed files never appear in
@@ -756,6 +1331,28 @@ class DiagramGenerator:
                     if node.file_path:
                         live_files.add(normalize_repo_path(node.file_path, self.repo_location))
             remove_deleted_files(root_analysis, sub_analyses, live_files)
+
+            # Member-granular change signal from per-method content hashes,
+            # captured from the baseline analysis.json *before* the files index
+            # is refreshed (which would overwrite the prior hashes). Drives the
+            # modified decision so a body-only edit lights up only the clusters
+            # whose own members changed, not every cluster sharing the file.
+            changed_members = (
+                compute_changed_members(
+                    root_analysis.files,
+                    self.static_analysis,
+                    self.changes,
+                    self.repo_location,
+                )
+                if self.changes is not None
+                else None
+            )
+            # Body-changed qnames drive copy-forward and the save-time relation preservation.
+            self._changed_members = changed_members.members if changed_members is not None else set()
+            # Module-level edits no member represents dirty the owning component too.
+            self._changed_unattributed_files = (
+                changed_members.unattributed_files if changed_members is not None else set()
+            )
 
             snapshot_source = self.static_analysis.incremental_base_results or self.static_analysis
             old_snapshot = snapshot_from_static_analysis(snapshot_source)
@@ -783,6 +1380,9 @@ class DiagramGenerator:
                 # No structural change, but a body-only edit still moves content
                 # hashes — refresh the files index from live source so they don't
                 # go stale (relations are already the global set here).
+                # Re-scope anyway: a baseline written before child scopes were
+                # confined to their parent stays drifted until something repairs it.
+                self._rescope_child_analyses(root_analysis, sub_analyses, set())
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
@@ -791,15 +1391,50 @@ class DiagramGenerator:
                 delta,
                 changes=self.changes,
                 repo_dir=self.repo_location,
+                changed=changed_members,
             )
             protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
+            # Full membership baseline for the restore/rescope passes, captured AFTER the deletion
+            # scrub so a deleted method is never re-injected from the baseline into a live scope.
+            baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
             apply_result = self._apply_incremental_scope_recursively(
                 ROOT_SCOPE_ID,
                 root_analysis,
                 structural_diff,
                 delta.cluster_results(),
                 sub_analyses,
+                changed_members,
             )
+            # Pin unchanged methods back to their baseline owner so the re-partition only
+            # moves what genuinely changed, then freeze the whole subtree of any component
+            # with no changed member so its sub-component boundaries can't drift, and finally
+            # reconcile the child scopes that genuinely moved.
+            _restore_unchanged_membership(
+                root_analysis,
+                sub_analyses,
+                baseline_membership,
+                self._changed_members,
+                apply_result.new_component_ids,
+            )
+            preserved_ids = _restore_unchanged_subtrees(
+                root_analysis,
+                sub_analyses,
+                baseline_membership,
+                self._changed_members,
+                self._changed_unattributed_files,
+                apply_result.new_component_ids,
+            )
+            self._rescope_child_analyses(root_analysis, sub_analyses, preserved_ids)
+            # A component identical to its baseline did not change: restore any metadata the
+            # planner reworded and drop it from the refresh set so its relations carry over.
+            unchanged_ids = _restore_unchanged_metadata(
+                root_analysis,
+                sub_analyses,
+                baseline_membership,
+                self._changed_members,
+                self._changed_unattributed_files,
+            )
+            apply_result.refresh_ids -= unchanged_ids
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
             if removed_ids:
@@ -856,6 +1491,35 @@ class DiagramGenerator:
         root_analysis.files = unified_files
 
 
+def assert_scope_containment(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> None:
+    """Raise ``ScopeContainmentError`` if any child scope owns methods its parent does not."""
+    components_by_id = {
+        component.component_id: component
+        for analysis in [root_analysis, *sub_analyses.values()]
+        for component in analysis.components
+        if component.component_id
+    }
+    violations: list[str] = []
+    for component_id, child_scope in sorted(sub_analyses.items()):
+        parent = components_by_id.get(component_id)
+        if parent is None:
+            continue
+        owned = {(group.file_path, method.qualified_name) for group in parent.file_methods for method in group.methods}
+        for child in child_scope.components:
+            escaped = {
+                (group.file_path, method.qualified_name) for group in child.file_methods for method in group.methods
+            } - owned
+            if escaped:
+                violations.append(
+                    f"{child.component_id or child.name} holds {len(escaped)} method(s) outside parent {component_id}"
+                )
+    if violations:
+        raise ScopeContainmentError(violations)
+
+
 def _collect_components_by_id(
     component_ids: set[str],
     root_analysis: AnalysisInsights,
@@ -909,11 +1573,22 @@ def _child_scope_needs_recursive_update(
         for method in group.methods
         if method.qualified_name
     }
-    removed_qnames: set[str] = set()
+    # A module-level edit no member represents surfaces only as dirty_files, so match on the
+    # child's owned files too — otherwise a pure import/constant edit in a file this expanded
+    # child owns refreshes the parent but leaves the child's descriptions/relations stale.
+    owned_files = {
+        normalize_repo_path(group.file_path)
+        for component in child_scope.components
+        for group in component.file_methods
+        if group.file_path
+    }
+    changed_qnames: set[str] = set()
+    dirty_files: set[str] = set()
     for diff in structural_diff.by_language.values():
         for member_delta in [*diff.modified, *diff.new_details]:
-            removed_qnames.update(member_delta.removed_methods)
-    return bool(removed_qnames.intersection(owned_qnames))
+            changed_qnames.update(member_delta.removed_methods, member_delta.added_methods, member_delta.dirty_members)
+            dirty_files.update(normalize_repo_path(path) for path in member_delta.dirty_files)
+    return bool(changed_qnames & owned_qnames) or bool(dirty_files & owned_files)
 
 
 def _build_scope_incremental_inputs(
@@ -922,6 +1597,7 @@ def _build_scope_incremental_inputs(
     incremental_agent: IncrementalAgent,
     changes: ChangeSet | None,
     repo_dir: Path,
+    changed_members: ChangedMembers | None,
 ) -> tuple[dict[str, ClusterResult], StructuralClusterDiff]:
     old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
     if not old_snapshot.all_cluster_ids():
@@ -943,6 +1619,7 @@ def _build_scope_incremental_inputs(
         changes=changes,
         repo_dir=repo_dir,
         scope_id=scope_id,
+        changed=changed_members,
     )
     return cluster_results, structural_diff
 

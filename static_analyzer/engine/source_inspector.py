@@ -77,6 +77,8 @@ _NAME_NODE_TYPES = frozenset(
 _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
+_DECLARATION_BLOCK_NODE_TYPES = frozenset({"block", "compound_statement", "statement_block"})
+_EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
 
 
 @dataclass(frozen=True)
@@ -131,6 +133,39 @@ class SourceInspector:
         if usage_index is None:
             return True
         return (ref_line, ref_start_char, ref_end_char) in usage_index.callable_ranges
+
+    def is_reference_in_declaration_body(
+        self,
+        file_path: Path,
+        declaration_line: int,
+        declaration_start_char: int,
+        ref_line: int,
+        ref_start_char: int,
+        ref_end_char: int,
+        *,
+        include_expression_body: bool = False,
+    ) -> bool:
+        """Check whether a reference is structurally inside a declaration body."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return False
+
+        node = self._smallest_named_node_covering_range(
+            parsed.tree.root_node,
+            ref_line,
+            ref_start_char,
+            ref_end_char,
+        )
+        while node is not None:
+            body_starts_in_declaration = node.start_point.row > declaration_line or (
+                node.start_point.row == declaration_line and node.start_point.column >= declaration_start_char
+            )
+            if body_starts_in_declaration and node.type in _DECLARATION_BLOCK_NODE_TYPES:
+                return True
+            if body_starts_in_declaration and include_expression_body and node.type in _EXPRESSION_BODY_NODE_TYPES:
+                return True
+            node = node.parent
+        return False
 
     def find_call_sites(self, file_path: Path) -> list[CallSite]:
         """Find definition-query positions for identifiers used at call sites."""

@@ -68,6 +68,28 @@ def hash_whole_file(lines: list[str]) -> str:
     return hashlib.sha256("\n".join(lines).encode(SOURCE_ENCODING, errors=SOURCE_DECODE_ERRORS)).hexdigest()[:16]
 
 
+def hash_file_residual(lines: list[str], spans: list[MethodSpan]) -> str:
+    """Truncated SHA-256 of a file's *module-level* lines — everything outside ``spans``.
+
+    Why: the whole-file hash also moves when a method body changes, so it cannot
+    tell a pure method edit from a module-level (constant/import/decorator) edit. The
+    residual excises every indexed method's line range and hashes only what is left,
+    so a change here means module-level content moved even when a sibling method also
+    changed. '' when the file is empty (matches ``hash_whole_file`` so a missing
+    baseline residual degrades to "no module-level signal" rather than a false hit).
+    """
+    if not lines:
+        return ""
+    excised = [True] * len(lines)
+    for start_line, end_line in spans:
+        if start_line < 1 or end_line < start_line:
+            continue
+        for idx in range(start_line - 1, min(end_line, len(lines))):
+            excised[idx] = False
+    residual = "\n".join(line for line, keep in zip(lines, excised) if keep)
+    return hashlib.sha256(residual.encode(SOURCE_ENCODING, errors=SOURCE_DECODE_ERRORS)).hexdigest()[:16]
+
+
 def tree_hash_from_file_hashes(file_hashes: dict[str, str]) -> str:
     """SHA-256 over sorted ``path:hash`` lines. '' when no files carry a hash.
 

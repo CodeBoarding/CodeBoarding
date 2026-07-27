@@ -5,7 +5,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from diagram_analysis import DEFAULT_DEPTH_LEVEL
 from github_action import (
+    _resolve_depth_level,
     generate_analysis,
     generate_html,
     generate_markdown,
@@ -424,6 +426,47 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_checkout.assert_called_once()
             args = mock_checkout.call_args[0]
             self.assertEqual(args[1], "feature-branch")
+
+
+class TestResolveDepthLevel(unittest.TestCase):
+    """An action incremental over a seeded baseline must reuse the baseline's
+    own configured cap, not silently re-cap it at the current default."""
+
+    @patch.dict(os.environ, {"DIAGRAM_DEPTH_LEVEL": "5"}, clear=True)
+    def test_env_var_takes_priority_over_seeded_baseline(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            _write_analysis_file(temp_path / "analysis.json")
+            self.assertEqual(_resolve_depth_level(temp_path), 5)
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_seeded_baseline_depth_cap_used_when_env_var_unset(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            metadata: dict[str, object] = {
+                "generated_at": "2024-01-01T00:00:00Z",
+                "repo_name": "test",
+                "depth_level": 1,
+                "depth_cap": 4,
+            }
+            analysis = {**UNIFIED_ANALYSIS_JSON, "metadata": metadata}
+            with open(temp_path / "analysis.json", "w") as f:
+                json.dump(analysis, f)
+
+            self.assertEqual(_resolve_depth_level(temp_path), 4)
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_legacy_baseline_falls_back_to_depth_level(self):
+        """Baselines written before depth_cap existed only have depth_level."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            _write_analysis_file(temp_path / "analysis.json")  # depth_level=1, no depth_cap
+            self.assertEqual(_resolve_depth_level(temp_path), 1)
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_no_baseline_falls_back_to_default(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.assertEqual(_resolve_depth_level(Path(temp_dir)), DEFAULT_DEPTH_LEVEL)
 
 
 if __name__ == "__main__":

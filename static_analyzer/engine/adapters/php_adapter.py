@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
@@ -9,7 +10,38 @@ from static_analyzer.constants import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw.strip())
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
 class PHPAdapter(LanguageAdapter):
+
+    @property
+    def probe_before_open(self) -> bool:
+        """Integphense is happier when indexing readiness is checked before opens."""
+        return True
+
+    @property
+    def interleave_did_open_with_symbols(self) -> bool:
+        """Keep overlay creation and symbol extraction in lockstep for large PHP repos."""
+        return True
+
+    @property
+    def references_batch_size(self) -> int:
+        """Lower batch concurrency to avoid overloading Intelephense on big projects."""
+        return _env_int("CODEBOARDING_PHP_REFERENCES_BATCH_SIZE", 10)
+
+    @property
+    def references_per_query_timeout(self) -> int:
+        """Keep reference queries bounded to avoid long request tails."""
+        return _env_int("CODEBOARDING_PHP_REFERENCES_QUERY_TIMEOUT", 10)
 
     @property
     def language(self) -> str:
