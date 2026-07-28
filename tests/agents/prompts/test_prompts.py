@@ -21,7 +21,6 @@ class TestAbstractPromptFactory(unittest.TestCase):
         # Test that all expected abstract methods are defined
         expected_methods = [
             "get_system_message",
-            "get_cluster_grouping_message",
             "get_final_analysis_message",
             "get_planner_system_message",
             "get_expansion_prompt",
@@ -30,9 +29,7 @@ class TestAbstractPromptFactory(unittest.TestCase):
             "get_file_classification_message",
             "get_validation_feedback_message",
             "get_system_details_message",
-            "get_cfg_details_message",
             "get_details_message",
-            "get_planning_message",
         ]
 
         for method_name in expected_methods:
@@ -207,7 +204,6 @@ class TestConvenienceFunctions(unittest.TestCase):
 
         convenience_functions = [
             "get_system_message",
-            "get_cluster_grouping_message",
             "get_final_analysis_message",
             "get_planner_system_message",
             "get_expansion_prompt",
@@ -216,9 +212,7 @@ class TestConvenienceFunctions(unittest.TestCase):
             "get_file_classification_message",
             "get_validation_feedback_message",
             "get_system_details_message",
-            "get_cfg_details_message",
             "get_details_message",
-            "get_planning_message",
         ]
 
         for func_name in convenience_functions:
@@ -234,37 +228,6 @@ class TestConvenienceFunctions(unittest.TestCase):
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
 
-    def test_planning_prompt_available_for_all_models(self):
-        required_variables = {
-            "{scope_id}",
-            "{existing_components}",
-            "{changed_files}",
-            "{structural_diff}",
-        }
-        system_context_variables = {"{project_name}", "{project_type}", "{meta_context}"}
-        contract_requirements = {
-            "this step plans component boundaries only",
-            "api surfaces and relations are generated later",
-            "for create_component",
-            "for update_component",
-            "for delete_component or noop",
-            "copy the exact component_id",
-            "mutually exclusive branches",
-            "unsupported by the current incremental schema",
-        }
-
-        for llm_type in LLMType:
-            prompt = PromptFactory(llm_type)._prompt_factory.get_planning_message()
-            self.assertIsInstance(prompt, str)
-            self.assertGreater(len(prompt), 0)
-            for variable in required_variables:
-                self.assertIn(variable, prompt)
-            for variable in system_context_variables:
-                self.assertNotIn(variable, prompt)
-            normalized_prompt = prompt.casefold()
-            for requirement in contract_requirements:
-                self.assertIn(requirement, normalized_prompt)
-
     def test_project_context_is_reserved_for_system_prompts(self):
         context_variables = {"{project_name}", "{project_type}", "{meta_context}"}
 
@@ -272,12 +235,8 @@ class TestConvenienceFunctions(unittest.TestCase):
             factory = PromptFactory(llm_type)._prompt_factory
             system_prompt = factory.get_system_message()
             concrete_prompts = [
-                factory.get_cluster_grouping_message(),
                 factory.get_final_analysis_message(),
-                factory.get_cfg_details_message(),
                 factory.get_details_message(),
-                factory.get_incremental_grouping_message(),
-                factory.get_planning_message(),
                 factory.get_scope_relations_message(),
                 factory.get_api_surfaces_message(),
                 factory.get_relation_analysis_message(),

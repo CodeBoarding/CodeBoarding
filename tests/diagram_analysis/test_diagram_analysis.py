@@ -268,6 +268,37 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertEqual(set(fg.file_path for fg in result.file_methods), {"a.py", "b.py"})
         self.assertEqual(len(result.key_entities), 1)
 
+    def test_key_entity_reference_file_is_relativized(self):
+        # The reference resolver leaves reference_file absolute; serialization must make it
+        # repo-relative like every other path, or consumers cannot match it against the tree.
+        repo = Path("/tmp/some/repo")
+        comp = Component(
+            name="C",
+            description="",
+            component_id="1",
+            key_entities=[
+                SourceCodeReference(
+                    qualified_name="pkg.mod.fn",
+                    reference_file="/tmp/some/repo/pkg/mod.py",
+                    reference_start_line=1,
+                    reference_end_line=2,
+                ),
+                SourceCodeReference(
+                    qualified_name="pkg.other.fn",
+                    reference_file="pkg/other.py",
+                    reference_start_line=1,
+                    reference_end_line=2,
+                ),
+            ],
+        )
+
+        result = from_component_to_json_component(comp, [], repo)
+
+        self.assertEqual(
+            [ke.reference_file for ke in result.key_entities],
+            ["pkg/mod.py", "pkg/other.py"],
+        )
+
     def test_from_analysis_to_json(self):
         # Test full analysis conversion to JSON
         new_components = [self.comp1]  # Only comp1 can expand
@@ -837,7 +868,6 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(gen.depth_level, 2)
         self.assertIsNone(gen.details_agent)
         self.assertIsNone(gen.abstraction_agent)
-        self.assertIsNone(gen.incremental_planning_agent)
         self.assertIsNone(gen.incremental_agent)
 
     @patch("diagram_analysis.diagram_generator.get_static_analysis")
@@ -914,17 +944,13 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
 
-        with (
-            patch("diagram_analysis.diagram_generator.IncrementalPlanningAgent") as mock_incremental_planning,
-            patch("diagram_analysis.diagram_generator.IncrementalAgent") as mock_incremental,
-        ):
+        with (patch("diagram_analysis.diagram_generator.IncrementalAgent") as mock_incremental,):
             gen.pre_analysis()
 
         # Verify agents were created
         self.assertIsNotNone(gen.meta_agent)
         self.assertIsNotNone(gen.details_agent)
         self.assertIsNotNone(gen.abstraction_agent)
-        self.assertIs(gen.incremental_planning_agent, mock_incremental_planning.return_value)
         self.assertIs(gen.incremental_agent, mock_incremental.return_value)
         mock_meta_instance.analyze_project_metadata.assert_called_once_with(skip_cache=False)
 
@@ -1173,7 +1199,6 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.details_agent = Mock()
         gen.abstraction_agent = Mock()
-        gen.incremental_planning_agent = Mock()
         gen.incremental_agent = Mock()
         gen.abstraction_agent.run.return_value = (analysis, {})
 
@@ -1194,7 +1219,6 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.details_agent = Mock()
         gen.abstraction_agent = Mock()
-        gen.incremental_planning_agent = Mock()
         gen.incremental_agent = Mock()
         # Empty static analysis -> snapshot has no cluster ids -> incremental
         # path must refuse rather than silently re-deriving from scratch.
@@ -1273,21 +1297,19 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        planning_agent = MagicMock()
         incremental_agent = MagicMock()
         relation_context = ScopeRelationContext(cluster_results={}, cfg_graphs={})
         incremental_agent.update_scope.return_value = ScopeUpdateResult(
             relation_context=relation_context,
             removed_ids={"2"},
         )
-        gen.incremental_planning_agent = planning_agent
         gen.incremental_agent = incremental_agent
         scope = AnalysisInsights(description="root", components=[], components_relations=[])
 
         result = gen._apply_incremental_scope_recursively(
             "root",
             scope,
-            StructuralClusterDiff(),
+            {},
             {},
             {},
             None,
@@ -1370,7 +1392,6 @@ class TestDiagramGenerator(unittest.TestCase):
             ScopeUpdateResult(relation_context=root_context, refresh_ids={"1"}),
             ScopeUpdateResult(relation_context=child_context, refresh_ids={"1.1"}),
         ]
-        gen.incremental_planning_agent = MagicMock()
         gen.incremental_agent = incremental_agent
         root_component = Component(name="Parent", description="", key_entities=[], component_id="1")
         child_component = Component(
@@ -1408,12 +1429,12 @@ class TestDiagramGenerator(unittest.TestCase):
                 )
             }
         )
-        mock_build_scope_inputs.return_value = (child_context.cluster_results, child_diff)
+        mock_build_scope_inputs.return_value = (child_context.cluster_results, {}, child_diff)
 
         result = gen._apply_incremental_scope_recursively(
             "root",
             root,
-            StructuralClusterDiff(),
+            {},
             {},
             {"1": child},
             None,
@@ -1425,7 +1446,6 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
     @patch("diagram_analysis.diagram_generator._build_scope_incremental_inputs")
     @patch("diagram_analysis.diagram_generator.structural_diff_from_delta")
-    @patch("diagram_analysis.diagram_generator.IncrementalPlanningAgent")
     @patch("diagram_analysis.diagram_generator.IncrementalAgent")
     @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
     @patch("diagram_analysis.diagram_generator.snapshot_from_static_analysis")
@@ -1434,7 +1454,6 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_snapshot,
         mock_delta,
         _mock_incremental_agent,
-        mock_planning_agent,
         _mock_structural_diff,
         mock_build_scope_inputs,
         _mock_prune,
@@ -1450,7 +1469,6 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
         gen.details_agent = Mock()
-        gen.incremental_planning_agent = mock_planning_agent.return_value
         gen.incremental_agent = _mock_incremental_agent.return_value
         gen.static_analysis = Mock()
         gen.static_analysis.get_languages.return_value = []
@@ -1507,7 +1525,11 @@ class TestDiagramGenerator(unittest.TestCase):
             }
         )
         _mock_structural_diff.return_value = root_diff
-        mock_build_scope_inputs.return_value = ({"python": ClusterResult(clusters={3: {"pkg.changed"}})}, child_diff)
+        mock_build_scope_inputs.return_value = (
+            {"python": ClusterResult(clusters={3: {"pkg.changed"}})},
+            {},
+            child_diff,
+        )
         root_decision = ScopeUpdateDecision(
             operations=[
                 ScopeOperation(
@@ -1528,7 +1550,6 @@ class TestDiagramGenerator(unittest.TestCase):
                 )
             ]
         )
-        mock_planning_agent.return_value.decide_scope_update.side_effect = [root_decision, child_decision]
         _mock_incremental_agent.return_value.update_scope.side_effect = [
             ScopeUpdateResult(
                 relation_context=ScopeRelationContext(cluster_results={}, cfg_graphs={}),
@@ -1546,16 +1567,13 @@ class TestDiagramGenerator(unittest.TestCase):
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
 
-        self.assertIs(gen.incremental_planning_agent, mock_planning_agent.return_value)
         self.assertIs(gen.incremental_agent, _mock_incremental_agent.return_value)
         mock_snapshot.assert_called_once_with(base_static_analysis)
-        mock_planning_agent.return_value.decide_scope_update.assert_called_once_with(
-            "root",
-            root_analysis,
-            root_diff,
-            {},
-        )
         _mock_incremental_agent.return_value.update_scope.assert_called_once()
+        scope_id, scope, decision, _clusters = _mock_incremental_agent.return_value.update_scope.call_args.args
+        self.assertEqual(scope_id, "root")
+        self.assertIs(scope, root_analysis)
+        self.assertIsInstance(decision, ScopeUpdateDecision)
         mock_build_scope_inputs.assert_called_once_with(
             root_component,
             "1",
@@ -1571,7 +1589,6 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
     @patch("diagram_analysis.diagram_generator._build_scope_incremental_inputs")
     @patch("diagram_analysis.diagram_generator.structural_diff_from_delta")
-    @patch("diagram_analysis.diagram_generator.IncrementalPlanningAgent")
     @patch("diagram_analysis.diagram_generator.IncrementalAgent")
     @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
     @patch("diagram_analysis.diagram_generator.snapshot_from_static_analysis")
@@ -1580,7 +1597,6 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_snapshot,
         mock_delta,
         _mock_incremental_agent,
-        mock_planning_agent,
         _mock_structural_diff,
         mock_build_scope_inputs,
         _mock_prune,
@@ -1596,7 +1612,6 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
         gen.details_agent = Mock()
-        gen.incremental_planning_agent = mock_planning_agent.return_value
         gen.incremental_agent = _mock_incremental_agent.return_value
         gen.static_analysis = Mock()
         gen.static_analysis.get_languages.return_value = []
@@ -1614,27 +1629,16 @@ class TestDiagramGenerator(unittest.TestCase):
         _mock_structural_diff.return_value = StructuralClusterDiff(
             by_language={"python": LanguageStructuralDiff(language="python", new=[ClusterRef("python", 2)])}
         )
-        mock_planning_agent.return_value.decide_scope_update.return_value = ScopeUpdateDecision(
-            operations=[
-                ScopeOperation(
-                    action=ScopeOperationAction.UPDATE_COMPONENT,
-                    cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=2)],
-                    component_id="1",
-                    rationale="Parent changed.",
-                )
-            ]
-        )
         _mock_incremental_agent.return_value.update_scope.return_value = ScopeUpdateResult(
             relation_context=ScopeRelationContext(cluster_results={}, cfg_graphs={}),
             refresh_ids={"1"},
             new_component_ids=set(),
         )
-        mock_build_scope_inputs.return_value = ({}, StructuralClusterDiff())
+        mock_build_scope_inputs.return_value = ({}, {}, StructuralClusterDiff())
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
 
-        self.assertEqual(mock_planning_agent.return_value.decide_scope_update.call_count, 1)
         self.assertEqual(_mock_incremental_agent.return_value.update_scope.call_count, 1)
         gen._generate_subcomponents.assert_not_called()
 
@@ -1659,7 +1663,6 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
         gen.details_agent = Mock()
-        gen.incremental_planning_agent = Mock()
         gen.incremental_agent = Mock()
         gen.incremental_agent._create_strict_component_subgraph.return_value = ("", {}, {})
         gen.static_analysis = Mock()

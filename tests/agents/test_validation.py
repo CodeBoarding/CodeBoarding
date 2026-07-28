@@ -7,7 +7,6 @@ from agents.validation import (
     ValidationContext,
     ValidationResult,
     score_validation_results,
-    validate_cluster_coverage,
     validate_file_classifications,
     validate_key_entities,
     validate_relation_component_names,
@@ -38,7 +37,6 @@ class TestValidationContext(unittest.TestCase):
         context = ValidationContext()
         self.assertEqual(context.cluster_results, {})
         self.assertEqual(context.cfg_graphs, {})
-        self.assertEqual(context.expected_cluster_ids, set())
         self.assertEqual(context.expected_files, set())
         self.assertEqual(context.valid_component_names, set())
         self.assertIsNone(context.repo_dir)
@@ -46,7 +44,6 @@ class TestValidationContext(unittest.TestCase):
     def test_initialization_with_values(self):
         cluster_results = {"python": ClusterResult()}
         cfg_graphs = {"python": CallGraph()}
-        expected_ids = {1, 2, 3}
         expected_files = {"file1.py", "file2.py"}
         valid_names = {"ComponentA", "ComponentB"}
         repo_dir = "/path/to/repo"
@@ -54,7 +51,6 @@ class TestValidationContext(unittest.TestCase):
         context = ValidationContext(
             cluster_results=cluster_results,
             cfg_graphs=cfg_graphs,
-            expected_cluster_ids=expected_ids,
             expected_files=expected_files,
             valid_component_names=valid_names,
             repo_dir=repo_dir,
@@ -62,7 +58,6 @@ class TestValidationContext(unittest.TestCase):
 
         self.assertEqual(context.cluster_results, cluster_results)
         self.assertEqual(context.cfg_graphs, cfg_graphs)
-        self.assertEqual(context.expected_cluster_ids, expected_ids)
         self.assertEqual(context.expected_files, expected_files)
         self.assertEqual(context.valid_component_names, valid_names)
         self.assertEqual(context.repo_dir, repo_dir)
@@ -115,60 +110,6 @@ class TestValidationScoring(unittest.TestCase):
         )
 
         self.assertEqual(score, VALIDATOR_WEIGHTS["validate_relations"] * 0.75)
-
-
-class TestValidateClusterCoverage(unittest.TestCase):
-    """Test validate_cluster_coverage function."""
-
-    def test_all_clusters_covered(self):
-        cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="Component A", description="desc", cluster_ids=[1, 2]),
-                ClustersComponent(name="Component B", description="desc", cluster_ids=[3, 4]),
-            ]
-        )
-        context = ValidationContext(expected_cluster_ids={1, 2, 3, 4})
-        result = validate_cluster_coverage(cluster_analysis, context)
-        self.assertTrue(result.is_valid)
-
-    def test_missing_clusters(self):
-        cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="Component A", description="desc", cluster_ids=[1, 2]),
-            ]
-        )
-        context = ValidationContext(expected_cluster_ids={1, 2, 3, 4, 5})
-        result = validate_cluster_coverage(cluster_analysis, context)
-        self.assertFalse(result.is_valid)
-        self.assertIn("3, 4, 5", result.feedback_messages[0])
-
-    def test_no_expected_clusters(self):
-        cluster_analysis = ClusterAnalysis(cluster_components=[])
-        context = ValidationContext(expected_cluster_ids=set())
-        result = validate_cluster_coverage(cluster_analysis, context)
-        self.assertTrue(result.is_valid)
-
-    def test_empty_cluster_analysis(self):
-        cluster_analysis = ClusterAnalysis(cluster_components=[])
-        context = ValidationContext(expected_cluster_ids={1, 2, 3})
-        result = validate_cluster_coverage(cluster_analysis, context)
-        self.assertFalse(result.is_valid)
-        self.assertIn("1, 2, 3", result.feedback_messages[0])
-
-    def test_overlapping_cluster_ids(self):
-        cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="Component A", description="desc", cluster_ids=[1, 2, 3]),
-                ClustersComponent(name="Component B", description="desc", cluster_ids=[2, 3, 4]),
-            ]
-        )
-        context = ValidationContext(expected_cluster_ids={1, 2, 3, 4})
-        result = validate_cluster_coverage(cluster_analysis, context)
-        self.assertFalse(result.is_valid)
-        # Clusters 2 and 3 are duplicated
-        feedback = " ".join(result.feedback_messages)
-        self.assertIn("cluster 2", feedback)
-        self.assertIn("cluster 3", feedback)
 
 
 class TestValidateFileClassifications(unittest.TestCase):

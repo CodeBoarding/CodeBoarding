@@ -421,7 +421,16 @@ class TestLabelInheritance(unittest.TestCase):
         relation = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.2"))
 
         self.assertEqual(relation.evidence, root_relation.evidence)
-        self.assertEqual(relation.key_edges, root_relation.key_edges)
+        # The ancestor's highlight is inherited, grounded to the real CFG edge: same symbols
+        # and the LLM's description, now carrying the CFG's line spans, and present in all_edges.
+        self.assertEqual([e.description for e in relation.key_edges], ["List requests load profiles."])
+        self.assertEqual(
+            [(e.source.qualified_name, e.target.qualified_name) for e in relation.key_edges],
+            [("api.rest.list", "core.profiles.get")],
+        )
+        self.assertTrue(
+            all(edge.identity() in {e.identity() for e in relation.all_edges} for edge in relation.key_edges)
+        )
         self.assertGreaterEqual(len(relation.all_edges), 1)
         unrelated = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.1"))
         self.assertEqual(unrelated.key_edges, [])
@@ -713,17 +722,96 @@ class TestLlmOnlyRelations(unittest.TestCase):
         # An LLM relation whose endpoint id has no matching live component (e.g. a
         # component deleted in a deep sub-scope, left dangling in a reloaded root
         # set) must not survive into the global set.
-        root = AnalysisInsights(
-            description="root",
-            components=[_comp("A", [])],
-            components_relations=[Relation(relation="calls", src_name="A", dst_name="Ghost", src_id="1", dst_id="9")],
-        )
+        root = AnalysisInsights(description="root", components=[_comp("A", [])], components_relations=[])
         assign_component_ids(root)
-        # Force a dangling dst id that resolves to no component.
-        root.components_relations[0].src_id, root.components_relations[0].dst_id = "1", "9"
+        # A relation that becomes dangling *after* assignment — its target was deleted in a
+        # deep sub-scope, leaving a stale id in the reloaded root set. build_global_relations
+        # must still drop it (assign_relation_ids only catches danglers at generation time).
+        root.components_relations = [Relation(relation="calls", src_name="A", dst_name="Ghost", src_id="1", dst_id="9")]
 
         rels = build_global_relations(root, {}, {"python": CallGraph()})
         self.assertNotIn(("1", "9"), {(r.src_id, r.dst_id) for r in rels})
+
+
+class TestSelfLoopSuppression(unittest.TestCase):
+    """A component self-loop is a real intra-component call that has no cross-component
+    connection to draw at the current granularity. It is dropped from the assembled
+    relations, but the backing CFG edge is untouched and re-surfaces as a cross-component
+    relation the moment the component splits into children that separate its endpoints.
+    """
+
+    @staticmethod
+    def _cfg() -> CallGraph:
+        nodes = {
+            "a.foo": _node("a.foo", "pkg/a.py"),
+            "a.bar": _node("a.bar", "pkg/a.py"),
+        }
+        return CallGraph(nodes=nodes, edges=[Edge(nodes["a.foo"], nodes["a.bar"])])
+
+    @staticmethod
+    def _self_relation() -> Relation:
+        # The LLM emitted an A -> A self-relation carrying the intra-component call.
+        return Relation(
+            relation="uses",
+            src_name="A",
+            dst_name="A",
+            src_id="1",
+            dst_id="1",
+            key_edges=[
+                RelationEdge(
+                    source=SourceCodeReference(qualified_name="a.foo", reference_file="pkg/a.py"),
+                    target=SourceCodeReference(qualified_name="a.bar", reference_file="pkg/a.py"),
+                )
+            ],
+        )
+
+    def _root(self) -> AnalysisInsights:
+        analysis = AnalysisInsights(
+            description="app",
+            components=[_comp("A", [("a.foo", "pkg/a.py"), ("a.bar", "pkg/a.py")])],
+            components_relations=[self._self_relation()],
+        )
+        assign_component_ids(analysis)
+        return analysis
+
+    def test_self_loop_dropped_but_cfg_edge_untouched(self):
+        cfg = {"python": self._cfg()}
+        relations = build_global_relations(self._root(), {}, cfg)
+        self.assertEqual([], [(r.src_id, r.dst_id) for r in relations if r.src_id == r.dst_id])
+        # The filter operates on the relation list only; the backing CFG edge still exists.
+        cfg_pairs = {(e.get_source(), e.get_destination()) for e in cfg["python"].edges}
+        self.assertIn(("a.foo", "a.bar"), cfg_pairs)
+
+    def test_edge_resurfaces_cross_component_on_expansion(self):
+        cfg = {"python": self._cfg()}
+        root = self._root()
+        child = AnalysisInsights(
+            description="A",
+            components=[
+                _comp("Foo", [("a.foo", "pkg/a.py")]),
+                _comp("Bar", [("a.bar", "pkg/a.py")]),
+            ],
+            components_relations=[],
+        )
+        assign_component_ids(child, parent_id="1")
+        relations = build_global_relations(root, {"1": child}, cfg)
+        pairs = {(r.src_id, r.dst_id) for r in relations}
+        # foo and bar now live in different children, so the same CFG edge is a real relation.
+        self.assertIn(("1.1", "1.2"), pairs)
+        self.assertNotIn(("1.1", "1.1"), pairs)
+
+    def test_edgeless_self_relation_is_preserved(self):
+        # A runtime/config self-relation with no backing call has nothing in the CFG to
+        # re-materialise it, so it must not be silently discarded.
+        edgeless = Relation(relation="reentrant via config", src_name="A", dst_name="A", src_id="1", dst_id="1")
+        root = AnalysisInsights(
+            description="app",
+            components=[_comp("A", [("a.foo", "pkg/a.py")])],
+            components_relations=[edgeless],
+        )
+        assign_component_ids(root)
+        relations = build_global_relations(root, {}, {"python": CallGraph()})
+        self.assertIn(("1", "1"), {(r.src_id, r.dst_id) for r in relations})
 
 
 if __name__ == "__main__":

@@ -173,11 +173,15 @@ class TestUpdateScope(unittest.TestCase):
     def test_update_without_selected_key_entities_does_not_synthesize_them(self) -> None:
         component = _component("API", "1", source_cluster_ids=["1"])
         scope = AnalysisInsights(description="root", components=[component], components_relations=[])
+        # The planner carries the component's complete new cluster set on every UPDATE.
         decision = ScopeUpdateDecision(
             operations=[
                 ScopeOperation(
                     action=ScopeOperationAction.UPDATE_COMPONENT,
-                    cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=2)],
+                    cluster_refs=[
+                        ScopedClusterRef(scope_id="root", language="python", cluster_id=1),
+                        ScopedClusterRef(scope_id="root", language="python", cluster_id=2),
+                    ],
                     component_id="1",
                     description="New",
                     rationale="API gained a cluster.",
@@ -232,11 +236,15 @@ class TestUpdateScope(unittest.TestCase):
         first = _component("Core", "1.1", source_cluster_ids=["1.1", "1.2"])
         second = _component("Parsers", "1.2", source_cluster_ids=["1.3"])
         scope = AnalysisInsights(description="nested", components=[first, second], components_relations=[])
+        # Parsers keeps 1.3 and gains 1.2; the op carries its complete new set.
         decision = ScopeUpdateDecision(
             operations=[
                 ScopeOperation(
                     action=ScopeOperationAction.UPDATE_COMPONENT,
-                    cluster_refs=[ScopedClusterRef(scope_id="1", language="python", cluster_id=2)],
+                    cluster_refs=[
+                        ScopedClusterRef(scope_id="1", language="python", cluster_id=2),
+                        ScopedClusterRef(scope_id="1", language="python", cluster_id=3),
+                    ],
                     component_id="1.2",
                     description="Parsers now own the parser cluster.",
                     rationale="Cluster 2 moved under parser responsibility.",
@@ -249,6 +257,26 @@ class TestUpdateScope(unittest.TestCase):
         self.assertEqual(first.source_cluster_ids, ["1.1"])
         self.assertEqual(second.source_cluster_ids, ["1.2", "1.3"])
         self.assertEqual(result.refresh_ids, {"1.1", "1.2"})
+
+    def test_update_drops_a_cluster_the_component_no_longer_owns(self) -> None:
+        # A shrunk component: cluster 2 was deleted from the code, so the planner's UPDATE
+        # lists only the survivor. Union semantics would keep the dead 2; replacement drops it.
+        component = _component("API", "1", source_cluster_ids=["1", "2"])
+        scope = AnalysisInsights(description="root", components=[component], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.UPDATE_COMPONENT,
+                    cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=1)],
+                    component_id="1",
+                    rationale="Cluster 2 was deleted.",
+                )
+            ]
+        )
+
+        self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+
+        self.assertEqual(component.source_cluster_ids, ["1"])
 
     def test_noop_preserves_metadata_but_refreshes_derived_scope_data(self) -> None:
         component = _component("API", "1", source_cluster_ids=["1"])
@@ -515,8 +543,15 @@ class TestIncrementalRelations(unittest.TestCase):
         self.assertEqual(len(scope.components_relations), 1)
         relation = scope.components_relations[0]
         self.assertEqual(relation.evidence, "Queue-backed job dispatch.")
-        self.assertEqual(relation.key_edges, [key_edge])
+        # The LLM highlighted this pair, so it survives as a key edge — but grounded to the
+        # real CFG edge (carrying its call sites and the LLM's description), not kept as the
+        # LLM's under-specified duplicate. all_edges is exactly the deterministic CFG edge.
         self.assertTrue(relation.is_static)
+        self.assertEqual(len(relation.all_edges), 1)
+        self.assertEqual(len(relation.key_edges), 1)
+        self.assertEqual(relation.key_edges[0].identity(), relation.all_edges[0].identity())
+        self.assertEqual(relation.key_edges[0].description, "API dispatches work.")
+        self.assertEqual(relation.all_edges[0].source.qualified_name, source.fully_qualified_name)
         self.assertTrue(any(edge.call_sites[0].line == 3 for edge in relation.all_edges if edge.call_sites))
         self.assertEqual(scope.files["api.py"].methods[0].qualified_name, source.fully_qualified_name)
         self.assertEqual(scope.files["api.py"].methods[0].node_type, NodeType.FUNCTION.name)
@@ -527,9 +562,9 @@ class TestIncrementalRelations(unittest.TestCase):
         root = AnalysisInsights(description="root", components=[], components_relations=[])
         context = ScopeRelationContext(cluster_results={}, cfg_graphs={})
 
-        agent.generate_all_scope_relations(root, {}, {"root": context})
+        agent.generate_all_scope_relations(root, {}, {"root": context}, {"pkg.changed"})
 
-        agent.generate_scope_relations.assert_called_once_with(root, "root", context)
+        agent.generate_scope_relations.assert_called_once_with(root, "root", context, {"pkg.changed"})
 
     def test_single_component_scope_clears_stale_relations_and_resolves_references(self) -> None:
         agent = object.__new__(IncrementalAgent)

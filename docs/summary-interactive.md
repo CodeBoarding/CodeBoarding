@@ -73,28 +73,32 @@ Existing cluster IDs are **preserved** (stable). New clusters get fresh IDs. Thi
 
 **Flavor A** (fallback, change >= 25%): Fresh Louvain on full CFG, match to old clusters by greedy 1:1 Jaccard >= 0.5.
 
-### Step 4: `IncrementalAgent.step_group_delta()` — **THE LLM CALL**
-**`agents/incremental_agent.py:78`**, prompt in `agents/prompts/incremental_grouping.py`
+### Step 4: `plan_scope_update()` — no LLM
+**`diagram_analysis/scope_plan.py`**
 
-**What the LLM receives**:
-1. **Project context**: meta-analysis (project type, description)
-2. **Existing components** (two-tier rendering):
-   - *Affected* (full: id, name, description) — components whose files overlap with changed clusters
-   - *Other* (name only: `id "name"`) — valid routing targets, descriptions omitted to save tokens
-3. **Cluster groups to assign**: Delta's `new + changed` clusters rendered as CFG cluster strings (same format as full-analysis grouping prompt)
+Structure is derived, not asked for. The LLM no longer decides which cluster belongs to which
+component; it only words the result.
 
-**What the LLM is prompted to do**:
-> "For each cluster id, decide which component it belongs to: (1) assign to existing component by reusing its exact name, or (2) create a new component with name, description, and parent_id."
+**Anchor**: the previous run's *methods*, not its cluster ids. A scope's leaf clusters are
+re-derived from its subgraph on every run, so their integer ids renumber whenever the code inside
+that scope changes — exactly when anchoring matters. `previous_ownership()` maps each new cluster to
+the component that owned most of its methods, breaking ties toward the lowest component id so the
+mapping is run-independent.
 
-The prompt includes a **tool usage policy**: keep reads small and targeted (single representative qname per cluster), stop as soon as confidence is high.
+**Grouping**: `anchored_grouping()` carries the previous grouping onto the new clustering. Every
+surviving component keeps what it owned, genuinely new clusters are absorbed into the nearest
+existing group, and only a component left holding nothing is dropped. A from-scratch re-partition
+happens only when the carried grouping falls more than `REGROUP_DRIFT_BUDGET` behind a fresh
+optimum, and even then identity is inherited by method-count overlap.
 
-**Tool access**: `read_source_reference` only — the full ReAct toolkit is NOT attached. This constrains the agent from speculatively reading large code blocks.
+**Output**: a `ScopeUpdateDecision` — `UPDATE_COMPONENT` for a component whose clusters or methods
+moved, `CREATE_COMPONENT` only for a group with no predecessor, `DELETE_COMPONENT` only for a
+component left with nothing.
 
-**Fast-path parse**: `_direct_pydantic_parse` in `agent.py` tries to parse the LLM response directly as the target Pydantic model before invoking the trustcall extractor — saves a second LLM round-trip when the agent emits clean JSON.
-
-**Validation**: Up to 3 retries via `validate_cluster_coverage` if the LLM doesn't cover all cluster ids.
-
-**Output**: `ClusterAnalysis` with `cluster_components` — each has `name`, `cluster_ids`, `description`, `parent_id`. Every affected cluster id must appear exactly once.
+**A component that did not move produces no operation at all.** An operation is not free:
+`update_scope()` puts its target in `refresh_ids`, which reruns the relation step for the whole
+scope, and `_remove_reassigned_clusters` strips and restores the referenced clusters. Emitting one
+per survivor relabels the entire diagram on a one-line diff.
 
 ### Step 5: `stitch_delta()` — no LLM
 **`agents/incremental_agent.py:201`** — Applies routing decisions:

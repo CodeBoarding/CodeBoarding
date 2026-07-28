@@ -12,8 +12,8 @@ from dataclasses import dataclass, field
 
 from constants import DEFAULT_STATIC_RELATION_LABEL
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
-from agents.relation_edges import append_or_merge_relation
-from static_analyzer.graph import CallGraph, Edge
+from agents.relation_edges import append_or_merge_relation, drop_internal_self_relations
+from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,59 @@ def build_global_node_to_component_map(
             if component_id.startswith(f"{parent_id}."):
                 node_to_component[node_name] = component_id
     return node_to_component
+
+
+def _qnames_match(a: str, b: str) -> bool:
+    """Whether two edge-endpoint qualified names denote the same symbol.
+
+    The CFG names a symbol canonically (``src.pkg.mod.Cls.m``); the LLM often writes a
+    non-canonical variant of the same symbol — a ``Cls:m`` class separator, or a module
+    path missing the source-root prefix (``pkg.mod.Cls.m``). Normalise the separator and
+    accept a suffix match so a highlight is tied to its real CFG edge rather than kept as a
+    drifting duplicate.
+    """
+    a, b = a.replace(":", "."), b.replace(":", ".")
+    return a == b or a.endswith("." + b) or b.endswith("." + a)
+
+
+def ground_relation_edges(
+    llm_key_edges: list[RelationEdge], static_edges: list[RelationEdge]
+) -> tuple[list[RelationEdge], list[RelationEdge]]:
+    """Ground a relation's edges in the deterministic static CFG.
+
+    For a statically-backed pair the CFG edges are the complete cross-component call set, so
+    they ARE ``all_edges`` — the LLM contributes wording, never edges. Its ``key_edges`` are
+    kept only where they name a real CFG edge (as the canonical CFG edge), so an edge the LLM
+    invented or spelled differently each run can no longer appear, vanish, or duplicate. A
+    pair with no static edge is a runtime/config relation whose ``key_edges`` are its only
+    evidence, so those are left as-is.
+
+    Returns ``(key_edges, all_edges)``. ``key_edges`` is always a subset of ``all_edges`` by
+    edge identity (which ignores the description), so a later re-merge stays idempotent.
+    """
+    static_unique = Relation._unique_edges(static_edges)
+    if not static_unique:
+        merged = Relation._unique_edges(llm_key_edges)
+        return merged, merged
+    highlighted: list[RelationEdge] = []
+    for static_edge in static_unique:
+        match = next(
+            (
+                key
+                for key in llm_key_edges
+                if _qnames_match(key.source.qualified_name, static_edge.source.qualified_name)
+                and _qnames_match(key.target.qualified_name, static_edge.target.qualified_name)
+            ),
+            None,
+        )
+        if match is None:
+            continue
+        # Keep the canonical CFG edge (real spans and call sites), but carry over the LLM's
+        # per-edge description so the reader's wording is not lost to the grounding.
+        highlighted.append(
+            static_edge.model_copy(update={"description": match.description}) if match.description else static_edge
+        )
+    return highlighted, static_unique
 
 
 def build_component_relations(
@@ -203,7 +256,7 @@ def build_global_relations(
             )
         else:
             inherited_key_edges = _relation_key_edges_for_pair(llm_relation, src_id, dst_id, node_to_component)
-            key_edges, all_edges = Relation._merge_edges(inherited_key_edges, static_rel.all_edges)
+            key_edges, all_edges = ground_relation_edges(inherited_key_edges, static_rel.all_edges)
             relation = Relation(
                 relation=llm_relation.relation,
                 src_name=id_to_name.get(src_id, src_id),
@@ -225,7 +278,7 @@ def build_global_relations(
             continue
         global_relations[pair] = llm_rel.with_merged_edges()
 
-    return sorted(global_relations.values(), key=lambda rel: (rel.src_id, rel.dst_id))
+    return drop_internal_self_relations(sorted(global_relations.values(), key=lambda rel: (rel.src_id, rel.dst_id)))
 
 
 def merge_relations(
@@ -276,7 +329,7 @@ def merge_relations(
                 llm_rel.evidence,
             )
 
-        key_edges, all_edges = Relation._merge_edges(llm_rel.key_edges, static_edges)
+        key_edges, all_edges = ground_relation_edges(llm_rel.key_edges, static_edges)
         for edge in static_edges:
             matched_static_edge_ids.add((src_id, dst_id, edge.identity()))
         append_or_merge_relation(
@@ -316,6 +369,7 @@ def merge_relations(
                 ),
             )
 
+    merged = drop_internal_self_relations(merged)
     logger.info(
         f"Merged relations: {len(merged)} total "
         f"({sum(1 for relation in merged if relation.is_static)} static-backed, "

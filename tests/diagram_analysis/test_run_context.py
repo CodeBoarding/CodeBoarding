@@ -5,9 +5,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis
+from agents.agent_responses import AnalysisInsights
 from caching.cache import ModelSettings
-from caching.details_cache import ClusterCache, FinalAnalysisCache
+from caching.details_cache import FinalAnalysisCache
 from diagram_analysis.run_context import RunContext, _load_existing_run_id
 
 
@@ -107,22 +107,6 @@ class TestLoadExistingRunId(unittest.TestCase):
         final_cache.store(new_key, self._analysis("new"), run_id=new_run_id)
 
         self.assertEqual(_load_existing_run_id(self.repo_dir), new_run_id)
-
-    def test_uses_latest_timestamp_across_both_caches(self):
-        final_cache = FinalAnalysisCache(self.repo_dir)
-        cluster_cache = ClusterCache(self.repo_dir)
-
-        final_run_id = "a" * 32
-        cluster_run_id = "b" * 32
-
-        final_key = final_cache.build_key("final", self.model_settings)
-        cluster_key = cluster_cache.build_key("cluster", self.model_settings)
-
-        final_cache.store(final_key, self._analysis("final"), run_id=final_run_id)
-        time.sleep(0.001)
-        cluster_cache.store(cluster_key, ClusterAnalysis(cluster_components=[]), run_id=cluster_run_id)
-
-        self.assertEqual(_load_existing_run_id(self.repo_dir), cluster_run_id)
 
 
 if __name__ == "__main__":

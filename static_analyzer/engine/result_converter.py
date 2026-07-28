@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 
 from collections import Counter
+from pathlib import Path
 
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.constants import CLASS_TYPES, GRAPH_NODE_TYPES, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import LanguageAnalysisResult
@@ -20,8 +22,15 @@ def convert_to_codeboarding_format(
     symbol_table: SymbolTable,
     result: LanguageAnalysisResult,
     adapter: LanguageAdapter,
+    ignore_manager: RepoIgnoreManager | None = None,
 ) -> dict:
     """Convert engine analysis results to the dict shape expected by StaticAnalyzer.analyze().
+
+    ``ignore_manager`` drops symbols in ignored files at the source: the LSP indexes the
+    whole workspace, including test directories the file walk excludes, so without this a
+    test symbol enters the call graph and gets clustered, described, and related. Filtering
+    here keeps ignored files out of every downstream artifact — components, relations, the
+    file index — and, because the analysis never reasons about them, makes it faster.
 
     Returns a dict with keys:
         - call_graph: CallGraph (CodeBoarding's graph.py model)
@@ -33,6 +42,9 @@ def convert_to_codeboarding_format(
     """
     language = adapter.language
     call_graph = CallGraph(language=language)
+
+    def is_ignored(file_path: object) -> bool:
+        return ignore_manager is not None and ignore_manager.should_ignore(Path(str(file_path)))
 
     # Collect all symbol names that participate in edges so we include them as nodes
     edge_participants: set[str] = set()
@@ -46,6 +58,8 @@ def convert_to_codeboarding_format(
         node_type = _map_symbol_kind(sym.kind)
         # Include symbols that are graph node types OR that participate in edges
         if node_type not in GRAPH_NODE_TYPES and qname not in edge_participants:
+            continue
+        if is_ignored(sym.file_path):
             continue
 
         node = Node(
@@ -121,6 +135,8 @@ def convert_to_codeboarding_format(
             continue
         if symbol_table.is_local_variable(sym):
             continue
+        if is_ignored(sym.file_path):
+            continue
         if qname in seen_refs:
             continue
         seen_refs.add(qname)
@@ -173,10 +189,11 @@ def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult) 
         for superclass in info.get("superclasses", []):
             call_graph.add_reference_edge(child, superclass, EdgeKind.INHERITS)
 
-    # TYPEREF / IMPORT: emitted by the analyzer when available (see engine models).
-    for src, dst in getattr(result, "type_references", None) or ():
+    # TYPEREF / IMPORT: no engine populates these yet, so both loops are empty in
+    # production. Kept so an engine that starts emitting them needs no converter change.
+    for src, dst in result.type_references:
         call_graph.add_reference_edge(src, dst, EdgeKind.TYPEREF)
-    for src, dst in getattr(result, "import_edges", None) or ():
+    for src, dst in result.import_edges:
         call_graph.add_reference_edge(src, dst, EdgeKind.IMPORT)
 
 

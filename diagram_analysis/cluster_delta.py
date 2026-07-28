@@ -29,7 +29,7 @@ from agents.content_hash import (
 from agents.file_index_models import FileEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry
-from diagram_analysis.io_utils import normalize_repo_path
+from repo_utils.path_utils import normalize_repo_path
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
@@ -225,7 +225,16 @@ def _live_member_hashes(
     changed_paths: set[str],
     file_cache: SourceCache,
 ) -> tuple[dict[str, dict[str, str]], dict[str, list[MethodSpan]]]:
-    """``({file_path -> {qname -> body_hash}}, {file_path -> [method spans]})`` for changed files."""
+    """``({file_path -> {qname -> body_hash}}, {file_path -> [method spans]})`` for changed files.
+
+    Data nodes are skipped so this population matches the persisted file index, which
+    ``build_files_index`` fills from component-owned methods only. A module-level variable
+    lives in the CFG but never in the index, so counting it here would report it as a
+    brand-new method on every run and — because its span would be excised from the
+    module-level residual that the index never excised — make ``module_hash`` differ from
+    the baseline for any file that has one, permanently. An edit to such a variable still
+    surfaces: its lines stay in the residual, so the module hash moves.
+    """
     hashes: dict[str, dict[str, str]] = {}
     spans: dict[str, list[MethodSpan]] = {}
     for language in new_static.get_languages():
@@ -235,7 +244,7 @@ def _live_member_hashes(
             continue
         for qname, node in cfg.nodes.items():
             path = normalize_repo_path(node.file_path, repo_dir)
-            if path not in changed_paths:
+            if path not in changed_paths or node.is_data():
                 continue
             source_lines = read_source_lines(repo_dir, path, file_cache)
             hashes.setdefault(path, {})[qname] = hash_method_body(source_lines, node.line_start, node.line_end)
@@ -259,19 +268,31 @@ def compute_cluster_delta(
     """
     delta = ClusterDelta()
     diff_files = _changeset_to_path_set(changes) if changes is not None else None
-    for language in new_static.get_languages():
+    # One ID namespace across languages, as the full run produces: a fresh cluster must not
+    # reuse an ID another language already owns, or combining the per-language results would
+    # silently overwrite one of them. Allocation continues above every ID seen so far.
+    next_new_id = (
+        max((cluster_id for clusters in old_snapshot.by_language.values() for cluster_id in clusters), default=0) + 1
+    )
+    # Sorted, not insertion order: the allocator above advances as languages are visited, so
+    # insertion order would decide which language gets which fresh ID and churn component IDs
+    # between runs that differ only in how the languages were registered.
+    for language in sorted(new_static.get_languages(), key=str):
         cfg = new_static.get_cfg(language)
         # Cluster the same reference-augmented graph the full run uses; a call-only graph would
         # re-cluster type-coupled methods differently and drift from what a full analysis produces.
         nx_graph = cfg.clustering_networkx()
         old_clusters = old_snapshot.get_language(language)
-        delta.by_language[language] = _delta_for_language(
+        language_delta = _delta_for_language(
             language,
             nx_graph,
             old_clusters,
             diff_files,
             repo_dir,
+            next_new_id,
         )
+        delta.by_language[language] = language_delta
+        next_new_id = max(next_new_id, max(language_delta.cluster_results.clusters, default=0) + 1)
     return delta
 
 
@@ -563,6 +584,7 @@ def _delta_for_language(
     old_clusters: dict[int, ClusterSnapshotEntry],
     diff_files: set[str] | None = None,
     repo_dir: Path | None = None,
+    next_new_id: int = 0,
 ) -> LanguageDelta:
     # Why raw nodes (not a fresh clustering): seeded Leiden runs on the live
     # graph directly. Singletons in the live graph become added qnames; diff
@@ -640,7 +662,7 @@ def _delta_for_language(
             len(inconsistent_removed),
             sorted(inconsistent_removed)[:10],
         )
-    return _flavor_b_seeded(language, nx_graph, old_clusters, added_nodes, removed_nodes)
+    return _flavor_b_seeded(language, nx_graph, old_clusters, added_nodes, removed_nodes, next_new_id)
 
 
 # ---------------------------------------------------------------------------
@@ -652,6 +674,7 @@ def _flavor_b_seeded(
     old_clusters: dict[int, ClusterSnapshotEntry],
     added_nodes: set[str],
     removed_nodes: set[str],
+    next_new_id: int = 0,
 ) -> LanguageDelta:
     """Seeded Leiden with the prior partition as initial state and the non-frontier vertices locked.
 
@@ -735,6 +758,7 @@ def _flavor_b_seeded(
     new_cluster_ids, changed_cluster_ids, dropped_cluster_ids, final_clusters = _reconcile_seeded_partition(
         leiden_clusters,
         old_clusters,
+        next_new_id,
     )
     _absorb_new_file_overlap_clusters(
         final_clusters,
@@ -799,6 +823,7 @@ def _affected_frontier(
 def _reconcile_seeded_partition(
     leiden_clusters: dict[int, set[str]],
     old_clusters: dict[int, ClusterSnapshotEntry],
+    next_new_id: int = 0,
 ) -> tuple[set[int], set[int], set[int], dict[int, set[str]]]:
     """Map leiden's renumbered output IDs back onto prior IDs by greedy max-overlap.
 
@@ -821,7 +846,7 @@ def _reconcile_seeded_partition(
         leiden_to_prior[lcid] = prior_cid
         used_prior.add(prior_cid)
 
-    next_new_id = max(old_clusters.keys(), default=0) + 1
+    next_new_id = max(next_new_id, max(old_clusters.keys(), default=0) + 1)
     final_clusters: dict[int, set[str]] = {}
     new_cluster_ids: set[int] = set()
     changed_cluster_ids: set[int] = set()

@@ -124,8 +124,9 @@ Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOG
 # Analyze a local repository
 python main.py full --local ./my-project
 
-# Raise the depth ceiling (rarely needed — component expansion is driven by
-# structural separability; --depth-level is a safety-valve cap, default 3)
+# Raise the depth ceiling to auto-expand deeper (rarely needed — a component that
+# outgrows the leaf ceiling is flagged expandable at whatever depth the run stops
+# and can be expanded on demand; --depth-level is a safety-valve cap, default 3)
 python main.py full --local ./my-project --depth-level 5
 
 # Re-analyze only changed parts when possible

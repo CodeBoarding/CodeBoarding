@@ -1,3 +1,5 @@
+import os
+import stat
 import tempfile
 import unittest
 import shutil
@@ -165,6 +167,34 @@ dist/
         self.assertTrue(self.ignore_manager.should_ignore(Path("generated/code.py")))
         self.assertTrue(self.ignore_manager.should_ignore(Path("vendor/library.py")))
         self.assertTrue(self.ignore_manager.should_ignore(Path("node_modules/react/index.js")))
+
+
+class TestUnreadableIgnoreFiles(unittest.TestCase):
+    """An ignore file that exists but cannot be read must degrade to "no patterns",
+    never crash. Reproduces CI running as root against an unreadable /root/.gitignore.
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_path = Path(self.temp_dir)
+
+    def tearDown(self):
+        for name in (".gitignore", Path(CODEBOARDING_DIR_NAME) / ".codeboardingignore"):
+            p = self.repo_path / name
+            if p.exists():
+                os.chmod(p, stat.S_IRUSR | stat.S_IWUSR)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_unreadable_gitignore_does_not_crash(self):
+        gitignore = self.repo_path / ".gitignore"
+        gitignore.write_text("*.log\n")
+        os.chmod(gitignore, 0)
+
+        manager = RepoIgnoreManager(self.repo_path)  # must not raise
+
+        # The gitignore contributed nothing, but the .codeboardingignore default
+        # template is still applied, so tests/ is still ignored.
+        self.assertEqual("codeboardingignore", manager.categorize_file(self.repo_path / "tests" / "x.py"))
 
 
 if __name__ == "__main__":

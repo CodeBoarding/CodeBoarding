@@ -13,6 +13,7 @@ from agents.content_hash import (
     read_source_lines,
 )
 from agents.file_index_models import FileEntry, MethodEntry
+from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 
@@ -22,11 +23,20 @@ def build_files_index(
     repo_dir: Path,
     source_cache: SourceCache | None = None,
 ) -> dict[str, FileEntry]:
-    """Build the file index and hash each method at its current span."""
+    """Build the file index and hash each method at its current span.
+
+    Ignored files are skipped here, not only stripped from components later: the file
+    index and the methods_index derived from it are built before ``_strip_ignored`` runs,
+    so without this filter an ignored file (a test module) would still appear in the saved
+    ``files``/``methods_index`` even though no component owns it.
+    """
     file_cache = source_cache if source_cache is not None else {}
+    ignore_manager = RepoIgnoreManager(repo_dir)
     files: dict[str, FileEntry] = {}
     for component in analysis.components:
         for file_methods in component.file_methods:
+            if ignore_manager.should_ignore(Path(file_methods.file_path)):
+                continue
             entry = files.setdefault(file_methods.file_path, FileEntry())
             source_lines = read_source_lines(repo_dir, file_methods.file_path, file_cache)
             indexed_methods: list[MethodEntry] = []

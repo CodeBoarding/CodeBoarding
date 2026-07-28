@@ -12,12 +12,7 @@ from agents.agent_responses import (
     Component,
     ComponentFiles,
     Relation,
-    ScopeOperationAction,
-    ScopeRelations,
-    ScopeUpdateDecision,
 )
-from agents.scope_operations import EXISTING_COMPONENT_ACTIONS, cluster_ref_from_scoped_ref
-from diagram_analysis.cluster_delta import ClusterRef
 from repo_utils import normalize_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import CallGraph, ClusterResult
@@ -29,7 +24,6 @@ logger = logging.getLogger(__name__)
 # Coverage and relation evidence validators are the most critical structural
 # checks. Key-entity validation is secondary (auto-correctable, less structural).
 VALIDATOR_WEIGHTS: dict[str, float] = {
-    "validate_cluster_coverage": 20.0,
     "validate_group_name_coverage": 20.0,
     "validate_key_entities": 5.0,
     "validate_relations": 30.0,
@@ -50,7 +44,6 @@ class ValidationContext:
 
     cluster_results: dict[str, ClusterResult] = field(default_factory=dict)
     cfg_graphs: dict[str, CallGraph] = field(default_factory=dict)  # For edge checking
-    expected_cluster_ids: set[int] = field(default_factory=set)
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
     existing_component_ids: set[str] = field(default_factory=set)  # For incremental ID-based routing validation
@@ -58,13 +51,6 @@ class ValidationContext:
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
     components: list[Component] = field(default_factory=list)  # For relation-only validation steps
-
-
-@dataclass
-class ScopeOperationValidationContext:
-    expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
-    existing_component_ids: set[str] = field(default_factory=set)
-    component_ids_by_cluster_ref: dict[ClusterRef, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -82,73 +68,6 @@ class RelationValidationTarget(Protocol):
 
 class ComponentValidationTarget(Protocol):
     components: list[Component]
-
-
-def validate_scope_update_decision(
-    decision: ScopeUpdateDecision,
-    context: ScopeOperationValidationContext,
-) -> ValidationResult:
-    errors: list[str] = []
-    claimed_refs: list[ClusterRef] = []  # every op's refs, for the over-claim (extra) and duplicate checks
-    covered_refs: list[ClusterRef] = []  # non-delete refs only; a delete discards its clusters, so it cannot cover them
-    for operation in decision.operations:
-        refs = [cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
-        claimed_refs.extend(refs)
-        if operation.action != ScopeOperationAction.DELETE_COMPONENT:
-            covered_refs.extend(refs)
-        if operation.action == ScopeOperationAction.NOOP:
-            # A noop unions its refs into its component without removing them from the real owner,
-            # so any changed cluster it claims from another component becomes duplicate-owned.
-            foreign = {
-                ref
-                for ref in refs
-                if context.component_ids_by_cluster_ref.get(ref) not in (None, operation.component_id)
-            }
-            if foreign:
-                errors.append(
-                    f"noop for component_id={operation.component_id!r} claims clusters owned by another "
-                    f"component: {_format_cluster_ref_list(foreign)}. A noop must only preserve its own clusters."
-                )
-        if operation.action in EXISTING_COMPONENT_ACTIONS:
-            if operation.component_id not in context.existing_component_ids:
-                errors.append(
-                    f"Operation {operation.action} references unknown component_id={operation.component_id!r}."
-                )
-        if operation.action == ScopeOperationAction.CREATE_COMPONENT:
-            if not operation.name or not operation.description:
-                errors.append("create_component operations must include name and description.")
-        if operation.action == ScopeOperationAction.NOOP and (
-            operation.name or operation.description or operation.key_entities
-        ):
-            errors.append("noop operations must preserve the component name, description, and key entities.")
-        if len(operation.key_entities) > 5:
-            errors.append(f"Operation {operation.action} includes more than five key entities.")
-        entity_qnames = [entity.qualified_name for entity in operation.key_entities]
-        duplicate_qnames = {qname for qname in entity_qnames if entity_qnames.count(qname) > 1}
-        if duplicate_qnames:
-            errors.append(f"Operation {operation.action} repeats key entities: {sorted(duplicate_qnames)}.")
-
-    claimed_set: set[ClusterRef] = set()
-    duplicates: set[ClusterRef] = set()
-    for ref in claimed_refs:
-        if ref in claimed_set:
-            duplicates.add(ref)
-        else:
-            claimed_set.add(ref)
-    missing = context.expected_cluster_refs - set(covered_refs)
-    extra = claimed_set - context.expected_cluster_refs
-    if missing:
-        errors.append(f"Missing cluster_refs: {_format_cluster_ref_list(missing)}")
-    if extra:
-        errors.append(f"Unexpected cluster_refs: {_format_cluster_ref_list(extra)}")
-    if duplicates:
-        errors.append(f"Duplicate cluster_refs: {_format_cluster_ref_list(duplicates)}")
-    return ValidationResult(is_valid=not errors, feedback_messages=errors)
-
-
-def _format_cluster_ref_list(refs: set[ClusterRef]) -> str:
-    sorted_refs = sorted(refs, key=lambda ref: (ref.scope_id, ref.language, ref.cluster_id))
-    return ", ".join(f"{ref.scope_id}:{ref.language}:{ref.cluster_id}" for ref in sorted_refs) or "None"
 
 
 def _effective_validation_score(result: ValidationResult) -> float:
@@ -178,108 +97,6 @@ def score_validation_results(
         weight = VALIDATOR_WEIGHTS.get(validator_fn.__name__, DEFAULT_VALIDATOR_WEIGHT)
         score += weight * _effective_validation_score(vr)
     return score
-
-
-def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
-    """
-    Validate that all expected clusters are represented in the ClusterAnalysis
-    and that no cluster component has an empty cluster_ids list.
-
-    Args:
-        result: ClusterAnalysis with cluster_components
-        context: ValidationContext with expected_cluster_ids
-
-    Returns:
-        ValidationResult with feedback for missing clusters or empty components
-    """
-    if not context.expected_cluster_ids:
-        logger.warning("[Validation] No expected cluster IDs provided for coverage validation")
-        return ValidationResult(is_valid=True)
-
-    feedback_messages: list[str] = []
-
-    # Check for cluster components with empty cluster_ids
-    empty_components = [cc.name for cc in result.cluster_components if not cc.cluster_ids]
-    if empty_components:
-        empty_str = ", ".join(sorted(empty_components))
-        feedback_messages.append(
-            f"The following cluster groups have no cluster IDs assigned: {empty_str}. "
-            f"Every cluster group must reference at least one cluster ID. "
-            f"Either assign clusters to these groups or remove them entirely."
-        )
-        logger.warning(f"[Validation] Cluster groups with empty cluster_ids: {empty_str}")
-
-    # Check for duplicate cluster IDs across different cluster groups
-    seen_clusters: dict[int, str] = {}
-    duplicate_reports: list[str] = []
-    for cc in result.cluster_components:
-        for cid in cc.cluster_ids:
-            if cid in seen_clusters:
-                duplicate_reports.append(f"cluster {cid} in both '{seen_clusters[cid]}' and '{cc.name}'")
-            else:
-                seen_clusters[cid] = cc.name
-
-    if duplicate_reports:
-        dup_str = "; ".join(duplicate_reports)
-        feedback_messages.append(
-            f"The following cluster IDs are assigned to multiple groups: {dup_str}. "
-            f"Each cluster ID must belong to exactly one group. "
-            f"Please remove the duplicate assignments so every cluster is in only one group."
-        )
-        logger.warning(f"[Validation] Duplicate cluster assignments: {dup_str}")
-
-    result_cluster_ids = set(seen_clusters.keys())
-
-    missing_clusters = context.expected_cluster_ids - result_cluster_ids
-
-    if missing_clusters:
-        missing_str = ", ".join(str(cid) for cid in sorted(missing_clusters))
-        feedback_messages.append(
-            f"The following cluster IDs are missing from the analysis: {missing_str}. "
-            f"Please ensure all clusters are assigned to a component via cluster_ids."
-        )
-        logger.warning(f"[Validation] Missing clusters: {missing_str}")
-
-    if not feedback_messages:
-        logger.info("[Validation] All clusters are represented in the ClusterAnalysis")
-        return ValidationResult(is_valid=True)
-
-    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
-
-
-def validate_existing_component_ids(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
-    """Reject ``existing_component_id`` values the LLM hallucinated.
-
-    Why: incremental routing identifies existing components by id (decision
-    #4). A hallucinated id silently creates a new component during stitching
-    instead of routing into the intended one. Catching it here forces the
-    LLM to retry with a valid id (or null for new components) before any
-    state mutation.
-    """
-    if not context.existing_component_ids:
-        return ValidationResult(is_valid=True)
-
-    feedback_messages: list[str] = []
-    valid_str = ", ".join(sorted(context.existing_component_ids))
-    for cc in result.cluster_components:
-        if cc.existing_component_id is None:
-            continue
-        if cc.existing_component_id not in context.existing_component_ids:
-            feedback_messages.append(
-                f"cluster_components entry '{cc.name}' references "
-                f"existing_component_id={cc.existing_component_id!r} which does not "
-                f"match any live component. Either set existing_component_id to a "
-                f"value from the existing-components list ({valid_str}), or set it "
-                f"to null to create a new component."
-            )
-
-    if feedback_messages:
-        logger.warning(
-            "[Validation] %d cluster_components entries reference unknown existing_component_id",
-            len(feedback_messages),
-        )
-        return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
-    return ValidationResult(is_valid=True)
 
 
 def validate_group_name_coverage(result: ComponentValidationTarget, context: ValidationContext) -> ValidationResult:
@@ -636,35 +453,6 @@ def _has_relation_evidence(relation) -> bool:
     if relation.evidence.strip():
         return True
     return any(edge.description.strip() for edge in relation.key_edges)
-
-
-def validate_scope_relation_names(result: ScopeRelations, _context: ValidationContext) -> ValidationResult:
-    """Validate that src_name/dst_name in scope relations match known component names."""
-    known_names = _context.valid_component_names
-    if not known_names:
-        return ValidationResult(is_valid=True)
-
-    invalid: list[str] = []
-    for rel in result.components_relations:
-        unknown: list[str] = []
-        if rel.src_name not in known_names:
-            unknown.append(f"src_name='{rel.src_name}'")
-        if rel.dst_name not in known_names:
-            unknown.append(f"dst_name='{rel.dst_name}'")
-        if unknown:
-            invalid.append(f"({rel.src_name} -{rel.relation}-> {rel.dst_name}): {', '.join(unknown)}")
-
-    if not invalid:
-        return ValidationResult(is_valid=True)
-
-    known_str = ", ".join(sorted(known_names))
-    feedback = (
-        f"The following relations reference component names that do not exist: {'; '.join(invalid)}. "
-        f"Known component names are: {known_str}. "
-        f"Ensure src_name and dst_name match an existing component name exactly."
-    )
-    logger.warning(f"[Validation] Scope relations with unknown names: {'; '.join(invalid)}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 
 def _build_cluster_edge_lookup(

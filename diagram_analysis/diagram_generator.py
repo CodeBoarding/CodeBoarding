@@ -6,11 +6,12 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import networkx as nx
 from langchain_core.language_models import BaseChatModel
 
 from agents.abstraction_agent import AbstractionAgent
@@ -29,14 +30,13 @@ from agents.incremental_agent import (
     prune_empty_components,
     remove_deleted_files,
 )
-from agents.incremental_planning_agent import IncrementalPlanningAgent
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
-from agents.planner_agent import component_is_separable, get_expandable_components
-from agents.relation_edges import index_relation_endpoints
+from agents.planner_agent import component_is_separable, get_expandable_components, leaf_load
+from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
@@ -60,7 +60,9 @@ from diagram_analysis.cluster_snapshot import (
 from diagram_analysis.exceptions import IncrementalCacheMissingError, ScopeContainmentError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
-from diagram_analysis.io_utils import load_analysis_metadata, normalize_repo_path, save_analysis, write_fingerprint
+from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
+from repo_utils.path_utils import normalize_repo_path
+from diagram_analysis.scope_plan import plan_scope_update
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
@@ -96,14 +98,16 @@ def _component_expansion_seeds(components: list[Component], max_depth: int) -> l
     ]
 
 
+def _member_keys(component: Component) -> frozenset[tuple[str, str]]:
+    """The ``(file_path, qualified_name)`` set a component owns — its membership identity."""
+    return frozenset(
+        (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+    )
+
+
 def _owned_method_keys(components: Iterable[Component]) -> set[tuple[str, str]]:
     """The ``(file_path, qualified_name)`` set the given components collectively own."""
-    return {
-        (group.file_path, method.qualified_name)
-        for component in components
-        for group in component.file_methods
-        for method in group.methods
-    }
+    return {key for component in components for key in _member_keys(component)}
 
 
 def _reconcile_child_scope(
@@ -230,9 +234,7 @@ def _capture_baseline_member_keys(
         for component in analysis.components:
             if not component.component_id:
                 continue
-            keys[component.component_id] = frozenset(
-                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
-            )
+            keys[component.component_id] = _member_keys(component)
     return keys
 
 
@@ -340,9 +342,7 @@ def _restore_unchanged_metadata(
             meta = baseline.meta_by_id.get(component.component_id)
             if meta is None:
                 continue
-            final_keys = frozenset(
-                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
-            )
+            final_keys = _member_keys(component)
             owns_changed_file = any(group.file_path in changed_files for group in component.file_methods)
             if final_keys != meta.member_keys or (meta.member_qnames & changed_members) or owns_changed_file:
                 continue
@@ -387,10 +387,7 @@ def _fully_unchanged_component_ids(
                 continue
             if any(is_self_or_descendant(protected_id, cid) for protected_id in protected_ids):
                 continue
-            live_keys = frozenset(
-                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
-            )
-            if live_keys == meta.member_keys:
+            if _member_keys(component) == meta.member_keys:
                 fully_unchanged.add(cid)
     return fully_unchanged
 
@@ -460,9 +457,7 @@ def _incremental_changed_component_ids(
             component_id = component.component_id
             if not component_id:
                 continue
-            live_keys = frozenset(
-                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
-            )
+            live_keys = _member_keys(component)
             body_changed = any(
                 method.qualified_name in changed_members for group in component.file_methods for method in group.methods
             )
@@ -471,35 +466,6 @@ def _incremental_changed_component_ids(
             if component_id not in baseline_component_ids or body_changed or file_changed or membership_changed:
                 changed.add(component_id)
     return changed
-
-
-def _preserve_unchanged_global_relations(
-    rebuilt_relations: list[Relation],
-    baseline_by_pair: dict[tuple[str, str], Relation],
-    changed_component_ids: set[str],
-    live_ids: set[str],
-) -> list[Relation]:
-    """Carry a global relation over from the baseline when neither endpoint changed.
-
-    The save-time rebuild re-derives every relation at the deepest granularity, re-labelling
-    even edges between two untouched components. For each pair whose endpoints are both
-    unchanged we drop the rebuilt edge and take the baseline verbatim; edges touching a
-    changed component keep the fresh rebuild. A baseline relation between two unchanged,
-    still-live components that the rebuild dropped is restored, and a spurious rebuilt edge
-    between two unchanged components is discarded — so both relabel and structural drift
-    against untouched components is eliminated. Relations are keyed by ``(src_id, dst_id)``,
-    the stable component identity; the rebuild always populates both ids.
-    """
-
-    def touches_change(src_id: str, dst_id: str) -> bool:
-        return src_id in changed_component_ids or dst_id in changed_component_ids
-
-    kept = [rel for rel in rebuilt_relations if touches_change(rel.src_id, rel.dst_id)]
-    for (src_id, dst_id), relation in baseline_by_pair.items():
-        if touches_change(src_id, dst_id) or src_id not in live_ids or dst_id not in live_ids:
-            continue
-        kept.append(relation)
-    return sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id))
 
 
 class DiagramGenerator:
@@ -566,13 +532,17 @@ class DiagramGenerator:
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
-        self.incremental_planning_agent: IncrementalPlanningAgent | None = None
         self.incremental_agent: IncrementalAgent | None = None
         self.meta_context: MetaAnalysisInsights | None = None
         self.file_coverage_data: dict | None = None
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
+        # Separability verdict per component member set. Traversal asks once per
+        # component and every save asks again for the whole tree; the subgraph build
+        # plus Leiden sweep behind each answer is the expensive part of the
+        # deterministic pipeline. Keyed by membership, so a changed component re-runs.
+        self._separable_cache: dict[frozenset[tuple[str, str]], bool] = {}
 
     @track_analysis
     def process_component(
@@ -581,28 +551,93 @@ class DiagramGenerator:
         return self._process_component(component)
 
     def _component_separable(self, component: Component) -> bool:
-        """Deterministic gate: does this component's own call structure actually split?
+        """Deterministic gate: should this component be split into sub-components?
 
-        Builds the component's subgraph (no side effects — empty scope prefix) and
-        asks whether its inter-cluster meta-graph has a genuine community split.
-        Cohesive components stay leaves instead of being force-expanded to the cap.
-        If the subgraph can't be built (e.g. a legacy static-analysis baseline whose
-        pickled edges predate the current schema), fall back to the structural
-        default of expanding rather than aborting the run.
+        A component past the leaf ceiling is split whatever its call structure
+        says — it is too big to read as one box, and that verdict needs no
+        subgraph. Otherwise the component's own subgraph decides, against a bar
+        that eases as the component grows. If the subgraph can't be built (e.g. a
+        legacy static-analysis baseline whose pickled edges predate the current
+        schema), fall back to the structural default of expanding rather than
+        aborting the run.
+
+        Memoized on the component's member set: traversal asks once per component
+        and every save asks again for the whole tree, and the answer depends on
+        nothing else. A component whose membership changed (including one pruned
+        by ``_strip_ignored``) gets a different key and is re-evaluated.
         """
         assert self.details_agent is not None
+        load = leaf_load(component)
+        if load >= 1.0:
+            logger.info(f"[Planner] Component '{component.name}' is past the leaf ceiling (load {load:.2f}); expanding")
+            return True
+        key = _member_keys(component)
+        if key in self._separable_cache:
+            return self._separable_cache[key]
         try:
-            _str, cluster_results, subgraph_cfgs = self.details_agent._create_strict_component_subgraph(component)
+            cluster_results, subgraph_cfgs = self.details_agent._create_strict_component_subgraph(component)
         except Exception:
             logger.exception("Separability check failed for '%s'; defaulting to expandable", component.name)
             return True
         if not cluster_results:
-            return False
-        # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
-        # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
-        # must not be judged cohesive on a call-only graph.
-        cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
-        return component_is_separable(cluster_results, cfg_graphs)
+            separable = False
+        else:
+            # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
+            # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
+            # must not be judged cohesive on a call-only graph.
+            cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
+            separable = component_is_separable(cluster_results, cfg_graphs, load)
+        self._separable_cache[key] = separable
+        return separable
+
+    def _expandable_ids_for_tree(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+    ) -> tuple[list[str] | None, dict[str, list[str]] | None]:
+        """The run's own expandable sets for the root scope and each sub-scope.
+
+        Persisting these keeps a component the separability gate kept as a leaf from
+        being re-advertised as expandable by the save-time recompute, which is
+        structural-only. ``(None, None)`` when the details agent isn't live (a bare
+        re-save), leaving the save to its deterministic default rather than crashing.
+
+        A component that already holds an analysed subtree is expandable by definition —
+        the subtree is right there. Re-litigating it here can only destroy it: the save
+        serializes children only for a component it is told is expandable, so a verdict
+        that flips to False discards work already done and, because analysis.json is the
+        store, the subtree is gone for good. Such a component is therefore added
+        unconditionally, outside ``get_expandable_components`` — its structural gate runs
+        before the separability one, so a predicate cannot rescue a component the
+        structural gate has already rejected.
+        """
+        if self.details_agent is None:
+            return None, None
+
+        def expandable_ids(scope: AnalysisInsights, parent_had_clusters: bool = True) -> list[str]:
+            ids = [
+                component.component_id
+                for component in get_expandable_components(
+                    scope, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+                )
+                if component.component_id
+            ]
+            chosen = set(ids)
+            ids.extend(
+                component.component_id
+                for component in scope.components
+                if component.component_id and component.component_id in sub_analyses
+                if component.component_id not in chosen
+            )
+            return ids
+
+        root_ids = expandable_ids(root_analysis)
+        component_lookup = index_components_by_id(root_analysis, sub_analyses)
+        sub_ids: dict[str, list[str]] = {}
+        for cid, sub in sub_analyses.items():
+            parent = component_lookup.get(cid)
+            sub_ids[cid] = expandable_ids(sub, parent_had_clusters=bool(parent.source_cluster_ids) if parent else True)
+        return root_ids, sub_ids
 
     def _process_component(
         self, component: Component
@@ -823,15 +858,6 @@ class DiagramGenerator:
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        self.incremental_planning_agent = IncrementalPlanningAgent(
-            repo_dir=self.repo_location,
-            static_analysis=static_analysis,
-            project_name=self.repo_name,
-            meta_context=meta_context,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-            changes=self.changes,
-        )
         self.incremental_agent = IncrementalAgent(
             repo_dir=self.repo_location,
             static_analysis=static_analysis,
@@ -845,7 +871,6 @@ class DiagramGenerator:
             {
                 "DetailsAgent": self.details_agent,
                 "AbstractionAgent": self.abstraction_agent,
-                "IncrementalPlanningAgent": self.incremental_planning_agent,
                 "IncrementalAgent": self.incremental_agent,
             }
         )
@@ -927,12 +952,19 @@ class DiagramGenerator:
         self,
         analysis: AnalysisInsights,
         root_components: list[Component],
+        existing_sub_analyses: dict[str, AnalysisInsights] | None = None,
     ) -> tuple[list[Component], dict[str, AnalysisInsights]]:
-        """Generate subcomponents using absolute component depth and a frontier queue."""
+        """Generate subcomponents using absolute component depth and a frontier queue.
+
+        ``existing_sub_analyses`` seeds the progress saves. A save with a non-None
+        ``sub_analyses`` replaces the whole set on disk, so the incremental path — which
+        only re-details the newly created components — must hand its live tree in or every
+        intermediate save would publish an analysis.json with the untouched subtrees gone.
+        """
         max_workers = min(os.cpu_count() or 4, 8)
 
         expanded_components: list[Component] = []
-        sub_analyses: dict[str, AnalysisInsights] = {}
+        sub_analyses: dict[str, AnalysisInsights] = dict(existing_sub_analyses or {})
 
         # Group stats to avoid cluttering the local variable scope
         stats = {"submitted": 0, "completed": 0, "saves": 0, "errors": 0}
@@ -972,6 +1004,7 @@ class DiagramGenerator:
 
                             logger.debug("Saving intermediate analysis for '%s'", comp_name)
                             self._strip_ignored(analysis, sub_analyses)
+                            expandable_ids, sub_expandable_ids = self._expandable_ids_for_tree(analysis, sub_analyses)
                             save_analysis(
                                 analysis=analysis,
                                 output_dir=Path(self.output_dir),
@@ -979,6 +1012,8 @@ class DiagramGenerator:
                                 repo_name=self.repo_name,
                                 repo_dir=self.repo_location,
                                 source_tree_hash=self._source_tree_hash(),
+                                expandable_component_ids=expandable_ids,
+                                sub_expandable_ids=sub_expandable_ids,
                                 depth_cap=self.depth_level,
                             )
 
@@ -1070,8 +1105,18 @@ class DiagramGenerator:
                 for component in analysis.components
                 if component.component_id
             }
-            global_relations = _preserve_unchanged_global_relations(
-                global_relations, self._baseline_global_relations, changed_ids, live_ids
+            live_qnames = {
+                qualified_name
+                for lang in self.static_analysis.get_languages()
+                for qualified_name in self.static_analysis.get_cfg(lang).nodes
+            }
+            global_relations = preserve_unchanged_relations(
+                global_relations,
+                self._baseline_global_relations,
+                changed_ids,
+                live_ids,
+                live_qnames,
+                self._changed_members,
             )
         root_analysis.components_relations = global_relations
         return global_relations
@@ -1119,33 +1164,7 @@ class DiagramGenerator:
             # Partial: keep the prior hash so metadata matches the unrewritten sidecar.
             prior_metadata = load_analysis_metadata(Path(self.output_dir)) or {}
             source_tree_hash = prior_metadata.get("source_tree_hash", "") or self._source_tree_hash()
-        # Persist the separability-respecting expandable set so a cohesive component the run kept
-        # as a leaf isn't advertised as expandable by the save-time recompute (which is structural-only).
-        # Only when the details agent is live (the analysis flows); a bare re-save without it keeps
-        # the deterministic default (``None`` -> structural computation) rather than risk a crash.
-        expandable_component_ids: list[str] | None = None
-        sub_expandable_ids: dict[str, list[str]] | None = None
-        if self.details_agent is not None:
-            expandable_component_ids = [
-                component.component_id
-                for component in get_expandable_components(root_analysis, separable=self._component_separable)
-                if component.component_id
-            ]
-            # Same separability-respecting decision for each nested scope, so a cohesive
-            # sub-component kept as a leaf isn't advertised as expandable by the save-time
-            # structural recompute either.
-            component_lookup = index_components_by_id(root_analysis, sub_analyses)
-            sub_expandable_ids = {}
-            for cid, sub in sub_analyses.items():
-                parent = component_lookup.get(cid)
-                parent_had_clusters = bool(parent.source_cluster_ids) if parent else True
-                sub_expandable_ids[cid] = [
-                    component.component_id
-                    for component in get_expandable_components(
-                        sub, parent_had_clusters=parent_had_clusters, separable=self._component_separable
-                    )
-                    if component.component_id
-                ]
+        expandable_component_ids, sub_expandable_ids = self._expandable_ids_for_tree(root_analysis, sub_analyses)
         analysis_path = save_analysis(
             analysis=root_analysis,
             output_dir=Path(self.output_dir),
@@ -1219,18 +1238,15 @@ class DiagramGenerator:
         self,
         scope_id: str,
         scope: AnalysisInsights,
-        structural_diff: StructuralClusterDiff,
         cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, nx.DiGraph],
         sub_analyses: dict[str, AnalysisInsights],
         changed_members: ChangedMembers | None,
     ) -> RecursiveScopeUpdateResult:
-        assert self.incremental_planning_agent is not None
         assert self.incremental_agent is not None
-        decision = self.incremental_planning_agent.decide_scope_update(
-            scope_id,
-            scope,
-            structural_diff,
-            cluster_results,
+        # Structure is derived, not asked for — see diagram_analysis/scope_plan.py.
+        decision = plan_scope_update(
+            scope_id, scope, cluster_results, cfg_graphs, self._changed_members, self.repo_location
         )
         apply_result = self.incremental_agent.update_scope(scope_id, scope, decision, cluster_results)
         result = RecursiveScopeUpdateResult(
@@ -1250,7 +1266,7 @@ class DiagramGenerator:
             child_component = components_by_id.get(component_id)
             if child_scope is None or child_component is None or _component_depth(component_id) >= self.depth_level:
                 continue
-            child_cluster_results, child_diff = _build_scope_incremental_inputs(
+            child_cluster_results, child_cfgs, child_diff = _build_scope_incremental_inputs(
                 child_component,
                 component_id,
                 self.incremental_agent,
@@ -1265,8 +1281,8 @@ class DiagramGenerator:
             child_result = self._apply_incremental_scope_recursively(
                 component_id,
                 child_scope,
-                child_diff,
                 child_cluster_results,
+                child_cfgs,
                 sub_analyses,
                 changed_members,
             )
@@ -1288,11 +1304,10 @@ class DiagramGenerator:
         then ``_generate_subcomponents`` seeded with the changed components.
         Raises when no trustworthy baseline or scoped update plan is available.
         """
-        if self.details_agent is None or self.incremental_planning_agent is None or self.incremental_agent is None:
+        if self.details_agent is None or self.incremental_agent is None:
             self.pre_analysis()
         assert self.static_analysis is not None
         assert self.details_agent is not None
-        assert self.incremental_planning_agent is not None
         assert self.incremental_agent is not None
 
         # Snapshot the loaded baseline before any mutation: its global relations (deepest
@@ -1386,22 +1401,20 @@ class DiagramGenerator:
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
-            structural_diff = structural_diff_from_delta(
-                old_snapshot,
-                delta,
-                changes=self.changes,
-                repo_dir=self.repo_location,
-                changed=changed_members,
-            )
             protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             # Full membership baseline for the restore/rescope passes, captured AFTER the deletion
             # scrub so a deleted method is never re-injected from the baseline into a live scope.
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
+            root_cluster_results = delta.cluster_results()
+            root_cfgs = {
+                language: self.static_analysis.get_cfg(Language(language)).clustering_networkx()
+                for language in root_cluster_results
+            }
             apply_result = self._apply_incremental_scope_recursively(
                 ROOT_SCOPE_ID,
                 root_analysis,
-                structural_diff,
-                delta.cluster_results(),
+                root_cluster_results,
+                root_cfgs,
                 sub_analyses,
                 changed_members,
             )
@@ -1425,6 +1438,9 @@ class DiagramGenerator:
                 apply_result.new_component_ids,
             )
             self._rescope_child_analyses(root_analysis, sub_analyses, preserved_ids)
+            # Fail before the first write rather than after: the later save-time check would
+            # leave a persisted tree from the intermediate saves below.
+            assert_scope_containment(root_analysis, sub_analyses)
             # A component identical to its baseline did not change: restore any metadata the
             # planner reworded and drop it from the refresh set so its relations carry over.
             unchanged_ids = _restore_unchanged_metadata(
@@ -1442,20 +1458,37 @@ class DiagramGenerator:
                 apply_result.new_component_ids -= removed_ids
             _drop_removed_subtree_analyses(sub_analyses, apply_result.removed_ids | removed_ids)
 
+            created_components = _collect_components_by_id(
+                apply_result.new_component_ids,
+                root_analysis,
+                sub_analyses,
+            )
+            if created_components:
+                self.incremental_agent.detail_new_components(created_components)
+
             new_components = [
                 component
-                for component in _collect_components_by_id(apply_result.new_component_ids, root_analysis, sub_analyses)
+                for component in created_components
                 if _component_depth(component.component_id) < self.depth_level
             ]
             if new_components:
-                _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components)
+                _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components, sub_analyses)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
             if apply_result.relation_contexts:
+                # Each context froze its changed set when its scope was planned, before the
+                # copy-forward pass proved some of those components byte-identical and dropped
+                # them from the refresh set. Narrow the contexts to what actually changed, or
+                # relations between two restored components would be reworded for nothing.
+                settled = apply_result.refresh_ids | apply_result.new_component_ids | apply_result.removed_ids
                 self.incremental_agent.generate_all_scope_relations(
                     root_analysis,
                     sub_analyses,
-                    apply_result.relation_contexts,
+                    {
+                        scope_id: replace(context, changed_ids=context.changed_ids & settled)
+                        for scope_id, context in apply_result.relation_contexts.items()
+                    },
+                    self._changed_members,
                 )
 
             self._refresh_files_index(root_analysis, sub_analyses)
@@ -1507,11 +1540,9 @@ def assert_scope_containment(
         parent = components_by_id.get(component_id)
         if parent is None:
             continue
-        owned = {(group.file_path, method.qualified_name) for group in parent.file_methods for method in group.methods}
+        owned = _member_keys(parent)
         for child in child_scope.components:
-            escaped = {
-                (group.file_path, method.qualified_name) for group in child.file_methods for method in group.methods
-            } - owned
+            escaped = _member_keys(child) - owned
             if escaped:
                 violations.append(
                     f"{child.component_id or child.name} holds {len(escaped)} method(s) outside parent {component_id}"
@@ -1598,12 +1629,12 @@ def _build_scope_incremental_inputs(
     changes: ChangeSet | None,
     repo_dir: Path,
     changed_members: ChangedMembers | None,
-) -> tuple[dict[str, ClusterResult], StructuralClusterDiff]:
+) -> tuple[dict[str, ClusterResult], dict[str, nx.DiGraph], StructuralClusterDiff]:
     old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
     if not old_snapshot.all_cluster_ids():
-        return {}, StructuralClusterDiff()
+        return {}, {}, StructuralClusterDiff()
 
-    _subgraph_str, cluster_results, _subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
+    cluster_results, subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
         component,
         source_cluster_id_prefix=scope_id,
     )
@@ -1621,7 +1652,7 @@ def _build_scope_incremental_inputs(
         scope_id=scope_id,
         changed=changed_members,
     )
-    return cluster_results, structural_diff
+    return cluster_results, {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}, structural_diff
 
 
 def scoped_snapshot_for_component(

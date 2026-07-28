@@ -808,7 +808,7 @@ class StaticAnalyzer:
             )
 
         t_convert = time.monotonic()
-        result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
+        result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter, self.ignore_manager)
         logger.info(f"convert_to_codeboarding_format for {adapter.language}: {time.monotonic() - t_convert:.1f}s")
         return result
 

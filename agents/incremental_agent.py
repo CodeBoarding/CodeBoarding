@@ -32,10 +32,11 @@ from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
 from agents.prompts import (
     format_project_system_message,
     get_api_surfaces_message,
+    get_final_analysis_message,
     get_relation_analysis_message,
     get_system_message,
 )
-from agents.relation_edges import index_relation_endpoints
+from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.validation import ValidationContext, validate_relations
 from diagram_analysis.file_index import build_files_index
@@ -68,6 +69,10 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.project_name = project_name
         self.meta_context = meta_context
         self.prompts = {
+            "new_component_details": PromptTemplate(
+                template=get_final_analysis_message(),
+                input_variables=["cluster_analysis"],
+            ),
             "api_surfaces": PromptTemplate(
                 template=get_api_surfaces_message(),
                 input_variables=[
@@ -162,6 +167,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             relation_context=ScopeRelationContext(
                 cluster_results=cluster_results,
                 cfg_graphs=_cfg_graphs_for_scope_methods(self.static_analysis, scope),
+                changed_ids=frozenset(refresh_ids | new_component_ids | removed_ids),
             ),
             refresh_ids=refresh_ids,
             new_component_ids=new_component_ids,
@@ -177,6 +183,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         refresh_ids: set[str],
         new_component_ids: set[str],
     ) -> None:
+        """Materialize a provisional component whose metadata is finalized later."""
         source_cluster_ids = _operation_source_cluster_ids(scope_id, operation)
         if not source_cluster_ids:
             logger.error(
@@ -200,6 +207,44 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             new_component_ids.add(component.component_id)
             components_by_id[component.component_id] = component
 
+    @trace
+    def detail_new_components(self, components: list[Component]) -> None:
+        """Replace new components' provisional names and descriptions in one LLM call."""
+        groups: list[ClustersComponent] = []
+        target_by_group: dict[str, Component] = {}
+        for component in components:
+            group_name = f"Incremental Group {component.component_id}"
+            groups.append(
+                ClustersComponent(
+                    name=group_name,
+                    cluster_ids=[],
+                    description=_new_component_membership_summary(component),
+                )
+            )
+            target_by_group[group_name.casefold()] = component
+
+        cluster_analysis = ClusterAnalysis(cluster_components=groups)
+        prompt = self.prompts["new_component_details"].format(cluster_analysis=cluster_analysis.llm_str())
+        group_names = [group.name for group in groups]
+        prompt += (
+            f"\n\n## New Component Groups ({len(group_names)} total)\n"
+            f"Return exactly one semantically named component for each of these fixed groups: {group_names}.\n"
+            "These components have final deterministic membership. Replace their provisional metadata; "
+            "do not merge, split, or reassign their symbols."
+        )
+        architecture = self._parse_invoke(prompt, ComponentArchitecture)
+        for detailed in architecture.components:
+            if len(detailed.source_group_names) != 1:
+                continue
+            target = target_by_group.get(detailed.source_group_names[0].casefold())
+            if target is None:
+                continue
+            name = detailed.name.strip()
+            description = detailed.description.strip()
+            if name and description:
+                target.name = name
+                target.description = description
+
     def _update_component_from_operation(
         self,
         scope_id: str,
@@ -212,8 +257,14 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             component.description = operation.description
         if operation.key_entities:
             component.key_entities = operation.key_entities
-        merged_cluster_ids = set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
-        component.source_cluster_ids = CodeBoardingClusterIds.sort(merged_cluster_ids)
+        # Replace, don't union. The planner emits the component's complete new cluster set on
+        # every UPDATE, so a cluster it no longer lists is gone — merged with the prior ids, a
+        # deleted cluster would cling to the component and mis-anchor a later reused id.
+        # ``_remove_reassigned_clusters`` already stripped these ids from every component,
+        # including this one, so assigning the operation's refs is the whole set.
+        component.source_cluster_ids = CodeBoardingClusterIds.sort(
+            set(_operation_source_cluster_ids(scope_id, operation))
+        )
 
     def _patch_scope_file_methods(
         self,
@@ -307,6 +358,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope: AnalysisInsights,
         scope_name: str,
         context: ScopeRelationContext,
+        changed_members: set[str] | None = None,
     ) -> list[Relation]:
         """Run the API-surface and relation stages for one updated scope."""
         if len(scope.components) < 2:
@@ -316,7 +368,14 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, context.cluster_results)
         api_surfaces = self.step_api_surfaces(scope, scope_name)
-        return self.step_relation_analysis(
+        # Snapshot before regeneration: step_relation_analysis replaces the scope's relations
+        # wholesale, so every edge between two untouched components would come back reworded.
+        baseline_by_pair = {
+            (relation.src_id, relation.dst_id): relation.model_copy(deep=True)
+            for relation in scope.components_relations
+            if relation.src_id and relation.dst_id
+        }
+        rels = self.step_relation_analysis(
             scope,
             scope_name,
             api_surfaces,
@@ -324,6 +383,24 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             context.cluster_results,
             context.cfg_graphs,
         )
+        if baseline_by_pair:
+            live_ids = {component.component_id for component in scope.components if component.component_id}
+            live_qnames = {
+                qualified_name
+                for cluster_result in context.cluster_results.values()
+                for members in cluster_result.clusters.values()
+                for qualified_name in members
+            }
+            scope.components_relations = preserve_unchanged_relations(
+                scope.components_relations,
+                baseline_by_pair,
+                set(context.changed_ids),
+                live_ids,
+                live_qnames,
+                changed_members,
+            )
+            rels = scope.components_relations
+        return rels
 
     @trace
     def generate_all_scope_relations(
@@ -331,18 +408,19 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
         relation_contexts: dict[str, ScopeRelationContext],
+        changed_members: set[str] | None = None,
     ) -> None:
         """Generate LLM relations for every touched scope with at least two components."""
         all_llm_rels: list[tuple[str, list[Relation]]] = []
         root_context = relation_contexts.get(ROOT_SCOPE_ID)
         if root_context is not None:
-            rels = self.generate_scope_relations(root_analysis, ROOT_SCOPE_ID, root_context)
+            rels = self.generate_scope_relations(root_analysis, ROOT_SCOPE_ID, root_context, changed_members)
             if rels:
                 all_llm_rels.append((ROOT_SCOPE_ID, rels))
         for scope_id in sorted(relation_contexts.keys() - {ROOT_SCOPE_ID}):
             sub = sub_analyses.get(scope_id)
             if sub is not None:
-                rels = self.generate_scope_relations(sub, scope_id, relation_contexts[scope_id])
+                rels = self.generate_scope_relations(sub, scope_id, relation_contexts[scope_id], changed_members)
                 if rels:
                     all_llm_rels.append((scope_id, rels))
 
@@ -395,6 +473,20 @@ def _local_graph_cluster_ids(
     return sorted(local_ids)
 
 
+def _new_component_membership_summary(component: Component) -> str:
+    files = sorted(group.file_path for group in component.file_methods)
+    symbols = sorted(
+        {method.qualified_name for group in component.file_methods for method in group.methods},
+        key=lambda qualified_name: (qualified_name.count("."), qualified_name),
+    )
+    shown_files = ", ".join(files[:8]) + (", ..." if len(files) > 8 else "")
+    shown_symbols = ", ".join(symbols[:12]) + (", ..." if len(symbols) > 12 else "")
+    return (
+        f"Final membership: {len(symbols)} symbols across {len(files)} files. "
+        f"Files: {shown_files}. Representative symbols: {shown_symbols}."
+    )
+
+
 def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> None:
     lines = ["[scope_relations] LLM-generated inter-component relations:"]
     for scope_name, rels in all_rels:
@@ -404,8 +496,7 @@ def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> 
 
 
 def _operation_source_cluster_ids(scope_id: str, operation: ScopeOperation) -> list[str]:
-    # Match how the validator reads refs (cluster_ref_from_scoped_ref treats a blank scope as root),
-    # so a ref the validator counted is not silently dropped here and orphaned.
+    # A blank scope on a ref means root, matching how refs are read elsewhere.
     local_ids = {ref.cluster_id for ref in operation.cluster_refs if (ref.scope_id or ROOT_SCOPE_ID) == scope_id}
     return CodeBoardingClusterIds.qualify_local_ids(
         CodeBoardingClusterIds.from_graph_ids(local_ids),

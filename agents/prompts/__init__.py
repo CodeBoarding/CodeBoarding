@@ -17,7 +17,6 @@ from .prompt_factory import (
 # Import all the convenience functions for backward compatibility
 from .prompt_factory import (
     get_system_message,
-    get_cluster_grouping_message,
     get_final_analysis_message,
     get_planner_system_message,
     get_expansion_prompt,
@@ -26,10 +25,7 @@ from .prompt_factory import (
     get_file_classification_message,
     get_validation_feedback_message,
     get_system_details_message,
-    get_cfg_details_message,
     get_details_message,
-    get_incremental_grouping_message,
-    get_planning_message,
     get_scope_relations_message,
     get_api_surfaces_message,
     get_relation_analysis_message,
@@ -64,7 +60,6 @@ __all__ = [
     "format_project_system_message",
     # Convenience functions
     "get_system_message",
-    "get_cluster_grouping_message",
     "get_final_analysis_message",
     "get_planner_system_message",
     "get_expansion_prompt",
@@ -73,16 +68,12 @@ __all__ = [
     "get_file_classification_message",
     "get_validation_feedback_message",
     "get_system_details_message",
-    "get_cfg_details_message",
     "get_details_message",
-    "get_incremental_grouping_message",
-    "get_planning_message",
     "get_scope_relations_message",
     "get_api_surfaces_message",
     "get_relation_analysis_message",
     # Prompt constants (available via __getattr__)
     "SYSTEM_MESSAGE",
-    "CLUSTER_GROUPING_MESSAGE",
     "FINAL_ANALYSIS_MESSAGE",
     "FEEDBACK_MESSAGE",
     "PLANNER_SYSTEM_MESSAGE",

@@ -9,6 +9,9 @@ class ScopeRelationContext:
 
     cluster_results: dict[str, ClusterResult]
     cfg_graphs: dict[str, CallGraph]
+    #: Components in this scope that actually moved. Relations between two components
+    #: absent from this set are carried over verbatim instead of being re-worded.
+    changed_ids: frozenset[str] = frozenset()
 
 
 @dataclass
