@@ -35,6 +35,7 @@ from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
 from agents.prompts import (
     format_project_system_message,
     get_api_surfaces_message,
+    get_final_analysis_message,
     get_relation_analysis_message,
     get_system_message,
 )
@@ -71,6 +72,10 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.project_name = project_name
         self.meta_context = meta_context
         self.prompts = {
+            "new_component_details": PromptTemplate(
+                template=get_final_analysis_message(),
+                input_variables=["cluster_analysis"],
+            ),
             "api_surfaces": PromptTemplate(
                 template=get_api_surfaces_message(),
                 input_variables=[
@@ -203,6 +208,44 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             refresh_ids.add(component.component_id)
             new_component_ids.add(component.component_id)
             components_by_id[component.component_id] = component
+
+    @trace
+    def detail_new_components(self, components: list[Component]) -> None:
+        """Replace new components' provisional names and descriptions in one LLM call."""
+        groups: list[ClustersComponent] = []
+        target_by_group: dict[str, Component] = {}
+        for component in components:
+            group_name = f"Incremental Group {component.component_id}"
+            groups.append(
+                ClustersComponent(
+                    name=group_name,
+                    cluster_ids=[],
+                    description=_new_component_membership_summary(component),
+                )
+            )
+            target_by_group[group_name.casefold()] = component
+
+        cluster_analysis = ClusterAnalysis(cluster_components=groups)
+        prompt = self.prompts["new_component_details"].format(cluster_analysis=cluster_analysis.llm_str())
+        group_names = [group.name for group in groups]
+        prompt += (
+            f"\n\n## New Component Groups ({len(group_names)} total)\n"
+            f"Return exactly one semantically named component for each of these fixed groups: {group_names}.\n"
+            "These components have final deterministic membership. Replace their provisional metadata; "
+            "do not merge, split, or reassign their symbols."
+        )
+        architecture = self._parse_invoke(prompt, ComponentArchitecture)
+        for detailed in architecture.components:
+            if len(detailed.source_group_names) != 1:
+                continue
+            target = target_by_group.get(detailed.source_group_names[0].casefold())
+            if target is None:
+                continue
+            name = detailed.name.strip()
+            description = detailed.description.strip()
+            if name and description:
+                target.name = name
+                target.description = description
 
     def _update_component_from_operation(
         self,
@@ -508,6 +551,20 @@ def _local_graph_cluster_ids(
         if local_id.isdigit() and int(local_id) in valid_cluster_ids:
             local_ids.add(int(local_id))
     return sorted(local_ids)
+
+
+def _new_component_membership_summary(component: Component) -> str:
+    files = sorted(group.file_path for group in component.file_methods)
+    symbols = sorted(
+        {method.qualified_name for group in component.file_methods for method in group.methods},
+        key=lambda qualified_name: (qualified_name.count("."), qualified_name),
+    )
+    shown_files = ", ".join(files[:8]) + (", ..." if len(files) > 8 else "")
+    shown_symbols = ", ".join(symbols[:12]) + (", ..." if len(symbols) > 12 else "")
+    return (
+        f"Final membership: {len(symbols)} symbols across {len(files)} files. "
+        f"Files: {shown_files}. Representative symbols: {shown_symbols}."
+    )
 
 
 def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> None:
