@@ -1,16 +1,16 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-07-28T13:30:13.768319+00:00",
-  "overall_score": 0.9382437423061141,
+  "timestamp": "2026-07-28T14:14:52.391805+00:00",
+  "overall_score": 0.9384332174268767,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1507,
+      "total_entities_checked": 1512,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.9993364299933643,
+      "score": 0.9993386243386243,
       "finding_groups": [
         {
           "severity": "warning",
@@ -32,10 +32,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1519,
+      "total_entities_checked": 1524,
       "findings_count": 46,
       "warning_count": 46,
-      "score": 0.9697169190256748,
+      "score": 0.9698162729658792,
       "finding_groups": [
         {
           "severity": "warning",
@@ -78,17 +78,17 @@
               "metric_value": 18
             },
             {
-              "entity_name": "agents.incremental_agent.IncrementalAgent.update_scope",
-              "file_path": "agents/incremental_agent.py",
-              "line_start": 94,
-              "line_end": 175,
-              "metric_value": 18
-            },
-            {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 878,
               "line_end": 949,
+              "metric_value": 18
+            },
+            {
+              "entity_name": "agents.incremental_agent.IncrementalAgent.update_scope",
+              "file_path": "agents/incremental_agent.py",
+              "line_start": 97,
+              "line_end": 178,
               "metric_value": 18
             },
             {
@@ -111,13 +111,6 @@
               "line_start": 21,
               "line_end": 164,
               "metric_value": 16
-            },
-            {
-              "entity_name": "agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-              "file_path": "agents/incremental_agent.py",
-              "line_start": 313,
-              "line_end": 353,
-              "metric_value": 15
             },
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer.start_clients",
@@ -169,17 +162,17 @@
               "metric_value": 13
             },
             {
-              "entity_name": "diagram_analysis.scope_plan.plan_scope_update",
-              "file_path": "diagram_analysis/scope_plan.py",
-              "line_start": 110,
-              "line_end": 245,
-              "metric_value": 13
-            },
-            {
               "entity_name": "agents.abstraction_agent.AbstractionAgent.step_final_analysis",
               "file_path": "agents/abstraction_agent.py",
               "line_start": 98,
               "line_end": 144,
+              "metric_value": 13
+            },
+            {
+              "entity_name": "diagram_analysis.scope_plan.plan_scope_update",
+              "file_path": "diagram_analysis/scope_plan.py",
+              "line_start": 110,
+              "line_end": 244,
               "metric_value": 13
             },
             {
@@ -201,13 +194,6 @@
               "file_path": "github_action.py",
               "line_start": 99,
               "line_end": 143,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
-              "file_path": "agents/incremental_agent.py",
-              "line_start": 269,
-              "line_end": 298,
               "metric_value": 12
             },
             {
@@ -243,6 +229,20 @@
               "file_path": "codeboarding_cli/commands/full_analysis.py",
               "line_start": 168,
               "line_end": 201,
+              "metric_value": 12
+            },
+            {
+              "entity_name": "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
+              "file_path": "agents/incremental_agent.py",
+              "line_start": 271,
+              "line_end": 300,
+              "metric_value": 12
+            },
+            {
+              "entity_name": "agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+              "file_path": "agents/incremental_agent.py",
+              "line_start": 315,
+              "line_end": 352,
               "metric_value": 12
             },
             {
@@ -372,10 +372,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1519,
+      "total_entities_checked": 1524,
       "findings_count": 11,
       "warning_count": 11,
-      "score": 0.9927583936800527,
+      "score": 0.9927821522309711,
       "finding_groups": [
         {
           "severity": "warning",
@@ -503,6 +503,11 @@
               "metric_value": 639.0
             },
             {
+              "entity_name": "agents.incremental_agent.IncrementalAgent",
+              "file_path": "agents/incremental_agent.py",
+              "metric_value": 450.0
+            },
+            {
               "entity_name": "static_analyzer.reference_resolver.StaticReferenceResolver",
               "file_path": "static_analyzer/reference_resolver.py",
               "metric_value": 443.0
@@ -511,11 +516,6 @@
               "entity_name": "agents.agent.CodeBoardingAgent",
               "file_path": "agents/agent.py",
               "metric_value": 429.0
-            },
-            {
-              "entity_name": "agents.incremental_agent.IncrementalAgent",
-              "file_path": "agents/incremental_agent.py",
-              "metric_value": 83.0
             },
             {
               "entity_name": "agents.details_agent.DetailsAgent",
