@@ -5,8 +5,8 @@ graph LR
     Repository_Path_Workspace_Resolver["Repository Path & Workspace Resolver"]
     Git_Environment_Metadata_Provider -- "provides raw diff data for semantic analysis" --> Incremental_Change_Detector
     Git_Environment_Metadata_Provider -- "validates repository root and ignore constraints" --> Repository_Path_Workspace_Resolver
-    Incremental_Change_Detector -- "queries specific commit history for range attribution" --> Git_Environment_Metadata_Provider
     Incremental_Change_Detector -- "resolves file paths for diff range validation" --> Repository_Path_Workspace_Resolver
+    Incremental_Change_Detector -- "queries specific commit history for range attribution" --> Git_Environment_Metadata_Provider
     click Git_Environment_Metadata_Provider href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Git_Environment_Metadata_Provider.md" "Details"
     click Incremental_Change_Detector href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Incremental_Change_Detector.md" "Details"
     click Repository_Path_Workspace_Resolver href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Path_Workspace_Resolver.md" "Details"
