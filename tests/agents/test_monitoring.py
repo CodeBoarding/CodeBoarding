@@ -227,5 +227,36 @@ class TestMonitoringCallback(unittest.TestCase):
         self.assertIn("my_tool", self.callback.stats.tool_counts)
 
 
+class TestRunStatsMerge(unittest.TestCase):
+    def test_merge_folds_tokens_and_tool_stats(self):
+        parent = RunStats()
+        parent.total_tokens, parent.input_tokens, parent.output_tokens = 150, 100, 50
+        parent.tool_counts["shared"] = 1
+        parent.tool_errors["shared"] = 1
+        parent.tool_latency_ms["shared"] = [10.0]
+
+        worker = RunStats()
+        worker.total_tokens, worker.input_tokens, worker.output_tokens = 30, 20, 10
+        worker.tool_counts["shared"] = 2
+        worker.tool_counts["worker_only"] = 3
+        worker.tool_errors["shared"] = 4
+        worker.tool_latency_ms["shared"] = [5.0]
+        worker.tool_latency_ms["worker_only"] = [7.0]
+
+        parent.merge(worker)
+
+        self.assertEqual(parent.total_tokens, 180)
+        self.assertEqual(parent.input_tokens, 120)
+        self.assertEqual(parent.output_tokens, 60)
+        self.assertEqual(parent.tool_counts["shared"], 3)
+        self.assertEqual(parent.tool_counts["worker_only"], 3)
+        self.assertEqual(parent.tool_errors["shared"], 5)
+        self.assertEqual(parent.tool_latency_ms["shared"], [10.0, 5.0])
+        self.assertEqual(parent.tool_latency_ms["worker_only"], [7.0])
+        # Source stats untouched by the fold.
+        self.assertEqual(worker.total_tokens, 30)
+        self.assertEqual(worker.tool_counts["shared"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()

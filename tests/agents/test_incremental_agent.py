@@ -530,7 +530,9 @@ class TestIncrementalRelations(unittest.TestCase):
         generated = agent.generate_scope_relations(
             scope,
             "root",
-            ScopeRelationContext(cluster_results=cluster_results, cfg_graphs={"python": cfg}),
+            ScopeRelationContext(
+                cluster_results=cluster_results, cfg_graphs={"python": cfg}, changed_ids=frozenset({"1", "2"})
+            ),
         )
 
         self.assertEqual(generated, relation_result.components_relations)

@@ -1,6 +1,9 @@
 """Incremental refresh helpers for scoped structural updates."""
 
 import logging
+import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
@@ -183,7 +186,6 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         refresh_ids: set[str],
         new_component_ids: set[str],
     ) -> None:
-        """Materialize a provisional component whose metadata is finalized later."""
         source_cluster_ids = _operation_source_cluster_ids(scope_id, operation)
         if not source_cluster_ids:
             logger.error(
@@ -346,11 +348,19 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             max_validation_attempts=3,
         )
         scope.components_relations = relation_result.components_relations
+        self._attach_static_relations(scope, cfg_graphs)
+        return relation_result.components_relations
+
+    def _attach_static_relations(self, scope: AnalysisInsights, cfg_graphs: dict[str, CallGraph]) -> None:
+        """Ground the scope's relations in the live CFG and resolve their source references.
+
+        Why: shared by the LLM and no-change paths; the latter passes no LLM relations, so only
+        the deterministic static call edges remain.
+        """
         assign_relation_ids(scope)
         self.build_static_relations(scope, cfg_graphs)
         self.reference_resolver.fix_source_code_reference_lines(scope)
         index_relation_endpoints(scope, self.repo_dir)
-        return relation_result.components_relations
 
     @trace
     def generate_scope_relations(
@@ -360,29 +370,38 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         context: ScopeRelationContext,
         changed_members: set[str] | None = None,
     ) -> list[Relation]:
-        """Run the API-surface and relation stages for one updated scope."""
+        """Run the API-surface and relation stages for one updated scope, or skip both when nothing in it changed."""
         if len(scope.components) < 2:
             scope.components_relations = []
             self.reference_resolver.fix_source_code_reference_lines(scope)
             return []
 
-        cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, context.cluster_results)
-        api_surfaces = self.step_api_surfaces(scope, scope_name)
-        # Snapshot before regeneration: step_relation_analysis replaces the scope's relations
-        # wholesale, so every edge between two untouched components would come back reworded.
+        # Snapshot before regeneration: the rebuild replaces the scope's relations wholesale, so
+        # every edge between two untouched components would come back reworded.
         baseline_by_pair = {
             (relation.src_id, relation.dst_id): relation.model_copy(deep=True)
             for relation in scope.components_relations
             if relation.src_id and relation.dst_id
         }
-        rels = self.step_relation_analysis(
-            scope,
-            scope_name,
-            api_surfaces,
-            cluster_analysis,
-            context.cluster_results,
-            context.cfg_graphs,
-        )
+
+        if context.changed_ids:
+            cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, context.cluster_results)
+            api_surfaces = self.step_api_surfaces(scope, scope_name)
+            rels = self.step_relation_analysis(
+                scope,
+                scope_name,
+                api_surfaces,
+                cluster_analysis,
+                context.cluster_results,
+                context.cfg_graphs,
+            )
+        else:
+            # Nothing in this scope changed, so preserve_unchanged_relations below would discard any
+            # LLM output anyway; skip both round-trips and rebuild edges from the live CFG.
+            scope.components_relations = []
+            self._attach_static_relations(scope, context.cfg_graphs)
+            rels = scope.components_relations
+
         if baseline_by_pair:
             live_ids = {component.component_id for component in scope.components if component.component_id}
             live_qnames = {
@@ -410,22 +429,83 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         relation_contexts: dict[str, ScopeRelationContext],
         changed_members: set[str] | None = None,
     ) -> None:
-        """Generate LLM relations for every touched scope with at least two components."""
-        all_llm_rels: list[tuple[str, list[Relation]]] = []
-        root_context = relation_contexts.get(ROOT_SCOPE_ID)
-        if root_context is not None:
-            rels = self.generate_scope_relations(root_analysis, ROOT_SCOPE_ID, root_context, changed_members)
-            if rels:
-                all_llm_rels.append((ROOT_SCOPE_ID, rels))
+        """Regenerate relations for every touched scope with at least two components.
+
+        Why: scopes are independent (own clustering, cfg, analysis object), so they run
+        concurrently; a single scope or none runs inline to skip worker setup.
+        """
+        tasks: list[tuple[str, AnalysisInsights]] = []
+        if relation_contexts.get(ROOT_SCOPE_ID) is not None:
+            tasks.append((ROOT_SCOPE_ID, root_analysis))
         for scope_id in sorted(relation_contexts.keys() - {ROOT_SCOPE_ID}):
             sub = sub_analyses.get(scope_id)
             if sub is not None:
-                rels = self.generate_scope_relations(sub, scope_id, relation_contexts[scope_id], changed_members)
-                if rels:
-                    all_llm_rels.append((scope_id, rels))
+                tasks.append((scope_id, sub))
+
+        if len(tasks) <= 1:
+            results = [
+                (scope_id, self.generate_scope_relations(scope, scope_id, relation_contexts[scope_id], changed_members))
+                for scope_id, scope in tasks
+            ]
+        else:
+            results = self._generate_scope_relations_parallel(tasks, relation_contexts, changed_members)
+
+        all_llm_rels = [
+            (scope_id, rels) for scope_id, rels in results if rels and relation_contexts[scope_id].changed_ids
+        ]
 
         if all_llm_rels:
             _log_scope_relations_summary(all_llm_rels)
+
+    def _generate_scope_relations_parallel(
+        self,
+        tasks: list[tuple[str, AnalysisInsights]],
+        relation_contexts: dict[str, ScopeRelationContext],
+        changed_members: set[str] | None,
+    ) -> list[tuple[str, list[Relation]]]:
+        """Regenerate each scope's relations concurrently, one agent clone per worker thread.
+
+        Why: step_relation_analysis writes clustering onto the agent's shared toolkit.context, so
+        scopes must not share an agent. executor.map preserves order for a deterministic log.
+        """
+        max_workers = min(len(tasks), os.cpu_count() or 4, 8)
+        worker_local = threading.local()
+        workers: list[IncrementalAgent] = []
+        workers_lock = threading.Lock()
+
+        def run_one(task: tuple[str, AnalysisInsights]) -> tuple[str, list[Relation]]:
+            scope_id, scope = task
+            worker = getattr(worker_local, "agent", None)
+            if worker is None:
+                worker = self._clone_for_worker()
+                worker_local.agent = worker
+                with workers_lock:
+                    workers.append(worker)
+            return scope_id, worker.generate_scope_relations(
+                scope, scope_id, relation_contexts[scope_id], changed_members
+            )
+
+        try:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                results = list(executor.map(run_one, tasks))
+        finally:
+            # Merge even if a scope raised, so a failed run still reports the token/tool
+            # usage the workers already incurred.
+            for worker in workers:
+                self.agent_stats.merge(worker.agent_stats)
+        return results
+
+    def _clone_for_worker(self) -> "IncrementalAgent":
+        """A sibling agent with its own toolkit context, for concurrent scope regeneration."""
+        return IncrementalAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.static_analysis,
+            project_name=self.project_name,
+            meta_context=self.meta_context,
+            agent_llm=self.agent_llm,
+            parsing_llm=self.parsing_llm,
+            changes=self.toolkit.context.changes,
+        )
 
 
 def _cluster_analysis_for_scope(
