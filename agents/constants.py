@@ -40,5 +40,5 @@ class ModelCapabilities:
     }
 
     PROVIDER_CONTEXT_WINDOWS: ClassVar[dict[tuple[str, str], tuple[int, int]]] = {
-        ("atlascloud", "deepseek-ai/deepseek-v4-pro"): (1_000_000, FALLBACK_OUTPUT),
+        ("atlascloud", "deepseek-ai/deepseek-v4-pro"): (1_048_576, 393_216),
     }

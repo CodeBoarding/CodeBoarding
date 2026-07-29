@@ -1,4 +1,5 @@
 import os
+import tomllib
 
 import pytest
 
@@ -234,6 +235,28 @@ class TestEnsureConfigTemplate:
         provider_block = text[text.index("[provider]") : text.index("[llm]")]
         assert '# atlascloud_api_key        = "..."' in provider_block
         assert load_user_config(path).provider.atlascloud_api_key is None
+
+    @pytest.mark.parametrize("provider_header", ["[ provider ]", '["provider"]', "['provider']"])
+    def test_preserves_valid_provider_header_variants(self, tmp_path, provider_header):
+        path = tmp_path / "config.toml"
+        path.write_text(f'{provider_header}\nopenai_api_key = "local"\n\n[llm]\ncontext_window = 42\n')
+
+        ensure_config_template(path)
+
+        data = tomllib.loads(path.read_text())
+        assert data["provider"]["openai_api_key"] == "local"
+        assert path.read_text().count("provider") == 1
+
+    def test_inserts_key_when_final_section_header_has_no_trailing_newline(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text("[provider]")
+
+        ensure_config_template(path)
+
+        text = path.read_text()
+        assert text.count("[provider]") == 1
+        assert '# atlascloud_api_key        = "..."' in text
+        assert tomllib.loads(text)["provider"] == {}
 
     def test_adds_llm_section_if_absent(self, tmp_path):
         path = tmp_path / "config.toml"

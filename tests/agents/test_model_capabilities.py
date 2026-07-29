@@ -85,7 +85,7 @@ class TestResolverPriority:
         assert get_context_window("mystery", "nonexistent") == ContextWindow(256_000, 64_000, is_fallback=True)
 
     def test_atlascloud_default_model_uses_provider_context_window(self, fake_catalogs):
-        assert get_context_window("atlascloud", "deepseek-ai/deepseek-v4-pro") == ContextWindow(1_000_000, 64_000)
+        assert get_context_window("atlascloud", "deepseek-ai/deepseek-v4-pro") == ContextWindow(1_048_576, 393_216)
 
 
 class TestModelsdevResolution:

@@ -188,12 +188,18 @@ def ensure_config_template(path: Path = CONFIG_PATH) -> None:
 def _append_commented_key(path: Path, section: str, key: str, commented_line: str) -> None:
     """Insert a missing commented key into its TOML section."""
     text = path.read_text()
-    section_pattern = rf"^[ \t]*\[{re.escape(section)}\][ \t]*(?:#[^\n]*)?\n"
+    try:
+        table_exists = section in tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return
+
+    table_name = rf"(?:{re.escape(section)}|\"{re.escape(section)}\"|'{re.escape(section)}')"
+    section_pattern = rf"^[ \t]*\[[ \t]*{table_name}[ \t]*\][ \t]*(?:#[^\n]*)?(?:\n|\Z)"
     section_match = re.search(section_pattern, text, flags=re.MULTILINE)
     if section_match:
         body_start = section_match.end()
         next_section = re.search(
-            r"^[ \t]*\[[^\]\n]+\][ \t]*(?:#[^\n]*)?\n",
+            r"^[ \t]*\[[^\]\n]+\][ \t]*(?:#[^\n]*)?(?:\n|\Z)",
             text[body_start:],
             flags=re.MULTILINE,
         )
@@ -201,7 +207,12 @@ def _append_commented_key(path: Path, section: str, key: str, commented_line: st
         section_body = text[body_start:body_end]
         if re.search(rf"^\s*#?\s*{re.escape(key)}\s*=", section_body, flags=re.MULTILINE):
             return
-        injected = text[:body_start] + commented_line + "\n" + text[body_start:]
+        prefix = text[:body_start]
+        if not prefix.endswith("\n"):
+            prefix += "\n"
+        injected = prefix + commented_line + "\n" + text[body_start:]
+    elif table_exists:
+        return
     else:
         injected = text.rstrip() + f"\n\n[{section}]\n" + commented_line + "\n"
     path.write_text(injected)
