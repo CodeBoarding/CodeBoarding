@@ -1,6 +1,7 @@
 # CodeBoarding
 
 [![Website](https://img.shields.io/badge/Site-CodeBoarding.org-5865F2?style=for-the-badge&logoColor=white)](https://codeboarding.org)
+[![Web platform](https://img.shields.io/badge/Web%20platform-app.codeboarding.org-2563EB?style=for-the-badge&logoColor=white)](https://app.codeboarding.org)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?style=for-the-badge&logoColor=white)](https://discord.gg/T5zHTJYFuy)
 [![GitHub](https://img.shields.io/badge/GitHub-CodeBoarding-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/CodeBoarding/CodeBoarding)
 
@@ -57,6 +58,9 @@ codeboarding full --local /path/to/repo
 # Analyze a remote GitHub repository (cloned to cwd/repo_name/, output to cwd/repo_name/.codeboarding/)
 codeboarding full https://github.com/user/repo
 ```
+
+To explore the result interactively, open the [web platform](https://app.codeboarding.org) and load the
+generated `.codeboarding/analysis.json` — it is parsed in your browser, nothing is uploaded.
 
 ### Python API
 
