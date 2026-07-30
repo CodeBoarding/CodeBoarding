@@ -694,9 +694,7 @@ def _is_name_field(node: TreeSitterNode) -> bool:
     return parent is not None and parent.child_by_field_name("name") == node
 
 
-def _annotation_declaration(
-    annotation: TreeSitterNode, declarations: list[TreeSitterNode]
-) -> TreeSitterNode | None:
+def _annotation_declaration(annotation: TreeSitterNode, declarations: list[TreeSitterNode]) -> TreeSitterNode | None:
     """Assign an annotation to the nearest declaration container, never a nested child."""
     ancestors = list(_parents(annotation))
     containing = [declaration for declaration in declarations if declaration in ancestors]
@@ -708,7 +706,11 @@ def _annotation_declaration(
     nearest = min(following, key=lambda item: (item.start_byte, item.end_byte - item.start_byte))
     annotation_parent = annotation.parent
     declaration_ancestors = set(_parents(nearest))
-    if annotation_parent is not None and annotation_parent not in declaration_ancestors and nearest.parent != annotation_parent:
+    if (
+        annotation_parent is not None
+        and annotation_parent not in declaration_ancestors
+        and nearest.parent != annotation_parent
+    ):
         return None
     return nearest
 

@@ -64,6 +64,4 @@ def test_cpp_is_explicitly_unsupported(extract):
     assert facts.language == "cpp"
     assert facts.imports == ()
     assert facts.type_uses == ()
-    assert [(item.code, item.message) for item in facts.diagnostics] == [
-        ("unsupported-language", "No parser for cpp")
-    ]
+    assert [(item.code, item.message) for item in facts.diagnostics] == [("unsupported-language", "No parser for cpp")]
