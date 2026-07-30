@@ -398,6 +398,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_subgraph.cluster.return_value = sub_cluster_result
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
         mock_subgraph.to_networkx.return_value = subgraph_graph
+        mock_subgraph.program_map_networkx.return_value = subgraph_graph
 
         mock_cfg = MagicMock()
         mock_cfg.cluster.return_value = mock_cluster_result

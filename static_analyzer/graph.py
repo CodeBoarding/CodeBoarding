@@ -413,22 +413,36 @@ class CallGraph:
         return nx_graph
 
     def program_map_networkx(self, reference_kinds: Collection[str] | None = None) -> nx.DiGraph:
-        """Build the weighted directed flow graph consumed by Infomap."""
+        """Build the typed, weighted flow graph consumed by Infomap."""
         kinds = set(ClusteringConfig.CLUSTERING_EDGE_KINDS if reference_kinds is None else reference_kinds)
         base = self.clustering_networkx(reference_kinds)
         graph = nx.DiGraph()
         graph.add_nodes_from(base.nodes(data=True))
 
         for edge in sorted(self.edges, key=lambda item: (item.get_source(), item.get_destination())):
-            weight = max(1, len(edge.call_sites))
-            graph.add_edge(edge.get_source(), edge.get_destination(), weight=float(weight))
+            count = max(1, len(edge.call_sites))
+            graph.add_edge(
+                edge.get_source(),
+                edge.get_destination(),
+                weight=float(count),
+                evidence=((EdgeKind.CALL.value, count, 1.0),),
+            )
 
         for src, dst, kind in sorted(getattr(self, "reference_edges", ())):
             rsrc, rdst = self._resolve_name(src), self._resolve_name(dst)
             if kind not in kinds or rsrc not in self.nodes or rdst not in self.nodes:
                 continue
-            weight = graph.get_edge_data(rsrc, rdst, {}).get("weight", 0.0) + 1.0
-            graph.add_edge(rsrc, rdst, weight=weight)
+            existing = graph.get_edge_data(rsrc, rdst, {})
+            evidence_by_kind = {
+                edge_kind: (count, raw_weight) for edge_kind, count, raw_weight in existing.get("evidence", ())
+            }
+            count, raw_weight = evidence_by_kind.get(kind, (0, 0.0))
+            evidence_by_kind[kind] = (count + 1, raw_weight + 1.0)
+            evidence = tuple(
+                (edge_kind, evidence_count, evidence_weight)
+                for edge_kind, (evidence_count, evidence_weight) in sorted(evidence_by_kind.items())
+            )
+            graph.add_edge(rsrc, rdst, weight=float(existing.get("weight", 0.0)) + 1.0, evidence=evidence)
         return graph
 
     def cluster(

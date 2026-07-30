@@ -15,18 +15,24 @@ component.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import math
 import os
 from collections import Counter, defaultdict, deque
-from dataclasses import dataclass
+from collections.abc import Mapping
+from functools import lru_cache
+from dataclasses import asdict, dataclass, field
+from pathlib import PurePath
+from types import MappingProxyType
 
 import infomap
 import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig, Language
-from static_analyzer.graph import ClusterResult
+from static_analyzer.graph import ClusterResult, EdgeKind
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +49,14 @@ SUBCOMPONENTS_MAX = 8
 
 INFOMAP_TRIALS = 10
 PROGRAM_MAP_PROFILE_LIMIT = 8
+
+PROGRAM_MAP_CHANNEL_WEIGHTS: dict[EdgeKind, float] = {
+    EdgeKind.CALL: 1.0,
+    EdgeKind.CONTAINS: 1.0,
+    EdgeKind.INHERITS: 1.25,
+    EdgeKind.TYPEREF: 0.5,
+    EdgeKind.IMPORT: 0.25,
+}
 
 
 def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
@@ -160,6 +174,1038 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
     return meta_graph
 
 
+class ProgramMapInformationError(ValueError):
+    """Program-map evidence cannot be represented faithfully."""
+
+
+class ProgramMapUnknownEndpointError(ProgramMapInformationError):
+    """Evidence points outside the program-map symbol set."""
+
+
+class ProgramMapInvalidWeightError(ProgramMapInformationError):
+    """Evidence has an invalid weight or multiplicity."""
+
+
+class ProgramMapSnapshotError(ProgramMapInformationError):
+    """Persisted program-map information is malformed or stale."""
+
+
+@dataclass(frozen=True, order=True)
+class ProgramMapSymbol:
+    """Stable source location metadata carried into the program map."""
+
+    qualified_name: str
+    kind: int
+    file_path: str
+    line_start: int
+    line_end: int
+    col_start: int = 0
+    detail: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.qualified_name:
+            raise ProgramMapInformationError("Program-map symbol must have a qualified name")
+        if self.line_start < 0 or self.line_end < self.line_start or self.col_start < 0:
+            raise ProgramMapInformationError(f"Program-map symbol has invalid location: {self.qualified_name}")
+
+    @property
+    def package(self) -> str:
+        return str(PurePath(self.file_path).parent)
+
+
+@dataclass(frozen=True, order=True)
+class ProgramMapEvidence:
+    """One typed contribution to a directed program-map edge."""
+
+    source: str
+    destination: str
+    channel: EdgeKind
+    count: int = 1
+    raw_weight: float = 1.0
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.count, bool)
+            or not isinstance(self.count, int)
+            or self.count < 0
+            or isinstance(self.raw_weight, bool)
+            or not isinstance(self.raw_weight, (int, float))
+            or not math.isfinite(self.raw_weight)
+            or self.raw_weight < 0
+        ):
+            raise ProgramMapInvalidWeightError(
+                f"Invalid {self.channel.value} evidence {self.source} -> {self.destination}"
+            )
+
+    @property
+    def weighted_value(self) -> float:
+        multiplicity = max(1, self.count) if self.channel == EdgeKind.CALL else self.raw_weight
+        return multiplicity * PROGRAM_MAP_CHANNEL_WEIGHTS[self.channel]
+
+    @property
+    def key(self) -> tuple[str, str, EdgeKind]:
+        return self.source, self.destination, self.channel
+
+
+@dataclass(frozen=True)
+class ProgramMapStatistics:
+    """Global evidence totals used to compare equivalent program-map runs."""
+
+    symbol_count: int
+    edge_count: int
+    evidence_count: int
+    total_weight: float
+    channel_counts: tuple[tuple[EdgeKind, int], ...]
+    isolated_symbols: int
+    density: float
+
+
+@dataclass(frozen=True)
+class ProgramMapSymbolProfile:
+    """Directed fan-in, fan-out, and structural-neighbour facts for one symbol."""
+
+    qualified_name: str
+    weighted_fan_in: float
+    weighted_fan_out: float
+    caller_count: int
+    callee_count: int
+    structural_neighbor_count: int
+    incoming_channels: tuple[tuple[EdgeKind, float], ...]
+    outgoing_channels: tuple[tuple[EdgeKind, float], ...]
+
+
+@dataclass(frozen=True)
+class ProgramMapChannelProfile:
+    """Coverage and directionality facts for one typed program-map channel."""
+
+    channel: EdgeKind
+    evidence_count: int
+    occurrence_count: int
+    weighted_total: float
+    source_count: int
+    destination_count: int
+    self_reference_count: int
+    reciprocal_pair_count: int
+    top_sources: tuple[tuple[str, float], ...]
+    top_destinations: tuple[tuple[str, float], ...]
+
+
+@dataclass(frozen=True)
+class ProgramMapChannelAnalysis:
+    """Complete typed-evidence coverage facts for a program-map projection."""
+
+    profiles: tuple[ProgramMapChannelProfile, ...]
+    typed_symbol_coverage: float
+    unreferenced_symbols: tuple[str, ...]
+
+    def profile(self, channel: EdgeKind) -> ProgramMapChannelProfile:
+        """Return one observed channel profile by stable edge kind."""
+        for profile in self.profiles:
+            if profile.channel == channel:
+                return profile
+        raise KeyError(f"Program-map channel is not represented: {channel.value}")
+
+
+@dataclass(frozen=True)
+class ProgramMapFlowFacts:
+    """Bounded weighted-flow facts for a selected symbol scope."""
+
+    total_weight: float
+    internal_weight: float
+    crossing_weight: float
+    internal_ratio: float
+    entropy: float
+    concentration: float
+    channel_mix: tuple[tuple[EdgeKind, float], ...]
+    top_incoming: tuple[tuple[str, float], ...]
+    top_outgoing: tuple[tuple[str, float], ...]
+
+
+@dataclass(frozen=True)
+class ProgramMapStrongRegion:
+    """One strongly connected region and its layer in the condensation DAG."""
+
+    members: tuple[str, ...]
+    cyclic: bool
+    layer: int
+
+
+@dataclass(frozen=True)
+class ProgramMapTopology:
+    """Deterministic topology facts for an evidence projection."""
+
+    regions: tuple[ProgramMapStrongRegion, ...]
+    sources: tuple[str, ...]
+    sinks: tuple[str, ...]
+    bridges: tuple[str, ...]
+    maximum_depth: int
+
+
+@dataclass(frozen=True)
+class ProgramMapDelta:
+    """Symbol and evidence changes between two stable program-map snapshots."""
+
+    added_symbols: tuple[str, ...]
+    removed_symbols: tuple[str, ...]
+    changed_symbols: tuple[str, ...]
+    added_evidence: tuple[tuple[str, str, EdgeKind], ...]
+    removed_evidence: tuple[tuple[str, str, EdgeKind], ...]
+    changed_evidence: tuple[tuple[str, str, EdgeKind], ...]
+    statistics_changed: bool
+
+    @property
+    def is_empty(self) -> bool:
+        return not any(
+            (
+                self.added_symbols,
+                self.removed_symbols,
+                self.changed_symbols,
+                self.added_evidence,
+                self.removed_evidence,
+                self.changed_evidence,
+                self.statistics_changed,
+            )
+        )
+
+
+@dataclass(frozen=True)
+class ProgramMapSnapshot:
+    """Content-addressable program-map state for an incremental comparison."""
+
+    symbols: tuple[ProgramMapSymbol, ...]
+    evidence: tuple[ProgramMapEvidence, ...]
+    statistics: ProgramMapStatistics
+    fingerprint: str
+
+    @classmethod
+    def create(cls, information: ProgramMapInformation) -> ProgramMapSnapshot:
+        payload = cls._content_payload(information)
+        fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        return cls(information.symbols, information.evidence, information.statistics, fingerprint)
+
+    @staticmethod
+    def _content_payload(information: ProgramMapInformation) -> dict[str, object]:
+        return {
+            "symbols": [asdict(symbol) for symbol in information.symbols],
+            "evidence": [{**asdict(item), "channel": item.channel.value} for item in information.evidence],
+            "statistics": {
+                **asdict(information.statistics),
+                "channel_counts": [[channel.value, count] for channel, count in information.statistics.channel_counts],
+            },
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        """Return a versioned, deterministic payload suitable for the incremental cache."""
+        payload = self._content_payload(ProgramMapInformation(self.symbols, self.evidence))
+        return {"format": 1, **payload, "fingerprint": self.fingerprint}
+
+    def to_json(self) -> str:
+        """Encode the snapshot without whitespace that could vary between runs."""
+        return json.dumps(self.to_payload(), sort_keys=True, separators=(",", ":"))
+
+    @classmethod
+    def from_json(cls, encoded: str) -> ProgramMapSnapshot:
+        """Decode one persisted program-map snapshot after validating its complete content."""
+        try:
+            payload = json.loads(encoded)
+        except json.JSONDecodeError as exc:
+            raise ProgramMapSnapshotError("Program-map snapshot is not valid JSON") from exc
+        if not isinstance(payload, dict):
+            raise ProgramMapSnapshotError("Program-map snapshot must be a JSON object")
+        return cls.from_payload(payload)
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, object]) -> ProgramMapSnapshot:
+        """Decode a versioned payload and reject cache data whose fingerprint no longer matches."""
+        if payload.get("format") != 1:
+            raise ProgramMapSnapshotError("Unsupported program-map snapshot format")
+        symbols = tuple(sorted(cls._decode_symbols(payload.get("symbols"))))
+        evidence = tuple(sorted(cls._decode_evidence(payload.get("evidence"))))
+        information = ProgramMapInformation(symbols, evidence)
+        snapshot = cls.create(information)
+        canonical = snapshot.to_payload()
+        if dict(payload) != canonical:
+            raise ProgramMapSnapshotError("Program-map snapshot content does not match its fingerprint")
+        return snapshot
+
+    @staticmethod
+    def _decode_symbols(raw_symbols: object) -> tuple[ProgramMapSymbol, ...]:
+        if not isinstance(raw_symbols, list):
+            raise ProgramMapSnapshotError("Program-map snapshot symbols must be a list")
+        symbols = []
+        for index, raw_symbol in enumerate(raw_symbols):
+            if not isinstance(raw_symbol, dict):
+                raise ProgramMapSnapshotError(f"Program-map snapshot symbol {index} must be an object")
+            symbols.append(
+                ProgramMapSymbol(
+                    _snapshot_string(raw_symbol.get("qualified_name"), f"symbols[{index}].qualified_name"),
+                    _snapshot_integer(raw_symbol.get("kind"), f"symbols[{index}].kind"),
+                    _snapshot_string(raw_symbol.get("file_path"), f"symbols[{index}].file_path"),
+                    _snapshot_integer(raw_symbol.get("line_start"), f"symbols[{index}].line_start"),
+                    _snapshot_integer(raw_symbol.get("line_end"), f"symbols[{index}].line_end"),
+                    _snapshot_integer(raw_symbol.get("col_start"), f"symbols[{index}].col_start"),
+                    _snapshot_string(raw_symbol.get("detail"), f"symbols[{index}].detail"),
+                )
+            )
+        return tuple(symbols)
+
+    @staticmethod
+    def _decode_evidence(raw_evidence: object) -> tuple[ProgramMapEvidence, ...]:
+        if not isinstance(raw_evidence, list):
+            raise ProgramMapSnapshotError("Program-map snapshot evidence must be a list")
+        evidence = []
+        for index, raw_item in enumerate(raw_evidence):
+            if not isinstance(raw_item, dict):
+                raise ProgramMapSnapshotError(f"Program-map snapshot evidence {index} must be an object")
+            try:
+                channel = EdgeKind(_snapshot_string(raw_item.get("channel"), f"evidence[{index}].channel"))
+            except ValueError as exc:
+                raise ProgramMapSnapshotError(f"Program-map snapshot evidence {index} has an unknown channel") from exc
+            evidence.append(
+                ProgramMapEvidence(
+                    _snapshot_string(raw_item.get("source"), f"evidence[{index}].source"),
+                    _snapshot_string(raw_item.get("destination"), f"evidence[{index}].destination"),
+                    channel,
+                    _snapshot_integer(raw_item.get("count"), f"evidence[{index}].count"),
+                    _snapshot_number(raw_item.get("raw_weight"), f"evidence[{index}].raw_weight"),
+                )
+            )
+        return tuple(evidence)
+
+    def compare(self, newer: ProgramMapSnapshot) -> ProgramMapDelta:
+        old_symbols = {symbol.qualified_name: symbol for symbol in self.symbols}
+        new_symbols = {symbol.qualified_name: symbol for symbol in newer.symbols}
+        old_evidence = {item.key: item for item in self.evidence}
+        new_evidence = {item.key: item for item in newer.evidence}
+        return ProgramMapDelta(
+            added_symbols=tuple(sorted(new_symbols.keys() - old_symbols.keys())),
+            removed_symbols=tuple(sorted(old_symbols.keys() - new_symbols.keys())),
+            changed_symbols=tuple(
+                sorted(
+                    name for name in old_symbols.keys() & new_symbols.keys() if old_symbols[name] != new_symbols[name]
+                )
+            ),
+            added_evidence=tuple(sorted(new_evidence.keys() - old_evidence.keys())),
+            removed_evidence=tuple(sorted(old_evidence.keys() - new_evidence.keys())),
+            changed_evidence=tuple(
+                sorted(
+                    key for key in old_evidence.keys() & new_evidence.keys() if old_evidence[key] != new_evidence[key]
+                )
+            ),
+            statistics_changed=self.statistics != newer.statistics,
+        )
+
+
+def _snapshot_string(value: object, field_name: str) -> str:
+    if not isinstance(value, str):
+        raise ProgramMapSnapshotError(f"Program-map snapshot {field_name} must be a string")
+    return value
+
+
+def _snapshot_integer(value: object, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ProgramMapSnapshotError(f"Program-map snapshot {field_name} must be an integer")
+    return value
+
+
+def _snapshot_number(value: object, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ProgramMapSnapshotError(f"Program-map snapshot {field_name} must be a finite number")
+    return float(value)
+
+
+@dataclass(frozen=True)
+class ProgramMapInformation:
+    """Validated symbols and typed evidence used by flow-map clustering."""
+
+    symbols: tuple[ProgramMapSymbol, ...]
+    evidence: tuple[ProgramMapEvidence, ...]
+    _symbol_index: dict[str, ProgramMapSymbol] = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        index = {symbol.qualified_name: symbol for symbol in self.symbols}
+        if len(index) != len(self.symbols):
+            raise ProgramMapInformationError("Program-map information contains duplicate symbols")
+        for item in self.evidence:
+            if item.source not in index or item.destination not in index:
+                raise ProgramMapUnknownEndpointError(f"Unknown endpoint in {item.source} -> {item.destination}")
+        if len({item.key for item in self.evidence}) != len(self.evidence):
+            raise ProgramMapInformationError("Program-map information contains duplicate typed evidence")
+        if tuple(sorted(self.symbols)) != self.symbols or tuple(sorted(self.evidence)) != self.evidence:
+            raise ProgramMapInformationError("Program-map information must use deterministic ordering")
+        object.__setattr__(self, "_symbol_index", MappingProxyType(index))
+
+    def symbol(self, qualified_name: str) -> ProgramMapSymbol:
+        try:
+            return self._symbol_index[qualified_name]
+        except KeyError as exc:
+            raise KeyError(f"Unknown program-map symbol: {qualified_name}") from exc
+
+    @property
+    def statistics(self) -> ProgramMapStatistics:
+        channels: Counter[EdgeKind] = Counter(item.channel for item in self.evidence)
+        touched = {endpoint for item in self.evidence for endpoint in (item.source, item.destination)}
+        count = len(self.symbols)
+        return ProgramMapStatistics(
+            symbol_count=count,
+            edge_count=len({(item.source, item.destination) for item in self.evidence}),
+            evidence_count=len(self.evidence),
+            total_weight=sum(item.weighted_value for item in self.evidence),
+            channel_counts=tuple(sorted(channels.items())),
+            isolated_symbols=count - len(touched),
+            density=len({(item.source, item.destination) for item in self.evidence}) / (count * max(1, count - 1)),
+        )
+
+    def incoming(self, qualified_name: str, channels: set[EdgeKind] | None = None) -> tuple[ProgramMapEvidence, ...]:
+        self.symbol(qualified_name)
+        return tuple(
+            item
+            for item in self.evidence
+            if item.destination == qualified_name and (channels is None or item.channel in channels)
+        )
+
+    def outgoing(self, qualified_name: str, channels: set[EdgeKind] | None = None) -> tuple[ProgramMapEvidence, ...]:
+        self.symbol(qualified_name)
+        return tuple(
+            item
+            for item in self.evidence
+            if item.source == qualified_name and (channels is None or item.channel in channels)
+        )
+
+    def symbol_profiles(self) -> tuple[ProgramMapSymbolProfile, ...]:
+        incoming: dict[str, Counter[EdgeKind]] = defaultdict(Counter)
+        outgoing: dict[str, Counter[EdgeKind]] = defaultdict(Counter)
+        callers: dict[str, set[str]] = defaultdict(set)
+        callees: dict[str, set[str]] = defaultdict(set)
+        structural: dict[str, set[str]] = defaultdict(set)
+        for item in self.evidence:
+            incoming[item.destination][item.channel] += item.weighted_value
+            outgoing[item.source][item.channel] += item.weighted_value
+            if item.channel == EdgeKind.CALL:
+                callers[item.destination].add(item.source)
+                callees[item.source].add(item.destination)
+            else:
+                structural[item.source].add(item.destination)
+                structural[item.destination].add(item.source)
+        return tuple(
+            ProgramMapSymbolProfile(
+                symbol.qualified_name,
+                sum(incoming[symbol.qualified_name].values()),
+                sum(outgoing[symbol.qualified_name].values()),
+                len(callers[symbol.qualified_name]),
+                len(callees[symbol.qualified_name]),
+                len(structural[symbol.qualified_name]),
+                tuple(sorted(incoming[symbol.qualified_name].items())),
+                tuple(sorted(outgoing[symbol.qualified_name].items())),
+            )
+            for symbol in self.symbols
+        )
+
+    def channel_analysis(self, limit: int = PROGRAM_MAP_PROFILE_LIMIT) -> ProgramMapChannelAnalysis:
+        """Describe the coverage and directionality of every observed evidence channel."""
+        return analyze_program_map_channels(self, limit)
+
+    def snapshot(self) -> ProgramMapSnapshot:
+        return ProgramMapSnapshot.create(self)
+
+
+def _decode_program_map_evidence(
+    source: str,
+    destination: str,
+    attrs: dict,
+) -> tuple[ProgramMapEvidence, ...]:
+    encoded = attrs.get("evidence")
+    if encoded is None:
+        weight = attrs.get("weight", 1.0)
+        if not isinstance(weight, (int, float)) or not math.isfinite(weight) or weight < 0:
+            raise ProgramMapInvalidWeightError(f"Program-map edge {source} -> {destination} has invalid weight")
+        return (ProgramMapEvidence(source, destination, EdgeKind.CALL, max(1, int(weight)), 1.0),)
+    if not isinstance(encoded, (tuple, list)):
+        raise ProgramMapInformationError(f"Malformed evidence on {source} -> {destination}")
+    result = []
+    for item in encoded:
+        try:
+            channel, count, raw_weight = item
+            result.append(ProgramMapEvidence(source, destination, EdgeKind(channel), int(count), float(raw_weight)))
+        except (TypeError, ValueError) as exc:
+            raise ProgramMapInformationError(f"Malformed evidence on {source} -> {destination}") from exc
+    return tuple(sorted(result))
+
+
+def build_program_map_information(graph: nx.DiGraph) -> ProgramMapInformation:
+    """Decode the canonical program-map graph into deterministic typed evidence."""
+    if not isinstance(graph, nx.DiGraph):
+        raise ProgramMapInformationError("Program-map projection must be a directed graph")
+    symbols = tuple(
+        sorted(
+            ProgramMapSymbol(
+                str(name),
+                int(attrs.get("type", attrs.get("kind", 0))),
+                str(attrs.get("file_path", "")),
+                int(attrs.get("line_start", 0)),
+                int(attrs.get("line_end", 0)),
+                int(attrs.get("col_start", 0)),
+                str(attrs.get("detail", "")),
+            )
+            for name, attrs in graph.nodes(data=True)
+        )
+    )
+    evidence = tuple(
+        sorted(
+            item
+            for source, destination, attrs in graph.edges(data=True)
+            for item in _decode_program_map_evidence(str(source), str(destination), attrs)
+        )
+    )
+    return ProgramMapInformation(symbols, evidence)
+
+
+def program_map_projection(information: ProgramMapInformation) -> nx.DiGraph:
+    """Rebuild a deterministic NetworkX projection from typed program-map information."""
+    graph = nx.DiGraph(program_map_evidence_codec=1)
+    for symbol in information.symbols:
+        graph.add_node(
+            symbol.qualified_name,
+            type=symbol.kind,
+            file_path=symbol.file_path,
+            line_start=symbol.line_start,
+            line_end=symbol.line_end,
+            col_start=symbol.col_start,
+            detail=symbol.detail,
+        )
+    grouped: dict[tuple[str, str], list[ProgramMapEvidence]] = defaultdict(list)
+    for item in information.evidence:
+        grouped[item.source, item.destination].append(item)
+    for (source, destination), items in sorted(grouped.items()):
+        graph.add_edge(
+            source,
+            destination,
+            evidence=tuple((item.channel.value, item.count, item.raw_weight) for item in items),
+            weight=sum(item.weighted_value for item in items),
+        )
+    return graph
+
+
+def analyze_program_map_channels(
+    information: ProgramMapInformation,
+    limit: int = PROGRAM_MAP_PROFILE_LIMIT,
+) -> ProgramMapChannelAnalysis:
+    """Measure how call and structural evidence cover the analyzed symbol space."""
+    if limit < 1:
+        raise ValueError("Program-map channel limit must be positive")
+    evidence_by_channel: dict[EdgeKind, list[ProgramMapEvidence]] = defaultdict(list)
+    for item in information.evidence:
+        evidence_by_channel[item.channel].append(item)
+    profiles = []
+    touched: set[str] = set()
+    for channel, evidence in sorted(evidence_by_channel.items()):
+        source_weights: Counter[str] = Counter()
+        destination_weights: Counter[str] = Counter()
+        directed_pairs = {(item.source, item.destination) for item in evidence}
+        reciprocal_pairs = {
+            tuple(sorted((source, destination)))
+            for source, destination in directed_pairs
+            if source != destination and (destination, source) in directed_pairs
+        }
+        for item in evidence:
+            value = item.weighted_value
+            source_weights[item.source] += value
+            destination_weights[item.destination] += value
+            touched.update((item.source, item.destination))
+        rank = lambda weights: tuple(sorted(weights.items(), key=lambda item: (-item[1], item[0]))[:limit])
+        profiles.append(
+            ProgramMapChannelProfile(
+                channel=channel,
+                evidence_count=len(evidence),
+                occurrence_count=sum(item.count for item in evidence),
+                weighted_total=sum(item.weighted_value for item in evidence),
+                source_count=len(source_weights),
+                destination_count=len(destination_weights),
+                self_reference_count=sum(item.source == item.destination for item in evidence),
+                reciprocal_pair_count=len(reciprocal_pairs),
+                top_sources=rank(source_weights),
+                top_destinations=rank(destination_weights),
+            )
+        )
+    symbols = {symbol.qualified_name for symbol in information.symbols}
+    return ProgramMapChannelAnalysis(
+        profiles=tuple(profiles),
+        typed_symbol_coverage=len(touched) / len(symbols) if symbols else 0.0,
+        unreferenced_symbols=tuple(sorted(symbols - touched)),
+    )
+
+
+def analyze_program_map_flow(
+    information: ProgramMapInformation,
+    members: set[str],
+    limit: int = PROGRAM_MAP_PROFILE_LIMIT,
+) -> ProgramMapFlowFacts:
+    """Summarize typed flow touching a selected program-map scope."""
+    if limit < 1:
+        raise ValueError("Program-map flow limit must be positive")
+    unknown = members - information._symbol_index.keys()
+    if unknown:
+        raise KeyError(f"Unknown program-map symbols: {sorted(unknown)}")
+    incoming: Counter[str] = Counter()
+    outgoing: Counter[str] = Counter()
+    channels: Counter[EdgeKind] = Counter()
+    internal = crossing = 0.0
+    weights: list[float] = []
+    for item in information.evidence:
+        source_inside, destination_inside = item.source in members, item.destination in members
+        if not source_inside and not destination_inside:
+            continue
+        value = item.weighted_value
+        weights.append(value)
+        channels[item.channel] += value
+        if source_inside and destination_inside:
+            internal += value
+        else:
+            crossing += value
+        if source_inside:
+            outgoing[item.source] += value
+        if destination_inside:
+            incoming[item.destination] += value
+    total = internal + crossing
+    denominator = sum(weights)
+    probabilities = [weight / denominator for weight in weights] if denominator else []
+    rank = lambda values: tuple(sorted(values.items(), key=lambda item: (-item[1], item[0]))[:limit])
+    return ProgramMapFlowFacts(
+        total,
+        internal,
+        crossing,
+        internal / total if total else 0.0,
+        -sum(probability * math.log2(probability) for probability in probabilities),
+        sum(probability * probability for probability in probabilities),
+        tuple(sorted(channels.items())),
+        rank(incoming),
+        rank(outgoing),
+    )
+
+
+def analyze_program_map_topology(information: ProgramMapInformation, members: set[str]) -> ProgramMapTopology:
+    """Analyze SCCs and the condensation DAG for an exact program-map scope."""
+    unknown = members - information._symbol_index.keys()
+    if unknown:
+        raise KeyError(f"Unknown program-map symbols: {sorted(unknown)}")
+    graph = nx.DiGraph()
+    graph.add_nodes_from(sorted(members))
+    graph.add_edges_from(
+        sorted(
+            (item.source, item.destination)
+            for item in information.evidence
+            if {item.source, item.destination} <= members
+        )
+    )
+    if not graph:
+        return ProgramMapTopology((), (), (), (), 0)
+    regions = sorted(
+        (tuple(sorted(region)) for region in nx.strongly_connected_components(graph)), key=lambda region: region
+    )
+    owner = {symbol: index for index, region in enumerate(regions) for symbol in region}
+    dag = nx.DiGraph()
+    dag.add_nodes_from(range(len(regions)))
+    dag.add_edges_from(
+        sorted(
+            {
+                (owner[source], owner[destination])
+                for source, destination in graph.edges
+                if owner[source] != owner[destination]
+            }
+        )
+    )
+    depths: dict[int, int] = {}
+    for region_id in nx.lexicographical_topological_sort(dag, key=lambda index: regions[index]):
+        depths[region_id] = max((depths[parent] + 1 for parent in dag.predecessors(region_id)), default=0)
+    return ProgramMapTopology(
+        regions=tuple(
+            ProgramMapStrongRegion(
+                region,
+                len(region) > 1 or graph.has_edge(region[0], region[0]),
+                depths[index],
+            )
+            for index, region in enumerate(regions)
+        ),
+        sources=tuple(symbol for symbol in sorted(graph) if graph.in_degree(symbol) == 0),
+        sinks=tuple(symbol for symbol in sorted(graph) if graph.out_degree(symbol) == 0),
+        bridges=tuple(sorted(nx.articulation_points(graph.to_undirected()))) if len(graph) > 1 else (),
+        maximum_depth=max(depths.values(), default=0),
+    )
+
+
+@dataclass(frozen=True)
+class ProgramMapModuleFlow:
+    """Typed weighted flow between two caller-defined program-map modules."""
+
+    source_module: int
+    destination_module: int
+    weight: float
+    channels: tuple[tuple[EdgeKind, float], ...]
+
+
+@dataclass(frozen=True)
+class ProgramMapModuleProfile:
+    """An exact module view independent of Infomap's fitted hierarchy level."""
+
+    module_id: int
+    members: tuple[str, ...]
+    files: tuple[str, ...]
+    packages: tuple[str, ...]
+    flow: ProgramMapFlowFacts
+    topology: ProgramMapTopology
+    entry_symbols: tuple[str, ...]
+    exit_symbols: tuple[str, ...]
+    boundary_symbols: tuple[str, ...]
+    cohesion: float
+    coupling: float
+
+
+@dataclass(frozen=True)
+class ProgramMapModuleAnalysis:
+    """Module profiles and their directed cross-boundary evidence."""
+
+    profiles: tuple[ProgramMapModuleProfile, ...]
+    inter_module_flow: tuple[ProgramMapModuleFlow, ...]
+
+
+@dataclass(frozen=True)
+class ProgramMapPackageFlow:
+    """Typed weighted evidence that crosses from one source package to another."""
+
+    source_package: str
+    destination_package: str
+    weight: float
+    channels: tuple[tuple[EdgeKind, float], ...]
+
+
+@dataclass(frozen=True)
+class ProgramMapPackageProfile:
+    """A source-tree package projected onto the typed program-map evidence."""
+
+    package: str
+    symbols: tuple[str, ...]
+    files: tuple[str, ...]
+    flow: ProgramMapFlowFacts
+    topology: ProgramMapTopology
+    entry_symbols: tuple[str, ...]
+    exit_symbols: tuple[str, ...]
+    boundary_symbols: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ProgramMapPackageAnalysis:
+    """Package ownership and cross-package evidence for a complete program map."""
+
+    profiles: tuple[ProgramMapPackageProfile, ...]
+    inter_package_flow: tuple[ProgramMapPackageFlow, ...]
+
+    def profile(self, package: str) -> ProgramMapPackageProfile:
+        """Return the exact source-tree package profile."""
+        for profile in self.profiles:
+            if profile.package == package:
+                return profile
+        raise KeyError(f"Program-map package is not represented: {package}")
+
+
+def analyze_program_map_modules(
+    information: ProgramMapInformation,
+    partition: dict[int, set[str]],
+    *,
+    exact: bool = True,
+    limit: int = PROGRAM_MAP_PROFILE_LIMIT,
+) -> ProgramMapModuleAnalysis:
+    """Evaluate an exact or scoped symbol partition using typed program-map evidence."""
+    if limit < 1:
+        raise ValueError("Program-map module limit must be positive")
+    owner: dict[str, int] = {}
+    known = set(information._symbol_index)
+    for module_id, members in sorted(partition.items()):
+        unknown = members - known
+        duplicate = members & owner.keys()
+        if unknown or duplicate:
+            raise ProgramMapInformationError(
+                f"Module {module_id} has unknown={sorted(unknown)} duplicate={sorted(duplicate)}"
+            )
+        owner.update((member, module_id) for member in members)
+    if exact and known != owner.keys():
+        raise ProgramMapInformationError(f"Module cover omits {sorted(known - owner.keys())}")
+
+    crossing: dict[tuple[int, int], Counter[EdgeKind]] = defaultdict(Counter)
+    boundaries: dict[int, set[str]] = {module_id: set() for module_id in partition}
+    incoming: dict[int, Counter[str]] = {module_id: Counter() for module_id in partition}
+    outgoing: dict[int, Counter[str]] = {module_id: Counter() for module_id in partition}
+    for item in information.evidence:
+        source_module = owner.get(item.source)
+        destination_module = owner.get(item.destination)
+        if source_module is None or destination_module is None or source_module == destination_module:
+            continue
+        crossing[source_module, destination_module][item.channel] += item.weighted_value
+        boundaries[source_module].add(item.source)
+        boundaries[destination_module].add(item.destination)
+        outgoing[source_module][item.source] += item.weighted_value
+        incoming[destination_module][item.destination] += item.weighted_value
+
+    profiles = []
+    for module_id, members in sorted(partition.items()):
+        flow = analyze_program_map_flow(information, members, limit)
+        topology = analyze_program_map_topology(information, members)
+        facts = [information.symbol(member) for member in members]
+        total = flow.internal_weight + flow.crossing_weight
+        possible = len(members) * max(1, len(members) - 1)
+        profiles.append(
+            ProgramMapModuleProfile(
+                module_id=module_id,
+                members=tuple(sorted(members)),
+                files=tuple(sorted({fact.file_path for fact in facts})),
+                packages=tuple(sorted({fact.package for fact in facts})),
+                flow=flow,
+                topology=topology,
+                entry_symbols=_rank_flow_symbols(incoming[module_id], limit),
+                exit_symbols=_rank_flow_symbols(outgoing[module_id], limit),
+                boundary_symbols=tuple(sorted(boundaries[module_id]))[:limit],
+                cohesion=flow.internal_weight / possible,
+                coupling=flow.crossing_weight / total if total else 0.0,
+            )
+        )
+    flows = tuple(
+        ProgramMapModuleFlow(source, destination, sum(channels.values()), tuple(sorted(channels.items())))
+        for (source, destination), channels in sorted(crossing.items())
+    )
+    return ProgramMapModuleAnalysis(tuple(profiles), flows)
+
+
+def analyze_program_map_packages(
+    information: ProgramMapInformation,
+    limit: int = PROGRAM_MAP_PROFILE_LIMIT,
+) -> ProgramMapPackageAnalysis:
+    """Project typed evidence onto source packages without changing Infomap membership."""
+    if limit < 1:
+        raise ValueError("Program-map package limit must be positive")
+    package_by_symbol = {symbol.qualified_name: symbol.package for symbol in information.symbols}
+    members: dict[str, set[str]] = defaultdict(set)
+    files: dict[str, set[str]] = defaultdict(set)
+    for symbol in information.symbols:
+        members[symbol.package].add(symbol.qualified_name)
+        files[symbol.package].add(symbol.file_path)
+    incoming: dict[str, Counter[str]] = defaultdict(Counter)
+    outgoing: dict[str, Counter[str]] = defaultdict(Counter)
+    boundaries: dict[str, set[str]] = defaultdict(set)
+    crossing: dict[tuple[str, str], Counter[EdgeKind]] = defaultdict(Counter)
+    for item in information.evidence:
+        source_package = package_by_symbol[item.source]
+        destination_package = package_by_symbol[item.destination]
+        if source_package == destination_package:
+            continue
+        value = item.weighted_value
+        crossing[source_package, destination_package][item.channel] += value
+        outgoing[source_package][item.source] += value
+        incoming[destination_package][item.destination] += value
+        boundaries[source_package].add(item.source)
+        boundaries[destination_package].add(item.destination)
+    profiles = tuple(
+        ProgramMapPackageProfile(
+            package=package,
+            symbols=tuple(sorted(symbols)),
+            files=tuple(sorted(files[package])),
+            flow=analyze_program_map_flow(information, symbols, limit),
+            topology=analyze_program_map_topology(information, symbols),
+            entry_symbols=_rank_flow_symbols(incoming[package], limit),
+            exit_symbols=_rank_flow_symbols(outgoing[package], limit),
+            boundary_symbols=tuple(sorted(boundaries[package]))[:limit],
+        )
+        for package, symbols in sorted(members.items())
+    )
+    flows = tuple(
+        ProgramMapPackageFlow(source, destination, sum(channels.values()), tuple(sorted(channels.items())))
+        for (source, destination), channels in sorted(crossing.items())
+    )
+    return ProgramMapPackageAnalysis(profiles, flows)
+
+
+@dataclass(frozen=True)
+class ProgramMapImpactedSymbol:
+    """One non-seed symbol reached while tracing a program-map delta."""
+
+    qualified_name: str
+    depth: int
+    directions: tuple[str, ...]
+    channels: tuple[EdgeKind, ...]
+
+
+@dataclass(frozen=True)
+class ProgramMapDeltaSurface:
+    """Source-tree and evidence-channel surface directly touched by a map delta."""
+
+    file_count: int
+    package_count: int
+    affected_files: tuple[str, ...]
+    affected_packages: tuple[str, ...]
+    channel_weight_delta: tuple[tuple[EdgeKind, float], ...]
+
+
+@dataclass(frozen=True)
+class ProgramMapDeltaSummary:
+    """Bounded human-readable impact facts for an incremental program-map delta."""
+
+    added_count: int = 0
+    removed_count: int = 0
+    changed_count: int = 0
+    added_evidence_count: int = 0
+    removed_evidence_count: int = 0
+    changed_evidence_count: int = 0
+    changed_channels: tuple[EdgeKind, ...] = ()
+    added_symbols: tuple[str, ...] = ()
+    removed_symbols: tuple[str, ...] = ()
+    changed_symbols: tuple[str, ...] = ()
+    impacted_symbols: tuple[ProgramMapImpactedSymbol, ...] = ()
+    surface: ProgramMapDeltaSurface = field(default_factory=lambda: ProgramMapDeltaSurface(0, 0, (), (), ()))
+
+    @property
+    def is_empty(self) -> bool:
+        return not any(
+            (
+                self.added_count,
+                self.removed_count,
+                self.changed_count,
+                self.added_evidence_count,
+                self.removed_evidence_count,
+                self.changed_evidence_count,
+            )
+        )
+
+    def llm_str(self) -> str:
+        """Render bounded impact facts for a component-group summary."""
+        if self.is_empty:
+            return ""
+        parts = [
+            f"program-map delta: symbols +{self.added_count}/-{self.removed_count}/~{self.changed_count}",
+            f"evidence +{self.added_evidence_count}/-{self.removed_evidence_count}/~{self.changed_evidence_count}",
+        ]
+        if self.changed_channels:
+            parts.append("channels " + ", ".join(channel.value for channel in self.changed_channels))
+        if self.impacted_symbols:
+            parts.append(
+                "impact: "
+                + ", ".join(
+                    f"{item.qualified_name}@{item.depth}[{'/'.join(item.directions)}:"
+                    f"{'/'.join(channel.value for channel in item.channels)}]"
+                    for item in self.impacted_symbols
+                )
+            )
+        if self.surface.affected_packages:
+            parts.append("surface: " + ", ".join(self.surface.affected_packages))
+        return "; ".join(parts)
+
+
+def _program_map_impact(
+    old: ProgramMapInformation,
+    new: ProgramMapInformation,
+    seeds: set[str],
+    max_depth: int,
+    limit: int,
+) -> tuple[ProgramMapImpactedSymbol, ...]:
+    adjacency: dict[str, list[tuple[str, str, EdgeKind]]] = defaultdict(list)
+    for item in sorted(set(old.evidence) | set(new.evidence)):
+        adjacency[item.source].append((item.destination, "out", item.channel))
+        adjacency[item.destination].append((item.source, "in", item.channel))
+    queue = deque((symbol, 0) for symbol in sorted(seeds))
+    visited = set(seeds)
+    facts: dict[tuple[str, int], tuple[set[str], set[EdgeKind]]] = {}
+    while queue:
+        current, depth = queue.popleft()
+        if depth >= max_depth:
+            continue
+        for neighbour, direction, channel in sorted(
+            adjacency.get(current, []), key=lambda item: (item[0], item[1], item[2])
+        ):
+            if neighbour in seeds:
+                continue
+            directions, channels = facts.setdefault((neighbour, depth + 1), (set(), set()))
+            directions.add(direction)
+            channels.add(channel)
+            if neighbour not in visited:
+                visited.add(neighbour)
+                queue.append((neighbour, depth + 1))
+    return tuple(
+        ProgramMapImpactedSymbol(name, depth, tuple(sorted(directions)), tuple(sorted(channels)))
+        for (name, depth), (directions, channels) in sorted(facts.items(), key=lambda item: (item[0][1], item[0][0]))[
+            :limit
+        ]
+    )
+
+
+def _program_map_delta_surface(
+    delta: ProgramMapDelta,
+    old: ProgramMapInformation,
+    new: ProgramMapInformation,
+    limit: int,
+) -> ProgramMapDeltaSurface:
+    old_symbols = {symbol.qualified_name: symbol for symbol in old.symbols}
+    new_symbols = {symbol.qualified_name: symbol for symbol in new.symbols}
+    affected_names = set(delta.added_symbols) | set(delta.removed_symbols) | set(delta.changed_symbols)
+    changed_keys = delta.added_evidence + delta.removed_evidence + delta.changed_evidence
+    affected_names.update(name for source, destination, _ in changed_keys for name in (source, destination))
+    files: Counter[str] = Counter()
+    packages: Counter[str] = Counter()
+    for name in sorted(affected_names):
+        symbol = new_symbols.get(name) or old_symbols.get(name)
+        if symbol is None:
+            continue
+        files[symbol.file_path] += 1
+        packages[symbol.package] += 1
+    old_evidence = {item.key: item for item in old.evidence}
+    new_evidence = {item.key: item for item in new.evidence}
+    channel_delta: Counter[EdgeKind] = Counter()
+    for key in changed_keys:
+        old_item = old_evidence.get(key)
+        new_item = new_evidence.get(key)
+        old_value = old_item.weighted_value if old_item is not None else 0.0
+        new_value = new_item.weighted_value if new_item is not None else 0.0
+        channel_delta[key[2]] += new_value - old_value
+    rank = lambda values: tuple(
+        name for name, _ in sorted(values.items(), key=lambda item: (-item[1], item[0]))[:limit]
+    )
+    return ProgramMapDeltaSurface(
+        file_count=len(files),
+        package_count=len(packages),
+        affected_files=rank(files),
+        affected_packages=rank(packages),
+        channel_weight_delta=tuple(sorted((channel, weight) for channel, weight in channel_delta.items() if weight)),
+    )
+
+
+def summarize_program_map_delta(
+    delta: ProgramMapDelta,
+    old: ProgramMapInformation,
+    new: ProgramMapInformation,
+    *,
+    max_depth: int = 2,
+    limit: int = 12,
+    symbol_limit: int = 5,
+) -> ProgramMapDeltaSummary:
+    """Summarize changed program-map evidence and its bounded bidirectional impact."""
+    if max_depth < 0 or limit < 0 or symbol_limit < 0:
+        raise ValueError("Program-map delta bounds must be non-negative")
+    changed = delta.added_evidence + delta.removed_evidence + delta.changed_evidence
+    channels = tuple(sorted({channel for _, _, channel in changed}))
+    seeds = set(delta.added_symbols) | set(delta.removed_symbols) | set(delta.changed_symbols)
+    seeds.update(endpoint for source, destination, _ in changed for endpoint in (source, destination))
+    return ProgramMapDeltaSummary(
+        added_count=len(delta.added_symbols),
+        removed_count=len(delta.removed_symbols),
+        changed_count=len(delta.changed_symbols),
+        added_evidence_count=len(delta.added_evidence),
+        removed_evidence_count=len(delta.removed_evidence),
+        changed_evidence_count=len(delta.changed_evidence),
+        changed_channels=channels,
+        added_symbols=delta.added_symbols[:symbol_limit],
+        removed_symbols=delta.removed_symbols[:symbol_limit],
+        changed_symbols=delta.changed_symbols[:symbol_limit],
+        impacted_symbols=_program_map_impact(old, new, seeds, max_depth, limit),
+        surface=_program_map_delta_surface(delta, old, new, limit),
+    )
+
+
 def _validate_profile_groups(cluster_result: ClusterResult, groups: list[set[int]]) -> None:
     """Require the fitted groups to cover each leaf cluster exactly once."""
     expected = set(cluster_result.clusters)
@@ -204,14 +1250,14 @@ def _group_dependency_depth(graph: nx.DiGraph) -> tuple[int, int, int, tuple[str
 
 
 def _rank_group_flows(
-    flows: dict[tuple[int, int], float],
+    flows: dict[tuple[int, int], Counter[EdgeKind]],
     group_id: int,
     outgoing: bool,
     limit: int,
 ) -> tuple[InterGroupFlow, ...]:
     ranked = [
-        InterGroupFlow(destination if outgoing else source, weight)
-        for (source, destination), weight in flows.items()
+        InterGroupFlow(destination if outgoing else source, sum(channels.values()), tuple(sorted(channels.items())))
+        for (source, destination), channels in flows.items()
         if (source if outgoing else destination) == group_id
     ]
     return tuple(sorted(ranked, key=lambda flow: (-flow.weight, flow.group_id))[:limit])
@@ -222,11 +1268,13 @@ def build_program_map_profiles(
     cfg_graph: nx.DiGraph,
     groups: list[set[int]],
     limit: int = PROGRAM_MAP_PROFILE_LIMIT,
+    information: ProgramMapInformation | None = None,
 ) -> tuple[ProgramGroupProfile, ...]:
     """Describe the exact bounded groups using their directed weighted program flow."""
     if limit < 1:
         raise ValueError("Program-map profile limit must be positive")
     _validate_profile_groups(cluster_result, groups)
+    information = information or build_program_map_information(cfg_graph)
 
     cluster_by_symbol = {
         symbol: cluster_id for cluster_id, symbols in cluster_result.clusters.items() for symbol in symbols
@@ -247,36 +1295,42 @@ def build_program_map_profiles(
     exits = [Counter[str]() for _ in groups]
     hubs = [Counter[str]() for _ in groups]
     boundaries = [set[str]() for _ in groups]
-    group_flows: dict[tuple[int, int], float] = defaultdict(float)
+    raw_channels = [Counter[EdgeKind]() for _ in groups]
+    weighted_channels = [Counter[EdgeKind]() for _ in groups]
+    group_flows: dict[tuple[int, int], Counter[EdgeKind]] = defaultdict(Counter)
 
-    for source, destination, data in cfg_graph.edges(data=True):
-        source_cluster = cluster_by_symbol.get(source)
-        destination_cluster = cluster_by_symbol.get(destination)
+    for item in information.evidence:
+        source_cluster = cluster_by_symbol.get(item.source)
+        destination_cluster = cluster_by_symbol.get(item.destination)
         if source_cluster is None or destination_cluster is None:
             continue
-        weight = float(data.get("weight", 1.0))
-        if not math.isfinite(weight) or weight < 0:
-            raise ValueError(f"Program-map edge {source} -> {destination} has invalid weight {weight}")
+        weight = item.weighted_value
         source_group = group_by_cluster[source_cluster]
         destination_group = group_by_cluster[destination_cluster]
         if source_group == destination_group:
             internal[source_group] += weight
             touched_weights[source_group].append(weight)
-            internal_graphs[source_group].add_edge(source, destination, weight=weight)
-            hubs[source_group][source] += weight
-            hubs[source_group][destination] += weight
+            internal_graphs[source_group].add_edge(item.source, item.destination, weight=weight)
+            hubs[source_group][item.source] += weight
+            hubs[source_group][item.destination] += weight
+            raw_channels[source_group][item.channel] += item.count
+            weighted_channels[source_group][item.channel] += weight
             continue
         outgoing[source_group] += weight
         incoming[destination_group] += weight
         touched_weights[source_group].append(weight)
         touched_weights[destination_group].append(weight)
-        exits[source_group][source] += weight
-        entries[destination_group][destination] += weight
-        hubs[source_group][source] += weight
-        hubs[destination_group][destination] += weight
-        boundaries[source_group].add(source)
-        boundaries[destination_group].add(destination)
-        group_flows[source_group, destination_group] += weight
+        exits[source_group][item.source] += weight
+        entries[destination_group][item.destination] += weight
+        hubs[source_group][item.source] += weight
+        hubs[destination_group][item.destination] += weight
+        boundaries[source_group].add(item.source)
+        boundaries[destination_group].add(item.destination)
+        raw_channels[source_group][item.channel] += item.count
+        raw_channels[destination_group][item.channel] += item.count
+        weighted_channels[source_group][item.channel] += weight
+        weighted_channels[destination_group][item.channel] += weight
+        group_flows[source_group, destination_group][item.channel] += weight
 
     profiles = []
     for group_id, (group, symbols) in enumerate(zip(groups, symbols_by_group)):
@@ -288,14 +1342,16 @@ def build_program_map_profiles(
         weights = touched_weights[group_id]
         denominator = sum(weights)
         probabilities = [weight / denominator for weight in weights] if denominator else []
-        regions, cyclic, depth, bridges = _group_dependency_depth(internal_graphs[group_id])
-        possible_internal_edges = len(symbols) * max(1, len(symbols) - 1)
+        topology = analyze_program_map_topology(information, symbols & information._symbol_index.keys())
         profiles.append(
             ProgramGroupProfile(
+                group_id=group_id,
                 cluster_ids=tuple(sorted(group)),
                 symbols=tuple(sorted(symbols)),
                 files=files,
                 packages=packages,
+                raw_channel_mix=tuple(sorted(raw_channels[group_id].items())),
+                weighted_channel_mix=tuple(sorted(weighted_channels[group_id].items())),
                 internal_flow=internal[group_id],
                 incoming_flow=incoming[group_id],
                 outgoing_flow=outgoing[group_id],
@@ -303,13 +1359,13 @@ def build_program_map_profiles(
                 coupling=(incoming[group_id] + outgoing[group_id]) / total if total else 0.0,
                 flow_entropy=-sum(probability * math.log2(probability) for probability in probabilities),
                 flow_concentration=sum(probability * probability for probability in probabilities),
-                strongly_connected_regions=regions,
-                cyclic_regions=cyclic,
-                maximum_dependency_depth=depth,
+                strongly_connected_regions=len(topology.regions),
+                cyclic_regions=sum(region.cyclic for region in topology.regions),
+                maximum_dependency_depth=topology.maximum_depth,
                 entries=_rank_flow_symbols(entries[group_id], limit),
                 exits=_rank_flow_symbols(exits[group_id], limit),
                 hubs=_rank_flow_symbols(hubs[group_id], limit),
-                bridges=bridges[:limit],
+                bridges=topology.bridges[:limit],
                 boundary_symbols=tuple(sorted(boundaries[group_id]))[:limit],
                 incoming_groups=_rank_group_flows(group_flows, group_id, False, limit),
                 outgoing_groups=_rank_group_flows(group_flows, group_id, True, limit),
@@ -357,16 +1413,20 @@ class InterGroupFlow:
 
     group_id: int
     weight: float
+    channels: tuple[tuple[EdgeKind, float], ...]
 
 
 @dataclass(frozen=True)
 class ProgramGroupProfile:
     """Flow, topology, and boundary facts for one fitted program-map group."""
 
+    group_id: int
     cluster_ids: tuple[int, ...]
     symbols: tuple[str, ...]
     files: tuple[str, ...]
     packages: tuple[str, ...]
+    raw_channel_mix: tuple[tuple[EdgeKind, int], ...]
+    weighted_channel_mix: tuple[tuple[EdgeKind, float], ...]
     internal_flow: float
     incoming_flow: float
     outgoing_flow: float
@@ -387,6 +1447,114 @@ class ProgramGroupProfile:
 
 
 @dataclass(frozen=True)
+class ProgramMapPartitionQuality:
+    """Reader-facing quality facts for the exact bounded program-map partition."""
+
+    group_count: int
+    minimum_group_flow: float
+    maximum_group_flow: float
+    flow_imbalance: float
+    mean_cohesion: float
+    mean_coupling: float
+    mean_entropy: float
+    cyclic_group_count: int
+    boundary_symbol_count: int
+
+
+@dataclass(frozen=True)
+class ProgramMapPartitionDrift:
+    """Membership continuity facts comparing two bounded program-map partitions."""
+
+    retained_clusters: int
+    moved_clusters: int
+    added_clusters: int
+    removed_clusters: int
+    unchanged_groups: int
+    split_groups: int
+    merged_groups: int
+    overlaps: tuple[ProgramMapPartitionOverlap, ...] = ()
+
+    @property
+    def has_membership_change(self) -> bool:
+        return bool(self.moved_clusters or self.added_clusters or self.removed_clusters)
+
+
+@dataclass(frozen=True)
+class ProgramMapPartitionOverlap:
+    """One non-empty predecessor/successor group intersection."""
+
+    previous_group_id: int
+    current_group_id: int
+    shared_clusters: int
+    previous_fraction: float
+    current_fraction: float
+
+
+def _partition_overlap_matrix(
+    previous_groups: list[set[int]],
+    current_groups: list[set[int]],
+) -> tuple[ProgramMapPartitionOverlap, ...]:
+    overlaps = []
+    for previous_id, previous in enumerate(previous_groups):
+        for current_id, current in enumerate(current_groups):
+            shared = len(previous & current)
+            if shared:
+                overlaps.append(
+                    ProgramMapPartitionOverlap(
+                        previous_id,
+                        current_id,
+                        shared,
+                        shared / len(previous),
+                        shared / len(current),
+                    )
+                )
+    return tuple(overlaps)
+
+
+def _match_partition_groups(
+    overlaps: tuple[ProgramMapPartitionOverlap, ...],
+    previous_count: int,
+    current_count: int,
+) -> tuple[ProgramMapPartitionOverlap, ...]:
+    """Find the maximum shared-membership matching for the bounded component budget."""
+    candidates_by_previous: dict[int, tuple[ProgramMapPartitionOverlap, ...]] = {
+        previous_id: tuple(
+            sorted(
+                (overlap for overlap in overlaps if overlap.previous_group_id == previous_id),
+                key=lambda item: (-item.shared_clusters, -item.current_fraction, item.current_group_id),
+            )
+        )
+        for previous_id in range(previous_count)
+    }
+
+    @lru_cache
+    def match(previous_id: int, used_current: int) -> tuple[int, int, tuple[int, ...]]:
+        if previous_id == previous_count:
+            return 0, 0, ()
+        shared, count, current_ids = match(previous_id + 1, used_current)
+        best = shared, count, (-1, *current_ids)
+        for overlap in candidates_by_previous[previous_id]:
+            bit = 1 << overlap.current_group_id
+            if used_current & bit:
+                continue
+            tail_shared, tail_count, tail_ids = match(previous_id + 1, used_current | bit)
+            candidate = (
+                overlap.shared_clusters + tail_shared,
+                1 + tail_count,
+                (overlap.current_group_id, *tail_ids),
+            )
+            if candidate[:2] > best[:2] or (candidate[:2] == best[:2] and candidate[2] < best[2]):
+                best = candidate
+        return best
+
+    _, _, selected_ids = match(0, 0)
+    by_pair = {(item.previous_group_id, item.current_group_id): item for item in overlaps}
+    return tuple(
+        by_pair[previous_id, current_id] for previous_id, current_id in enumerate(selected_ids) if current_id >= 0
+    )
+
+
+@dataclass(frozen=True)
 class ProgramMap:
     """Infomap's hierarchy and the bounded module view consumed by agents."""
 
@@ -397,6 +1565,11 @@ class ProgramMap:
     compression: float
     hierarchy_levels: int
     profiles: tuple[ProgramGroupProfile, ...] = ()
+    information: ProgramMapInformation = field(default_factory=lambda: ProgramMapInformation((), ()))
+    channels: ProgramMapChannelAnalysis | None = None
+    packages: ProgramMapPackageAnalysis | None = None
+    hierarchy: ProgramMapHierarchyAnalysis | None = None
+    quality: ProgramMapPartitionQuality | None = None
 
     def group_flow(self, group: set[int]) -> float:
         return sum(self.node_flow.get(cluster_id, 0.0) for cluster_id in group)
@@ -410,11 +1583,192 @@ class ProgramMap:
         raise KeyError(f"Unknown fitted ProgramMap group: {list(identity)}")
 
 
+def _partition_quality(
+    groups: list[set[int]],
+    node_flow: dict[int, float],
+    profiles: tuple[ProgramGroupProfile, ...],
+) -> ProgramMapPartitionQuality:
+    flows = [sum(node_flow.get(cluster_id, 0.0) for cluster_id in group) for group in groups]
+    if not flows:
+        return ProgramMapPartitionQuality(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0)
+    minimum = min(flows)
+    maximum = max(flows)
+    return ProgramMapPartitionQuality(
+        group_count=len(groups),
+        minimum_group_flow=minimum,
+        maximum_group_flow=maximum,
+        flow_imbalance=maximum - minimum,
+        mean_cohesion=sum(profile.cohesion for profile in profiles) / len(profiles),
+        mean_coupling=sum(profile.coupling for profile in profiles) / len(profiles),
+        mean_entropy=sum(profile.flow_entropy for profile in profiles) / len(profiles),
+        cyclic_group_count=sum(profile.cyclic_regions > 0 for profile in profiles),
+        boundary_symbol_count=len({symbol for profile in profiles for symbol in profile.boundary_symbols}),
+    )
+
+
+def assess_program_map_partition(program_map: ProgramMap) -> ProgramMapPartitionQuality:
+    """Calculate flow balance, cohesion, and boundary complexity for fitted groups."""
+    return _partition_quality(program_map.groups, program_map.node_flow, program_map.profiles)
+
+
+def compare_program_map_partitions(
+    previous_groups: list[set[int]],
+    current_groups: list[set[int]],
+) -> ProgramMapPartitionDrift:
+    """Measure membership continuity without treating reordered groups as changed code."""
+    previous_owner = {cluster_id: index for index, group in enumerate(previous_groups) for cluster_id in group}
+    current_owner = {cluster_id: index for index, group in enumerate(current_groups) for cluster_id in group}
+    previous_clusters = set(previous_owner)
+    current_clusters = set(current_owner)
+    shared = previous_clusters & current_clusters
+    overlaps = _partition_overlap_matrix(previous_groups, current_groups)
+    matched = _match_partition_groups(overlaps, len(previous_groups), len(current_groups))
+    retained_by_match = sum(overlap.shared_clusters for overlap in matched)
+    previous_to_current: dict[int, set[int]] = defaultdict(set)
+    current_to_previous: dict[int, set[int]] = defaultdict(set)
+    for overlap in overlaps:
+        previous_to_current[overlap.previous_group_id].add(overlap.current_group_id)
+        current_to_previous[overlap.current_group_id].add(overlap.previous_group_id)
+    unchanged = sum(
+        set(previous_groups[overlap.previous_group_id]) == set(current_groups[overlap.current_group_id])
+        for overlap in matched
+    )
+    return ProgramMapPartitionDrift(
+        retained_clusters=len(shared),
+        moved_clusters=len(shared) - retained_by_match,
+        added_clusters=len(current_clusters - previous_clusters),
+        removed_clusters=len(previous_clusters - current_clusters),
+        unchanged_groups=unchanged,
+        split_groups=sum(len(current_ids) > 1 for current_ids in previous_to_current.values()),
+        merged_groups=sum(len(previous_ids) > 1 for previous_ids in current_to_previous.values()),
+        overlaps=overlaps,
+    )
+
+
 def _partition_at_depth(module_paths: dict[int, tuple[int, ...]], depth: int) -> list[set[int]]:
     modules: dict[tuple[int, ...], set[int]] = defaultdict(set)
     for cluster_id, path in module_paths.items():
         modules[path[: min(depth, len(path))]].add(cluster_id)
     return list(modules.values())
+
+
+@dataclass(frozen=True)
+class ProgramMapHierarchyCandidate:
+    """One evaluated Infomap hierarchy cut before and after budget fitting."""
+
+    depth: int
+    natural_groups: tuple[tuple[int, ...], ...]
+    groups: tuple[tuple[int, ...], ...]
+    codelength: float
+    compression: float
+    fitness: ProgramMapHierarchyFitness
+
+    @property
+    def natural_group_count(self) -> int:
+        return len(self.natural_groups)
+
+    @property
+    def group_count(self) -> int:
+        return len(self.groups)
+
+
+@dataclass(frozen=True)
+class ProgramMapHierarchyFitness:
+    """Flow retention and size facts used to explain a hierarchy cut."""
+
+    internal_weight: float
+    crossing_weight: float
+    internal_ratio: float
+    largest_group_fraction: float
+    singleton_group_count: int
+    budget_distance: int
+
+
+@dataclass(frozen=True)
+class ProgramMapHierarchyAnalysis:
+    """All hierarchy cuts and the deterministic cut selected for component naming."""
+
+    candidates: tuple[ProgramMapHierarchyCandidate, ...]
+    selected_depth: int
+
+    @property
+    def selected(self) -> ProgramMapHierarchyCandidate:
+        return next(candidate for candidate in self.candidates if candidate.depth == self.selected_depth)
+
+    @property
+    def selection_summary(self) -> str:
+        """Give the agent layer a deterministic reason for the selected hierarchy cut."""
+        selected = self.selected
+        return (
+            f"depth {selected.depth}: {selected.natural_group_count} natural modules, "
+            f"{selected.group_count} fitted modules, {selected.fitness.internal_ratio:.1%} retained flow"
+        )
+
+
+def _hierarchy_fitness(
+    meta_graph: nx.DiGraph,
+    groups: list[set[int]],
+    low: int,
+    high: int,
+) -> ProgramMapHierarchyFitness:
+    owner = {cluster_id: group_id for group_id, group in enumerate(groups) for cluster_id in group}
+    internal = crossing = 0.0
+    for source, destination, attrs in meta_graph.edges(data=True):
+        weight = float(attrs.get("weight", 1.0))
+        if owner[source] == owner[destination]:
+            internal += weight
+        else:
+            crossing += weight
+    sizes = [len(group) for group in groups]
+    total_size = sum(sizes)
+    count = len(groups)
+    budget_distance = low - count if count < low else count - high if count > high else 0
+    return ProgramMapHierarchyFitness(
+        internal_weight=internal,
+        crossing_weight=crossing,
+        internal_ratio=internal / (internal + crossing) if internal + crossing else 0.0,
+        largest_group_fraction=max(sizes, default=0) / total_size if total_size else 0.0,
+        singleton_group_count=sum(size == 1 for size in sizes),
+        budget_distance=budget_distance,
+    )
+
+
+def analyze_program_map_hierarchy(
+    module_paths: dict[int, tuple[int, ...]],
+    meta_graph: nx.DiGraph,
+    cluster_result: ClusterResult,
+    low: int,
+    high: int,
+    seed: int,
+) -> ProgramMapHierarchyAnalysis:
+    """Score every Infomap hierarchy cut while preserving the component-count contract."""
+    max_depth = max((len(path) for path in module_paths.values()), default=1)
+    method_count = _method_counts(cluster_result)
+    candidates = []
+    for depth in range(1, max_depth + 1):
+        natural = _partition_at_depth(module_paths, depth)
+        groups = _fit_partition_to_budget(natural, meta_graph, cluster_result, method_count, low, high)
+        codelength, compression = _score_program_partition(meta_graph, groups, seed)
+        candidates.append(
+            ProgramMapHierarchyCandidate(
+                depth=depth,
+                natural_groups=tuple(tuple(sorted(group)) for group in natural),
+                groups=tuple(tuple(sorted(group)) for group in groups),
+                codelength=codelength,
+                compression=compression,
+                fitness=_hierarchy_fitness(meta_graph, groups, low, high),
+            )
+        )
+    in_range = [candidate for candidate in candidates if low <= candidate.natural_group_count <= high]
+    if in_range:
+        return ProgramMapHierarchyAnalysis(tuple(candidates), in_range[0].depth)
+
+    def distance(candidate: ProgramMapHierarchyCandidate) -> tuple[int, int, int]:
+        count = candidate.natural_group_count
+        outside = low - count if count < low else count - high
+        return outside, -count, candidate.depth
+
+    return ProgramMapHierarchyAnalysis(tuple(candidates), min(candidates, key=distance).depth)
 
 
 def _select_hierarchy_partition(module_paths: dict[int, tuple[int, ...]], low: int, high: int) -> list[set[int]]:
@@ -599,9 +1953,23 @@ def build_program_map(
 ) -> ProgramMap:
     """Map directed program flow between static-analysis leaf clusters with Infomap."""
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
+    information = build_program_map_information(cfg_graph)
+    channels = information.channel_analysis()
+    packages = analyze_program_map_packages(information)
     n_leaf = meta_graph.number_of_nodes()
     if n_leaf == 0:
-        return ProgramMap([], {}, {}, 0.0, 0.0, 0, ())
+        return ProgramMap(
+            groups=[],
+            node_flow={},
+            module_paths={},
+            codelength=0.0,
+            compression=0.0,
+            hierarchy_levels=0,
+            information=information,
+            channels=channels,
+            packages=packages,
+            quality=_partition_quality([], {}, ()),
+        )
     high = min(high, n_leaf)
     if meta_graph.number_of_edges() == 0:
         isolated_paths: dict[int, tuple[int, ...]] = {
@@ -612,20 +1980,39 @@ def build_program_map(
         total = sum(counts.values()) or n_leaf
         node_flow = {cid: counts.get(cid, 1) / total for cid in meta_graph.nodes}
         groups = _fit_partition_to_budget(communities, meta_graph, cluster_result, counts, low, high)
-        profiles = build_program_map_profiles(cluster_result, cfg_graph, groups)
-        return ProgramMap(groups, node_flow, isolated_paths, 0.0, 0.0, 1, profiles)
+        profiles = build_program_map_profiles(cluster_result, cfg_graph, groups, information=information)
+        return ProgramMap(
+            groups=groups,
+            node_flow=node_flow,
+            module_paths=isolated_paths,
+            codelength=0.0,
+            compression=0.0,
+            hierarchy_levels=1,
+            profiles=profiles,
+            information=information,
+            channels=channels,
+            packages=packages,
+            quality=_partition_quality(groups, node_flow, profiles),
+        )
 
     result = infomap.run(meta_graph, directed=True, seed=seed, num_trials=INFOMAP_TRIALS)
     module_paths = {int(cluster_id): path for cluster_id, path in result.multilevel_modules().items()}
     node_flow = {int(node.node_id): node.flow for node in result.nodes()}
     if n_leaf <= low:
         groups = [{cid} for cid in sorted(meta_graph.nodes)]
+        hierarchy = None
     else:
-        communities = _select_hierarchy_partition(module_paths, low, high)
-        groups = _fit_partition_to_budget(
-            communities, meta_graph, cluster_result, _method_counts(cluster_result), low, high
+        hierarchy = analyze_program_map_hierarchy(module_paths, meta_graph, cluster_result, low, high, seed)
+        groups = [set(group) for group in hierarchy.selected.groups]
+    codelength, compression = (
+        _score_program_partition(meta_graph, groups, seed)
+        if hierarchy is None
+        else (
+            hierarchy.selected.codelength,
+            hierarchy.selected.compression,
         )
-    codelength, compression = _score_program_partition(meta_graph, groups, seed)
+    )
+    profiles = build_program_map_profiles(cluster_result, cfg_graph, groups, information=information)
     program_map = ProgramMap(
         groups=groups,
         node_flow=node_flow,
@@ -633,12 +2020,18 @@ def build_program_map(
         codelength=codelength,
         compression=compression,
         hierarchy_levels=max((len(path) for path in module_paths.values()), default=0),
-        profiles=build_program_map_profiles(cluster_result, cfg_graph, groups),
+        profiles=profiles,
+        information=information,
+        channels=channels,
+        packages=packages,
+        hierarchy=hierarchy,
+        quality=_partition_quality(groups, node_flow, profiles),
     )
     logger.info(
         f"[ProgramMap] {meta_graph.number_of_nodes()} leaf clusters -> {len(groups)} flow modules "
         f"(codelength={program_map.codelength:.4f}, compression={program_map.compression:.1%}, "
-        f"hierarchy={program_map.hierarchy_levels}, sizes {sorted((len(g) for g in groups), reverse=True)})"
+        f"hierarchy={program_map.hierarchy_levels}, sizes {sorted((len(g) for g in groups), reverse=True)}, "
+        f"{program_map.hierarchy.selection_summary if program_map.hierarchy else 'leaf-level partition'})"
     )
     return program_map
 
@@ -669,6 +2062,92 @@ def build_program_map_for_languages(
 REGROUP_DRIFT_BUDGET = 0.10
 
 
+@dataclass(frozen=True)
+class ProgramMapLineageClaim:
+    """One predecessor component's weighted claim on a successor group."""
+
+    successor_index: int
+    predecessor_id: str
+    shared_methods: int
+    successor_methods: int
+
+    @property
+    def overlap(self) -> float:
+        return self.shared_methods / self.successor_methods if self.successor_methods else 0.0
+
+
+@dataclass(frozen=True)
+class ProgramMapLineage:
+    """Deterministic ownership reconciliation after a fresh program-map partition."""
+
+    owners: tuple[str, ...]
+    claims: tuple[ProgramMapLineageClaim, ...]
+    retired_owners: tuple[str, ...]
+
+
+def reconcile_program_map_lineage(
+    groups: list[set[int]],
+    previous_owner: dict[int, str],
+    method_count: dict[int, int],
+) -> ProgramMapLineage:
+    """Carry the strongest predecessor identity into each fresh flow module once."""
+    candidates: list[ProgramMapLineageClaim] = []
+    previous_ids = set(previous_owner.values()) - {""}
+    for index, group in enumerate(groups):
+        claims: Counter[str] = Counter()
+        successor_methods = sum(method_count.get(cluster_id, 0) for cluster_id in group)
+        for cluster_id in group:
+            if owner := previous_owner.get(cluster_id):
+                claims[owner] += method_count.get(cluster_id, 0)
+        candidates.extend(
+            ProgramMapLineageClaim(index, owner, shared, successor_methods) for owner, shared in claims.items()
+        )
+    owner_ids = tuple(sorted(previous_ids))
+    owner_bits = {owner: 1 << index for index, owner in enumerate(owner_ids)}
+    claims_by_successor: dict[int, tuple[ProgramMapLineageClaim, ...]] = {
+        index: tuple(
+            sorted(
+                (claim for claim in candidates if claim.successor_index == index and claim.shared_methods > 0),
+                key=lambda item: (-item.shared_methods, -item.overlap, item.predecessor_id),
+            )
+        )
+        for index in range(len(groups))
+    }
+
+    @lru_cache
+    def optimal_assignment(
+        successor_index: int,
+        assigned_mask: int,
+    ) -> tuple[int, float, int, tuple[str, ...]]:
+        if successor_index == len(groups):
+            return 0, 0.0, 0, ()
+        options: list[ProgramMapLineageClaim | None] = [None, *claims_by_successor[successor_index]]
+        best: tuple[int, float, int, tuple[str, ...]] | None = None
+        for claim in options:
+            if claim is not None and assigned_mask & owner_bits[claim.predecessor_id]:
+                continue
+            next_mask = assigned_mask if claim is None else assigned_mask | owner_bits[claim.predecessor_id]
+            shared, overlap, count, tail = optimal_assignment(successor_index + 1, next_mask)
+            candidate = (
+                shared + (claim.shared_methods if claim else 0),
+                overlap + (claim.overlap if claim else 0.0),
+                count + int(claim is not None),
+                ((claim.predecessor_id if claim else ""), *tail),
+            )
+            if best is None or candidate[:3] > best[:3] or (candidate[:3] == best[:3] and candidate[3] < best[3]):
+                best = candidate
+        assert best is not None
+        return best
+
+    _, _, _, owners = optimal_assignment(0, 0)
+    assigned = {owner for owner in owners if owner}
+    return ProgramMapLineage(
+        owners=owners,
+        claims=tuple(sorted(candidates, key=lambda item: (item.successor_index, item.predecessor_id))),
+        retired_owners=tuple(sorted(previous_ids - assigned)),
+    )
+
+
 def _inherit_ids(
     groups: list[set[int]],
     previous_owner: dict[int, str],
@@ -682,24 +2161,7 @@ def _inherit_ids(
     group, so the dominant successor of a component keeps its identity and only
     genuinely new groups come out unnamed.
     """
-    claims: list[tuple[int, Counter[str]]] = []
-    for index, group in enumerate(groups):
-        tally: Counter[str] = Counter()
-        for cid in group:
-            owner = previous_owner.get(cid)
-            if owner:
-                tally[owner] += method_count.get(cid, 0)
-        claims.append((index, tally))
-
-    owners = [""] * len(groups)
-    taken: set[str] = set()
-    for index, tally in sorted(claims, key=lambda claim: (-max(claim[1].values(), default=0), claim[0])):
-        for owner, _weight in tally.most_common():
-            if owner not in taken:
-                taken.add(owner)
-                owners[index] = owner
-                break
-    return owners
+    return list(reconcile_program_map_lineage(groups, previous_owner, method_count).owners)
 
 
 @dataclass(frozen=True)
@@ -711,6 +2173,8 @@ class AnchoredGrouping:
     owners: list[str]
     #: True when drift forced a from-scratch re-derivation rather than a carry-forward.
     regrouped: bool
+    #: Membership continuity between the carried and freshly fitted partitions.
+    partition_drift: ProgramMapPartitionDrift | None = None
 
 
 def anchored_grouping(
@@ -774,13 +2238,20 @@ def anchored_grouping(
     if absorbed:
         _absorb_leftovers(groups, absorbed, meta_graph, cluster_result, method_count)
 
+    partition_drift = compare_program_map_partitions(groups, fresh_groups)
+
     effective_high = min(high, len(live))
     if len(groups) > effective_high:
         logger.info(
             f"[Anchored] carried grouping has {len(groups)} components above "
             f"the {effective_high} maximum; re-deriving structure from ProgramMap"
         )
-        return AnchoredGrouping(fresh_groups, _inherit_ids(fresh_groups, previous_owner, method_count), True)
+        return AnchoredGrouping(
+            fresh_groups,
+            _inherit_ids(fresh_groups, previous_owner, method_count),
+            True,
+            partition_drift,
+        )
 
     _, carried_compression = _score_program_partition(meta_graph, groups, seed)
     if fresh_map.compression - carried_compression > drift_budget:
@@ -789,11 +2260,18 @@ def anchored_grouping(
             f"{fresh_map.compression:.1%} fresh (> {drift_budget:.1%} budget); "
             "re-deriving structure from ProgramMap"
         )
-        return AnchoredGrouping(fresh_groups, _inherit_ids(fresh_groups, previous_owner, method_count), True)
+        return AnchoredGrouping(
+            fresh_groups,
+            _inherit_ids(fresh_groups, previous_owner, method_count),
+            True,
+            partition_drift,
+        )
 
     logger.info(
         f"[Anchored] {len(live)} leaf clusters -> {len(groups)} components carried forward "
         f"({len(new_subsystems)} new component(s), {len(absorbed)} clusters absorbed, "
-        f"compression={carried_compression:.1%} vs {fresh_map.compression:.1%} fresh)"
+        f"compression={carried_compression:.1%} vs {fresh_map.compression:.1%} fresh, "
+        f"continuity={partition_drift.retained_clusters - partition_drift.moved_clusters}/"
+        f"{partition_drift.retained_clusters} retained)"
     )
-    return AnchoredGrouping(groups, owners, False)
+    return AnchoredGrouping(groups, owners, False, partition_drift)

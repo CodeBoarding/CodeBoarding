@@ -74,7 +74,34 @@ def _summarize_group(
         facts.append(f"exits: {', '.join(profile.exits[:3])}")
     if profile.hubs:
         facts.append(f"hubs: {', '.join(profile.hubs[:3])}")
+    if profile.weighted_channel_mix:
+        channels = ", ".join(f"{channel.value} {weight:.2f}" for channel, weight in profile.weighted_channel_mix[:3])
+        facts.append(f"channels {channels}")
     parts.append("Program facts: " + "; ".join(facts) + ".")
+    if program_map.quality is not None:
+        quality = program_map.quality
+        parts.append(
+            "Partition facts: "
+            f"mean cohesion {quality.mean_cohesion:.1%}; "
+            f"flow imbalance {quality.flow_imbalance:.1%}; "
+            f"{quality.boundary_symbol_count} boundary symbols."
+        )
+    if program_map.channels is not None and program_map.channels.profiles:
+        dominant = max(
+            program_map.channels.profiles,
+            key=lambda channel: (channel.weighted_total, channel.channel.value),
+        )
+        parts.append(
+            "Evidence facts: "
+            f"{program_map.channels.typed_symbol_coverage:.1%} symbol coverage; "
+            f"dominant {dominant.channel.value} flow {dominant.weighted_total:.2f}."
+        )
+    if program_map.packages is not None:
+        parts.append(
+            "Source facts: "
+            f"{len(program_map.packages.profiles)} packages; "
+            f"{len(program_map.packages.inter_package_flow)} directed package boundaries."
+        )
     if file_names:
         shown = ", ".join(file_names[:max_files])
         parts.append(f"Files: {shown}{', ...' if len(file_names) > max_files else ''}")
