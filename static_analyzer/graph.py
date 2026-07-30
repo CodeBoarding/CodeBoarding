@@ -12,6 +12,7 @@ from static_analyzer.constants import ClusteringConfig, NodeType
 from static_analyzer.leiden_utils import find_partition as _leiden_find_partition
 from static_analyzer.method_cluster_paths import MethodClusterPaths
 from static_analyzer.node import Node
+from static_analyzer.program_info.builder import build_program_information
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,10 @@ class Edge:
     @property
     def call_sites(self) -> list[dict[str, Hashable]]:
         return [dict(site) for site in self._call_sites]
+
+    @property
+    def call_site_count(self) -> int:
+        return len(self._call_sites)
 
     def get_source(self) -> str:
         return self.src_node.fully_qualified_name
@@ -414,22 +419,8 @@ class CallGraph:
 
     def program_map_networkx(self, reference_kinds: Collection[str] | None = None) -> nx.DiGraph:
         """Build the weighted directed flow graph consumed by Infomap."""
-        kinds = set(ClusteringConfig.CLUSTERING_EDGE_KINDS if reference_kinds is None else reference_kinds)
-        base = self.clustering_networkx(reference_kinds)
-        graph = nx.DiGraph()
-        graph.add_nodes_from(base.nodes(data=True))
-
-        for edge in sorted(self.edges, key=lambda item: (item.get_source(), item.get_destination())):
-            weight = max(1, len(edge.call_sites))
-            graph.add_edge(edge.get_source(), edge.get_destination(), weight=float(weight))
-
-        for src, dst, kind in sorted(getattr(self, "reference_edges", ())):
-            rsrc, rdst = self._resolve_name(src), self._resolve_name(dst)
-            if kind not in kinds or rsrc not in self.nodes or rdst not in self.nodes:
-                continue
-            weight = graph.get_edge_data(rsrc, rdst, {}).get("weight", 0.0) + 1.0
-            graph.add_edge(rsrc, rdst, weight=weight)
-        return graph
+        kinds = ClusteringConfig.CLUSTERING_EDGE_KINDS if reference_kinds is None else reference_kinds
+        return build_program_information(self).projection(set(kinds))
 
     def cluster(
         self,

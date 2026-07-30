@@ -61,8 +61,24 @@ def _summarize_group(
     parts = [
         f"{len(group)} leaf clusters, {len(symbols)} symbols across {len(files)} files. "
         f"Infomap flow: {program_map.group_flow(group):.1%}; program-map compression: "
-        f"{program_map.compression:.1%} across {program_map.hierarchy_levels} module level(s)."
+        f"{program_map.compression:.1%}; codelength: {program_map.codelength:.4f} "
+        f"across {program_map.hierarchy_levels} module level(s)."
     ]
+    try:
+        profile = program_map.group_profile(group)
+    except KeyError:
+        profile = None
+    if profile is not None:
+        channels = ", ".join(f"{channel.value} {weight:.2f}" for channel, weight in profile.weighted_channel_mix[:3])
+        facts = [
+            f"internal/crossing flow {profile.internal_flow:.2f}/{profile.incoming_flow + profile.outgoing_flow:.2f}"
+        ]
+        if channels:
+            facts.append(f"channels {channels}")
+        for label, values in (("hubs", profile.hubs), ("entries", profile.entries), ("exits", profile.exits)):
+            if values:
+                facts.append(f"{label}: {', '.join(values[:3])}")
+        parts.append("Program facts: " + "; ".join(facts) + ".")
     if file_names:
         shown = ", ".join(file_names[:max_files])
         parts.append(f"Files: {shown}{', ...' if len(file_names) > max_files else ''}")

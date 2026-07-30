@@ -5,6 +5,10 @@ from pathlib import Path
 from static_analyzer.analysis_cache import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
 
 
+class BaselineUnavailableError(RuntimeError):
+    """An incremental operation requires an explicit prior analysis baseline."""
+
+
 class IncrementalCacheMissingError(RuntimeError):
     """Raised when ``generate_analysis_incremental`` finds no usable warm cache.
 

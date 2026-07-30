@@ -17,12 +17,32 @@ class Node:
         line_start: int,
         line_end: int,
         col_start: int = 0,
+        detail: str = "",
+        selection_span: tuple[int, int, int, int] = (0, 0, 0, 0),
+        parent_chain: tuple[tuple[str, int], ...] = (),
+        tags: tuple[int, ...] = (),
+        deprecated: bool = False,
+        visibility: str = "unknown",
+        modifiers: tuple[str, ...] = (),
+        annotations: tuple[object, ...] = (),
+        import_evidence: tuple[object, ...] = (),
+        type_use_evidence: tuple[object, ...] = (),
     ) -> None:
         self.fully_qualified_name = fully_qualified_name
         self.file_path = file_path
         self.line_start = line_start
         self.line_end = line_end
         self.col_start = col_start
+        self.detail = detail
+        self.selection_span = selection_span
+        self.parent_chain = parent_chain
+        self.tags = tags
+        self.deprecated = deprecated
+        self.visibility = visibility
+        self.modifiers = modifiers
+        self.annotations = annotations
+        self.import_evidence = import_evidence
+        self.type_use_evidence = type_use_evidence
         self.type: NodeType = NodeType(node_type)
         self.methods_called_by_me: set[str] = set()
 

@@ -69,6 +69,21 @@ def convert_to_codeboarding_format(
             line_start=sym.start_line + 1,
             line_end=sym.end_line + 1,
             col_start=sym.start_char,
+            detail=getattr(sym, "detail", ""),
+            selection_span=(
+                getattr(sym, "selection_start_line", sym.start_line) + 1,
+                getattr(sym, "selection_start_char", sym.start_char),
+                getattr(sym, "selection_end_line", sym.end_line) + 1,
+                getattr(sym, "selection_end_char", sym.end_char),
+            ),
+            parent_chain=tuple(getattr(sym, "parent_chain", ())),
+            tags=tuple(getattr(sym, "tags", ())),
+            deprecated=getattr(sym, "deprecated", False),
+            visibility=getattr(sym, "visibility", "unknown"),
+            modifiers=tuple(getattr(sym, "modifiers", ())),
+            annotations=tuple(getattr(sym, "annotations", ())),
+            import_evidence=tuple(getattr(sym, "import_evidence", ())),
+            type_use_evidence=tuple(getattr(sym, "type_use_evidence", ())),
         )
         symbol_nodes[qname] = node
         call_graph.add_node(node)
@@ -151,6 +166,22 @@ def convert_to_codeboarding_format(
                 file_path=str(sym.file_path),
                 line_start=sym.start_line + 1,
                 line_end=sym.end_line + 1,
+                col_start=sym.start_char,
+                detail=getattr(sym, "detail", ""),
+                selection_span=(
+                    getattr(sym, "selection_start_line", sym.start_line) + 1,
+                    getattr(sym, "selection_start_char", sym.start_char),
+                    getattr(sym, "selection_end_line", sym.end_line) + 1,
+                    getattr(sym, "selection_end_char", sym.end_char),
+                ),
+                parent_chain=tuple(getattr(sym, "parent_chain", ())),
+                tags=tuple(getattr(sym, "tags", ())),
+                deprecated=getattr(sym, "deprecated", False),
+                visibility=getattr(sym, "visibility", "unknown"),
+                modifiers=tuple(getattr(sym, "modifiers", ())),
+                annotations=tuple(getattr(sym, "annotations", ())),
+                import_evidence=tuple(getattr(sym, "import_evidence", ())),
+                type_use_evidence=tuple(getattr(sym, "type_use_evidence", ())),
             )
             references.append(ref_node)
 

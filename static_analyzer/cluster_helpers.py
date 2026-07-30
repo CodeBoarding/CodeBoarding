@@ -24,6 +24,9 @@ import networkx as nx
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig, Language
 from static_analyzer.graph import ClusterResult
+from static_analyzer.program_info.program_map import ProgramGroupProfile, build_group_profiles
+from static_analyzer.program_info.projection import from_projection
+from static_analyzer.program_info.models import ProgramInformation, SymbolFact
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,22 @@ SUBCOMPONENTS_MIN = 3
 SUBCOMPONENTS_MAX = 8
 
 INFOMAP_TRIALS = 10
+
+
+class ProgramMapExecutionError(RuntimeError):
+    """Infomap could not execute for the requested program-map scope."""
+
+
+def _profile_information(cluster_result: ClusterResult, graph: nx.DiGraph) -> ProgramInformation:
+    """Decode evidence, with concrete facts for an entirely absent legacy projection."""
+    information = from_projection(graph)
+    if information.symbols or not cluster_result.clusters:
+        return information
+    symbols: list[SymbolFact] = []
+    for cluster_id, members in sorted(cluster_result.clusters.items()):
+        file_path = min(cluster_result.cluster_to_files.get(cluster_id, {""}))
+        symbols.extend(SymbolFact(name, 0, file_path, 0, 0) for name in sorted(members))
+    return ProgramInformation(tuple(sorted(symbols)), ())
 
 
 def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
@@ -199,9 +218,18 @@ class ProgramMap:
     codelength: float
     compression: float
     hierarchy_levels: int
+    profiles: tuple[ProgramGroupProfile, ...] = ()
 
     def group_flow(self, group: set[int]) -> float:
         return sum(self.node_flow.get(cluster_id, 0.0) for cluster_id in group)
+
+    def group_profile(self, group: set[int]) -> ProgramGroupProfile:
+        """Return the profile whose exact fitted cluster identity matches *group*."""
+        identity = tuple(sorted(group))
+        for profile in self.profiles:
+            if profile.cluster_ids == identity:
+                return profile
+        raise KeyError(f"Unknown fitted ProgramMap group: {list(identity)}")
 
 
 def _partition_at_depth(module_paths: dict[int, tuple[int, ...]], depth: int) -> list[set[int]]:
@@ -374,13 +402,19 @@ def _score_program_partition(meta_graph: nx.DiGraph, groups: list[set[int]], see
     initial_partition = {
         cluster_id: module_id for module_id, group in enumerate(groups, start=1) for cluster_id in group
     }
-    result = infomap.run(
-        meta_graph,
-        directed=True,
-        seed=seed,
-        initial_partition=initial_partition,
-        options=infomap.Options(two_level=True, no_infomap=True),
-    )
+    try:
+        result = infomap.run(
+            meta_graph,
+            directed=True,
+            seed=seed,
+            initial_partition=initial_partition,
+            options=infomap.Options(two_level=True, no_infomap=True),
+        )
+    except Exception as exc:
+        raise ProgramMapExecutionError(
+            f"Infomap fixed-partition scoring failed for {meta_graph.number_of_nodes()} clusters "
+            f"and {meta_graph.number_of_edges()} edges"
+        ) from exc
     return result.codelength, max(0.0, result.relative_codelength_savings)
 
 
@@ -395,7 +429,8 @@ def build_program_map(
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
     n_leaf = meta_graph.number_of_nodes()
     if n_leaf == 0:
-        return ProgramMap([], {}, {}, 0.0, 0.0, 0)
+        information = _profile_information(cluster_result, cfg_graph)
+        return ProgramMap([], {}, {}, 0.0, 0.0, 0, build_group_profiles(cluster_result, information, []))
     high = min(high, n_leaf)
     if meta_graph.number_of_edges() == 0:
         isolated_paths: dict[int, tuple[int, ...]] = {
@@ -406,9 +441,17 @@ def build_program_map(
         total = sum(counts.values()) or n_leaf
         node_flow = {cid: counts.get(cid, 1) / total for cid in meta_graph.nodes}
         groups = _fit_partition_to_budget(communities, meta_graph, cluster_result, counts, low, high)
-        return ProgramMap(groups, node_flow, isolated_paths, 0.0, 0.0, 1)
+        information = _profile_information(cluster_result, cfg_graph)
+        return ProgramMap(
+            groups, node_flow, isolated_paths, 0.0, 0.0, 1, build_group_profiles(cluster_result, information, groups)
+        )
 
-    result = infomap.run(meta_graph, directed=True, seed=seed, num_trials=INFOMAP_TRIALS)
+    try:
+        result = infomap.run(meta_graph, directed=True, seed=seed, num_trials=INFOMAP_TRIALS)
+    except Exception as exc:
+        raise ProgramMapExecutionError(
+            f"Infomap optimization failed for {n_leaf} clusters and {meta_graph.number_of_edges()} edges"
+        ) from exc
     module_paths = {int(cluster_id): path for cluster_id, path in result.multilevel_modules().items()}
     node_flow = {int(node.node_id): node.flow for node in result.nodes()}
     if n_leaf <= low:
@@ -426,6 +469,7 @@ def build_program_map(
         codelength=codelength,
         compression=compression,
         hierarchy_levels=max((len(path) for path in module_paths.values()), default=0),
+        profiles=build_group_profiles(cluster_result, _profile_information(cluster_result, cfg_graph), groups),
     )
     logger.info(
         f"[ProgramMap] {meta_graph.number_of_nodes()} leaf clusters -> {len(groups)} flow modules "

@@ -11,8 +11,9 @@ from tree_sitter import Language as TreeSitterLanguage
 from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Tree
 
-from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
+from static_analyzer.constants import LANGUAGE_EXTENSIONS, SOURCE_EXTENSION_TO_LANGUAGE, Language
 from static_analyzer.engine.models import CallSite
+from static_analyzer.program_info.source_facts import ExtractionDiagnostic, FileSourceFacts, extract_source_facts
 
 import tree_sitter_c_sharp
 import tree_sitter_go
@@ -185,6 +186,16 @@ class SourceInspector:
             seen.add(pos)
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
+
+    def extract_source_facts(self, file_path: Path) -> FileSourceFacts:
+        """Extract immutable syntax facts while reusing the cached parse tree."""
+        language = SOURCE_EXTENSION_TO_LANGUAGE.get(file_path.suffix.lower())
+        parsed = self._parse(file_path)
+        if language is None or parsed is None:
+            name = language.value if language is not None else "unknown"
+            diagnostic = ExtractionDiagnostic(str(file_path), "unsupported-language", f"No parser for {name}")
+            return FileSourceFacts(name, str(file_path), diagnostics=(diagnostic,), supported=False)
+        return extract_source_facts(language.value, file_path, parsed.content, parsed.tree.root_node)
 
     def _read_file_bytes(self, file_path: Path) -> bytes | None:
         file_key = str(file_path)

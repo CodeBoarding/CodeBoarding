@@ -10,6 +10,8 @@ from static_analyzer.graph import CallGraph
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
+from static_analyzer.program_info.builder import build_program_information
+from static_analyzer.program_info.models import ProgramDelta, ProgramInformation, ProgramSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +219,53 @@ class StaticAnalysisResults:
             if bucket.cfg.graph is not None:
                 cfgs[str(language)] = bucket.cfg.graph
         return cfgs
+
+    def program_information(self, language: Language) -> ProgramInformation:
+        """Derive program facts for one language without persistence."""
+        return build_program_information(self.get_cfg(language))
+
+    def combined_program_information(self) -> ProgramInformation:
+        """Derive facts from all present language graphs."""
+        combined: CallGraph | None = None
+        for language in sorted(self.results, key=str):
+            bucket = self.results[language]
+            if bucket.cfg.graph is not None:
+                combined = bucket.cfg.graph if combined is None else combined.union(bucket.cfg.graph)
+        if combined is None:
+            return ProgramInformation((), ())
+        return build_program_information(combined)
+
+    def program_snapshot(self, language: Language | None = None) -> ProgramSnapshot:
+        information = self.combined_program_information() if language is None else self.program_information(language)
+        return information.snapshot()
+
+    def incremental_program_delta(self, language: Language | None = None) -> ProgramDelta:
+        """Compare against the explicit incremental base; never substitute a full run."""
+        if self.incremental_base_results is None:
+            raise ValueError("Program delta requires incremental_base_results")
+        old = self.incremental_base_results.program_snapshot(language)
+        return old.compare(self.program_snapshot(language))
+
+    def scoped_program_information(
+        self, language: Language, *, symbols: set[str] | None = None, files: set[str] | None = None
+    ) -> ProgramInformation:
+        if symbols is not None and files is not None:
+            raise ValueError("Choose either symbols or files for a program-information scope")
+        information = self.program_information(language)
+        if symbols is not None:
+            return information.subgraph_by_symbols(symbols)
+        if files is not None:
+            return information.subgraph_by_files(files)
+        return information
+
+    def compare_program_scope(
+        self, language: Language, *, symbols: set[str] | None = None, files: set[str] | None = None
+    ) -> ProgramDelta:
+        if self.incremental_base_results is None:
+            raise ValueError("Scoped program delta requires incremental_base_results")
+        old = self.incremental_base_results.scoped_program_information(language, symbols=symbols, files=files)
+        new = self.scoped_program_information(language, symbols=symbols, files=files)
+        return old.snapshot().compare(new.snapshot())
 
     def get_hierarchy(self, language: Language) -> dict:
         """Return the class hierarchy dict for ``language`` or raise ``ValueError``.

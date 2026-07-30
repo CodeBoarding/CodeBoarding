@@ -34,6 +34,7 @@ from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
 from static_analyzer.leiden_utils import find_partition_seeded
+from static_analyzer.program_info.impact import ProgramDeltaSummary
 
 logger = logging.getLogger(__name__)
 
@@ -112,10 +113,15 @@ class LanguageStructuralDiff:
 @dataclass
 class StructuralClusterDiff:
     by_language: dict[str, LanguageStructuralDiff] = field(default_factory=dict)
+    program_information: ProgramDeltaSummary = field(default_factory=ProgramDeltaSummary)
 
     @property
     def has_changes(self) -> bool:
-        return any(diff.has_changes for diff in self.by_language.values())
+        return any(diff.has_changes for diff in self.by_language.values()) or not self.program_information.is_empty
+
+    def llm_str(self) -> str:
+        """Return internal program facts only when the summary is nonempty."""
+        return self.program_information.llm_str()
 
 
 @dataclass

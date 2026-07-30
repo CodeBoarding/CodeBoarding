@@ -16,6 +16,8 @@ from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE, EdgeStrate
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.program_info.type_resolution import resolve_type_references
+from static_analyzer.program_info.source_facts import enrich_and_resolve_source_facts
 
 logger = logging.getLogger(__name__)
 
@@ -110,12 +112,19 @@ class CallGraphBuilder:
             time.monotonic() - t_pipeline,
         )
 
+        source_facts = tuple(self._source_inspector.extract_source_facts(file_path) for file_path in source_files)
+        resolved_facts = enrich_and_resolve_source_facts(source_facts, self._symbol_table.symbols)
+        legacy_type_references = resolve_type_references(self._symbol_table.symbols)
         return LanguageAnalysisResult(
             references=references,
             hierarchy=hierarchy,
             cfg=cfg,
             package_dependencies=package_deps,
             source_files=abs_files,
+            type_references=sorted(set(legacy_type_references) | set(resolved_facts.type_edges)),
+            import_edges=list(resolved_facts.import_edges),
+            source_facts=source_facts,
+            source_fact_diagnostics=resolved_facts.diagnostics,
         )
 
     def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> EdgeMap:

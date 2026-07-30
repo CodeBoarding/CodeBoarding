@@ -225,7 +225,8 @@ class TestProgramMap(unittest.TestCase):
         cr.clusters[big_id] = {f"models.Model{i}" for i in range(60)}  # 60 methods, no call edges
         cr.cluster_to_files[big_id] = {"/repo/models/schema.py"}
         cr.file_to_clusters["/repo/models/schema.py"] = {big_id}
-        graph.add_node("models.Model0", file_path="/repo/models/schema.py")
+        for member in cr.clusters[big_id]:
+            graph.add_node(member, file_path="/repo/models/schema.py")
 
         groups = build_program_map(cr, graph).groups
         owner = next(group for group in groups if big_id in group)
