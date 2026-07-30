@@ -17,7 +17,7 @@ def information(*edges: EdgeEvidence) -> ProgramInformation:
 def test_domain_values_are_immutable():
     symbol = fact("a")
     with pytest.raises(FrozenInstanceError):
-        symbol.detail = "changed"
+        setattr(symbol, "detail", "changed")
 
 
 @pytest.mark.parametrize("weight", [-1.0, float("inf"), float("nan")])

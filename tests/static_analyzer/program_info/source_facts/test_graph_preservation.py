@@ -1,5 +1,5 @@
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, EdgeKind
+from static_analyzer.graph import CallGraph, Edge, EdgeKind
 from static_analyzer.node import Node
 
 
@@ -19,7 +19,7 @@ def graph() -> CallGraph:
 
 def test_filter_preserves_surviving_structural_kinds_and_removes_dangling_edges():
     original = graph()
-    dropped = []
+    dropped: list[Edge] = []
     filtered = original.filter(lambda value: value.fully_qualified_name != "c", dropped.append)
     assert [(edge.get_source(), edge.get_destination()) for edge in filtered.edges] == [("a", "b")]
     assert filtered.reference_edges == [("a", "b", "typeref")]

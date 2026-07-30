@@ -5,8 +5,28 @@ from static_analyzer.program_info.builder import build_program_information
 from static_analyzer.program_info.models import Channel
 
 
-def node(name: str, line: int, **kwargs: object) -> Node:
-    return Node(name, NodeType.FUNCTION, "pkg/file.py", line, line + 2, **kwargs)
+def node(
+    name: str,
+    line: int,
+    *,
+    detail: str = "",
+    selection_span: tuple[int, int, int, int] = (0, 0, 0, 0),
+    parent_chain: tuple[tuple[str, int], ...] = (),
+    tags: tuple[int, ...] = (),
+    deprecated: bool = False,
+) -> Node:
+    return Node(
+        name,
+        NodeType.FUNCTION,
+        "pkg/file.py",
+        line,
+        line + 2,
+        detail=detail,
+        selection_span=selection_span,
+        parent_chain=parent_chain,
+        tags=tags,
+        deprecated=deprecated,
+    )
 
 
 def test_builder_retains_node_facts_and_old_cache_defaults():
