@@ -87,7 +87,6 @@ class SymbolTable:
             start = range_info.get("start", {})
             end = range_info.get("end", {})
             sel_start = sel_range.get("start", start)
-            sel_end = sel_range.get("end", end)
 
             start_line = sel_start.get("line", 0)
             start_char = sel_start.get("character", 0)
@@ -109,15 +108,8 @@ class SymbolTable:
                 start_char=start_char,
                 end_line=end_line,
                 end_char=end_char,
-                parent_chain=list(parent_chain),
-                detail=detail,
-                selection_start_line=sel_start.get("line", start_line),
-                selection_start_char=sel_start.get("character", start_char),
-                selection_end_line=sel_end.get("line", end_line),
-                selection_end_char=sel_end.get("character", end_char),
-                tags=tuple(sorted(set(sym.get("tags", [])))),
-                deprecated=bool(sym.get("deprecated", False) or 1 in sym.get("tags", [])),
             )
+            info.parent_chain = list(parent_chain)
 
             self._symbols[qualified_name] = info
             ref_key = self._naming.build_reference_key(qualified_name)
@@ -139,13 +131,6 @@ class SymbolTable:
                         start_char=start_char,
                         end_line=end_line,
                         end_char=end_char,
-                        detail=detail,
-                        selection_start_line=sel_start.get("line", start_line),
-                        selection_start_char=sel_start.get("character", start_char),
-                        selection_end_line=sel_end.get("line", end_line),
-                        selection_end_char=sel_end.get("character", end_char),
-                        tags=tuple(sorted(set(sym.get("tags", [])))),
-                        deprecated=bool(sym.get("deprecated", False) or 1 in sym.get("tags", [])),
                     )
                     unq_info.parent_chain = []
                     self._symbols[unqualified_name] = unq_info
@@ -169,15 +154,8 @@ class SymbolTable:
                                 start_char=start_char,
                                 end_line=end_line,
                                 end_char=end_char,
-                                parent_chain=list(partial_chain),
-                                detail=detail,
-                                selection_start_line=sel_start.get("line", start_line),
-                                selection_start_char=sel_start.get("character", start_char),
-                                selection_end_line=sel_end.get("line", end_line),
-                                selection_end_char=sel_end.get("character", end_char),
-                                tags=tuple(sorted(set(sym.get("tags", [])))),
-                                deprecated=bool(sym.get("deprecated", False) or 1 in sym.get("tags", [])),
                             )
+                            p_info.parent_chain = list(partial_chain)
                             self._symbols[partial_name] = p_info
                             p_ref_key = self._naming.build_reference_key(partial_name)
                             self._ref_key_to_symbol[p_ref_key] = p_info

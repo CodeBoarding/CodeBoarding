@@ -9,8 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from static_analyzer.program_info.source_facts import AnnotationFact, ImportFact, TypeUseFact
-
 
 @dataclass
 class SymbolInfo:
@@ -25,18 +23,6 @@ class SymbolInfo:
     end_line: int
     end_char: int
     parent_chain: list[tuple[str, int]] = field(default_factory=list)
-    detail: str = ""
-    selection_start_line: int = 0
-    selection_start_char: int = 0
-    selection_end_line: int = 0
-    selection_end_char: int = 0
-    tags: tuple[int, ...] = ()
-    deprecated: bool = False
-    visibility: str = "unknown"
-    modifiers: tuple[str, ...] = ()
-    annotations: tuple[AnnotationFact, ...] = ()
-    import_evidence: tuple[ImportFact, ...] = ()
-    type_use_evidence: tuple[TypeUseFact, ...] = ()
 
     @property
     def definition_location(self) -> tuple[str, int, int]:
@@ -116,8 +102,6 @@ class LanguageAnalysisResult:
     # No engine populates either yet — the converter reads them, nothing writes them.
     type_references: list[tuple[str, str]] = field(default_factory=list)
     import_edges: list[tuple[str, str]] = field(default_factory=list)
-    source_facts: tuple[object, ...] = ()
-    source_fact_diagnostics: tuple[object, ...] = ()
 
 
 class AnalysisResults:

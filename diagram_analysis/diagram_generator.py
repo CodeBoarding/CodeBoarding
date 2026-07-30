@@ -44,7 +44,6 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
-from diagram_analysis.exceptions import BaselineUnavailableError
 from diagram_analysis.cluster_delta import (
     ChangedMembers,
     ClusterDelta,
@@ -74,8 +73,6 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.program_info.impact import summarize_delta
-from static_analyzer.program_info.models import EdgeEvidence, ProgramInformation, SymbolFact
 from static_analyzer.cluster_relations import build_global_relations, is_self_or_descendant
 from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
@@ -1654,42 +1651,6 @@ def _build_scope_incremental_inputs(
         repo_dir=repo_dir,
         scope_id=scope_id,
         changed=changed_members,
-    )
-    current_static = incremental_agent.static_analysis
-    baseline_static = current_static.incremental_base_results
-    if baseline_static is None:
-        raise BaselineUnavailableError("Scoped program-information delta requires an incremental baseline")
-    assigned_qnames = {
-        method.qualified_name for group in component.file_methods for method in group.methods if method.qualified_name
-    }
-    old_symbols: list[SymbolFact] = []
-    old_edges: list[EdgeEvidence] = []
-    new_symbols: list[SymbolFact] = []
-    new_edges: list[EdgeEvidence] = []
-    languages = sorted(set(baseline_static.get_languages()) | set(current_static.get_languages()), key=str)
-    for language in languages:
-        try:
-            old_information = baseline_static.program_information(language)
-            old_scope = old_information.subgraph_by_symbols(
-                assigned_qnames & {s.qualified_name for s in old_information.symbols}
-            )
-            old_symbols.extend(old_scope.symbols)
-            old_edges.extend(old_scope.edges)
-        except (KeyError, ValueError):
-            pass
-        try:
-            new_information = current_static.program_information(language)
-            new_scope = new_information.subgraph_by_symbols(
-                assigned_qnames & {s.qualified_name for s in new_information.symbols}
-            )
-            new_symbols.extend(new_scope.symbols)
-            new_edges.extend(new_scope.edges)
-        except (KeyError, ValueError):
-            pass
-    old_scope = ProgramInformation(tuple(sorted(set(old_symbols))), tuple(sorted(set(old_edges))))
-    new_scope = ProgramInformation(tuple(sorted(set(new_symbols))), tuple(sorted(set(new_edges))))
-    structural_diff.program_information = summarize_delta(
-        old_scope.snapshot().compare(new_scope.snapshot()), old_scope, new_scope
     )
     return cluster_results, {lang: cfg.program_map_networkx() for lang, cfg in subgraph_cfgs.items()}, structural_diff
 

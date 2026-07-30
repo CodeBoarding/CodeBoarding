@@ -12,6 +12,7 @@ from static_analyzer.cluster_helpers import (
     build_all_cluster_results,
     build_program_map,
     build_program_map_for_languages,
+    build_program_map_profiles,
     reindex_across_languages,
     reindex_cluster_result,
 )
@@ -27,6 +28,40 @@ def _make_cluster_result(prefix: str, count: int) -> ClusterResult:
         cluster_to_files=cluster_to_files,
         file_to_clusters=file_to_clusters,
         strategy="test",
+    )
+
+
+def _profile_fixture() -> tuple[ClusterResult, nx.DiGraph, list[set[int]]]:
+    clusters = {
+        1: {"billing.entry"},
+        2: {"billing.invoice"},
+        3: {"shipping.dispatch"},
+        4: {"shipping.delivery"},
+    }
+    cluster_to_files = {
+        1: {"/repo/billing/entry.py"},
+        2: {"/repo/billing/invoice.py"},
+        3: {"/repo/shipping/dispatch.py"},
+        4: {"/repo/shipping/delivery.py"},
+    }
+    graph = nx.DiGraph()
+    for cluster_id, symbols in clusters.items():
+        for symbol in symbols:
+            graph.add_node(symbol, file_path=next(iter(cluster_to_files[cluster_id])))
+    graph.add_edge("billing.entry", "billing.invoice", weight=3.0)
+    graph.add_edge("billing.invoice", "shipping.dispatch", weight=2.0)
+    graph.add_edge("shipping.dispatch", "shipping.delivery", weight=5.0)
+    graph.add_edge("shipping.delivery", "shipping.dispatch", weight=1.0)
+    graph.add_edge("shipping.delivery", "billing.entry", weight=7.0)
+    return (
+        ClusterResult(
+            clusters=clusters,
+            cluster_to_files=cluster_to_files,
+            file_to_clusters={path: {cluster_id} for cluster_id, paths in cluster_to_files.items() for path in paths},
+            strategy="test",
+        ),
+        graph,
+        [{1, 2}, {3, 4}],
     )
 
 
@@ -225,8 +260,7 @@ class TestProgramMap(unittest.TestCase):
         cr.clusters[big_id] = {f"models.Model{i}" for i in range(60)}  # 60 methods, no call edges
         cr.cluster_to_files[big_id] = {"/repo/models/schema.py"}
         cr.file_to_clusters["/repo/models/schema.py"] = {big_id}
-        for member in cr.clusters[big_id]:
-            graph.add_node(member, file_path="/repo/models/schema.py")
+        graph.add_node("models.Model0", file_path="/repo/models/schema.py")
 
         groups = build_program_map(cr, graph).groups
         owner = next(group for group in groups if big_id in group)
@@ -299,6 +333,128 @@ class TestProgramMap(unittest.TestCase):
 
         self.assertEqual(first.groups, second.groups)
         self.assertEqual(first.codelength, second.codelength)
+
+
+class TestProgramMapProfiles(unittest.TestCase):
+    def test_profiles_keep_the_exact_fitted_group_identity(self):
+        cluster_result, graph, groups = _profile_fixture()
+
+        profiles = build_program_map_profiles(cluster_result, graph, groups)
+
+        self.assertEqual([profile.cluster_ids for profile in profiles], [(1, 2), (3, 4)])
+        self.assertEqual(profiles[0].symbols, ("billing.entry", "billing.invoice"))
+        self.assertEqual(profiles[1].files, ("/repo/shipping/delivery.py", "/repo/shipping/dispatch.py"))
+        self.assertEqual(profiles[0].packages, ("/repo/billing",))
+
+    def test_profiles_measure_directed_internal_and_crossing_flow(self):
+        cluster_result, graph, groups = _profile_fixture()
+
+        billing, shipping = build_program_map_profiles(cluster_result, graph, groups)
+
+        self.assertEqual((billing.internal_flow, billing.incoming_flow, billing.outgoing_flow), (3.0, 7.0, 2.0))
+        self.assertEqual((shipping.internal_flow, shipping.incoming_flow, shipping.outgoing_flow), (6.0, 2.0, 7.0))
+        self.assertAlmostEqual(billing.cohesion, 0.25)
+        self.assertAlmostEqual(billing.coupling, 0.75)
+
+    def test_profiles_rank_boundary_entries_exits_and_hubs_by_weight(self):
+        cluster_result, graph, groups = _profile_fixture()
+
+        billing, shipping = build_program_map_profiles(cluster_result, graph, groups)
+
+        self.assertEqual(billing.entries, ("billing.entry",))
+        self.assertEqual(billing.exits, ("billing.invoice",))
+        self.assertEqual(billing.hubs, ("billing.entry", "billing.invoice"))
+        self.assertEqual(billing.boundary_symbols, ("billing.entry", "billing.invoice"))
+        self.assertEqual(shipping.entries, ("shipping.dispatch",))
+        self.assertEqual(shipping.exits, ("shipping.delivery",))
+
+    def test_profiles_report_cross_group_flow_in_each_direction(self):
+        cluster_result, graph, groups = _profile_fixture()
+
+        billing, shipping = build_program_map_profiles(cluster_result, graph, groups)
+
+        self.assertEqual(billing.outgoing_groups[0].group_id, 1)
+        self.assertEqual(billing.outgoing_groups[0].weight, 2.0)
+        self.assertEqual(billing.incoming_groups[0].group_id, 1)
+        self.assertEqual(billing.incoming_groups[0].weight, 7.0)
+        self.assertEqual(shipping.incoming_groups[0].weight, 2.0)
+        self.assertEqual(shipping.outgoing_groups[0].weight, 7.0)
+
+    def test_profiles_report_internal_cycle_and_dependency_depth(self):
+        cluster_result, graph, groups = _profile_fixture()
+
+        billing, shipping = build_program_map_profiles(cluster_result, graph, groups)
+
+        self.assertEqual(billing.strongly_connected_regions, 2)
+        self.assertEqual(billing.cyclic_regions, 0)
+        self.assertEqual(billing.maximum_dependency_depth, 1)
+        self.assertEqual(shipping.strongly_connected_regions, 1)
+        self.assertEqual(shipping.cyclic_regions, 1)
+        self.assertEqual(shipping.maximum_dependency_depth, 0)
+
+    def test_profiles_have_zero_safe_metrics_when_no_edges_touch_a_group(self):
+        cluster_result, graph, groups = _profile_fixture()
+        graph.remove_edges_from(list(graph.edges))
+
+        profiles = build_program_map_profiles(cluster_result, graph, groups)
+
+        for profile in profiles:
+            self.assertEqual(profile.internal_flow, 0.0)
+            self.assertEqual(profile.coupling, 0.0)
+            self.assertEqual(profile.flow_entropy, 0.0)
+            self.assertEqual(profile.flow_concentration, 0.0)
+            self.assertFalse(profile.entries)
+            self.assertFalse(profile.exits)
+
+    def test_profiles_ignore_edges_outside_the_cluster_scope(self):
+        cluster_result, graph, groups = _profile_fixture()
+        graph.add_node("outside.helper")
+        graph.add_edge("billing.entry", "outside.helper", weight=100.0)
+        graph.add_edge("outside.helper", "shipping.dispatch", weight=100.0)
+
+        billing, shipping = build_program_map_profiles(cluster_result, graph, groups)
+
+        self.assertEqual((billing.incoming_flow, billing.outgoing_flow), (7.0, 2.0))
+        self.assertEqual((shipping.incoming_flow, shipping.outgoing_flow), (2.0, 7.0))
+
+    def test_profiles_reject_non_partitioned_groups(self):
+        cluster_result, graph, _ = _profile_fixture()
+
+        with self.assertRaisesRegex(ValueError, "share clusters"):
+            build_program_map_profiles(cluster_result, graph, [{1, 2}, {2, 3, 4}])
+        with self.assertRaisesRegex(ValueError, "omit clusters"):
+            build_program_map_profiles(cluster_result, graph, [{1, 2}, {3}])
+        with self.assertRaisesRegex(ValueError, "unknown clusters"):
+            build_program_map_profiles(cluster_result, graph, [{1, 2}, {3, 4, 99}])
+
+    def test_profiles_reject_invalid_flow_weights(self):
+        cluster_result, graph, groups = _profile_fixture()
+        graph["billing.entry"]["billing.invoice"]["weight"] = float("nan")
+
+        with self.assertRaisesRegex(ValueError, "invalid weight"):
+            build_program_map_profiles(cluster_result, graph, groups)
+
+    def test_profiles_are_deterministic_when_graph_order_changes(self):
+        cluster_result, graph, groups = _profile_fixture()
+        reversed_graph = nx.DiGraph()
+        reversed_graph.add_nodes_from(reversed(list(graph.nodes(data=True))))
+        reversed_graph.add_edges_from(reversed(list(graph.edges(data=True))))
+
+        self.assertEqual(
+            build_program_map_profiles(cluster_result, graph, groups),
+            build_program_map_profiles(cluster_result, reversed_graph, groups),
+        )
+
+    def test_program_map_exposes_profiles_for_each_fitted_group(self):
+        cluster_result, graph, _ = _profile_fixture()
+
+        program_map = build_program_map(cluster_result, graph, low=2, high=2)
+
+        self.assertEqual(len(program_map.profiles), len(program_map.groups))
+        for group in program_map.groups:
+            self.assertEqual(program_map.group_profile(group).cluster_ids, tuple(sorted(group)))
+        with self.assertRaisesRegex(KeyError, "Unknown fitted"):
+            program_map.group_profile({99})
 
 
 if __name__ == "__main__":

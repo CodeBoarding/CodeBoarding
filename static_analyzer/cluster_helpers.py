@@ -10,10 +10,13 @@ Two stages, both deterministic:
    inter-cluster edge at all, which Infomap leaves as singletons. Each is folded
    into the nearest seed by call proximity, then by directory affinity, with the
    smaller seed winning ties so the tail spreads instead of piling onto one
-   component.
+component.
 """
 
+from __future__ import annotations
+
 import logging
+import math
 import os
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
@@ -24,9 +27,6 @@ import networkx as nx
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig, Language
 from static_analyzer.graph import ClusterResult
-from static_analyzer.program_info.program_map import ProgramGroupProfile, build_group_profiles
-from static_analyzer.program_info.projection import from_projection
-from static_analyzer.program_info.models import ProgramInformation, SymbolFact
 
 logger = logging.getLogger(__name__)
 
@@ -42,22 +42,7 @@ SUBCOMPONENTS_MIN = 3
 SUBCOMPONENTS_MAX = 8
 
 INFOMAP_TRIALS = 10
-
-
-class ProgramMapExecutionError(RuntimeError):
-    """Infomap could not execute for the requested program-map scope."""
-
-
-def _profile_information(cluster_result: ClusterResult, graph: nx.DiGraph) -> ProgramInformation:
-    """Decode evidence, with concrete facts for an entirely absent legacy projection."""
-    information = from_projection(graph)
-    if information.symbols or not cluster_result.clusters:
-        return information
-    symbols: list[SymbolFact] = []
-    for cluster_id, members in sorted(cluster_result.clusters.items()):
-        file_path = min(cluster_result.cluster_to_files.get(cluster_id, {""}))
-        symbols.extend(SymbolFact(name, 0, file_path, 0, 0) for name in sorted(members))
-    return ProgramInformation(tuple(sorted(symbols)), ())
+PROGRAM_MAP_PROFILE_LIMIT = 8
 
 
 def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
@@ -175,6 +160,164 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
     return meta_graph
 
 
+def _validate_profile_groups(cluster_result: ClusterResult, groups: list[set[int]]) -> None:
+    """Require the fitted groups to cover each leaf cluster exactly once."""
+    expected = set(cluster_result.clusters)
+    assigned: set[int] = set()
+    for group_id, group in enumerate(groups):
+        if not group:
+            raise ValueError(f"Program-map group {group_id} is empty")
+        unknown = group - expected
+        duplicate = group & assigned
+        if unknown:
+            raise ValueError(f"Program-map group {group_id} contains unknown clusters {sorted(unknown)}")
+        if duplicate:
+            raise ValueError(f"Program-map groups share clusters {sorted(duplicate)}")
+        assigned.update(group)
+    if missing := expected - assigned:
+        raise ValueError(f"Program-map groups omit clusters {sorted(missing)}")
+
+
+def _rank_flow_symbols(weights: Counter[str], limit: int) -> tuple[str, ...]:
+    return tuple(name for name, _ in sorted(weights.items(), key=lambda item: (-item[1], item[0]))[:limit])
+
+
+def _group_dependency_depth(graph: nx.DiGraph) -> tuple[int, int, int, tuple[str, ...]]:
+    """Measure SCC regions and their condensed dependency depth."""
+    if not graph:
+        return 0, 0, 0, ()
+    regions = sorted(
+        (tuple(sorted(region)) for region in nx.strongly_connected_components(graph)), key=lambda region: region
+    )
+    owner = {symbol: index for index, region in enumerate(regions) for symbol in region}
+    condensed = nx.DiGraph()
+    condensed.add_nodes_from(range(len(regions)))
+    condensed.add_edges_from(
+        sorted({(owner[source], owner[target]) for source, target in graph.edges if owner[source] != owner[target]})
+    )
+    depth: dict[int, int] = {}
+    for region_id in nx.lexicographical_topological_sort(condensed, key=lambda index: regions[index]):
+        depth[region_id] = max((depth[parent] + 1 for parent in condensed.predecessors(region_id)), default=0)
+    cyclic = sum(len(region) > 1 or graph.has_edge(region[0], region[0]) for region in regions)
+    bridges = tuple(sorted(nx.articulation_points(graph.to_undirected()))) if len(graph) > 1 else ()
+    return len(regions), cyclic, max(depth.values(), default=0), bridges
+
+
+def _rank_group_flows(
+    flows: dict[tuple[int, int], float],
+    group_id: int,
+    outgoing: bool,
+    limit: int,
+) -> tuple[InterGroupFlow, ...]:
+    ranked = [
+        InterGroupFlow(destination if outgoing else source, weight)
+        for (source, destination), weight in flows.items()
+        if (source if outgoing else destination) == group_id
+    ]
+    return tuple(sorted(ranked, key=lambda flow: (-flow.weight, flow.group_id))[:limit])
+
+
+def build_program_map_profiles(
+    cluster_result: ClusterResult,
+    cfg_graph: nx.DiGraph,
+    groups: list[set[int]],
+    limit: int = PROGRAM_MAP_PROFILE_LIMIT,
+) -> tuple[ProgramGroupProfile, ...]:
+    """Describe the exact bounded groups using their directed weighted program flow."""
+    if limit < 1:
+        raise ValueError("Program-map profile limit must be positive")
+    _validate_profile_groups(cluster_result, groups)
+
+    cluster_by_symbol = {
+        symbol: cluster_id for cluster_id, symbols in cluster_result.clusters.items() for symbol in symbols
+    }
+    group_by_cluster = {cluster_id: group_id for group_id, group in enumerate(groups) for cluster_id in group}
+    symbols_by_group = [
+        {symbol for cluster_id in group for symbol in cluster_result.clusters[cluster_id]} for group in groups
+    ]
+    internal_graphs = [nx.DiGraph() for _ in groups]
+    for graph, symbols in zip(internal_graphs, symbols_by_group):
+        graph.add_nodes_from(sorted(symbols))
+
+    internal = [0.0] * len(groups)
+    incoming = [0.0] * len(groups)
+    outgoing = [0.0] * len(groups)
+    touched_weights: list[list[float]] = [[] for _ in groups]
+    entries = [Counter[str]() for _ in groups]
+    exits = [Counter[str]() for _ in groups]
+    hubs = [Counter[str]() for _ in groups]
+    boundaries = [set[str]() for _ in groups]
+    group_flows: dict[tuple[int, int], float] = defaultdict(float)
+
+    for source, destination, data in cfg_graph.edges(data=True):
+        source_cluster = cluster_by_symbol.get(source)
+        destination_cluster = cluster_by_symbol.get(destination)
+        if source_cluster is None or destination_cluster is None:
+            continue
+        weight = float(data.get("weight", 1.0))
+        if not math.isfinite(weight) or weight < 0:
+            raise ValueError(f"Program-map edge {source} -> {destination} has invalid weight {weight}")
+        source_group = group_by_cluster[source_cluster]
+        destination_group = group_by_cluster[destination_cluster]
+        if source_group == destination_group:
+            internal[source_group] += weight
+            touched_weights[source_group].append(weight)
+            internal_graphs[source_group].add_edge(source, destination, weight=weight)
+            hubs[source_group][source] += weight
+            hubs[source_group][destination] += weight
+            continue
+        outgoing[source_group] += weight
+        incoming[destination_group] += weight
+        touched_weights[source_group].append(weight)
+        touched_weights[destination_group].append(weight)
+        exits[source_group][source] += weight
+        entries[destination_group][destination] += weight
+        hubs[source_group][source] += weight
+        hubs[destination_group][destination] += weight
+        boundaries[source_group].add(source)
+        boundaries[destination_group].add(destination)
+        group_flows[source_group, destination_group] += weight
+
+    profiles = []
+    for group_id, (group, symbols) in enumerate(zip(groups, symbols_by_group)):
+        files = tuple(
+            sorted({path for cluster_id in group for path in cluster_result.cluster_to_files.get(cluster_id, set())})
+        )
+        packages = tuple(sorted({os.path.dirname(path) for path in files}))
+        total = internal[group_id] + incoming[group_id] + outgoing[group_id]
+        weights = touched_weights[group_id]
+        denominator = sum(weights)
+        probabilities = [weight / denominator for weight in weights] if denominator else []
+        regions, cyclic, depth, bridges = _group_dependency_depth(internal_graphs[group_id])
+        possible_internal_edges = len(symbols) * max(1, len(symbols) - 1)
+        profiles.append(
+            ProgramGroupProfile(
+                cluster_ids=tuple(sorted(group)),
+                symbols=tuple(sorted(symbols)),
+                files=files,
+                packages=packages,
+                internal_flow=internal[group_id],
+                incoming_flow=incoming[group_id],
+                outgoing_flow=outgoing[group_id],
+                cohesion=internal[group_id] / total if total else 0.0,
+                coupling=(incoming[group_id] + outgoing[group_id]) / total if total else 0.0,
+                flow_entropy=-sum(probability * math.log2(probability) for probability in probabilities),
+                flow_concentration=sum(probability * probability for probability in probabilities),
+                strongly_connected_regions=regions,
+                cyclic_regions=cyclic,
+                maximum_dependency_depth=depth,
+                entries=_rank_flow_symbols(entries[group_id], limit),
+                exits=_rank_flow_symbols(exits[group_id], limit),
+                hubs=_rank_flow_symbols(hubs[group_id], limit),
+                bridges=bridges[:limit],
+                boundary_symbols=tuple(sorted(boundaries[group_id]))[:limit],
+                incoming_groups=_rank_group_flows(group_flows, group_id, False, limit),
+                outgoing_groups=_rank_group_flows(group_flows, group_id, True, limit),
+            )
+        )
+    return tuple(profiles)
+
+
 def group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> list[str]:
     """Qualified names in a group, most top-level first (fewest name segments)."""
     names = {qname for cid in cluster_ids for qname in node_lookup.get(cid, set())}
@@ -209,6 +352,41 @@ def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> Cluste
 
 
 @dataclass(frozen=True)
+class InterGroupFlow:
+    """Weighted directed flow between two fitted program-map groups."""
+
+    group_id: int
+    weight: float
+
+
+@dataclass(frozen=True)
+class ProgramGroupProfile:
+    """Flow, topology, and boundary facts for one fitted program-map group."""
+
+    cluster_ids: tuple[int, ...]
+    symbols: tuple[str, ...]
+    files: tuple[str, ...]
+    packages: tuple[str, ...]
+    internal_flow: float
+    incoming_flow: float
+    outgoing_flow: float
+    cohesion: float
+    coupling: float
+    flow_entropy: float
+    flow_concentration: float
+    strongly_connected_regions: int
+    cyclic_regions: int
+    maximum_dependency_depth: int
+    entries: tuple[str, ...]
+    exits: tuple[str, ...]
+    hubs: tuple[str, ...]
+    bridges: tuple[str, ...]
+    boundary_symbols: tuple[str, ...]
+    incoming_groups: tuple[InterGroupFlow, ...]
+    outgoing_groups: tuple[InterGroupFlow, ...]
+
+
+@dataclass(frozen=True)
 class ProgramMap:
     """Infomap's hierarchy and the bounded module view consumed by agents."""
 
@@ -224,7 +402,7 @@ class ProgramMap:
         return sum(self.node_flow.get(cluster_id, 0.0) for cluster_id in group)
 
     def group_profile(self, group: set[int]) -> ProgramGroupProfile:
-        """Return the profile whose exact fitted cluster identity matches *group*."""
+        """Return the profile for the exact fitted group identity."""
         identity = tuple(sorted(group))
         for profile in self.profiles:
             if profile.cluster_ids == identity:
@@ -402,19 +580,13 @@ def _score_program_partition(meta_graph: nx.DiGraph, groups: list[set[int]], see
     initial_partition = {
         cluster_id: module_id for module_id, group in enumerate(groups, start=1) for cluster_id in group
     }
-    try:
-        result = infomap.run(
-            meta_graph,
-            directed=True,
-            seed=seed,
-            initial_partition=initial_partition,
-            options=infomap.Options(two_level=True, no_infomap=True),
-        )
-    except Exception as exc:
-        raise ProgramMapExecutionError(
-            f"Infomap fixed-partition scoring failed for {meta_graph.number_of_nodes()} clusters "
-            f"and {meta_graph.number_of_edges()} edges"
-        ) from exc
+    result = infomap.run(
+        meta_graph,
+        directed=True,
+        seed=seed,
+        initial_partition=initial_partition,
+        options=infomap.Options(two_level=True, no_infomap=True),
+    )
     return result.codelength, max(0.0, result.relative_codelength_savings)
 
 
@@ -429,8 +601,7 @@ def build_program_map(
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
     n_leaf = meta_graph.number_of_nodes()
     if n_leaf == 0:
-        information = _profile_information(cluster_result, cfg_graph)
-        return ProgramMap([], {}, {}, 0.0, 0.0, 0, build_group_profiles(cluster_result, information, []))
+        return ProgramMap([], {}, {}, 0.0, 0.0, 0, ())
     high = min(high, n_leaf)
     if meta_graph.number_of_edges() == 0:
         isolated_paths: dict[int, tuple[int, ...]] = {
@@ -441,17 +612,10 @@ def build_program_map(
         total = sum(counts.values()) or n_leaf
         node_flow = {cid: counts.get(cid, 1) / total for cid in meta_graph.nodes}
         groups = _fit_partition_to_budget(communities, meta_graph, cluster_result, counts, low, high)
-        information = _profile_information(cluster_result, cfg_graph)
-        return ProgramMap(
-            groups, node_flow, isolated_paths, 0.0, 0.0, 1, build_group_profiles(cluster_result, information, groups)
-        )
+        profiles = build_program_map_profiles(cluster_result, cfg_graph, groups)
+        return ProgramMap(groups, node_flow, isolated_paths, 0.0, 0.0, 1, profiles)
 
-    try:
-        result = infomap.run(meta_graph, directed=True, seed=seed, num_trials=INFOMAP_TRIALS)
-    except Exception as exc:
-        raise ProgramMapExecutionError(
-            f"Infomap optimization failed for {n_leaf} clusters and {meta_graph.number_of_edges()} edges"
-        ) from exc
+    result = infomap.run(meta_graph, directed=True, seed=seed, num_trials=INFOMAP_TRIALS)
     module_paths = {int(cluster_id): path for cluster_id, path in result.multilevel_modules().items()}
     node_flow = {int(node.node_id): node.flow for node in result.nodes()}
     if n_leaf <= low:
@@ -469,7 +633,7 @@ def build_program_map(
         codelength=codelength,
         compression=compression,
         hierarchy_levels=max((len(path) for path in module_paths.values()), default=0),
-        profiles=build_group_profiles(cluster_result, _profile_information(cluster_result, cfg_graph), groups),
+        profiles=build_program_map_profiles(cluster_result, cfg_graph, groups),
     )
     logger.info(
         f"[ProgramMap] {meta_graph.number_of_nodes()} leaf clusters -> {len(groups)} flow modules "
