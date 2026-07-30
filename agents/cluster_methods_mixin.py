@@ -75,7 +75,7 @@ def _summarize_group(
     if profile.hubs:
         facts.append(f"hubs: {', '.join(profile.hubs[:3])}")
     if profile.weighted_channel_mix:
-        channels = ", ".join(f"{channel.value} {weight:.2f}" for channel, weight in profile.weighted_channel_mix[:3])
+        channels = ", ".join(f"{channel} {weight:.2f}" for channel, weight in profile.weighted_channel_mix[:3])
         facts.append(f"channels {channels}")
     parts.append("Program facts: " + "; ".join(facts) + ".")
     if program_map.quality is not None:
@@ -89,12 +89,12 @@ def _summarize_group(
     if program_map.channels is not None and program_map.channels.profiles:
         dominant = max(
             program_map.channels.profiles,
-            key=lambda channel: (channel.weighted_total, channel.channel.value),
+            key=lambda channel: (channel.weighted_total, channel.channel),
         )
         parts.append(
             "Evidence facts: "
             f"{program_map.channels.typed_symbol_coverage:.1%} symbol coverage; "
-            f"dominant {dominant.channel.value} flow {dominant.weighted_total:.2f}."
+            f"dominant {dominant.channel} flow {dominant.weighted_total:.2f}."
         )
     if program_map.packages is not None:
         parts.append(

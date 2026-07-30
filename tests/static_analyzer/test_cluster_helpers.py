@@ -5,7 +5,6 @@ import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
-    EdgeKind,
     ProgramMapEvidence,
     ProgramMapInformation,
     ProgramMapInformationError,
@@ -35,7 +34,7 @@ from static_analyzer.cluster_helpers import (
     summarize_program_map_delta,
 )
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph, ClusterResult, EdgeKind
 from static_analyzer.node import Node
 
 

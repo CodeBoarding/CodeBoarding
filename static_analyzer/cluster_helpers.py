@@ -32,7 +32,7 @@ import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig, Language
-from static_analyzer.graph import ClusterResult, EdgeKind
+from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +50,12 @@ SUBCOMPONENTS_MAX = 8
 INFOMAP_TRIALS = 10
 PROGRAM_MAP_PROFILE_LIMIT = 8
 
-PROGRAM_MAP_CHANNEL_WEIGHTS: dict[EdgeKind, float] = {
-    EdgeKind.CALL: 1.0,
-    EdgeKind.CONTAINS: 1.0,
-    EdgeKind.INHERITS: 1.25,
-    EdgeKind.TYPEREF: 0.5,
-    EdgeKind.IMPORT: 0.25,
+PROGRAM_MAP_CHANNEL_WEIGHTS: dict[str, float] = {
+    "call": 1.0,
+    "contains": 1.0,
+    "inherits": 1.25,
+    "typeref": 0.5,
+    "import": 0.25,
 }
 
 
@@ -219,13 +219,15 @@ class ProgramMapEvidence:
 
     source: str
     destination: str
-    channel: EdgeKind
+    channel: str
     count: int = 1
     raw_weight: float = 1.0
 
     def __post_init__(self) -> None:
         if (
-            isinstance(self.count, bool)
+            not isinstance(self.channel, str)
+            or self.channel not in PROGRAM_MAP_CHANNEL_WEIGHTS
+            or isinstance(self.count, bool)
             or not isinstance(self.count, int)
             or self.count < 0
             or isinstance(self.raw_weight, bool)
@@ -233,17 +235,15 @@ class ProgramMapEvidence:
             or not math.isfinite(self.raw_weight)
             or self.raw_weight < 0
         ):
-            raise ProgramMapInvalidWeightError(
-                f"Invalid {self.channel.value} evidence {self.source} -> {self.destination}"
-            )
+            raise ProgramMapInvalidWeightError(f"Invalid {self.channel} evidence {self.source} -> {self.destination}")
 
     @property
     def weighted_value(self) -> float:
-        multiplicity = max(1, self.count) if self.channel == EdgeKind.CALL else self.raw_weight
+        multiplicity = max(1, self.count) if self.channel == "call" else self.raw_weight
         return multiplicity * PROGRAM_MAP_CHANNEL_WEIGHTS[self.channel]
 
     @property
-    def key(self) -> tuple[str, str, EdgeKind]:
+    def key(self) -> tuple[str, str, str]:
         return self.source, self.destination, self.channel
 
 
@@ -255,7 +255,7 @@ class ProgramMapStatistics:
     edge_count: int
     evidence_count: int
     total_weight: float
-    channel_counts: tuple[tuple[EdgeKind, int], ...]
+    channel_counts: tuple[tuple[str, int], ...]
     isolated_symbols: int
     density: float
 
@@ -270,15 +270,15 @@ class ProgramMapSymbolProfile:
     caller_count: int
     callee_count: int
     structural_neighbor_count: int
-    incoming_channels: tuple[tuple[EdgeKind, float], ...]
-    outgoing_channels: tuple[tuple[EdgeKind, float], ...]
+    incoming_channels: tuple[tuple[str, float], ...]
+    outgoing_channels: tuple[tuple[str, float], ...]
 
 
 @dataclass(frozen=True)
 class ProgramMapChannelProfile:
     """Coverage and directionality facts for one typed program-map channel."""
 
-    channel: EdgeKind
+    channel: str
     evidence_count: int
     occurrence_count: int
     weighted_total: float
@@ -298,12 +298,12 @@ class ProgramMapChannelAnalysis:
     typed_symbol_coverage: float
     unreferenced_symbols: tuple[str, ...]
 
-    def profile(self, channel: EdgeKind) -> ProgramMapChannelProfile:
+    def profile(self, channel: str) -> ProgramMapChannelProfile:
         """Return one observed channel profile by stable edge kind."""
         for profile in self.profiles:
             if profile.channel == channel:
                 return profile
-        raise KeyError(f"Program-map channel is not represented: {channel.value}")
+        raise KeyError(f"Program-map channel is not represented: {channel}")
 
 
 @dataclass(frozen=True)
@@ -316,7 +316,7 @@ class ProgramMapFlowFacts:
     internal_ratio: float
     entropy: float
     concentration: float
-    channel_mix: tuple[tuple[EdgeKind, float], ...]
+    channel_mix: tuple[tuple[str, float], ...]
     top_incoming: tuple[tuple[str, float], ...]
     top_outgoing: tuple[tuple[str, float], ...]
 
@@ -348,9 +348,9 @@ class ProgramMapDelta:
     added_symbols: tuple[str, ...]
     removed_symbols: tuple[str, ...]
     changed_symbols: tuple[str, ...]
-    added_evidence: tuple[tuple[str, str, EdgeKind], ...]
-    removed_evidence: tuple[tuple[str, str, EdgeKind], ...]
-    changed_evidence: tuple[tuple[str, str, EdgeKind], ...]
+    added_evidence: tuple[tuple[str, str, str], ...]
+    removed_evidence: tuple[tuple[str, str, str], ...]
+    changed_evidence: tuple[tuple[str, str, str], ...]
     statistics_changed: bool
 
     @property
@@ -387,10 +387,10 @@ class ProgramMapSnapshot:
     def _content_payload(information: ProgramMapInformation) -> dict[str, object]:
         return {
             "symbols": [asdict(symbol) for symbol in information.symbols],
-            "evidence": [{**asdict(item), "channel": item.channel.value} for item in information.evidence],
+            "evidence": [{**asdict(item), "channel": item.channel} for item in information.evidence],
             "statistics": {
                 **asdict(information.statistics),
-                "channel_counts": [[channel.value, count] for channel, count in information.statistics.channel_counts],
+                "channel_counts": [[channel, count] for channel, count in information.statistics.channel_counts],
             },
         }
 
@@ -457,10 +457,9 @@ class ProgramMapSnapshot:
         for index, raw_item in enumerate(raw_evidence):
             if not isinstance(raw_item, dict):
                 raise ProgramMapSnapshotError(f"Program-map snapshot evidence {index} must be an object")
-            try:
-                channel = EdgeKind(_snapshot_string(raw_item.get("channel"), f"evidence[{index}].channel"))
-            except ValueError as exc:
-                raise ProgramMapSnapshotError(f"Program-map snapshot evidence {index} has an unknown channel") from exc
+            channel = _snapshot_string(raw_item.get("channel"), f"evidence[{index}].channel")
+            if channel not in PROGRAM_MAP_CHANNEL_WEIGHTS:
+                raise ProgramMapSnapshotError(f"Program-map snapshot evidence {index} has an unknown channel")
             evidence.append(
                 ProgramMapEvidence(
                     _snapshot_string(raw_item.get("source"), f"evidence[{index}].source"),
@@ -543,7 +542,7 @@ class ProgramMapInformation:
 
     @property
     def statistics(self) -> ProgramMapStatistics:
-        channels: Counter[EdgeKind] = Counter(item.channel for item in self.evidence)
+        channels: Counter[str] = Counter(item.channel for item in self.evidence)
         touched = {endpoint for item in self.evidence for endpoint in (item.source, item.destination)}
         count = len(self.symbols)
         return ProgramMapStatistics(
@@ -556,7 +555,7 @@ class ProgramMapInformation:
             density=len({(item.source, item.destination) for item in self.evidence}) / (count * max(1, count - 1)),
         )
 
-    def incoming(self, qualified_name: str, channels: set[EdgeKind] | None = None) -> tuple[ProgramMapEvidence, ...]:
+    def incoming(self, qualified_name: str, channels: set[str] | None = None) -> tuple[ProgramMapEvidence, ...]:
         self.symbol(qualified_name)
         return tuple(
             item
@@ -564,7 +563,7 @@ class ProgramMapInformation:
             if item.destination == qualified_name and (channels is None or item.channel in channels)
         )
 
-    def outgoing(self, qualified_name: str, channels: set[EdgeKind] | None = None) -> tuple[ProgramMapEvidence, ...]:
+    def outgoing(self, qualified_name: str, channels: set[str] | None = None) -> tuple[ProgramMapEvidence, ...]:
         self.symbol(qualified_name)
         return tuple(
             item
@@ -573,15 +572,15 @@ class ProgramMapInformation:
         )
 
     def symbol_profiles(self) -> tuple[ProgramMapSymbolProfile, ...]:
-        incoming: dict[str, Counter[EdgeKind]] = defaultdict(Counter)
-        outgoing: dict[str, Counter[EdgeKind]] = defaultdict(Counter)
+        incoming: dict[str, Counter[str]] = defaultdict(Counter)
+        outgoing: dict[str, Counter[str]] = defaultdict(Counter)
         callers: dict[str, set[str]] = defaultdict(set)
         callees: dict[str, set[str]] = defaultdict(set)
         structural: dict[str, set[str]] = defaultdict(set)
         for item in self.evidence:
             incoming[item.destination][item.channel] += item.weighted_value
             outgoing[item.source][item.channel] += item.weighted_value
-            if item.channel == EdgeKind.CALL:
+            if item.channel == "call":
                 callers[item.destination].add(item.source)
                 callees[item.source].add(item.destination)
             else:
@@ -619,14 +618,17 @@ def _decode_program_map_evidence(
         weight = attrs.get("weight", 1.0)
         if not isinstance(weight, (int, float)) or not math.isfinite(weight) or weight < 0:
             raise ProgramMapInvalidWeightError(f"Program-map edge {source} -> {destination} has invalid weight")
-        return (ProgramMapEvidence(source, destination, EdgeKind.CALL, max(1, int(weight)), 1.0),)
+        return (ProgramMapEvidence(source, destination, "call", max(1, int(weight)), 1.0),)
     if not isinstance(encoded, (tuple, list)):
         raise ProgramMapInformationError(f"Malformed evidence on {source} -> {destination}")
     result = []
     for item in encoded:
         try:
             channel, count, raw_weight = item
-            result.append(ProgramMapEvidence(source, destination, EdgeKind(channel), int(count), float(raw_weight)))
+            channel = str(channel)
+            if channel not in PROGRAM_MAP_CHANNEL_WEIGHTS:
+                raise ValueError(channel)
+            result.append(ProgramMapEvidence(source, destination, channel, int(count), float(raw_weight)))
         except (TypeError, ValueError) as exc:
             raise ProgramMapInformationError(f"Malformed evidence on {source} -> {destination}") from exc
     return tuple(sorted(result))
@@ -680,7 +682,7 @@ def program_map_projection(information: ProgramMapInformation) -> nx.DiGraph:
         graph.add_edge(
             source,
             destination,
-            evidence=tuple((item.channel.value, item.count, item.raw_weight) for item in items),
+            evidence=tuple((item.channel, item.count, item.raw_weight) for item in items),
             weight=sum(item.weighted_value for item in items),
         )
     return graph
@@ -693,7 +695,7 @@ def analyze_program_map_channels(
     """Measure how call and structural evidence cover the analyzed symbol space."""
     if limit < 1:
         raise ValueError("Program-map channel limit must be positive")
-    evidence_by_channel: dict[EdgeKind, list[ProgramMapEvidence]] = defaultdict(list)
+    evidence_by_channel: dict[str, list[ProgramMapEvidence]] = defaultdict(list)
     for item in information.evidence:
         evidence_by_channel[item.channel].append(item)
     profiles = []
@@ -748,7 +750,7 @@ def analyze_program_map_flow(
         raise KeyError(f"Unknown program-map symbols: {sorted(unknown)}")
     incoming: Counter[str] = Counter()
     outgoing: Counter[str] = Counter()
-    channels: Counter[EdgeKind] = Counter()
+    channels: Counter[str] = Counter()
     internal = crossing = 0.0
     weights: list[float] = []
     for item in information.evidence:
@@ -840,7 +842,7 @@ class ProgramMapModuleFlow:
     source_module: int
     destination_module: int
     weight: float
-    channels: tuple[tuple[EdgeKind, float], ...]
+    channels: tuple[tuple[str, float], ...]
 
 
 @dataclass(frozen=True)
@@ -875,7 +877,7 @@ class ProgramMapPackageFlow:
     source_package: str
     destination_package: str
     weight: float
-    channels: tuple[tuple[EdgeKind, float], ...]
+    channels: tuple[tuple[str, float], ...]
 
 
 @dataclass(frozen=True)
@@ -930,7 +932,7 @@ def analyze_program_map_modules(
     if exact and known != owner.keys():
         raise ProgramMapInformationError(f"Module cover omits {sorted(known - owner.keys())}")
 
-    crossing: dict[tuple[int, int], Counter[EdgeKind]] = defaultdict(Counter)
+    crossing: dict[tuple[int, int], Counter[str]] = defaultdict(Counter)
     boundaries: dict[int, set[str]] = {module_id: set() for module_id in partition}
     incoming: dict[int, Counter[str]] = {module_id: Counter() for module_id in partition}
     outgoing: dict[int, Counter[str]] = {module_id: Counter() for module_id in partition}
@@ -990,7 +992,7 @@ def analyze_program_map_packages(
     incoming: dict[str, Counter[str]] = defaultdict(Counter)
     outgoing: dict[str, Counter[str]] = defaultdict(Counter)
     boundaries: dict[str, set[str]] = defaultdict(set)
-    crossing: dict[tuple[str, str], Counter[EdgeKind]] = defaultdict(Counter)
+    crossing: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
     for item in information.evidence:
         source_package = package_by_symbol[item.source]
         destination_package = package_by_symbol[item.destination]
@@ -1029,7 +1031,7 @@ class ProgramMapImpactedSymbol:
     qualified_name: str
     depth: int
     directions: tuple[str, ...]
-    channels: tuple[EdgeKind, ...]
+    channels: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -1040,7 +1042,7 @@ class ProgramMapDeltaSurface:
     package_count: int
     affected_files: tuple[str, ...]
     affected_packages: tuple[str, ...]
-    channel_weight_delta: tuple[tuple[EdgeKind, float], ...]
+    channel_weight_delta: tuple[tuple[str, float], ...]
 
 
 @dataclass(frozen=True)
@@ -1053,7 +1055,7 @@ class ProgramMapDeltaSummary:
     added_evidence_count: int = 0
     removed_evidence_count: int = 0
     changed_evidence_count: int = 0
-    changed_channels: tuple[EdgeKind, ...] = ()
+    changed_channels: tuple[str, ...] = ()
     added_symbols: tuple[str, ...] = ()
     removed_symbols: tuple[str, ...] = ()
     changed_symbols: tuple[str, ...] = ()
@@ -1082,13 +1084,13 @@ class ProgramMapDeltaSummary:
             f"evidence +{self.added_evidence_count}/-{self.removed_evidence_count}/~{self.changed_evidence_count}",
         ]
         if self.changed_channels:
-            parts.append("channels " + ", ".join(channel.value for channel in self.changed_channels))
+            parts.append("channels " + ", ".join(channel for channel in self.changed_channels))
         if self.impacted_symbols:
             parts.append(
                 "impact: "
                 + ", ".join(
                     f"{item.qualified_name}@{item.depth}[{'/'.join(item.directions)}:"
-                    f"{'/'.join(channel.value for channel in item.channels)}]"
+                    f"{'/'.join(channel for channel in item.channels)}]"
                     for item in self.impacted_symbols
                 )
             )
@@ -1104,13 +1106,13 @@ def _program_map_impact(
     max_depth: int,
     limit: int,
 ) -> tuple[ProgramMapImpactedSymbol, ...]:
-    adjacency: dict[str, list[tuple[str, str, EdgeKind]]] = defaultdict(list)
+    adjacency: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
     for item in sorted(set(old.evidence) | set(new.evidence)):
         adjacency[item.source].append((item.destination, "out", item.channel))
         adjacency[item.destination].append((item.source, "in", item.channel))
     queue = deque((symbol, 0) for symbol in sorted(seeds))
     visited = set(seeds)
-    facts: dict[tuple[str, int], tuple[set[str], set[EdgeKind]]] = {}
+    facts: dict[tuple[str, int], tuple[set[str], set[str]]] = {}
     while queue:
         current, depth = queue.popleft()
         if depth >= max_depth:
@@ -1155,7 +1157,7 @@ def _program_map_delta_surface(
         packages[symbol.package] += 1
     old_evidence = {item.key: item for item in old.evidence}
     new_evidence = {item.key: item for item in new.evidence}
-    channel_delta: Counter[EdgeKind] = Counter()
+    channel_delta: Counter[str] = Counter()
     for key in changed_keys:
         old_item = old_evidence.get(key)
         new_item = new_evidence.get(key)
@@ -1250,7 +1252,7 @@ def _group_dependency_depth(graph: nx.DiGraph) -> tuple[int, int, int, tuple[str
 
 
 def _rank_group_flows(
-    flows: dict[tuple[int, int], Counter[EdgeKind]],
+    flows: dict[tuple[int, int], Counter[str]],
     group_id: int,
     outgoing: bool,
     limit: int,
@@ -1295,9 +1297,9 @@ def build_program_map_profiles(
     exits = [Counter[str]() for _ in groups]
     hubs = [Counter[str]() for _ in groups]
     boundaries = [set[str]() for _ in groups]
-    raw_channels = [Counter[EdgeKind]() for _ in groups]
-    weighted_channels = [Counter[EdgeKind]() for _ in groups]
-    group_flows: dict[tuple[int, int], Counter[EdgeKind]] = defaultdict(Counter)
+    raw_channels = [Counter[str]() for _ in groups]
+    weighted_channels = [Counter[str]() for _ in groups]
+    group_flows: dict[tuple[int, int], Counter[str]] = defaultdict(Counter)
 
     for item in information.evidence:
         source_cluster = cluster_by_symbol.get(item.source)
@@ -1413,7 +1415,7 @@ class InterGroupFlow:
 
     group_id: int
     weight: float
-    channels: tuple[tuple[EdgeKind, float], ...]
+    channels: tuple[tuple[str, float], ...]
 
 
 @dataclass(frozen=True)
@@ -1425,8 +1427,8 @@ class ProgramGroupProfile:
     symbols: tuple[str, ...]
     files: tuple[str, ...]
     packages: tuple[str, ...]
-    raw_channel_mix: tuple[tuple[EdgeKind, int], ...]
-    weighted_channel_mix: tuple[tuple[EdgeKind, float], ...]
+    raw_channel_mix: tuple[tuple[str, int], ...]
+    weighted_channel_mix: tuple[tuple[str, float], ...]
     internal_flow: float
     incoming_flow: float
     outgoing_flow: float
