@@ -4,7 +4,7 @@ See what your AI is building before it breaks.
 
 CodeBoarding gives developers and coding agents a visual map of a codebase. It combines static analysis with LLM reasoning to generate architecture diagrams, component-level documentation, and navigable outputs you can use in your IDE, CI, and docs.
 
-[Website](https://codeboarding.org) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" /> · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" /> · [Explore examples](https://codeboarding.org/diagrams) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> · [GitHub Action](https://github.com/marketplace/actions/codeboarding-action) ·[Discord](https://discord.gg/T5zHTJYFuy)
+[Website](https://codeboarding.org) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" /> · [Web platform](https://app.codeboarding.org) · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" /> · [Explore examples](https://codeboarding.org/diagrams) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> · [GitHub Action](https://github.com/marketplace/actions/codeboarding-action) · [Discord](https://discord.gg/T5zHTJYFuy)
 
 [![CodeBoarding demo](https://gist.githubusercontent.com/ivanmilevtues/1c4f921066613516cfd7b938014a6877/raw/611aec7711556807860ff2e1679a5dc4c0c23fed/CodeBoarding_extension_demo.gif)](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" />
 
@@ -91,7 +91,9 @@ codeboarding-setup
 codeboarding full --local /path/to/repo
 ```
 
-Output is written to `/path/to/repo/.codeboarding/`.
+Output is written to `/path/to/repo/.codeboarding/`. To explore it interactively, open the
+[web platform](https://app.codeboarding.org) and drop in the generated `analysis.json` — it stays
+in your browser, nothing is uploaded. (The CLI prints this reminder after every successful run.)
 
 `python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
 
@@ -150,6 +152,7 @@ python main.py full https://github.com/pytorch/pytorch
 ## Where to use it
 
 - [CLI](https://github.com/CodeBoarding/CodeBoarding) for local analysis, automation, and CI workflows.
+- [Web platform](https://app.codeboarding.org) to explore any analysis in the browser — open a public repo, load an `analysis.json`, or review an architecture diff on a pull request.
 - [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> for in-editor visual architecture.
 - [GitHub Action](https://github.com/marketplace/actions/codeboarding-action) to keep diagrams updated in CI.
 
@@ -163,6 +166,7 @@ python main.py full https://github.com/pytorch/pytorch
 - Visualized 800+ open-source repositories.
 - Browse generated examples in [GeneratedOnBoardings](https://github.com/CodeBoarding/GeneratedOnBoardings).
 - Try the hosted explorer at [codeboarding.org/diagrams](https://codeboarding.org/diagrams) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" />.
+- Open any public repo that has a committed `.codeboarding/analysis.json` at [app.codeboarding.org](https://app.codeboarding.org) — no install, no login. This repo included: [app.codeboarding.org/CodeBoarding/CodeBoarding](https://app.codeboarding.org/CodeBoarding/CodeBoarding).
 
 ## Telemetry
 

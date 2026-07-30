@@ -71,12 +71,16 @@ def generate_rst(
 
     # Add CodeBoarding footer
     lines.append("")
-    lines.append("| |codeboarding-badge| |demo-badge| |contact-badge|")
+    lines.append("| |codeboarding-badge| |platform-badge| |demo-badge| |contact-badge|")
     lines.append("")
     lines.append(
         ".. |codeboarding-badge| image:: https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square"
     )
     lines.append("   :target: https://github.com/CodeBoarding/CodeBoarding")
+    lines.append(
+        ".. |platform-badge| image:: https://img.shields.io/badge/Open%20in-Web%20platform-2563EB?style=flat-square"
+    )
+    lines.append("   :target: https://app.codeboarding.org")
     lines.append(".. |demo-badge| image:: https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square")
     lines.append("   :target: https://www.codeboarding.org/demo")
     lines.append(
