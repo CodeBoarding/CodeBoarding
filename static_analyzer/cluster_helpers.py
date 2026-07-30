@@ -1,12 +1,13 @@
-"""Group a language's leaf clusters into the architecture's top-level components.
+"""Build a flow-based program map from static-analysis leaf clusters.
 
 Two stages, both deterministic:
 
-1. **Partition** — resolution-tuned Leiden over a weighted meta-graph of
-   inter-cluster call edges picks both the component count (the modularity peak
-   over ``[low, high]``) and the membership. The LLM only names the result.
+1. **Map** — hierarchical Infomap over a weighted, directed meta-graph of
+   inter-cluster calls identifies modules that trap program flow. The closest
+   hierarchy level is deterministically fitted to the architecture's size range.
+   The LLM only names the result.
 2. **Absorption** — real call graphs carry a long tail of leaf clusters with no
-   inter-cluster edge at all, which Leiden leaves as singletons. Each is folded
+   inter-cluster edge at all, which Infomap leaves as singletons. Each is folded
    into the nearest seed by call proximity, then by directory affinity, with the
    smaller seed winning ties so the tail spreads instead of piling onto one
    component.
@@ -17,19 +18,18 @@ import os
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
 
+import infomap
 import networkx as nx
-import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig, Language
-from static_analyzer.graph import ClusterResult, detect_communities
+from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
 
 # Range for the number of top-level architecture components. The exact count N
-# inside this range is chosen deterministically by the modularity peak of a
-# resolution-tuned Leiden partition (see ``supercluster_leaf_ids``), not by the
-# LLM — so the component structure is stable across re-runs.
+# inside this range is selected from Infomap's program-flow hierarchy, not by
+# the LLM, so the component structure is stable across re-runs.
 TOP_LEVEL_COMPONENTS_MIN = 5
 TOP_LEVEL_COMPONENTS_MAX = 8
 
@@ -38,11 +38,7 @@ TOP_LEVEL_COMPONENTS_MAX = 8
 SUBCOMPONENTS_MIN = 3
 SUBCOMPONENTS_MAX = 8
 
-# Resolution ladder swept to steer Leiden toward a target community count.
-# Ascending: higher resolution -> more, finer communities. Reaches well past 1.0
-# so a graph with a large connected core can still be over-segmented to any N in
-# the target range before absorbing leftovers back down.
-_RESOLUTION_LADDER = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0)
+INFOMAP_TRIALS = 10
 
 
 def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
@@ -135,8 +131,8 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
 
     Each node is a cluster ID. Each edge ``(src_cid, dst_cid)`` carries the
     number of CFG calls from ``src_cid`` members into ``dst_cid`` members.
-    Mutual coupling A<->B becomes two separate edges, each contributing
-    independently to directed Leicht-Newman modularity.
+    Mutual coupling A<->B becomes two separate flows, preserving direction for
+    Infomap and for the incremental drift score.
     """
     node_to_cluster: dict[str, int] = {}
     for cluster_id, nodes in cluster_result.clusters.items():
@@ -144,17 +140,17 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
             node_to_cluster[node] = cluster_id
 
     meta_graph = nx.DiGraph()
-    for cid in cluster_result.clusters:
+    for cid in sorted(cluster_result.clusters):
         meta_graph.add_node(cid)
 
-    edge_weights: dict[tuple[int, int], int] = defaultdict(int)
-    for src, dst in cfg_graph.edges():
+    edge_weights: dict[tuple[int, int], float] = defaultdict(float)
+    for src, dst, data in cfg_graph.edges(data=True):
         src_cid = node_to_cluster.get(src)
         dst_cid = node_to_cluster.get(dst)
         if src_cid is not None and dst_cid is not None and src_cid != dst_cid:
-            edge_weights[(src_cid, dst_cid)] += 1
+            edge_weights[(src_cid, dst_cid)] += float(data.get("weight", 1.0))
 
-    for (src_cid, dst_cid), weight in edge_weights.items():
+    for (src_cid, dst_cid), weight in sorted(edge_weights.items()):
         meta_graph.add_edge(src_cid, dst_cid, weight=weight)
 
     return meta_graph
@@ -189,95 +185,46 @@ def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> Cluste
 
 
 # ---------------------------------------------------------------------------
-# Partitioning
+# Program map
 # ---------------------------------------------------------------------------
 
 
-def _pick_peak_partition(
-    meta_graph: nx.DiGraph,
-    low: int,
-    high: int,
-    seed: int,
-) -> list[set[int]]:
-    """Sweep the resolution ladder and return the partition at the modularity peak in ``[low, high]``.
+@dataclass(frozen=True)
+class ProgramMap:
+    """Infomap's hierarchy and the bounded module view consumed by agents."""
 
-    "N" counts *non-singleton* communities (size >= 2 leaf clusters) — the
-    connected structure Leiden actually resolves — because real call graphs
-    carry a long tail of isolated leaf clusters that would otherwise pin the raw
-    community count far above ``high`` at every resolution. Among partitions
-    whose non-singleton count lands in range, the highest-modularity one wins.
-    Falls back to the partition whose count is closest to the range when none
-    lands inside it (or to all-singletons on an edgeless graph).
-    """
-    if meta_graph.number_of_edges() == 0:
-        return [{cid} for cid in meta_graph.nodes]
+    groups: list[set[int]]
+    node_flow: dict[int, float]
+    module_paths: dict[int, tuple[int, ...]]
+    codelength: float
+    compression: float
+    hierarchy_levels: int
 
-    candidates: list[tuple[int, float, list[set[int]]]] = []
-    for resolution in _RESOLUTION_LADDER:
-        try:
-            communities: list[set[int]] = detect_communities(
-                meta_graph, weight="weight", resolution=resolution, seed=seed
-            )
-        except Exception as e:  # noqa: BLE001 - a bad resolution shouldn't abort the sweep
-            logger.debug(f"[SuperCluster] resolution={resolution} failed: {e}")
-            continue
-        n_real = sum(1 for community in communities if len(community) >= 2)
-        modularity = nx_comm.modularity(meta_graph, communities, weight="weight")
-        candidates.append((n_real, modularity, communities))
-        logger.debug(f"[SuperCluster] resolution={resolution}: n_real={n_real} modularity={modularity:.4f}")
+    def group_flow(self, group: set[int]) -> float:
+        return sum(self.node_flow.get(cluster_id, 0.0) for cluster_id in group)
 
-    if not candidates:
-        return [{cid} for cid in meta_graph.nodes]
 
-    in_range = [c for c in candidates if low <= c[0] <= high]
+def _partition_at_depth(module_paths: dict[int, tuple[int, ...]], depth: int) -> list[set[int]]:
+    modules: dict[tuple[int, ...], set[int]] = defaultdict(set)
+    for cluster_id, path in module_paths.items():
+        modules[path[: min(depth, len(path))]].add(cluster_id)
+    return list(modules.values())
+
+
+def _select_hierarchy_partition(module_paths: dict[int, tuple[int, ...]], low: int, high: int) -> list[set[int]]:
+    """Select the coarsest Infomap hierarchy level inside the component budget."""
+    max_depth = max((len(path) for path in module_paths.values()), default=1)
+    partitions = [_partition_at_depth(module_paths, depth) for depth in range(1, max_depth + 1)]
+    in_range = [partition for partition in partitions if low <= len(partition) <= high]
     if in_range:
-        n_real, modularity, communities = max(in_range, key=lambda c: c[1])
-        logger.info(f"[SuperCluster] modularity peak at N={n_real} (modularity={modularity:.4f}) over [{low},{high}]")
-        return communities
+        return in_range[0]
 
-    def range_distance(n_real: int) -> int:
-        return 0 if low <= n_real <= high else min(abs(n_real - low), abs(n_real - high))
+    def range_distance(partition: list[set[int]]) -> tuple[int, int]:
+        count = len(partition)
+        distance = low - count if count < low else count - high
+        return distance, -count
 
-    n_real, _, communities = min(candidates, key=lambda c: (range_distance(c[0]), -c[1]))
-    logger.info(f"[SuperCluster] no partition with N in [{low},{high}]; using closest (N={n_real})")
-    return communities
-
-
-def _seeds_from_partition(
-    communities: list[set[int]],
-    method_count: dict[int, int],
-    low: int,
-    high: int,
-) -> tuple[list[set[int]], list[int]]:
-    """Split a partition into top-level *seed* communities and leftover leaf clusters.
-
-    Seeds are the non-singleton communities (ranked by total method count),
-    capped at ``high``. When there are fewer than ``low`` seeds, the largest
-    leftover leaf clusters are promoted to their own seed so a genuinely big but
-    call-isolated module (e.g. a data-model file nothing calls) still becomes a
-    component instead of being folded into another. Everything else is a
-    leftover to be absorbed.
-    """
-    reals = sorted(
-        (set(c) for c in communities if len(c) >= 2),
-        key=lambda community: (sum(method_count.get(cid, 0) for cid in community), -min(community)),
-        reverse=True,
-    )
-    leftovers = [cid for c in communities if len(c) == 1 for cid in c]
-
-    if len(reals) > high:
-        leftovers.extend(cid for community in reals[high:] for cid in community)
-        reals = reals[:high]
-
-    # Biggest clusters first (they anchor packages), tie-broken by id, so the
-    # order absorption sees never depends on set iteration order.
-    leftovers.sort(key=lambda cid: (-method_count.get(cid, 0), cid))
-
-    seeds = reals
-    while len(seeds) < low and leftovers:
-        seeds.append({leftovers.pop(0)})
-
-    return seeds, leftovers
+    return min(partitions, key=range_distance)
 
 
 def _cluster_packages(cid: int, cluster_result: ClusterResult) -> set[str]:
@@ -366,94 +313,151 @@ def _method_counts(cluster_result: ClusterResult) -> dict[int, int]:
     return {cid: len(members) for cid, members in cluster_result.clusters.items()}
 
 
-def _modularity(meta_graph: nx.DiGraph, groups: list[set[int]]) -> float:
-    """0.0 on an edgeless meta-graph — there is nothing to separate."""
-    return nx_comm.modularity(meta_graph, groups, weight="weight") if meta_graph.number_of_edges() else 0.0
-
-
-def _optimize_grouping(
+def _fit_partition_to_budget(
+    communities: list[set[int]],
     meta_graph: nx.DiGraph,
     cluster_result: ClusterResult,
     method_count: dict[int, int],
     low: int,
     high: int,
-    seed: int,
-) -> tuple[list[set[int]], float]:
-    """The from-scratch partition of a prebuilt meta-graph, with every leftover absorbed."""
-    n_leaf = meta_graph.number_of_nodes()
-    if n_leaf == 0:
-        return [], 0.0
-    if n_leaf <= low:
-        # Fewer leaf clusters than the floor — each is its own component.
-        return [{cid} for cid in meta_graph.nodes], 0.0
+) -> list[set[int]]:
+    """Bound an Infomap hierarchy cut while retaining every leaf cluster."""
+    modules = sorted(
+        (set(community) for community in communities if len(community) >= 2),
+        key=lambda group: (-sum(method_count.get(cid, 0) for cid in group), min(group)),
+    )
+    singletons = sorted(
+        (next(iter(community)) for community in communities if len(community) == 1),
+        key=lambda cid: (-method_count.get(cid, 0), cid),
+    )
+    seeds = modules[:high]
+    overflow = modules[high:]
 
-    high = min(high, n_leaf)
-    communities = _pick_peak_partition(meta_graph, low, high, seed)
-    seeds, leftovers = _seeds_from_partition(communities, method_count, low, high)
+    while len(seeds) < low and singletons:
+        seeds.append({singletons.pop(0)})
+    if not seeds and singletons:
+        seeds.append({singletons.pop(0)})
+
+    for community in overflow:
+        sizes = [sum(method_count.get(cid, 0) for cid in seed) for seed in seeds]
+        coupling = [
+            sum(
+                float(meta_graph.get_edge_data(src, dst, {}).get("weight", 0.0))
+                + float(meta_graph.get_edge_data(dst, src, {}).get("weight", 0.0))
+                for src in community
+                for dst in seed
+            )
+            for seed in seeds
+        ]
+        target = min(range(len(seeds)), key=lambda index: (-coupling[index], sizes[index], index))
+        seeds[target].update(community)
+
     if seeds:
-        _absorb_leftovers(seeds, leftovers, meta_graph, cluster_result, method_count)
-    # Score the grouping we actually return, not the pre-absorption communities: absorbing
-    # singletons into seeds changes the modularity, and callers compare this number against
-    # the carried grouping's own modularity (the drift gate) and against the expansion
-    # threshold. A stale pre-absorption score would misjudge both.
-    return seeds, _modularity(meta_graph, seeds if seeds else communities)
+        _absorb_leftovers(seeds, singletons, meta_graph, cluster_result, method_count)
+
+    while len(seeds) < low:
+        splittable = [group for group in seeds if len(group) > 1]
+        if not splittable:
+            break
+        source = max(splittable, key=lambda group: (sum(method_count.get(cid, 0) for cid in group), -min(group)))
+        promoted = min(source, key=lambda cid: (-method_count.get(cid, 0), cid))
+        source.remove(promoted)
+        seeds.append({promoted})
+
+    return sorted(seeds, key=lambda group: min(group))
 
 
-def supercluster_by_modularity_peak(
+def _score_program_partition(meta_graph: nx.DiGraph, groups: list[set[int]], seed: int) -> tuple[float, float]:
+    """Evaluate the exact bounded partition without letting Infomap move nodes."""
+    if meta_graph.number_of_edges() == 0:
+        return 0.0, 0.0
+    initial_partition = {
+        cluster_id: module_id for module_id, group in enumerate(groups, start=1) for cluster_id in group
+    }
+    result = infomap.run(
+        meta_graph,
+        directed=True,
+        seed=seed,
+        initial_partition=initial_partition,
+        options=infomap.Options(two_level=True, no_infomap=True),
+    )
+    return result.codelength, max(0.0, result.relative_codelength_savings)
+
+
+def build_program_map(
     cluster_result: ClusterResult,
     cfg_graph: nx.DiGraph,
     low: int = TOP_LEVEL_COMPONENTS_MIN,
     high: int = TOP_LEVEL_COMPONENTS_MAX,
     seed: int = ClusteringConfig.CLUSTERING_SEED,
-) -> tuple[list[set[int]], float]:
-    """Group leaf clusters into N components; return the groups and the split's modularity.
-
-    Resolution tuning steers Leiden over the weighted inter-cluster meta-graph;
-    N (the number of components) is the modularity peak among partitions with
-    ``[low, high]`` non-singleton communities. Those communities become seeds and
-    every remaining leaf cluster is absorbed into the nearest one. The groups are
-    a complete, disjoint cover of the leaf clusters.
-
-    The returned modularity scores the partition the sweep chose, so a caller
-    deciding *whether* to split and a caller performing the split read the same
-    number.
-    """
+) -> ProgramMap:
+    """Map directed program flow between static-analysis leaf clusters with Infomap."""
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
-    groups, modularity = _optimize_grouping(meta_graph, cluster_result, _method_counts(cluster_result), low, high, seed)
-    logger.info(
-        f"[SuperCluster] {meta_graph.number_of_nodes()} leaf clusters -> {len(groups)} components "
-        f"(modularity={modularity:.4f}, sizes {sorted((len(g) for g in groups), reverse=True)})"
+    n_leaf = meta_graph.number_of_nodes()
+    if n_leaf == 0:
+        return ProgramMap([], {}, {}, 0.0, 0.0, 0)
+    high = min(high, n_leaf)
+    if meta_graph.number_of_edges() == 0:
+        isolated_paths: dict[int, tuple[int, ...]] = {
+            cid: (index,) for index, cid in enumerate(sorted(meta_graph.nodes), start=1)
+        }
+        communities = [{cid} for cid in sorted(meta_graph.nodes)]
+        counts = _method_counts(cluster_result)
+        total = sum(counts.values()) or n_leaf
+        node_flow = {cid: counts.get(cid, 1) / total for cid in meta_graph.nodes}
+        groups = _fit_partition_to_budget(communities, meta_graph, cluster_result, counts, low, high)
+        return ProgramMap(groups, node_flow, isolated_paths, 0.0, 0.0, 1)
+
+    result = infomap.run(meta_graph, directed=True, seed=seed, num_trials=INFOMAP_TRIALS)
+    module_paths = {int(cluster_id): path for cluster_id, path in result.multilevel_modules().items()}
+    node_flow = {int(node.node_id): node.flow for node in result.nodes()}
+    if n_leaf <= low:
+        groups = [{cid} for cid in sorted(meta_graph.nodes)]
+    else:
+        communities = _select_hierarchy_partition(module_paths, low, high)
+        groups = _fit_partition_to_budget(
+            communities, meta_graph, cluster_result, _method_counts(cluster_result), low, high
+        )
+    codelength, compression = _score_program_partition(meta_graph, groups, seed)
+    program_map = ProgramMap(
+        groups=groups,
+        node_flow=node_flow,
+        module_paths=module_paths,
+        codelength=codelength,
+        compression=compression,
+        hierarchy_levels=max((len(path) for path in module_paths.values()), default=0),
     )
-    return groups, modularity
+    logger.info(
+        f"[ProgramMap] {meta_graph.number_of_nodes()} leaf clusters -> {len(groups)} flow modules "
+        f"(codelength={program_map.codelength:.4f}, compression={program_map.compression:.1%}, "
+        f"hierarchy={program_map.hierarchy_levels}, sizes {sorted((len(g) for g in groups), reverse=True)})"
+    )
+    return program_map
 
 
-def supercluster_leaf_ids(
+def build_program_map_for_languages(
     cluster_results: dict[str, ClusterResult],
     cfg_graphs: dict[str, nx.DiGraph],
     low: int = TOP_LEVEL_COMPONENTS_MIN,
     high: int = TOP_LEVEL_COMPONENTS_MAX,
     seed: int = ClusteringConfig.CLUSTERING_SEED,
-) -> tuple[list[set[int]], float]:
-    """Partition all languages' leaf clusters into component groups, with the split's modularity.
+) -> ProgramMap:
+    """Build one program map across all languages in the current static-analysis scope.
 
-    Builds one combined meta-graph across languages (leaf-cluster IDs are already
-    globally unique) so the returned groups sum to a single top-level count in
-    ``[low, high]``. Each group is a set of leaf-cluster IDs; the LLM later only
-    names and describes these fixed groups.
+    Leaf-cluster IDs are globally unique, so every language shares one component
+    budget and one Infomap hierarchy before the result enters the agentic layer.
     """
     combined = combine_cluster_results(cluster_results)
     combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
-    return supercluster_by_modularity_peak(combined, combined_cfg, low, high, seed)
+    return build_program_map(combined, combined_cfg, low, high, seed)
 
 
 # ---------------------------------------------------------------------------
 # Anchored regrouping (the incremental path)
 # ---------------------------------------------------------------------------
 
-# How far the carried-forward grouping may fall behind a freshly optimized one
-# before the structure is re-derived from scratch. Modularity difference, so it
-# is comparable across repos. Below it, identity is worth more than the last
-# few points of coupling; above it, the diagram no longer describes the code.
+# How far the carried grouping's compression may trail the fresh ProgramMap
+# before the structure is re-derived.
 REGROUP_DRIFT_BUDGET = 0.10
 
 
@@ -512,7 +516,7 @@ def anchored_grouping(
 ) -> AnchoredGrouping:
     """Repair the previous grouping against a new clustering instead of re-deriving one.
 
-    ``supercluster_by_modularity_peak`` re-optimizes from scratch. Modularity has a
+    ``build_program_map`` re-optimizes from scratch. Flow-map optimization has a
     degenerate solution landscape — many partitions score within noise of each other —
     so a two-line diff can select a different near-optimal partition and reshuffle which
     component owns what. Deterministic, but not continuous, and the incremental path
@@ -541,12 +545,13 @@ def anchored_grouping(
             carried[owner].add(cid)
     if not carried:
         # Nothing to anchor to — a first run, or a baseline that shares no cluster.
-        fresh, _ = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
+        fresh = build_program_map(cluster_result, cfg_graph, low, high, seed).groups
         return AnchoredGrouping(fresh, [""] * len(fresh), True)
 
     owners = sorted(carried)
     groups = [carried[owner] for owner in owners]
-    fresh_groups, fresh_modularity = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
+    fresh_map = build_program_map(cluster_result, cfg_graph, low, high, seed)
+    fresh_groups = fresh_map.groups
     newcomers = set(live) - {cid for group in groups for cid in group}
 
     # A whole new subsystem arriving must become its own component, not be scattered into
@@ -561,17 +566,26 @@ def anchored_grouping(
     if absorbed:
         _absorb_leftovers(groups, absorbed, meta_graph, cluster_result, method_count)
 
-    modularity = _modularity(meta_graph, groups)
-    if fresh_modularity - modularity > drift_budget:
+    effective_high = min(high, len(live))
+    if len(groups) > effective_high:
         logger.info(
-            f"[Anchored] carried grouping scores {modularity:.4f} vs {fresh_modularity:.4f} fresh "
-            f"(> {drift_budget} budget); re-deriving structure from scratch"
+            f"[Anchored] carried grouping has {len(groups)} components above "
+            f"the {effective_high} maximum; re-deriving structure from ProgramMap"
+        )
+        return AnchoredGrouping(fresh_groups, _inherit_ids(fresh_groups, previous_owner, method_count), True)
+
+    _, carried_compression = _score_program_partition(meta_graph, groups, seed)
+    if fresh_map.compression - carried_compression > drift_budget:
+        logger.info(
+            f"[Anchored] carried compression {carried_compression:.1%} vs "
+            f"{fresh_map.compression:.1%} fresh (> {drift_budget:.1%} budget); "
+            "re-deriving structure from ProgramMap"
         )
         return AnchoredGrouping(fresh_groups, _inherit_ids(fresh_groups, previous_owner, method_count), True)
 
     logger.info(
         f"[Anchored] {len(live)} leaf clusters -> {len(groups)} components carried forward "
         f"({len(new_subsystems)} new component(s), {len(absorbed)} clusters absorbed, "
-        f"modularity={modularity:.4f} vs {fresh_modularity:.4f} fresh)"
+        f"compression={carried_compression:.1%} vs {fresh_map.compression:.1%} fresh)"
     )
     return AnchoredGrouping(groups, owners, False)

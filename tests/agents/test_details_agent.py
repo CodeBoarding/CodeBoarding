@@ -196,11 +196,12 @@ class TestDetailsAgent(unittest.TestCase):
         mock_subgraph.cluster.assert_called_once()
 
     def test_step_clusters_grouping(self):
-        # Grouping is deterministic (resolution-tuned Leiden on the subgraph), no LLM call.
+        # Grouping is deterministic (Infomap over the subgraph), no LLM call.
         agent = self._make_agent()
         cr, graph = self._clustered_graph(range(1, 11))
         subgraph_cfg = MagicMock()
         subgraph_cfg.clustering_networkx.return_value = graph
+        subgraph_cfg.program_map_networkx.return_value = graph
         subgraph_cluster_results = {"python": cr}
         subgraph_cfgs = {"python": subgraph_cfg}
 

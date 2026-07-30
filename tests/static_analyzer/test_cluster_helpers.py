@@ -7,11 +7,13 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
     TOP_LEVEL_COMPONENTS_MAX,
     TOP_LEVEL_COMPONENTS_MIN,
+    _build_meta_graph,
+    _score_program_partition,
     build_all_cluster_results,
+    build_program_map,
+    build_program_map_for_languages,
     reindex_across_languages,
     reindex_cluster_result,
-    supercluster_by_modularity_peak,
-    supercluster_leaf_ids,
 )
 from static_analyzer.graph import ClusterResult
 
@@ -116,7 +118,7 @@ class TestClusterHelpers(unittest.TestCase):
         self.assertEqual(set(cr.clusters.keys()), set(range(1, 11)))
 
 
-class TestSuperClusterModularityPeak(unittest.TestCase):
+class TestProgramMap(unittest.TestCase):
     @staticmethod
     def _blocks(n_blocks: int, per_block: int, weak_bridges: bool = True):
         """A ClusterResult + meta-friendly cfg with ``n_blocks`` tight blocks of leaf clusters."""
@@ -153,28 +155,39 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
 
     def test_recovers_natural_block_count_within_range(self):
         cr, graph = self._blocks(n_blocks=6, per_block=5)
-        groups, modularity = supercluster_by_modularity_peak(cr, graph)
-        self.assertEqual(len(groups), 6)
-        self.assertGreater(modularity, 0.5)
-        self._assert_partition(groups, range(1, 31))
+        program_map = build_program_map(cr, graph)
+        self.assertEqual(len(program_map.groups), 6)
+        self.assertGreater(program_map.compression, 0.4)
+        self._assert_partition(program_map.groups, range(1, 31))
 
     def test_count_is_clamped_to_range(self):
         # 10 natural blocks, but the count must not exceed the max.
         cr, graph = self._blocks(n_blocks=10, per_block=4)
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
+        groups = build_program_map(cr, graph).groups
         self.assertTrue(TOP_LEVEL_COMPONENTS_MIN <= len(groups) <= TOP_LEVEL_COMPONENTS_MAX)
         self._assert_partition(groups, range(1, 41))
 
+    def test_count_clamping_keeps_infomap_modules_atomic(self):
+        cr, graph = self._blocks(n_blocks=10, per_block=4)
+
+        program_map = build_program_map(cr, graph)
+        natural_modules: dict[tuple[int, ...], set[int]] = {}
+        for cluster_id, path in program_map.module_paths.items():
+            natural_modules.setdefault(path, set()).add(cluster_id)
+
+        for module in natural_modules.values():
+            self.assertTrue(any(module <= group for group in program_map.groups))
+
     def test_deterministic_across_runs(self):
         cr, graph = self._blocks(n_blocks=7, per_block=4)
-        first, first_q = supercluster_by_modularity_peak(cr, graph)
-        second, second_q = supercluster_by_modularity_peak(cr, graph)
-        self.assertEqual(sorted(map(sorted, first)), sorted(map(sorted, second)))
-        self.assertEqual(first_q, second_q)
+        first = build_program_map(cr, graph)
+        second = build_program_map(cr, graph)
+        self.assertEqual(sorted(map(sorted, first.groups)), sorted(map(sorted, second.groups)))
+        self.assertEqual(first.codelength, second.codelength)
 
     def test_fewer_clusters_than_floor_returns_singletons(self):
         cr, graph = self._blocks(n_blocks=1, per_block=3, weak_bridges=False)
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
+        groups = build_program_map(cr, graph).groups
         self.assertEqual(len(groups), 3)
         self._assert_partition(groups, range(1, 4))
 
@@ -196,7 +209,7 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         for cid in range(1, 41):
             graph.add_node(f"n{cid}", file_path=next(iter(cluster_to_files[cid])))
 
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
+        groups = build_program_map(cr, graph).groups
 
         self.assertEqual(len(groups), TOP_LEVEL_COMPONENTS_MIN)
         self._assert_partition(groups, range(1, 41))
@@ -214,7 +227,7 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         cr.file_to_clusters["/repo/models/schema.py"] = {big_id}
         graph.add_node("models.Model0", file_path="/repo/models/schema.py")
 
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
+        groups = build_program_map(cr, graph).groups
         owner = next(group for group in groups if big_id in group)
         # It seeded its own group rather than being absorbed into a larger one.
         self.assertEqual(owner, {big_id})
@@ -226,21 +239,65 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         js_clusters = {cid: cr_py.clusters[cid] for cid in range(16, 31)}
         py = ClusterResult(clusters=py_clusters, cluster_to_files=cr_py.cluster_to_files, strategy="t")
         js = ClusterResult(clusters=js_clusters, cluster_to_files=cr_py.cluster_to_files, strategy="t")
-        groups, _modularity = supercluster_leaf_ids(
+        groups = build_program_map_for_languages(
             {"python": py, "javascript": js}, {"python": graph, "javascript": graph}
-        )
+        ).groups
         self.assertTrue(TOP_LEVEL_COMPONENTS_MIN <= len(groups) <= TOP_LEVEL_COMPONENTS_MAX)
         self._assert_partition(groups, range(1, 31))
 
-    def test_modularity_is_zero_without_inter_cluster_edges(self):
+    def test_compression_is_zero_without_inter_cluster_edges(self):
         cr, graph = self._blocks(n_blocks=6, per_block=5, weak_bridges=False)
         # Strip every edge so the meta-graph has nothing to separate.
         graph = nx.DiGraph()
         for cid, members in cr.clusters.items():
             for member in members:
                 graph.add_node(member, file_path=next(iter(cr.cluster_to_files[cid])))
-        _groups, modularity = supercluster_by_modularity_peak(cr, graph)
-        self.assertEqual(modularity, 0.0)
+        program_map = build_program_map(cr, graph)
+        self.assertEqual(program_map.compression, 0.0)
+
+    def test_program_map_exposes_normalized_flow_and_hierarchy(self):
+        cr, graph = self._blocks(n_blocks=6, per_block=5)
+
+        program_map = build_program_map(cr, graph)
+
+        self.assertAlmostEqual(sum(program_map.node_flow.values()), 1.0)
+        self.assertEqual(set(program_map.module_paths), set(cr.clusters))
+        self.assertGreaterEqual(program_map.hierarchy_levels, 1)
+
+    def test_published_quality_scores_the_bounded_groups(self):
+        cr, graph = self._blocks(n_blocks=10, per_block=4)
+
+        program_map = build_program_map(cr, graph)
+        expected_codelength, expected_compression = _score_program_partition(
+            _build_meta_graph(cr, graph), program_map.groups, 42
+        )
+
+        self.assertAlmostEqual(program_map.codelength, expected_codelength)
+        self.assertAlmostEqual(program_map.compression, expected_compression)
+
+    def test_small_directed_graph_still_uses_infomap_flow(self):
+        cr, graph = self._blocks(n_blocks=1, per_block=3, weak_bridges=False)
+        graph.remove_edges_from(list(graph.edges))
+        graph.add_edge("n1_0", "n2_0", weight=20.0)
+        graph.add_edge("n2_0", "n3_0", weight=1.0)
+        graph.add_edge("n3_0", "n2_0", weight=1.0)
+
+        program_map = build_program_map(cr, graph)
+
+        self.assertEqual(len(program_map.groups), 3)
+        self.assertEqual(len(set(round(flow, 6) for flow in program_map.node_flow.values())), 3)
+
+    def test_graph_insertion_order_does_not_change_the_program_map(self):
+        cr, graph = self._blocks(n_blocks=6, per_block=5)
+        reversed_graph = nx.DiGraph()
+        reversed_graph.add_nodes_from(reversed(list(graph.nodes(data=True))))
+        reversed_graph.add_edges_from(reversed(list(graph.edges(data=True))))
+
+        first = build_program_map(cr, graph)
+        second = build_program_map(cr, reversed_graph)
+
+        self.assertEqual(first.groups, second.groups)
+        self.assertEqual(first.codelength, second.codelength)
 
 
 if __name__ == "__main__":

@@ -412,6 +412,25 @@ class CallGraph:
                 nx_graph.add_edge(rsrc, rdst)
         return nx_graph
 
+    def program_map_networkx(self, reference_kinds: Collection[str] | None = None) -> nx.DiGraph:
+        """Build the weighted directed flow graph consumed by Infomap."""
+        kinds = set(ClusteringConfig.CLUSTERING_EDGE_KINDS if reference_kinds is None else reference_kinds)
+        base = self.clustering_networkx(reference_kinds)
+        graph = nx.DiGraph()
+        graph.add_nodes_from(base.nodes(data=True))
+
+        for edge in sorted(self.edges, key=lambda item: (item.get_source(), item.get_destination())):
+            weight = max(1, len(edge.call_sites))
+            graph.add_edge(edge.get_source(), edge.get_destination(), weight=float(weight))
+
+        for src, dst, kind in sorted(getattr(self, "reference_edges", ())):
+            rsrc, rdst = self._resolve_name(src), self._resolve_name(dst)
+            if kind not in kinds or rsrc not in self.nodes or rdst not in self.nodes:
+                continue
+            weight = graph.get_edge_data(rsrc, rdst, {}).get("weight", 0.0) + 1.0
+            graph.add_edge(rsrc, rdst, weight=weight)
+        return graph
+
     def cluster(
         self,
         target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,

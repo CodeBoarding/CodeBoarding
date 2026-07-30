@@ -25,12 +25,13 @@ from diagram_analysis.file_index import build_files_index
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
+    ProgramMap,
     TOP_LEVEL_COMPONENTS_MAX,
     TOP_LEVEL_COMPONENTS_MIN,
+    build_program_map_for_languages,
     combine_cluster_results,
     group_symbols,
     reindex_across_languages,
-    supercluster_leaf_ids,
 )
 from static_analyzer.cluster_relations import (
     build_component_relations,
@@ -48,6 +49,7 @@ def _summarize_group(
     group: set[int],
     node_lookup: dict[int, set[str]],
     file_lookup: dict[int, set[str]],
+    program_map: ProgramMap,
     max_symbols: int = 12,
     max_files: int = 8,
 ) -> str:
@@ -56,7 +58,11 @@ def _summarize_group(
     files = sorted({path for cid in group for path in file_lookup.get(cid, set())})
     file_names = [Path(path).name for path in files]
 
-    parts = [f"{len(group)} leaf clusters, {len(symbols)} symbols across {len(files)} files."]
+    parts = [
+        f"{len(group)} leaf clusters, {len(symbols)} symbols across {len(files)} files. "
+        f"Infomap flow: {program_map.group_flow(group):.1%}; program-map compression: "
+        f"{program_map.compression:.1%} across {program_map.hierarchy_levels} module level(s)."
+    ]
     if file_names:
         shown = ", ".join(file_names[:max_files])
         parts.append(f"Files: {shown}{', ...' if len(file_names) > max_files else ''}")
@@ -117,31 +123,31 @@ class ClusterMethodsMixin:
         low: int = TOP_LEVEL_COMPONENTS_MIN,
         high: int = TOP_LEVEL_COMPONENTS_MAX,
     ) -> ClusterAnalysis:
-        """Partition leaf clusters into fixed component groups via resolution-tuned Leiden.
+        """Map leaf clusters into fixed components via hierarchical Infomap.
 
-        The count (modularity peak over ``[low, high]``) and membership are chosen
-        deterministically, so the structure is stable across re-runs — the LLM no
-        longer decides it. Each group gets a stable ``Group i`` label and a summary
-        of its members; the final-analysis step only names and describes them.
+        Directed static calls define program flow. Infomap derives its hierarchy,
+        and the closest level is deterministically fitted to ``[low, high]``.
+        Each group gets a stable label and flow-aware summary; the final-analysis
+        step only names and describes it.
 
         ``cfg_graphs`` must span exactly the same scope as ``cluster_results`` — the
         component's own subgraph when splitting a component, the whole repo at the
         top level. Handing it the repo graph for a component scope makes the split
         disagree with the separability gate, which reads the subgraph.
         """
-        groups, _modularity = supercluster_leaf_ids(cluster_results, cfg_graphs, low, high)
+        program_map = build_program_map_for_languages(cluster_results, cfg_graphs, low, high)
         combined = combine_cluster_results(cluster_results)
         cluster_components = [
             ClustersComponent(
                 name=f"Group {i}",
                 cluster_ids=sorted(group),
-                description=_summarize_group(group, combined.clusters, combined.cluster_to_files),
+                description=_summarize_group(group, combined.clusters, combined.cluster_to_files, program_map),
             )
-            for i, group in enumerate(groups, start=1)
+            for i, group in enumerate(program_map.groups, start=1)
         ]
         logger.info(
-            f"[{type(self).__name__}] Partitioned {sum(len(g) for g in groups)} leaf clusters "
-            f"into {len(cluster_components)} deterministic groups"
+            f"[{type(self).__name__}] Mapped {sum(len(g) for g in program_map.groups)} leaf clusters "
+            f"into {len(cluster_components)} deterministic flow modules"
         )
         return ClusterAnalysis(cluster_components=cluster_components)
 
@@ -151,7 +157,7 @@ class ClusterMethodsMixin:
         cluster_analysis: ClusterAnalysis,
         cluster_results: dict[str, ClusterResult],
     ) -> None:
-        """Force exactly one component per fixed group — the count is Leiden's, not the LLM's.
+        """Force exactly one component per fixed group — the count is Infomap's, not the LLM's.
 
         The groups (and their membership) are decided deterministically upstream;
         the LLM only names and describes them. Whatever the LLM returns, we pin the
