@@ -23,6 +23,7 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 
@@ -72,6 +73,7 @@ def _collect_checks_for_language(
     static_analysis: StaticAnalysisResults,
     language: Language,
     config: HealthCheckConfig,
+    ignore_manager: RepoIgnoreManager,
 ) -> CheckSummaryList:
     """Run all applicable health checks for a single language and return the summaries."""
     summaries: CheckSummaryList = []
@@ -82,7 +84,7 @@ def _collect_checks_for_language(
     except ValueError:
         hierarchy = None
 
-    summaries.append(check_function_size(call_graph, config))
+    summaries.append(check_function_size(call_graph, config, ignore_manager))
     summaries.append(check_fan_out(call_graph, config))
     summaries.append(check_fan_in(call_graph, config))
     summaries.append(check_god_classes(call_graph, hierarchy, config))
@@ -193,17 +195,17 @@ def _relativize_report_paths(
 def run_health_checks(
     static_analysis: StaticAnalysisResults,
     repo_name: str,
+    repo_path: Path | str,
     config: HealthCheckConfig | None = None,
-    repo_path: Path | str | None = None,
 ) -> HealthReport | None:
     """Run all health checks against the static analysis results and produce a HealthReport.
 
     Args:
         static_analysis: The static analysis results to check.
         repo_name: Name of the repository.
+        repo_path: Repository root. Sources the live ``.codeboardingignore`` and makes
+            report paths relative for portability.
         config: Optional health check configuration overrides.
-        repo_path: Repository root path. When provided, all file paths in the
-            report are made relative to this directory for portability.
 
     Returns:
         A HealthReport, or None if no languages were found in the static analysis.
@@ -216,12 +218,12 @@ def run_health_checks(
         logger.warning("No languages found in static analysis results; skipping health checks")
         return None
 
-    repo_root = str(repo_path) if repo_path is not None else None
+    ignore_manager = RepoIgnoreManager(Path(repo_path))
 
     check_summaries: CheckSummaryList = []
 
     for language in languages:
-        lang_summaries = _collect_checks_for_language(static_analysis, language, config)
+        lang_summaries = _collect_checks_for_language(static_analysis, language, config, ignore_manager)
         if len(languages) > 1:
             for summary in lang_summaries:
                 summary.language = language
@@ -230,8 +232,7 @@ def run_health_checks(
     overall_score = _compute_overall_score(check_summaries)
     file_summaries = _aggregate_file_summaries(check_summaries)
 
-    if repo_root:
-        _relativize_report_paths(check_summaries, file_summaries, repo_root)
+    _relativize_report_paths(check_summaries, file_summaries, str(repo_path))
 
     return HealthReport(
         repository_name=repo_name,

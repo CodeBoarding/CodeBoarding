@@ -141,10 +141,6 @@ gruntfile*
 """
 
 
-# Compiled pathspec from the template — used by RepoIgnoreManager.should_skip_file()
-_DEFAULT_SPEC = pathspec.PathSpec.from_lines("gitwildmatch", CODEBOARDINGIGNORE_TEMPLATE.splitlines())
-
-
 # Directories that are always excluded, even without a .codeboardingignore file.
 # These contain compiled output, dependency installs, or tooling artifacts —
 # never source code, regardless of language or user preference.
@@ -292,18 +288,6 @@ class RepoIgnoreManager:
                     if not getattr(ke, "file_path", None) or not self.should_ignore(Path(ke.file_path))
                 ]
         return analysis
-
-    @staticmethod
-    def should_skip_file(file_path: str | Path | None) -> bool:
-        """Check if a file path matches default exclusion patterns.
-
-        Standalone check for contexts where no RepoIgnoreManager instance is
-        available (health checks, incremental analysis). Uses the default
-        .codeboardingignore template patterns.
-        """
-        if not file_path:
-            return False
-        return _DEFAULT_SPEC.match_file(str(file_path))
 
     def categorize_file(self, path: Path) -> str:
         """Return the exclusion reason for a file.
