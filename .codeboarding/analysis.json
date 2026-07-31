@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-07-30T16:08:02.707226+00:00",
-    "source_tree_hash": "a565ec3862be2615713deea9e86fb92de05e86755bddeeb158f7d819bf807646",
+    "generated_at": "2026-07-31T16:12:54.665186+00:00",
+    "source_tree_hash": "ff1cf5c6d1060575fb235fb754116391935f86f5b17904f86ffb62984768cdfb",
     "repo_name": "CodeBoarding",
     "depth_level": 4,
     "depth_cap": 4,
@@ -2314,8 +2314,8 @@
         "health/runner.py|health.runner._relativize_report_paths",
         "health/runner.py|health.runner.run_health_checks"
       ],
-      "content_hash": "1f6aa21381ef990a",
-      "module_hash": "d65bbbc7d2e3852d"
+      "content_hash": "b2bd1ca8535248c2",
+      "module_hash": "f6fa4d5668969e70"
     },
     "health_main.py": {
       "method_keys": [
@@ -2454,12 +2454,11 @@
         "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
         "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.filter_paths",
         "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.strip_ignored",
-        "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_skip_file",
         "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.categorize_file",
         "repo_utils/ignore.py|repo_utils.ignore.initialize_codeboardingignore"
       ],
-      "content_hash": "535d0422a65f78fd",
-      "module_hash": "e6f8beac21bad8a1"
+      "content_hash": "5c25dbe44999f388",
+      "module_hash": "e55b1a5e1edc8207"
     },
     "agents/tools/component_bridge_edges.py": {
       "method_keys": [
@@ -2513,8 +2512,8 @@
         "health/checks/function_size.py|health.checks.function_size.collect_function_sizes",
         "health/checks/function_size.py|health.checks.function_size.check_function_size"
       ],
-      "content_hash": "7903ea254efcaa21",
-      "module_hash": "ea0acbefbd17a6db"
+      "content_hash": "0497e4bfa5215962",
+      "module_hash": "98f614509533b7ab"
     },
     "health/checks/god_class.py": {
       "method_keys": [
@@ -14883,66 +14882,66 @@
     "health/runner.py|health.runner._matches_exclude_pattern": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._matches_exclude_pattern",
-      "start_line": 34,
-      "end_line": 41,
+      "start_line": 35,
+      "end_line": 42,
       "type": "FUNCTION",
       "content_hash": "3b00cefc5f193fa4"
     },
     "health/runner.py|health.runner._apply_exclude_patterns": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._apply_exclude_patterns",
-      "start_line": 44,
-      "end_line": 63,
+      "start_line": 45,
+      "end_line": 64,
       "type": "FUNCTION",
       "content_hash": "498d96119ec0a255"
     },
     "health/runner.py|health.runner._relativize_path": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._relativize_path",
-      "start_line": 66,
-      "end_line": 68,
+      "start_line": 67,
+      "end_line": 69,
       "type": "FUNCTION",
       "content_hash": "2ad7ab2a297aaeb9"
     },
     "health/runner.py|health.runner._collect_checks_for_language": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._collect_checks_for_language",
-      "start_line": 71,
-      "end_line": 131,
+      "start_line": 72,
+      "end_line": 133,
       "type": "FUNCTION",
-      "content_hash": "04856e8c72c6c791"
+      "content_hash": "f34d6fad23fd2b3d"
     },
     "health/runner.py|health.runner._compute_overall_score": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._compute_overall_score",
-      "start_line": 134,
-      "end_line": 142,
+      "start_line": 136,
+      "end_line": 144,
       "type": "FUNCTION",
       "content_hash": "1c65daac077aaf92"
     },
     "health/runner.py|health.runner._aggregate_file_summaries": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._aggregate_file_summaries",
-      "start_line": 145,
-      "end_line": 171,
+      "start_line": 147,
+      "end_line": 173,
       "type": "FUNCTION",
       "content_hash": "885650fa44ec3766"
     },
     "health/runner.py|health.runner._relativize_report_paths": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._relativize_report_paths",
-      "start_line": 174,
-      "end_line": 190,
+      "start_line": 176,
+      "end_line": 192,
       "type": "FUNCTION",
       "content_hash": "54eb385cc1b04dca"
     },
     "health/runner.py|health.runner.run_health_checks": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner.run_health_checks",
-      "start_line": 193,
-      "end_line": 242,
+      "start_line": 195,
+      "end_line": 243,
       "type": "FUNCTION",
-      "content_hash": "ce5d47a87e48309d"
+      "content_hash": "459f0d7fed5aacd7"
     },
     "health_main.py|health_main.run_health_check_local": {
       "file_path": "health_main.py",
@@ -15531,88 +15530,80 @@
     "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager": {
       "file_path": "repo_utils/ignore.py",
       "qualified_name": "repo_utils.ignore.RepoIgnoreManager",
-      "start_line": 166,
-      "end_line": 336,
+      "start_line": 162,
+      "end_line": 320,
       "type": "CLASS",
-      "content_hash": "e72b47396e4752e4"
+      "content_hash": "da2f6ebf14e397ae"
     },
     "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.__init__": {
       "file_path": "repo_utils/ignore.py",
       "qualified_name": "repo_utils.ignore.RepoIgnoreManager.__init__",
-      "start_line": 175,
-      "end_line": 177,
+      "start_line": 171,
+      "end_line": 173,
       "type": "METHOD",
       "content_hash": "09cab2672e5ebd5c"
     },
     "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.reload": {
       "file_path": "repo_utils/ignore.py",
       "qualified_name": "repo_utils.ignore.RepoIgnoreManager.reload",
-      "start_line": 179,
-      "end_line": 191,
+      "start_line": 175,
+      "end_line": 187,
       "type": "METHOD",
       "content_hash": "2b22f6b856c4993f"
     },
     "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager._load_gitignore_patterns": {
       "file_path": "repo_utils/ignore.py",
       "qualified_name": "repo_utils.ignore.RepoIgnoreManager._load_gitignore_patterns",
-      "start_line": 193,
-      "end_line": 208,
+      "start_line": 189,
+      "end_line": 204,
       "type": "METHOD",
       "content_hash": "6d773825984d4fca"
     },
     "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager._load_codeboardingignore_patterns": {
       "file_path": "repo_utils/ignore.py",
       "qualified_name": "repo_utils.ignore.RepoIgnoreManager._load_codeboardingignore_patterns",
-      "start_line": 210,
-      "end_line": 228,
+      "start_line": 206,
+      "end_line": 224,
       "type": "METHOD",
       "content_hash": "923d852d7fb1b176"
     },
     "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore": {
       "file_path": "repo_utils/ignore.py",
       "qualified_name": "repo_utils.ignore.RepoIgnoreManager.should_ignore",
-      "start_line": 230,
-      "end_line": 258,
+      "start_line": 226,
+      "end_line": 254,
       "type": "METHOD",
       "content_hash": "94bb76f4b63ae93b"
     },
     "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.filter_paths": {
       "file_path": "repo_utils/ignore.py",
       "qualified_name": "repo_utils.ignore.RepoIgnoreManager.filter_paths",
-      "start_line": 260,
-      "end_line": 262,
+      "start_line": 256,
+      "end_line": 258,
       "type": "METHOD",
       "content_hash": "595b3e7238a05c59"
     },
     "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.strip_ignored": {
       "file_path": "repo_utils/ignore.py",
       "qualified_name": "repo_utils.ignore.RepoIgnoreManager.strip_ignored",
-      "start_line": 264,
-      "end_line": 294,
+      "start_line": 260,
+      "end_line": 290,
       "type": "METHOD",
       "content_hash": "3acc7a2b87194e16"
-    },
-    "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_skip_file": {
-      "file_path": "repo_utils/ignore.py",
-      "qualified_name": "repo_utils.ignore.RepoIgnoreManager.should_skip_file",
-      "start_line": 297,
-      "end_line": 306,
-      "type": "METHOD",
-      "content_hash": "e59d1680c40dbc2d"
     },
     "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.categorize_file": {
       "file_path": "repo_utils/ignore.py",
       "qualified_name": "repo_utils.ignore.RepoIgnoreManager.categorize_file",
-      "start_line": 308,
-      "end_line": 336,
+      "start_line": 292,
+      "end_line": 320,
       "type": "METHOD",
       "content_hash": "b11e91aad1dfc998"
     },
     "repo_utils/ignore.py|repo_utils.ignore.initialize_codeboardingignore": {
       "file_path": "repo_utils/ignore.py",
       "qualified_name": "repo_utils.ignore.initialize_codeboardingignore",
-      "start_line": 339,
-      "end_line": 352,
+      "start_line": 323,
+      "end_line": 336,
       "type": "FUNCTION",
       "content_hash": "6a23e084d74b7caf"
     },
@@ -15755,18 +15746,18 @@
     "health/checks/function_size.py|health.checks.function_size.collect_function_sizes": {
       "file_path": "health/checks/function_size.py",
       "qualified_name": "health.checks.function_size.collect_function_sizes",
-      "start_line": 16,
-      "end_line": 25,
+      "start_line": 17,
+      "end_line": 26,
       "type": "FUNCTION",
       "content_hash": "aac7513e111942d6"
     },
     "health/checks/function_size.py|health.checks.function_size.check_function_size": {
       "file_path": "health/checks/function_size.py",
       "qualified_name": "health.checks.function_size.check_function_size",
-      "start_line": 28,
+      "start_line": 29,
       "end_line": 85,
       "type": "FUNCTION",
-      "content_hash": "fcd32f4f888dcf94"
+      "content_hash": "1a9b164d11a85de2"
     },
     "health/checks/god_class.py|health.checks.god_class._group_methods_by_class": {
       "file_path": "health/checks/god_class.py",
@@ -18596,6 +18587,100 @@
               ],
               "components_relations": [
                 {
+                  "relation": "queries symbol state and populates the call flow graph within",
+                  "src_name": "Reference-Based Edge Resolver",
+                  "dst_name": "Graph Orchestrator & Structural Builder",
+                  "evidence": "The resolver acts as a precision instrument that reads from the global SymbolTable and writes resolved edges back into the shared CallFlowGraph model managed by the orchestrator.",
+                  "key_edges": [
+                    {
+                      "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
+                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
+                      "call_sites": [
+                        {
+                          "line": 381,
+                          "column": 45
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_implementations",
+                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
+                      "call_sites": [
+                        {
+                          "line": 461,
+                          "column": 37
+                        }
+                      ],
+                      "description": ""
+                    }
+                  ],
+                  "src_id": "1.1.1.1",
+                  "dst_id": "1.1.1.2",
+                  "is_static": true,
+                  "all_edges": [
+                    {
+                      "source": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
+                      "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._warmup_references",
+                      "call_sites": [
+                        {
+                          "line": 180,
+                          "column": 14
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
+                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
+                      "call_sites": [
+                        {
+                          "line": 174,
+                          "column": 61
+                        },
+                        {
+                          "line": 178,
+                          "column": 85
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._prepare_trackable_symbols",
+                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
+                      "call_sites": [
+                        {
+                          "line": 157,
+                          "column": 27
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
+                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
+                      "call_sites": [
+                        {
+                          "line": 381,
+                          "column": 45
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_implementations",
+                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
+                      "call_sites": [
+                        {
+                          "line": 461,
+                          "column": 37
+                        }
+                      ],
+                      "description": ""
+                    }
+                  ]
+                },
+                {
                   "relation": "delegates granular edge resolution and symbol discovery to",
                   "src_name": "Graph Orchestrator & Structural Builder",
                   "dst_name": "Reference-Based Edge Resolver",
@@ -18691,100 +18776,6 @@
                         {
                           "line": 283,
                           "column": 27
-                        }
-                      ],
-                      "description": ""
-                    }
-                  ]
-                },
-                {
-                  "relation": "queries symbol state and populates the call flow graph within",
-                  "src_name": "Reference-Based Edge Resolver",
-                  "dst_name": "Graph Orchestrator & Structural Builder",
-                  "evidence": "The resolver acts as a precision instrument that reads from the global SymbolTable and writes resolved edges back into the shared CallFlowGraph model managed by the orchestrator.",
-                  "key_edges": [
-                    {
-                      "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
-                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
-                      "call_sites": [
-                        {
-                          "line": 381,
-                          "column": 45
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_implementations",
-                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
-                      "call_sites": [
-                        {
-                          "line": 461,
-                          "column": 37
-                        }
-                      ],
-                      "description": ""
-                    }
-                  ],
-                  "src_id": "1.1.1.1",
-                  "dst_id": "1.1.1.2",
-                  "is_static": true,
-                  "all_edges": [
-                    {
-                      "source": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
-                      "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._warmup_references",
-                      "call_sites": [
-                        {
-                          "line": 180,
-                          "column": 14
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
-                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
-                      "call_sites": [
-                        {
-                          "line": 174,
-                          "column": 61
-                        },
-                        {
-                          "line": 178,
-                          "column": 85
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._prepare_trackable_symbols",
-                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
-                      "call_sites": [
-                        {
-                          "line": 157,
-                          "column": 27
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
-                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
-                      "call_sites": [
-                        {
-                          "line": 381,
-                          "column": 45
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_implementations",
-                      "target": "static_analyzer/engine/symbol_table.py|static_analyzer.engine.symbol_table.SymbolTable.symbols",
-                      "call_sites": [
-                        {
-                          "line": 461,
-                          "column": 37
                         }
                       ],
                       "description": ""
@@ -19356,254 +19347,6 @@
           ],
           "components_relations": [
             {
-              "relation": "orchestrates surgical graph updates",
-              "src_name": "Incremental Update & Dependency Orchestrator",
-              "dst_name": "Static Analysis Engine & Edge Resolver",
-              "evidence": "The Orchestrator manages the lifecycle of the call graph by triggering specific analysis passes (like did_open and definition resolution) when files change, ensuring the Engine only processes necessary deltas.",
-              "key_edges": [],
-              "src_id": "1.1.2",
-              "dst_id": "1.1.1",
-              "is_static": true,
-              "all_edges": [
-                {
-                  "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._reference_matches_edge_kind",
-                  "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.is_class_like",
-                  "call_sites": [
-                    {
-                      "line": 351,
-                      "column": 16
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_cross_boundary_edges",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.did_open",
-                  "call_sites": [
-                    {
-                      "line": 163,
-                      "column": 31
-                    }
-                  ],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "queries semantic symbols and hierarchies",
-              "src_name": "Static Analysis Engine & Edge Resolver",
-              "dst_name": "LSP Protocol Client & Language Adapter",
-              "evidence": "The Engine uses the LSP Client as its primary data source, performing batch requests for definitions, references, and type hierarchies to build the deterministic call graph.",
-              "key_edges": [
-                {
-                  "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
-                  "call_sites": [
-                    {
-                      "line": 348,
-                      "column": 38
-                    }
-                  ],
-                  "description": ""
-                }
-              ],
-              "src_id": "1.1.1",
-              "dst_id": "1.1.3",
-              "is_static": true,
-              "all_edges": [
-                {
-                  "source": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._warmup_references",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.references",
-                  "call_sites": [
-                    {
-                      "line": 222,
-                      "column": 23
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
-                  "call_sites": [
-                    {
-                      "line": 348,
-                      "column": 38
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_implementations",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
-                  "call_sites": [
-                    {
-                      "line": 444,
-                      "column": 39
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder.build_edges_via_references",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_references_batch",
-                  "call_sites": [
-                    {
-                      "line": 106,
-                      "column": 54
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/engine/hierarchy_builder.py|static_analyzer.engine.hierarchy_builder.HierarchyBuilder.build",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_prepare",
-                  "call_sites": [
-                    {
-                      "line": 61,
-                      "column": 35
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/engine/hierarchy_builder.py|static_analyzer.engine.hierarchy_builder.HierarchyBuilder.build",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_subtypes",
-                  "call_sites": [
-                    {
-                      "line": 82,
-                      "column": 42
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/engine/hierarchy_builder.py|static_analyzer.engine.hierarchy_builder.HierarchyBuilder.build",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_supertypes",
-                  "call_sites": [
-                    {
-                      "line": 68,
-                      "column": 44
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.did_open",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._send_notification",
-                  "call_sites": [
-                    {
-                      "line": 252,
-                      "column": 14
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.document_symbol",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._send_request",
-                  "call_sites": [
-                    {
-                      "line": 293,
-                      "column": 23
-                    }
-                  ],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "discovers file-level dependencies",
-              "src_name": "Incremental Update & Dependency Orchestrator",
-              "dst_name": "LSP Protocol Client & Language Adapter",
-              "evidence": "The Orchestrator bypasses the full engine for high-level dependency discovery, directly querying the LSP Client to map imports and cross-file references during incremental sync.",
-              "key_edges": [
-                {
-                  "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.discover_file_dependencies",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
-                  "call_sites": [
-                    {
-                      "line": 492,
-                      "column": 33
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_cross_boundary_edges",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.references",
-                  "call_sites": [
-                    {
-                      "line": 164,
-                      "column": 38
-                    }
-                  ],
-                  "description": ""
-                }
-              ],
-              "src_id": "1.1.2",
-              "dst_id": "1.1.3",
-              "is_static": true,
-              "all_edges": [
-                {
-                  "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.discover_file_dependencies",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
-                  "call_sites": [
-                    {
-                      "line": 492,
-                      "column": 33
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._add_outbound_edges_from_changed_files",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
-                  "call_sites": [
-                    {
-                      "line": 234,
-                      "column": 51
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_cross_boundary_edges",
-                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.references",
-                  "call_sites": [
-                    {
-                      "line": 164,
-                      "column": 38
-                    }
-                  ],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "dispatches server-side state changes",
-              "src_name": "LSP Protocol Client & Language Adapter",
-              "dst_name": "Incremental Update & Dependency Orchestrator",
-              "evidence": "The LSP Client acts as a runtime sensor, capturing notifications (like diagnostics or workspace changes) from the language server and routing them back to the Orchestrator to trigger graph invalidation.",
-              "key_edges": [],
-              "src_id": "1.1.3",
-              "dst_id": "1.1.2",
-              "is_static": true,
-              "all_edges": [
-                {
-                  "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._handle_notification",
-                  "target": "static_analyzer/engine/utils.py|static_analyzer.engine.utils.uri_to_path",
-                  "call_sites": [
-                    {
-                      "line": 758,
-                      "column": 29
-                    }
-                  ],
-                  "description": ""
-                }
-              ]
-            },
-            {
               "relation": "validates symbol metadata and scope",
               "src_name": "Static Analysis Engine & Edge Resolver",
               "dst_name": "Incremental Update & Dependency Orchestrator",
@@ -19779,6 +19522,254 @@
                     {
                       "line": 121,
                       "column": 21
+                    }
+                  ],
+                  "description": ""
+                }
+              ]
+            },
+            {
+              "relation": "queries semantic symbols and hierarchies",
+              "src_name": "Static Analysis Engine & Edge Resolver",
+              "dst_name": "LSP Protocol Client & Language Adapter",
+              "evidence": "The Engine uses the LSP Client as its primary data source, performing batch requests for definitions, references, and type hierarchies to build the deterministic call graph.",
+              "key_edges": [
+                {
+                  "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
+                  "call_sites": [
+                    {
+                      "line": 348,
+                      "column": 38
+                    }
+                  ],
+                  "description": ""
+                }
+              ],
+              "src_id": "1.1.1",
+              "dst_id": "1.1.3",
+              "is_static": true,
+              "all_edges": [
+                {
+                  "source": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._warmup_references",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.references",
+                  "call_sites": [
+                    {
+                      "line": 222,
+                      "column": 23
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
+                  "call_sites": [
+                    {
+                      "line": 348,
+                      "column": 38
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_implementations",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
+                  "call_sites": [
+                    {
+                      "line": 444,
+                      "column": 39
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder.build_edges_via_references",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_references_batch",
+                  "call_sites": [
+                    {
+                      "line": 106,
+                      "column": 54
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/engine/hierarchy_builder.py|static_analyzer.engine.hierarchy_builder.HierarchyBuilder.build",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_prepare",
+                  "call_sites": [
+                    {
+                      "line": 61,
+                      "column": 35
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/engine/hierarchy_builder.py|static_analyzer.engine.hierarchy_builder.HierarchyBuilder.build",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_subtypes",
+                  "call_sites": [
+                    {
+                      "line": 82,
+                      "column": 42
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/engine/hierarchy_builder.py|static_analyzer.engine.hierarchy_builder.HierarchyBuilder.build",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_supertypes",
+                  "call_sites": [
+                    {
+                      "line": 68,
+                      "column": 44
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.did_open",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._send_notification",
+                  "call_sites": [
+                    {
+                      "line": 252,
+                      "column": 14
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.document_symbol",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._send_request",
+                  "call_sites": [
+                    {
+                      "line": 293,
+                      "column": 23
+                    }
+                  ],
+                  "description": ""
+                }
+              ]
+            },
+            {
+              "relation": "orchestrates surgical graph updates",
+              "src_name": "Incremental Update & Dependency Orchestrator",
+              "dst_name": "Static Analysis Engine & Edge Resolver",
+              "evidence": "The Orchestrator manages the lifecycle of the call graph by triggering specific analysis passes (like did_open and definition resolution) when files change, ensuring the Engine only processes necessary deltas.",
+              "key_edges": [],
+              "src_id": "1.1.2",
+              "dst_id": "1.1.1",
+              "is_static": true,
+              "all_edges": [
+                {
+                  "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._reference_matches_edge_kind",
+                  "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.is_class_like",
+                  "call_sites": [
+                    {
+                      "line": 351,
+                      "column": 16
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_cross_boundary_edges",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.did_open",
+                  "call_sites": [
+                    {
+                      "line": 163,
+                      "column": 31
+                    }
+                  ],
+                  "description": ""
+                }
+              ]
+            },
+            {
+              "relation": "discovers file-level dependencies",
+              "src_name": "Incremental Update & Dependency Orchestrator",
+              "dst_name": "LSP Protocol Client & Language Adapter",
+              "evidence": "The Orchestrator bypasses the full engine for high-level dependency discovery, directly querying the LSP Client to map imports and cross-file references during incremental sync.",
+              "key_edges": [
+                {
+                  "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.discover_file_dependencies",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
+                  "call_sites": [
+                    {
+                      "line": 492,
+                      "column": 33
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_cross_boundary_edges",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.references",
+                  "call_sites": [
+                    {
+                      "line": 164,
+                      "column": 38
+                    }
+                  ],
+                  "description": ""
+                }
+              ],
+              "src_id": "1.1.2",
+              "dst_id": "1.1.3",
+              "is_static": true,
+              "all_edges": [
+                {
+                  "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.discover_file_dependencies",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
+                  "call_sites": [
+                    {
+                      "line": 492,
+                      "column": 33
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._add_outbound_edges_from_changed_files",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
+                  "call_sites": [
+                    {
+                      "line": 234,
+                      "column": 51
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_cross_boundary_edges",
+                  "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.references",
+                  "call_sites": [
+                    {
+                      "line": 164,
+                      "column": 38
+                    }
+                  ],
+                  "description": ""
+                }
+              ]
+            },
+            {
+              "relation": "dispatches server-side state changes",
+              "src_name": "LSP Protocol Client & Language Adapter",
+              "dst_name": "Incremental Update & Dependency Orchestrator",
+              "evidence": "The LSP Client acts as a runtime sensor, capturing notifications (like diagnostics or workspace changes) from the language server and routing them back to the Orchestrator to trigger graph invalidation.",
+              "key_edges": [],
+              "src_id": "1.1.3",
+              "dst_id": "1.1.2",
+              "is_static": true,
+              "all_edges": [
+                {
+                  "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._handle_notification",
+                  "target": "static_analyzer/engine/utils.py|static_analyzer.engine.utils.uri_to_path",
+                  "call_sites": [
+                    {
+                      "line": 758,
+                      "column": 29
                     }
                   ],
                   "description": ""
@@ -21174,6 +21165,97 @@
           ],
           "components_relations": [
             {
+              "relation": "requests filesystem locks and path resolution for installations",
+              "src_name": "Language Support Auditor & Binary Resolver",
+              "dst_name": "Runtime Provisioner & Tooling Bootstrapper",
+              "evidence": "The Auditor relies on the Provisioner's utility layer to safely manage concurrent installations via file locks and to resolve the platform-specific directories where servers should be persisted.",
+              "key_edges": [],
+              "src_id": "1.2.1",
+              "dst_id": "1.2.2",
+              "is_static": true,
+              "all_edges": [
+                {
+                  "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
+                  "target": "tool_registry/manifest.py|tool_registry.manifest.acquire_lock",
+                  "call_sites": [
+                    {
+                      "line": 80,
+                      "column": 13
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
+                  "target": "tool_registry/paths.py|tool_registry.paths.get_servers_dir",
+                  "call_sites": [
+                    {
+                      "line": 66,
+                      "column": 23
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "tool_registry/installers.py|tool_registry.installers.install_tools",
+                  "target": "tool_registry/installers.py|tool_registry.installers.install_node_tools",
+                  "call_sites": [
+                    {
+                      "line": 533,
+                      "column": 9
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "tool_registry/manifest.py|tool_registry.manifest.resolve_config",
+                  "target": "tool_registry/paths.py|tool_registry.paths.preferred_node_path",
+                  "call_sites": [
+                    {
+                      "line": 235,
+                      "column": 33
+                    }
+                  ],
+                  "description": ""
+                }
+              ]
+            },
+            {
+              "relation": "delegates Java-specific version validation",
+              "src_name": "Language Support Auditor & Binary Resolver",
+              "dst_name": "Java Environment & Resource Adapter",
+              "evidence": "The Auditor uses a registry-based dispatch mechanism to offload specialized Java runtime checks (e.g., verifying Java 21+ requirements) to the Java-specific utility module.",
+              "key_edges": [
+                {
+                  "source": "install.py|install._language_checks_from_registry",
+                  "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.find_java_21_or_later",
+                  "call_sites": [
+                    {
+                      "line": 639,
+                      "column": 43
+                    }
+                  ],
+                  "description": ""
+                }
+              ],
+              "src_id": "1.2.1",
+              "dst_id": "1.2.3",
+              "is_static": true,
+              "all_edges": [
+                {
+                  "source": "install.py|install._language_checks_from_registry",
+                  "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.find_java_21_or_later",
+                  "call_sites": [
+                    {
+                      "line": 639,
+                      "column": 43
+                    }
+                  ],
+                  "description": ""
+                }
+              ]
+            },
+            {
               "relation": "orchestrates environment validation and binary acquisition",
               "src_name": "Runtime Provisioner & Tooling Bootstrapper",
               "dst_name": "Language Support Auditor & Binary Resolver",
@@ -21312,97 +21394,6 @@
                     {
                       "line": 85,
                       "column": 12
-                    }
-                  ],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "requests filesystem locks and path resolution for installations",
-              "src_name": "Language Support Auditor & Binary Resolver",
-              "dst_name": "Runtime Provisioner & Tooling Bootstrapper",
-              "evidence": "The Auditor relies on the Provisioner's utility layer to safely manage concurrent installations via file locks and to resolve the platform-specific directories where servers should be persisted.",
-              "key_edges": [],
-              "src_id": "1.2.1",
-              "dst_id": "1.2.2",
-              "is_static": true,
-              "all_edges": [
-                {
-                  "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
-                  "target": "tool_registry/manifest.py|tool_registry.manifest.acquire_lock",
-                  "call_sites": [
-                    {
-                      "line": 80,
-                      "column": 13
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
-                  "target": "tool_registry/paths.py|tool_registry.paths.get_servers_dir",
-                  "call_sites": [
-                    {
-                      "line": 66,
-                      "column": 23
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "tool_registry/installers.py|tool_registry.installers.install_tools",
-                  "target": "tool_registry/installers.py|tool_registry.installers.install_node_tools",
-                  "call_sites": [
-                    {
-                      "line": 533,
-                      "column": 9
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "tool_registry/manifest.py|tool_registry.manifest.resolve_config",
-                  "target": "tool_registry/paths.py|tool_registry.paths.preferred_node_path",
-                  "call_sites": [
-                    {
-                      "line": 235,
-                      "column": 33
-                    }
-                  ],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "delegates Java-specific version validation",
-              "src_name": "Language Support Auditor & Binary Resolver",
-              "dst_name": "Java Environment & Resource Adapter",
-              "evidence": "The Auditor uses a registry-based dispatch mechanism to offload specialized Java runtime checks (e.g., verifying Java 21+ requirements) to the Java-specific utility module.",
-              "key_edges": [
-                {
-                  "source": "install.py|install._language_checks_from_registry",
-                  "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.find_java_21_or_later",
-                  "call_sites": [
-                    {
-                      "line": 639,
-                      "column": 43
-                    }
-                  ],
-                  "description": ""
-                }
-              ],
-              "src_id": "1.2.1",
-              "dst_id": "1.2.3",
-              "is_static": true,
-              "all_edges": [
-                {
-                  "source": "install.py|install._language_checks_from_registry",
-                  "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.find_java_21_or_later",
-                  "call_sites": [
-                    {
-                      "line": 639,
-                      "column": 43
                     }
                   ],
                   "description": ""
@@ -22608,22 +22599,33 @@
           ]
         },
         {
-          "relation": "Resolves binary paths and environment configurations",
-          "src_name": "Language Server Protocol (LSP) Adapter Registry",
-          "dst_name": "Environment Bootstrapper & Binary Provisioner",
-          "evidence": "Adapters query the provisioner and tool registry to locate the specific LSP server binaries (e.g., rust-analyzer, jdtls) and ensure the runtime environment (Node.js, Java) is correctly configured before launching clients.",
+          "relation": "Validates tool availability for supported languages",
+          "src_name": "Environment Bootstrapper & Binary Provisioner",
+          "dst_name": "Language Server Protocol (LSP) Adapter Registry",
+          "evidence": "The bootstrapper performs pre-flight checks to determine which languages can be supported based on the host environment, effectively filtering which adapters in the registry are functional.",
           "key_edges": [],
-          "src_id": "1.3",
-          "dst_id": "1.2",
+          "src_id": "1.2",
+          "dst_id": "1.3",
           "is_static": true,
           "all_edges": [
             {
-              "source": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.get_lsp_command",
-              "target": "utils.py|utils.get_config",
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.get_lsp_command",
               "call_sites": [
                 {
-                  "line": 75,
-                  "column": 23
+                  "line": 71,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.get_lsp_command",
+              "call_sites": [
+                {
+                  "line": 59,
+                  "column": 24
                 }
               ],
               "description": ""
@@ -22710,33 +22712,22 @@
           ]
         },
         {
-          "relation": "Validates tool availability for supported languages",
-          "src_name": "Environment Bootstrapper & Binary Provisioner",
-          "dst_name": "Language Server Protocol (LSP) Adapter Registry",
-          "evidence": "The bootstrapper performs pre-flight checks to determine which languages can be supported based on the host environment, effectively filtering which adapters in the registry are functional.",
+          "relation": "Resolves binary paths and environment configurations",
+          "src_name": "Language Server Protocol (LSP) Adapter Registry",
+          "dst_name": "Environment Bootstrapper & Binary Provisioner",
+          "evidence": "Adapters query the provisioner and tool registry to locate the specific LSP server binaries (e.g., rust-analyzer, jdtls) and ensure the runtime environment (Node.js, Java) is correctly configured before launching clients.",
           "key_edges": [],
-          "src_id": "1.2",
-          "dst_id": "1.3",
+          "src_id": "1.3",
+          "dst_id": "1.2",
           "is_static": true,
           "all_edges": [
             {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.get_lsp_command",
+              "source": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.get_lsp_command",
+              "target": "utils.py|utils.get_config",
               "call_sites": [
                 {
-                  "line": 71,
-                  "column": 27
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.get_lsp_command",
-              "call_sites": [
-                {
-                  "line": 59,
-                  "column": 24
+                  "line": 75,
+                  "column": 23
                 }
               ],
               "description": ""
@@ -27731,178 +27722,33 @@
           ],
           "components_relations": [
             {
-              "relation": "queries cluster topology for incremental updates",
-              "src_name": "Incremental Synthesis Orchestrator",
-              "dst_name": "Cluster Topology & Metadata Manager",
-              "evidence": "The Orchestrator manages the lifecycle of architectural updates and relies on the Manager to provide the underlying graph-based cluster analysis and to patch file-level metadata during scope updates.",
+              "relation": "notifies of structural changes and liveness",
+              "src_name": "Cluster Topology & Metadata Manager",
+              "dst_name": "Incremental Synthesis Orchestrator",
+              "evidence": "The Manager provides the Orchestrator with liveness data (via CFG QNames) and triggers detailing of new components when structural shifts are detected in the underlying graph.",
               "key_edges": [],
-              "src_id": "3.1.3",
-              "dst_id": "3.1.1",
+              "src_id": "3.1.1",
+              "dst_id": "3.1.3",
               "is_static": true,
               "all_edges": [
                 {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
-                  "target": "agents/incremental_agent.py|agents.incremental_agent._cluster_analysis_for_scope",
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
+                  "target": "agents/incremental_agent.py|agents.incremental_agent._live_cfg_qnames",
                   "call_sites": [
                     {
-                      "line": 388,
-                      "column": 32
+                      "line": 299,
+                      "column": 65
                     }
                   ],
                   "description": ""
                 },
                 {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.update_scope",
-                  "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.detail_new_components",
+                  "target": "monitoring/context.py|monitoring.context.trace",
                   "call_sites": [
                     {
-                      "line": 164,
-                      "column": 18
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent._operation_source_cluster_ids",
-                  "target": "agents/cluster_ids.py|agents.cluster_ids.CodeBoardingClusterIds.from_graph_ids",
-                  "call_sites": [
-                    {
-                      "line": 582,
-                      "column": 32
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent._operation_source_cluster_ids",
-                  "target": "agents/cluster_ids.py|agents.cluster_ids.CodeBoardingClusterIds.prefix_for_scope",
-                  "call_sites": [
-                    {
-                      "line": 583,
-                      "column": 32
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent._operation_source_cluster_ids",
-                  "target": "agents/cluster_ids.py|agents.cluster_ids.CodeBoardingClusterIds.qualify_local_ids",
-                  "call_sites": [
-                    {
-                      "line": 581,
-                      "column": 35
-                    }
-                  ],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "delegates semantic synthesis and identity stabilization",
-              "src_name": "Incremental Synthesis Orchestrator",
-              "dst_name": "Architectural Abstraction & Identity Resolver",
-              "evidence": "The Orchestrator triggers the Abstraction and Details agents to interpret raw clusters into human-readable components and uses the Resolver's identity logic to ensure component IDs remain stable across incremental runs.",
-              "key_edges": [
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._create_component_from_operation",
-                  "target": "agents/agent_responses.py|agents.agent_responses.assign_component_ids",
-                  "call_sites": [
-                    {
-                      "line": 206,
-                      "column": 9
-                    }
-                  ],
-                  "description": ""
-                }
-              ],
-              "src_id": "3.1.3",
-              "dst_id": "3.1.2",
-              "is_static": true,
-              "all_edges": [
-                {
-                  "source": "agents/agent_responses.py|agents.agent_responses.ComponentArchitecture.llm_str",
-                  "target": "agents/agent_responses.py|agents.agent_responses.Component.llm_str",
-                  "call_sites": [
-                    {
-                      "line": 549,
-                      "column": 29
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
-                  "target": "agents/agent_responses.py|agents.agent_responses.assign_relation_ids",
-                  "call_sites": [
-                    {
-                      "line": 360,
-                      "column": 9
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
-                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.build_static_relations",
-                  "call_sites": [
-                    {
-                      "line": 361,
-                      "column": 14
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._create_component_from_operation",
-                  "target": "agents/agent_responses.py|agents.agent_responses.assign_component_ids",
-                  "call_sites": [
-                    {
-                      "line": 206,
-                      "column": 9
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_api_surfaces",
-                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.build_scope_cfg_string",
-                  "call_sites": [
-                    {
-                      "line": 310,
-                      "column": 39
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-                  "target": "agents/agent_responses.py|agents.agent_responses.ComponentApiSurfaces.llm_str",
-                  "call_sites": [
-                    {
-                      "line": 333,
-                      "column": 39
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.build_scope_cfg_string",
-                  "call_sites": [
-                    {
-                      "line": 334,
-                      "column": 39
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-                  "target": "agents/validation.py|agents.validation.ValidationContext",
-                  "call_sites": [
-                    {
-                      "line": 340,
-                      "column": 32
+                      "line": 212,
+                      "column": 6
                     }
                   ],
                   "description": ""
@@ -28233,33 +28079,178 @@
               ]
             },
             {
-              "relation": "notifies of structural changes and liveness",
-              "src_name": "Cluster Topology & Metadata Manager",
-              "dst_name": "Incremental Synthesis Orchestrator",
-              "evidence": "The Manager provides the Orchestrator with liveness data (via CFG QNames) and triggers detailing of new components when structural shifts are detected in the underlying graph.",
+              "relation": "queries cluster topology for incremental updates",
+              "src_name": "Incremental Synthesis Orchestrator",
+              "dst_name": "Cluster Topology & Metadata Manager",
+              "evidence": "The Orchestrator manages the lifecycle of architectural updates and relies on the Manager to provide the underlying graph-based cluster analysis and to patch file-level metadata during scope updates.",
               "key_edges": [],
-              "src_id": "3.1.1",
-              "dst_id": "3.1.3",
+              "src_id": "3.1.3",
+              "dst_id": "3.1.1",
               "is_static": true,
               "all_edges": [
                 {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
-                  "target": "agents/incremental_agent.py|agents.incremental_agent._live_cfg_qnames",
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+                  "target": "agents/incremental_agent.py|agents.incremental_agent._cluster_analysis_for_scope",
                   "call_sites": [
                     {
-                      "line": 299,
-                      "column": 65
+                      "line": 388,
+                      "column": 32
                     }
                   ],
                   "description": ""
                 },
                 {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.detail_new_components",
-                  "target": "monitoring/context.py|monitoring.context.trace",
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.update_scope",
+                  "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
                   "call_sites": [
                     {
-                      "line": 212,
-                      "column": 6
+                      "line": 164,
+                      "column": 18
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent._operation_source_cluster_ids",
+                  "target": "agents/cluster_ids.py|agents.cluster_ids.CodeBoardingClusterIds.from_graph_ids",
+                  "call_sites": [
+                    {
+                      "line": 582,
+                      "column": 32
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent._operation_source_cluster_ids",
+                  "target": "agents/cluster_ids.py|agents.cluster_ids.CodeBoardingClusterIds.prefix_for_scope",
+                  "call_sites": [
+                    {
+                      "line": 583,
+                      "column": 32
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent._operation_source_cluster_ids",
+                  "target": "agents/cluster_ids.py|agents.cluster_ids.CodeBoardingClusterIds.qualify_local_ids",
+                  "call_sites": [
+                    {
+                      "line": 581,
+                      "column": 35
+                    }
+                  ],
+                  "description": ""
+                }
+              ]
+            },
+            {
+              "relation": "delegates semantic synthesis and identity stabilization",
+              "src_name": "Incremental Synthesis Orchestrator",
+              "dst_name": "Architectural Abstraction & Identity Resolver",
+              "evidence": "The Orchestrator triggers the Abstraction and Details agents to interpret raw clusters into human-readable components and uses the Resolver's identity logic to ensure component IDs remain stable across incremental runs.",
+              "key_edges": [
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._create_component_from_operation",
+                  "target": "agents/agent_responses.py|agents.agent_responses.assign_component_ids",
+                  "call_sites": [
+                    {
+                      "line": 206,
+                      "column": 9
+                    }
+                  ],
+                  "description": ""
+                }
+              ],
+              "src_id": "3.1.3",
+              "dst_id": "3.1.2",
+              "is_static": true,
+              "all_edges": [
+                {
+                  "source": "agents/agent_responses.py|agents.agent_responses.ComponentArchitecture.llm_str",
+                  "target": "agents/agent_responses.py|agents.agent_responses.Component.llm_str",
+                  "call_sites": [
+                    {
+                      "line": 549,
+                      "column": 29
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
+                  "target": "agents/agent_responses.py|agents.agent_responses.assign_relation_ids",
+                  "call_sites": [
+                    {
+                      "line": 360,
+                      "column": 9
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
+                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.build_static_relations",
+                  "call_sites": [
+                    {
+                      "line": 361,
+                      "column": 14
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._create_component_from_operation",
+                  "target": "agents/agent_responses.py|agents.agent_responses.assign_component_ids",
+                  "call_sites": [
+                    {
+                      "line": 206,
+                      "column": 9
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_api_surfaces",
+                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.build_scope_cfg_string",
+                  "call_sites": [
+                    {
+                      "line": 310,
+                      "column": 39
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+                  "target": "agents/agent_responses.py|agents.agent_responses.ComponentApiSurfaces.llm_str",
+                  "call_sites": [
+                    {
+                      "line": 333,
+                      "column": 39
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.build_scope_cfg_string",
+                  "call_sites": [
+                    {
+                      "line": 334,
+                      "column": 39
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+                  "target": "agents/validation.py|agents.validation.ValidationContext",
+                  "call_sites": [
+                    {
+                      "line": 340,
+                      "column": 32
                     }
                   ],
                   "description": ""
@@ -29838,6 +29829,55 @@
           ]
         },
         {
+          "relation": "Provides structural insights for global synthesis",
+          "src_name": "Component Modeling & API Definition",
+          "dst_name": "Architectural Synthesis & Cluster Orchestrator",
+          "evidence": "The modeling layer feeds recursive analysis insights and node-to-component mappings back to the orchestrator to build global architectural views.",
+          "key_edges": [],
+          "src_id": "3.2",
+          "dst_id": "3.1",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
+              "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
+              "call_sites": [
+                {
+                  "line": 669,
+                  "column": 12
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_node_to_component_map",
+              "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_node_to_component_map",
+              "call_sites": [
+                {
+                  "line": 49,
+                  "column": 25
+                },
+                {
+                  "line": 51,
+                  "column": 40
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
+              "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
+              "call_sites": [
+                {
+                  "line": 226,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
           "relation": "Maps logical components to physical file entries",
           "src_name": "Component Modeling & API Definition",
           "dst_name": "Incremental State & Content Fingerprinting",
@@ -29936,55 +29976,6 @@
                 {
                   "line": 528,
                   "column": 21
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "Provides structural insights for global synthesis",
-          "src_name": "Component Modeling & API Definition",
-          "dst_name": "Architectural Synthesis & Cluster Orchestrator",
-          "evidence": "The modeling layer feeds recursive analysis insights and node-to-component mappings back to the orchestrator to build global architectural views.",
-          "key_edges": [],
-          "src_id": "3.2",
-          "dst_id": "3.1",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
-              "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
-              "call_sites": [
-                {
-                  "line": 669,
-                  "column": 12
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_node_to_component_map",
-              "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_node_to_component_map",
-              "call_sites": [
-                {
-                  "line": 49,
-                  "column": 25
-                },
-                {
-                  "line": 51,
-                  "column": 40
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
-              "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
-              "call_sites": [
-                {
-                  "line": 226,
-                  "column": 24
                 }
               ],
               "description": ""
@@ -30573,7 +30564,8 @@
             "4.7",
             "4.8",
             "4.11",
-            "4.13"
+            "4.13",
+            "4.19"
           ],
           "file_methods": [
             {
@@ -30907,7 +30899,8 @@
                 "4.1.1",
                 "4.1.6",
                 "4.1.7",
-                "4.1.9"
+                "4.1.9",
+                "4.1.12"
               ],
               "file_methods": [
                 {
@@ -31765,31 +31758,6 @@
                         }
                       ],
                       "description": ""
-                    }
-                  ]
-                },
-                {
-                  "relation": "Provides configuration-driven tool registration",
-                  "src_name": "Plugin & Tool Registry Manager",
-                  "dst_name": "System Configuration & Health Orchestrator",
-                  "evidence": "The registry manager uses the loaded user configuration to determine which plugins and tools should be active and how they should be initialized within the registry.",
-                  "key_edges": [
-                    {
-                      "source": "core/__init__.py|core.__init__.load_plugin_tools",
-                      "target": "user_config.py|user_config.UserConfig",
-                      "call_sites": [],
-                      "description": "Registry loading logic references the configuration object to filter or configure tool instances."
-                    }
-                  ],
-                  "src_id": "4.1.2.2",
-                  "dst_id": "4.1.2.1",
-                  "is_static": false,
-                  "all_edges": [
-                    {
-                      "source": "core/__init__.py|core.__init__.load_plugin_tools",
-                      "target": "user_config.py|user_config.UserConfig",
-                      "call_sites": [],
-                      "description": "Registry loading logic references the configuration object to filter or configure tool instances."
                     }
                   ]
                 }
@@ -32786,7 +32754,8 @@
           ],
           "source_cluster_ids": [
             "4.6",
-            "4.9"
+            "4.9",
+            "4.16"
           ],
           "file_methods": [
             {
@@ -33266,45 +33235,44 @@
           ]
         },
         {
-          "relation": "Orchestrates state transitions and structural pruning",
-          "src_name": "Workflow Orchestrator & Pruning Controller",
-          "dst_name": "Incremental State & Structural Planner",
-          "evidence": "The orchestrator manages the lifecycle of the analysis, utilizing the planner to compute repository hashes and determine which components require expansion or pruning.",
+          "relation": "calls",
+          "src_name": "Incremental State & Structural Planner",
+          "dst_name": "CI/CD Entrypoint & Multi-Format Reporter",
+          "evidence": "",
           "key_edges": [],
-          "src_id": "4.4",
-          "dst_id": "4.2",
+          "src_id": "4.2",
+          "dst_id": "4.1",
           "is_static": true,
           "all_edges": [
             {
-              "source": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprint",
-              "target": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_new_analyzer",
+              "target": "static_analyzer/__init__.py|static_analyzer.__init__.get_static_analysis",
               "call_sites": [
                 {
-                  "line": 70,
-                  "column": 15
+                  "line": 781,
+                  "column": 16
                 }
               ],
               "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "Requests deterministic change sets for analysis scoping",
-          "src_name": "Workflow Orchestrator & Pruning Controller",
-          "dst_name": "Change Detection & Validation Engine",
-          "evidence": "During the workflow execution, the orchestrator calls the diffing engine to identify modified files based on stored fingerprints.",
-          "key_edges": [],
-          "src_id": "4.4",
-          "dst_id": "4.3",
-          "is_static": true,
-          "all_edges": [
+            },
             {
-              "source": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprint",
-              "target": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprints",
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
+              "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._run_health_report",
               "call_sites": [
                 {
-                  "line": 71,
-                  "column": 12
+                  "line": 928,
+                  "column": 14
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
+              "target": "monitoring/paths.py|monitoring.paths.get_monitoring_run_dir",
+              "call_sites": [
+                {
+                  "line": 933,
+                  "column": 30
                 }
               ],
               "description": ""
@@ -33446,44 +33414,45 @@
           ]
         },
         {
-          "relation": "calls",
-          "src_name": "Incremental State & Structural Planner",
-          "dst_name": "CI/CD Entrypoint & Multi-Format Reporter",
-          "evidence": "",
+          "relation": "Orchestrates state transitions and structural pruning",
+          "src_name": "Workflow Orchestrator & Pruning Controller",
+          "dst_name": "Incremental State & Structural Planner",
+          "evidence": "The orchestrator manages the lifecycle of the analysis, utilizing the planner to compute repository hashes and determine which components require expansion or pruning.",
           "key_edges": [],
-          "src_id": "4.2",
-          "dst_id": "4.1",
+          "src_id": "4.4",
+          "dst_id": "4.2",
           "is_static": true,
           "all_edges": [
             {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_new_analyzer",
-              "target": "static_analyzer/__init__.py|static_analyzer.__init__.get_static_analysis",
+              "source": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprint",
+              "target": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
               "call_sites": [
                 {
-                  "line": 781,
-                  "column": 16
+                  "line": 70,
+                  "column": 15
                 }
               ],
               "description": ""
-            },
+            }
+          ]
+        },
+        {
+          "relation": "Requests deterministic change sets for analysis scoping",
+          "src_name": "Workflow Orchestrator & Pruning Controller",
+          "dst_name": "Change Detection & Validation Engine",
+          "evidence": "During the workflow execution, the orchestrator calls the diffing engine to identify modified files based on stored fingerprints.",
+          "key_edges": [],
+          "src_id": "4.4",
+          "dst_id": "4.3",
+          "is_static": true,
+          "all_edges": [
             {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-              "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._run_health_report",
+              "source": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprint",
+              "target": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprints",
               "call_sites": [
                 {
-                  "line": 928,
-                  "column": 14
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-              "target": "monitoring/paths.py|monitoring.paths.get_monitoring_run_dir",
-              "call_sites": [
-                {
-                  "line": 933,
-                  "column": 30
+                  "line": 71,
+                  "column": 12
                 }
               ],
               "description": ""
@@ -33730,12 +33699,6 @@
             "health.runner._matches_exclude_pattern",
             "health.runner._apply_exclude_patterns",
             "health.runner._collect_checks_for_language"
-          ]
-        },
-        {
-          "file_path": "repo_utils/ignore.py",
-          "methods": [
-            "repo_utils.ignore.RepoIgnoreManager.should_skip_file"
           ]
         },
         {
@@ -34222,12 +34185,6 @@
                 "health.runner._matches_exclude_pattern",
                 "health.runner._apply_exclude_patterns",
                 "health.runner._collect_checks_for_language"
-              ]
-            },
-            {
-              "file_path": "repo_utils/ignore.py",
-              "methods": [
-                "repo_utils.ignore.RepoIgnoreManager.should_skip_file"
               ]
             },
             {
@@ -35022,7 +34979,8 @@
               ],
               "source_cluster_ids": [
                 "5.1.3",
-                "5.1.5"
+                "5.1.5",
+                "5.1.9"
               ],
               "file_methods": [
                 {
@@ -35114,12 +35072,6 @@
                   ]
                 },
                 {
-                  "file_path": "repo_utils/ignore.py",
-                  "methods": [
-                    "repo_utils.ignore.RepoIgnoreManager.should_skip_file"
-                  ]
-                },
-                {
                   "file_path": "static_analyzer/node.py",
                   "methods": [
                     "static_analyzer.node.Node.is_class",
@@ -35161,14 +35113,15 @@
                     {
                       "qualified_name": "health.checks.function_size.check_function_size",
                       "reference_file": "health/checks/function_size.py",
-                      "reference_start_line": 28,
+                      "reference_start_line": 29,
                       "reference_end_line": 85
                     }
                   ],
                   "source_cluster_ids": [
                     "5.1.3.1",
                     "5.1.3.3",
-                    "5.1.3.5"
+                    "5.1.3.5",
+                    "5.1.3.7"
                   ],
                   "file_methods": [
                     {
@@ -35233,12 +35186,6 @@
                       ]
                     },
                     {
-                      "file_path": "repo_utils/ignore.py",
-                      "methods": [
-                        "repo_utils.ignore.RepoIgnoreManager.should_skip_file"
-                      ]
-                    },
-                    {
                       "file_path": "static_analyzer/node.py",
                       "methods": [
                         "static_analyzer.node.Node.is_class",
@@ -35258,8 +35205,8 @@
                     {
                       "qualified_name": "health.runner._collect_checks_for_language",
                       "reference_file": "health/runner.py",
-                      "reference_start_line": 71,
-                      "reference_end_line": 131
+                      "reference_start_line": 72,
+                      "reference_end_line": 133
                     },
                     {
                       "qualified_name": "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector",
@@ -35276,13 +35223,14 @@
                     {
                       "qualified_name": "health.runner._apply_exclude_patterns",
                       "reference_file": "health/runner.py",
-                      "reference_start_line": 44,
-                      "reference_end_line": 63
+                      "reference_start_line": 45,
+                      "reference_end_line": 64
                     }
                   ],
                   "source_cluster_ids": [
                     "5.1.3.2",
-                    "5.1.3.4"
+                    "5.1.3.4",
+                    "5.1.3.6"
                   ],
                   "file_methods": [
                     {
@@ -35320,162 +35268,6 @@
                 }
               ],
               "components_relations": [
-                {
-                  "relation": "Orchestrates execution and aggregates metric summaries",
-                  "src_name": "Diagnostic Orchestrator & External Sensor Integrator",
-                  "dst_name": "Structural & Complexity Metrics Engine",
-                  "evidence": "The Orchestrator acts as a control plane that dynamically collects and executes specific health check functions based on the target language. It consumes the standardized data models (BaseCheckSummary, FindingGroup) to unify internal static analysis results with external diagnostic data.",
-                  "key_edges": [
-                    {
-                      "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
-                      "target": "health/models.py|health.models.StandardCheckSummary",
-                      "call_sites": [
-                        {
-                          "line": 332,
-                          "column": 12
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
-                      "call_sites": [
-                        {
-                          "line": 98,
-                          "column": 26
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
-                      "call_sites": [
-                        {
-                          "line": 85,
-                          "column": 22
-                        }
-                      ],
-                      "description": ""
-                    }
-                  ],
-                  "src_id": "5.1.3.2",
-                  "dst_id": "5.1.3.1",
-                  "is_static": true,
-                  "all_edges": [
-                    {
-                      "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
-                      "target": "health/models.py|health.models.FindingEntity",
-                      "call_sites": [
-                        {
-                          "line": 299,
-                          "column": 22
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
-                      "target": "health/models.py|health.models.FindingGroup",
-                      "call_sites": [
-                        {
-                          "line": 312,
-                          "column": 17
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
-                      "target": "health/models.py|health.models.StandardCheckSummary",
-                      "call_sites": [
-                        {
-                          "line": 332,
-                          "column": 12
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
-                      "call_sites": [
-                        {
-                          "line": 98,
-                          "column": 26
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/coupling.py|health.checks.coupling.check_fan_in",
-                      "call_sites": [
-                        {
-                          "line": 87,
-                          "column": 22
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/coupling.py|health.checks.coupling.check_fan_out",
-                      "call_sites": [
-                        {
-                          "line": 86,
-                          "column": 22
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
-                      "call_sites": [
-                        {
-                          "line": 85,
-                          "column": 22
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/god_class.py|health.checks.god_class.check_god_classes",
-                      "call_sites": [
-                        {
-                          "line": 88,
-                          "column": 22
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/inheritance.py|health.checks.inheritance.check_inheritance_depth",
-                      "call_sites": [
-                        {
-                          "line": 91,
-                          "column": 26
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/instability.py|health.checks.instability.check_package_instability",
-                      "call_sites": [
-                        {
-                          "line": 99,
-                          "column": 26
-                        }
-                      ],
-                      "description": ""
-                    }
-                  ]
-                },
                 {
                   "relation": "Provides standardized diagnostic findings via common schema",
                   "src_name": "Structural & Complexity Metrics Engine",
@@ -35516,6 +35308,162 @@
                       "call_sites": [
                         {
                           "line": 77,
+                          "column": 12
+                        }
+                      ],
+                      "description": ""
+                    }
+                  ]
+                },
+                {
+                  "relation": "Orchestrates execution and aggregates metric summaries",
+                  "src_name": "Diagnostic Orchestrator & External Sensor Integrator",
+                  "dst_name": "Structural & Complexity Metrics Engine",
+                  "evidence": "The Orchestrator acts as a control plane that dynamically collects and executes specific health check functions based on the target language. It consumes the standardized data models (BaseCheckSummary, FindingGroup) to unify internal static analysis results with external diagnostic data.",
+                  "key_edges": [
+                    {
+                      "source": "health/runner.py|health.runner._collect_checks_for_language",
+                      "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
+                      "call_sites": [
+                        {
+                          "line": 87,
+                          "column": 22
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/runner.py|health.runner._collect_checks_for_language",
+                      "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
+                      "call_sites": [
+                        {
+                          "line": 100,
+                          "column": 26
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
+                      "target": "health/models.py|health.models.StandardCheckSummary",
+                      "call_sites": [
+                        {
+                          "line": 332,
+                          "column": 12
+                        }
+                      ],
+                      "description": ""
+                    }
+                  ],
+                  "src_id": "5.1.3.2",
+                  "dst_id": "5.1.3.1",
+                  "is_static": true,
+                  "all_edges": [
+                    {
+                      "source": "health/runner.py|health.runner._collect_checks_for_language",
+                      "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
+                      "call_sites": [
+                        {
+                          "line": 87,
+                          "column": 22
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/runner.py|health.runner._collect_checks_for_language",
+                      "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
+                      "call_sites": [
+                        {
+                          "line": 100,
+                          "column": 26
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/runner.py|health.runner._collect_checks_for_language",
+                      "target": "health/checks/coupling.py|health.checks.coupling.check_fan_in",
+                      "call_sites": [
+                        {
+                          "line": 89,
+                          "column": 22
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/runner.py|health.runner._collect_checks_for_language",
+                      "target": "health/checks/coupling.py|health.checks.coupling.check_fan_out",
+                      "call_sites": [
+                        {
+                          "line": 88,
+                          "column": 22
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/runner.py|health.runner._collect_checks_for_language",
+                      "target": "health/checks/god_class.py|health.checks.god_class.check_god_classes",
+                      "call_sites": [
+                        {
+                          "line": 90,
+                          "column": 22
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/runner.py|health.runner._collect_checks_for_language",
+                      "target": "health/checks/inheritance.py|health.checks.inheritance.check_inheritance_depth",
+                      "call_sites": [
+                        {
+                          "line": 93,
+                          "column": 26
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/runner.py|health.runner._collect_checks_for_language",
+                      "target": "health/checks/instability.py|health.checks.instability.check_package_instability",
+                      "call_sites": [
+                        {
+                          "line": 101,
+                          "column": 26
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
+                      "target": "health/models.py|health.models.FindingEntity",
+                      "call_sites": [
+                        {
+                          "line": 299,
+                          "column": 22
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
+                      "target": "health/models.py|health.models.FindingGroup",
+                      "call_sites": [
+                        {
+                          "line": 312,
+                          "column": 17
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
+                      "target": "health/models.py|health.models.StandardCheckSummary",
+                      "call_sites": [
+                        {
+                          "line": 332,
                           "column": 12
                         }
                       ],
@@ -35722,6 +35670,41 @@
               ]
             },
             {
+              "relation": "Validates structural integrity of graph partitions",
+              "src_name": "Architectural Health & Metric Evaluator",
+              "dst_name": "Structural Graph & Edge Validator",
+              "evidence": "The Health Evaluator directly interacts with the Graph component to verify that specific clusters maintain valid internal connectivity, bypassing the evolution layer for low-level cohesion checks.",
+              "key_edges": [
+                {
+                  "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
+                  "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.cluster",
+                  "call_sites": [
+                    {
+                      "line": 27,
+                      "column": 33
+                    }
+                  ],
+                  "description": ""
+                }
+              ],
+              "src_id": "5.1.3",
+              "dst_id": "5.1.1",
+              "is_static": true,
+              "all_edges": [
+                {
+                  "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
+                  "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.cluster",
+                  "call_sites": [
+                    {
+                      "line": 27,
+                      "column": 33
+                    }
+                  ],
+                  "description": ""
+                }
+              ]
+            },
+            {
               "relation": "Queries evolved snapshots for metric calculation",
               "src_name": "Architectural Health & Metric Evaluator",
               "dst_name": "Cluster Evolution & Delta Processor",
@@ -35731,6 +35714,17 @@
               "dst_id": "5.1.2",
               "is_static": true,
               "all_edges": [
+                {
+                  "source": "health/runner.py|health.runner._collect_checks_for_language",
+                  "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+                  "call_sites": [
+                    {
+                      "line": 81,
+                      "column": 34
+                    }
+                  ],
+                  "description": ""
+                },
                 {
                   "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
                   "target": "static_analyzer/graph.py|static_analyzer.graph.ClusterResult.get_files_for_cluster",
@@ -35760,52 +35754,6 @@
                     {
                       "line": 21,
                       "column": 27
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "health/runner.py|health.runner._collect_checks_for_language",
-                  "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-                  "call_sites": [
-                    {
-                      "line": 79,
-                      "column": 34
-                    }
-                  ],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "Validates structural integrity of graph partitions",
-              "src_name": "Architectural Health & Metric Evaluator",
-              "dst_name": "Structural Graph & Edge Validator",
-              "evidence": "The Health Evaluator directly interacts with the Graph component to verify that specific clusters maintain valid internal connectivity, bypassing the evolution layer for low-level cohesion checks.",
-              "key_edges": [
-                {
-                  "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
-                  "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.cluster",
-                  "call_sites": [
-                    {
-                      "line": 27,
-                      "column": 33
-                    }
-                  ],
-                  "description": ""
-                }
-              ],
-              "src_id": "5.1.3",
-              "dst_id": "5.1.1",
-              "is_static": true,
-              "all_edges": [
-                {
-                  "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
-                  "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.cluster",
-                  "call_sites": [
-                    {
-                      "line": 27,
-                      "column": 33
                     }
                   ],
                   "description": ""
@@ -36939,6 +36887,318 @@
       ],
       "components_relations": [
         {
+          "relation": "Provides formatted feedback for cache synchronization",
+          "src_name": "Delta Calculation & Cluster Evolution Engine",
+          "dst_name": "Incremental Static Analysis Orchestrator",
+          "evidence": "The Engine converts complex architectural snapshots into standardized formats that the Orchestrator uses to update the persistent 'StaticAnalysisCache', ensuring that cluster evolution state is preserved across sessions.",
+          "key_edges": [],
+          "src_id": "5.1",
+          "dst_id": "5.2",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.language",
+              "call_sites": [
+                {
+                  "line": 43,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "Queries structural metadata for delta computation",
+          "src_name": "Delta Calculation & Cluster Evolution Engine",
+          "dst_name": "Semantic Reference & Edge Resolver",
+          "evidence": "When calculating structural differences between versions (deltas), the Engine queries the Resolver for language-specific hierarchies and package dependencies to determine if a change is purely internal or affects the architectural interface.",
+          "key_edges": [
+            {
+              "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 280,
+                  "column": 39
+                }
+              ],
+              "description": ""
+            }
+          ],
+          "src_id": "5.1",
+          "dst_id": "5.3",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "health/runner.py|health.runner._collect_checks_for_language",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_hierarchy",
+              "call_sites": [
+                {
+                  "line": 83,
+                  "column": 37
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "health/runner.py|health.runner._collect_checks_for_language",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
+              "call_sites": [
+                {
+                  "line": 96,
+                  "column": 40
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 333,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 280,
+                  "column": 39
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/cluster_snapshot.py|diagram_analysis.cluster_snapshot.snapshot_from_static_analysis",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 51,
+                  "column": 37
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.scoped_snapshot_for_component",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 1667,
+                  "column": 55
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults._get_bucket",
+              "call_sites": [
+                {
+                  "line": 208,
+                  "column": 23
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.build_all_cluster_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 56,
+                  "column": 33
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "Drives incremental graph updates and invalidation",
+          "src_name": "Incremental Static Analysis Orchestrator",
+          "dst_name": "Delta Calculation & Cluster Evolution Engine",
+          "evidence": "The Orchestrator manages the lifecycle of the analysis. When files change, it instructs the Engine to invalidate specific nodes, filter existing graphs, and merge new incremental results into the global architectural state.",
+          "key_edges": [],
+          "src_id": "5.2",
+          "dst_id": "5.1",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
+              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph",
+              "call_sites": [
+                {
+                  "line": 732,
+                  "column": 52
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
+              "target": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
+              "call_sites": [
+                {
+                  "line": 811,
+                  "column": 18
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
+              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph",
+              "call_sites": [
+                {
+                  "line": 789,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 620,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._validate_analysis_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 826,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._rederive_inherits_edges",
+              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.add_reference_edge",
+              "call_sites": [
+                {
+                  "line": 447,
+                  "column": 28
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._collect_invalidated_edge",
+              "call_sites": [
+                {
+                  "line": 356,
+                  "column": 38
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._validate_no_dangling_references",
+              "call_sites": [
+                {
+                  "line": 387,
+                  "column": 5
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.filter",
+              "call_sites": [
+                {
+                  "line": 354,
+                  "column": 30
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results",
+              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.union",
+              "call_sites": [
+                {
+                  "line": 416,
+                  "column": 50
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
+              "target": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
+              "call_sites": [
+                {
+                  "line": 192,
+                  "column": 36
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._filter_to_live_files",
+              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.filter",
+              "call_sites": [
+                {
+                  "line": 377,
+                  "column": 61
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
+              "call_sites": [
+                {
+                  "line": 84,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph",
+              "call_sites": [
+                {
+                  "line": 87,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/language_results.py|static_analyzer.language_results.LanguageResults.visit_paths",
+              "target": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.visit_paths",
+              "call_sites": [
+                {
+                  "line": 150,
+                  "column": 18
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
           "relation": "Populates and validates semantic analysis results",
           "src_name": "Incremental Static Analysis Orchestrator",
           "dst_name": "Semantic Reference & Edge Resolver",
@@ -37248,318 +37508,6 @@
               "description": ""
             }
           ]
-        },
-        {
-          "relation": "Queries structural metadata for delta computation",
-          "src_name": "Delta Calculation & Cluster Evolution Engine",
-          "dst_name": "Semantic Reference & Edge Resolver",
-          "evidence": "When calculating structural differences between versions (deltas), the Engine queries the Resolver for language-specific hierarchies and package dependencies to determine if a change is purely internal or affects the architectural interface.",
-          "key_edges": [
-            {
-              "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 280,
-                  "column": 39
-                }
-              ],
-              "description": ""
-            }
-          ],
-          "src_id": "5.1",
-          "dst_id": "5.3",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 333,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 280,
-                  "column": 39
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/cluster_snapshot.py|diagram_analysis.cluster_snapshot.snapshot_from_static_analysis",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 51,
-                  "column": 37
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.scoped_snapshot_for_component",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 1667,
-                  "column": 55
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "health/runner.py|health.runner._collect_checks_for_language",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_hierarchy",
-              "call_sites": [
-                {
-                  "line": 81,
-                  "column": 37
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "health/runner.py|health.runner._collect_checks_for_language",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
-              "call_sites": [
-                {
-                  "line": 94,
-                  "column": 40
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults._get_bucket",
-              "call_sites": [
-                {
-                  "line": 208,
-                  "column": 23
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.build_all_cluster_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 56,
-                  "column": 33
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "Drives incremental graph updates and invalidation",
-          "src_name": "Incremental Static Analysis Orchestrator",
-          "dst_name": "Delta Calculation & Cluster Evolution Engine",
-          "evidence": "The Orchestrator manages the lifecycle of the analysis. When files change, it instructs the Engine to invalidate specific nodes, filter existing graphs, and merge new incremental results into the global architectural state.",
-          "key_edges": [],
-          "src_id": "5.2",
-          "dst_id": "5.1",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph",
-              "call_sites": [
-                {
-                  "line": 732,
-                  "column": 52
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
-              "target": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
-              "call_sites": [
-                {
-                  "line": 811,
-                  "column": 18
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
-              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph",
-              "call_sites": [
-                {
-                  "line": 789,
-                  "column": 31
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "call_sites": [
-                {
-                  "line": 620,
-                  "column": 31
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._validate_analysis_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "call_sites": [
-                {
-                  "line": 826,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._rederive_inherits_edges",
-              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.add_reference_edge",
-              "call_sites": [
-                {
-                  "line": 447,
-                  "column": 28
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._collect_invalidated_edge",
-              "call_sites": [
-                {
-                  "line": 356,
-                  "column": 38
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._validate_no_dangling_references",
-              "call_sites": [
-                {
-                  "line": 387,
-                  "column": 5
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.filter",
-              "call_sites": [
-                {
-                  "line": 354,
-                  "column": 30
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results",
-              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.union",
-              "call_sites": [
-                {
-                  "line": 416,
-                  "column": 50
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
-              "target": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
-              "call_sites": [
-                {
-                  "line": 192,
-                  "column": 36
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._filter_to_live_files",
-              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.filter",
-              "call_sites": [
-                {
-                  "line": 377,
-                  "column": 61
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
-              "call_sites": [
-                {
-                  "line": 84,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph",
-              "call_sites": [
-                {
-                  "line": 87,
-                  "column": 27
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/language_results.py|static_analyzer.language_results.LanguageResults.visit_paths",
-              "target": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.visit_paths",
-              "call_sites": [
-                {
-                  "line": 150,
-                  "column": 18
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "Provides formatted feedback for cache synchronization",
-          "src_name": "Delta Calculation & Cluster Evolution Engine",
-          "dst_name": "Incremental Static Analysis Orchestrator",
-          "evidence": "The Engine converts complex architectural snapshots into standardized formats that the Orchestrator uses to update the persistent 'StaticAnalysisCache', ensuring that cluster evolution state is preserved across sessions.",
-          "key_edges": [],
-          "src_id": "5.1",
-          "dst_id": "5.2",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.language",
-              "call_sites": [
-                {
-                  "line": 43,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            }
-          ]
         }
       ]
     },
@@ -37576,8 +37524,8 @@
         {
           "qualified_name": "repo_utils.ignore.RepoIgnoreManager",
           "reference_file": "repo_utils/ignore.py",
-          "reference_start_line": 166,
-          "reference_end_line": 336
+          "reference_start_line": 162,
+          "reference_end_line": 320
         },
         {
           "qualified_name": "static_analyzer.csharp_config_scanner.CSharpConfigScanner",
@@ -38396,8 +38344,8 @@
             {
               "qualified_name": "repo_utils.ignore.RepoIgnoreManager",
               "reference_file": "repo_utils/ignore.py",
-              "reference_start_line": 166,
-              "reference_end_line": 336
+              "reference_start_line": 162,
+              "reference_end_line": 320
             },
             {
               "qualified_name": "static_analyzer.java_config_scanner.JavaConfigScanner",
@@ -38598,6 +38546,17 @@
           "evidence": "The orchestrator initializes language-specific scanners and ignore managers to partition the codebase based on discovered project structures.",
           "key_edges": [
             {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+              "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+              "call_sites": [
+                {
+                  "line": 174,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
               "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.scan",
               "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
               "call_sites": [
@@ -38624,6 +38583,17 @@
                 {
                   "line": 174,
                   "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.__init__",
+              "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+              "call_sites": [
+                {
+                  "line": 47,
+                  "column": 69
                 }
               ],
               "description": ""
@@ -38668,17 +38638,6 @@
                 {
                   "line": 85,
                   "column": 57
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.__init__",
-              "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-              "call_sites": [
-                {
-                  "line": 47,
-                  "column": 69
                 }
               ],
               "description": ""
@@ -38743,6 +38702,43 @@
             {
               "source": "repo_utils/__init__.py|repo_utils.__init__.get_repo_state_hash",
               "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.copy_cache_files",
+              "call_sites": [],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "logs discovery errors and LSP interaction results",
+          "src_name": "Repository State & Multi-Language Discovery",
+          "dst_name": "Environment Identity & Execution Telemetry",
+          "evidence": "Language scanners and repository utilities utilize the telemetry component to capture errors during file system traversal and to track the success of LSP-based metadata extraction.",
+          "key_edges": [
+            {
+              "source": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.scan",
+              "target": "telemetry/events.py|telemetry.events.capture_error",
+              "call_sites": [],
+              "description": ""
+            },
+            {
+              "source": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+              "target": "telemetry/events.py|telemetry.events.track_lsp_result",
+              "call_sites": [],
+              "description": ""
+            }
+          ],
+          "src_id": "6.2",
+          "dst_id": "6.3",
+          "is_static": false,
+          "all_edges": [
+            {
+              "source": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.scan",
+              "target": "telemetry/events.py|telemetry.events.capture_error",
+              "call_sites": [],
+              "description": ""
+            },
+            {
+              "source": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+              "target": "telemetry/events.py|telemetry.events.track_lsp_result",
               "call_sites": [],
               "description": ""
             }
@@ -45197,7 +45193,7 @@
           "target": "health/runner.py|health.runner._collect_checks_for_language",
           "call_sites": [
             {
-              "line": 224,
+              "line": 226,
               "column": 26
             }
           ],
@@ -45254,7 +45250,7 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
           "call_sites": [
             {
-              "line": 214,
+              "line": 216,
               "column": 33
             }
           ],
@@ -45286,27 +45282,25 @@
       ]
     },
     {
-      "relation": "Provides configuration-driven tool registration",
-      "src_name": "Plugin & Tool Registry Manager",
-      "dst_name": "System Configuration & Health Orchestrator",
-      "evidence": "The registry manager uses the loaded user configuration to determine which plugins and tools should be active and how they should be initialized within the registry.",
-      "key_edges": [
-        {
-          "source": "core/__init__.py|core.__init__.load_plugin_tools",
-          "target": "user_config.py|user_config.UserConfig",
-          "call_sites": [],
-          "description": "Registry loading logic references the configuration object to filter or configure tool instances."
-        }
-      ],
-      "src_id": "4.1.2.2",
-      "dst_id": "4.1.2.1",
-      "is_static": false,
+      "relation": "calls",
+      "src_name": "System Configuration & Health Orchestrator",
+      "dst_name": "Repository State & Multi-Language Discovery",
+      "evidence": "",
+      "key_edges": [],
+      "src_id": "4.1.2.1",
+      "dst_id": "6.2",
+      "is_static": true,
       "all_edges": [
         {
-          "source": "core/__init__.py|core.__init__.load_plugin_tools",
-          "target": "user_config.py|user_config.UserConfig",
-          "call_sites": [],
-          "description": "Registry loading logic references the configuration object to filter or configure tool instances."
+          "source": "health/runner.py|health.runner.run_health_checks",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 221,
+              "column": 22
+            }
+          ],
+          "description": ""
         }
       ]
     },
@@ -46094,6 +46088,17 @@
           "description": ""
         },
         {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 706,
+              "column": 26
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
           "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
           "call_sites": [
@@ -46104,17 +46109,6 @@
             {
               "line": 121,
               "column": 23
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored",
-          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 706,
-              "column": 26
             }
           ],
           "description": ""
@@ -47793,6 +47787,29 @@
       ]
     },
     {
+      "relation": "Persists analysis artifacts",
+      "src_name": "Structural & Complexity Metrics Engine",
+      "dst_name": "Repository State & Multi-Language Discovery",
+      "evidence": "Utilizes the engine's configuration and directory management to store and retrieve cached static analysis results.",
+      "key_edges": [],
+      "src_id": "5.1.3.1",
+      "dst_id": "6.2",
+      "is_static": true,
+      "all_edges": [
+        {
+          "source": "health/checks/function_size.py|health.checks.function_size.check_function_size",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
+          "call_sites": [
+            {
+              "line": 45,
+              "column": 27
+            }
+          ],
+          "description": ""
+        }
+      ]
+    },
+    {
       "relation": "calls",
       "src_name": "Diagnostic Orchestrator & External Sensor Integrator",
       "dst_name": "Plugin & Tool Registry Manager",
@@ -47807,7 +47824,7 @@
           "target": "core/__init__.py|core.__init__.run_plugin_health_checks",
           "call_sites": [
             {
-              "line": 126,
+              "line": 128,
               "column": 22
             }
           ],
@@ -47830,7 +47847,7 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
           "call_sites": [
             {
-              "line": 79,
+              "line": 81,
               "column": 34
             }
           ],
@@ -47845,12 +47862,12 @@
       "evidence": "The Orchestrator acts as a control plane that dynamically collects and executes specific health check functions based on the target language. It consumes the standardized data models (BaseCheckSummary, FindingGroup) to unify internal static analysis results with external diagnostic data.",
       "key_edges": [
         {
-          "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
-          "target": "health/models.py|health.models.StandardCheckSummary",
+          "source": "health/runner.py|health.runner._collect_checks_for_language",
+          "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
           "call_sites": [
             {
-              "line": 332,
-              "column": 12
+              "line": 87,
+              "column": 22
             }
           ],
           "description": ""
@@ -47860,19 +47877,19 @@
           "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
           "call_sites": [
             {
-              "line": 98,
+              "line": 100,
               "column": 26
             }
           ],
           "description": ""
         },
         {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
+          "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
+          "target": "health/models.py|health.models.StandardCheckSummary",
           "call_sites": [
             {
-              "line": 85,
-              "column": 22
+              "line": 332,
+              "column": 12
             }
           ],
           "description": ""
@@ -47882,6 +47899,83 @@
       "dst_id": "5.1.3.1",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "health/runner.py|health.runner._collect_checks_for_language",
+          "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
+          "call_sites": [
+            {
+              "line": 87,
+              "column": 22
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "health/runner.py|health.runner._collect_checks_for_language",
+          "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
+          "call_sites": [
+            {
+              "line": 100,
+              "column": 26
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "health/runner.py|health.runner._collect_checks_for_language",
+          "target": "health/checks/coupling.py|health.checks.coupling.check_fan_in",
+          "call_sites": [
+            {
+              "line": 89,
+              "column": 22
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "health/runner.py|health.runner._collect_checks_for_language",
+          "target": "health/checks/coupling.py|health.checks.coupling.check_fan_out",
+          "call_sites": [
+            {
+              "line": 88,
+              "column": 22
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "health/runner.py|health.runner._collect_checks_for_language",
+          "target": "health/checks/god_class.py|health.checks.god_class.check_god_classes",
+          "call_sites": [
+            {
+              "line": 90,
+              "column": 22
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "health/runner.py|health.runner._collect_checks_for_language",
+          "target": "health/checks/inheritance.py|health.checks.inheritance.check_inheritance_depth",
+          "call_sites": [
+            {
+              "line": 93,
+              "column": 26
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "health/runner.py|health.runner._collect_checks_for_language",
+          "target": "health/checks/instability.py|health.checks.instability.check_package_instability",
+          "call_sites": [
+            {
+              "line": 101,
+              "column": 26
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
           "target": "health/models.py|health.models.FindingEntity",
@@ -47914,83 +48008,6 @@
             }
           ],
           "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
-          "call_sites": [
-            {
-              "line": 98,
-              "column": 26
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/coupling.py|health.checks.coupling.check_fan_in",
-          "call_sites": [
-            {
-              "line": 87,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/coupling.py|health.checks.coupling.check_fan_out",
-          "call_sites": [
-            {
-              "line": 86,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
-          "call_sites": [
-            {
-              "line": 85,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/god_class.py|health.checks.god_class.check_god_classes",
-          "call_sites": [
-            {
-              "line": 88,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/inheritance.py|health.checks.inheritance.check_inheritance_depth",
-          "call_sites": [
-            {
-              "line": 91,
-              "column": 26
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/instability.py|health.checks.instability.check_package_instability",
-          "call_sites": [
-            {
-              "line": 99,
-              "column": 26
-            }
-          ],
-          "description": ""
         }
       ]
     },
@@ -48009,7 +48026,7 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_hierarchy",
           "call_sites": [
             {
-              "line": 81,
+              "line": 83,
               "column": 37
             }
           ],
@@ -48020,7 +48037,7 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
           "call_sites": [
             {
-              "line": 94,
+              "line": 96,
               "column": 40
             }
           ],
@@ -49573,6 +49590,17 @@
       "is_static": true,
       "all_edges": [
         {
+          "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.__init__",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 47,
+              "column": 69
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
           "target": "static_analyzer/java_config_scanner.py|static_analyzer.java_config_scanner.JavaConfigScanner",
           "call_sites": [
@@ -49612,17 +49640,6 @@
             {
               "line": 85,
               "column": 57
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.__init__",
-          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 47,
-              "column": 69
             }
           ],
           "description": ""
@@ -49744,7 +49761,19 @@
       "src_name": "Artifact Scanner & Cache Manager",
       "dst_name": "Repository State & Multi-Language Discovery",
       "evidence": "The orchestrator initializes language-specific scanners and ignore managers to partition the codebase based on discovered project structures.",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 174,
+              "column": 31
+            }
+          ],
+          "description": ""
+        }
+      ],
       "src_id": "6.1.3",
       "dst_id": "6.2",
       "is_static": true,
@@ -49828,6 +49857,43 @@
         {
           "source": "repo_utils/__init__.py|repo_utils.__init__.get_repo_state_hash",
           "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.copy_cache_files",
+          "call_sites": [],
+          "description": ""
+        }
+      ]
+    },
+    {
+      "relation": "logs discovery errors and LSP interaction results",
+      "src_name": "Repository State & Multi-Language Discovery",
+      "dst_name": "Environment Identity & Execution Telemetry",
+      "evidence": "Language scanners and repository utilities utilize the telemetry component to capture errors during file system traversal and to track the success of LSP-based metadata extraction.",
+      "key_edges": [
+        {
+          "source": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.scan",
+          "target": "telemetry/events.py|telemetry.events.capture_error",
+          "call_sites": [],
+          "description": ""
+        },
+        {
+          "source": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+          "target": "telemetry/events.py|telemetry.events.track_lsp_result",
+          "call_sites": [],
+          "description": ""
+        }
+      ],
+      "src_id": "6.2",
+      "dst_id": "6.3",
+      "is_static": false,
+      "all_edges": [
+        {
+          "source": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.scan",
+          "target": "telemetry/events.py|telemetry.events.capture_error",
+          "call_sites": [],
+          "description": ""
+        },
+        {
+          "source": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+          "target": "telemetry/events.py|telemetry.events.track_lsp_result",
           "call_sites": [],
           "description": ""
         }
