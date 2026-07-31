@@ -27,14 +27,12 @@ def collect_function_sizes(call_graph: CallGraph) -> list[float]:
 
 
 def check_function_size(
-    call_graph: CallGraph, config: HealthCheckConfig, ignore_manager: RepoIgnoreManager | None = None
+    call_graph: CallGraph, config: HealthCheckConfig, ignore_manager: RepoIgnoreManager
 ) -> StandardCheckSummary:
-    """E1: Check function/method sizes across the call graph.
+    """E1: Flag functions/methods that exceed the configured line-count threshold.
 
-    Flags functions that exceed line count thresholds. File exclusion follows the
-    live ``.codeboardingignore`` via ``ignore_manager`` so the metric measures exactly
-    what the rendered architecture contains. ``ignore_manager`` is None only when no
-    repo root is available; the call graph is already ignore-filtered upstream regardless.
+    Why: excludes via the live ``.codeboardingignore`` so the denominator holds exactly
+    the files the rendered architecture contains.
     """
     findings: list[FindingEntity] = []
     total_checked = 0
@@ -44,7 +42,7 @@ def check_function_size(
         if node.is_class() or node.is_data():
             continue
 
-        if ignore_manager is not None and ignore_manager.should_ignore(Path(node.file_path)):
+        if ignore_manager.should_ignore(Path(node.file_path)):
             continue
 
         size = node.line_end - node.line_start

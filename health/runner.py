@@ -73,7 +73,7 @@ def _collect_checks_for_language(
     static_analysis: StaticAnalysisResults,
     language: Language,
     config: HealthCheckConfig,
-    ignore_manager: RepoIgnoreManager | None,
+    ignore_manager: RepoIgnoreManager,
 ) -> CheckSummaryList:
     """Run all applicable health checks for a single language and return the summaries."""
     summaries: CheckSummaryList = []
@@ -195,17 +195,17 @@ def _relativize_report_paths(
 def run_health_checks(
     static_analysis: StaticAnalysisResults,
     repo_name: str,
+    repo_path: Path | str,
     config: HealthCheckConfig | None = None,
-    repo_path: Path | str | None = None,
 ) -> HealthReport | None:
     """Run all health checks against the static analysis results and produce a HealthReport.
 
     Args:
         static_analysis: The static analysis results to check.
         repo_name: Name of the repository.
+        repo_path: Repository root. Sources the live ``.codeboardingignore`` and makes
+            report paths relative for portability.
         config: Optional health check configuration overrides.
-        repo_path: Repository root path. When provided, all file paths in the
-            report are made relative to this directory for portability.
 
     Returns:
         A HealthReport, or None if no languages were found in the static analysis.
@@ -218,10 +218,7 @@ def run_health_checks(
         logger.warning("No languages found in static analysis results; skipping health checks")
         return None
 
-    repo_root = str(repo_path) if repo_path is not None else None
-    # Live .codeboardingignore so function_size scores exactly what the architecture renders,
-    # rather than the hard-coded default template. None only when the caller omits a repo root.
-    ignore_manager = RepoIgnoreManager(Path(repo_path)) if repo_path is not None else None
+    ignore_manager = RepoIgnoreManager(Path(repo_path))
 
     check_summaries: CheckSummaryList = []
 
@@ -235,8 +232,7 @@ def run_health_checks(
     overall_score = _compute_overall_score(check_summaries)
     file_summaries = _aggregate_file_summaries(check_summaries)
 
-    if repo_root:
-        _relativize_report_paths(check_summaries, file_summaries, repo_root)
+    _relativize_report_paths(check_summaries, file_summaries, str(repo_path))
 
     return HealthReport(
         repository_name=repo_name,

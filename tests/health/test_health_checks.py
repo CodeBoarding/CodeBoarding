@@ -16,6 +16,11 @@ from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
 
 
+_REPO_ROOT = Path("/project")
+# No .codeboardingignore under this root, so the default template patterns apply.
+_IGNORE_MANAGER = RepoIgnoreManager(_REPO_ROOT)
+
+
 def _make_node(fqn: str, file_path: str, line_start: int, line_end: int, node_type: int = 12) -> Node:
     return Node(
         fully_qualified_name=fqn,
@@ -48,56 +53,56 @@ def _build_simple_graph() -> CallGraph:
 class TestFunctionSize(unittest.TestCase):
     def test_no_findings_below_threshold(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.small", "/f.py", 0, 10))
+        graph.add_node(_make_node("mod.small", "/project/f.py", 0, 10))
         config = HealthCheckConfig(function_size_max=100)
-        result = check_function_size(graph, config)
+        result = check_function_size(graph, config, _IGNORE_MANAGER)
         self.assertEqual(result.findings_count, 0)
         self.assertEqual(result.score, 1.0)
 
     def test_warning_finding(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.medium", "/f.py", 0, 60))
+        graph.add_node(_make_node("mod.medium", "/project/f.py", 0, 60))
         config = HealthCheckConfig(
             function_size_max=50,
         )
-        result = check_function_size(graph, config)
+        result = check_function_size(graph, config, _IGNORE_MANAGER)
         self.assertEqual(result.findings_count, 1)
         self.assertEqual(result.finding_groups[0].severity, Severity.WARNING)
         self.assertEqual(result.finding_groups[0].entities[0].metric_value, 60.0)
 
     def test_above_threshold_is_warning(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.large", "/f.py", 0, 150))
+        graph.add_node(_make_node("mod.large", "/project/f.py", 0, 150))
         config = HealthCheckConfig(
             function_size_max=100,
         )
-        result = check_function_size(graph, config)
+        result = check_function_size(graph, config, _IGNORE_MANAGER)
         entity_names = {f.entity_name for f in result.findings}
         self.assertIn("mod.large", entity_names)
         self.assertEqual(result.total_entities_checked, 1)
 
     def test_function_size_skips_data_entities(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.MY_CONSTANT", "/f.py", 0, 100, node_type=NodeType.CONSTANT))
-        graph.add_node(_make_node("mod.my_var", "/f.py", 0, 100, node_type=NodeType.VARIABLE))
-        graph.add_node(_make_node("mod.Class.prop", "/f.py", 0, 100, node_type=NodeType.PROPERTY))
+        graph.add_node(_make_node("mod.MY_CONSTANT", "/project/f.py", 0, 100, node_type=NodeType.CONSTANT))
+        graph.add_node(_make_node("mod.my_var", "/project/f.py", 0, 100, node_type=NodeType.VARIABLE))
+        graph.add_node(_make_node("mod.Class.prop", "/project/f.py", 0, 100, node_type=NodeType.PROPERTY))
         config = HealthCheckConfig(
             function_size_max=100,
         )
-        result = check_function_size(graph, config)
+        result = check_function_size(graph, config, _IGNORE_MANAGER)
         self.assertEqual(result.findings_count, 0)
         self.assertEqual(result.total_entities_checked, 0)
 
     def test_empty_graph(self):
         graph = CallGraph()
-        result = check_function_size(graph, HealthCheckConfig())
+        result = check_function_size(graph, HealthCheckConfig(), _IGNORE_MANAGER)
         self.assertEqual(result.total_entities_checked, 0)
         self.assertEqual(result.score, 1.0)
 
     def test_zero_size_skipped(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.zero", "/f.py", 10, 10))
-        result = check_function_size(graph, HealthCheckConfig())
+        graph.add_node(_make_node("mod.zero", "/project/f.py", 10, 10))
+        result = check_function_size(graph, HealthCheckConfig(), _IGNORE_MANAGER)
         self.assertEqual(result.total_entities_checked, 0)
 
 
@@ -391,12 +396,12 @@ class TestEntityTypeFiltering(unittest.TestCase):
 
     def test_function_size_skips_classes(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.BigClass", "/f.py", 0, 500, node_type=NodeType.CLASS))
-        graph.add_node(_make_node("mod.BigClass.big_method", "/f.py", 0, 200, node_type=NodeType.METHOD))
+        graph.add_node(_make_node("mod.BigClass", "/project/f.py", 0, 500, node_type=NodeType.CLASS))
+        graph.add_node(_make_node("mod.BigClass.big_method", "/project/f.py", 0, 200, node_type=NodeType.METHOD))
         config = HealthCheckConfig(
             function_size_max=100,
         )
-        result = check_function_size(graph, config)
+        result = check_function_size(graph, config, _IGNORE_MANAGER)
         entity_names = {f.entity_name for f in result.findings}
         self.assertNotIn("mod.BigClass", entity_names)
         self.assertIn("mod.BigClass.big_method", entity_names)
@@ -404,13 +409,13 @@ class TestEntityTypeFiltering(unittest.TestCase):
 
     def test_function_size_skips_data_entities(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.MY_CONSTANT", "/f.py", 0, 100, node_type=NodeType.CONSTANT))
-        graph.add_node(_make_node("mod.my_var", "/f.py", 0, 100, node_type=NodeType.VARIABLE))
-        graph.add_node(_make_node("mod.Class.prop", "/f.py", 0, 100, node_type=NodeType.PROPERTY))
+        graph.add_node(_make_node("mod.MY_CONSTANT", "/project/f.py", 0, 100, node_type=NodeType.CONSTANT))
+        graph.add_node(_make_node("mod.my_var", "/project/f.py", 0, 100, node_type=NodeType.VARIABLE))
+        graph.add_node(_make_node("mod.Class.prop", "/project/f.py", 0, 100, node_type=NodeType.PROPERTY))
         config = HealthCheckConfig(
             function_size_max=100,
         )
-        result = check_function_size(graph, config)
+        result = check_function_size(graph, config, _IGNORE_MANAGER)
         self.assertEqual(result.total_entities_checked, 0)
         self.assertEqual(result.findings_count, 0)
 
@@ -527,24 +532,21 @@ class TestInheritanceDepthFixedThreshold(unittest.TestCase):
         self.assertEqual(result.findings_count, 0)
 
 
-class TestFunctionSizeTestFileExclusions(unittest.TestCase):
-    """Tests that function_size honors the live .codeboardingignore for file exclusion."""
-
+class TestFunctionSizeIgnoreFiltering(unittest.TestCase):
     def test_ignored_test_file_excluded_from_function_size(self):
-        """A large function the live ignore covers (default template ignores __tests__) is not flagged."""
+        """Without a .codeboardingignore the default template applies, and it covers __tests__."""
         graph = CallGraph()
         graph.add_node(_make_node("test.big_test", "/project/__tests__/test.ts", 1, 300))
         graph.add_node(_make_node("mod.big_func", "/project/mod/utils.py", 1, 300))
         config = HealthCheckConfig(function_size_max=100)
-        ignore_manager = RepoIgnoreManager(Path("/project"))
-        result = check_function_size(graph, config, ignore_manager)
+        result = check_function_size(graph, config, _IGNORE_MANAGER)
         entity_names = {f.entity_name for f in result.findings}
         self.assertNotIn("test.big_test", entity_names)
         self.assertIn("mod.big_func", entity_names)
 
     def test_opted_in_test_file_is_scored(self):
-        """When the live .codeboardingignore opts a test dir back in, its large functions ARE
-        scored — the metric measures exactly what the rendered architecture contains."""
+        """An empty .codeboardingignore opts everything back in; only its absence falls back
+        to the template."""
         with tempfile.TemporaryDirectory() as tmp:
             cb_dir = Path(tmp) / ".codeboarding"
             cb_dir.mkdir()
@@ -554,16 +556,6 @@ class TestFunctionSizeTestFileExclusions(unittest.TestCase):
             graph.add_node(_make_node("test.big_test", str(Path(tmp) / "__tests__" / "test.ts"), 1, 300))
             config = HealthCheckConfig(function_size_max=100)
             result = check_function_size(graph, config, ignore_manager)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertIn("test.big_test", entity_names)
-
-    def test_no_ignore_manager_scores_everything(self):
-        """With no repo context (ignore_manager=None), nothing is excluded — production callers
-        always pass one, and the call graph is already ignore-filtered upstream."""
-        graph = CallGraph()
-        graph.add_node(_make_node("test.big_test", "/project/__tests__/test.ts", 1, 300))
-        config = HealthCheckConfig(function_size_max=100)
-        result = check_function_size(graph, config)
         entity_names = {f.entity_name for f in result.findings}
         self.assertIn("test.big_test", entity_names)
 
