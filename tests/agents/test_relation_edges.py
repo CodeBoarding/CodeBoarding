@@ -2,7 +2,7 @@ from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
 from agents.file_index_models import FileEntry, MethodEntry
-from agents.relation_edges import index_relation_endpoints
+from agents.relation_edges import _edge_touches_changed_method, index_relation_endpoints
 from static_analyzer.constants import NodeType
 
 
@@ -99,3 +99,33 @@ def test_index_relation_endpoints_does_not_invent_unknown_method_kinds() -> None
     index_relation_endpoints(analysis, Path("/repo"))
 
     assert analysis.files == {}
+
+
+# A call lives in its source method's body, so only the source can create or remove it.
+
+
+def _changed_edge(source: str, target: str) -> RelationEdge:
+    return RelationEdge(
+        source=SourceCodeReference(qualified_name=source),
+        target=SourceCodeReference(qualified_name=target),
+    )
+
+
+def test_an_edited_caller_can_account_for_the_call() -> None:
+    assert _edge_touches_changed_method(_changed_edge("pkg.caller", "pkg.callee"), {"pkg.caller"})
+
+
+def test_an_edited_callee_cannot_account_for_the_call() -> None:
+    # Editing a function's body does not change who calls it. Accepting this is what let a
+    # one-function commit re-word relations whose call set was byte-identical.
+    assert not _edge_touches_changed_method(_changed_edge("pkg.caller", "pkg.callee"), {"pkg.callee"})
+
+
+def test_neither_end_changed_accounts_for_nothing() -> None:
+    assert not _edge_touches_changed_method(_changed_edge("pkg.caller", "pkg.callee"), {"pkg.other"})
+
+
+def test_a_new_call_to_an_untouched_function_still_counts() -> None:
+    # The commonest way a real dependency appears: a caller edited to call something that
+    # already existed. Requiring BOTH ends to change would suppress it.
+    assert _edge_touches_changed_method(_changed_edge("pkg.caller", "pkg.old"), {"pkg.caller"})

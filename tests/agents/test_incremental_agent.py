@@ -299,7 +299,10 @@ class TestUpdateScope(unittest.TestCase):
 
         self.assertEqual(component.name, "API")
         self.assertEqual(component.description, "API description")
-        self.assertEqual(result.refresh_ids, {"1"})
+        # NOOP means the planner asked for nothing, and this one merges a cluster the component
+        # already holds — so nothing derived moved and nothing needs refreshing. Marking every
+        # NOOP component refreshed put untouched siblings into `changed_ids`.
+        self.assertEqual(result.refresh_ids, set())
         self.assertEqual(result.relation_context.cluster_results, {"python": ClusterResult()})
         self.assertEqual(result.relation_context.cfg_graphs, {})
 

@@ -233,10 +233,26 @@ class TestIncrementalChangedComponentIds(unittest.TestCase):
         )
         self.assertEqual(changed, {"2"})
 
-    def test_membership_churn_marks_the_component(self):
+    def test_membership_churn_over_untouched_methods_does_not_mark_the_component(self):
+        # Re-clustering moves untouched methods between components constantly. Calling that a
+        # change put components owning nothing the commit reached into `changed_ids`, and their
+        # relations were then freely added and removed.
         keys = self._baseline_keys() | {"1": frozenset()}
         changed = _incremental_changed_component_ids(self._live(), {}, {"1", "2"}, keys, set(), set())
-        self.assertEqual(changed, {"1"})
+        self.assertEqual(changed, set())
+
+    def test_membership_churn_involving_a_changed_method_does_mark_the_component(self):
+        keys = self._baseline_keys() | {"1": frozenset()}
+        live = self._live()
+        moved = next(
+            method.qualified_name
+            for component in live.components
+            if component.component_id == "1"
+            for group in component.file_methods
+            for method in group.methods
+        )
+        changed = _incremental_changed_component_ids(live, {}, {"1", "2"}, keys, {moved}, set())
+        self.assertIn("1", changed)
 
     def test_component_absent_from_the_baseline_is_changed(self):
         changed = _incremental_changed_component_ids(self._live(), {}, {"1"}, self._baseline_keys(), set(), set())
@@ -276,6 +292,22 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         self.assertEqual([edge.source.qualified_name for edge in kept[0].key_edges], ["live.caller"])
 
     def test_edge_touching_a_changed_component_keeps_the_fresh_rebuild(self):
+        # Its supporting calls moved, so the connection itself changed and may be re-described.
+        fresh = self._relation("1", "2", "rebuilt wording")
+        fresh.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.new_callee"))]
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.old_callee"))]
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): stale}, changed_component_ids={"2"}, live_ids={"1", "2"}, live_qnames=set()
+        )
+
+        self.assertEqual([rel.relation for rel in kept], ["rebuilt wording"])
+
+    def test_an_edgeless_pair_keeps_its_wording_even_when_an_endpoint_changed(self):
+        # Nothing under it could have moved: there are no supporting calls to move. Re-wording
+        # it is churn, and gating on the endpoint's change flag is what produced 17 of them on
+        # `referenced-symbol-deleted` for a commit that deleted one function.
         rebuilt = [self._relation("1", "2", "rebuilt wording")]
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 
@@ -283,7 +315,7 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
             rebuilt, baseline, changed_component_ids={"2"}, live_ids={"1", "2"}, live_qnames=set()
         )
 
-        self.assertEqual([rel.relation for rel in kept], ["rebuilt wording"])
+        self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
 
     def test_touched_pair_with_identical_backing_edges_keeps_the_baseline_wording(self):
         # An endpoint is flagged changed (a file it co-owns had a module-level edit), but the
@@ -521,3 +553,132 @@ class TestScopeIdContract(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_an_ungrounded_pair_that_came_back_reversed_keeps_the_reader_s_orientation(self):
+        # Nothing grounds the direction of a runtime/config relation, so the model picks one
+        # afresh each run. Keyed on the ordered pair a swap reads as one relation deleted and
+        # another added — two of the five "changed edges" in the reported case were this.
+        fresh = self._relation("5", "4", "dispatches to")
+        fresh.evidence = "runtime dispatch"
+        stale = self._relation("4", "5", "captures user intent")
+        stale.evidence = "runtime dispatch"
+
+        kept = preserve_unchanged_relations([fresh], {("4", "5"): stale}, {"5"}, {"4", "5"}, set())
+
+        self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("4", "5")])
+        self.assertEqual([r.relation for r in kept], ["captures user intent"])
+
+    def test_a_reversed_pair_with_backing_edges_keeps_its_own_direction(self):
+        # An edge is what makes the direction a claim rather than a phrasing; flipping a
+        # relation that has one would point its edges the wrong way.
+        fresh = self._relation("5", "4", "dispatches to")
+        fresh.all_edges = [RelationEdge(source=_ref("pkg.a.caller"), target=_ref("pkg.b.callee"))]
+        stale = self._relation("4", "5", "captures user intent")
+
+        kept = preserve_unchanged_relations([fresh], {("4", "5"): stale}, {"5"}, {"4", "5"}, set())
+
+        self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("5", "4")])
+
+    def test_a_reversed_static_pair_is_never_re_oriented(self):
+        # A statically-backed relation takes its direction from real CFG edges.
+        fresh = self._relation("5", "4", "calls")
+        fresh.is_static = True
+        stale = self._relation("4", "5", "calls")
+        stale.is_static = True
+
+        kept = preserve_unchanged_relations([fresh], {("4", "5"): stale}, {"5"}, {"4", "5"}, set())
+
+        self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("5", "4")])
+
+
+class TestChangedComponentGranularity(unittest.TestCase):
+    """A component that merely SHARES a file with the edit has not itself changed."""
+
+    @staticmethod
+    def _analysis(components):
+        return AnalysisInsights(description="", components=components, components_relations=[])
+
+    @staticmethod
+    def _component(cid, file_path, qnames):
+        return Component(
+            name=cid,
+            description="",
+            key_entities=[],
+            component_id=cid,
+            file_methods=[
+                FileMethodGroup(
+                    file_path=file_path,
+                    methods=[
+                        MethodEntry(qualified_name=q, start_line=1, end_line=2, node_type="FUNCTION") for q in qnames
+                    ],
+                )
+            ],
+        )
+
+    def _changed(self, components, changed_members, changed_files):
+        analysis = self._analysis(components)
+        baseline_keys = {c.component_id: _member_keys(c) for c in components}
+        return _incremental_changed_component_ids(
+            analysis, {}, {c.component_id for c in components}, baseline_keys, changed_members, changed_files
+        )
+
+    def test_a_co_owner_of_the_changed_file_is_not_itself_changed(self):
+        # `types.py` is shared: A owns the edited method, B owns other methods in the same file.
+        owner = self._component("A", "types.py", ["pkg.types.edited"])
+        co_owner = self._component("B", "types.py", ["pkg.types.untouched"])
+        changed = self._changed([owner, co_owner], {"pkg.types.edited"}, {"types.py"})
+        self.assertEqual(changed, {"A"}, "B shares the file but owns nothing that changed")
+
+    def test_a_module_level_edit_no_member_represents_still_flags_its_owners(self):
+        # An import or constant changed: no method's hash moved, so the file is the only signal.
+        a = self._component("A", "consts.py", ["pkg.consts.f"])
+        changed = self._changed([a], set(), {"consts.py"})
+        self.assertEqual(changed, {"A"})
+
+
+def _reconcile_child_scope_membership_for_test(child_scope, departed):
+    """The relation-filtering half of `_reconcile_child_scope_membership`, exercised directly."""
+    departed_qnames = {qualified_name for _path, qualified_name in departed}
+    child_scope.components_relations = [
+        relation
+        for relation in child_scope.components_relations
+        if not any(
+            edge.source.qualified_name in departed_qnames or edge.target.qualified_name in departed_qnames
+            for edge in [*relation.key_edges, *relation.all_edges]
+        )
+    ]
+
+
+class TestScopeRelationsSurviveMembershipMovement(unittest.TestCase):
+    """Reconciling membership must not wipe the scope's relations wholesale.
+
+    Clearing them leaves `preserve_unchanged_relations` with no baseline, so it is skipped and
+    every relation in the scope comes back re-worded — measured at 8 re-wordings on
+    `referenced-symbol-deleted` whose call sets were byte-identical.
+    """
+
+    @staticmethod
+    def _relation(src, dst, source_q, target_q):
+        return Relation(
+            relation="calls",
+            src_name=src,
+            dst_name=dst,
+            src_id=src,
+            dst_id=dst,
+            all_edges=[RelationEdge(source=_ref(source_q), target=_ref(target_q))],
+        )
+
+    def test_a_relation_citing_a_departed_method_is_dropped(self):
+        scope = AnalysisInsights(
+            description="",
+            components=[],
+            components_relations=[self._relation("1", "2", "pkg.gone", "pkg.stays")],
+        )
+        _reconcile_child_scope_membership_for_test(scope, departed={("a.py", "pkg.gone")})
+        self.assertEqual(scope.components_relations, [])
+
+    def test_a_relation_untouched_by_the_movement_is_kept(self):
+        keep = self._relation("1", "2", "pkg.here", "pkg.there")
+        scope = AnalysisInsights(description="", components=[], components_relations=[keep])
+        _reconcile_child_scope_membership_for_test(scope, departed={("a.py", "pkg.gone")})
+        self.assertEqual([r.relation for r in scope.components_relations], ["calls"])

@@ -55,7 +55,8 @@ def index_relation_endpoints(analysis: AnalysisInsights, repo_dir: Path) -> None
 def _is_internal_self_relation(relation: Relation) -> bool:
     """A component related to itself by concrete intra-component calls.
 
-    The backing edges are real CFG calls whose endpoints currently fall in the same
+    Its supporting calls — the concrete method-to-method calls stored under the relation —
+    are real CFG calls whose endpoints currently fall in the same
     component, so at this granularity there is no cross-component connection to draw — the
     loop is the residue of a rollup that collapsed a cross-child edge onto its shared parent.
     The CFG still holds every such edge, so expanding the component re-materialises it across
@@ -76,7 +77,7 @@ def drop_internal_self_relations(relations: list[Relation]) -> list[Relation]:
 def _relation_backing_survives(relation: Relation, live_qnames: set[str]) -> bool:
     """Whether a baseline relation's static backing still exists in live code.
 
-    A relation restored verbatim keeps its call edges. If the only edges connecting the two
+    A relation is supported by concrete method-to-method calls; restoring it verbatim keeps them. If the only edges connecting the two
     components pointed at a symbol since deleted, restoring the relation resurrects an edge
     citing code that is gone — a phantom. A relation with no static edge at all is a
     runtime/config relation with nothing to invalidate, so it is left alone.
@@ -90,6 +91,7 @@ def _relation_backing_survives(relation: Relation, live_qnames: set[str]) -> boo
 
 
 def _backing_edge_pairs(relation: Relation) -> set[tuple[str, str]]:
+    """The (source, target) method pairs supporting this relation — the calls under the arrow."""
     edges = relation.all_edges or relation.key_edges
     return {(edge.source.qualified_name, edge.target.qualified_name) for edge in edges}
 
@@ -107,7 +109,70 @@ def _relation_edges_unmoved(rebuilt: Relation, previous: Relation) -> bool:
 
 
 def _edge_touches_changed_method(edge: RelationEdge, changed_members: set[str]) -> bool:
-    return edge.source.qualified_name in changed_members or edge.target.qualified_name in changed_members
+    """Whether a code change can account for this call appearing or disappearing.
+
+    A call is written inside its SOURCE method's body, so the source is the only end whose
+    change can create or remove it. An untouched caller calls exactly what it called before,
+    whatever happened inside the callee — editing a function's body does not change who calls
+    it, and neither does adding one.
+
+    So this asks about the source alone. Accepting either end (the previous rule) let every
+    rebuilt edge whose *callee* happened to be edited pass as code-backed, which is how a
+    one-function commit re-worded relations whose call set was byte-identical.
+
+    Not "both ends", which would be too strict the other way: editing a caller to call an
+    existing, untouched function is the commonest way a real dependency appears, and its callee
+    never changes. A deleted callee needs no special case — the caller must be edited to stop
+    calling it, so the source is in ``changed_members`` anyway.
+    """
+    return edge.source.qualified_name in changed_members
+
+
+def _restore_baseline_orientation(relation: Relation, baseline_by_pair: dict) -> Relation:
+    """Put an ungrounded relation back the way round the reader last saw it.
+
+    Why only ungrounded ones: a statically-backed relation takes its direction from real CFG
+    edges, so the arrow means something and must not be touched. A runtime/config relation has
+    no call to fix it, so the model picks an orientation afresh each run — and a swap keyed on
+    the ordered pair reads as one relation deleted and another added. On the reported case
+    (CodeBoarding-action#65) two of the five changed edges were exactly that: the same two
+    component pairs with their arrows reversed and relabelled.
+
+    Applied only when the fresh relation carries no backing edges at all, because an edge is
+    what would make the direction a claim rather than a phrasing — flipping a relation that has
+    one would point its edges the wrong way.
+    """
+    if relation.is_static or relation.all_edges or relation.key_edges:
+        return relation
+    flipped = baseline_by_pair.get((relation.dst_id, relation.src_id))
+    if flipped is None or flipped.is_static or flipped.all_edges or flipped.key_edges:
+        return relation
+    return relation.model_copy(
+        update={
+            "src_id": flipped.src_id,
+            "dst_id": flipped.dst_id,
+            "src_name": flipped.src_name,
+            "dst_name": flipped.dst_name,
+            "relation": flipped.relation,
+            "evidence": flipped.evidence,
+        }
+    )
+
+
+def _only_change_backed_edges(relation: Relation, changed_members: set[str]) -> Relation:
+    """Keep only the edges a code change can account for, for a pair with no baseline.
+
+    Why: a call lives in its source method's body, so an edge can only appear when one of its
+    endpoints changed. ``_reconcile_unchanged_edges`` enforces that by falling back to the
+    baseline, but re-clustering invents component-pairs that have no baseline to fall back to —
+    there every re-attributed edge would otherwise enter as if the commit had written it.
+    """
+    return relation.model_copy(
+        update={
+            "all_edges": [e for e in relation.all_edges if _edge_touches_changed_method(e, changed_members)],
+            "key_edges": [e for e in relation.key_edges if _edge_touches_changed_method(e, changed_members)],
+        }
+    )
 
 
 def _reconcile_unchanged_edges(fresh: Relation, previous: Relation, changed_members: set[str]) -> Relation:
@@ -176,6 +241,8 @@ def preserve_unchanged_relations(
     kept: list[Relation] = []
     rebuilt_pairs: set[tuple[str, str]] = set()
     for relation in rebuilt_relations:
+        if (relation.src_id, relation.dst_id) not in baseline_by_pair:
+            relation = _restore_baseline_orientation(relation, baseline_by_pair)
         pair = (relation.src_id, relation.dst_id)
         rebuilt_pairs.add(pair)
         previous = baseline_by_pair.get(pair)
@@ -183,8 +250,14 @@ def preserve_unchanged_relations(
             # No baseline for this pair. A genuinely new connection into a changed area is
             # kept; a fresh edge invented between two untouched components is a re-attribution
             # artifact and is dropped.
-            if touches_change(*pair):
-                kept.append(relation)
+            if not touches_change(*pair):
+                continue
+            if changed_members is not None:
+                relation = _only_change_backed_edges(relation, changed_members)
+                # Nothing survived and nothing else is claimed: the pair asserts no connection.
+                if not relation.all_edges and not relation.key_edges and not relation.evidence.strip():
+                    continue
+            kept.append(relation)
             continue
         # Every edge between two byte-identical methods is taken from the baseline; only edges
         # that touch a changed/added/deleted method come from the fresh rebuild. This stops
@@ -192,9 +265,21 @@ def preserve_unchanged_relations(
         # pairs alike.
         if changed_members is not None:
             relation = _reconcile_unchanged_edges(relation, previous, changed_members)
-        # Keep the reader's wording unless a real, code-backed edge change re-worded it: an
-        # untouched pair, or one whose edges came through unmoved, carries its label over.
-        if not touches_change(*pair) or _relation_edges_unmoved(relation, previous):
+        # Keep the reader's wording unless this pair's own supporting calls moved.
+        #
+        # The supporting calls are the concrete method-to-method calls under the relation — the
+        # ones that show WHERE one component reaches the other. They are the only evidence that
+        # the connection itself changed, so they are what decides whether it may be re-worded.
+        # Gating on the endpoint components' change flags instead re-words far more: a component
+        # is flagged for any edit to a file it merely co-owns, so deleting one function re-worded
+        # 17 of the relations in `referenced-symbol-deleted` whose calls had not moved at all.
+        # A pair with no supporting calls has nothing that could have moved, so its wording is
+        # kept too — an edgeless runtime relation is prose, and re-rolling prose is the churn.
+        if (
+            not touches_change(*pair)
+            or _relation_edges_unmoved(relation, previous)
+            or not _backing_edge_pairs(relation)
+        ):
             relation = relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence})
         kept.append(relation)
     for pair, relation in baseline_by_pair.items():

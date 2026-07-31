@@ -31,6 +31,22 @@ class TestStaticReferenceResolver(unittest.TestCase):
     def _node(self, qname: str, rel_file: str, start: int = 1, end: int = 2) -> Node:
         return Node(qname, NodeType.FUNCTION, str(self.repo_dir / rel_file), start, end)
 
+    @staticmethod
+    def _resolves(*nodes: Node):
+        """A ``get_reference`` stub keyed by qualified name rather than by call order.
+
+        Why: resolution is now consulted per endpoint wherever an edge is judged, so a fixed
+        side-effect list ties the test to a call count instead of to what actually resolves.
+        """
+        by_qname = {node.fully_qualified_name: node for node in nodes}
+
+        def get_reference(_language, qualified_name: str) -> Node:
+            if qualified_name in by_qname:
+                return by_qname[qualified_name]
+            raise ValueError(f"{qualified_name} not found")
+
+        return get_reference
+
     def _file_methods(self, qname: str, rel_file: str) -> list[FileMethodGroup]:
         return [
             FileMethodGroup(
@@ -216,7 +232,7 @@ class TestStaticReferenceResolver(unittest.TestCase):
     def test_fix_source_code_reference_lines_resolves_relation_edges_and_call_sites(self):
         source_node = self._node("service.OCR.extract_text", "service.py", 1, 2)
         target_node = self._node("module.file.test_function", "module/file.py", 3, 4)
-        self.static_analysis.get_reference.side_effect = [source_node, target_node]
+        self.static_analysis.get_reference.side_effect = self._resolves(source_node, target_node)
         static_edge = Edge(source_node, target_node, [{"line": 7, "column": 8}])
         cfg = MagicMock()
         cfg.edges = [static_edge]
@@ -250,7 +266,7 @@ class TestStaticReferenceResolver(unittest.TestCase):
 
     def test_fix_source_code_reference_lines_keeps_external_target_edge(self):
         source_node = self._node("service.OCR.extract_text", "service.py", 1, 2)
-        self.static_analysis.get_reference.side_effect = [source_node, ValueError("not found")]
+        self.static_analysis.get_reference.side_effect = self._resolves(source_node)
         self.static_analysis.get_loose_reference.return_value = ("", None)
         self.static_analysis.iter_reference_nodes.return_value = [source_node]
         relation = Relation(

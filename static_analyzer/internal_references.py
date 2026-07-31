@@ -2,6 +2,7 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable
 from typing import Protocol
+from weakref import ReferenceType, ref
 
 from static_analyzer.constants import Language
 
@@ -28,14 +29,39 @@ def parent_qualified_name(qualified_name: str) -> str:
     return parent.split("(", 1)[0]
 
 
+_TOKEN_CACHE: dict[int, tuple[ReferenceType, set[str], set[str]]] = {}
+
+
+def _internal_reference_tokens(static_analysis: InternalReferenceSource) -> tuple[set[str], set[str]]:
+    """The anchor tokens and flat token set for one static-analysis result.
+
+    Why cached: deriving these walks every reference node in every language and tokenises each
+    name, while callers ask per candidate symbol — recomputing turns a per-symbol question into
+    a repo-sized scan. Keyed by identity because the results object is large and unhashable; the
+    stored weak reference is what makes that safe, since an id is only reused once the original
+    is collected and a line whose referent is gone no longer matches.
+    """
+    key = id(static_analysis)
+    cached = _TOKEN_CACHE.get(key)
+    if cached is not None and cached[0]() is static_analysis:
+        return cached[1], cached[2]
+    token_paths = _internal_reference_token_paths(static_analysis)
+    anchors = _internal_reference_anchor_tokens(token_paths)
+    tokens = {token for path in token_paths for token in path}
+    try:
+        _TOKEN_CACHE[key] = (ref(static_analysis), anchors, tokens)
+    except TypeError:
+        pass  # Not weak-referenceable, so it cannot be cached safely; recompute next time.
+    return anchors, tokens
+
+
 def looks_internal_reference(static_analysis: InternalReferenceSource, qualified_name: str) -> bool:
     tokens = reference_tokens(qualified_name)
     if not tokens:
         return False
-    internal_token_paths = _internal_reference_token_paths(static_analysis)
-    if tokens[0] in _internal_reference_anchor_tokens(internal_token_paths):
+    anchor_tokens, internal_tokens = _internal_reference_tokens(static_analysis)
+    if tokens[0] in anchor_tokens:
         return True
-    internal_tokens = {token for path in internal_token_paths for token in path}
     return any(token.startswith("_") and token in internal_tokens for token in tokens)
 
 

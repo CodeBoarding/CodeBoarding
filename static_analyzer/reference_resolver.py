@@ -38,6 +38,11 @@ class StaticReferenceResolver:
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults):
         self.repo_dir = repo_dir
         self.static_analysis = static_analysis
+        # A miss falls through to get_loose_reference, which scans every reference in the
+        # bucket. The same handful of symbols recur across a relation's edges, so resolving
+        # each name once keeps edge filtering proportional to the edges rather than to the
+        # repo. The static analysis does not change while it is being consulted.
+        self._resolved_nodes: dict[str, Any] = {}
 
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights) -> AnalysisInsights:
         logger.info(f"Fixing source code reference lines for the analysis: {analysis.llm_str()}")
@@ -190,6 +195,11 @@ class StaticReferenceResolver:
     def resolve_node(self, reference: SourceCodeReference):
         """Resolve a source reference to a static-analysis node without mutating it."""
         qname = reference.qualified_name.replace(os.sep, ".")
+        if qname not in self._resolved_nodes:
+            self._resolved_nodes[qname] = self._resolve_node_uncached(qname)
+        return self._resolved_nodes[qname]
+
+    def _resolve_node_uncached(self, qname: str):
         for lang in self.static_analysis.get_languages():
             try:
                 return self.static_analysis.get_reference(lang, qname)
@@ -254,30 +264,19 @@ class StaticReferenceResolver:
         return f"{node.fully_qualified_name}:{node.file_path}:{node.line_start}:{node.line_end}"
 
     def keep_relation_edge(self, edge: RelationEdge) -> bool:
-        """Keep relation edges that resolve internally or target external code."""
+        """Keep relation edges whose endpoints are real symbols, or that reach external code.
+
+        Why symbols rather than files: the file an endpoint names proves nothing about the
+        symbol in it. An invented method in a real module resolves to no node, and an edge
+        citing one describes a call that cannot exist. An endpoint that resolves nowhere and
+        does not look like repo code is external — legitimate evidence for a runtime relation.
+        """
         if self.same_resolved_relation_endpoint(edge):
             return False
-        if self.resolved_relation_edge(edge):
+        source_resolved = self.resolve_node(edge.source) is not None
+        target_resolved = self.resolve_node(edge.target) is not None
+        if source_resolved and target_resolved:
             return True
-        return self.external_relation_edge(edge)
-
-    def resolved_relation_edge(self, edge: RelationEdge) -> bool:
-        """Return true when both edge endpoints resolve to existing files."""
-        return (
-            edge.source.reference_file is not None
-            and self.reference_file_exists(edge.source.reference_file)
-            and edge.target.reference_file is not None
-            and self.reference_file_exists(edge.target.reference_file)
-        )
-
-    def external_relation_edge(self, edge: RelationEdge) -> bool:
-        """Return true when one endpoint is repo code and the other is external."""
-        source_resolved = edge.source.reference_file is not None and self.reference_file_exists(
-            edge.source.reference_file
-        )
-        target_resolved = edge.target.reference_file is not None and self.reference_file_exists(
-            edge.target.reference_file
-        )
         if source_resolved == target_resolved:
             return False
         unresolved = edge.target if source_resolved else edge.source

@@ -15,9 +15,13 @@ from static_analyzer.cluster_relations import (
     ClusterRelation,
     build_node_to_component_map,
     build_component_relations,
+    build_owner_index,
+    edge_crosses_components,
+    drop_reverse_duplicates,
     ground_relation_edges,
     is_self_or_descendant,
     merge_relations,
+    prune_ungrounded_edges,
 )
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph, Edge
@@ -419,3 +423,174 @@ class TestGroundRelationEdges(unittest.TestCase):
         key_edges, all_edges = ground_relation_edges([], [dup, dup])
         self.assertEqual(len(all_edges), 1)
         self.assertEqual(key_edges, [])
+
+
+class TestPruneUngroundedEdges(unittest.TestCase):
+    """Preservation re-injects baseline edges after the filters ran, so the assembled list is
+    filtered again — otherwise an older engine's edges outlive every update that leaves the
+    methods they name alone."""
+
+    NODES = {"pkg.a.caller": "1", "pkg.a.helper": "1", "pkg.b.callee": "2"}
+
+    def _prune(self, relation, keep_edge=lambda edge: True):
+        return prune_ungrounded_edges([relation], build_owner_index(self.NODES), keep_edge)
+
+    def _relation(self, edges, evidence=""):
+        return Relation(
+            relation="calls",
+            src_name="A",
+            dst_name="B",
+            src_id="1",
+            dst_id="2",
+            evidence=evidence,
+            key_edges=list(edges),
+            all_edges=list(edges),
+        )
+
+    def test_an_inherited_intra_component_edge_is_dropped(self):
+        # Both ends in component 1: there is no cross-component call to preserve anywhere.
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.a.helper")])
+        self.assertEqual(self._prune(rel), [])
+
+    def test_a_real_call_filed_under_the_wrong_pair_is_kept_not_lost(self):
+        # 1 -> 2 is real, but this relation claims 2 -> 1. Dropping it would delete the only
+        # record of a genuine cross-component call.
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
+        rel.src_id, rel.dst_id = "2", "1"
+        kept = self._prune(rel)
+        self.assertEqual([e.target.qualified_name for e in kept[0].all_edges], ["pkg.b.callee"])
+
+    def test_a_misfiled_call_moves_to_the_relation_that_declares_its_pair(self):
+        wrong = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")], evidence="e")
+        wrong.src_id, wrong.dst_id = "2", "1"
+        right = self._relation([])
+        right.evidence = "the pair this call actually runs between"
+        kept = prune_ungrounded_edges([wrong, right], build_owner_index(self.NODES), lambda edge: True)
+        by_pair = {(r.src_id, r.dst_id): r for r in kept}
+        self.assertEqual([e.target.qualified_name for e in by_pair[("1", "2")].all_edges], ["pkg.b.callee"])
+        # And the emptied backwards copy goes with it: on prose alone it now states a
+        # connection the grounded relation already states the right way round.
+        self.assertNotIn(("2", "1"), by_pair)
+
+    def test_an_inherited_edge_naming_a_dead_symbol_is_dropped(self):
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
+        self.assertEqual(self._prune(rel, keep_edge=lambda edge: False), [])
+
+    def test_a_crossing_edge_survives(self):
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
+        kept = self._prune(rel)
+        self.assertEqual([e.target.qualified_name for e in kept[0].all_edges], ["pkg.b.callee"])
+
+    def test_an_edgeless_relation_whose_reverse_is_grounded_is_dropped(self):
+        # The same connection stated backwards: `B -> A` survives on prose while `A -> B` holds
+        # the actual call. Keeping both draws the dependency twice, one arrow pointing the
+        # wrong way, and every run that repairs it reads as churn.
+        grounded = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
+        backwards = self._relation([], evidence="reads the parsed result")
+        backwards.src_id, backwards.dst_id = "2", "1"
+        kept = prune_ungrounded_edges([grounded, backwards], build_owner_index(self.NODES), lambda edge: True)
+        self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("1", "2")])
+
+    def test_an_edgeless_relation_with_no_grounded_reverse_survives(self):
+        # Nothing else states this connection, so its evidence is the only record of it.
+        backwards = self._relation([], evidence="over the work queue")
+        backwards.src_id, backwards.dst_id = "2", "1"
+        kept = prune_ungrounded_edges([backwards], build_owner_index(self.NODES), lambda edge: True)
+        self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("2", "1")])
+
+    def test_a_static_edgeless_relation_is_never_dropped_for_its_reverse(self):
+        grounded = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
+        backwards = self._relation([], evidence="derived from the call graph")
+        backwards.src_id, backwards.dst_id = "2", "1"
+        backwards.is_static = True
+        kept = prune_ungrounded_edges([grounded, backwards], build_owner_index(self.NODES), lambda edge: True)
+        self.assertEqual(sorted((r.src_id, r.dst_id) for r in kept), [("1", "2"), ("2", "1")])
+
+    def test_a_relation_left_edgeless_survives_on_its_evidence(self):
+        # An edgeless runtime/config relation is a claim in its own right.
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.a.helper")], evidence="over the queue")
+        kept = self._prune(rel)
+        self.assertEqual([r.relation for r in kept], ["calls"])
+        self.assertEqual(kept[0].all_edges, [])
+
+
+class TestEdgeCrossesComponents(unittest.TestCase):
+    """A runtime/config pair has no static edge to ground against, so its LLM edges are checked here."""
+
+    NODES = {
+        "scripts.engine_adapter.run_render": "1",
+        "scripts.build_component_files.render_component_files": "2",
+        "scripts.submit_feedback.resolve_command": "4",
+        "scripts.build_cta.main": "5",
+        "scripts.build_cta.build_cta": "5",
+    }
+
+    def _crosses(self, edge, src_id, dst_id):
+        return edge_crosses_components(edge, build_owner_index(self.NODES), src_id, dst_id)
+
+    def test_intra_component_edge_is_not_a_cross_component_call(self):
+        # Both endpoints belong to component 5, so this cannot back a 5 -> 2 relation.
+        edge = _make_relation_edge("scripts.build_cta.main", "scripts.build_cta.build_cta")
+        self.assertFalse(self._crosses(edge, "5", "2"))
+
+    def test_edge_crossing_the_declared_pair_is_kept(self):
+        edge = _make_relation_edge("scripts.build_cta.main", "scripts.submit_feedback.resolve_command")
+        self.assertTrue(self._crosses(edge, "5", "4"))
+
+    def test_unowned_endpoint_is_left_to_the_symbol_check(self):
+        # An endpoint no component owns may be external code; validity is not decided here.
+        edge = _make_relation_edge("scripts.build_cta.main", "requests.post")
+        self.assertTrue(self._crosses(edge, "5", "9"))
+
+    def test_child_component_satisfies_its_ancestor_id(self):
+        edge = _make_relation_edge("scripts.build_cta.main", "scripts.submit_feedback.resolve_command")
+        index = build_owner_index({**self.NODES, "scripts.build_cta.main": "5.1"})
+        self.assertTrue(edge_crosses_components(edge, index, "5", "4"))
+
+    def test_unresolved_pair_ids_skip_the_ownership_check(self):
+        edge = _make_relation_edge("scripts.build_cta.main", "scripts.submit_feedback.resolve_command")
+        self.assertTrue(self._crosses(edge, "", ""))
+
+
+class TestDropReverseDuplicates(unittest.TestCase):
+    """Two relations between the same components, one each way, saying the same thing."""
+
+    @staticmethod
+    def _rel(src, dst, evidence="", edges=0, static=False):
+        return Relation(
+            relation="calls",
+            src_name=src,
+            dst_name=dst,
+            src_id=src,
+            dst_id=dst,
+            evidence=evidence,
+            is_static=static,
+            all_edges=[_make_relation_edge(f"pkg.a{i}", f"pkg.b{i}") for i in range(edges)],
+        )
+
+    def test_the_grounded_direction_wins(self):
+        kept = drop_reverse_duplicates([self._rel("1", "2", edges=1), self._rel("2", "1", evidence="e")])
+        self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("1", "2")])
+
+    def test_two_bare_directions_collapse_to_one_deterministically(self):
+        # Nothing distinguishes them, so the choice must not depend on run order — otherwise one
+        # run's baseline carries both and the next reports an add or a delete.
+        pair = [self._rel("1", "2", evidence="aa"), self._rel("2", "1", evidence="aa")]
+        first = [(r.src_id, r.dst_id) for r in drop_reverse_duplicates(pair)]
+        second = [(r.src_id, r.dst_id) for r in drop_reverse_duplicates(list(reversed(pair)))]
+        self.assertEqual(len(first), 1)
+        self.assertEqual(first, second, "the survivor must not depend on input order")
+
+    def test_the_better_evidenced_bare_direction_is_the_one_kept(self):
+        kept = drop_reverse_duplicates(
+            [self._rel("1", "2", evidence="a"), self._rel("2", "1", evidence="a much longer why")]
+        )
+        self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("2", "1")])
+
+    def test_both_directions_survive_when_both_are_grounded(self):
+        kept = drop_reverse_duplicates([self._rel("1", "2", edges=1), self._rel("2", "1", edges=1)])
+        self.assertEqual(sorted((r.src_id, r.dst_id) for r in kept), [("1", "2"), ("2", "1")])
+
+    def test_a_static_relation_is_never_collapsed(self):
+        kept = drop_reverse_duplicates([self._rel("1", "2", edges=1), self._rel("2", "1", static=True)])
+        self.assertEqual(sorted((r.src_id, r.dst_id) for r in kept), [("1", "2"), ("2", "1")])
