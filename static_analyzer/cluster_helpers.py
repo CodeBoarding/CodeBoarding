@@ -15,17 +15,11 @@ component.
 
 from __future__ import annotations
 
-import hashlib
-import json
-import logging
-import math
-import os
+import hashlib, json, logging, math, os
 from collections import Counter, defaultdict, deque
-from collections.abc import Mapping
-from functools import lru_cache
 from dataclasses import asdict, dataclass, field
+from functools import lru_cache
 from pathlib import PurePath
-from types import MappingProxyType
 
 import infomap
 import networkx as nx
@@ -49,14 +43,6 @@ SUBCOMPONENTS_MAX = 8
 
 INFOMAP_TRIALS = 10
 PROGRAM_MAP_PROFILE_LIMIT = 8
-
-PROGRAM_MAP_CHANNEL_WEIGHTS: dict[str, float] = {
-    "call": 1.0,
-    "contains": 1.0,
-    "inherits": 1.25,
-    "typeref": 0.5,
-    "import": 0.25,
-}
 
 
 def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
@@ -172,6 +158,58 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
         meta_graph.add_edge(src_cid, dst_cid, weight=weight)
 
     return meta_graph
+
+
+def _validate_profile_groups(cluster_result: ClusterResult, groups: list[set[int]]) -> None:
+    """Require the fitted groups to cover each leaf cluster exactly once."""
+    expected = set(cluster_result.clusters)
+    assigned: set[int] = set()
+    for group_id, group in enumerate(groups):
+        if not group:
+            raise ValueError(f"Program-map group {group_id} is empty")
+        unknown = group - expected
+        duplicate = group & assigned
+        if unknown:
+            raise ValueError(f"Program-map group {group_id} contains unknown clusters {sorted(unknown)}")
+        if duplicate:
+            raise ValueError(f"Program-map groups share clusters {sorted(duplicate)}")
+        assigned.update(group)
+    if missing := expected - assigned:
+        raise ValueError(f"Program-map groups omit clusters {sorted(missing)}")
+
+
+def _rank_flow_symbols(weights: Counter[str], limit: int) -> tuple[str, ...]:
+    return tuple(name for name, _ in sorted(weights.items(), key=lambda item: (-item[1], item[0]))[:limit])
+
+
+def _group_dependency_depth(graph: nx.DiGraph) -> tuple[int, int, int, tuple[str, ...]]:
+    """Measure SCC regions and their condensed dependency depth."""
+    if not graph:
+        return 0, 0, 0, ()
+    regions = sorted(
+        (tuple(sorted(region)) for region in nx.strongly_connected_components(graph)), key=lambda region: region
+    )
+    owner = {symbol: index for index, region in enumerate(regions) for symbol in region}
+    condensed = nx.DiGraph()
+    condensed.add_nodes_from(range(len(regions)))
+    condensed.add_edges_from(
+        sorted({(owner[source], owner[target]) for source, target in graph.edges if owner[source] != owner[target]})
+    )
+    depth: dict[int, int] = {}
+    for region_id in nx.lexicographical_topological_sort(condensed, key=lambda index: regions[index]):
+        depth[region_id] = max((depth[parent] + 1 for parent in condensed.predecessors(region_id)), default=0)
+    cyclic = sum(len(region) > 1 or graph.has_edge(region[0], region[0]) for region in regions)
+    bridges = tuple(sorted(nx.articulation_points(graph.to_undirected()))) if len(graph) > 1 else ()
+    return len(regions), cyclic, max(depth.values(), default=0), bridges
+
+
+PROGRAM_MAP_CHANNEL_WEIGHTS: dict[str, float] = {
+    "call": 1.0,
+    "contains": 1.0,
+    "inherits": 1.25,
+    "typeref": 0.5,
+    "import": 0.25,
+}
 
 
 class ProgramMapInformationError(ValueError):
@@ -415,7 +453,7 @@ class ProgramMapSnapshot:
         return cls.from_payload(payload)
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, object]) -> ProgramMapSnapshot:
+    def from_payload(cls, payload: dict[str, object]) -> ProgramMapSnapshot:
         """Decode a versioned payload and reject cache data whose fingerprint no longer matches."""
         if payload.get("format") != 1:
             raise ProgramMapSnapshotError("Unsupported program-map snapshot format")
@@ -532,7 +570,7 @@ class ProgramMapInformation:
             raise ProgramMapInformationError("Program-map information contains duplicate typed evidence")
         if tuple(sorted(self.symbols)) != self.symbols or tuple(sorted(self.evidence)) != self.evidence:
             raise ProgramMapInformationError("Program-map information must use deterministic ordering")
-        object.__setattr__(self, "_symbol_index", MappingProxyType(index))
+        object.__setattr__(self, "_symbol_index", index)
 
     def symbol(self, qualified_name: str) -> ProgramMapSymbol:
         try:
@@ -1206,49 +1244,6 @@ def summarize_program_map_delta(
         impacted_symbols=_program_map_impact(old, new, seeds, max_depth, limit),
         surface=_program_map_delta_surface(delta, old, new, limit),
     )
-
-
-def _validate_profile_groups(cluster_result: ClusterResult, groups: list[set[int]]) -> None:
-    """Require the fitted groups to cover each leaf cluster exactly once."""
-    expected = set(cluster_result.clusters)
-    assigned: set[int] = set()
-    for group_id, group in enumerate(groups):
-        if not group:
-            raise ValueError(f"Program-map group {group_id} is empty")
-        unknown = group - expected
-        duplicate = group & assigned
-        if unknown:
-            raise ValueError(f"Program-map group {group_id} contains unknown clusters {sorted(unknown)}")
-        if duplicate:
-            raise ValueError(f"Program-map groups share clusters {sorted(duplicate)}")
-        assigned.update(group)
-    if missing := expected - assigned:
-        raise ValueError(f"Program-map groups omit clusters {sorted(missing)}")
-
-
-def _rank_flow_symbols(weights: Counter[str], limit: int) -> tuple[str, ...]:
-    return tuple(name for name, _ in sorted(weights.items(), key=lambda item: (-item[1], item[0]))[:limit])
-
-
-def _group_dependency_depth(graph: nx.DiGraph) -> tuple[int, int, int, tuple[str, ...]]:
-    """Measure SCC regions and their condensed dependency depth."""
-    if not graph:
-        return 0, 0, 0, ()
-    regions = sorted(
-        (tuple(sorted(region)) for region in nx.strongly_connected_components(graph)), key=lambda region: region
-    )
-    owner = {symbol: index for index, region in enumerate(regions) for symbol in region}
-    condensed = nx.DiGraph()
-    condensed.add_nodes_from(range(len(regions)))
-    condensed.add_edges_from(
-        sorted({(owner[source], owner[target]) for source, target in graph.edges if owner[source] != owner[target]})
-    )
-    depth: dict[int, int] = {}
-    for region_id in nx.lexicographical_topological_sort(condensed, key=lambda index: regions[index]):
-        depth[region_id] = max((depth[parent] + 1 for parent in condensed.predecessors(region_id)), default=0)
-    cyclic = sum(len(region) > 1 or graph.has_edge(region[0], region[0]) for region in regions)
-    bridges = tuple(sorted(nx.articulation_points(graph.to_undirected()))) if len(graph) > 1 else ()
-    return len(regions), cyclic, max(depth.values(), default=0), bridges
 
 
 def _rank_group_flows(
