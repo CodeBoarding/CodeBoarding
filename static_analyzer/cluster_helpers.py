@@ -182,27 +182,6 @@ def _rank_flow_symbols(weights: Counter[str], limit: int) -> tuple[str, ...]:
     return tuple(name for name, _ in sorted(weights.items(), key=lambda item: (-item[1], item[0]))[:limit])
 
 
-def _group_dependency_depth(graph: nx.DiGraph) -> tuple[int, int, int, tuple[str, ...]]:
-    """Measure SCC regions and their condensed dependency depth."""
-    if not graph:
-        return 0, 0, 0, ()
-    regions = sorted(
-        (tuple(sorted(region)) for region in nx.strongly_connected_components(graph)), key=lambda region: region
-    )
-    owner = {symbol: index for index, region in enumerate(regions) for symbol in region}
-    condensed = nx.DiGraph()
-    condensed.add_nodes_from(range(len(regions)))
-    condensed.add_edges_from(
-        sorted({(owner[source], owner[target]) for source, target in graph.edges if owner[source] != owner[target]})
-    )
-    depth: dict[int, int] = {}
-    for region_id in nx.lexicographical_topological_sort(condensed, key=lambda index: regions[index]):
-        depth[region_id] = max((depth[parent] + 1 for parent in condensed.predecessors(region_id)), default=0)
-    cyclic = sum(len(region) > 1 or graph.has_edge(region[0], region[0]) for region in regions)
-    bridges = tuple(sorted(nx.articulation_points(graph.to_undirected()))) if len(graph) > 1 else ()
-    return len(regions), cyclic, max(depth.values(), default=0), bridges
-
-
 PROGRAM_MAP_CHANNEL_WEIGHTS: dict[str, float] = {
     "call": 1.0,
     "contains": 1.0,
