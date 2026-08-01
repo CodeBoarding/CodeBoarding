@@ -13,22 +13,22 @@ one rewrite of ``"<child_id>."`` to ``"<parent_id>."`` applied everywhere. That
 also renumbers the promoted siblings for free, and cannot collide: a parent with
 exactly one child has no other child to collide with.
 
-What is deliberately NOT rewritten is the cluster lineage pickled with the CFG
-(``MethodClusterPaths``). It looks like the same rename and is not: lineage is
-recorded per scope, so the absorbed child's leaf clusters and the parent's own
-are two independent clusterings that both land on ``<parent_id>.<n>``, and
-merging them invents a cluster containing the union of two unrelated ones. The
-parent's recorded lineage is still correct after an absorption — its membership
-never changed — so leaving it alone is both simpler and the only right answer. A
-promoted scope whose id moved gets a stale seed, which costs a biased warm start
-and nothing more: ``filter_by_nodes`` prunes the lineage to the component's own
-methods before it is read, and the seed is an initial partition Leiden then
-re-optimises.
+The cluster lineage pickled with the CFG (``MethodClusterPaths``) moves with the
+tree, by replacement rather than rename: the absorbed child's leaf clusters take
+the parent's path and the parent's own are dropped, never unioned — the parent's
+partition is superseded the moment its only child's components stand in its
+place, and merging the two would invent a cluster holding the members of both.
+Left behind, the lineage seeds the next incremental with a partition incoherent
+against the promoted components' membership: measured over 11 diverged scopes,
+10 relabelled the whole scope on a no-change run and one lost a component
+outright.
 """
 
 import logging
+from collections.abc import Sequence
 
 from agents.agent_responses import AnalysisInsights, Relation
+from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,7 @@ def drop_dangling_key_entities(
 def absorb_single_child_components(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
+    cfgs: Sequence[CallGraph] = (),
 ) -> list[str]:
     """Collapse every scope holding exactly one component; return the ids absorbed.
 
@@ -90,7 +91,7 @@ def absorb_single_child_components(
     """
     absorbed: list[str] = []
     while scopes := single_child_scopes(root_analysis, sub_analyses):
-        absorbed.append(_absorb(scopes[0], root_analysis, sub_analyses))
+        absorbed.append(_absorb(scopes[0], root_analysis, sub_analyses, cfgs))
     return absorbed
 
 
@@ -120,6 +121,7 @@ def _absorb(
     parent_id: str,
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
+    cfgs: Sequence[CallGraph] = (),
 ) -> str:
     scope = root_analysis if parent_id == ROOT_SCOPE else sub_analyses[parent_id]
     child = scope.components[0]
@@ -139,8 +141,20 @@ def _absorb(
             scope.components_relations = grandchildren.components_relations
     sub_analyses.pop(child_id, None)
     _reroot_tree(root_analysis, sub_analyses, child_id, parent_id)
+    for cfg in cfgs:
+        cfg.method_cluster_paths.reroot_scope(child_id, parent_id)
     logger.info(f"[TreeShape] Absorbed '{child.name}' ({child_id}) into {parent_id or 'the root'}")
     return child_id
+
+
+def reroot_absorbed_id(identifier: str, child_id: str) -> str:
+    """Where a pre-absorption id lands once ``child_id`` is absorbed into its parent.
+
+    For a caller holding ids captured before the collapse — the incremental baseline — so it
+    can be read against the tree the collapse produced.
+    """
+    parent_id = child_id.rpartition(".")[0]
+    return parent_id if identifier == child_id else _reroot_id(identifier, child_id, parent_id)
 
 
 def _reroot_id(identifier: str, child_id: str, parent_id: str) -> str:
@@ -158,8 +172,15 @@ def _reroot_tree(
     child_id: str,
     parent_id: str,
 ) -> None:
-    for scope_id in [key for key in sub_analyses if key.startswith(f"{child_id}.")]:
-        sub_analyses[_reroot_id(scope_id, child_id, parent_id)] = sub_analyses.pop(scope_id)
+    # Removed in full before any is re-inserted. Every target is one level shallower than
+    # its source, so a target can equal a key still waiting to move — and writing it in
+    # place would overwrite that scope, then move the wrong object under its own name.
+    # `parse_unified_analysis` returns children before parents, so the order this needs is
+    # exactly the order a loaded baseline does not have.
+    prefix = f"{child_id}."
+    moving = {key: sub_analyses.pop(key) for key in [k for k in sub_analyses if k.startswith(prefix)]}
+    for scope_id, scope in moving.items():
+        sub_analyses[_reroot_id(scope_id, child_id, parent_id)] = scope
     for scope in [root_analysis, *sub_analyses.values()]:
         for component in scope.components:
             component.component_id = _reroot_id(component.component_id, child_id, parent_id)

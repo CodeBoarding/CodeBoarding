@@ -7,6 +7,7 @@ from collections.abc import Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
+from functools import partial
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -63,7 +64,11 @@ from diagram_analysis.file_index import build_files_index, refresh_method_spans_
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from repo_utils.path_utils import normalize_repo_path
 from diagram_analysis.scope_plan import plan_scope_update
-from diagram_analysis.tree_shape import absorb_single_child_components, drop_dangling_key_entities
+from diagram_analysis.tree_shape import (
+    absorb_single_child_components,
+    drop_dangling_key_entities,
+    reroot_absorbed_id,
+)
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
@@ -1202,10 +1207,40 @@ class DiagramGenerator:
         so a legacy baseline carrying the defect is repaired rather than rejected.
         """
         drop_dangling_key_entities(root_analysis, sub_analyses)
-        absorb_single_child_components(root_analysis, sub_analyses)
+        cfgs = (
+            [self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()]
+            if self.static_analysis
+            else []
+        )
+        self._rebase_baseline(absorb_single_child_components(root_analysis, sub_analyses, cfgs))
         self.rebuild_global_relations(root_analysis, sub_analyses)
         self._strip_ignored(root_analysis, sub_analyses)
         assert_scope_containment(root_analysis, sub_analyses)
+
+    def _rebase_baseline(self, absorbed_ids: list[str]) -> None:
+        """Move the incremental baseline onto the ids absorption just rewrote.
+
+        Why: the baseline is snapshotted before the collapse, so it still calls the code behind
+        ``2`` by the name ``2.1``. Read against the collapsed tree, the rebuilt pair ``1 -> 2``
+        matches nothing in it and neither endpoint counts as changed, so
+        ``preserve_unchanged_relations`` discards it as drift while the baseline's own ``1 -> 2.1``
+        is skipped for naming a component that is no longer live — and the relation is lost.
+        """
+        if self._baseline_global_relations is None:
+            return
+        for child_id in absorbed_ids:
+            moved = partial(reroot_absorbed_id, child_id=child_id)
+            self._baseline_component_ids = {moved(cid) for cid in self._baseline_component_ids if cid != child_id}
+            self._baseline_member_keys = {
+                moved(cid): keys for cid, keys in self._baseline_member_keys.items() if cid != child_id
+            }
+            rebased: dict[tuple[str, str], Relation] = {}
+            for (src_id, dst_id), relation in self._baseline_global_relations.items():
+                src, dst = moved(src_id), moved(dst_id)
+                # Mirrors _reroot_relations: a pair that collapses onto itself is not an edge.
+                if src and dst and src != dst:
+                    rebased.setdefault((src, dst), relation)
+            self._baseline_global_relations = rebased
 
     def finalize_and_save(
         self,
@@ -1402,13 +1437,10 @@ class DiagramGenerator:
         # membership baseline (captured post-scrub below) so the restore passes never re-inject a
         # deleted method. Also drives the empty-delta path, which returns before that capture.
         self._baseline_member_keys = _capture_baseline_member_keys(root_analysis, sub_analyses)
-        # Same side of the scrub, for the same reason. This protects a component that is empty
-        # but still cluster-backed — one awaiting re-detail — from being pruned. Captured AFTER
-        # the scrub it also protected components the scrub had just emptied, because
-        # `remove_deleted_files` clears methods and key entities but not `source_cluster_ids`:
-        # a component whose whole source was deleted matched "no methods, no entities, still has
-        # cluster ids" and survived as an empty box. That is the shape `whole-module-deleted`
-        # exists to catch, and it is why a deletion never left a parent holding one child.
+        # Also before the scrub. Why: this shields an empty-but-cluster-backed component from the
+        # prune, and `remove_deleted_files` clears methods and key entities but not
+        # `source_cluster_ids` — so asked afterwards it shields the components the scrub itself
+        # just emptied, and a deleted unit keeps its box.
         protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
 
         monitor = self.stats_writer if self.stats_writer else nullcontext()

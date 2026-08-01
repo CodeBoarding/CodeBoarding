@@ -17,6 +17,8 @@ from agents.incremental_agent import prune_empty_components
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from diagram_analysis.analysis_json import build_unified_analysis_json, parse_unified_analysis
 from diagram_analysis.diagram_generator import DiagramGenerator
+from static_analyzer.graph import CallGraph
+from static_analyzer.method_cluster_paths import MethodClusterPaths
 from diagram_analysis.tree_shape import (
     absorb_single_child_components,
     drop_dangling_key_entities,
@@ -176,6 +178,69 @@ class TestDeepSubtreeIsRerooted(unittest.TestCase):
             {"": ["3", "9"], "3": ["3.1", "3.2"], "3.1": ["3.1.1", "3.1.2"]},
         )
         self.assertEqual([c.source_cluster_ids for c in subs["3.1"].components], [["3.1.4"], ["3.1.9"]])
+
+
+class TestRerootIsIndependentOfScopeOrder(unittest.TestCase):
+    """`parse_unified_analysis` returns children before their parents.
+
+    Every reroot target is one level shallower than its source, so a target can equal a key
+    that has not moved yet. Writing in place overwrote that scope and then moved the wrong
+    object under its own name — a whole expanded subtree gone, silently, on any baseline
+    loaded from disk.
+    """
+
+    def _chain(self, keys_deepest_first: bool):
+        root = analysis(component("1", "Top", {"a.py": ["a.one"]}), component("9", "Sibling", {"z.py": ["z.one"]}))
+        levels = [
+            ("1", [component("1.1", "Only child", {"a.py": ["a.one"]})]),
+            ("1.1", [component("1.1.1", "G", {"a.py": ["a.one"]}), component("1.1.2", "G2", {"a.py": ["a.one"]})]),
+            (
+                "1.1.1",
+                [component("1.1.1.1", "GG", {"a.py": ["a.one"]}), component("1.1.1.2", "GG2", {"a.py": ["a.one"]})],
+            ),
+            (
+                "1.1.1.1",
+                [
+                    component("1.1.1.1.1", "GGG", {"a.py": ["a.one"]}),
+                    component("1.1.1.1.2", "GGG2", {"a.py": ["a.one"]}),
+                ],
+            ),
+        ]
+        if keys_deepest_first:
+            levels = list(reversed(levels))
+        return root, {key: analysis(*comps) for key, comps in levels}
+
+    def test_the_result_does_not_depend_on_insertion_order(self):
+        shallow_root, shallow = self._chain(keys_deepest_first=False)
+        deep_root, deep = self._chain(keys_deepest_first=True)
+
+        absorb_single_child_components(shallow_root, shallow)
+        absorb_single_child_components(deep_root, deep)
+
+        self.assertEqual(
+            {k: sorted(v) for k, v in shape(deep_root, deep).items()},
+            {k: sorted(v) for k, v in shape(shallow_root, shallow).items()},
+        )
+
+    def test_no_scope_is_lost_when_children_are_inserted_first(self):
+        root, subs = self._chain(keys_deepest_first=True)
+
+        absorb_single_child_components(root, subs)
+
+        self.assertEqual(
+            shape(root, subs),
+            {
+                "": ["1", "9"],
+                "1": ["1.1", "1.2"],
+                "1.1": ["1.1.1", "1.1.2"],
+                "1.1.1": ["1.1.1.1", "1.1.1.2"],
+            },
+        )
+        for scope_id, scope in subs.items():
+            for owned in scope.components:
+                self.assertTrue(
+                    owned.component_id.startswith(f"{scope_id}."), f"{owned.component_id} not under {scope_id}"
+                )
 
 
 class TestRootScope(unittest.TestCase):
@@ -382,10 +447,6 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
         self.assertEqual(shape(root, subs), {"": ["1", "2"]})
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestDanglingKeyEntities(unittest.TestCase):
     """A deleted symbol must take its pointers with it.
 
@@ -467,3 +528,111 @@ class TestDanglingKeyEntities(unittest.TestCase):
 
         self.assertIn("2.1.2", removed)
         self.assertEqual(shape(root, subs), {"": ["2", "9"], "2": ["2.1", "2.2", "2.3"]})
+
+
+class TestClusterLineageMovesWithTheTree(unittest.TestCase):
+    """Lineage is scope-qualified, so a collapse renames it as surely as it renames a component id.
+
+    Left behind it seeds the next incremental with a partition incoherent against the promoted
+    components' membership. Measured over 11 diverged scopes: 10 relabelled the whole scope on a
+    no-change run, one lost a component outright.
+    """
+
+    def test_the_absorbed_scopes_clusters_take_the_parents_path(self):
+        paths = MethodClusterPaths({"pkg.one": {"1.2.3", "1.2.7"}, "pkg.two": {"4.1"}})
+
+        paths.reroot_scope("1.2", "1")
+
+        self.assertEqual(paths.snapshot_dict(), {"pkg.one": {"1.3", "1.7"}, "pkg.two": {"4.1"}})
+
+    def test_the_parents_own_partition_is_dropped_rather_than_merged(self):
+        """Both land on `<parent>.<n>`; unioning them invents a cluster holding two unrelated sets."""
+        paths = MethodClusterPaths({"a": {"1.0"}, "b": {"1.1.0", "1.1"}})
+
+        paths.reroot_scope("1.1", "1")
+
+        self.assertEqual(paths.snapshot_dict(), {"a": set(), "b": {"1.0"}})
+
+    def test_a_descendant_scope_keeps_its_depth_below_the_new_path(self):
+        paths = MethodClusterPaths({"deep": {"1.2.5.4"}})
+
+        paths.reroot_scope("1.2", "1")
+
+        self.assertEqual(paths.snapshot_dict(), {"deep": {"1.5.4"}})
+
+    def test_root_absorption_leaves_bare_leaf_ids(self):
+        """`_cluster_id_belongs_to_scope("")` accepts a bare digit, which is the root's own form."""
+        paths = MethodClusterPaths({"pkg.one": {"1.3"}})
+
+        paths.reroot_scope("1", "")
+
+        self.assertEqual(paths.snapshot_dict(), {"pkg.one": {"3"}})
+
+    def test_absorption_carries_the_lineage_with_it(self):
+        root = analysis(component("1", "Top", {"a.py": ["a.one"]}), component("9", "Sib", {"z.py": ["z.one"]}))
+        subs = {
+            "1": analysis(component("1.1", "Only child", {"a.py": ["a.one"]})),
+            "1.1": analysis(
+                component("1.1.1", "G", {"a.py": ["a.one"]}), component("1.1.2", "G2", {"a.py": ["a.one"]})
+            ),
+        }
+        cfg = CallGraph()
+        cfg.method_cluster_paths = MethodClusterPaths({"a.one": {"1.0", "1.1.4"}})
+
+        absorb_single_child_components(root, subs, [cfg])
+
+        self.assertEqual(cfg.method_cluster_paths.snapshot_dict(), {"a.one": {"1.4"}})
+
+
+class TestTheIncrementalBaselineMovesWithTheAbsorption(unittest.TestCase):
+    """The baseline is snapshotted before the collapse, so it names the code by its old ids.
+
+    Read against the collapsed tree the rebuilt pair `1 -> 2` matches nothing in it, and neither
+    endpoint counts as changed — absorbing a childless only child leaves the parent's membership
+    untouched — so `preserve_unchanged_relations` discards it as drift while the baseline's own
+    `1 -> 2.1` is skipped for naming a component no longer live. The relation is lost.
+    """
+
+    def _generator(self):
+        generator = DiagramGenerator.__new__(DiagramGenerator)
+        generator.static_analysis = None
+        generator._baseline_component_ids = {"1", "2", "2.1"}
+        generator._baseline_member_keys = {cid: frozenset() for cid in ("1", "2", "2.1")}
+        generator._baseline_global_relations = {("1", "2.1"): relation("1", "2.1"), ("2.1", "1"): relation("2.1", "1")}
+        return generator
+
+    def test_a_baseline_pair_naming_the_absorbed_child_now_names_its_parent(self):
+        generator = self._generator()
+
+        generator._rebase_baseline(["2.1"])
+
+        self.assertEqual(sorted(generator._baseline_global_relations), [("1", "2"), ("2", "1")])
+
+    def test_the_absorbed_child_leaves_the_baseline_id_and_membership_sets(self):
+        generator = self._generator()
+
+        generator._rebase_baseline(["2.1"])
+
+        self.assertEqual(generator._baseline_component_ids, {"1", "2"})
+        self.assertEqual(set(generator._baseline_member_keys), {"1", "2"})
+
+    def test_a_pair_that_collapses_onto_itself_is_dropped(self):
+        """`2 -> 2.1` becomes `2 -> 2`, which is not an edge — the same rule `_reroot_relations` applies."""
+        generator = self._generator()
+        generator._baseline_global_relations = {("2", "2.1"): relation("2", "2.1")}
+
+        generator._rebase_baseline(["2.1"])
+
+        self.assertEqual(generator._baseline_global_relations, {})
+
+    def test_a_full_run_has_no_baseline_to_rebase(self):
+        generator = DiagramGenerator.__new__(DiagramGenerator)
+        generator._baseline_global_relations = None
+
+        generator._rebase_baseline(["2.1"])
+
+        self.assertIsNone(generator._baseline_global_relations)
+
+
+if __name__ == "__main__":
+    unittest.main()
