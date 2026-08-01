@@ -14,7 +14,9 @@ from pathlib import Path
 from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge, SourceCodeReference
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.scope_ids import ROOT_SCOPE_ID
+from agents.incremental_agent import prune_empty_components, remove_deleted_files
 from diagram_analysis.diagram_generator import (
+    _cluster_backed_empty_component_ids,
     DiagramGenerator,
     _capture_baseline_member_keys,
     _capture_membership_baseline,
@@ -682,3 +684,61 @@ class TestScopeRelationsSurviveMembershipMovement(unittest.TestCase):
         scope = AnalysisInsights(description="", components=[], components_relations=[keep])
         _reconcile_child_scope_membership_for_test(scope, departed={("a.py", "pkg.gone")})
         self.assertEqual([r.relation for r in scope.components_relations], ["calls"])
+
+class TestEmptiedByDeletionIsNotProtected(unittest.TestCase):
+    """A component whose whole source was deleted must not survive as an empty box.
+
+    `_cluster_backed_empty_component_ids` shields a component that is empty but still
+    cluster-backed — one awaiting re-detail — from the prune. Which components those are
+    depends entirely on WHEN it is asked, because `remove_deleted_files` clears methods and
+    key entities but leaves `source_cluster_ids` alone. Asked after the scrub, it also
+    shields everything the scrub just emptied, and the deleted unit keeps its box.
+    """
+
+    def _tree(self):
+        root = analysis(component("1", "Survivor", {"live.py": ["live.one"]}))
+        doomed = component("1.2", "Doomed", {"gone.py": ["gone.one"]}, source_cluster_ids=["1.7"])
+        subs = {
+            "1": analysis(
+                component("1.1", "Kept", {"live.py": ["live.one"]}, source_cluster_ids=["1.3"]),
+                doomed,
+            )
+        }
+        return root, subs
+
+    def test_capturing_before_the_scrub_lets_the_deleted_component_be_pruned(self):
+        root, subs = self._tree()
+
+        protected = _cluster_backed_empty_component_ids(root, subs)
+        remove_deleted_files(root, subs, {"live.py"})
+        removed = prune_empty_components(root, subs, protected)
+
+        self.assertIn("1.2", removed)
+        self.assertEqual([c.component_id for c in subs["1"].components], ["1.1"])
+
+    def test_capturing_after_the_scrub_would_keep_it_as_an_empty_box(self):
+        """The order this replaces. Pinned so the bug cannot come back silently."""
+        root, subs = self._tree()
+
+        remove_deleted_files(root, subs, {"live.py"})
+        protected = _cluster_backed_empty_component_ids(root, subs)
+        removed = prune_empty_components(root, subs, protected)
+
+        self.assertNotIn("1.2", removed)
+        self.assertEqual([c.component_id for c in subs["1"].components], ["1.1", "1.2"])
+
+    def test_a_component_already_empty_at_load_is_still_protected(self):
+        """The case the shield is for: cluster-backed, no source deleted, awaiting re-detail."""
+        root = analysis(component("1", "Parent", {"live.py": ["live.one"]}))
+        subs = {
+            "1": analysis(
+                component("1.1", "Kept", {"live.py": ["live.one"]}, source_cluster_ids=["1.3"]),
+                component("1.2", "Awaiting detail", {}, source_cluster_ids=["1.9"]),
+            )
+        }
+
+        protected = _cluster_backed_empty_component_ids(root, subs)
+        remove_deleted_files(root, subs, {"live.py"})
+        removed = prune_empty_components(root, subs, protected)
+
+        self.assertNotIn("1.2", removed)

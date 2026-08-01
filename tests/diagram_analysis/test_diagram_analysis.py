@@ -1490,8 +1490,18 @@ class TestDiagramGenerator(unittest.TestCase):
                 )
             ],
         )
-        root_analysis = AnalysisInsights(description="root", components=[root_component], components_relations=[])
-        sub_analyses = {"1": AnalysisInsights(description="sub", components=[child_component], components_relations=[])}
+        # Siblings at both levels: a scope holding one component is collapsed by the
+        # no-single-child invariant, which would take this fixture apart before it is read.
+        root_sibling = Component(name="Other Parent", description="", key_entities=[], component_id="2")
+        child_sibling = Component(name="Other Child", description="", key_entities=[], component_id="1.2")
+        root_analysis = AnalysisInsights(
+            description="root", components=[root_component, root_sibling], components_relations=[]
+        )
+        sub_analyses = {
+            "1": AnalysisInsights(
+                description="sub", components=[child_component, child_sibling], components_relations=[]
+            )
+        }
 
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}
         mock_delta.return_value.has_changes = True
@@ -1673,10 +1683,30 @@ class TestDiagramGenerator(unittest.TestCase):
         root = Component(name="Root", description="", key_entities=[], component_id="1")
         parent = Component(name="Parent", description="", key_entities=[], component_id="1.1")
         empty_leaf = Component(name="Stable Leaf", description="", key_entities=[], component_id="1.1.1")
-        root_analysis = AnalysisInsights(description="root", components=[root], components_relations=[])
+        # Siblings at every level: a scope holding one component is collapsed by the
+        # no-single-child invariant, which would take this fixture apart before it is read.
+        root_analysis = AnalysisInsights(
+            description="root",
+            components=[root, Component(name="Other Root", description="", key_entities=[], component_id="2")],
+            components_relations=[],
+        )
         sub_analyses = {
-            "1": AnalysisInsights(description="sub", components=[parent], components_relations=[]),
-            "1.1": AnalysisInsights(description="leaf", components=[empty_leaf], components_relations=[]),
+            "1": AnalysisInsights(
+                description="sub",
+                components=[
+                    parent,
+                    Component(name="Other Parent", description="", key_entities=[], component_id="1.2"),
+                ],
+                components_relations=[],
+            ),
+            "1.1": AnalysisInsights(
+                description="leaf",
+                components=[
+                    empty_leaf,
+                    Component(name="Other Leaf", description="", key_entities=[], component_id="1.1.2"),
+                ],
+                components_relations=[],
+            ),
         }
 
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}

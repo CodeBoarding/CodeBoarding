@@ -63,6 +63,7 @@ from diagram_analysis.file_index import build_files_index, refresh_method_spans_
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from repo_utils.path_utils import normalize_repo_path
 from diagram_analysis.scope_plan import plan_scope_update
+from diagram_analysis.tree_shape import absorb_single_child_components, drop_dangling_key_entities
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
@@ -1196,7 +1197,12 @@ class DiagramGenerator:
         Single pre-save chokepoint shared by the full, incremental, and partial
         flows. All steps are idempotent and
         safe with an empty ``sub_analyses`` (rebuild is a root-only pass).
+
+        Absorption runs first so the relation rebuild sees the corrected tree, and
+        so a legacy baseline carrying the defect is repaired rather than rejected.
         """
+        drop_dangling_key_entities(root_analysis, sub_analyses)
+        absorb_single_child_components(root_analysis, sub_analyses)
         self.rebuild_global_relations(root_analysis, sub_analyses)
         self._strip_ignored(root_analysis, sub_analyses)
         assert_scope_containment(root_analysis, sub_analyses)
@@ -1396,6 +1402,14 @@ class DiagramGenerator:
         # membership baseline (captured post-scrub below) so the restore passes never re-inject a
         # deleted method. Also drives the empty-delta path, which returns before that capture.
         self._baseline_member_keys = _capture_baseline_member_keys(root_analysis, sub_analyses)
+        # Same side of the scrub, for the same reason. This protects a component that is empty
+        # but still cluster-backed — one awaiting re-detail — from being pruned. Captured AFTER
+        # the scrub it also protected components the scrub had just emptied, because
+        # `remove_deleted_files` clears methods and key entities but not `source_cluster_ids`:
+        # a component whose whole source was deleted matched "no methods, no entities, still has
+        # cluster ids" and survived as an empty box. That is the shape `whole-module-deleted`
+        # exists to catch, and it is why a deletion never left a parent holding one child.
+        protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
 
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
@@ -1466,7 +1480,6 @@ class DiagramGenerator:
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
-            protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             # Full membership baseline for the restore/rescope passes, captured AFTER the deletion
             # scrub so a deleted method is never re-injected from the baseline into a live scope.
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
@@ -1517,6 +1530,12 @@ class DiagramGenerator:
             )
             apply_result.refresh_ids -= unchanged_ids
 
+            # Before the prune, because the prune reads `key_entities` as evidence a component
+            # still has something to describe. Membership is settled by the rescope above, so a
+            # component emptied by a route that never entered `refresh_ids` — and whose entities
+            # `fix_key_entities_refs` therefore never re-resolved — would otherwise be kept alive
+            # by pointers into symbols the commit deleted.
+            drop_dangling_key_entities(root_analysis, sub_analyses)
             removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
             if removed_ids:
                 apply_result.refresh_ids -= removed_ids
