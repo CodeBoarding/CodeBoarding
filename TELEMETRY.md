@@ -53,8 +53,17 @@ never personal data.
 
 Every event also carries:
 
-- `source` — `"oss"` for the open-source CLI, `"vscode"` when invoked by the
-  extension, or `"core"` for other embeddings.
+- `source` — who invoked the run: `"oss"` for the open-source CLI, `"vscode"`
+  when invoked by the extension, `"github_action"` in CI, `"tests"` for
+  CodeBoarding's own test suite, `"evals"` for the benchmark harness, or
+  `"core"` for other embeddings.
+- `internal` — `true` when that source is **not** a person using the product
+  (`tests`, `evals`). Automated runs still emit, because an eval run is real
+  signal about analysis quality, but they must never be counted as usage. It is
+  derived from `source` in one place (`telemetry/service.py`) so a product
+  metric filters on one condition and stays correct when another internal
+  source is added — a hand-kept list of source values is right until it is
+  quietly not.
 - `distinct_id` — the anonymous id described above.
 
 Property meanings:
