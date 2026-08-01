@@ -27,7 +27,7 @@ outright.
 import logging
 from collections.abc import Sequence
 
-from agents.agent_responses import AnalysisInsights, Relation
+from agents.agent_responses import AnalysisInsights, Relation, SourceCodeReference
 from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
@@ -58,21 +58,31 @@ def drop_dangling_key_entities(
     is gone" is true of the document rather than of whichever scope an update happened to
     visit.
     """
+    # Keyed by file as well as name: two languages in one repo can both declare `run`, and a
+    # name-only set would call a deleted Python symbol live because a TypeScript one survives.
+    # Measured over the eval baselines, all 557 key entities carry a `reference_file` and it is
+    # always a file its own component owns, so the pair is available and strictly sharper. The
+    # name-only fallback is for the reference the model left unplaced.
     owned = {
-        method.qualified_name
+        (group.file_path, method.qualified_name)
         for scope in [root_analysis, *sub_analyses.values()]
         for component in scope.components
         for group in component.file_methods
         for method in group.methods
     }
+    owned_names = {qualified_name for _path, qualified_name in owned}
+
+    def is_live(entity: SourceCodeReference) -> bool:
+        if entity.reference_file is None:
+            return entity.qualified_name in owned_names
+        return (entity.reference_file, entity.qualified_name) in owned
+
     dropped: list[str] = []
     for scope in [root_analysis, *sub_analyses.values()]:
         for component in scope.components:
-            surviving = [entity for entity in component.key_entities if entity.qualified_name in owned]
+            surviving = [entity for entity in component.key_entities if is_live(entity)]
             if len(surviving) != len(component.key_entities):
-                dropped.extend(
-                    entity.qualified_name for entity in component.key_entities if entity.qualified_name not in owned
-                )
+                dropped.extend(entity.qualified_name for entity in component.key_entities if not is_live(entity))
                 component.key_entities = surviving
     if dropped:
         logger.info(f"[TreeShape] Dropped {len(dropped)} key entity/entities naming symbols no component owns")

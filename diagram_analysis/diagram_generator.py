@@ -1239,7 +1239,10 @@ class DiagramGenerator:
                 src, dst = moved(src_id), moved(dst_id)
                 # Mirrors _reroot_relations: a pair that collapses onto itself is not an edge.
                 if src and dst and src != dst:
-                    rebased.setdefault((src, dst), relation)
+                    # The endpoints move with the key. `preserve_unchanged_relations` restores this
+                    # object itself for a pair the rebuild dropped, so a relation left carrying the
+                    # absorbed child's id would be saved pointing at a component that is gone.
+                    rebased.setdefault((src, dst), relation.model_copy(update={"src_id": src, "dst_id": dst}))
             self._baseline_global_relations = rebased
 
     def finalize_and_save(

@@ -458,8 +458,8 @@ class TestDanglingKeyEntities(unittest.TestCase):
     a box held up by pointers into code the commit had deleted.
     """
 
-    def _entity(self, qname: str) -> SourceCodeReference:
-        return SourceCodeReference(qualified_name=qname, reference_file="a.py")
+    def _entity(self, qname: str, file: str = "a.py") -> SourceCodeReference:
+        return SourceCodeReference(qualified_name=qname, reference_file=file)
 
     def test_an_entity_naming_a_deleted_symbol_is_dropped(self):
         emptied = component("1.1", "Emptied", {})
@@ -490,12 +490,33 @@ class TestDanglingKeyEntities(unittest.TestCase):
         a cross-component citation that was already there.
         """
         citing = component("1.1", "Citing", {"a.py": ["a.one"]})
-        citing.key_entities = [self._entity("b.two")]
+        citing.key_entities = [self._entity("b.two", file="b.py")]
         root = analysis(component("1", "Parent", {"a.py": ["a.one"], "b.py": ["b.two"]}))
         subs = {"1": analysis(citing, component("1.2", "Owner", {"b.py": ["b.two"]}))}
 
         self.assertEqual(drop_dangling_key_entities(root, subs), [])
         self.assertEqual([e.qualified_name for e in citing.key_entities], ["b.two"])
+
+    def test_a_name_that_survives_only_in_another_file_does_not_keep_the_entity(self):
+        """Two languages in one repo can both declare `run`. Matching on the name alone would
+        call the deleted Python symbol live because the TypeScript one survives."""
+        emptied = component("1.1", "Emptied", {})
+        emptied.key_entities = [SourceCodeReference(qualified_name="pkg.run", reference_file="src/index.py")]
+        root = analysis(component("1", "Parent", {"src/index.ts": ["pkg.run"]}))
+        subs = {"1": analysis(component("1.2", "Kept", {"src/index.ts": ["pkg.run"]}), emptied)}
+
+        self.assertEqual(drop_dangling_key_entities(root, subs), ["pkg.run"])
+        self.assertEqual(emptied.key_entities, [])
+
+    def test_an_entity_with_no_file_falls_back_to_the_name(self):
+        """The model does not always place a reference; an unplaced one is judged on what it has."""
+        citing = component("1.1", "Citing", {"a.py": ["a.one"]})
+        citing.key_entities = [SourceCodeReference(qualified_name="a.one")]
+        root = analysis(component("1", "Parent", {"a.py": ["a.one"]}))
+        subs = {"1": analysis(citing, component("1.2", "Other", {"a.py": ["a.one"]}))}
+
+        self.assertEqual(drop_dangling_key_entities(root, subs), [])
+        self.assertEqual([e.qualified_name for e in citing.key_entities], ["a.one"])
 
     def test_the_emptied_component_can_then_be_pruned_and_its_sibling_absorbed(self):
         """The end-to-end shape the e2e test `last-sibling-is-absorbed-into-its-parent` hits.
@@ -624,6 +645,17 @@ class TestTheIncrementalBaselineMovesWithTheAbsorption(unittest.TestCase):
         generator._rebase_baseline(["2.1"])
 
         self.assertEqual(generator._baseline_global_relations, {})
+
+    def test_a_restored_baseline_relation_carries_the_new_endpoints(self):
+        """`preserve_unchanged_relations` appends the baseline object itself for a pair the
+        rebuild dropped, so rebasing only the dict key would save an edge pointing at the
+        absorbed child — a component the tree no longer has."""
+        generator = self._generator()
+
+        generator._rebase_baseline(["2.1"])
+
+        restored = generator._baseline_global_relations[("1", "2")]
+        self.assertEqual((restored.src_id, restored.dst_id), ("1", "2"))
 
     def test_a_full_run_has_no_baseline_to_rebase(self):
         generator = DiagramGenerator.__new__(DiagramGenerator)
