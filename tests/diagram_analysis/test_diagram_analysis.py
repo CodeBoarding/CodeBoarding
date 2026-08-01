@@ -1839,7 +1839,9 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.finalize_and_save(analysis, {}, persist_side_artifacts=False)
 
         # The analysis itself is still finalized + saved...
-        gen.finalize_for_save.assert_called_once_with(analysis, {})
+        # absorb=False travels with it: the collapse rewrites the tree AND the cluster
+        # lineage, and this save writes only the first of the two.
+        gen.finalize_for_save.assert_called_once_with(analysis, {}, absorb=False)
         mock_save.assert_called_once()
         # ...but the external side artifacts are left untouched.
         gen._write_file_coverage.assert_not_called()

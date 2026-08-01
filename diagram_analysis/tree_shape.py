@@ -26,8 +26,10 @@ outright.
 
 import logging
 from collections.abc import Sequence
+from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Relation, SourceCodeReference
+from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,7 @@ ROOT_SCOPE = ""
 def drop_dangling_key_entities(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
+    repo_dir: Path,
 ) -> list[str]:
     """Drop key entities naming a symbol no component owns; return what went.
 
@@ -63,6 +66,11 @@ def drop_dangling_key_entities(
     # Measured over the eval baselines, all 557 key entities carry a `reference_file` and it is
     # always a file its own component owns, so the pair is available and strictly sharper. The
     # name-only fallback is for the reference the model left unplaced.
+    #
+    # Normalized first, because the two sides are not stored alike: `file_methods` are
+    # repo-relative, while the reference resolver leaves `reference_file` ABSOLUTE and only
+    # `_relativize_key_entities` fixes that, at save — after this runs. Comparing them raw
+    # matches nothing and drops every live entity in the tree.
     owned = {
         (group.file_path, method.qualified_name)
         for scope in [root_analysis, *sub_analyses.values()]
@@ -75,7 +83,7 @@ def drop_dangling_key_entities(
     def is_live(entity: SourceCodeReference) -> bool:
         if entity.reference_file is None:
             return entity.qualified_name in owned_names
-        return (entity.reference_file, entity.qualified_name) in owned
+        return (normalize_repo_path(entity.reference_file, repo_dir), entity.qualified_name) in owned
 
     dropped: list[str] = []
     for scope in [root_analysis, *sub_analyses.values()]:
@@ -197,10 +205,21 @@ def _reroot_tree(
             component.source_cluster_ids = [
                 _reroot_id(cluster_id, child_id, parent_id) for cluster_id in component.source_cluster_ids
             ]
-        scope.components_relations = _reroot_relations(scope.components_relations, child_id, parent_id)
+    # Names follow the ids. The output generators key mermaid nodes on the component NAME and
+    # draw edges between those names, so a relation left pointing at the absorbed child's label
+    # would render against a node no longer in the diagram.
+    live_names = {
+        component.component_id: component.name
+        for scope in [root_analysis, *sub_analyses.values()]
+        for component in scope.components
+    }
+    for scope in [root_analysis, *sub_analyses.values()]:
+        scope.components_relations = _reroot_relations(scope.components_relations, child_id, parent_id, live_names)
 
 
-def _reroot_relations(relations: list[Relation], child_id: str, parent_id: str) -> list[Relation]:
+def _reroot_relations(
+    relations: list[Relation], child_id: str, parent_id: str, live_names: dict[str, str]
+) -> list[Relation]:
     """Re-point relation endpoints, dropping the ones the collapse makes meaningless.
 
     An endpoint naming the absorbed child itself becomes the parent, which can turn a
@@ -218,5 +237,7 @@ def _reroot_relations(relations: list[Relation], child_id: str, parent_id: str) 
             continue
         relation.src_id = src_id
         relation.dst_id = dst_id
+        relation.src_name = live_names.get(src_id, relation.src_name)
+        relation.dst_name = live_names.get(dst_id, relation.dst_name)
         survivors.append(relation)
     return survivors

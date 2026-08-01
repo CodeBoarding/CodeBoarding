@@ -17,6 +17,7 @@ from agents.incremental_agent import prune_empty_components
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from diagram_analysis.analysis_json import build_unified_analysis_json, parse_unified_analysis
 from diagram_analysis.diagram_generator import DiagramGenerator
+from diagram_analysis.exceptions import ScopeContainmentError
 from static_analyzer.graph import CallGraph
 from static_analyzer.method_cluster_paths import MethodClusterPaths
 from diagram_analysis.tree_shape import (
@@ -434,6 +435,7 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
     def test_a_degenerate_level_does_not_survive_to_the_save(self):
         generator = DiagramGenerator.__new__(DiagramGenerator)
         generator.static_analysis = None
+        generator.repo_location = Path(".")
         generator._baseline_global_relations = None
         root = analysis(
             component("1", "Kept", {"a.py": ["a.one"]}),
@@ -467,7 +469,7 @@ class TestDanglingKeyEntities(unittest.TestCase):
         root = analysis(component("1", "Parent", {"a.py": ["a.kept"]}))
         subs = {"1": analysis(component("1.2", "Kept", {"a.py": ["a.kept"]}), emptied)}
 
-        dropped = drop_dangling_key_entities(root, subs)
+        dropped = drop_dangling_key_entities(root, subs, Path("."))
 
         self.assertEqual(sorted(dropped), ["a.also_gone", "a.gone"])
         self.assertEqual(emptied.key_entities, [])
@@ -478,7 +480,7 @@ class TestDanglingKeyEntities(unittest.TestCase):
         root = analysis(component("1", "Parent", {"a.py": ["a.one"]}))
         subs = {"1": analysis(kept, component("1.2", "Other", {"a.py": ["a.one"]}))}
 
-        self.assertEqual(drop_dangling_key_entities(root, subs), [])
+        self.assertEqual(drop_dangling_key_entities(root, subs, Path(".")), [])
         self.assertEqual([e.qualified_name for e in kept.key_entities], ["a.one"])
 
     def test_a_symbol_another_component_owns_still_counts_as_live(self):
@@ -494,7 +496,7 @@ class TestDanglingKeyEntities(unittest.TestCase):
         root = analysis(component("1", "Parent", {"a.py": ["a.one"], "b.py": ["b.two"]}))
         subs = {"1": analysis(citing, component("1.2", "Owner", {"b.py": ["b.two"]}))}
 
-        self.assertEqual(drop_dangling_key_entities(root, subs), [])
+        self.assertEqual(drop_dangling_key_entities(root, subs, Path(".")), [])
         self.assertEqual([e.qualified_name for e in citing.key_entities], ["b.two"])
 
     def test_a_name_that_survives_only_in_another_file_does_not_keep_the_entity(self):
@@ -505,7 +507,7 @@ class TestDanglingKeyEntities(unittest.TestCase):
         root = analysis(component("1", "Parent", {"src/index.ts": ["pkg.run"]}))
         subs = {"1": analysis(component("1.2", "Kept", {"src/index.ts": ["pkg.run"]}), emptied)}
 
-        self.assertEqual(drop_dangling_key_entities(root, subs), ["pkg.run"])
+        self.assertEqual(drop_dangling_key_entities(root, subs, Path(".")), ["pkg.run"])
         self.assertEqual(emptied.key_entities, [])
 
     def test_an_entity_with_no_file_falls_back_to_the_name(self):
@@ -515,7 +517,7 @@ class TestDanglingKeyEntities(unittest.TestCase):
         root = analysis(component("1", "Parent", {"a.py": ["a.one"]}))
         subs = {"1": analysis(citing, component("1.2", "Other", {"a.py": ["a.one"]}))}
 
-        self.assertEqual(drop_dangling_key_entities(root, subs), [])
+        self.assertEqual(drop_dangling_key_entities(root, subs, Path(".")), [])
         self.assertEqual([e.qualified_name for e in citing.key_entities], ["a.one"])
 
     def test_the_emptied_component_can_then_be_pruned_and_its_sibling_absorbed(self):
@@ -543,7 +545,7 @@ class TestDanglingKeyEntities(unittest.TestCase):
             "2.1": analysis(component("2.1.1", "Survivor", {"t.py": ["t.kept"]}), emptied),
         }
 
-        drop_dangling_key_entities(root, subs)
+        drop_dangling_key_entities(root, subs, Path("."))
         removed = prune_empty_components(root, subs, set())
         absorb_single_child_components(root, subs)
 
@@ -664,6 +666,64 @@ class TestTheIncrementalBaselineMovesWithTheAbsorption(unittest.TestCase):
         generator._rebase_baseline(["2.1"])
 
         self.assertIsNone(generator._baseline_global_relations)
+
+
+class TestAbsorptionKeepsTheDocumentRenderable(unittest.TestCase):
+    """The generators key mermaid nodes on the component NAME, not on its id.
+
+    So an id rerooted onto the parent while the name still says the absorbed child leaves an
+    edge drawn against a node the diagram no longer contains.
+    """
+
+    def test_a_relation_naming_the_absorbed_child_takes_the_parents_name(self):
+        root = analysis(
+            component("1", "Kept", {"a.py": ["a.one"]}),
+            component("2", "Absorber", {"b.py": ["b.one"]}),
+            relations=[relation("1", "2.1")],
+        )
+        root.components_relations[0].dst_name = "Gone"
+        subs = {"2": analysis(component("2.1", "Gone", {"b.py": ["b.one"]}))}
+
+        absorb_single_child_components(root, subs)
+
+        edge = root.components_relations[0]
+        self.assertEqual((edge.dst_id, edge.dst_name), ("2", "Absorber"))
+
+    def test_a_promoted_components_relations_name_their_new_ids(self):
+        root = analysis(component("1", "Top", {"a.py": ["a.one"]}), component("9", "Sib", {"z.py": ["z.one"]}))
+        promoted = analysis(
+            component("1.1.1", "First", {"a.py": ["a.one"]}),
+            component("1.1.2", "Second", {"a.py": ["a.one"]}),
+            relations=[relation("1.1.1", "1.1.2")],
+        )
+        promoted.components_relations[0].src_name = "First"
+        promoted.components_relations[0].dst_name = "Second"
+        subs = {"1": analysis(component("1.1", "Only child", {"a.py": ["a.one"]})), "1.1": promoted}
+
+        absorb_single_child_components(root, subs)
+
+        edge = subs["1"].components_relations[0]
+        self.assertEqual((edge.src_id, edge.src_name), ("1.1", "First"))
+        self.assertEqual((edge.dst_id, edge.dst_name), ("1.2", "Second"))
+
+
+class TestAbsorptionNeverHidesAContainmentViolation(unittest.TestCase):
+    def test_a_child_owning_what_its_parent_does_not_fails_before_the_collapse(self):
+        """Deleting a childless only child is lossless only because the parent already owns
+        everything it owned. Where that does not hold, collapsing first would discard the
+        child's extra methods and leave the check nothing to find."""
+        generator = DiagramGenerator.__new__(DiagramGenerator)
+        generator.static_analysis = None
+        generator.repo_location = Path(".")
+        generator._baseline_global_relations = None
+        root = analysis(component("1", "Parent", {"a.py": ["a.one"]}))
+        subs = {"1": analysis(component("1.1", "Child owning more", {"a.py": ["a.one", "a.stray"]}))}
+
+        with patch.object(DiagramGenerator, "_strip_ignored"):
+            with self.assertRaises(ScopeContainmentError):
+                generator.finalize_for_save(root, subs)
+
+        self.assertIn("1", subs, "the violating scope must still be there for a human to look at")
 
 
 if __name__ == "__main__":

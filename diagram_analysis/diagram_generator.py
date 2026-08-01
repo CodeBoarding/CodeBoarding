@@ -1196,6 +1196,8 @@ class DiagramGenerator:
         self,
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
+        *,
+        absorb: bool = True,
     ) -> None:
         """Prepare an analysis tree for its authoritative save.
 
@@ -1203,16 +1205,26 @@ class DiagramGenerator:
         flows. All steps are idempotent and
         safe with an empty ``sub_analyses`` (rebuild is a root-only pass).
 
-        Absorption runs first so the relation rebuild sees the corrected tree, and
+        Absorption runs early so the relation rebuild sees the corrected tree, and
         so a legacy baseline carrying the defect is repaired rather than rejected.
+        ``absorb`` is False for a save that will not persist the static-analysis
+        artifact: the collapse rewrites the tree AND the cluster lineage, and a save
+        that writes only one of the two leaves the next run seeding a collapsed tree
+        from the partition it had before. The next full or incremental save repairs it.
         """
-        drop_dangling_key_entities(root_analysis, sub_analyses)
-        cfgs = (
-            [self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()]
-            if self.static_analysis
-            else []
-        )
-        self._rebase_baseline(absorb_single_child_components(root_analysis, sub_analyses, cfgs))
+        drop_dangling_key_entities(root_analysis, sub_analyses, self.repo_location)
+        # Before the collapse, not after. Absorbing a childless only child deletes its
+        # scope, and the deletion is only lossless because the parent already owns
+        # everything it owned. On a tree where that does not hold, absorbing first would
+        # discard the child's extra methods and leave nothing for the check to find.
+        assert_scope_containment(root_analysis, sub_analyses)
+        if absorb:
+            cfgs = (
+                [self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()]
+                if self.static_analysis
+                else []
+            )
+            self._rebase_baseline(absorb_single_child_components(root_analysis, sub_analyses, cfgs))
         self.rebuild_global_relations(root_analysis, sub_analyses)
         self._strip_ignored(root_analysis, sub_analyses)
         assert_scope_containment(root_analysis, sub_analyses)
@@ -1266,7 +1278,7 @@ class DiagramGenerator:
         rewriting those would drop the ``static_analysis.sha`` tag (cold-starting
         the next incremental) and desync the sidecar from ``source_tree_hash``.
         """
-        self.finalize_for_save(root_analysis, sub_analyses)
+        self.finalize_for_save(root_analysis, sub_analyses, absorb=persist_side_artifacts)
         if persist_side_artifacts:
             source_tree_hash = self._source_tree_hash()
         else:
@@ -1570,7 +1582,7 @@ class DiagramGenerator:
             # component emptied by a route that never entered `refresh_ids` — and whose entities
             # `fix_key_entities_refs` therefore never re-resolved — would otherwise be kept alive
             # by pointers into symbols the commit deleted.
-            drop_dangling_key_entities(root_analysis, sub_analyses)
+            drop_dangling_key_entities(root_analysis, sub_analyses, self.repo_location)
             removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
             if removed_ids:
                 apply_result.refresh_ids -= removed_ids
