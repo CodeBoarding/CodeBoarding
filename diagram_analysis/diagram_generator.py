@@ -73,7 +73,14 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_relations import build_global_relations, is_self_or_descendant
+from static_analyzer.reference_resolver import StaticReferenceResolver
+from static_analyzer.cluster_relations import (
+    build_global_node_to_component_map,
+    build_global_relations,
+    build_owner_index,
+    is_self_or_descendant,
+    prune_ungrounded_edges,
+)
 from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 from static_analyzer.scanner import ProjectScanner
@@ -139,11 +146,24 @@ def _reconcile_child_scope(
             for method in group.methods
         }
         _graft_entered_methods(child_scope, entered, parent_methods)
-    if departed or entered:
-        # Membership moved, so the scoped LLM relations may reference a method that just left
-        # this scope. They are consumed as authoritative by ``build_global_relations``; clear
-        # them so the deterministic rebuild re-derives edges for the reconciled membership.
-        child_scope.components_relations = []
+    if departed:
+        # Membership moved, so a scoped relation may cite a method that just left. Those are
+        # consumed as authoritative by ``build_global_relations``, so they must go — but only
+        # THEY must. Clearing the whole scope left the next step with no baseline to compare
+        # against, so `preserve_unchanged_relations` was skipped outright and every relation in
+        # the scope came back re-worded: measured on `referenced-symbol-deleted`, scopes 3 and
+        # 3.2 arrived with 0 baseline pairs and produced 8 re-wordings whose call sets were
+        # byte-identical. Relations that never mention a departed method are kept so their
+        # wording can be carried forward.
+        departed_qnames = {qualified_name for _path, qualified_name in departed}
+        child_scope.components_relations = [
+            relation
+            for relation in child_scope.components_relations
+            if not any(
+                edge.source.qualified_name in departed_qnames or edge.target.qualified_name in departed_qnames
+                for edge in [*relation.key_edges, *relation.all_edges]
+            )
+        ]
     child_scope.files = build_files_index(child_scope, repo_dir)
 
 
@@ -344,16 +364,33 @@ def _restore_unchanged_metadata(
                 continue
             final_keys = _member_keys(component)
             owns_changed_file = any(group.file_path in changed_files for group in component.file_methods)
-            if final_keys != meta.member_keys or (meta.member_qnames & changed_members) or owns_changed_file:
+            # Ignore membership changes caused only by symbols the commit added or deleted.
+            drifted = {key for key in (final_keys ^ meta.member_keys) if key[1] not in changed_members}
+            if drifted:
                 continue
+            # Membership is baseline-identical, so everything DERIVED FROM MEMBERSHIP is restored
+            # even when a body inside the component changed. Cluster ids are the repartition's
+            # own numbering for the same set of methods, and key entities are a choice among
+            # those methods — editing one method's body makes neither of them wrong. Gating both
+            # on "owns a changed file" re-authored them for every component that merely shares a
+            # file with the edit: measured on `referenced-symbol-deleted`, 11 components changed
+            # cluster ids and 3 changed key entities for a commit that deleted one function.
+            component.source_cluster_ids = list(meta.source_cluster_ids)
+            # An entity survives unless its symbol is GONE. Editing a method's body does not
+            # make the class it lives in a worse choice of key entity — dropping on "changed"
+            # rather than "deleted" is why `File` and `LazyFile` vanished from three components
+            # when one method inside them was edited.
+            live_qnames = {qname for _path, qname in final_keys}
+            component.key_entities = [
+                entity.model_copy(deep=True) for entity in meta.key_entities if entity.qualified_name in live_qnames
+            ]
+            if (meta.member_qnames & changed_members) or owns_changed_file:
+                continue
+            # Prose is held to the stricter gate: a component whose code changed may honestly
+            # want re-describing, and only a component nothing touched is safe to call unchanged.
             component.name = meta.name
             component.description = meta.description
-            component.key_entities = [entity.model_copy(deep=True) for entity in meta.key_entities]
             component.source_group_names = list(meta.source_group_names)
-            # Restore the paired cluster ids too: membership is baseline-identical here, so the
-            # repartition's ids would leave the component claiming clusters it no longer owns and
-            # misroute the next incremental's changes for them.
-            component.source_cluster_ids = list(meta.source_cluster_ids)
             unchanged_ids.add(component.component_id)
     return unchanged_ids
 
@@ -451,6 +488,22 @@ def _incremental_changed_component_ids(
     method in its own ``file_methods``, the owner of a change and all of its ancestors are
     captured together. Everything else is preserved verbatim.
     """
+    # Files whose edit some member already accounts for. The file-level signal exists for a
+    # MODULE-level edit no member represents — an import, a constant, a docstring — so applying
+    # it to a file that also has a changed member flags every other co-owner of that file as
+    # changed too. Measured on `referenced-symbol-deleted`: components 1, 3, 3.1, 3.2 and 4.2
+    # own none of the five changed methods and most have identical membership, yet all were
+    # marked changed because they co-own `types.py`/`utils.py` with the component that does.
+    # That is what opens the label gate for their relations and re-words them.
+    represented_files = {
+        group.file_path
+        for _scope, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
+        for component in analysis.components
+        for group in component.file_methods
+        if any(method.qualified_name in changed_members for method in group.methods)
+    }
+    unrepresented_files = changed_files - represented_files
+
     changed: set[str] = set()
     for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
         for component in analysis.components:
@@ -461,8 +514,13 @@ def _incremental_changed_component_ids(
             body_changed = any(
                 method.qualified_name in changed_members for group in component.file_methods for method in group.methods
             )
-            file_changed = any(group.file_path in changed_files for group in component.file_methods)
-            membership_changed = live_keys != baseline_member_keys.get(component_id, frozenset())
+            file_changed = any(group.file_path in unrepresented_files for group in component.file_methods)
+            # Membership counts as changed only when the difference involves a member the
+            # commit itself touched. Re-clustering moves untouched methods between components
+            # all the time; treating that as a change put components owning nothing the commit
+            # reached into `changed_ids`, and their relations were then freely added and removed.
+            drift = live_keys ^ baseline_member_keys.get(component_id, frozenset())
+            membership_changed = any(qualified_name in changed_members for _path, qualified_name in drift)
             if component_id not in baseline_component_ids or body_changed or file_changed or membership_changed:
                 changed.add(component_id)
     return changed
@@ -1117,6 +1175,13 @@ class DiagramGenerator:
                 live_ids,
                 live_qnames,
                 self._changed_members,
+            )
+            # Same reason as the per-scope path: preservation re-injects baseline edges after
+            # the grounding filters ran, so the assembled list is filtered once more.
+            global_relations = prune_ungrounded_edges(
+                global_relations,
+                build_owner_index(build_global_node_to_component_map(root_analysis, sub_analyses)),
+                StaticReferenceResolver(self.repo_location, self.static_analysis).keep_relation_edge,
             )
         root_analysis.components_relations = global_relations
         return global_relations

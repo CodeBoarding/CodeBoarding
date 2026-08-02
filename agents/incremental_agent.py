@@ -40,6 +40,11 @@ from agents.prompts import (
     get_system_message,
 )
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
+from static_analyzer.cluster_relations import (
+    build_node_to_component_map,
+    build_owner_index,
+    prune_ungrounded_edges,
+)
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.validation import ValidationContext, validate_relations
 from diagram_analysis.file_index import build_files_index
@@ -137,12 +142,9 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 continue
             if operation.action == ScopeOperationAction.NOOP:
                 component = components_by_id.get(operation.component_id or "")
-                if component is not None:
-                    component.source_cluster_ids = CodeBoardingClusterIds.sort(
-                        set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
-                    )
-                    if component.component_id:
-                        refresh_ids.add(component.component_id)
+                if component is None:
+                    continue
+                self._sync_noop_component_cluster_ids(scope_id, component, operation, refresh_ids)
                 continue
 
             component = components_by_id.get(operation.component_id or "")
@@ -208,6 +210,20 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             refresh_ids.add(component.component_id)
             new_component_ids.add(component.component_id)
             components_by_id[component.component_id] = component
+
+    def _sync_noop_component_cluster_ids(
+        self,
+        scope_id: str,
+        component: Component,
+        operation: ScopeOperation,
+        refresh_ids: set[str],
+    ) -> None:
+        merged_cluster_ids = CodeBoardingClusterIds.sort(
+            set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
+        )
+        if merged_cluster_ids != component.source_cluster_ids and component.component_id:
+            refresh_ids.add(component.component_id)
+        component.source_cluster_ids = merged_cluster_ids
 
     @trace
     def detail_new_components(self, components: list[Component]) -> None:
@@ -383,6 +399,17 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             for relation in scope.components_relations
             if relation.src_id and relation.dst_id
         }
+        # Also keyed by NAME. Ids are assigned per run by `assign_relation_ids`, so a
+        # re-partition can hand the same two components different numbers; the id lookup then
+        # misses and the pair is treated as brand new, which re-rolls its wording. Measured on
+        # `referenced-symbol-deleted`: 9 statically-backed relations whose call set was
+        # byte-identical came back re-worded for exactly this reason. Names survive
+        # renumbering, so they are the fallback identity.
+        baseline_by_names = {
+            (relation.src_name, relation.dst_name): relation.model_copy(deep=True)
+            for relation in scope.components_relations
+            if relation.src_name and relation.dst_name
+        }
 
         if context.changed_ids:
             cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, context.cluster_results)
@@ -404,19 +431,50 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         if baseline_by_pair:
             live_ids = {component.component_id for component in scope.components if component.component_id}
+            # A relation is ADDED or REMOVED because code changed, not because a partitioner
+            # moved untouched methods around. `context.changed_ids` carries both — it is the
+            # right scope to re-derive, and the wrong reason to change the edge set — so the
+            # preservation gate sees only components the COMMIT reached. Components that are
+            # new or gone keep their ids here: they are changes the commit does account for.
+            changed_component_ids = {
+                component.component_id
+                for component in scope.components
+                if component.component_id
+                and any(
+                    method.qualified_name in (changed_members or set())
+                    for group in component.file_methods
+                    for method in group.methods
+                )
+            }
+            commit_changed = changed_component_ids | (set(context.changed_ids) - live_ids)
             live_qnames = {
                 qualified_name
                 for cluster_result in context.cluster_results.values()
                 for members in cluster_result.clusters.values()
                 for qualified_name in members
             }
+            for relation in scope.components_relations:
+                # Carry the baseline forward when regenerated component ids changed but names did not.
+                pair = (relation.src_id, relation.dst_id)
+                if pair not in baseline_by_pair:
+                    by_name = baseline_by_names.get((relation.src_name, relation.dst_name))
+                    if by_name is not None:
+                        baseline_by_pair[pair] = by_name
             scope.components_relations = preserve_unchanged_relations(
                 scope.components_relations,
                 baseline_by_pair,
-                set(context.changed_ids),
+                commit_changed,
                 live_ids,
                 live_qnames,
                 changed_members,
+            )
+            # Preservation runs after the grounding filters and re-injects baseline edges, so
+            # the assembled list is filtered once more — otherwise a baseline's invented or
+            # mis-attributed edges survive every update that leaves their methods alone.
+            scope.components_relations = prune_ungrounded_edges(
+                scope.components_relations,
+                build_owner_index(build_node_to_component_map(scope)),
+                self.reference_resolver.keep_relation_edge,
             )
             rels = scope.components_relations
         return rels
