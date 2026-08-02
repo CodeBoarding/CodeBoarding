@@ -1,17 +1,17 @@
 {
   "metadata": {
-    "generated_at": "2026-08-02T19:19:26.351795+00:00",
-    "source_tree_hash": "1b975c55942553ae8c52b47e4a1578736a6b903138146f1a74170547a12548e6",
+    "generated_at": "2026-08-02T19:35:43.930766+00:00",
+    "source_tree_hash": "80d6519b29221096872d812bbd44e6b6e7da4201fbd048989fdeb2802a10c567",
     "repo_name": "CodeBoarding",
     "depth_level": 4,
     "depth_cap": 4,
     "file_coverage_summary": {
-      "total_files": 323,
+      "total_files": 324,
       "analyzed": 180,
-      "not_analyzed": 143,
+      "not_analyzed": 144,
       "not_analyzed_by_reason": {
         "other": 14,
-        "codeboardingignore": 129
+        "codeboardingignore": 130
       }
     }
   },
@@ -2795,6 +2795,7 @@
     "telemetry/service.py": {
       "method_keys": [
         "telemetry/service.py|telemetry.service._telemetry_disabled",
+        "telemetry/service.py|telemetry.service._origin",
         "telemetry/service.py|telemetry.service.ProductTelemetry",
         "telemetry/service.py|telemetry.service.ProductTelemetry.__new__",
         "telemetry/service.py|telemetry.service.ProductTelemetry._init",
@@ -2803,8 +2804,8 @@
         "telemetry/service.py|telemetry.service.ProductTelemetry.capture_exception",
         "telemetry/service.py|telemetry.service.ProductTelemetry.flush"
       ],
-      "content_hash": "11c8a14c914fd13f",
-      "module_hash": "af6e9325eed5ac71"
+      "content_hash": "c3ba4f3370fd5d66",
+      "module_hash": "996f0364f3c7414a"
     }
   },
   "methods_index": {
@@ -17235,64 +17236,72 @@
     "telemetry/service.py|telemetry.service._telemetry_disabled": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service._telemetry_disabled",
-      "start_line": 15,
-      "end_line": 18,
+      "start_line": 27,
+      "end_line": 30,
       "type": "FUNCTION",
       "content_hash": "c991bd3199988727"
+    },
+    "telemetry/service.py|telemetry.service._origin": {
+      "file_path": "telemetry/service.py",
+      "qualified_name": "telemetry.service._origin",
+      "start_line": 33,
+      "end_line": 42,
+      "type": "FUNCTION",
+      "content_hash": "c53c3d19aa78e2d0"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry",
-      "start_line": 21,
-      "end_line": 94,
+      "start_line": 45,
+      "end_line": 124,
       "type": "CLASS",
-      "content_hash": "105064a5e81e651f"
+      "content_hash": "4c5c8fde182b67d5"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry.__new__": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry.__new__",
-      "start_line": 26,
-      "end_line": 30,
+      "start_line": 50,
+      "end_line": 54,
       "type": "METHOD",
       "content_hash": "f1471dc7af4a7c80"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry._init": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry._init",
-      "start_line": 32,
-      "end_line": 49,
+      "start_line": 56,
+      "end_line": 73,
       "type": "METHOD",
       "content_hash": "56ec15bc076b1d8e"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry.user_id": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry.user_id",
-      "start_line": 52,
-      "end_line": 58,
+      "start_line": 76,
+      "end_line": 82,
       "type": "METHOD",
       "content_hash": "d3a86ef6521f4a5b"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry.capture": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry.capture",
-      "start_line": 60,
-      "end_line": 73,
+      "start_line": 84,
+      "end_line": 99,
       "type": "METHOD",
-      "content_hash": "5392ea62c3948f31"
+      "content_hash": "ac26faa38df27430"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry.capture_exception": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry.capture_exception",
-      "start_line": 75,
-      "end_line": 87,
+      "start_line": 101,
+      "end_line": 117,
       "type": "METHOD",
-      "content_hash": "98bdb72a5cb6c85b"
+      "content_hash": "6f9f6a7ed52983d2"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry.flush": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry.flush",
-      "start_line": 89,
-      "end_line": 94,
+      "start_line": 119,
+      "end_line": 124,
       "type": "METHOD",
       "content_hash": "ed92f7dcb0a416aa"
     }
@@ -38124,13 +38133,14 @@
           "file_path": "telemetry/service.py",
           "methods": [
             "telemetry.service._telemetry_disabled",
-            "telemetry.service.ProductTelemetry",
             "telemetry.service.ProductTelemetry.__new__",
             "telemetry.service.ProductTelemetry._init",
+            "telemetry.service._origin",
+            "telemetry.service.ProductTelemetry",
             "telemetry.service.ProductTelemetry.user_id",
             "telemetry.service.ProductTelemetry.capture",
-            "telemetry.service.ProductTelemetry.capture_exception",
-            "telemetry.service.ProductTelemetry.flush"
+            "telemetry.service.ProductTelemetry.flush",
+            "telemetry.service.ProductTelemetry.capture_exception"
           ]
         },
         {
@@ -38904,13 +38914,14 @@
               "file_path": "telemetry/service.py",
               "methods": [
                 "telemetry.service._telemetry_disabled",
-                "telemetry.service.ProductTelemetry",
                 "telemetry.service.ProductTelemetry.__new__",
                 "telemetry.service.ProductTelemetry._init",
+                "telemetry.service._origin",
+                "telemetry.service.ProductTelemetry",
                 "telemetry.service.ProductTelemetry.user_id",
                 "telemetry.service.ProductTelemetry.capture",
-                "telemetry.service.ProductTelemetry.capture_exception",
-                "telemetry.service.ProductTelemetry.flush"
+                "telemetry.service.ProductTelemetry.flush",
+                "telemetry.service.ProductTelemetry.capture_exception"
               ]
             }
           ],
@@ -38922,11 +38933,22 @@
       ],
       "components_relations": [
         {
-          "relation": "Orchestrates project discovery and applies structural filtering",
+          "relation": "Configures analysis scope via project discovery",
           "src_name": "Analysis Orchestrator & Partitioning Engine",
           "dst_name": "Repository State & Multi-Language Discovery",
-          "evidence": "The orchestrator initializes language-specific scanners and ignore managers to partition the codebase based on discovered project structures.",
+          "evidence": "The Orchestrator initializes RepoIgnoreManager and uses language-specific scanners to resolve monorepo boundaries and project roots.",
           "key_edges": [
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
+              "target": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.find_typescript_projects",
+              "call_sites": [
+                {
+                  "line": 85,
+                  "column": 57
+                }
+              ],
+              "description": ""
+            },
             {
               "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
               "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
@@ -38934,21 +38956,6 @@
                 {
                   "line": 174,
                   "column": 31
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.scan",
-              "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
-              "call_sites": [
-                {
-                  "line": 56,
-                  "column": 40
-                },
-                {
-                  "line": 62,
-                  "column": 36
                 }
               ],
               "description": ""
@@ -38958,28 +38965,6 @@
           "dst_id": "6.2",
           "is_static": true,
           "all_edges": [
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-              "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-              "call_sites": [
-                {
-                  "line": 174,
-                  "column": 31
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.__init__",
-              "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-              "call_sites": [
-                {
-                  "line": 47,
-                  "column": 69
-                }
-              ],
-              "description": ""
-            },
             {
               "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
               "target": "static_analyzer/java_config_scanner.py|static_analyzer.java_config_scanner.JavaConfigScanner",
@@ -39025,6 +39010,28 @@
               "description": ""
             },
             {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+              "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+              "call_sites": [
+                {
+                  "line": 174,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.__init__",
+              "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+              "call_sites": [
+                {
+                  "line": 47,
+                  "column": 69
+                }
+              ],
+              "description": ""
+            },
+            {
               "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.scan",
               "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
               "call_sites": [
@@ -39042,10 +39049,10 @@
           ]
         },
         {
-          "relation": "Reports pipeline lifecycle events and tech-stack insights",
+          "relation": "Reports LSP performance and lifecycle events",
           "src_name": "Analysis Orchestrator & Partitioning Engine",
           "dst_name": "Environment Identity & Execution Telemetry",
-          "evidence": "The engine captures high-level execution metadata and technology stack distribution during the scan phase for observability.",
+          "evidence": "The Orchestrator tracks the duration of LSP startup and workspace readiness, emitting telemetry events.",
           "key_edges": [],
           "src_id": "6.1",
           "dst_id": "6.3",
@@ -39065,14 +39072,20 @@
           ]
         },
         {
-          "relation": "Provides state-based configuration and change detection",
+          "relation": "Provides grounded project metadata",
           "src_name": "Repository State & Multi-Language Discovery",
           "dst_name": "Analysis Orchestrator & Partitioning Engine",
-          "evidence": "Discovery utilities provide the repository hash and project configurations required by the orchestrator to manage incremental analysis and cache invalidation.",
+          "evidence": "Scanners return structured project configurations that the Orchestrator transforms into EngineConfig objects.",
           "key_edges": [
             {
-              "source": "repo_utils/__init__.py|repo_utils.__init__.get_repo_state_hash",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.copy_cache_files",
+              "source": "static_analyzer/java_config_scanner.py|static_analyzer.java_config_scanner.JavaConfigScanner.scan",
+              "target": "static_analyzer/__init__.py|static_analyzer.__init__.EngineConfig",
+              "call_sites": [],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner.scan",
+              "target": "|StaticAnalyzer.programming_langs",
               "call_sites": [],
               "description": ""
             }
@@ -39082,45 +39095,14 @@
           "is_static": false,
           "all_edges": [
             {
-              "source": "repo_utils/__init__.py|repo_utils.__init__.get_repo_state_hash",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.copy_cache_files",
-              "call_sites": [],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "logs discovery errors and LSP interaction results",
-          "src_name": "Repository State & Multi-Language Discovery",
-          "dst_name": "Environment Identity & Execution Telemetry",
-          "evidence": "Language scanners and repository utilities utilize the telemetry component to capture errors during file system traversal and to track the success of LSP-based metadata extraction.",
-          "key_edges": [
-            {
-              "source": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.scan",
-              "target": "telemetry/events.py|telemetry.events.capture_error",
+              "source": "static_analyzer/java_config_scanner.py|static_analyzer.java_config_scanner.JavaConfigScanner.scan",
+              "target": "static_analyzer/__init__.py|static_analyzer.__init__.EngineConfig",
               "call_sites": [],
               "description": ""
             },
             {
-              "source": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-              "target": "telemetry/events.py|telemetry.events.track_lsp_result",
-              "call_sites": [],
-              "description": ""
-            }
-          ],
-          "src_id": "6.2",
-          "dst_id": "6.3",
-          "is_static": false,
-          "all_edges": [
-            {
-              "source": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.scan",
-              "target": "telemetry/events.py|telemetry.events.capture_error",
-              "call_sites": [],
-              "description": ""
-            },
-            {
-              "source": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-              "target": "telemetry/events.py|telemetry.events.track_lsp_result",
+              "source": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner.scan",
+              "target": "|StaticAnalyzer.programming_langs",
               "call_sites": [],
               "description": ""
             }
@@ -50423,43 +50405,6 @@
         {
           "source": "repo_utils/__init__.py|repo_utils.__init__.get_repo_state_hash",
           "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.copy_cache_files",
-          "call_sites": [],
-          "description": ""
-        }
-      ]
-    },
-    {
-      "relation": "logs discovery errors and LSP interaction results",
-      "src_name": "Repository State & Multi-Language Discovery",
-      "dst_name": "Environment Identity & Execution Telemetry",
-      "evidence": "Language scanners and repository utilities utilize the telemetry component to capture errors during file system traversal and to track the success of LSP-based metadata extraction.",
-      "key_edges": [
-        {
-          "source": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.scan",
-          "target": "telemetry/events.py|telemetry.events.capture_error",
-          "call_sites": [],
-          "description": ""
-        },
-        {
-          "source": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-          "target": "telemetry/events.py|telemetry.events.track_lsp_result",
-          "call_sites": [],
-          "description": ""
-        }
-      ],
-      "src_id": "6.2",
-      "dst_id": "6.3",
-      "is_static": false,
-      "all_edges": [
-        {
-          "source": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.scan",
-          "target": "telemetry/events.py|telemetry.events.capture_error",
-          "call_sites": [],
-          "description": ""
-        },
-        {
-          "source": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-          "target": "telemetry/events.py|telemetry.events.track_lsp_result",
           "call_sites": [],
           "description": ""
         }

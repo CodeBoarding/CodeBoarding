@@ -1,16 +1,16 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-08-02T19:18:23.910404+00:00",
-  "overall_score": 0.9430707303047728,
+  "timestamp": "2026-08-02T19:34:50.238408+00:00",
+  "overall_score": 0.9431034482758621,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1530,
+      "total_entities_checked": 1531,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.9993464052287582,
+      "score": 0.999346832135859,
       "finding_groups": [
         {
           "severity": "warning",
@@ -32,10 +32,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1542,
+      "total_entities_checked": 1543,
       "findings_count": 38,
       "warning_count": 38,
-      "score": 0.9753566796368353,
+      "score": 0.9753726506804925,
       "finding_groups": [
         {
           "severity": "warning",
@@ -316,10 +316,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1542,
+      "total_entities_checked": 1543,
       "findings_count": 11,
       "warning_count": 11,
-      "score": 0.9928664072632944,
+      "score": 0.9928710304601426,
       "finding_groups": [
         {
           "severity": "warning",
