@@ -46,10 +46,12 @@ on:
       - 'tests/test_tool_registry.py'
       - '.github/workflows/integration-tests.yml'
 
-  workflow_run:
-    workflows: ['CodeBoarding sync']
-    types:
-      - completed
+  # A completed sync pushes this generated baseline commit. Trigger from that
+  # commit so the CodeBoarding-tests check is attached to the sync result.
+  push:
+    branches: ['main']
+    paths:
+      - '.codeboarding/**'
 
 permissions:
   contents: read
@@ -60,16 +62,15 @@ concurrency:
 
 jobs:
   private-suite:
+    name: CodeBoarding-tests
     runs-on: ubuntu-latest
     timeout-minutes: 75
     # Manual runs are always available. PR runs are intentionally skipped.
-    # Actual integration suite execution only happens after a successful sync
-    # workflow on main.
+    # Automatic execution is limited to the baseline commit pushed by sync.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
+      (github.event_name == 'push' &&
+       github.event.head_commit.message == 'chore(codeboarding): sync architecture baseline')
     steps:
       # Mint a short-lived installation token instead of carrying a PAT. It is
       # narrowed to the tests repo and to Actions - it cannot clone the suite

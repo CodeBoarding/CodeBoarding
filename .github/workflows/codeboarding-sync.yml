@@ -11,6 +11,8 @@ on:
       - '.codeboarding/analysis.json'
       - '.codeboarding/fingerprint.json'
       - '.codeboarding/codeboarding_version.json'
+      - '.codeboarding/static_analysis.pkl'
+      - '.codeboarding/static_analysis.sha'
       - '.codeboarding/health/**'
       - 'docs/development/architecture.md'
   workflow_dispatch:
@@ -38,8 +40,8 @@ jobs:
       # Mint the CodeBoarding GitHub App token so the baseline commit lands as
       # codeboarding[bot] (App avatar = the CodeBoarding logo) instead of the
       # generic github-actions[bot]. Mirrors the review workflow's token flow.
-      # Fails open: when App credentials are absent/invalid we fall back to
-      # github.token below, and the commit shows the default Actions identity.
+      # The baseline commit must use the App token: pushes made with
+      # github.token do not trigger the CodeBoarding-tests workflow.
       - name: Detect CodeBoarding GitHub App credentials
         id: codeboarding-app-config
         shell: bash
@@ -94,19 +96,19 @@ jobs:
         with:
           app-id: ${{ vars.CODEBOARDING_APP_ID }}
           private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
-      - name: Warn when CodeBoarding App token is unavailable
+      - name: Require a CodeBoarding App token for the baseline push
         if: steps.codeboarding-app-token-client.outputs.token == '' && steps.codeboarding-app-token-app.outputs.token == ''
         shell: bash
         run: |
-          echo "::warning::CodeBoarding GitHub App token is unavailable; the sync commit falls back to github-actions[bot]. Check CODEBOARDING_APP_PRIVATE_KEY formatting if app credentials are configured."
+          echo "::error::CodeBoarding GitHub App token is required so the baseline push triggers CodeBoarding-tests. Check CODEBOARDING_APP_CLIENT_ID (or CODEBOARDING_APP_ID) and CODEBOARDING_APP_PRIVATE_KEY formatting."
+          exit 1
       - uses: CodeBoarding/CodeBoarding-action@v1
         with:
           mode: sync
           force_full: ${{ inputs.force_full || false }}
-          # App token authenticates the baseline push so the commit is attributed
-          # to the CodeBoarding App (logo avatar). Falls back to the workflow token,
-          # which can push because this job grants contents: write.
-          push_token: ${{ steps.codeboarding-app-token-client.outputs.token || steps.codeboarding-app-token-app.outputs.token || github.token }}
+          # The App token both attributes the commit to CodeBoarding and emits a
+          # push event, which triggers the CodeBoarding-tests workflow.
+          push_token: ${{ steps.codeboarding-app-token-client.outputs.token || steps.codeboarding-app-token-app.outputs.token }}
           # Desired analysis depth for this repo. Sync is the baseline writer, so
           # setting it here re-seeds .codeboarding/analysis.json at depth 4 on the
           # next sync; review then inherits depth 4 from the committed baseline.
