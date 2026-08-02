@@ -1,17 +1,17 @@
 {
   "metadata": {
-    "generated_at": "2026-08-02T11:42:38.010228+00:00",
-    "source_tree_hash": "6cea247144743ddbe2a7f524d7f669c57bf5e8075a98e33f388cf35f5466a346",
+    "generated_at": "2026-08-02T18:39:10.508048+00:00",
+    "source_tree_hash": "5cdb8de16af1bf7e94882f79f39d7083069a3c51a4ec9fa0dc2c3afc40dafd58",
     "repo_name": "CodeBoarding",
     "depth_level": 4,
     "depth_cap": 4,
     "file_coverage_summary": {
-      "total_files": 321,
-      "analyzed": 179,
-      "not_analyzed": 142,
+      "total_files": 323,
+      "analyzed": 180,
+      "not_analyzed": 143,
       "not_analyzed_by_reason": {
         "other": 14,
-        "codeboardingignore": 128
+        "codeboardingignore": 129
       }
     }
   },
@@ -981,7 +981,7 @@
         "agents/incremental_agent.py|agents.incremental_agent._collect_descendant_ids",
         "agents/incremental_agent.py|agents.incremental_agent._strip_relations"
       ],
-      "content_hash": "4b79fbcff4a92b29",
+      "content_hash": "1ea5428789a74ebd",
       "module_hash": "29eba8908357a7d3"
     },
     "agents/llm_config.py": {
@@ -1776,6 +1776,7 @@
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_expansion_seeds",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._owned_method_keys",
+        "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._key_entity_is_owned",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._reconcile_child_scope",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._graft_entered_methods",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._append_method",
@@ -1824,14 +1825,13 @@
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._collect_components_by_id",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-        "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._cluster_backed_empty_component_ids",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._child_scope_needs_recursive_update",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._build_scope_incremental_inputs",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.scoped_snapshot_for_component",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses"
       ],
-      "content_hash": "37ad99de47efd6e9",
-      "module_hash": "e6d4580930abfe51"
+      "content_hash": "5c3851d4ae9eb20e",
+      "module_hash": "d17f9a0d9b473d36"
     },
     "diagram_analysis/exceptions.py": {
       "method_keys": [
@@ -1861,7 +1861,7 @@
         "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_name",
         "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_description"
       ],
-      "content_hash": "5ea630c112552a1a",
+      "content_hash": "e64df0072a6f2439",
       "module_hash": "86682d59ec359cff"
     },
     "output_generators/html.py": {
@@ -2014,7 +2014,7 @@
         "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
         "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.merge_relations"
       ],
-      "content_hash": "a0187e1936f958ed",
+      "content_hash": "87419cfd73e1b350",
       "module_hash": "1d0ecef36a9dbf64"
     },
     "static_analyzer/constants.py": {
@@ -2272,6 +2272,19 @@
       ],
       "content_hash": "be97ab05a893e6cd",
       "module_hash": "1178eb6fcdeac63e"
+    },
+    "diagram_analysis/tree_shape.py": {
+      "method_keys": [
+        "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape.absorb_single_child_components",
+        "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape.single_child_scopes",
+        "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._absorbable_at_root",
+        "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._absorb",
+        "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._reroot_id",
+        "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._reroot_tree",
+        "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._reroot_relations"
+      ],
+      "content_hash": "4e78dbb0f7e3f323",
+      "module_hash": "fba2a2045509e1c4"
     },
     "github_action.py": {
       "method_keys": [
@@ -2640,11 +2653,13 @@
         "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.merge",
         "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.prune",
         "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.record",
+        "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.reroot_scope",
+        "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
         "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
         "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot_dict",
         "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope"
       ],
-      "content_hash": "81f2fd90796aa6be",
+      "content_hash": "de2ff509b7e880c4",
       "module_hash": "09c734f3d5b6eb37"
     },
     "static_analyzer/reference_resolver.py": {
@@ -8012,9 +8027,9 @@
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent",
       "start_line": 60,
-      "end_line": 566,
+      "end_line": 567,
       "type": "CLASS",
-      "content_hash": "26c2839ba40d6d6c"
+      "content_hash": "33aea49412d46192"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.__init__": {
       "file_path": "agents/incremental_agent.py",
@@ -8100,223 +8115,223 @@
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent.generate_scope_relations",
       "start_line": 382,
-      "end_line": 480,
+      "end_line": 481,
       "type": "METHOD",
-      "content_hash": "092b09a30aa926d4"
+      "content_hash": "cdb8f550b49f5b79"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_all_scope_relations": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent.generate_all_scope_relations",
-      "start_line": 483,
-      "end_line": 516,
+      "start_line": 484,
+      "end_line": 517,
       "type": "METHOD",
       "content_hash": "190e78a9438add6e"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel",
-      "start_line": 518,
-      "end_line": 554,
+      "start_line": 519,
+      "end_line": 555,
       "type": "METHOD",
       "content_hash": "fba8fffc2cdfc483"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one",
-      "start_line": 534,
-      "end_line": 544,
+      "start_line": 535,
+      "end_line": 545,
       "type": "FUNCTION",
       "content_hash": "f8993cb5c3526a5a"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._clone_for_worker": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._clone_for_worker",
-      "start_line": 556,
-      "end_line": 566,
+      "start_line": 557,
+      "end_line": 567,
       "type": "METHOD",
       "content_hash": "4eb9c49f623efd41"
     },
     "agents/incremental_agent.py|agents.incremental_agent._cluster_analysis_for_scope": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._cluster_analysis_for_scope",
-      "start_line": 569,
-      "end_line": 591,
+      "start_line": 570,
+      "end_line": 592,
       "type": "FUNCTION",
       "content_hash": "bb56a5020e12bc5c"
     },
     "agents/incremental_agent.py|agents.incremental_agent._local_graph_cluster_ids": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._local_graph_cluster_ids",
-      "start_line": 594,
-      "end_line": 611,
+      "start_line": 595,
+      "end_line": 612,
       "type": "FUNCTION",
       "content_hash": "e3ca321b660f87e0"
     },
     "agents/incremental_agent.py|agents.incremental_agent._new_component_membership_summary": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._new_component_membership_summary",
-      "start_line": 614,
-      "end_line": 625,
+      "start_line": 615,
+      "end_line": 626,
       "type": "FUNCTION",
       "content_hash": "be0930173d938fbb"
     },
     "agents/incremental_agent.py|agents.incremental_agent._log_scope_relations_summary": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._log_scope_relations_summary",
-      "start_line": 628,
-      "end_line": 633,
+      "start_line": 629,
+      "end_line": 634,
       "type": "FUNCTION",
       "content_hash": "37f64da1eab00d3d"
     },
     "agents/incremental_agent.py|agents.incremental_agent._operation_source_cluster_ids": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._operation_source_cluster_ids",
-      "start_line": 636,
-      "end_line": 642,
+      "start_line": 637,
+      "end_line": 643,
       "type": "FUNCTION",
       "content_hash": "71c70c58dd11c121"
     },
     "agents/incremental_agent.py|agents.incremental_agent._remove_reassigned_clusters": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._remove_reassigned_clusters",
-      "start_line": 645,
-      "end_line": 670,
+      "start_line": 646,
+      "end_line": 671,
       "type": "FUNCTION",
       "content_hash": "4f91b3dc0ed5ce00"
     },
     "agents/incremental_agent.py|agents.incremental_agent._log_duplicate_cluster_ownership": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._log_duplicate_cluster_ownership",
-      "start_line": 673,
-      "end_line": 686,
+      "start_line": 674,
+      "end_line": 687,
       "type": "FUNCTION",
       "content_hash": "ed295305b0e30fb6"
     },
     "agents/incremental_agent.py|agents.incremental_agent._component_id_parent": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._component_id_parent",
-      "start_line": 689,
-      "end_line": 690,
+      "start_line": 690,
+      "end_line": 691,
       "type": "FUNCTION",
       "content_hash": "c35893cf3433e0b3"
     },
     "agents/incremental_agent.py|agents.incremental_agent._patch_file_methods": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._patch_file_methods",
-      "start_line": 693,
-      "end_line": 740,
+      "start_line": 694,
+      "end_line": 741,
       "type": "FUNCTION",
       "content_hash": "94c1bf3d8dc3ea5d"
     },
     "agents/incremental_agent.py|agents.incremental_agent._without_methods": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._without_methods",
-      "start_line": 743,
-      "end_line": 758,
+      "start_line": 744,
+      "end_line": 759,
       "type": "FUNCTION",
       "content_hash": "e09325e241a1486d"
     },
     "agents/incremental_agent.py|agents.incremental_agent._merge_file_method_groups": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._merge_file_method_groups",
-      "start_line": 761,
-      "end_line": 782,
+      "start_line": 762,
+      "end_line": 783,
       "type": "FUNCTION",
       "content_hash": "0a12eecd33d7e32b"
     },
     "agents/incremental_agent.py|agents.incremental_agent._method_physical_key": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._method_physical_key",
-      "start_line": 785,
-      "end_line": 787,
+      "start_line": 786,
+      "end_line": 788,
       "type": "FUNCTION",
       "content_hash": "facba2226359944c"
     },
     "agents/incremental_agent.py|agents.incremental_agent._live_cfg_qnames": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._live_cfg_qnames",
-      "start_line": 790,
-      "end_line": 797,
+      "start_line": 791,
+      "end_line": 798,
       "type": "FUNCTION",
       "content_hash": "642dc3eabd8f5ee7"
     },
     "agents/incremental_agent.py|agents.incremental_agent._component_has_live_cfg_methods": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._component_has_live_cfg_methods",
-      "start_line": 800,
-      "end_line": 803,
+      "start_line": 801,
+      "end_line": 804,
       "type": "FUNCTION",
       "content_hash": "d1766c9168848490"
     },
     "agents/incremental_agent.py|agents.incremental_agent._cfg_graphs_for_scope_methods": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._cfg_graphs_for_scope_methods",
-      "start_line": 806,
-      "end_line": 824,
+      "start_line": 807,
+      "end_line": 825,
       "type": "FUNCTION",
       "content_hash": "7fd7189cd65e179e"
     },
     "agents/incremental_agent.py|agents.incremental_agent._cfg_graphs_for_cluster_results": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._cfg_graphs_for_cluster_results",
-      "start_line": 827,
-      "end_line": 834,
+      "start_line": 828,
+      "end_line": 835,
       "type": "FUNCTION",
       "content_hash": "2a1466084a464803"
     },
     "agents/incremental_agent.py|agents.incremental_agent.remove_deleted_files": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.remove_deleted_files",
-      "start_line": 837,
-      "end_line": 847,
+      "start_line": 838,
+      "end_line": 848,
       "type": "FUNCTION",
       "content_hash": "66438377622bd5d0"
     },
     "agents/incremental_agent.py|agents.incremental_agent._scrub_one_analysis": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._scrub_one_analysis",
-      "start_line": 850,
-      "end_line": 868,
+      "start_line": 851,
+      "end_line": 872,
       "type": "FUNCTION",
-      "content_hash": "fa558df1701a3177"
+      "content_hash": "c4a1bbba5aae7f4c"
     },
     "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.prune_empty_components",
-      "start_line": 871,
-      "end_line": 910,
+      "start_line": 875,
+      "end_line": 912,
       "type": "FUNCTION",
-      "content_hash": "85f26bf0b00d3982"
+      "content_hash": "7bd2e5d368cbf7d0"
     },
     "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components.has_methods": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.prune_empty_components.has_methods",
-      "start_line": 880,
-      "end_line": 885,
+      "start_line": 882,
+      "end_line": 887,
       "type": "FUNCTION",
-      "content_hash": "8a61a66cfec401c1"
+      "content_hash": "3e955f54df012877"
     },
     "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components.collect_empty": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.prune_empty_components.collect_empty",
-      "start_line": 887,
-      "end_line": 890,
+      "start_line": 889,
+      "end_line": 892,
       "type": "FUNCTION",
       "content_hash": "cc6552c1a69b3787"
     },
     "agents/incremental_agent.py|agents.incremental_agent._collect_descendant_ids": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._collect_descendant_ids",
-      "start_line": 913,
-      "end_line": 930,
+      "start_line": 915,
+      "end_line": 932,
       "type": "FUNCTION",
       "content_hash": "11b1eb55ae301667"
     },
     "agents/incremental_agent.py|agents.incremental_agent._strip_relations": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._strip_relations",
-      "start_line": 933,
-      "end_line": 938,
+      "start_line": 935,
+      "end_line": 940,
       "type": "FUNCTION",
       "content_hash": "345949523a8088b8"
     },
@@ -12307,456 +12322,456 @@
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._component_depth",
-      "start_line": 92,
-      "end_line": 96,
+      "start_line": 93,
+      "end_line": 97,
       "type": "FUNCTION",
       "content_hash": "0ea9d71686c23da1"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_expansion_seeds": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._component_expansion_seeds",
-      "start_line": 99,
-      "end_line": 105,
+      "start_line": 100,
+      "end_line": 106,
       "type": "FUNCTION",
       "content_hash": "0a5528dfa0af24e7"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._member_keys",
-      "start_line": 108,
-      "end_line": 112,
+      "start_line": 109,
+      "end_line": 113,
       "type": "FUNCTION",
       "content_hash": "d4fdba5da7f5a3d7"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._owned_method_keys": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._owned_method_keys",
-      "start_line": 115,
-      "end_line": 117,
+      "start_line": 116,
+      "end_line": 118,
       "type": "FUNCTION",
       "content_hash": "2adf4b2943e61f25"
+    },
+    "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._key_entity_is_owned": {
+      "file_path": "diagram_analysis/diagram_generator.py",
+      "qualified_name": "diagram_analysis.diagram_generator._key_entity_is_owned",
+      "start_line": 121,
+      "end_line": 131,
+      "type": "FUNCTION",
+      "content_hash": "cefd816878df9699"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._reconcile_child_scope": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._reconcile_child_scope",
-      "start_line": 120,
-      "end_line": 167,
+      "start_line": 134,
+      "end_line": 188,
       "type": "FUNCTION",
-      "content_hash": "f1d9685e09b4eeff"
+      "content_hash": "5049182be6aa645c"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._graft_entered_methods": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._graft_entered_methods",
-      "start_line": 170,
-      "end_line": 191,
+      "start_line": 191,
+      "end_line": 212,
       "type": "FUNCTION",
       "content_hash": "289554826024fab3"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._append_method": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._append_method",
-      "start_line": 194,
-      "end_line": 200,
+      "start_line": 215,
+      "end_line": 221,
       "type": "FUNCTION",
       "content_hash": "79df3c2ea1739b83"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._ComponentBaseline": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._ComponentBaseline",
-      "start_line": 204,
-      "end_line": 213,
+      "start_line": 225,
+      "end_line": 234,
       "type": "CLASS",
       "content_hash": "659c3c590a4b5f6e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._MembershipBaseline": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._MembershipBaseline",
-      "start_line": 217,
-      "end_line": 228,
+      "start_line": 238,
+      "end_line": 249,
       "type": "CLASS",
       "content_hash": "65c1cfc81a46005d"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._iter_incremental_scopes": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._iter_incremental_scopes",
-      "start_line": 231,
-      "end_line": 238,
+      "start_line": 252,
+      "end_line": 259,
       "type": "FUNCTION",
       "content_hash": "0481810ea7bef063"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._capture_baseline_member_keys": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._capture_baseline_member_keys",
-      "start_line": 241,
-      "end_line": 258,
+      "start_line": 262,
+      "end_line": 279,
       "type": "FUNCTION",
       "content_hash": "a3c1ba9d830f7147"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._capture_membership_baseline": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._capture_membership_baseline",
-      "start_line": 261,
-      "end_line": 298,
+      "start_line": 282,
+      "end_line": 319,
       "type": "FUNCTION",
       "content_hash": "05882acafa415362"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_membership": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._restore_unchanged_membership",
-      "start_line": 301,
-      "end_line": 341,
+      "start_line": 322,
+      "end_line": 362,
       "type": "FUNCTION",
       "content_hash": "32b993264912b2db"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_metadata": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._restore_unchanged_metadata",
-      "start_line": 344,
-      "end_line": 395,
+      "start_line": 365,
+      "end_line": 417,
       "type": "FUNCTION",
-      "content_hash": "39827e978859e6b1"
+      "content_hash": "93e3f7ec1c0c8b15"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._fully_unchanged_component_ids": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
-      "start_line": 398,
-      "end_line": 429,
+      "start_line": 420,
+      "end_line": 451,
       "type": "FUNCTION",
       "content_hash": "2679d66c8e4bf765"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_subtrees": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
-      "start_line": 432,
-      "end_line": 468,
+      "start_line": 454,
+      "end_line": 490,
       "type": "FUNCTION",
       "content_hash": "8d8ffec473b0cbf5"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._incremental_changed_component_ids": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-      "start_line": 471,
-      "end_line": 526,
+      "start_line": 493,
+      "end_line": 548,
       "type": "FUNCTION",
       "content_hash": "5d140468d6757065"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
-      "start_line": 529,
-      "end_line": 1589,
+      "start_line": 551,
+      "end_line": 1613,
       "type": "CLASS",
-      "content_hash": "d0923f391df18561"
+      "content_hash": "3bd3bb732a8f9941"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.__init__": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
-      "start_line": 530,
-      "end_line": 603,
+      "start_line": 552,
+      "end_line": 625,
       "type": "METHOD",
       "content_hash": "0d1f9c9aa96cd021"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.process_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
-      "start_line": 606,
-      "end_line": 609,
+      "start_line": 628,
+      "end_line": 631,
       "type": "METHOD",
       "content_hash": "dc8a5a3bc49e165b"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
-      "start_line": 611,
-      "end_line": 649,
+      "start_line": 633,
+      "end_line": 671,
       "type": "METHOD",
       "content_hash": "4f6dd39f069aa066"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
-      "start_line": 651,
-      "end_line": 698,
+      "start_line": 673,
+      "end_line": 720,
       "type": "METHOD",
       "content_hash": "80ad4ce8be904ed9"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.expandable_ids": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.expandable_ids",
-      "start_line": 675,
-      "end_line": 690,
+      "start_line": 697,
+      "end_line": 712,
       "type": "FUNCTION",
       "content_hash": "5e64947c2ac980f8"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._process_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._process_component",
-      "start_line": 700,
-      "end_line": 725,
+      "start_line": 722,
+      "end_line": 747,
       "type": "METHOD",
       "content_hash": "4045e6e410f5739a"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._run_health_report": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._run_health_report",
-      "start_line": 727,
-      "end_line": 745,
+      "start_line": 749,
+      "end_line": 767,
       "type": "METHOD",
       "content_hash": "31b5445440d49d51"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored",
-      "start_line": 747,
-      "end_line": 767,
+      "start_line": 769,
+      "end_line": 789,
       "type": "METHOD",
       "content_hash": "e757e14900d3523f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
-      "start_line": 769,
-      "end_line": 778,
+      "start_line": 791,
+      "end_line": 800,
       "type": "METHOD",
       "content_hash": "30bc4b6234e0956e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._write_file_coverage": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._write_file_coverage",
-      "start_line": 780,
-      "end_line": 796,
+      "start_line": 802,
+      "end_line": 818,
       "type": "METHOD",
       "content_hash": "2cceb77171d8f401"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._changed_files_for_static_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._changed_files_for_static_analysis",
-      "start_line": 798,
-      "end_line": 811,
+      "start_line": 820,
+      "end_line": 833,
       "type": "METHOD",
       "content_hash": "c7d9de90ea7b5c04"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_injected_analyzer": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_injected_analyzer",
-      "start_line": 813,
-      "end_line": 829,
+      "start_line": 835,
+      "end_line": 851,
       "type": "METHOD",
       "content_hash": "926f824e7f1b4706"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_new_analyzer": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_new_analyzer",
-      "start_line": 831,
-      "end_line": 845,
+      "start_line": 853,
+      "end_line": 867,
       "type": "METHOD",
       "content_hash": "96aeb631a3791346"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._seed_incremental_cluster_cache": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._seed_incremental_cluster_cache",
-      "start_line": 847,
-      "end_line": 862,
+      "start_line": 869,
+      "end_line": 884,
       "type": "METHOD",
       "content_hash": "b655c8857834aad1"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._persist_static_analysis_artifact": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._persist_static_analysis_artifact",
-      "start_line": 864,
-      "end_line": 871,
+      "start_line": 886,
+      "end_line": 893,
       "type": "METHOD",
       "content_hash": "66a34960bb61d2d7"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._source_tree_fingerprint_map": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._source_tree_fingerprint_map",
-      "start_line": 873,
-      "end_line": 877,
+      "start_line": 895,
+      "end_line": 899,
       "type": "METHOD",
       "content_hash": "a71512e78317c77e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._source_tree_hash": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._source_tree_hash",
-      "start_line": 879,
-      "end_line": 881,
+      "start_line": 901,
+      "end_line": 903,
       "type": "METHOD",
       "content_hash": "91a242ffeae08e87"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._initialize_meta_agent": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._initialize_meta_agent",
-      "start_line": 883,
-      "end_line": 892,
+      "start_line": 905,
+      "end_line": 914,
       "type": "METHOD",
       "content_hash": "74a4692733338d9c"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._initialize_agents": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._initialize_agents",
-      "start_line": 894,
-      "end_line": 934,
+      "start_line": 916,
+      "end_line": 956,
       "type": "METHOD",
       "content_hash": "c38c5ac3132fb721"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-      "start_line": 936,
-      "end_line": 1007,
+      "start_line": 958,
+      "end_line": 1029,
       "type": "METHOD",
       "content_hash": "60eac1ef5ef562d5"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
-      "start_line": 1009,
-      "end_line": 1101,
+      "start_line": 1031,
+      "end_line": 1123,
       "type": "METHOD",
       "content_hash": "ef7af7a0d88f7c9c"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
-      "start_line": 1033,
-      "end_line": 1037,
+      "start_line": 1055,
+      "end_line": 1059,
       "type": "FUNCTION",
       "content_hash": "caba3a0bd7ec7a98"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-      "start_line": 1104,
-      "end_line": 1132,
+      "start_line": 1126,
+      "end_line": 1154,
       "type": "METHOD",
       "content_hash": "d6c43405135a315d"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations",
-      "start_line": 1134,
-      "end_line": 1187,
+      "start_line": 1156,
+      "end_line": 1210,
       "type": "METHOD",
-      "content_hash": "ada94c89ba21c434"
+      "content_hash": "f715fe1f67af3153"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
-      "start_line": 1189,
-      "end_line": 1202,
+      "start_line": 1212,
+      "end_line": 1228,
       "type": "METHOD",
-      "content_hash": "1ef309bc35f6def5"
+      "content_hash": "a753d2265fcb9d12"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-      "start_line": 1204,
-      "end_line": 1253,
+      "start_line": 1230,
+      "end_line": 1279,
       "type": "METHOD",
       "content_hash": "a596c4ced66fd93e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary",
-      "start_line": 1255,
-      "end_line": 1264,
+      "start_line": 1281,
+      "end_line": 1290,
       "type": "METHOD",
       "content_hash": "e6336d28882210dd"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
-      "start_line": 1266,
-      "end_line": 1300,
+      "start_line": 1292,
+      "end_line": 1326,
       "type": "METHOD",
       "content_hash": "f28becdbd82eaa36"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
-      "start_line": 1302,
-      "end_line": 1358,
+      "start_line": 1328,
+      "end_line": 1384,
       "type": "METHOD",
       "content_hash": "80554b8ba1a11a55"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-      "start_line": 1361,
-      "end_line": 1569,
+      "start_line": 1387,
+      "end_line": 1593,
       "type": "METHOD",
-      "content_hash": "1078e3dc2dc363c9"
+      "content_hash": "36bb67cd2145a42f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
-      "start_line": 1571,
-      "end_line": 1589,
+      "start_line": 1595,
+      "end_line": 1613,
       "type": "METHOD",
       "content_hash": "2f755384d04325e3"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.assert_scope_containment",
-      "start_line": 1592,
-      "end_line": 1616,
+      "start_line": 1616,
+      "end_line": 1640,
       "type": "FUNCTION",
       "content_hash": "92d86f22af91ea60"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._collect_components_by_id": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._collect_components_by_id",
-      "start_line": 1619,
-      "end_line": 1634,
+      "start_line": 1643,
+      "end_line": 1658,
       "type": "FUNCTION",
       "content_hash": "5ddebec0bc81a8ab"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-      "start_line": 1637,
-      "end_line": 1641,
+      "start_line": 1661,
+      "end_line": 1665,
       "type": "FUNCTION",
       "content_hash": "60bded4cd2d7778f"
-    },
-    "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._cluster_backed_empty_component_ids": {
-      "file_path": "diagram_analysis/diagram_generator.py",
-      "qualified_name": "diagram_analysis.diagram_generator._cluster_backed_empty_component_ids",
-      "start_line": 1644,
-      "end_line": 1658,
-      "type": "FUNCTION",
-      "content_hash": "dfd1314f50ad5f6e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._child_scope_needs_recursive_update": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._child_scope_needs_recursive_update",
-      "start_line": 1661,
-      "end_line": 1687,
+      "start_line": 1668,
+      "end_line": 1694,
       "type": "FUNCTION",
       "content_hash": "d59e36dc9077fdad"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._build_scope_incremental_inputs": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._build_scope_incremental_inputs",
-      "start_line": 1690,
-      "end_line": 1720,
+      "start_line": 1697,
+      "end_line": 1727,
       "type": "FUNCTION",
       "content_hash": "483f6f565de3fa36"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.scoped_snapshot_for_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.scoped_snapshot_for_component",
-      "start_line": 1723,
-      "end_line": 1737,
+      "start_line": 1730,
+      "end_line": 1744,
       "type": "FUNCTION",
       "content_hash": "a0e9a44f3881516b"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._merge_sub_analyses",
-      "start_line": 1740,
-      "end_line": 1770,
+      "start_line": 1747,
+      "end_line": 1777,
       "type": "FUNCTION",
       "content_hash": "f7f96f55d79e04cb"
     },
@@ -12836,31 +12851,31 @@
       "file_path": "diagram_analysis/scope_plan.py",
       "qualified_name": "diagram_analysis.scope_plan.previous_ownership",
       "start_line": 44,
-      "end_line": 107,
+      "end_line": 104,
       "type": "FUNCTION",
-      "content_hash": "5b9f3420337cf1db"
+      "content_hash": "e85635bff47512df"
     },
     "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update": {
       "file_path": "diagram_analysis/scope_plan.py",
       "qualified_name": "diagram_analysis.scope_plan.plan_scope_update",
-      "start_line": 110,
-      "end_line": 244,
+      "start_line": 107,
+      "end_line": 237,
       "type": "FUNCTION",
-      "content_hash": "9026dcf1545e14bc"
+      "content_hash": "c7566a408e932d30"
     },
     "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_name": {
       "file_path": "diagram_analysis/scope_plan.py",
       "qualified_name": "diagram_analysis.scope_plan._provisional_name",
-      "start_line": 247,
-      "end_line": 250,
+      "start_line": 240,
+      "end_line": 243,
       "type": "FUNCTION",
       "content_hash": "92bd53c59a85ac94"
     },
     "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_description": {
       "file_path": "diagram_analysis/scope_plan.py",
       "qualified_name": "diagram_analysis.scope_plan._provisional_description",
-      "start_line": 253,
-      "end_line": 267,
+      "start_line": 246,
+      "end_line": 260,
       "type": "FUNCTION",
       "content_hash": "34f21758b31ff9d5"
     },
@@ -13556,9 +13571,9 @@
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations.prune_ungrounded_edges",
       "start_line": 116,
-      "end_line": 192,
+      "end_line": 195,
       "type": "FUNCTION",
-      "content_hash": "e449cc2232847eee"
+      "content_hash": "83b34a2c72af3b8b"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.prune_ungrounded_edges.find_relation_pair_for_edge": {
       "file_path": "static_analyzer/cluster_relations.py",
@@ -13571,88 +13586,88 @@
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.drop_reverse_duplicates": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations.drop_reverse_duplicates",
-      "start_line": 195,
-      "end_line": 241,
+      "start_line": 198,
+      "end_line": 254,
       "type": "FUNCTION",
-      "content_hash": "97a2d1aa8d94df35"
+      "content_hash": "3ed776ba2a38746d"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.ground_relation_edges": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations.ground_relation_edges",
-      "start_line": 244,
-      "end_line": 281,
+      "start_line": 257,
+      "end_line": 294,
       "type": "FUNCTION",
       "content_hash": "c8198ea371ef09d4"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations.build_component_relations",
-      "start_line": 284,
-      "end_line": 322,
+      "start_line": 297,
+      "end_line": 335,
       "type": "FUNCTION",
       "content_hash": "2b8eebf02ba7d866"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.iter_ancestor_ids": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations.iter_ancestor_ids",
-      "start_line": 325,
-      "end_line": 329,
+      "start_line": 338,
+      "end_line": 342,
       "type": "FUNCTION",
       "content_hash": "9bd43cd94a448274"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.is_self_or_descendant": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations.is_self_or_descendant",
-      "start_line": 332,
-      "end_line": 334,
+      "start_line": 345,
+      "end_line": 347,
       "type": "FUNCTION",
       "content_hash": "0112c5742ff744e6"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations._collect_component_names": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations._collect_component_names",
-      "start_line": 337,
-      "end_line": 343,
+      "start_line": 350,
+      "end_line": 356,
       "type": "FUNCTION",
       "content_hash": "8d846111dbfdaafc"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations._collect_authoritative_relations": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations._collect_authoritative_relations",
-      "start_line": 346,
-      "end_line": 359,
+      "start_line": 359,
+      "end_line": 372,
       "type": "FUNCTION",
       "content_hash": "66deb5f1dc35c5a3"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations._ancestor_relation": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations._ancestor_relation",
-      "start_line": 362,
-      "end_line": 374,
+      "start_line": 375,
+      "end_line": 387,
       "type": "FUNCTION",
       "content_hash": "1b02343261fc47ee"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations._relation_key_edges_for_pair": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations._relation_key_edges_for_pair",
-      "start_line": 377,
-      "end_line": 390,
+      "start_line": 390,
+      "end_line": 403,
       "type": "FUNCTION",
       "content_hash": "22457a104a094e47"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations.build_global_relations",
-      "start_line": 393,
-      "end_line": 467,
+      "start_line": 406,
+      "end_line": 480,
       "type": "FUNCTION",
       "content_hash": "760451c96f092949"
     },
     "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.merge_relations": {
       "file_path": "static_analyzer/cluster_relations.py",
       "qualified_name": "static_analyzer.cluster_relations.merge_relations",
-      "start_line": 470,
-      "end_line": 569,
+      "start_line": 483,
+      "end_line": 582,
       "type": "FUNCTION",
       "content_hash": "f8f3c0ea27e77f6d"
     },
@@ -14791,6 +14806,62 @@
       "end_line": 432,
       "type": "FUNCTION",
       "content_hash": "02a50dde5238e92e"
+    },
+    "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape.absorb_single_child_components": {
+      "file_path": "diagram_analysis/tree_shape.py",
+      "qualified_name": "diagram_analysis.tree_shape.absorb_single_child_components",
+      "start_line": 14,
+      "end_line": 23,
+      "type": "FUNCTION",
+      "content_hash": "8ddcec5a03bf00b0"
+    },
+    "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape.single_child_scopes": {
+      "file_path": "diagram_analysis/tree_shape.py",
+      "qualified_name": "diagram_analysis.tree_shape.single_child_scopes",
+      "start_line": 26,
+      "end_line": 33,
+      "type": "FUNCTION",
+      "content_hash": "988539adbbd6ff6b"
+    },
+    "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._absorbable_at_root": {
+      "file_path": "diagram_analysis/tree_shape.py",
+      "qualified_name": "diagram_analysis.tree_shape._absorbable_at_root",
+      "start_line": 36,
+      "end_line": 41,
+      "type": "FUNCTION",
+      "content_hash": "ef7c9ab9fcc352f1"
+    },
+    "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._absorb": {
+      "file_path": "diagram_analysis/tree_shape.py",
+      "qualified_name": "diagram_analysis.tree_shape._absorb",
+      "start_line": 44,
+      "end_line": 66,
+      "type": "FUNCTION",
+      "content_hash": "292645ac0e6c3cf6"
+    },
+    "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._reroot_id": {
+      "file_path": "diagram_analysis/tree_shape.py",
+      "qualified_name": "diagram_analysis.tree_shape._reroot_id",
+      "start_line": 69,
+      "end_line": 75,
+      "type": "FUNCTION",
+      "content_hash": "7adf148c8e2cf4fd"
+    },
+    "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._reroot_tree": {
+      "file_path": "diagram_analysis/tree_shape.py",
+      "qualified_name": "diagram_analysis.tree_shape._reroot_tree",
+      "start_line": 78,
+      "end_line": 101,
+      "type": "FUNCTION",
+      "content_hash": "8bea54753bda9b02"
+    },
+    "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._reroot_relations": {
+      "file_path": "diagram_analysis/tree_shape.py",
+      "qualified_name": "diagram_analysis.tree_shape._reroot_relations",
+      "start_line": 104,
+      "end_line": 122,
+      "type": "FUNCTION",
+      "content_hash": "61acd91011589372"
     },
     "github_action.py|github_action.generate_markdown": {
       "file_path": "github_action.py",
@@ -16364,9 +16435,9 @@
       "file_path": "static_analyzer/method_cluster_paths.py",
       "qualified_name": "static_analyzer.method_cluster_paths.MethodClusterPaths",
       "start_line": 5,
-      "end_line": 56,
+      "end_line": 77,
       "type": "CLASS",
-      "content_hash": "d7d3997ceed9355f"
+      "content_hash": "418988b101d4e286"
     },
     "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.__init__": {
       "file_path": "static_analyzer/method_cluster_paths.py",
@@ -16416,27 +16487,43 @@
       "type": "METHOD",
       "content_hash": "15e9ac89f8fe3aa9"
     },
+    "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.reroot_scope": {
+      "file_path": "static_analyzer/method_cluster_paths.py",
+      "qualified_name": "static_analyzer.method_cluster_paths.MethodClusterPaths.reroot_scope",
+      "start_line": 42,
+      "end_line": 57,
+      "type": "METHOD",
+      "content_hash": "867de9a621744be0"
+    },
+    "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to": {
+      "file_path": "static_analyzer/method_cluster_paths.py",
+      "qualified_name": "static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
+      "start_line": 60,
+      "end_line": 61,
+      "type": "METHOD",
+      "content_hash": "3f4130ecf7e4e010"
+    },
     "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot": {
       "file_path": "static_analyzer/method_cluster_paths.py",
       "qualified_name": "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
-      "start_line": 42,
-      "end_line": 44,
+      "start_line": 63,
+      "end_line": 65,
       "type": "METHOD",
       "content_hash": "ae21efb903c0b96f"
     },
     "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot_dict": {
       "file_path": "static_analyzer/method_cluster_paths.py",
       "qualified_name": "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot_dict",
-      "start_line": 46,
-      "end_line": 48,
+      "start_line": 67,
+      "end_line": 69,
       "type": "METHOD",
       "content_hash": "06b9c2b9fd8a7d06"
     },
     "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope": {
       "file_path": "static_analyzer/method_cluster_paths.py",
       "qualified_name": "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope",
-      "start_line": 50,
-      "end_line": 56,
+      "start_line": 71,
+      "end_line": 77,
       "type": "METHOD",
       "content_hash": "1f56415643d18d80"
     },
@@ -26232,8 +26319,8 @@
             "agents.incremental_agent.IncrementalAgent",
             "agents.incremental_agent.IncrementalAgent.update_scope",
             "agents.incremental_agent.IncrementalAgent._create_component_from_operation",
-            "agents.incremental_agent.IncrementalAgent.detail_new_components",
             "agents.incremental_agent.IncrementalAgent._sync_noop_component_cluster_ids",
+            "agents.incremental_agent.IncrementalAgent.detail_new_components",
             "agents.incremental_agent.IncrementalAgent._update_component_from_operation",
             "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
             "agents.incremental_agent.IncrementalAgent.step_api_surfaces",
@@ -26279,12 +26366,12 @@
             "agents.relation_edges._backing_edge_pairs",
             "agents.relation_edges._relation_edges_unmoved",
             "agents.relation_edges._edge_touches_changed_method",
-            "agents.relation_edges._reconcile_unchanged_edges",
             "agents.relation_edges._restore_baseline_orientation",
-            "agents.relation_edges._reconcile_unchanged_edges.split",
             "agents.relation_edges._filter_edges_touched_by_change",
-            "agents.relation_edges.preserve_unchanged_relations.touches_change",
-            "agents.relation_edges.preserve_unchanged_relations"
+            "agents.relation_edges._reconcile_unchanged_edges",
+            "agents.relation_edges._reconcile_unchanged_edges.split",
+            "agents.relation_edges.preserve_unchanged_relations",
+            "agents.relation_edges.preserve_unchanged_relations.touches_change"
           ]
         },
         {
@@ -26370,6 +26457,7 @@
         {
           "file_path": "diagram_analysis/diagram_generator.py",
           "methods": [
+            "diagram_analysis.diagram_generator._key_entity_is_owned",
             "diagram_analysis.diagram_generator._reconcile_child_scope",
             "diagram_analysis.diagram_generator._graft_entered_methods",
             "diagram_analysis.diagram_generator._append_method",
@@ -26509,17 +26597,17 @@
             "static_analyzer.cluster_relations.build_global_node_to_component_map",
             "static_analyzer.cluster_relations._qnames_match",
             "static_analyzer.cluster_relations.build_owner_index",
-            "static_analyzer.cluster_relations.ground_relation_edges",
             "static_analyzer.cluster_relations._endpoint_owner",
             "static_analyzer.cluster_relations.edge_crosses_components",
-            "static_analyzer.cluster_relations.build_component_relations",
             "static_analyzer.cluster_relations.prune_ungrounded_edges",
             "static_analyzer.cluster_relations.prune_ungrounded_edges.find_relation_pair_for_edge",
+            "static_analyzer.cluster_relations.drop_reverse_duplicates",
+            "static_analyzer.cluster_relations.ground_relation_edges",
+            "static_analyzer.cluster_relations.build_component_relations",
             "static_analyzer.cluster_relations.iter_ancestor_ids",
             "static_analyzer.cluster_relations._collect_component_names",
             "static_analyzer.cluster_relations._collect_authoritative_relations",
             "static_analyzer.cluster_relations._ancestor_relation",
-            "static_analyzer.cluster_relations.drop_reverse_duplicates",
             "static_analyzer.cluster_relations._relation_key_edges_for_pair",
             "static_analyzer.cluster_relations.build_global_relations",
             "static_analyzer.cluster_relations.merge_relations"
@@ -26695,8 +26783,8 @@
                 "agents.incremental_agent.IncrementalAgent",
                 "agents.incremental_agent.IncrementalAgent.update_scope",
                 "agents.incremental_agent.IncrementalAgent._create_component_from_operation",
-                "agents.incremental_agent.IncrementalAgent.detail_new_components",
                 "agents.incremental_agent.IncrementalAgent._sync_noop_component_cluster_ids",
+                "agents.incremental_agent.IncrementalAgent.detail_new_components",
                 "agents.incremental_agent.IncrementalAgent._update_component_from_operation",
                 "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
                 "agents.incremental_agent.IncrementalAgent.step_api_surfaces",
@@ -26994,14 +27082,14 @@
                     {
                       "qualified_name": "diagram_analysis.scope_plan._provisional_name",
                       "reference_file": "diagram_analysis/scope_plan.py",
-                      "reference_start_line": 247,
-                      "reference_end_line": 250
+                      "reference_start_line": 240,
+                      "reference_end_line": 243
                     },
                     {
                       "qualified_name": "agents.incremental_agent._new_component_membership_summary",
                       "reference_file": "agents/incremental_agent.py",
-                      "reference_start_line": 556,
-                      "reference_end_line": 567
+                      "reference_start_line": 615,
+                      "reference_end_line": 626
                     }
                   ],
                   "source_cluster_ids": [
@@ -27104,8 +27192,8 @@
                     {
                       "qualified_name": "diagram_analysis.scope_plan.plan_scope_update",
                       "reference_file": "diagram_analysis/scope_plan.py",
-                      "reference_start_line": 110,
-                      "reference_end_line": 244
+                      "reference_start_line": 107,
+                      "reference_end_line": 237
                     },
                     {
                       "qualified_name": "agents.cluster_ids.GraphClusterIds",
@@ -27178,29 +27266,40 @@
               ],
               "components_relations": [
                 {
-                  "relation": "Delegates semantic naming and structural synthesis",
+                  "relation": "Orchestrates structural synthesis and naming",
                   "src_name": "Topology Identity & Incremental State Manager",
                   "dst_name": "Cluster Synthesis & Summarization Engine",
-                  "evidence": "The State Manager orchestrates the lifecycle of architectural updates via 'plan_scope_update'. It relies on the Synthesis Engine to provide heuristic-based provisional names and descriptions for newly discovered or modified clusters before they are finalized in the state.",
+                  "evidence": "The State Manager acts as the primary driver for incremental updates. It invokes synthesis logic to generate provisional names and descriptions for newly identified clusters and uses grouping utilities to organize raw graph data into architectural components.",
                   "key_edges": [
                     {
                       "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
-                      "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_description",
+                      "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_name",
                       "call_sites": [
                         {
-                          "line": 224,
-                          "column": 33
+                          "line": 216,
+                          "column": 26
                         }
                       ],
                       "description": ""
                     },
                     {
                       "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
-                      "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_name",
+                      "target": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.anchored_grouping",
                       "call_sites": [
                         {
-                          "line": 223,
-                          "column": 26
+                          "line": 158,
+                          "column": 16
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
+                      "target": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.combine_cluster_results",
+                      "call_sites": [
+                        {
+                          "line": 128,
+                          "column": 16
                         }
                       ],
                       "description": ""
@@ -27215,7 +27314,7 @@
                       "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_description",
                       "call_sites": [
                         {
-                          "line": 224,
+                          "line": 217,
                           "column": 33
                         }
                       ],
@@ -27226,7 +27325,7 @@
                       "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_name",
                       "call_sites": [
                         {
-                          "line": 223,
+                          "line": 216,
                           "column": 26
                         }
                       ],
@@ -27237,7 +27336,7 @@
                       "target": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.anchored_grouping",
                       "call_sites": [
                         {
-                          "line": 165,
+                          "line": 158,
                           "column": 16
                         }
                       ],
@@ -27248,7 +27347,7 @@
                       "target": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.combine_cluster_results",
                       "call_sites": [
                         {
-                          "line": 131,
+                          "line": 128,
                           "column": 16
                         }
                       ],
@@ -27257,11 +27356,23 @@
                   ]
                 },
                 {
-                  "relation": "Resolves domain-specific identifiers for summarized symbols",
+                  "relation": "Resolves scoped identifiers for summarization",
                   "src_name": "Cluster Synthesis & Summarization Engine",
                   "dst_name": "Topology Identity & Incremental State Manager",
-                  "evidence": "During the summarization process, the Synthesis Engine must map local graph symbols to the persistent, qualified IDs managed by the State Manager to ensure consistency across incremental analysis runs.",
-                  "key_edges": [],
+                  "evidence": "During the summarization of code regions, the Synthesis Engine queries the State Manager to retrieve stable, scope-prefixed identifiers. This ensures that the generated summaries and component memberships are correctly mapped to the system's persistent topology.",
+                  "key_edges": [
+                    {
+                      "source": "agents/incremental_agent.py|agents.incremental_agent._local_graph_cluster_ids",
+                      "target": "agents/cluster_ids.py|agents.cluster_ids.CodeBoardingClusterIds.prefix_for_scope",
+                      "call_sites": [
+                        {
+                          "line": 600,
+                          "column": 43
+                        }
+                      ],
+                      "description": ""
+                    }
+                  ],
                   "src_id": "3.1.1.1",
                   "dst_id": "3.1.1.2",
                   "is_static": true,
@@ -27271,7 +27382,7 @@
                       "target": "agents/cluster_ids.py|agents.cluster_ids.CodeBoardingClusterIds.prefix_for_scope",
                       "call_sites": [
                         {
-                          "line": 541,
+                          "line": 600,
                           "column": 43
                         }
                       ],
@@ -27318,9 +27429,9 @@
               ],
               "source_cluster_ids": [
                 "3.1.2",
-                "3.1.4",
                 "3.1.6",
-                "3.1.8"
+                "3.1.9",
+                "3.1.10"
               ],
               "file_methods": [
                 {
@@ -27430,8 +27541,8 @@
                     {
                       "qualified_name": "static_analyzer.cluster_relations.build_component_relations",
                       "reference_file": "static_analyzer/cluster_relations.py",
-                      "reference_start_line": 284,
-                      "reference_end_line": 322
+                      "reference_start_line": 297,
+                      "reference_end_line": 335
                     },
                     {
                       "qualified_name": "agents.agent_responses.assign_component_ids",
@@ -27450,6 +27561,7 @@
                     "3.1.2.1",
                     "3.1.2.3",
                     "3.1.2.4",
+                    "3.1.2.10",
                     "3.1.2.11"
                   ],
                   "file_methods": [
@@ -27766,7 +27878,7 @@
                   "qualified_name": "agents.incremental_agent.IncrementalAgent",
                   "reference_file": "agents/incremental_agent.py",
                   "reference_start_line": 60,
-                  "reference_end_line": 566
+                  "reference_end_line": 567
                 },
                 {
                   "qualified_name": "agents.agent_responses.ComponentArchitecture",
@@ -27783,17 +27895,16 @@
                 {
                   "qualified_name": "agents.incremental_agent._remove_reassigned_clusters",
                   "reference_file": "agents/incremental_agent.py",
-                  "reference_start_line": 645,
-                  "reference_end_line": 670
+                  "reference_start_line": 646,
+                  "reference_end_line": 671
                 }
               ],
               "source_cluster_ids": [
+                "3.1.4",
                 "3.1.7",
-                "3.1.9",
-                "3.1.10",
+                "3.1.8",
                 "3.1.12",
-                "3.1.13",
-                "3.1.14"
+                "3.1.13"
               ],
               "file_methods": [
                 {
@@ -28077,7 +28188,7 @@
                   "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent",
                   "call_sites": [
                     {
-                      "line": 919,
+                      "line": 941,
                       "column": 34
                     }
                   ],
@@ -28530,12 +28641,12 @@
                 "agents.relation_edges._backing_edge_pairs",
                 "agents.relation_edges._relation_edges_unmoved",
                 "agents.relation_edges._edge_touches_changed_method",
-                "agents.relation_edges._reconcile_unchanged_edges",
                 "agents.relation_edges._restore_baseline_orientation",
-                "agents.relation_edges._reconcile_unchanged_edges.split",
                 "agents.relation_edges._filter_edges_touched_by_change",
-                "agents.relation_edges.preserve_unchanged_relations.touches_change",
-                "agents.relation_edges.preserve_unchanged_relations"
+                "agents.relation_edges._reconcile_unchanged_edges",
+                "agents.relation_edges._reconcile_unchanged_edges.split",
+                "agents.relation_edges.preserve_unchanged_relations",
+                "agents.relation_edges.preserve_unchanged_relations.touches_change"
               ]
             },
             {
@@ -28616,16 +28727,16 @@
                 "static_analyzer.cluster_relations.build_global_node_to_component_map",
                 "static_analyzer.cluster_relations._qnames_match",
                 "static_analyzer.cluster_relations.build_owner_index",
-                "static_analyzer.cluster_relations.ground_relation_edges",
                 "static_analyzer.cluster_relations._endpoint_owner",
                 "static_analyzer.cluster_relations.edge_crosses_components",
                 "static_analyzer.cluster_relations.prune_ungrounded_edges",
                 "static_analyzer.cluster_relations.prune_ungrounded_edges.find_relation_pair_for_edge",
+                "static_analyzer.cluster_relations.drop_reverse_duplicates",
+                "static_analyzer.cluster_relations.ground_relation_edges",
                 "static_analyzer.cluster_relations.iter_ancestor_ids",
                 "static_analyzer.cluster_relations._collect_component_names",
                 "static_analyzer.cluster_relations._collect_authoritative_relations",
                 "static_analyzer.cluster_relations._ancestor_relation",
-                "static_analyzer.cluster_relations.drop_reverse_duplicates",
                 "static_analyzer.cluster_relations._relation_key_edges_for_pair",
                 "static_analyzer.cluster_relations.build_global_relations",
                 "static_analyzer.cluster_relations.merge_relations"
@@ -28951,12 +29062,12 @@
                     "agents.relation_edges._backing_edge_pairs",
                     "agents.relation_edges._relation_edges_unmoved",
                     "agents.relation_edges._edge_touches_changed_method",
-                    "agents.relation_edges._reconcile_unchanged_edges",
                     "agents.relation_edges._restore_baseline_orientation",
-                    "agents.relation_edges._reconcile_unchanged_edges.split",
                     "agents.relation_edges._filter_edges_touched_by_change",
-                    "agents.relation_edges.preserve_unchanged_relations.touches_change",
-                    "agents.relation_edges.preserve_unchanged_relations"
+                    "agents.relation_edges._reconcile_unchanged_edges",
+                    "agents.relation_edges._reconcile_unchanged_edges.split",
+                    "agents.relation_edges.preserve_unchanged_relations",
+                    "agents.relation_edges.preserve_unchanged_relations.touches_change"
                   ]
                 },
                 {
@@ -28978,16 +29089,16 @@
                     "static_analyzer.cluster_relations.build_global_node_to_component_map",
                     "static_analyzer.cluster_relations._qnames_match",
                     "static_analyzer.cluster_relations.build_owner_index",
-                    "static_analyzer.cluster_relations.ground_relation_edges",
                     "static_analyzer.cluster_relations._endpoint_owner",
                     "static_analyzer.cluster_relations.edge_crosses_components",
                     "static_analyzer.cluster_relations.prune_ungrounded_edges",
                     "static_analyzer.cluster_relations.prune_ungrounded_edges.find_relation_pair_for_edge",
+                    "static_analyzer.cluster_relations.drop_reverse_duplicates",
+                    "static_analyzer.cluster_relations.ground_relation_edges",
                     "static_analyzer.cluster_relations.iter_ancestor_ids",
                     "static_analyzer.cluster_relations._collect_component_names",
                     "static_analyzer.cluster_relations._collect_authoritative_relations",
                     "static_analyzer.cluster_relations._ancestor_relation",
-                    "static_analyzer.cluster_relations.drop_reverse_duplicates",
                     "static_analyzer.cluster_relations._relation_key_edges_for_pair",
                     "static_analyzer.cluster_relations.build_global_relations",
                     "static_analyzer.cluster_relations.merge_relations"
@@ -29002,23 +29113,11 @@
           ],
           "components_relations": [
             {
-              "relation": "defines structural constraints for",
+              "relation": "provides data models for",
               "src_name": "Component Schema & Structural Definitions",
               "dst_name": "Relational Logic & Edge Reconciliation",
-              "evidence": "The schema defines the Relation and Component models which the reconciliation logic instantiates and manipulates to map low-level code calls to high-level architectural edges.",
-              "key_edges": [
-                {
-                  "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
-                  "target": "agents/agent_responses.py|agents.agent_responses.Relation",
-                  "call_sites": [
-                    {
-                      "line": 656,
-                      "column": 13
-                    }
-                  ],
-                  "description": ""
-                }
-              ],
+              "evidence": "",
+              "key_edges": [],
               "src_id": "3.2.1",
               "dst_id": "3.2.3",
               "is_static": true,
@@ -29037,66 +29136,37 @@
               ]
             },
             {
-              "relation": "provides data models for",
-              "src_name": "Component Schema & Structural Definitions",
-              "dst_name": "Architectural Surface & Visualization Generator",
-              "evidence": "The visualization generator consumes Pydantic models like CFGAnalysisInsights and ComponentApiSurface to populate HTML/Markdown templates; this is a data-driven dependency where the generator's logic is coupled to the schema's structure.",
-              "key_edges": [
-                {
-                  "source": "output_generators/html.py|output_generators.html.generate_html",
-                  "target": "agents/agent_responses.py|agents.agent_responses.CFGAnalysisInsights",
-                  "call_sites": [],
-                  "description": "consumes"
-                },
-                {
-                  "source": "output_generators/markdown.py|output_generators.markdown.generate_markdown",
-                  "target": "agents/agent_responses.py|agents.agent_responses.ComponentApiSurface",
-                  "call_sites": [],
-                  "description": "consumes"
-                }
-              ],
-              "src_id": "3.2.1",
-              "dst_id": "3.2.2",
+              "relation": "updates and persists component insights with",
+              "src_name": "Relational Logic & Edge Reconciliation",
+              "dst_name": "Component Schema & Structural Definitions",
+              "evidence": "Runtime data flow where Relation objects are instantiated and aggregated into CFGAnalysisInsights containers for persistence.",
+              "key_edges": [],
+              "src_id": "3.2.3",
+              "dst_id": "3.2.1",
               "is_static": false,
-              "all_edges": [
-                {
-                  "source": "output_generators/html.py|output_generators.html.generate_html",
-                  "target": "agents/agent_responses.py|agents.agent_responses.CFGAnalysisInsights",
-                  "call_sites": [],
-                  "description": "consumes"
-                },
-                {
-                  "source": "output_generators/markdown.py|output_generators.markdown.generate_markdown",
-                  "target": "agents/agent_responses.py|agents.agent_responses.ComponentApiSurface",
-                  "call_sites": [],
-                  "description": "consumes"
-                }
-              ]
+              "all_edges": []
             },
             {
-              "relation": "supplies reconciled architectural graphs for",
-              "src_name": "Relational Logic & Edge Reconciliation",
-              "dst_name": "Architectural Surface & Visualization Generator",
-              "evidence": "The rendering workflow projects reconciled relations into specific hierarchy levels, producing the final edge sets that the HTML and Markdown generators iterate over to produce visual diagrams.",
-              "key_edges": [
-                {
-                  "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-                  "target": "output_generators/html.py|output_generators.html.generate_html",
-                  "call_sites": [],
-                  "description": "prepares data for"
-                }
-              ],
-              "src_id": "3.2.3",
-              "dst_id": "3.2.2",
+              "relation": "consumes component models and API surface definitions for",
+              "src_name": "Architectural Surface & Visualization Generator",
+              "dst_name": "Component Schema & Structural Definitions",
+              "evidence": "The generator functions in output_generators/html.py and markdown.py iterate over Component and CFGAnalysisInsights Pydantic models to produce documentation.",
+              "key_edges": [],
+              "src_id": "3.2.2",
+              "dst_id": "3.2.1",
               "is_static": false,
-              "all_edges": [
-                {
-                  "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-                  "target": "output_generators/html.py|output_generators.html.generate_html",
-                  "call_sites": [],
-                  "description": "prepares data for"
-                }
-              ]
+              "all_edges": []
+            },
+            {
+              "relation": "projects and filters reconciled relations for",
+              "src_name": "Architectural Surface & Visualization Generator",
+              "dst_name": "Relational Logic & Edge Reconciliation",
+              "evidence": "codeboarding_workflows.rendering.project_relations_to_level transforms the high-level Relation models into visual-specific graph structures.",
+              "key_edges": [],
+              "src_id": "3.2.2",
+              "dst_id": "3.2.3",
+              "is_static": false,
+              "all_edges": []
             }
           ]
         },
@@ -29119,8 +29189,8 @@
             {
               "qualified_name": "agents.incremental_agent._patch_file_methods",
               "reference_file": "agents/incremental_agent.py",
-              "reference_start_line": 693,
-              "reference_end_line": 740
+              "reference_start_line": 694,
+              "reference_end_line": 741
             },
             {
               "qualified_name": "agents.content_hash.MethodRef",
@@ -29232,6 +29302,7 @@
             {
               "file_path": "diagram_analysis/diagram_generator.py",
               "methods": [
+                "diagram_analysis.diagram_generator._key_entity_is_owned",
                 "diagram_analysis.diagram_generator._reconcile_child_scope",
                 "diagram_analysis.diagram_generator._graft_entered_methods",
                 "diagram_analysis.diagram_generator._append_method",
@@ -29458,14 +29529,14 @@
                 {
                   "qualified_name": "agents.incremental_agent._patch_file_methods",
                   "reference_file": "agents/incremental_agent.py",
-                  "reference_start_line": 693,
-                  "reference_end_line": 740
+                  "reference_start_line": 694,
+                  "reference_end_line": 741
                 },
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._reconcile_child_scope",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 120,
-                  "reference_end_line": 167
+                  "reference_start_line": 134,
+                  "reference_end_line": 188
                 },
                 {
                   "qualified_name": "agents.file_index_models.FileMethodGroup",
@@ -29476,8 +29547,8 @@
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._graft_entered_methods",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 170,
-                  "reference_end_line": 191
+                  "reference_start_line": 191,
+                  "reference_end_line": 212
                 }
               ],
               "source_cluster_ids": [
@@ -29514,6 +29585,7 @@
                 {
                   "file_path": "diagram_analysis/diagram_generator.py",
                   "methods": [
+                    "diagram_analysis.diagram_generator._key_entity_is_owned",
                     "diagram_analysis.diagram_generator._reconcile_child_scope",
                     "diagram_analysis.diagram_generator._graft_entered_methods",
                     "diagram_analysis.diagram_generator._append_method"
@@ -29728,17 +29800,32 @@
               ]
             },
             {
-              "relation": "Triggers change detection for targeted updates",
+              "relation": "Requests change analysis for scope reconciliation",
               "src_name": "Incremental State Reconciler & Grafter",
               "dst_name": "Content Fingerprinting & Delta Detection",
-              "evidence": "The Reconciler orchestrates the update lifecycle. When the high-level agent identifies a potential change, the Reconciler invokes the fingerprinting logic to perform a \"re-scan\" of specific file spans.",
+              "evidence": "The Reconciler acts as the high-level orchestrator that triggers delta detection to identify which parts of the codebase require re-analysis or \"grafting\" into the current state.",
               "key_edges": [
                 {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._reconcile_child_scope",
                   "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
                   "call_sites": [
                     {
-                      "line": 167,
+                      "line": 188,
+                      "column": 25
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._key_entity_is_owned",
+                  "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
+                  "call_sites": [
+                    {
+                      "line": 129,
+                      "column": 19
+                    },
+                    {
+                      "line": 130,
                       "column": 25
                     }
                   ],
@@ -29754,7 +29841,22 @@
                   "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
                   "call_sites": [
                     {
-                      "line": 167,
+                      "line": 188,
+                      "column": 25
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._key_entity_is_owned",
+                  "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
+                  "call_sites": [
+                    {
+                      "line": 129,
+                      "column": 19
+                    },
+                    {
+                      "line": 130,
                       "column": 25
                     }
                   ],
@@ -29767,10 +29869,10 @@
       ],
       "components_relations": [
         {
-          "relation": "Orchestrates architectural schema generation and mapping",
+          "relation": "Synthesizes and validates architectural models",
           "src_name": "Architectural Synthesis & Cluster Orchestrator",
           "dst_name": "Component Modeling & API Definition",
-          "evidence": "",
+          "evidence": "Orchestrator instantiates and populates schema models during LLM response parsing and architectural validation.",
           "key_edges": [],
           "src_id": "3.1",
           "dst_id": "3.2",
@@ -29836,66 +29938,6 @@
               "description": ""
             },
             {
-              "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
-              "target": "agents/agent_responses.py|agents.agent_responses.ScopeOperation",
-              "call_sites": [
-                {
-                  "line": 148,
-                  "column": 17
-                },
-                {
-                  "line": 211,
-                  "column": 17
-                },
-                {
-                  "line": 220,
-                  "column": 17
-                },
-                {
-                  "line": 232,
-                  "column": 17
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
-              "target": "agents/agent_responses.py|agents.agent_responses.ScopeUpdateDecision",
-              "call_sites": [
-                {
-                  "line": 146,
-                  "column": 16
-                },
-                {
-                  "line": 244,
-                  "column": 12
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
-              "target": "agents/agent_responses.py|agents.agent_responses.ScopedClusterRef",
-              "call_sites": [
-                {
-                  "line": 189,
-                  "column": 13
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
-              "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
-              "call_sites": [
-                {
-                  "line": 463,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
               "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
               "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_owner_index",
               "call_sites": [
@@ -29912,6 +29954,66 @@
               "call_sites": [
                 {
                   "line": 474,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
+              "target": "agents/agent_responses.py|agents.agent_responses.ScopeOperation",
+              "call_sites": [
+                {
+                  "line": 141,
+                  "column": 17
+                },
+                {
+                  "line": 204,
+                  "column": 17
+                },
+                {
+                  "line": 213,
+                  "column": 17
+                },
+                {
+                  "line": 225,
+                  "column": 17
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
+              "target": "agents/agent_responses.py|agents.agent_responses.ScopeUpdateDecision",
+              "call_sites": [
+                {
+                  "line": 139,
+                  "column": 16
+                },
+                {
+                  "line": 237,
+                  "column": 12
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
+              "target": "agents/agent_responses.py|agents.agent_responses.ScopedClusterRef",
+              "call_sites": [
+                {
+                  "line": 182,
+                  "column": 13
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+              "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
+              "call_sites": [
+                {
+                  "line": 463,
                   "column": 42
                 }
               ],
@@ -29955,7 +30057,7 @@
               "target": "agents/agent_responses.py|agents.agent_responses.RelationEdge.from_edge",
               "call_sites": [
                 {
-                  "line": 309,
+                  "line": 322,
                   "column": 53
                 }
               ],
@@ -29964,11 +30066,23 @@
           ]
         },
         {
-          "relation": "Synchronizes architectural state with physical code changes",
+          "relation": "Orchestrates codebase indexing and delta detection",
           "src_name": "Architectural Synthesis & Cluster Orchestrator",
           "dst_name": "Incremental State & Content Fingerprinting",
-          "evidence": "",
-          "key_edges": [],
+          "evidence": "Orchestrator triggers file indexing and method hashing to maintain architectural stability across runs.",
+          "key_edges": [
+            {
+              "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.populate_file_methods",
+              "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._build_file_methods_from_nodes",
+              "call_sites": [
+                {
+                  "line": 682,
+                  "column": 38
+                }
+              ],
+              "description": ""
+            }
+          ],
           "src_id": "3.1",
           "dst_id": "3.3",
           "is_static": true,
@@ -29996,26 +30110,22 @@
               "description": ""
             },
             {
-              "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.previous_ownership",
-              "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
+              "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.run",
+              "target": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
               "call_sites": [
                 {
-                  "line": 83,
-                  "column": 13
-                },
-                {
-                  "line": 93,
-                  "column": 38
+                  "line": 226,
+                  "column": 9
                 }
               ],
               "description": ""
             },
             {
-              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
+              "source": "agents/details_agent.py|agents.details_agent.DetailsAgent.run",
               "target": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
               "call_sites": [
                 {
-                  "line": 379,
+                  "line": 295,
                   "column": 9
                 }
               ],
@@ -30033,22 +30143,26 @@
               "description": ""
             },
             {
-              "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.run",
-              "target": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
+              "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.previous_ownership",
+              "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
               "call_sites": [
                 {
-                  "line": 226,
-                  "column": 9
+                  "line": 80,
+                  "column": 13
+                },
+                {
+                  "line": 90,
+                  "column": 38
                 }
               ],
               "description": ""
             },
             {
-              "source": "agents/details_agent.py|agents.details_agent.DetailsAgent.run",
+              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
               "target": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
               "call_sites": [
                 {
-                  "line": 295,
+                  "line": 379,
                   "column": 9
                 }
               ],
@@ -30079,70 +30193,10 @@
           ]
         },
         {
-          "relation": "Provides structured analysis insights and relationship projections",
-          "src_name": "Component Modeling & API Definition",
-          "dst_name": "Architectural Synthesis & Cluster Orchestrator",
-          "evidence": "",
-          "key_edges": [],
-          "src_id": "3.2",
-          "dst_id": "3.1",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
-              "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
-              "call_sites": [
-                {
-                  "line": 669,
-                  "column": 12
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_node_to_component_map",
-              "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_node_to_component_map",
-              "call_sites": [
-                {
-                  "line": 49,
-                  "column": 25
-                },
-                {
-                  "line": 51,
-                  "column": 40
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
-              "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
-              "call_sites": [
-                {
-                  "line": 400,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.merge_relations",
-              "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_node_to_component_map",
-              "call_sites": [
-                {
-                  "line": 495,
-                  "column": 37
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "Maps logical components to physical file method groups",
+          "relation": "Maps logical components to physical file signatures",
           "src_name": "Component Modeling & API Definition",
           "dst_name": "Incremental State & Content Fingerprinting",
-          "evidence": "",
+          "evidence": "Schema definitions include file membership and method groups used for content hashing and state persistence.",
           "key_edges": [],
           "src_id": "3.2",
           "dst_id": "3.3",
@@ -30173,10 +30227,10 @@
           ]
         },
         {
-          "relation": "Persists and restores architectural models via serialized schemas",
+          "relation": "Persists and restores architectural state",
           "src_name": "Incremental State & Content Fingerprinting",
           "dst_name": "Component Modeling & API Definition",
-          "evidence": "",
+          "evidence": "Incremental agent serializes component models to JSON and restores them during delta analysis.",
           "key_edges": [],
           "src_id": "3.3",
           "dst_id": "3.2",
@@ -30237,6 +30291,66 @@
                 {
                   "line": 29,
                   "column": 9
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "Provides structural feedback for global synthesis",
+          "src_name": "Component Modeling & API Definition",
+          "dst_name": "Architectural Synthesis & Cluster Orchestrator",
+          "evidence": "Data models provide reflection methods (llm_str) and merging logic used by the Orchestrator to refine the system map.",
+          "key_edges": [],
+          "src_id": "3.2",
+          "dst_id": "3.1",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
+              "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
+              "call_sites": [
+                {
+                  "line": 669,
+                  "column": 12
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_node_to_component_map",
+              "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_node_to_component_map",
+              "call_sites": [
+                {
+                  "line": 49,
+                  "column": 25
+                },
+                {
+                  "line": 51,
+                  "column": 40
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
+              "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
+              "call_sites": [
+                {
+                  "line": 413,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.merge_relations",
+              "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_node_to_component_map",
+              "call_sites": [
+                {
+                  "line": 508,
+                  "column": 37
                 }
               ],
               "description": ""
@@ -30512,8 +30626,8 @@
             "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
             "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
             "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-            "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
             "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
+            "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
             "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary",
             "diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
             "diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
@@ -30521,7 +30635,6 @@
             "diagram_analysis.diagram_generator.assert_scope_containment",
             "diagram_analysis.diagram_generator._collect_components_by_id",
             "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-            "diagram_analysis.diagram_generator._cluster_backed_empty_component_ids",
             "diagram_analysis.diagram_generator._merge_sub_analyses"
           ]
         },
@@ -30581,6 +30694,18 @@
             "diagram_analysis.run_context.RunContext",
             "diagram_analysis.run_context.RunContext.resolve",
             "diagram_analysis.run_context.RunContext.finalize"
+          ]
+        },
+        {
+          "file_path": "diagram_analysis/tree_shape.py",
+          "methods": [
+            "diagram_analysis.tree_shape.absorb_single_child_components",
+            "diagram_analysis.tree_shape.single_child_scopes",
+            "diagram_analysis.tree_shape._absorbable_at_root",
+            "diagram_analysis.tree_shape._absorb",
+            "diagram_analysis.tree_shape._reroot_id",
+            "diagram_analysis.tree_shape._reroot_tree",
+            "diagram_analysis.tree_shape._reroot_relations"
           ]
         },
         {
@@ -32328,8 +32453,8 @@
             {
               "qualified_name": "agents.incremental_agent.remove_deleted_files",
               "reference_file": "agents/incremental_agent.py",
-              "reference_start_line": 837,
-              "reference_end_line": 847
+              "reference_start_line": 838,
+              "reference_end_line": 848
             },
             {
               "qualified_name": "diagram_analysis.analysis_json.FileCoverageReport",
@@ -32341,7 +32466,8 @@
           "source_cluster_ids": [
             "4.2",
             "4.3",
-            "4.10"
+            "4.10",
+            "4.20"
           ],
           "file_methods": [
             {
@@ -32434,8 +32560,8 @@
                 "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
                 "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
                 "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-                "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
                 "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
+                "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
                 "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary",
                 "diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
                 "diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
@@ -32443,7 +32569,6 @@
                 "diagram_analysis.diagram_generator.assert_scope_containment",
                 "diagram_analysis.diagram_generator._collect_components_by_id",
                 "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-                "diagram_analysis.diagram_generator._cluster_backed_empty_component_ids",
                 "diagram_analysis.diagram_generator._merge_sub_analyses"
               ]
             },
@@ -32454,6 +32579,18 @@
                 "diagram_analysis.exceptions.IncrementalCacheMissingError.__init__",
                 "diagram_analysis.exceptions.ScopeContainmentError",
                 "diagram_analysis.exceptions.ScopeContainmentError.__init__"
+              ]
+            },
+            {
+              "file_path": "diagram_analysis/tree_shape.py",
+              "methods": [
+                "diagram_analysis.tree_shape.absorb_single_child_components",
+                "diagram_analysis.tree_shape.single_child_scopes",
+                "diagram_analysis.tree_shape._absorbable_at_root",
+                "diagram_analysis.tree_shape._absorb",
+                "diagram_analysis.tree_shape._reroot_id",
+                "diagram_analysis.tree_shape._reroot_tree",
+                "diagram_analysis.tree_shape._reroot_relations"
               ]
             },
             {
@@ -32497,14 +32634,15 @@
                 {
                   "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 529,
-                  "reference_end_line": 1589
+                  "reference_start_line": 551,
+                  "reference_end_line": 1613
                 }
               ],
               "source_cluster_ids": [
                 "4.2.2",
                 "4.2.4",
-                "4.2.7"
+                "4.2.7",
+                "4.2.8"
               ],
               "file_methods": [
                 {
@@ -32551,9 +32689,21 @@
                     "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
                     "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
                     "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-                    "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
                     "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
+                    "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
                     "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary"
+                  ]
+                },
+                {
+                  "file_path": "diagram_analysis/tree_shape.py",
+                  "methods": [
+                    "diagram_analysis.tree_shape.absorb_single_child_components",
+                    "diagram_analysis.tree_shape.single_child_scopes",
+                    "diagram_analysis.tree_shape._absorbable_at_root",
+                    "diagram_analysis.tree_shape._absorb",
+                    "diagram_analysis.tree_shape._reroot_id",
+                    "diagram_analysis.tree_shape._reroot_tree",
+                    "diagram_analysis.tree_shape._reroot_relations"
                   ]
                 },
                 {
@@ -32575,26 +32725,26 @@
                 {
                   "qualified_name": "agents.incremental_agent.remove_deleted_files",
                   "reference_file": "agents/incremental_agent.py",
-                  "reference_start_line": 837,
-                  "reference_end_line": 847
+                  "reference_start_line": 838,
+                  "reference_end_line": 848
                 },
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._capture_membership_baseline",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 261,
-                  "reference_end_line": 298
+                  "reference_start_line": 282,
+                  "reference_end_line": 319
                 },
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 1637,
-                  "reference_end_line": 1641
+                  "reference_start_line": 1661,
+                  "reference_end_line": 1665
                 },
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 398,
-                  "reference_end_line": 429
+                  "reference_start_line": 420,
+                  "reference_end_line": 451
                 }
               ],
               "source_cluster_ids": [
@@ -32635,7 +32785,6 @@
                     "diagram_analysis.diagram_generator.assert_scope_containment",
                     "diagram_analysis.diagram_generator._collect_components_by_id",
                     "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-                    "diagram_analysis.diagram_generator._cluster_backed_empty_component_ids",
                     "diagram_analysis.diagram_generator._merge_sub_analyses"
                   ]
                 },
@@ -32757,152 +32906,27 @@
               "is_static": true,
               "all_edges": [
                 {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
+                  "call_sites": [
+                    {
+                      "line": 1220,
+                      "column": 9
+                    },
+                    {
+                      "line": 1228,
+                      "column": 9
+                    }
+                  ],
+                  "description": ""
+                },
+                {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys",
                   "call_sites": [
                     {
                       "line": 632,
                       "column": 15
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
-                  "call_sites": [
-                    {
-                      "line": 1202,
-                      "column": 9
-                    }
-                  ],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "Orchestrates incremental analysis cycles",
-              "src_name": "State Reconciliation & Baseline Manager",
-              "dst_name": "Source Integrity & Expansion Planner",
-              "evidence": "The Baseline Manager drives the incremental workflow by first preparing the environment (pre_analysis), then invoking the Planner to generate subcomponents for changed areas, and finally committing the results.",
-              "key_edges": [
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
-                  "call_sites": [
-                    {
-                      "line": 1540,
-                      "column": 43
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-                  "call_sites": [
-                    {
-                      "line": 1373,
-                      "column": 18
-                    }
-                  ],
-                  "description": ""
-                }
-              ],
-              "src_id": "4.2.2",
-              "dst_id": "4.2.1",
-              "is_static": true,
-              "all_edges": [
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
-                  "call_sites": [
-                    {
-                      "line": 1540,
-                      "column": 43
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-                  "call_sites": [
-                    {
-                      "line": 1467,
-                      "column": 29
-                    },
-                    {
-                      "line": 1561,
-                      "column": 34
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-                  "call_sites": [
-                    {
-                      "line": 1373,
-                      "column": 18
-                    }
-                  ],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "Propagates change signals for re-analysis",
-              "src_name": "State Reconciliation & Baseline Manager",
-              "dst_name": "Structural Delta & Change Analyzer",
-              "evidence": "During incremental reconciliation, the Manager calculates component depth and applies recursive scope updates to identify which parts of the tree are \"dirty\" and require structural diffing.",
-              "key_edges": [
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
-                  "call_sites": [
-                    {
-                      "line": 1478,
-                      "column": 33
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth",
-                  "call_sites": [
-                    {
-                      "line": 1537,
-                      "column": 20
-                    }
-                  ],
-                  "description": ""
-                }
-              ],
-              "src_id": "4.2.2",
-              "dst_id": "4.2.3",
-              "is_static": true,
-              "all_edges": [
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
-                  "call_sites": [
-                    {
-                      "line": 1478,
-                      "column": 33
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth",
-                  "call_sites": [
-                    {
-                      "line": 1537,
-                      "column": 20
                     }
                   ],
                   "description": ""
@@ -32945,26 +32969,123 @@
               ]
             },
             {
-              "relation": "Provides structural diff facts for planning",
-              "src_name": "Structural Delta & Change Analyzer",
+              "relation": "Orchestrates incremental analysis cycles",
+              "src_name": "State Reconciliation & Baseline Manager",
               "dst_name": "Source Integrity & Expansion Planner",
-              "evidence": "Data flow relation where the LanguageStructuralDiff and ClusterReshape results are consumed by the Planner to decide if a component's internal structure has shifted enough to invalidate previous LLM summaries.",
+              "evidence": "The Baseline Manager drives the incremental workflow by first preparing the environment (pre_analysis), then invoking the Planner to generate subcomponents for changed areas, and finally committing the results.",
               "key_edges": [
                 {
-                  "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageStructuralDiff",
-                  "target": "agents/planner_agent.py|agents.planner_agent.get_expandable_components",
-                  "call_sites": [],
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
+                  "call_sites": [
+                    {
+                      "line": 1564,
+                      "column": 43
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
+                  "call_sites": [
+                    {
+                      "line": 1492,
+                      "column": 29
+                    },
+                    {
+                      "line": 1585,
+                      "column": 34
+                    }
+                  ],
                   "description": ""
                 }
               ],
-              "src_id": "4.2.3",
+              "src_id": "4.2.2",
               "dst_id": "4.2.1",
-              "is_static": false,
+              "is_static": true,
               "all_edges": [
                 {
-                  "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageStructuralDiff",
-                  "target": "agents/planner_agent.py|agents.planner_agent.get_expandable_components",
-                  "call_sites": [],
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
+                  "call_sites": [
+                    {
+                      "line": 1564,
+                      "column": 43
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
+                  "call_sites": [
+                    {
+                      "line": 1492,
+                      "column": 29
+                    },
+                    {
+                      "line": 1585,
+                      "column": 34
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
+                  "call_sites": [
+                    {
+                      "line": 1399,
+                      "column": 18
+                    }
+                  ],
+                  "description": ""
+                }
+              ]
+            },
+            {
+              "relation": "Propagates change signals for re-analysis",
+              "src_name": "State Reconciliation & Baseline Manager",
+              "dst_name": "Structural Delta & Change Analyzer",
+              "evidence": "During incremental reconciliation, the Manager calculates component depth and applies recursive scope updates to identify which parts of the tree are \"dirty\" and require structural diffing.",
+              "key_edges": [
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
+                  "call_sites": [
+                    {
+                      "line": 1502,
+                      "column": 33
+                    }
+                  ],
+                  "description": ""
+                }
+              ],
+              "src_id": "4.2.2",
+              "dst_id": "4.2.3",
+              "is_static": true,
+              "all_edges": [
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
+                  "call_sites": [
+                    {
+                      "line": 1502,
+                      "column": 33
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth",
+                  "call_sites": [
+                    {
+                      "line": 1561,
+                      "column": 20
+                    }
+                  ],
                   "description": ""
                 }
               ]
@@ -33313,8 +33434,8 @@
             {
               "qualified_name": "agents.incremental_agent.prune_empty_components",
               "reference_file": "agents/incremental_agent.py",
-              "reference_start_line": 871,
-              "reference_end_line": 910
+              "reference_start_line": 875,
+              "reference_end_line": 912
             },
             {
               "qualified_name": "diagram_analysis.io_utils._AnalysisFileStore",
@@ -33483,45 +33604,44 @@
           ]
         },
         {
-          "relation": "Requests change delta for incremental processing",
-          "src_name": "Workflow Orchestrator & Pruning Controller",
-          "dst_name": "Change Detection & Validation Engine",
-          "evidence": "During the initialization of an incremental run, the Orchestrator triggers the Change Detection engine to compare current file fingerprints against the persisted state, determining which segments of the codebase require re-analysis.",
+          "relation": "Provides health and monitoring telemetry",
+          "src_name": "Incremental State & Structural Planner",
+          "dst_name": "CI/CD Entrypoint & Multi-Format Reporter",
+          "evidence": "During the pre-analysis phase, the Planner triggers health checks and monitoring directory setup, which the Reporter uses to provide feedback to the user/CI logs regarding the analysis environment.",
           "key_edges": [],
-          "src_id": "4.4",
-          "dst_id": "4.3",
+          "src_id": "4.2",
+          "dst_id": "4.1",
           "is_static": true,
           "all_edges": [
             {
-              "source": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprint",
-              "target": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprints",
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
+              "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._run_health_report",
               "call_sites": [
                 {
-                  "line": 71,
-                  "column": 12
+                  "line": 986,
+                  "column": 14
                 }
               ],
               "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "Dispatches structural expansion and state persistence tasks",
-          "src_name": "Workflow Orchestrator & Pruning Controller",
-          "dst_name": "Incremental State & Structural Planner",
-          "evidence": "The Orchestrator manages the recursive decomposition of the codebase by calling the Planner to identify \"expandable\" components (sub-modules/classes) and delegates the final serialization of the analysis tree and source hashes.",
-          "key_edges": [],
-          "src_id": "4.4",
-          "dst_id": "4.2",
-          "is_static": true,
-          "all_edges": [
+            },
             {
-              "source": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprint",
-              "target": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_new_analyzer",
+              "target": "static_analyzer/__init__.py|static_analyzer.__init__.get_static_analysis",
               "call_sites": [
                 {
-                  "line": 70,
-                  "column": 15
+                  "line": 839,
+                  "column": 16
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
+              "target": "monitoring/paths.py|monitoring.paths.get_monitoring_run_dir",
+              "call_sites": [
+                {
+                  "line": 991,
+                  "column": 30
                 }
               ],
               "description": ""
@@ -33574,88 +33694,6 @@
           ]
         },
         {
-          "relation": "Injects change-aware context into the analysis engine",
-          "src_name": "Change Detection & Validation Engine",
-          "dst_name": "Workflow Orchestrator & Pruning Controller",
-          "evidence": "The engine provides the `ChangeSet` and `FileCoverage` objects that the Orchestrator uses to prune empty components and focus the Static Analyzer on modified files, preventing redundant LLM calls.",
-          "key_edges": [
-            {
-              "source": "repo_utils/change_detector.py|repo_utils.change_detector.ChangeSet",
-              "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
-              "call_sites": [],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage",
-              "target": "diagram_analysis/io_utils.py|diagram_analysis.io_utils._AnalysisFileStore",
-              "call_sites": [],
-              "description": ""
-            }
-          ],
-          "src_id": "4.3",
-          "dst_id": "4.4",
-          "is_static": false,
-          "all_edges": [
-            {
-              "source": "repo_utils/change_detector.py|repo_utils.change_detector.ChangeSet",
-              "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
-              "call_sites": [],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage",
-              "target": "diagram_analysis/io_utils.py|diagram_analysis.io_utils._AnalysisFileStore",
-              "call_sites": [],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "Provides health and monitoring telemetry",
-          "src_name": "Incremental State & Structural Planner",
-          "dst_name": "CI/CD Entrypoint & Multi-Format Reporter",
-          "evidence": "During the pre-analysis phase, the Planner triggers health checks and monitoring directory setup, which the Reporter uses to provide feedback to the user/CI logs regarding the analysis environment.",
-          "key_edges": [],
-          "src_id": "4.2",
-          "dst_id": "4.1",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-              "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._run_health_report",
-              "call_sites": [
-                {
-                  "line": 986,
-                  "column": 14
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_new_analyzer",
-              "target": "static_analyzer/__init__.py|static_analyzer.__init__.get_static_analysis",
-              "call_sites": [
-                {
-                  "line": 839,
-                  "column": 16
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-              "target": "monitoring/paths.py|monitoring.paths.get_monitoring_run_dir",
-              "call_sites": [
-                {
-                  "line": 991,
-                  "column": 30
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
           "relation": "calls",
           "src_name": "Incremental State & Structural Planner",
           "dst_name": "Workflow Orchestrator & Pruning Controller",
@@ -33666,23 +33704,23 @@
           "is_static": true,
           "all_edges": [
             {
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+              "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
+              "call_sites": [
+                {
+                  "line": 1544,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
               "source": "agents/planner_agent.py|agents.planner_agent.get_expandable_components",
               "target": "agents/planner_agent.py|agents.planner_agent.should_expand_component",
               "call_sites": [
                 {
                   "line": 172,
                   "column": 16
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-              "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
-              "call_sites": [
-                {
-                  "line": 1520,
-                  "column": 27
                 }
               ],
               "description": ""
@@ -33743,6 +33781,52 @@
               "description": ""
             }
           ]
+        },
+        {
+          "relation": "Dispatches structural expansion and state persistence tasks",
+          "src_name": "Workflow Orchestrator & Pruning Controller",
+          "dst_name": "Incremental State & Structural Planner",
+          "evidence": "The Orchestrator manages the recursive decomposition of the codebase by calling the Planner to identify \"expandable\" components (sub-modules/classes) and delegates the final serialization of the analysis tree and source hashes.",
+          "key_edges": [],
+          "src_id": "4.4",
+          "dst_id": "4.2",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprint",
+              "target": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
+              "call_sites": [
+                {
+                  "line": 70,
+                  "column": 15
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "Requests change delta for incremental processing",
+          "src_name": "Workflow Orchestrator & Pruning Controller",
+          "dst_name": "Change Detection & Validation Engine",
+          "evidence": "During the initialization of an incremental run, the Orchestrator triggers the Change Detection engine to compare current file fingerprints against the persisted state, determining which segments of the codebase require re-analysis.",
+          "key_edges": [],
+          "src_id": "4.4",
+          "dst_id": "4.3",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprint",
+              "target": "repo_utils/fingerprint_diff.py|repo_utils.fingerprint_diff.detect_changes_from_fingerprints",
+              "call_sites": [
+                {
+                  "line": 71,
+                  "column": 12
+                }
+              ],
+              "description": ""
+            }
+          ]
         }
       ]
     },
@@ -33765,8 +33849,8 @@
         {
           "qualified_name": "agents.incremental_agent._cfg_graphs_for_cluster_results",
           "reference_file": "agents/incremental_agent.py",
-          "reference_start_line": 827,
-          "reference_end_line": 834
+          "reference_start_line": 828,
+          "reference_end_line": 835
         }
       ],
       "source_cluster_ids": [
@@ -34229,8 +34313,10 @@
             "static_analyzer.method_cluster_paths.MethodClusterPaths.prune",
             "static_analyzer.method_cluster_paths.MethodClusterPaths.record",
             "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
+            "static_analyzer.method_cluster_paths.MethodClusterPaths.reroot_scope",
             "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot_dict",
-            "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope"
+            "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope",
+            "static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to"
           ]
         },
         {
@@ -34586,8 +34672,10 @@
                 "static_analyzer.method_cluster_paths.MethodClusterPaths.prune",
                 "static_analyzer.method_cluster_paths.MethodClusterPaths.record",
                 "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
+                "static_analyzer.method_cluster_paths.MethodClusterPaths.reroot_scope",
                 "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot_dict",
-                "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope"
+                "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope",
+                "static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to"
               ]
             },
             {
@@ -34725,8 +34813,10 @@
                     "static_analyzer.method_cluster_paths.MethodClusterPaths.prune",
                     "static_analyzer.method_cluster_paths.MethodClusterPaths.record",
                     "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
+                    "static_analyzer.method_cluster_paths.MethodClusterPaths.reroot_scope",
                     "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot_dict",
-                    "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope"
+                    "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope",
+                    "static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to"
                   ]
                 },
                 {
@@ -36224,8 +36314,8 @@
             {
               "qualified_name": "agents.incremental_agent._cfg_graphs_for_scope_methods",
               "reference_file": "agents/incremental_agent.py",
-              "reference_start_line": 806,
-              "reference_end_line": 824
+              "reference_start_line": 807,
+              "reference_end_line": 825
             },
             {
               "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
@@ -42366,22 +42456,33 @@
       "key_edges": [
         {
           "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
-          "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_description",
+          "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_name",
           "call_sites": [
             {
-              "line": 224,
-              "column": 33
+              "line": 216,
+              "column": 26
             }
           ],
           "description": ""
         },
         {
           "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
-          "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_name",
+          "target": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.anchored_grouping",
           "call_sites": [
             {
-              "line": 223,
-              "column": 26
+              "line": 158,
+              "column": 16
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
+          "target": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.combine_cluster_results",
+          "call_sites": [
+            {
+              "line": 128,
+              "column": 16
             }
           ],
           "description": ""
@@ -42396,7 +42497,7 @@
           "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_description",
           "call_sites": [
             {
-              "line": 224,
+              "line": 217,
               "column": 33
             }
           ],
@@ -42407,7 +42508,7 @@
           "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan._provisional_name",
           "call_sites": [
             {
-              "line": 223,
+              "line": 216,
               "column": 26
             }
           ],
@@ -42418,7 +42519,7 @@
           "target": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.anchored_grouping",
           "call_sites": [
             {
-              "line": 165,
+              "line": 158,
               "column": 16
             }
           ],
@@ -42429,7 +42530,7 @@
           "target": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.combine_cluster_results",
           "call_sites": [
             {
-              "line": 131,
+              "line": 128,
               "column": 16
             }
           ],
@@ -42475,19 +42576,19 @@
           "target": "agents/agent_responses.py|agents.agent_responses.ScopeOperation",
           "call_sites": [
             {
-              "line": 148,
+              "line": 141,
               "column": 17
             },
             {
-              "line": 211,
+              "line": 204,
               "column": 17
             },
             {
-              "line": 220,
+              "line": 213,
               "column": 17
             },
             {
-              "line": 232,
+              "line": 225,
               "column": 17
             }
           ],
@@ -42498,11 +42599,11 @@
           "target": "agents/agent_responses.py|agents.agent_responses.ScopeUpdateDecision",
           "call_sites": [
             {
-              "line": 146,
+              "line": 139,
               "column": 16
             },
             {
-              "line": 244,
+              "line": 237,
               "column": 12
             }
           ],
@@ -42513,7 +42614,7 @@
           "target": "agents/agent_responses.py|agents.agent_responses.ScopedClusterRef",
           "call_sites": [
             {
-              "line": 189,
+              "line": 182,
               "column": 13
             }
           ],
@@ -42531,6 +42632,21 @@
       "dst_id": "3.3.2",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.previous_ownership",
+          "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 80,
+              "column": 13
+            },
+            {
+              "line": 90,
+              "column": 38
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.populate_file_methods",
           "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._build_file_methods_from_nodes",
@@ -42571,21 +42687,6 @@
             {
               "line": 300,
               "column": 23
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.previous_ownership",
-          "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
-          "call_sites": [
-            {
-              "line": 83,
-              "column": 13
-            },
-            {
-              "line": 93,
-              "column": 38
             }
           ],
           "description": ""
@@ -43003,7 +43104,7 @@
           "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent",
           "call_sites": [
             {
-              "line": 919,
+              "line": 941,
               "column": 34
             }
           ],
@@ -44051,17 +44152,6 @@
       "all_edges": [
         {
           "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
-          "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
-          "call_sites": [
-            {
-              "line": 463,
-              "column": 42
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
           "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_owner_index",
           "call_sites": [
             {
@@ -44077,6 +44167,17 @@
           "call_sites": [
             {
               "line": 474,
+              "column": 42
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+          "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
+          "call_sites": [
+            {
+              "line": 463,
               "column": 42
             }
           ],
@@ -44405,6 +44506,17 @@
       ]
     },
     {
+      "relation": "projects and filters reconciled relations for",
+      "src_name": "Architectural Surface & Visualization Generator",
+      "dst_name": "Relational Logic & Edge Reconciliation",
+      "evidence": "codeboarding_workflows.rendering.project_relations_to_level transforms the high-level Relation models into visual-specific graph structures.",
+      "key_edges": [],
+      "src_id": "3.2.2",
+      "dst_id": "3.2.3",
+      "is_static": false,
+      "all_edges": []
+    },
+    {
       "relation": "Provides structured analysis insights and relationship projections",
       "src_name": "Relational Logic & Edge Reconciliation",
       "dst_name": "Component Synthesis & Relation Mapper",
@@ -44454,29 +44566,15 @@
       ]
     },
     {
-      "relation": "provides processed graph data for rendering",
+      "relation": "updates and persists component insights with",
       "src_name": "Relational Logic & Edge Reconciliation",
-      "dst_name": "Architectural Surface & Visualization Generator",
-      "evidence": "Data flow from project_relations_to_level (reconciliation) into generate_html and _generate_cytoscape_script (visualization).",
-      "key_edges": [
-        {
-          "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-          "target": "output_generators/html_template.py|output_generators.html_template._generate_cytoscape_script",
-          "call_sites": [],
-          "description": "Reconciled graph data is passed to the cytoscape script generator."
-        }
-      ],
+      "dst_name": "Component Schema & Structural Definitions",
+      "evidence": "Runtime data flow where Relation objects are instantiated and aggregated into CFGAnalysisInsights containers for persistence.",
+      "key_edges": [],
       "src_id": "3.2.3",
-      "dst_id": "3.2.2",
+      "dst_id": "3.2.1",
       "is_static": false,
-      "all_edges": [
-        {
-          "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-          "target": "output_generators/html_template.py|output_generators.html_template._generate_cytoscape_script",
-          "call_sites": [],
-          "description": "Reconciled graph data is passed to the cytoscape script generator."
-        }
-      ]
+      "all_edges": []
     },
     {
       "relation": "calls",
@@ -44493,7 +44591,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._incremental_changed_component_ids",
           "call_sites": [
             {
-              "line": 1152,
+              "line": 1174,
               "column": 27
             }
           ],
@@ -44504,7 +44602,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._iter_incremental_scopes",
           "call_sites": [
             {
-              "line": 1162,
+              "line": 1184,
               "column": 44
             }
           ],
@@ -44591,11 +44689,11 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
           "call_sites": [
             {
-              "line": 1147,
+              "line": 1169,
               "column": 55
             },
             {
-              "line": 1169,
+              "line": 1191,
               "column": 60
             }
           ],
@@ -44618,7 +44716,7 @@
           "target": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver",
           "call_sites": [
             {
-              "line": 1184,
+              "line": 1206,
               "column": 17
             }
           ],
@@ -44629,7 +44727,7 @@
           "target": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.keep_relation_edge",
           "call_sites": [
             {
-              "line": 1184,
+              "line": 1206,
               "column": 83
             }
           ],
@@ -44652,11 +44750,11 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
           "call_sites": [
             {
-              "line": 1147,
+              "line": 1169,
               "column": 102
             },
             {
-              "line": 1168,
+              "line": 1190,
               "column": 50
             }
           ],
@@ -45108,17 +45206,32 @@
       ]
     },
     {
-      "relation": "Triggers change detection for targeted updates",
+      "relation": "Requests change analysis for scope reconciliation",
       "src_name": "Incremental State Reconciler & Grafter",
       "dst_name": "Content Fingerprinting & Delta Detection",
-      "evidence": "The Reconciler orchestrates the update lifecycle. When the high-level agent identifies a potential change, the Reconciler invokes the fingerprinting logic to perform a \"re-scan\" of specific file spans.",
+      "evidence": "The Reconciler acts as the high-level orchestrator that triggers delta detection to identify which parts of the codebase require re-analysis or \"grafting\" into the current state.",
       "key_edges": [
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._reconcile_child_scope",
           "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
           "call_sites": [
             {
-              "line": 167,
+              "line": 188,
+              "column": 25
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._key_entity_is_owned",
+          "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 129,
+              "column": 19
+            },
+            {
+              "line": 130,
               "column": 25
             }
           ],
@@ -45134,8 +45247,46 @@
           "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
           "call_sites": [
             {
-              "line": 167,
+              "line": 188,
               "column": 25
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._key_entity_is_owned",
+          "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 129,
+              "column": 19
+            },
+            {
+              "line": 130,
+              "column": 25
+            }
+          ],
+          "description": ""
+        }
+      ]
+    },
+    {
+      "relation": "calls",
+      "src_name": "Incremental State Reconciler & Grafter",
+      "dst_name": "State Reconciliation & Baseline Manager",
+      "evidence": "",
+      "key_edges": [],
+      "src_id": "3.3.3",
+      "dst_id": "4.2.2",
+      "is_static": true,
+      "all_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._reconcile_child_scope",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys",
+          "call_sites": [
+            {
+              "line": 157,
+              "column": 29
             }
           ],
           "description": ""
@@ -46033,7 +46184,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations",
           "call_sites": [
             {
-              "line": 1200,
+              "line": 1221,
               "column": 14
             }
           ],
@@ -46160,23 +46311,26 @@
       "src_name": "Source Integrity & Expansion Planner",
       "dst_name": "State Reconciliation & Baseline Manager",
       "evidence": "The Planner evaluates if a component is \"separable\" (expandable) by checking its membership keys against the current baseline. Once the expansion strategy is executed, it triggers the finalization and persistence of the new state.",
-      "key_edges": [
+      "key_edges": [],
+      "src_id": "4.2.1",
+      "dst_id": "4.2.2",
+      "is_static": true,
+      "all_edges": [
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
           "call_sites": [
             {
-              "line": 1137,
+              "line": 1220,
+              "column": 9
+            },
+            {
+              "line": 1228,
               "column": 9
             }
           ],
           "description": ""
-        }
-      ],
-      "src_id": "4.2.1",
-      "dst_id": "4.2.2",
-      "is_static": true,
-      "all_edges": [
+        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys",
@@ -46184,17 +46338,6 @@
             {
               "line": 574,
               "column": 15
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
-          "call_sites": [
-            {
-              "line": 1137,
-              "column": 9
             }
           ],
           "description": ""
@@ -46372,15 +46515,49 @@
       ]
     },
     {
-      "relation": "Computes incremental changes",
+      "relation": "Coordinates delta analysis and cache persistence",
+      "src_name": "Source Integrity & Expansion Planner",
+      "dst_name": "Structural Graph & Edge Validator",
+      "evidence": "The main workflow manages the incremental analysis state, seeding caches and calculating what has changed since the last run.",
+      "key_edges": [],
+      "src_id": "4.2.1",
+      "dst_id": "5.1.1",
+      "is_static": true,
+      "all_edges": [
+        {
+          "source": "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape._absorb",
+          "target": "static_analyzer/method_cluster_paths.py|static_analyzer.method_cluster_paths.MethodClusterPaths.reroot_scope",
+          "call_sites": [
+            {
+              "line": 64,
+              "column": 34
+            }
+          ],
+          "description": ""
+        }
+      ]
+    },
+    {
+      "relation": "Coordinates delta analysis and cache persistence",
       "src_name": "Source Integrity & Expansion Planner",
       "dst_name": "Snapshot Manager & Delta Orchestrator",
-      "evidence": "During incremental runs, the workflow requests a structural delta to identify which parts of the architecture need re-analysis based on file changes.",
+      "evidence": "The main workflow manages the incremental analysis state, seeding caches and calculating what has changed since the last run.",
       "key_edges": [],
       "src_id": "4.2.1",
       "dst_id": "5.1.2.1",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+          "call_sites": [
+            {
+              "line": 1223,
+              "column": 35
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
           "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
@@ -46451,15 +46628,26 @@
       ]
     },
     {
-      "relation": "Computes incremental changes",
+      "relation": "Coordinates delta analysis and cache persistence",
       "src_name": "Source Integrity & Expansion Planner",
       "dst_name": "Structural Analysis & Topology Engine",
-      "evidence": "During incremental runs, the workflow requests a structural delta to identify which parts of the architecture need re-analysis based on file changes.",
+      "evidence": "The main workflow manages the incremental analysis state, seeding caches and calculating what has changed since the last run.",
       "key_edges": [],
       "src_id": "4.2.1",
       "dst_id": "5.3.2.1",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+          "call_sites": [
+            {
+              "line": 1223,
+              "column": 82
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
@@ -46620,7 +46808,7 @@
           "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.detail_new_components",
           "call_sites": [
             {
-              "line": 1467,
+              "line": 1556,
               "column": 40
             }
           ],
@@ -46643,7 +46831,7 @@
           "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_all_scope_relations",
           "call_sites": [
             {
-              "line": 1484,
+              "line": 1573,
               "column": 40
             }
           ],
@@ -46666,11 +46854,11 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
           "call_sites": [
             {
-              "line": 1401,
+              "line": 1491,
               "column": 22
             },
             {
-              "line": 1494,
+              "line": 1583,
               "column": 18
             }
           ],
@@ -46693,7 +46881,7 @@
           "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_changed_members",
           "call_sites": [
             {
-              "line": 1356,
+              "line": 1446,
               "column": 17
             }
           ],
@@ -46704,7 +46892,7 @@
           "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
           "call_sites": [
             {
-              "line": 1347,
+              "line": 1437,
               "column": 40
             }
           ],
@@ -46727,7 +46915,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._reconcile_child_scope",
           "call_sites": [
             {
-              "line": 1299,
+              "line": 1325,
               "column": 17
             }
           ],
@@ -46747,18 +46935,33 @@
       ]
     },
     {
-      "relation": "Orchestrates incremental workflow",
+      "relation": "Orchestrates incremental analysis cycles",
       "src_name": "State Reconciliation & Baseline Manager",
       "dst_name": "Source Integrity & Expansion Planner",
-      "evidence": "The Manager acts as the entry point for incremental runs, invoking the Planner's generation and tracking logic only for components identified as \"dirty.\"",
+      "evidence": "The Baseline Manager drives the incremental workflow by first preparing the environment (pre_analysis), then invoking the Planner to generate subcomponents for changed areas, and finally committing the results.",
       "key_edges": [
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
           "call_sites": [
             {
-              "line": 1475,
+              "line": 1564,
               "column": 43
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
+          "call_sites": [
+            {
+              "line": 1492,
+              "column": 29
+            },
+            {
+              "line": 1585,
+              "column": 34
             }
           ],
           "description": ""
@@ -46773,7 +46976,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
           "call_sites": [
             {
-              "line": 1475,
+              "line": 1564,
               "column": 43
             }
           ],
@@ -46784,11 +46987,11 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
           "call_sites": [
             {
-              "line": 1402,
+              "line": 1492,
               "column": 29
             },
             {
-              "line": 1496,
+              "line": 1585,
               "column": 34
             }
           ],
@@ -46799,19 +47002,8 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
           "call_sites": [
             {
-              "line": 1308,
+              "line": 1399,
               "column": 18
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "telemetry/events.py|telemetry.events.track_analysis",
-          "call_sites": [
-            {
-              "line": 1295,
-              "column": 6
             }
           ],
           "description": ""
@@ -46829,7 +47021,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
           "call_sites": [
             {
-              "line": 1413,
+              "line": 1502,
               "column": 33
             }
           ],
@@ -46845,7 +47037,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
           "call_sites": [
             {
-              "line": 1413,
+              "line": 1502,
               "column": 33
             }
           ],
@@ -46856,7 +47048,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth",
           "call_sites": [
             {
-              "line": 1472,
+              "line": 1561,
               "column": 20
             }
           ],
@@ -46879,7 +47071,7 @@
           "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
           "call_sites": [
             {
-              "line": 1455,
+              "line": 1544,
               "column": 27
             }
           ],
@@ -46902,7 +47094,7 @@
           "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.ClusterDelta.has_changes",
           "call_sites": [
             {
-              "line": 1393,
+              "line": 1483,
               "column": 26
             }
           ],
@@ -46913,7 +47105,7 @@
           "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
           "call_sites": [
             {
-              "line": 1387,
+              "line": 1477,
               "column": 21
             }
           ],
@@ -46924,7 +47116,7 @@
           "target": "diagram_analysis/cluster_snapshot.py|diagram_analysis.cluster_snapshot.ClusterSnapshot.all_cluster_ids",
           "call_sites": [
             {
-              "line": 1374,
+              "line": 1464,
               "column": 33
             }
           ],
@@ -46935,7 +47127,7 @@
           "target": "diagram_analysis/cluster_snapshot.py|diagram_analysis.cluster_snapshot.snapshot_from_static_analysis",
           "call_sites": [
             {
-              "line": 1373,
+              "line": 1463,
               "column": 28
             }
           ],
@@ -46946,11 +47138,11 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
           "call_sites": [
             {
-              "line": 1342,
+              "line": 1432,
               "column": 48
             },
             {
-              "line": 1410,
+              "line": 1499,
               "column": 48
             }
           ],
@@ -46961,7 +47153,7 @@
           "target": "static_analyzer/constants.py|static_analyzer.constants.Language",
           "call_sites": [
             {
-              "line": 1410,
+              "line": 1499,
               "column": 56
             }
           ],
@@ -46972,7 +47164,7 @@
           "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.clustering_networkx",
           "call_sites": [
             {
-              "line": 1410,
+              "line": 1499,
               "column": 76
             }
           ],
@@ -46995,7 +47187,7 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
           "call_sites": [
             {
-              "line": 1340,
+              "line": 1430,
               "column": 50
             }
           ],
@@ -47018,7 +47210,7 @@
           "target": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_update",
           "call_sites": [
             {
-              "line": 1248,
+              "line": 1339,
               "column": 20
             }
           ],
@@ -47084,31 +47276,6 @@
       ]
     },
     {
-      "relation": "Provides structural diff facts for planning",
-      "src_name": "Structural Delta & Change Analyzer",
-      "dst_name": "Source Integrity & Expansion Planner",
-      "evidence": "Data flow relation where the LanguageStructuralDiff and ClusterReshape results are consumed by the Planner to decide if a component's internal structure has shifted enough to invalidate previous LLM summaries.",
-      "key_edges": [
-        {
-          "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageStructuralDiff",
-          "target": "agents/planner_agent.py|agents.planner_agent.get_expandable_components",
-          "call_sites": [],
-          "description": ""
-        }
-      ],
-      "src_id": "4.2.3",
-      "dst_id": "4.2.1",
-      "is_static": false,
-      "all_edges": [
-        {
-          "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageStructuralDiff",
-          "target": "agents/planner_agent.py|agents.planner_agent.get_expandable_components",
-          "call_sites": [],
-          "description": ""
-        }
-      ]
-    },
-    {
       "relation": "Computes incremental changes",
       "src_name": "Structural Delta & Change Analyzer",
       "dst_name": "Snapshot Manager & Delta Orchestrator",
@@ -47127,43 +47294,6 @@
               "column": 61
             }
           ],
-          "description": ""
-        }
-      ]
-    },
-    {
-      "relation": "Injects change-aware context into the analysis engine",
-      "src_name": "Change Detection & Validation Engine",
-      "dst_name": "Workflow Orchestrator & Pruning Controller",
-      "evidence": "The engine provides the `ChangeSet` and `FileCoverage` objects that the Orchestrator uses to prune empty components and focus the Static Analyzer on modified files, preventing redundant LLM calls.",
-      "key_edges": [
-        {
-          "source": "repo_utils/change_detector.py|repo_utils.change_detector.ChangeSet",
-          "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
-          "call_sites": [],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage",
-          "target": "diagram_analysis/io_utils.py|diagram_analysis.io_utils._AnalysisFileStore",
-          "call_sites": [],
-          "description": ""
-        }
-      ],
-      "src_id": "4.3",
-      "dst_id": "4.4",
-      "is_static": false,
-      "all_edges": [
-        {
-          "source": "repo_utils/change_detector.py|repo_utils.change_detector.ChangeSet",
-          "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
-          "call_sites": [],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage",
-          "target": "diagram_analysis/io_utils.py|diagram_analysis.io_utils._AnalysisFileStore",
-          "call_sites": [],
           "description": ""
         }
       ]

@@ -21,8 +21,8 @@ Orchestrates the transformation of raw graph clusters into architectural compone
 - `agents.agent_responses.ClusterAnalysis`:440-452
 - `agents.cluster_methods_mixin._summarize_group`:47-66
 - `static_analyzer.cluster_helpers.AnchoredGrouping`:494-501
-- `diagram_analysis.scope_plan._provisional_name`:247-250
-- `agents.incremental_agent._new_component_membership_summary`:556-567
+- `diagram_analysis.scope_plan._provisional_name`:240-243
+- `agents.incremental_agent._new_component_membership_summary`:615-626
 
 
 
@@ -40,12 +40,12 @@ Orchestrates the transformation of raw graph clusters into architectural compone
   - `agents.cluster_methods_mixin.ClusterMethodsMixin.assemble_one_component_per_group` ([L149-L185](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py#L149-L185)) - Method
 - [`agents/incremental_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py)
   - `agents.incremental_agent.IncrementalAgent.detail_new_components` ([L229-L264](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L229-L264)) - Method
-  - `agents.incremental_agent._cluster_analysis_for_scope` ([L569-L591](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L569-L591)) - Function
-  - `agents.incremental_agent._local_graph_cluster_ids` ([L594-L611](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L594-L611)) - Function
-  - `agents.incremental_agent._new_component_membership_summary` ([L614-L625](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L614-L625)) - Function
+  - `agents.incremental_agent._cluster_analysis_for_scope` ([L570-L592](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L570-L592)) - Function
+  - `agents.incremental_agent._local_graph_cluster_ids` ([L595-L612](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L595-L612)) - Function
+  - `agents.incremental_agent._new_component_membership_summary` ([L615-L626](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L615-L626)) - Function
 - [`diagram_analysis/scope_plan.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/scope_plan.py)
-  - `diagram_analysis.scope_plan._provisional_name` ([L247-L250](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/scope_plan.py#L247-L250)) - Function
-  - `diagram_analysis.scope_plan._provisional_description` ([L253-L267](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/scope_plan.py#L253-L267)) - Function
+  - `diagram_analysis.scope_plan._provisional_name` ([L240-L243](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/scope_plan.py#L240-L243)) - Function
+  - `diagram_analysis.scope_plan._provisional_description` ([L246-L260](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/scope_plan.py#L246-L260)) - Function
 - [`static_analyzer/cluster_helpers.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_helpers.py)
   - `static_analyzer.cluster_helpers._build_meta_graph` ([L133-L160](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_helpers.py#L133-L160)) - Function
   - `static_analyzer.cluster_helpers.group_symbols` ([L163-L166](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_helpers.py#L163-L166)) - Function
@@ -78,7 +78,7 @@ Manages unique identification and qualification of clusters across scopes, mappi
 - `agents.cluster_ids.CodeBoardingClusterIds`:14-44
 - `agents.cluster_methods_mixin.ClusterMethodsMixin`:100-752
 - `diagram_analysis.exceptions.IncrementalClusteringError`:46-63
-- `diagram_analysis.scope_plan.plan_scope_update`:110-244
+- `diagram_analysis.scope_plan.plan_scope_update`:107-237
 - `agents.cluster_ids.GraphClusterIds`:8-11
 
 
@@ -113,8 +113,8 @@ Manages unique identification and qualification of clusters across scopes, mappi
   - `diagram_analysis.exceptions.IncrementalClusteringError` ([L46-L63](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/exceptions.py#L46-L63)) - Class
   - `diagram_analysis.exceptions.IncrementalClusteringError.__init__` ([L57-L63](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/exceptions.py#L57-L63)) - Method
 - [`diagram_analysis/scope_plan.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/scope_plan.py)
-  - `diagram_analysis.scope_plan.previous_ownership` ([L44-L107](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/scope_plan.py#L44-L107)) - Function
-  - `diagram_analysis.scope_plan.plan_scope_update` ([L110-L244](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/scope_plan.py#L110-L244)) - Function
+  - `diagram_analysis.scope_plan.previous_ownership` ([L44-L104](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/scope_plan.py#L44-L104)) - Function
+  - `diagram_analysis.scope_plan.plan_scope_update` ([L107-L237](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/scope_plan.py#L107-L237)) - Function
 
 
 
