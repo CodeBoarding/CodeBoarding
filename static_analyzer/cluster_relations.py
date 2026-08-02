@@ -175,7 +175,7 @@ def prune_ungrounded_edges(
                 # Nowhere better to file it; keeping a mis-filed call beats deleting a real one.
                 all_edges.append(edge)
             else:
-                additions.setdefault(home, []).append(edge)  # type: ignore[arg-type]
+                additions.setdefault(matching_pair, []).append(edge)  # type: ignore[arg-type]
         surviving = {edge.identity() for edge in all_edges}
         key_edges = [edge for edge in relation.key_edges if edge.identity() in surviving]
         kept.append(relation.model_copy(update={"all_edges": all_edges, "key_edges": key_edges}))
