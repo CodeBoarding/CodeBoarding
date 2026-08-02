@@ -1204,6 +1204,7 @@ class DiagramGenerator:
                 global_relations,
                 build_owner_index(build_global_node_to_component_map(root_analysis, sub_analyses)),
                 StaticReferenceResolver(self.repo_location, self.static_analysis).keep_relation_edge,
+                self._changed_members,
             )
         root_analysis.components_relations = global_relations
         return global_relations

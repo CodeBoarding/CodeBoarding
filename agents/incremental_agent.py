@@ -475,6 +475,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 scope.components_relations,
                 build_owner_index(build_node_to_component_map(scope)),
                 self.reference_resolver.keep_relation_edge,
+                changed_members or set(),
             )
             rels = scope.components_relations
         return rels
