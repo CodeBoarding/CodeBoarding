@@ -364,10 +364,7 @@ def _restore_unchanged_metadata(
                 continue
             final_keys = _member_keys(component)
             owns_changed_file = any(group.file_path in changed_files for group in component.file_methods)
-            # Membership counts as unchanged when the only members that came or went are ones
-            # the commit itself added or deleted. A component that lost exactly the deleted
-            # function still covers the same clusters and still has the same key entities; a
-            # component that lost a method to re-partitioning does not.
+            # Ignore membership changes caused only by symbols the commit added or deleted.
             drifted = {key for key in (final_keys ^ meta.member_keys) if key[1] not in changed_members}
             if drifted:
                 continue

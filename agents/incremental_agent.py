@@ -142,18 +142,9 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 continue
             if operation.action == ScopeOperationAction.NOOP:
                 component = components_by_id.get(operation.component_id or "")
-                if component is not None:
-                    merged = CodeBoardingClusterIds.sort(
-                        set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
-                    )
-                    # NOOP means the planner asked for nothing. Only a cluster set that actually
-                    # moved is a reason to refresh; marking every NOOP component refreshed put
-                    # untouched siblings into `changed_ids`, which is what let their relations
-                    # be added and removed for a commit that never reached them.
-                    if merged != component.source_cluster_ids:
-                        component.source_cluster_ids = merged
-                        if component.component_id:
-                            refresh_ids.add(component.component_id)
+                if component is None:
+                    continue
+                self._sync_noop_component_cluster_ids(scope_id, component, operation, refresh_ids)
                 continue
 
             component = components_by_id.get(operation.component_id or "")
@@ -219,6 +210,20 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             refresh_ids.add(component.component_id)
             new_component_ids.add(component.component_id)
             components_by_id[component.component_id] = component
+
+    def _sync_noop_component_cluster_ids(
+        self,
+        scope_id: str,
+        component: Component,
+        operation: ScopeOperation,
+        refresh_ids: set[str],
+    ) -> None:
+        merged_cluster_ids = CodeBoardingClusterIds.sort(
+            set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
+        )
+        if merged_cluster_ids != component.source_cluster_ids and component.component_id:
+            refresh_ids.add(component.component_id)
+        component.source_cluster_ids = merged_cluster_ids
 
     @trace
     def detail_new_components(self, components: list[Component]) -> None:
@@ -431,7 +436,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             # right scope to re-derive, and the wrong reason to change the edge set — so the
             # preservation gate sees only components the COMMIT reached. Components that are
             # new or gone keep their ids here: they are changes the commit does account for.
-            commit_changed = {
+            changed_component_ids = {
                 component.component_id
                 for component in scope.components
                 if component.component_id
@@ -440,7 +445,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                     for group in component.file_methods
                     for method in group.methods
                 )
-            } | (set(context.changed_ids) - live_ids)
+            }
+            commit_changed = changed_component_ids | (set(context.changed_ids) - live_ids)
             live_qnames = {
                 qualified_name
                 for cluster_result in context.cluster_results.values()
@@ -448,6 +454,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 for qualified_name in members
             }
             for relation in scope.components_relations:
+                # Carry the baseline forward when regenerated component ids changed but names did not.
                 pair = (relation.src_id, relation.dst_id)
                 if pair not in baseline_by_pair:
                     by_name = baseline_by_names.get((relation.src_name, relation.dst_name))

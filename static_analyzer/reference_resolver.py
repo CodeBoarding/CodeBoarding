@@ -7,7 +7,7 @@ from typing import Any
 from agents.agent_responses import AnalysisInsights, RelationCallSite, RelationEdge, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
-from static_analyzer.internal_references import looks_internal_reference, reference_tokens
+from static_analyzer.internal_references import looks_internal_reference, qualified_symbol_parts
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -386,13 +386,13 @@ class StaticReferenceResolver:
 
     @staticmethod
     def _unique_token_match(qname: str, candidates: list[Node]) -> Node | None:
-        query_tokens = reference_tokens(qname)
+        query_tokens = qualified_symbol_parts(qname)
         if not query_tokens:
             return None
 
         matches: list[Node] = []
         for node in candidates:
-            candidate_tokens = reference_tokens(node.fully_qualified_name)
+            candidate_tokens = qualified_symbol_parts(node.fully_qualified_name)
             if candidate_tokens[-1:] != query_tokens[-1:]:
                 continue
             if all(token in candidate_tokens for token in query_tokens[:-1] if token.startswith("_")):

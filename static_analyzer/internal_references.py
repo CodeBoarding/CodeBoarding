@@ -17,8 +17,8 @@ class InternalReferenceSource(Protocol):
     def iter_reference_nodes(self, lang: Language) -> Iterable[ReferenceNode]: ...
 
 
-def reference_tokens(qualified_name: str) -> list[str]:
-    return [token.lower() for token in re.split(r"[.:/\\]+", qualified_name) if token]
+def qualified_symbol_parts(qualified_name: str) -> list[str]:
+    return [part.lower() for part in re.split(r"[.:/\\]+", qualified_name) if part]
 
 
 def parent_qualified_name(qualified_name: str) -> str:
@@ -29,11 +29,11 @@ def parent_qualified_name(qualified_name: str) -> str:
     return parent.split("(", 1)[0]
 
 
-_TOKEN_CACHE: dict[int, tuple[ReferenceType, set[str], set[str]]] = {}
+_SYMBOL_PARTS_CACHE: dict[int, tuple[ReferenceType, set[str], set[str]]] = {}
 
 
-def _internal_reference_tokens(static_analysis: InternalReferenceSource) -> tuple[set[str], set[str]]:
-    """The anchor tokens and flat token set for one static-analysis result.
+def _internal_reference_symbol_parts(static_analysis: InternalReferenceSource) -> tuple[set[str], set[str]]:
+    """The anchor parts and flat symbol-part set for one static-analysis result.
 
     Why cached: deriving these walks every reference node in every language and tokenises each
     name, while callers ask per candidate symbol — recomputing turns a per-symbol question into
@@ -42,57 +42,57 @@ def _internal_reference_tokens(static_analysis: InternalReferenceSource) -> tupl
     is collected and a line whose referent is gone no longer matches.
     """
     key = id(static_analysis)
-    cached = _TOKEN_CACHE.get(key)
+    cached = _SYMBOL_PARTS_CACHE.get(key)
     if cached is not None and cached[0]() is static_analysis:
         return cached[1], cached[2]
-    token_paths = _internal_reference_token_paths(static_analysis)
-    anchors = _internal_reference_anchor_tokens(token_paths)
-    tokens = {token for path in token_paths for token in path}
+    symbol_part_paths = _internal_reference_symbol_part_paths(static_analysis)
+    anchors = _internal_reference_anchor_parts(symbol_part_paths)
+    symbol_parts = {part for path in symbol_part_paths for part in path}
     try:
-        _TOKEN_CACHE[key] = (ref(static_analysis), anchors, tokens)
+        _SYMBOL_PARTS_CACHE[key] = (ref(static_analysis), anchors, symbol_parts)
     except TypeError:
         pass  # Not weak-referenceable, so it cannot be cached safely; recompute next time.
-    return anchors, tokens
+    return anchors, symbol_parts
 
 
 def looks_internal_reference(static_analysis: InternalReferenceSource, qualified_name: str) -> bool:
-    tokens = reference_tokens(qualified_name)
-    if not tokens:
+    symbol_parts = qualified_symbol_parts(qualified_name)
+    if not symbol_parts:
         return False
-    anchor_tokens, internal_tokens = _internal_reference_tokens(static_analysis)
-    if tokens[0] in anchor_tokens:
+    anchor_parts, internal_parts = _internal_reference_symbol_parts(static_analysis)
+    if symbol_parts[0] in anchor_parts:
         return True
-    return any(token.startswith("_") and token in internal_tokens for token in tokens)
+    return any(part.startswith("_") and part in internal_parts for part in symbol_parts)
 
 
-def _internal_reference_token_paths(static_analysis: InternalReferenceSource) -> list[list[str]]:
-    token_paths: list[list[str]] = []
+def _internal_reference_symbol_part_paths(static_analysis: InternalReferenceSource) -> list[list[str]]:
+    symbol_part_paths: list[list[str]] = []
     for lang in static_analysis.get_languages():
         for node in static_analysis.iter_reference_nodes(lang):
-            token_paths.append(reference_tokens(node.fully_qualified_name))
-    return token_paths
+            symbol_part_paths.append(qualified_symbol_parts(node.fully_qualified_name))
+    return symbol_part_paths
 
 
-def _internal_reference_anchor_tokens(token_paths: list[list[str]]) -> set[str]:
-    """Return tokens that identify repo-local references without hardcoded layout names."""
+def _internal_reference_anchor_parts(symbol_part_paths: list[list[str]]) -> set[str]:
+    """Return symbol parts that identify repo-local references without hardcoded layout names."""
     anchors: set[str] = set()
-    by_first_token: dict[str, list[list[str]]] = defaultdict(list)
+    by_first_part: dict[str, list[list[str]]] = defaultdict(list)
 
-    for tokens in token_paths:
-        if not tokens:
+    for parts in symbol_part_paths:
+        if not parts:
             continue
-        anchors.add(tokens[0])
-        by_first_token[tokens[0]].append(tokens)
+        anchors.add(parts[0])
+        by_first_part[parts[0]].append(parts)
 
         seen: set[str] = set()
-        for token in tokens:
-            if token in seen:
-                anchors.add(token)
-            seen.add(token)
+        for part in parts:
+            if part in seen:
+                anchors.add(part)
+            seen.add(part)
 
-    for paths in by_first_token.values():
-        second_tokens = {tokens[1] for tokens in paths if len(tokens) > 1}
-        if len(second_tokens) > 1:
-            anchors.update(second_tokens)
+    for paths in by_first_part.values():
+        second_parts = {parts[1] for parts in paths if len(parts) > 1}
+        if len(second_parts) > 1:
+            anchors.update(second_parts)
 
     return anchors

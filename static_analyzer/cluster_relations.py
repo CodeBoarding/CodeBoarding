@@ -139,8 +139,8 @@ def prune_ungrounded_edges(
     by_pair: dict[tuple[str, str], Relation] = {(relation.src_id, relation.dst_id): relation for relation in relations}
     additions: dict[tuple[str, str], list[RelationEdge]] = {}
 
-    def rehome(edge: RelationEdge) -> tuple[str, str] | None | bool:
-        """Where this edge belongs: a declared pair, ``None`` for nowhere, ``False`` for nothing.
+    def find_relation_pair_for_edge(edge: RelationEdge) -> tuple[str, str] | None | bool:
+        """Find the declared relation pair for this edge; ``False`` means it is internal.
 
         ``False`` means both endpoints sit in one component, so there is no cross-component fact
         to file anywhere — `build_component_relations` discards those at the source, and it is
@@ -168,10 +168,10 @@ def prune_ungrounded_edges(
             if edge_crosses_components(edge, owner_index, relation.src_id, relation.dst_id):
                 all_edges.append(edge)
                 continue
-            home = rehome(edge)
-            if home is False:
+            matching_pair = find_relation_pair_for_edge(edge)
+            if matching_pair is False:
                 continue  # Internal call: no cross-component fact exists to preserve.
-            if home is None or home == pair:
+            if matching_pair is None or matching_pair == pair:
                 # Nowhere better to file it; keeping a mis-filed call beats deleting a real one.
                 all_edges.append(edge)
             else:

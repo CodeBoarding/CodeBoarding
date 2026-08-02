@@ -109,22 +109,6 @@ def _relation_edges_unmoved(rebuilt: Relation, previous: Relation) -> bool:
 
 
 def _edge_touches_changed_method(edge: RelationEdge, changed_members: set[str]) -> bool:
-    """Whether a code change can account for this call appearing or disappearing.
-
-    A call is written inside its SOURCE method's body, so the source is the only end whose
-    change can create or remove it. An untouched caller calls exactly what it called before,
-    whatever happened inside the callee — editing a function's body does not change who calls
-    it, and neither does adding one.
-
-    So this asks about the source alone. Accepting either end (the previous rule) let every
-    rebuilt edge whose *callee* happened to be edited pass as code-backed, which is how a
-    one-function commit re-worded relations whose call set was byte-identical.
-
-    Not "both ends", which would be too strict the other way: editing a caller to call an
-    existing, untouched function is the commonest way a real dependency appears, and its callee
-    never changes. A deleted callee needs no special case — the caller must be edited to stop
-    calling it, so the source is in ``changed_members`` anyway.
-    """
     return edge.source.qualified_name in changed_members
 
 
@@ -159,7 +143,7 @@ def _restore_baseline_orientation(relation: Relation, baseline_by_pair: dict) ->
     )
 
 
-def _only_change_backed_edges(relation: Relation, changed_members: set[str]) -> Relation:
+def _filter_edges_touched_by_change(relation: Relation, changed_members: set[str]) -> Relation:
     """Keep only the edges a code change can account for, for a pair with no baseline.
 
     Why: a call lives in its source method's body, so an edge can only appear when one of its
@@ -253,7 +237,7 @@ def preserve_unchanged_relations(
             if not touches_change(*pair):
                 continue
             if changed_members is not None:
-                relation = _only_change_backed_edges(relation, changed_members)
+                relation = _filter_edges_touched_by_change(relation, changed_members)
                 # Nothing survived and nothing else is claimed: the pair asserts no connection.
                 if not relation.all_edges and not relation.key_edges and not relation.evidence.strip():
                     continue
