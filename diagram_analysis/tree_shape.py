@@ -1,100 +1,14 @@
-"""Whole-tree shape repair: no parent may hold exactly one child.
-
-A component whose expansion produced a single sub-component adds a level that
-explains nothing — parent and child describe the same code, one box inside
-another. Absorbing the child hands its own children to the parent and removes
-one level from that branch; a childless child just disappears and the parent
-becomes a leaf.
-
-The repair is a prefix re-rooting. Every identifier in this tree — component id,
-``sub_analyses`` key, scoped cluster id, relation endpoint — is the dotted path
-to a position, so moving the absorbed child's subtree onto the parent's path is
-one rewrite of ``"<child_id>."`` to ``"<parent_id>."`` applied everywhere. That
-also renumbers the promoted siblings for free, and cannot collide: a parent with
-exactly one child has no other child to collide with.
-
-The cluster lineage pickled with the CFG (``MethodClusterPaths``) moves with the
-tree, by replacement rather than rename: the absorbed child's leaf clusters take
-the parent's path and the parent's own are dropped, never unioned — the parent's
-partition is superseded the moment its only child's components stand in its
-place, and merging the two would invent a cluster holding the members of both.
-Left behind, the lineage seeds the next incremental with a partition incoherent
-against the promoted components' membership: measured over 11 diverged scopes,
-10 relabelled the whole scope on a no-change run and one lost a component
-outright.
-"""
+"""Collapse component scopes that contain exactly one child."""
 
 import logging
 from collections.abc import Sequence
-from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Relation, SourceCodeReference
-from repo_utils.path_utils import normalize_repo_path
+from agents.agent_responses import AnalysisInsights, Relation
 from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
 
-#: ``sub_analyses`` is keyed by component id and the root analysis has no key.
-#: Empty string, not ``ROOT_SCOPE_ID``: this is the *prefix* sense of the root,
-#: the one ``agents.cluster_ids.prefix_for_scope`` returns for it.
 ROOT_SCOPE = ""
-
-
-def drop_dangling_key_entities(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-    repo_dir: Path,
-) -> list[str]:
-    """Drop key entities naming a symbol no component owns; return what went.
-
-    A key entity is a pointer into the code, so a deleted symbol must take its pointers
-    with it. Membership already works that way — several passes strip a method the moment
-    it leaves — but key entities are scrubbed by one pass, ``fix_key_entities_refs``, which
-    is gated on the scopes an update touched. A component emptied by a route that did not
-    touch it keeps entities pointing at symbols that no longer exist, and because
-    ``prune_empty_components`` reads a non-empty ``key_entities`` as a component still
-    having something to describe, the empty box then survives the prune.
-
-    Measured over the baselines in CodeBoarding-evals and the corpus: 557 of 557 key
-    entities in healthy documents name a method some component owns, so enforcing that
-    cannot remove a legitimate reference. Whole-tree and unconditional, because "the symbol
-    is gone" is true of the document rather than of whichever scope an update happened to
-    visit.
-    """
-    # Keyed by file as well as name: two languages in one repo can both declare `run`, and a
-    # name-only set would call a deleted Python symbol live because a TypeScript one survives.
-    # Measured over the eval baselines, all 557 key entities carry a `reference_file` and it is
-    # always a file its own component owns, so the pair is available and strictly sharper. The
-    # name-only fallback is for the reference the model left unplaced.
-    #
-    # Normalized first, because the two sides are not stored alike: `file_methods` are
-    # repo-relative, while the reference resolver leaves `reference_file` ABSOLUTE and only
-    # `_relativize_key_entities` fixes that, at save — after this runs. Comparing them raw
-    # matches nothing and drops every live entity in the tree.
-    owned = {
-        (group.file_path, method.qualified_name)
-        for scope in [root_analysis, *sub_analyses.values()]
-        for component in scope.components
-        for group in component.file_methods
-        for method in group.methods
-    }
-    owned_names = {qualified_name for _path, qualified_name in owned}
-
-    def is_live(entity: SourceCodeReference) -> bool:
-        if entity.reference_file is None:
-            return entity.qualified_name in owned_names
-        return (normalize_repo_path(entity.reference_file, repo_dir), entity.qualified_name) in owned
-
-    dropped: list[str] = []
-    for scope in [root_analysis, *sub_analyses.values()]:
-        for component in scope.components:
-            surviving = [entity for entity in component.key_entities if is_live(entity)]
-            if len(surviving) != len(component.key_entities):
-                dropped.extend(entity.qualified_name for entity in component.key_entities if not is_live(entity))
-                component.key_entities = surviving
-    if dropped:
-        logger.info(f"[TreeShape] Dropped {len(dropped)} key entity/entities naming symbols no component owns")
-    return dropped
 
 
 def absorb_single_child_components(
@@ -102,11 +16,7 @@ def absorb_single_child_components(
     sub_analyses: dict[str, AnalysisInsights],
     cfgs: Sequence[CallGraph] = (),
 ) -> list[str]:
-    """Collapse every scope holding exactly one component; return the ids absorbed.
-
-    Runs to a fixpoint, so a degenerate ``1 -> 1.1 -> 1.1.1`` chain comes out as a
-    single component. Idempotent: a tree with no single-child scope is untouched.
-    """
+    """Collapse all single-child scopes to a fixpoint."""
     absorbed: list[str] = []
     while scopes := single_child_scopes(root_analysis, sub_analyses):
         absorbed.append(_absorb(scopes[0], root_analysis, sub_analyses, cfgs))
@@ -124,11 +34,7 @@ def single_child_scopes(
 
 
 def _absorbable_at_root(root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]) -> bool:
-    """Whether the root's lone component can be absorbed without emptying the analysis.
-
-    Why: the root is a scope but not a component, so there is nothing for a childless
-    lone component to be absorbed *into* — collapsing it would leave no components at all.
-    """
+    """Return whether root absorption would leave at least one component."""
     if len(root_analysis.components) != 1:
         return False
     only_child = sub_analyses.get(root_analysis.components[0].component_id)
@@ -147,15 +53,10 @@ def _absorb(
     grandchildren = sub_analyses.get(child_id)
 
     if grandchildren is None or not grandchildren.components:
-        # The parent already owns every method the child did, so dropping the child
-        # loses nothing and the parent becomes a leaf.
         del sub_analyses[parent_id]
     else:
         scope.components = grandchildren.components
         if parent_id != ROOT_SCOPE:
-            # The parent's own relations related its single child to nothing. The child's
-            # relate the components now standing in its place. The root's list is the
-            # global cross-boundary set, not a sibling set, so it is left alone.
             scope.components_relations = grandchildren.components_relations
     sub_analyses.pop(child_id, None)
     _reroot_tree(root_analysis, sub_analyses, child_id, parent_id)
@@ -163,16 +64,6 @@ def _absorb(
         cfg.method_cluster_paths.reroot_scope(child_id, parent_id)
     logger.info(f"[TreeShape] Absorbed '{child.name}' ({child_id}) into {parent_id or 'the root'}")
     return child_id
-
-
-def reroot_absorbed_id(identifier: str, child_id: str) -> str:
-    """Where a pre-absorption id lands once ``child_id`` is absorbed into its parent.
-
-    For a caller holding ids captured before the collapse — the incremental baseline — so it
-    can be read against the tree the collapse produced.
-    """
-    parent_id = child_id.rpartition(".")[0]
-    return parent_id if identifier == child_id else _reroot_id(identifier, child_id, parent_id)
 
 
 def _reroot_id(identifier: str, child_id: str, parent_id: str) -> str:
@@ -190,11 +81,7 @@ def _reroot_tree(
     child_id: str,
     parent_id: str,
 ) -> None:
-    # Removed in full before any is re-inserted. Every target is one level shallower than
-    # its source, so a target can equal a key still waiting to move — and writing it in
-    # place would overwrite that scope, then move the wrong object under its own name.
-    # `parse_unified_analysis` returns children before parents, so the order this needs is
-    # exactly the order a loaded baseline does not have.
+    # Remove before reinserting because a shallower target may still be waiting to move.
     prefix = f"{child_id}."
     moving = {key: sub_analyses.pop(key) for key in [k for k in sub_analyses if k.startswith(prefix)]}
     for scope_id, scope in moving.items():
@@ -205,9 +92,6 @@ def _reroot_tree(
             component.source_cluster_ids = [
                 _reroot_id(cluster_id, child_id, parent_id) for cluster_id in component.source_cluster_ids
             ]
-    # Names follow the ids. The output generators key mermaid nodes on the component NAME and
-    # draw edges between those names, so a relation left pointing at the absorbed child's label
-    # would render against a node no longer in the diagram.
     live_names = {
         component.component_id: component.name
         for scope in [root_analysis, *sub_analyses.values()]
@@ -220,12 +104,7 @@ def _reroot_tree(
 def _reroot_relations(
     relations: list[Relation], child_id: str, parent_id: str, live_names: dict[str, str]
 ) -> list[Relation]:
-    """Re-point relation endpoints, dropping the ones the collapse makes meaningless.
-
-    An endpoint naming the absorbed child itself becomes the parent, which can turn a
-    cross-component edge into a self-loop; at the root there is no parent to fall back
-    on. Both are dropped rather than rendered as an edge from a box to itself.
-    """
+    """Re-point relation endpoints and drop collapsed self-relations."""
     survivors: list[Relation] = []
     for relation in relations:
         src_id = parent_id if relation.src_id == child_id else _reroot_id(relation.src_id, child_id, parent_id)

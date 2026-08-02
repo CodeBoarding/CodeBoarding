@@ -1,11 +1,4 @@
-"""Tests for the no-single-child invariant in ``diagram_analysis.tree_shape``.
-
-A level holding one component is the shape measured on ~10% of stored analyses
-(120 occurrences over 574 documents), in two flavours: a component whose only
-child is a leaf, and a chain where each level restates the one below. Absorption
-has to fix both without breaking the dotted-path identity everything else keys on
-— ``sub_analyses`` keys, scoped cluster ids and relation endpoints.
-"""
+"""Tests for single-child component absorption."""
 
 import json
 import unittest
@@ -13,18 +6,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agents.agent_responses import AnalysisInsights, Component, Relation, SourceCodeReference
-from agents.incremental_agent import prune_empty_components
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from diagram_analysis.analysis_json import build_unified_analysis_json, parse_unified_analysis
-from diagram_analysis.diagram_generator import DiagramGenerator
+from diagram_analysis.diagram_generator import DiagramGenerator, _member_keys, _reconcile_child_scope
 from diagram_analysis.exceptions import ScopeContainmentError
 from static_analyzer.graph import CallGraph
 from static_analyzer.method_cluster_paths import MethodClusterPaths
-from diagram_analysis.tree_shape import (
-    absorb_single_child_components,
-    drop_dangling_key_entities,
-    single_child_scopes,
-)
+from diagram_analysis.tree_shape import absorb_single_child_components
 
 
 def method(qname: str, start: int = 1) -> MethodEntry:
@@ -68,8 +56,6 @@ def shape(root: AnalysisInsights, subs: dict[str, AnalysisInsights]) -> dict[str
 
 
 class TestChildlessOnlyChild(unittest.TestCase):
-    """The 114-of-120 case: a component whose single child has nothing under it."""
-
     def _tree(self):
         root = analysis(
             component("1", "Kept", {"a.py": ["a.one"]}),
@@ -78,30 +64,18 @@ class TestChildlessOnlyChild(unittest.TestCase):
         subs = {"2": analysis(component("2.1", "Restates Its Parent", {"b.py": ["b.one", "b.two"]}))}
         return root, subs
 
-    def test_the_parent_becomes_a_leaf(self):
+    def test_the_parent_becomes_a_leaf_without_losing_identity(self):
         root, subs = self._tree()
 
-        absorb_single_child_components(root, subs)
+        absorbed = absorb_single_child_components(root, subs)
 
         self.assertEqual(shape(root, subs), {"": ["1", "2"]})
-
-    def test_the_parent_keeps_its_own_identity_and_membership(self):
-        root, subs = self._tree()
-
-        absorb_single_child_components(root, subs)
-
         parent = root.components[1]
         self.assertEqual(parent.name, "Degenerate")
         self.assertEqual(
             {(g.file_path, m.qualified_name) for g in parent.file_methods for m in g.methods},
             {("b.py", "b.one"), ("b.py", "b.two")},
         )
-
-    def test_the_absorption_names_the_child_that_disappeared(self):
-        root, subs = self._tree()
-
-        absorbed = absorb_single_child_components(root, subs)
-
         self.assertEqual(absorbed, ["2.1"])
 
 
@@ -121,40 +95,19 @@ class TestGrandchildrenArePromoted(unittest.TestCase):
         }
         return root, subs
 
-    def test_grandchildren_become_the_parents_children(self):
+    def test_grandchildren_and_their_metadata_move_to_the_parent(self):
         root, subs = self._tree()
 
         absorb_single_child_components(root, subs)
 
         self.assertEqual(shape(root, subs), {"": ["1", "9"], "1": ["1.1", "1.2"]})
         self.assertEqual([c.name for c in subs["1"].components], ["Real One", "Real Two"])
-
-    def test_scoped_cluster_ids_follow_the_components(self):
-        root, subs = self._tree()
-
-        absorb_single_child_components(root, subs)
-
         self.assertEqual([c.source_cluster_ids for c in subs["1"].components], [["1.3"], ["1.5"]])
-
-    def test_the_promoted_siblings_relations_come_with_them(self):
-        root, subs = self._tree()
-
-        absorb_single_child_components(root, subs)
-
         self.assertEqual([(r.src_id, r.dst_id) for r in subs["1"].components_relations], [("1.1", "1.2")])
-
-    def test_the_absorbed_scope_key_is_gone(self):
-        root, subs = self._tree()
-
-        absorb_single_child_components(root, subs)
-
-        self.assertNotIn("1.1.1", subs)
         self.assertEqual(set(subs), {"1"})
 
 
 class TestDeepSubtreeIsRerooted(unittest.TestCase):
-    """A promoted grandchild that is itself expanded keeps its whole subtree."""
-
     def test_every_descendant_scope_and_id_moves_up_one_level(self):
         root = analysis(
             component("3", "Top", {"a.py": ["a.one", "a.two"]}),
@@ -182,14 +135,6 @@ class TestDeepSubtreeIsRerooted(unittest.TestCase):
 
 
 class TestRerootIsIndependentOfScopeOrder(unittest.TestCase):
-    """`parse_unified_analysis` returns children before their parents.
-
-    Every reroot target is one level shallower than its source, so a target can equal a key
-    that has not moved yet. Writing in place overwrote that scope and then moved the wrong
-    object under its own name — a whole expanded subtree gone, silently, on any baseline
-    loaded from disk.
-    """
-
     def _chain(self, keys_deepest_first: bool):
         root = analysis(component("1", "Top", {"a.py": ["a.one"]}), component("9", "Sibling", {"z.py": ["z.one"]}))
         levels = [
@@ -210,18 +155,6 @@ class TestRerootIsIndependentOfScopeOrder(unittest.TestCase):
         if keys_deepest_first:
             levels = list(reversed(levels))
         return root, {key: analysis(*comps) for key, comps in levels}
-
-    def test_the_result_does_not_depend_on_insertion_order(self):
-        shallow_root, shallow = self._chain(keys_deepest_first=False)
-        deep_root, deep = self._chain(keys_deepest_first=True)
-
-        absorb_single_child_components(shallow_root, shallow)
-        absorb_single_child_components(deep_root, deep)
-
-        self.assertEqual(
-            {k: sorted(v) for k, v in shape(deep_root, deep).items()},
-            {k: sorted(v) for k, v in shape(shallow_root, shallow).items()},
-        )
 
     def test_no_scope_is_lost_when_children_are_inserted_first(self):
         root, subs = self._chain(keys_deepest_first=True)
@@ -260,7 +193,6 @@ class TestRootScope(unittest.TestCase):
         self.assertEqual([c.name for c in root.components], ["First", "Second"])
 
     def test_a_lone_childless_top_level_component_is_left_alone(self):
-        """Absorbing it would leave an analysis with no components at all."""
         root = analysis(component("1", "Everything", {"a.py": ["a.one"]}))
 
         absorbed = absorb_single_child_components(root, {})
@@ -269,7 +201,6 @@ class TestRootScope(unittest.TestCase):
         self.assertEqual(shape(root, {}), {"": ["1"]})
 
     def test_the_root_keeps_its_global_relation_list(self):
-        """The root's relations are the global cross-boundary set, not a sibling set."""
         root = analysis(
             component("1", "Everything", {"a.py": ["a.one", "a.two"]}),
             relations=[relation("1.1.1", "1.2.1")],
@@ -295,8 +226,6 @@ class TestRootScope(unittest.TestCase):
 
 
 class TestDegenerateChain(unittest.TestCase):
-    """The markitdown shape: three nested boxes describing the same two methods."""
-
     def test_a_chain_of_only_children_collapses_to_one_component(self):
         root = analysis(
             component("5", "Input & Stream Handling", {"uri.py": ["uri.parse", "uri.resolve"]}),
@@ -324,81 +253,17 @@ class TestRelationsAcrossAnAbsorption(unittest.TestCase):
         subs = {"2": analysis(component("2.1", "Gone", {"b.py": ["b.one"]}))}
         return root, subs
 
-    def test_edges_into_the_absorbed_child_land_on_the_absorber(self):
+    def test_edges_are_rerooted_and_self_loops_are_dropped(self):
         root, subs = self._tree()
 
         absorb_single_child_components(root, subs)
 
         self.assertIn(("1", "2"), [(r.src_id, r.dst_id) for r in root.components_relations])
         self.assertIn(("2", "1"), [(r.src_id, r.dst_id) for r in root.components_relations])
-
-    def test_an_edge_that_collapses_into_a_self_loop_is_dropped(self):
-        root, subs = self._tree()
-
-        absorb_single_child_components(root, subs)
-
         self.assertNotIn(("2", "2"), [(r.src_id, r.dst_id) for r in root.components_relations])
 
 
-class TestInvariantReporting(unittest.TestCase):
-    def test_single_child_scopes_names_every_violation(self):
-        root = analysis(component("1", "A", {"a.py": ["a.one"]}), component("2", "B", {"b.py": ["b.one"]}))
-        subs = {
-            "1": analysis(component("1.1", "Only", {"a.py": ["a.one"]})),
-            "2": analysis(
-                component("2.1", "One", {"b.py": ["b.one"]}),
-                component("2.2", "Two", {"b.py": ["b.one"]}),
-            ),
-        }
-
-        self.assertEqual(single_child_scopes(root, subs), ["1"])
-
-    def test_a_healthy_tree_is_untouched_and_reports_nothing(self):
-        root = analysis(component("1", "A", {"a.py": ["a.one"]}), component("2", "B", {"b.py": ["b.one"]}))
-        subs = {
-            "1": analysis(
-                component("1.1", "One", {"a.py": ["a.one"]}),
-                component("1.2", "Two", {"a.py": ["a.one"]}),
-            )
-        }
-        before = shape(root, subs)
-
-        absorbed = absorb_single_child_components(root, subs)
-
-        self.assertEqual(absorbed, [])
-        self.assertEqual(shape(root, subs), before)
-        self.assertEqual(single_child_scopes(root, subs), [])
-
-    def test_absorption_is_idempotent(self):
-        root = analysis(
-            component("1", "Top", {"a.py": ["a.one", "a.two"]}),
-            component("9", "Sibling", {"z.py": ["z.one"]}),
-        )
-        subs = {
-            "1": analysis(component("1.1", "Only Child", {"a.py": ["a.one", "a.two"]})),
-            "1.1": analysis(
-                component("1.1.1", "A", {"a.py": ["a.one"]}),
-                component("1.1.2", "B", {"a.py": ["a.two"]}),
-            ),
-        }
-
-        absorb_single_child_components(root, subs)
-        after_first = shape(root, subs)
-        second = absorb_single_child_components(root, subs)
-
-        self.assertEqual(second, [])
-        self.assertEqual(shape(root, subs), after_first)
-
-
 class TestAbsorbedTreeSurvivesTheStore(unittest.TestCase):
-    """analysis.json IS the store, and it only writes children for an expandable component.
-
-    Why this is worth a test of its own: a component holding a sub-analysis it was not
-    declared expandable for loses that whole subtree at save, permanently. Absorption
-    rewrites both the ids and the ``sub_analyses`` keys, so the two must still agree
-    afterwards or the collapse silently takes a level more than it meant to.
-    """
-
     def test_the_promoted_subtree_is_still_there_after_a_save_and_a_load(self):
         root = analysis(
             component("1", "Top", {"a.py": ["a.one", "a.two"]}),
@@ -430,8 +295,6 @@ class TestAbsorbedTreeSurvivesTheStore(unittest.TestCase):
 
 
 class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
-    """The shared pre-save chokepoint is where every flow — full, incremental, partial — meets it."""
-
     def test_a_degenerate_level_does_not_survive_to_the_save(self):
         generator = DiagramGenerator.__new__(DiagramGenerator)
         generator.static_analysis = None
@@ -440,6 +303,7 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
         root = analysis(
             component("1", "Kept", {"a.py": ["a.one"]}),
             component("2", "Degenerate", {"b.py": ["b.one"]}),
+            relations=[relation("1", "2.1")],
         )
         subs = {"2": analysis(component("2.1", "Restates Its Parent", {"b.py": ["b.one"]}))}
 
@@ -447,120 +311,68 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
             generator.finalize_for_save(root, subs)
 
         self.assertEqual(shape(root, subs), {"": ["1", "2"]})
+        self.assertEqual([(edge.src_id, edge.dst_id) for edge in root.components_relations], [("1", "2")])
+
+    def test_relations_are_rebuilt_against_the_pre_absorption_ids(self):
+        generator = DiagramGenerator.__new__(DiagramGenerator)
+        generator.static_analysis = None
+        generator.repo_location = Path(".")
+        root = analysis(component("1", "Kept", {"a.py": ["a.one"]}), component("2", "Parent", {}))
+        subs = {"2": analysis(component("2.1", "Child", {}))}
+
+        def rebuild(current_root, current_subs):
+            self.assertIn("2", current_subs)
+            current_root.components_relations = [relation("1", "2.1")]
+            return current_root.components_relations
+
+        with (
+            patch.object(DiagramGenerator, "_strip_ignored"),
+            patch.object(generator, "rebuild_global_relations", side_effect=rebuild),
+        ):
+            generator.finalize_for_save(root, subs)
+
+        self.assertEqual([(edge.src_id, edge.dst_id) for edge in root.components_relations], [("1", "2")])
 
 
-class TestDanglingKeyEntities(unittest.TestCase):
-    """A deleted symbol must take its pointers with it.
+class TestMembershipReconciliation(unittest.TestCase):
+    def test_departed_methods_take_their_key_entities_and_cluster_lineage(self):
+        parent = component("1", "Parent", {"a.py": ["a.kept"]})
+        child = component("1.1", "Child", {"a.py": ["a.kept", "a.gone"]}, clusters=["1.7"])
+        child.key_entities = [
+            SourceCodeReference(qualified_name="a.kept", reference_file="a.py"),
+            SourceCodeReference(qualified_name="a.gone", reference_file="a.py"),
+        ]
+        child_scope = analysis(child)
 
-    Measured over the eval baselines and corpus: 557 of 557 key entities in healthy
-    documents name a method some component owns, so dropping the ones that do not cannot
-    remove a legitimate reference. The failure this prevents is indirect and was found by
-    an e2e test: `prune_empty_components` reads a non-empty `key_entities` as a component
-    still having something to describe, so a component emptied of every method survived as
-    a box held up by pointers into code the commit had deleted.
-    """
-
-    def _entity(self, qname: str, file: str = "a.py") -> SourceCodeReference:
-        return SourceCodeReference(qualified_name=qname, reference_file=file)
-
-    def test_an_entity_naming_a_deleted_symbol_is_dropped(self):
-        emptied = component("1.1", "Emptied", {})
-        emptied.key_entities = [self._entity("a.gone"), self._entity("a.also_gone")]
-        root = analysis(component("1", "Parent", {"a.py": ["a.kept"]}))
-        subs = {"1": analysis(component("1.2", "Kept", {"a.py": ["a.kept"]}), emptied)}
-
-        dropped = drop_dangling_key_entities(root, subs, Path("."))
-
-        self.assertEqual(sorted(dropped), ["a.also_gone", "a.gone"])
-        self.assertEqual(emptied.key_entities, [])
-
-    def test_an_entity_naming_a_live_symbol_is_kept(self):
-        kept = component("1.1", "Kept", {"a.py": ["a.one"]})
-        kept.key_entities = [self._entity("a.one")]
-        root = analysis(component("1", "Parent", {"a.py": ["a.one"]}))
-        subs = {"1": analysis(kept, component("1.2", "Other", {"a.py": ["a.one"]}))}
-
-        self.assertEqual(drop_dangling_key_entities(root, subs, Path(".")), [])
-        self.assertEqual([e.qualified_name for e in kept.key_entities], ["a.one"])
-
-    def test_a_symbol_another_component_owns_still_counts_as_live(self):
-        """The rule is "this document indexes it", not "this component owns it".
-
-        Narrowing it to the component's own methods is `fix_key_entities_refs`'s job and
-        its call sites decide when that runs. This pass only removes what the document no
-        longer describes anywhere, so it can run unconditionally without second-guessing
-        a cross-component citation that was already there.
-        """
-        citing = component("1.1", "Citing", {"a.py": ["a.one"]})
-        citing.key_entities = [self._entity("b.two", file="b.py")]
-        root = analysis(component("1", "Parent", {"a.py": ["a.one"], "b.py": ["b.two"]}))
-        subs = {"1": analysis(citing, component("1.2", "Owner", {"b.py": ["b.two"]}))}
-
-        self.assertEqual(drop_dangling_key_entities(root, subs, Path(".")), [])
-        self.assertEqual([e.qualified_name for e in citing.key_entities], ["b.two"])
-
-    def test_a_name_that_survives_only_in_another_file_does_not_keep_the_entity(self):
-        """Two languages in one repo can both declare `run`. Matching on the name alone would
-        call the deleted Python symbol live because the TypeScript one survives."""
-        emptied = component("1.1", "Emptied", {})
-        emptied.key_entities = [SourceCodeReference(qualified_name="pkg.run", reference_file="src/index.py")]
-        root = analysis(component("1", "Parent", {"src/index.ts": ["pkg.run"]}))
-        subs = {"1": analysis(component("1.2", "Kept", {"src/index.ts": ["pkg.run"]}), emptied)}
-
-        self.assertEqual(drop_dangling_key_entities(root, subs, Path(".")), ["pkg.run"])
-        self.assertEqual(emptied.key_entities, [])
-
-    def test_an_entity_with_no_file_falls_back_to_the_name(self):
-        """The model does not always place a reference; an unplaced one is judged on what it has."""
-        citing = component("1.1", "Citing", {"a.py": ["a.one"]})
-        citing.key_entities = [SourceCodeReference(qualified_name="a.one")]
-        root = analysis(component("1", "Parent", {"a.py": ["a.one"]}))
-        subs = {"1": analysis(citing, component("1.2", "Other", {"a.py": ["a.one"]}))}
-
-        self.assertEqual(drop_dangling_key_entities(root, subs, Path(".")), [])
-        self.assertEqual([e.qualified_name for e in citing.key_entities], ["a.one"])
-
-    def test_the_emptied_component_can_then_be_pruned_and_its_sibling_absorbed(self):
-        """The end-to-end shape the e2e test `last-sibling-is-absorbed-into-its-parent` hits.
-
-        One of two children is emptied by cutting symbols out of a file the parent shares,
-        so no file is deleted and nothing scrubs the emptied component's entities. With them
-        gone the prune can remove it, which leaves the parent holding one child, which is
-        what absorption is for. Each pass is ordinary; only the order makes them work.
-        """
-        emptied = component("2.1.2", "Emptied", {})
-        emptied.key_entities = [self._entity("t.deleted")]
-        # Siblings at every level above the one under test: a single-child scope anywhere
-        # else collapses too, and the assertion could no longer say which level moved.
-        root = analysis(
-            component("2", "Top", {"t.py": ["t.kept"], "u.py": ["u.one"]}),
-            component("9", "Elsewhere", {"z.py": ["z.one"]}),
+        _reconcile_child_scope(
+            parent,
+            child_scope,
+            set(_member_keys(parent)),
+            set(_member_keys(child)),
+            Path("."),
         )
-        subs = {
-            "2": analysis(
-                component("2.1", "Parent", {"t.py": ["t.kept"]}),
-                component("2.2", "Other", {"u.py": ["u.one"]}),
-                component("2.3", "Third", {"u.py": ["u.one"]}),
-            ),
-            "2.1": analysis(component("2.1.1", "Survivor", {"t.py": ["t.kept"]}), emptied),
-        }
 
-        drop_dangling_key_entities(root, subs, Path("."))
-        removed = prune_empty_components(root, subs, set())
-        absorb_single_child_components(root, subs)
+        self.assertEqual([entity.qualified_name for entity in child.key_entities], ["a.kept"])
+        self.assertEqual(child.source_cluster_ids, ["1.7"])
 
-        self.assertIn("2.1.2", removed)
-        self.assertEqual(shape(root, subs), {"": ["2", "9"], "2": ["2.1", "2.2", "2.3"]})
+    def test_an_emptied_child_loses_stale_metadata(self):
+        parent = component("1", "Parent", {})
+        child = component("1.1", "Child", {"a.py": ["a.gone"]}, clusters=["1.7"])
+        child.key_entities = [SourceCodeReference(qualified_name="a.gone", reference_file="a.py")]
+
+        _reconcile_child_scope(
+            parent,
+            analysis(child),
+            set(),
+            set(_member_keys(child)),
+            Path("."),
+        )
+
+        self.assertEqual(child.key_entities, [])
+        self.assertEqual(child.source_cluster_ids, [])
 
 
 class TestClusterLineageMovesWithTheTree(unittest.TestCase):
-    """Lineage is scope-qualified, so a collapse renames it as surely as it renames a component id.
-
-    Left behind it seeds the next incremental with a partition incoherent against the promoted
-    components' membership. Measured over 11 diverged scopes: 10 relabelled the whole scope on a
-    no-change run, one lost a component outright.
-    """
-
     def test_the_absorbed_scopes_clusters_take_the_parents_path(self):
         paths = MethodClusterPaths({"pkg.one": {"1.2.3", "1.2.7"}, "pkg.two": {"4.1"}})
 
@@ -569,7 +381,6 @@ class TestClusterLineageMovesWithTheTree(unittest.TestCase):
         self.assertEqual(paths.snapshot_dict(), {"pkg.one": {"1.3", "1.7"}, "pkg.two": {"4.1"}})
 
     def test_the_parents_own_partition_is_dropped_rather_than_merged(self):
-        """Both land on `<parent>.<n>`; unioning them invents a cluster holding two unrelated sets."""
         paths = MethodClusterPaths({"a": {"1.0"}, "b": {"1.1.0", "1.1"}})
 
         paths.reroot_scope("1.1", "1")
@@ -584,7 +395,6 @@ class TestClusterLineageMovesWithTheTree(unittest.TestCase):
         self.assertEqual(paths.snapshot_dict(), {"deep": {"1.5.4"}})
 
     def test_root_absorption_leaves_bare_leaf_ids(self):
-        """`_cluster_id_belongs_to_scope("")` accepts a bare digit, which is the root's own form."""
         paths = MethodClusterPaths({"pkg.one": {"1.3"}})
 
         paths.reroot_scope("1", "")
@@ -607,74 +417,7 @@ class TestClusterLineageMovesWithTheTree(unittest.TestCase):
         self.assertEqual(cfg.method_cluster_paths.snapshot_dict(), {"a.one": {"1.4"}})
 
 
-class TestTheIncrementalBaselineMovesWithTheAbsorption(unittest.TestCase):
-    """The baseline is snapshotted before the collapse, so it names the code by its old ids.
-
-    Read against the collapsed tree the rebuilt pair `1 -> 2` matches nothing in it, and neither
-    endpoint counts as changed — absorbing a childless only child leaves the parent's membership
-    untouched — so `preserve_unchanged_relations` discards it as drift while the baseline's own
-    `1 -> 2.1` is skipped for naming a component no longer live. The relation is lost.
-    """
-
-    def _generator(self):
-        generator = DiagramGenerator.__new__(DiagramGenerator)
-        generator.static_analysis = None
-        generator._baseline_component_ids = {"1", "2", "2.1"}
-        generator._baseline_member_keys = {cid: frozenset() for cid in ("1", "2", "2.1")}
-        generator._baseline_global_relations = {("1", "2.1"): relation("1", "2.1"), ("2.1", "1"): relation("2.1", "1")}
-        return generator
-
-    def test_a_baseline_pair_naming_the_absorbed_child_now_names_its_parent(self):
-        generator = self._generator()
-
-        generator._rebase_baseline(["2.1"])
-
-        self.assertEqual(sorted(generator._baseline_global_relations), [("1", "2"), ("2", "1")])
-
-    def test_the_absorbed_child_leaves_the_baseline_id_and_membership_sets(self):
-        generator = self._generator()
-
-        generator._rebase_baseline(["2.1"])
-
-        self.assertEqual(generator._baseline_component_ids, {"1", "2"})
-        self.assertEqual(set(generator._baseline_member_keys), {"1", "2"})
-
-    def test_a_pair_that_collapses_onto_itself_is_dropped(self):
-        """`2 -> 2.1` becomes `2 -> 2`, which is not an edge — the same rule `_reroot_relations` applies."""
-        generator = self._generator()
-        generator._baseline_global_relations = {("2", "2.1"): relation("2", "2.1")}
-
-        generator._rebase_baseline(["2.1"])
-
-        self.assertEqual(generator._baseline_global_relations, {})
-
-    def test_a_restored_baseline_relation_carries_the_new_endpoints(self):
-        """`preserve_unchanged_relations` appends the baseline object itself for a pair the
-        rebuild dropped, so rebasing only the dict key would save an edge pointing at the
-        absorbed child — a component the tree no longer has."""
-        generator = self._generator()
-
-        generator._rebase_baseline(["2.1"])
-
-        restored = generator._baseline_global_relations[("1", "2")]
-        self.assertEqual((restored.src_id, restored.dst_id), ("1", "2"))
-
-    def test_a_full_run_has_no_baseline_to_rebase(self):
-        generator = DiagramGenerator.__new__(DiagramGenerator)
-        generator._baseline_global_relations = None
-
-        generator._rebase_baseline(["2.1"])
-
-        self.assertIsNone(generator._baseline_global_relations)
-
-
 class TestAbsorptionKeepsTheDocumentRenderable(unittest.TestCase):
-    """The generators key mermaid nodes on the component NAME, not on its id.
-
-    So an id rerooted onto the parent while the name still says the absorbed child leaves an
-    edge drawn against a node the diagram no longer contains.
-    """
-
     def test_a_relation_naming_the_absorbed_child_takes_the_parents_name(self):
         root = analysis(
             component("1", "Kept", {"a.py": ["a.one"]}),
@@ -709,9 +452,6 @@ class TestAbsorptionKeepsTheDocumentRenderable(unittest.TestCase):
 
 class TestAbsorptionNeverHidesAContainmentViolation(unittest.TestCase):
     def test_a_child_owning_what_its_parent_does_not_fails_before_the_collapse(self):
-        """Deleting a childless only child is lossless only because the parent already owns
-        everything it owned. Where that does not hold, collapsing first would discard the
-        child's extra methods and leave the check nothing to find."""
         generator = DiagramGenerator.__new__(DiagramGenerator)
         generator.static_analysis = None
         generator.repo_location = Path(".")

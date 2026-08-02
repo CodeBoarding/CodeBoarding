@@ -1490,8 +1490,6 @@ class TestDiagramGenerator(unittest.TestCase):
                 )
             ],
         )
-        # Siblings at both levels: a scope holding one component is collapsed by the
-        # no-single-child invariant, which would take this fixture apart before it is read.
         root_sibling = Component(name="Other Parent", description="", key_entities=[], component_id="2")
         child_sibling = Component(name="Other Child", description="", key_entities=[], component_id="1.2")
         root_analysis = AnalysisInsights(
@@ -1683,8 +1681,6 @@ class TestDiagramGenerator(unittest.TestCase):
         root = Component(name="Root", description="", key_entities=[], component_id="1")
         parent = Component(name="Parent", description="", key_entities=[], component_id="1.1")
         empty_leaf = Component(name="Stable Leaf", description="", key_entities=[], component_id="1.1.1")
-        # Siblings at every level: a scope holding one component is collapsed by the
-        # no-single-child invariant, which would take this fixture apart before it is read.
         root_analysis = AnalysisInsights(
             description="root",
             components=[root, Component(name="Other Root", description="", key_entities=[], component_id="2")],
@@ -1838,12 +1834,9 @@ class TestDiagramGenerator(unittest.TestCase):
 
         gen.finalize_and_save(analysis, {}, persist_side_artifacts=False)
 
-        # The analysis itself is still finalized + saved...
-        # absorb=False travels with it: the collapse rewrites the tree AND the cluster
-        # lineage, and this save writes only the first of the two.
-        gen.finalize_for_save.assert_called_once_with(analysis, {}, absorb=False)
+        # The analysis is still finalized and saved.
+        gen.finalize_for_save.assert_called_once_with(analysis, {})
         mock_save.assert_called_once()
-        # ...but the external side artifacts are left untouched.
         gen._write_file_coverage.assert_not_called()
         gen._persist_static_analysis_artifact.assert_not_called()
 
