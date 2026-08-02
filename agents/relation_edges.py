@@ -165,7 +165,7 @@ def _commit_deleted_the_backing(rebuilt: Relation, previous: Relation, changed_m
     A call belongs to its source method, so only lost edges from changed sources prove deletion.
     """
     baseline_edges = previous.all_edges or previous.key_edges
-    if not baseline_edges or rebuilt.all_edges or rebuilt.key_edges:
+    if not baseline_edges or rebuilt.all_edges or rebuilt.key_edges or rebuilt.evidence.strip():
         return False
     return any(_edge_touches_changed_method(edge, changed_members) for edge in baseline_edges)
 
@@ -220,11 +220,8 @@ def preserve_unchanged_relations(
     their inter-component edges are byte-identical. Gating on the pair's own edges instead of
     on its endpoints' change flags is what keeps those untouched connections stable.
 
-    A pair whose backing calls the commit deleted is dropped rather than re-worded.
-    Regeneration authors a relation for every pair it still believes in, prose and all, with
-    no edges behind it — so without this a deleted call leaves the relation standing under a
-    freshly invented label, and the diagram keeps the connection while losing the only
-    evidence it ever had.
+    A pair whose changed source lost every baseline call is dropped unless the rebuild supplies
+    alternate runtime/config evidence.
 
     A baseline relation between two unchanged, still-live components that regeneration
     dropped is restored — but only when its backing edges still exist in live code. The
@@ -281,7 +278,7 @@ def preserve_unchanged_relations(
         if (
             not touches_change(*pair)
             or _relation_edges_unmoved(relation, previous)
-            or not _backing_edge_pairs(relation)
+            or (not _backing_edge_pairs(relation) and not relation.evidence.strip())
         ):
             relation = relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence})
         kept.append(relation)
