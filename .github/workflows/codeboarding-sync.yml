@@ -11,6 +11,8 @@ on:
       - '.codeboarding/analysis.json'
       - '.codeboarding/fingerprint.json'
       - '.codeboarding/codeboarding_version.json'
+      - '.codeboarding/static_analysis.pkl'
+      - '.codeboarding/static_analysis.sha'
       - '.codeboarding/health/**'
       - 'docs/development/architecture.md'
   workflow_dispatch:

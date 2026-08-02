@@ -60,6 +60,7 @@ concurrency:
 
 jobs:
   private-suite:
+    name: CodeBoarding-tests
     runs-on: ubuntu-latest
     timeout-minutes: 75
     # Manual runs are always available. PR runs are intentionally skipped.
