@@ -397,6 +397,67 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual(kept, [])
 
+    def test_pair_whose_only_backing_call_the_commit_deleted_is_dropped(self):
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
+        fresh = self._relation("1", "2", "invented wording")
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.caller"}
+        )
+
+        self.assertEqual(kept, [])
+
+    def test_backing_that_vanished_with_no_code_cause_does_not_delete_the_pair(self):
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
+        fresh = self._relation("1", "2", "invented wording")
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.elsewhere"}
+        )
+
+        self.assertEqual([(rel.src_id, rel.dst_id) for rel in kept], [("1", "2")])
+
+    def test_edgeless_baseline_pair_survives_a_rebuild_with_no_edges(self):
+        stale = self._relation("1", "2", "baseline wording")
+        fresh = self._relation("1", "2", "rebuilt wording")
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.changed"}
+        )
+
+        self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
+
+    def test_pair_keeping_one_backing_call_between_unchanged_methods_survives(self):
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [
+            RelationEdge(source=_ref("pkg.changed"), target=_ref("pkg.callee")),
+            RelationEdge(source=_ref("pkg.stable"), target=_ref("pkg.callee")),
+        ]
+        fresh = self._relation("1", "2", "rebuilt wording")
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.changed"}
+        )
+
+        edge_pairs = {(e.source.qualified_name, e.target.qualified_name) for e in kept[0].all_edges}
+        self.assertEqual(edge_pairs, {("pkg.stable", "pkg.callee")})
+
+    def test_evidence_backed_rebuild_survives_after_static_call_is_deleted(self):
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
+        fresh = self._relation("1", "2", "runtime wording")
+        fresh.evidence = "Routes requests through a configured endpoint."
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.caller"}
+        )
+
+        self.assertEqual(
+            [(relation.relation, relation.evidence) for relation in kept], [(fresh.relation, fresh.evidence)]
+        )
+
     def test_restored_relation_whose_backing_symbol_was_deleted_is_dropped(self):
         # The rebuild dropped this pair because the only edge connecting the two components
         # cited a method the diff deleted; restoring it verbatim resurrects a phantom edge.
