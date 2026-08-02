@@ -396,7 +396,8 @@ def _restore_unchanged_metadata(
             # on "owns a changed file" re-authored them for every component that merely shares a
             # file with the edit: measured on `referenced-symbol-deleted`, 11 components changed
             # cluster ids and 3 changed key entities for a commit that deleted one function.
-            component.source_cluster_ids = list(meta.source_cluster_ids)
+            if final_keys or not meta.member_keys:
+                component.source_cluster_ids = list(meta.source_cluster_ids)
             # An entity survives unless its symbol is GONE. Editing a method's body does not
             # make the class it lives in a worse choice of key entity — dropping on "changed"
             # rather than "deleted" is why `File` and `LazyFile` vanished from three components

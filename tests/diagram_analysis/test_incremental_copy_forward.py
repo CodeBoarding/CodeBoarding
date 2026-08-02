@@ -153,6 +153,14 @@ class TestRestoreUnchangedMetadata(unittest.TestCase):
 
         self.assertEqual(unchanged, set())
 
+    def test_emptied_component_does_not_restore_stale_cluster_ids(self):
+        baseline = self._baseline()
+        live = analysis(component("1", "Original", {}, source_cluster_ids=[]))
+
+        _restore_unchanged_metadata(live, {}, baseline, changed_members={"a.one"}, changed_files=set())
+
+        self.assertEqual(live.components[0].source_cluster_ids, [])
+
 
 class TestFullyUnchangedSubtrees(unittest.TestCase):
     def _tree(self):
