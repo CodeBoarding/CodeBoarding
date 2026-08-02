@@ -39,6 +39,27 @@ class MethodClusterPaths:
                 for member in members:
                     self._paths.setdefault(member, set()).add(qualified_cluster_id)
 
+    def reroot_scope(self, child_id: str, parent_id: str) -> None:
+        """Move child lineage onto its parent and replace the parent's partition."""
+
+        with self._lock:
+            for qname, cluster_ids in self._paths.items():
+                kept: set[str] = set()
+                for cluster_id in cluster_ids:
+                    scope_id, _, local = cluster_id.rpartition(".")
+                    if not local.isdigit():
+                        kept.add(cluster_id)
+                    elif self._scope_belongs_to(scope_id, child_id):
+                        moved = f"{parent_id}{scope_id[len(child_id) :]}" if parent_id else scope_id[len(child_id) :]
+                        kept.add(f"{moved.lstrip('.')}.{local}".lstrip("."))
+                    elif not self._scope_belongs_to(scope_id, parent_id):
+                        kept.add(cluster_id)
+                self._paths[qname] = kept
+
+    @staticmethod
+    def _scope_belongs_to(scope_id: str, root: str) -> bool:
+        return scope_id == root or scope_id.startswith(f"{root}.")
+
     def snapshot(self) -> list[tuple[str, set[str]]]:
         with self._lock:
             return [(qname, set(cluster_ids)) for qname, cluster_ids in self._paths.items()]

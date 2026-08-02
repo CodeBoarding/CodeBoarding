@@ -117,6 +117,7 @@ def prune_ungrounded_edges(
     relations: list[Relation],
     owner_index: dict[str, list[tuple[str, str]]],
     keep_edge: Callable[[RelationEdge], bool],
+    changed_members: set[str] | None = None,
 ) -> list[Relation]:
     """Re-apply the edge filters to an assembled relation list, moving edges rather than losing them.
 
@@ -132,9 +133,8 @@ def prune_ungrounded_edges(
     pair already carries. Measured on one stored analysis, dropping instead of re-filing orphaned
     25 of 28 real calls — the mis-attribution is worth repairing, the call is not worth losing.
 
-    An edge whose true pair has no relation to move to stays where it is: inventing a relation
-    here would be authoring architecture in a filter, and silently deleting the call would be
-    worse than leaving it mis-filed where a check can still flag it.
+    An edge whose true pair has no relation to move to stays where it is. During an incremental
+    update, ownership repairs are limited to calls whose source method changed.
     """
     by_pair: dict[tuple[str, str], Relation] = {(relation.src_id, relation.dst_id): relation for relation in relations}
     additions: dict[tuple[str, str], list[RelationEdge]] = {}
@@ -168,6 +168,9 @@ def prune_ungrounded_edges(
             if edge_crosses_components(edge, owner_index, relation.src_id, relation.dst_id):
                 all_edges.append(edge)
                 continue
+            if changed_members is not None and edge.source.qualified_name not in changed_members:
+                all_edges.append(edge)
+                continue
             matching_pair = find_relation_pair_for_edge(edge)
             if matching_pair is False:
                 continue  # Internal call: no cross-component fact exists to preserve.
@@ -189,10 +192,10 @@ def prune_ungrounded_edges(
             continue
         settled.append(relation)
 
-    return drop_reverse_duplicates(settled)
+    return drop_reverse_duplicates(settled, changed_members)
 
 
-def drop_reverse_duplicates(relations: list[Relation]) -> list[Relation]:
+def drop_reverse_duplicates(relations: list[Relation], changed_members: set[str] | None = None) -> list[Relation]:
     """Collapse a pair stated twice, once in each direction.
 
     A relation is backed by concrete method-to-method calls — the ``all_edges``/``key_edges``
@@ -215,7 +218,13 @@ def drop_reverse_duplicates(relations: list[Relation]) -> list[Relation]:
     phantom churn on a commit that changed nothing.
     """
     grounded_pairs = {
-        (relation.src_id, relation.dst_id) for relation in relations if relation.all_edges or relation.key_edges
+        (relation.src_id, relation.dst_id)
+        for relation in relations
+        if (relation.all_edges or relation.key_edges)
+        and (
+            changed_members is None
+            or any(edge.source.qualified_name in changed_members for edge in [*relation.all_edges, *relation.key_edges])
+        )
     }
     kept: list[Relation] = []
     dropped_bare: set[tuple[str, str]] = set()
@@ -230,7 +239,11 @@ def drop_reverse_duplicates(relations: list[Relation]) -> list[Relation]:
             continue  # The grounded side already states this connection, the right way round.
         # `reverse == pair` is a self-relation, which `drop_internal_self_relations` owns.
         other = by_pair.get(reverse) if reverse != pair else None
-        if other is not None and not (other.all_edges or other.key_edges or other.is_static):
+        if (
+            changed_members is None
+            and other is not None
+            and not (other.all_edges or other.key_edges or other.is_static)
+        ):
             # Same claim twice with nothing to tell them apart. Pick once, deterministically:
             # the fuller explanation survives, and an exact tie falls to the lower source id.
             loser = max((relation, other), key=lambda r: (-len(r.evidence or ""), r.src_id, r.dst_id))

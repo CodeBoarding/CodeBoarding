@@ -114,7 +114,7 @@ class TestPruneEmptyComponents(unittest.TestCase):
         empty = _component("Prior Empty Leaf", "1.1", source_cluster_ids=["1.1.0"])
         root = AnalysisInsights(description="root", components=[empty], components_relations=[])
 
-        removed_ids = prune_empty_components(root, {}, protected_empty_ids={"1.1"})
+        removed_ids = prune_empty_components(root, {})
 
         self.assertEqual(removed_ids, set())
         self.assertEqual(root.components, [empty])

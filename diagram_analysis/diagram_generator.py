@@ -63,6 +63,7 @@ from diagram_analysis.file_index import build_files_index, refresh_method_spans_
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from repo_utils.path_utils import normalize_repo_path
 from diagram_analysis.scope_plan import plan_scope_update
+from diagram_analysis.tree_shape import absorb_single_child_components
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
@@ -117,6 +118,19 @@ def _owned_method_keys(components: Iterable[Component]) -> set[tuple[str, str]]:
     return {key for component in components for key in _member_keys(component)}
 
 
+def _key_entity_is_owned(
+    entity: SourceCodeReference,
+    member_keys: set[tuple[str, str]],
+    repo_dir: Path,
+) -> bool:
+    """Return whether a key entity still names one of the component's methods."""
+    if entity.reference_file is None:
+        return any(qualified_name == entity.qualified_name for _path, qualified_name in member_keys)
+    entity_key = (normalize_repo_path(entity.reference_file, repo_dir), entity.qualified_name)
+    normalized_keys = {(normalize_repo_path(path, repo_dir), qualified_name) for path, qualified_name in member_keys}
+    return entity_key in normalized_keys
+
+
 def _reconcile_child_scope(
     parent: Component,
     child_scope: AnalysisInsights,
@@ -136,9 +150,16 @@ def _reconcile_child_scope(
     entered = parent_keys - child_keys
     if departed:
         for child in child_scope.components:
+            had_methods = any(group.methods for group in child.file_methods)
             for group in child.file_methods:
                 group.methods = [m for m in group.methods if (group.file_path, m.qualified_name) not in departed]
             child.file_methods = [group for group in child.file_methods if group.methods]
+            remaining = set(_member_keys(child))
+            child.key_entities = [
+                entity for entity in child.key_entities if _key_entity_is_owned(entity, remaining, repo_dir)
+            ]
+            if had_methods and not remaining:
+                child.source_cluster_ids = []
     if entered:
         parent_methods = {
             (group.file_path, method.qualified_name): method
@@ -375,7 +396,8 @@ def _restore_unchanged_metadata(
             # on "owns a changed file" re-authored them for every component that merely shares a
             # file with the edit: measured on `referenced-symbol-deleted`, 11 components changed
             # cluster ids and 3 changed key entities for a commit that deleted one function.
-            component.source_cluster_ids = list(meta.source_cluster_ids)
+            if final_keys or not meta.member_keys:
+                component.source_cluster_ids = list(meta.source_cluster_ids)
             # An entity survives unless its symbol is GONE. Editing a method's body does not
             # make the class it lives in a worse choice of key entity — dropping on "changed"
             # rather than "deleted" is why `File` and `LazyFile` vanished from three components
@@ -1182,6 +1204,7 @@ class DiagramGenerator:
                 global_relations,
                 build_owner_index(build_global_node_to_component_map(root_analysis, sub_analyses)),
                 StaticReferenceResolver(self.repo_location, self.static_analysis).keep_relation_edge,
+                self._changed_members,
             )
         root_analysis.components_relations = global_relations
         return global_relations
@@ -1191,14 +1214,17 @@ class DiagramGenerator:
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
     ) -> None:
-        """Prepare an analysis tree for its authoritative save.
-
-        Single pre-save chokepoint shared by the full, incremental, and partial
-        flows. All steps are idempotent and
-        safe with an empty ``sub_analyses`` (rebuild is a root-only pass).
-        """
-        self.rebuild_global_relations(root_analysis, sub_analyses)
+        """Prepare and validate an analysis tree for its authoritative save."""
         self._strip_ignored(root_analysis, sub_analyses)
+        # Absorption must not erase the evidence of an invalid parent-child boundary.
+        assert_scope_containment(root_analysis, sub_analyses)
+        self.rebuild_global_relations(root_analysis, sub_analyses)
+        cfgs = (
+            [self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()]
+            if self.static_analysis
+            else []
+        )
+        absorb_single_child_components(root_analysis, sub_analyses, cfgs)
         assert_scope_containment(root_analysis, sub_analyses)
 
     def finalize_and_save(
@@ -1396,7 +1422,6 @@ class DiagramGenerator:
         # membership baseline (captured post-scrub below) so the restore passes never re-inject a
         # deleted method. Also drives the empty-delta path, which returns before that capture.
         self._baseline_member_keys = _capture_baseline_member_keys(root_analysis, sub_analyses)
-
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
             # Scrub before cluster math: orphan-routed files never appear in
@@ -1466,7 +1491,6 @@ class DiagramGenerator:
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
-            protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             # Full membership baseline for the restore/rescope passes, captured AFTER the deletion
             # scrub so a deleted method is never re-injected from the baseline into a live scope.
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
@@ -1517,7 +1541,7 @@ class DiagramGenerator:
             )
             apply_result.refresh_ids -= unchanged_ids
 
-            removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
+            removed_ids = prune_empty_components(root_analysis, sub_analyses)
             if removed_ids:
                 apply_result.refresh_ids -= removed_ids
                 apply_result.new_component_ids -= removed_ids
@@ -1639,23 +1663,6 @@ def _drop_removed_subtree_analyses(sub_analyses: dict[str, AnalysisInsights], re
         for scope_id in list(sub_analyses):
             if is_self_or_descendant(scope_id, removed_id):
                 del sub_analyses[scope_id]
-
-
-def _cluster_backed_empty_component_ids(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-) -> set[str]:
-    protected_ids: set[str] = set()
-    for analysis in [root_analysis, *sub_analyses.values()]:
-        for component in analysis.components:
-            if (
-                component.component_id
-                and component.source_cluster_ids
-                and not component.key_entities
-                and not any(group.methods for group in component.file_methods)
-            ):
-                protected_ids.add(component.component_id)
-    return protected_ids
 
 
 def _child_scope_needs_recursive_update(

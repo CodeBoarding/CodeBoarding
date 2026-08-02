@@ -475,6 +475,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 scope.components_relations,
                 build_owner_index(build_node_to_component_map(scope)),
                 self.reference_resolver.keep_relation_edge,
+                changed_members or set(),
             )
             rels = scope.components_relations
         return rels
@@ -851,6 +852,7 @@ def _scrub_one_analysis(analysis: AnalysisInsights, live_files: set[str]) -> set
     """Drop dead-file references in one analysis and return dropped paths."""
     dropped: set[str] = set()
     for component in analysis.components:
+        had_methods = any(group.methods for group in component.file_methods)
         kept_groups = []
         for group in component.file_methods:
             if group.file_path in live_files:
@@ -863,6 +865,8 @@ def _scrub_one_analysis(analysis: AnalysisInsights, live_files: set[str]) -> set
             for key_entity in component.key_entities
             if key_entity.reference_file is None or key_entity.reference_file in live_files
         ]
+        if had_methods and not any(group.methods for group in component.file_methods):
+            component.source_cluster_ids = []
     dropped |= {file_path for file_path in analysis.files if file_path not in live_files}
     analysis.files = {file_path: entry for file_path, entry in analysis.files.items() if file_path in live_files}
     return dropped
@@ -871,17 +875,15 @@ def _scrub_one_analysis(analysis: AnalysisInsights, live_files: set[str]) -> set
 def prune_empty_components(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
-    protected_empty_ids: set[str] | None = None,
 ) -> set[str]:
-    """Remove components with no methods and strip relations pointing to them."""
+    """Remove components with neither members nor live cluster lineage."""
     removed_ids: set[str] = set()
-    protected_empty_ids = protected_empty_ids or set()
 
     def has_methods(component: Component) -> bool:
         return (
             any(group.methods for group in component.file_methods)
             or bool(component.key_entities)
-            or bool(component.component_id in protected_empty_ids and component.source_cluster_ids)
+            or bool(component.source_cluster_ids)
         )
 
     def collect_empty(analysis: AnalysisInsights) -> None:

@@ -64,11 +64,8 @@ def previous_ownership(
     strand method anchoring on the ``source_cluster_ids`` fallback — the very cluster-id
     anchoring this function exists to replace.
 
-    A component can be cluster-backed yet hold no methods — a data-only cluster, which
-    ``_cluster_backed_empty_component_ids`` deliberately protects from pruning. Methods
-    cannot speak for it, so any cluster left unclaimed falls back to whoever lists it in
-    ``source_cluster_ids``; without that the planner would delete a stable leaf and
-    create a replacement holding the same code.
+    A data-only component can be cluster-backed without holding methods. Unclaimed
+    clusters therefore fall back to the owner recorded in ``source_cluster_ids``.
     """
     prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
     claimed_ids: dict[str, str] = {
@@ -130,12 +127,8 @@ def plan_scope_update(
     """
     combined = combine_cluster_results(cluster_results)
     if not combined.clusters:
-        # Every cluster is gone. If the components are empty too, the code they described
-        # was deleted and they must go with it -- leaving them would keep ghost components
-        # that ``_cluster_backed_empty_component_ids`` then protects from pruning. If any
-        # still holds methods the clustering failed to represent live code (the subgraph
-        # builder guarantees one cluster per live method), so fail loud rather than save a
-        # scope with stale membership and hide the missed change.
+        # Every cluster is gone. Empty components are deleted; populated ones mean the
+        # clustering failed to represent live code and must fail loudly.
         still_populated = [
             component.component_id
             for component in scope.components

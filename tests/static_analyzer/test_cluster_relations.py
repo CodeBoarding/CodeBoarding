@@ -472,6 +472,31 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         # connection the grounded relation already states the right way round.
         self.assertNotIn(("2", "1"), by_pair)
 
+    def test_an_unrelated_misfiled_call_keeps_its_baseline_pair(self):
+        wrong = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")], evidence="e")
+        wrong.src_id, wrong.dst_id = "2", "1"
+        right = self._relation([], evidence="the pair this call actually runs between")
+
+        kept = prune_ungrounded_edges(
+            [wrong, right],
+            build_owner_index(self.NODES),
+            lambda edge: True,
+            {"pkg.other.changed"},
+        )
+
+        by_pair = {(relation.src_id, relation.dst_id): relation for relation in kept}
+        self.assertEqual([edge.source.qualified_name for edge in by_pair[("2", "1")].all_edges], ["pkg.a.caller"])
+        self.assertEqual(by_pair[("1", "2")].all_edges, [])
+
+    def test_dead_edges_are_dropped_even_when_their_source_is_unchanged(self):
+        relation = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
+
+        kept = prune_ungrounded_edges(
+            [relation], build_owner_index(self.NODES), lambda edge: False, {"pkg.other.changed"}
+        )
+
+        self.assertEqual(kept, [])
+
     def test_an_inherited_edge_naming_a_dead_symbol_is_dropped(self):
         rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
         self.assertEqual(self._prune(rel, keep_edge=lambda edge: False), [])
@@ -490,6 +515,17 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         backwards.src_id, backwards.dst_id = "2", "1"
         kept = prune_ungrounded_edges([grounded, backwards], build_owner_index(self.NODES), lambda edge: True)
         self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("1", "2")])
+
+    def test_an_unrelated_reverse_relation_is_not_repaired(self):
+        grounded = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
+        backwards = self._relation([], evidence="reads the parsed result")
+        backwards.src_id, backwards.dst_id = "2", "1"
+
+        kept = prune_ungrounded_edges(
+            [grounded, backwards], build_owner_index(self.NODES), lambda edge: True, {"pkg.other.changed"}
+        )
+
+        self.assertEqual(sorted((relation.src_id, relation.dst_id) for relation in kept), [("1", "2"), ("2", "1")])
 
     def test_an_edgeless_relation_with_no_grounded_reverse_survives(self):
         # Nothing else states this connection, so its evidence is the only record of it.
