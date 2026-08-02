@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-02T19:35:43.930766+00:00",
-    "source_tree_hash": "80d6519b29221096872d812bbd44e6b6e7da4201fbd048989fdeb2802a10c567",
+    "generated_at": "2026-08-02T23:18:20.586992+00:00",
+    "source_tree_hash": "b490a39dbb93667990f4beeb471e61eb9e8dbc7445df82c33b1da2ccce8e36a4",
     "repo_name": "CodeBoarding",
     "depth_level": 4,
     "depth_cap": 4,
@@ -38133,14 +38133,14 @@
           "file_path": "telemetry/service.py",
           "methods": [
             "telemetry.service._telemetry_disabled",
-            "telemetry.service.ProductTelemetry.__new__",
-            "telemetry.service.ProductTelemetry._init",
             "telemetry.service._origin",
             "telemetry.service.ProductTelemetry",
+            "telemetry.service.ProductTelemetry.__new__",
+            "telemetry.service.ProductTelemetry._init",
             "telemetry.service.ProductTelemetry.user_id",
             "telemetry.service.ProductTelemetry.capture",
-            "telemetry.service.ProductTelemetry.flush",
-            "telemetry.service.ProductTelemetry.capture_exception"
+            "telemetry.service.ProductTelemetry.capture_exception",
+            "telemetry.service.ProductTelemetry.flush"
           ]
         },
         {
@@ -38914,14 +38914,14 @@
               "file_path": "telemetry/service.py",
               "methods": [
                 "telemetry.service._telemetry_disabled",
-                "telemetry.service.ProductTelemetry.__new__",
-                "telemetry.service.ProductTelemetry._init",
                 "telemetry.service._origin",
                 "telemetry.service.ProductTelemetry",
+                "telemetry.service.ProductTelemetry.__new__",
+                "telemetry.service.ProductTelemetry._init",
                 "telemetry.service.ProductTelemetry.user_id",
                 "telemetry.service.ProductTelemetry.capture",
-                "telemetry.service.ProductTelemetry.flush",
-                "telemetry.service.ProductTelemetry.capture_exception"
+                "telemetry.service.ProductTelemetry.capture_exception",
+                "telemetry.service.ProductTelemetry.flush"
               ]
             }
           ],
@@ -49652,25 +49652,11 @@
       "src_name": "Static Analysis Grounding Provider",
       "dst_name": "Package Discovery Guard",
       "evidence": "Grounding tools and analysis results rely on the discovery guard to ensure the target repository is valid before attempting to resolve package-level metadata.",
-      "key_edges": [
-        {
-          "source": "agents/tools/component_bridge_edges.py|agents.tools.component_bridge_edges.ComponentBridgeEdgesTool.run",
-          "target": "agents/tools/read_packages.py|agents.tools.read_packages.NoRootPackageFoundError",
-          "call_sites": [],
-          "description": "Exception handling for invalid package roots"
-        }
-      ],
+      "key_edges": [],
       "src_id": "5.3.2",
       "dst_id": "5.3.3",
       "is_static": false,
-      "all_edges": [
-        {
-          "source": "agents/tools/component_bridge_edges.py|agents.tools.component_bridge_edges.ComponentBridgeEdgesTool.run",
-          "target": "agents/tools/read_packages.py|agents.tools.read_packages.NoRootPackageFoundError",
-          "call_sites": [],
-          "description": "Exception handling for invalid package roots"
-        }
-      ]
+      "all_edges": []
     },
     {
       "relation": "calls",
