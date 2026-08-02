@@ -1,16 +1,16 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-07-31T16:11:23.535913+00:00",
-  "overall_score": 0.9437439379243453,
+  "timestamp": "2026-08-02T11:40:36.662095+00:00",
+  "overall_score": 0.9429232549170845,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1511,
+      "total_entities_checked": 1520,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.99933818663137,
+      "score": 0.9993421052631579,
       "finding_groups": [
         {
           "severity": "warning",
@@ -20,8 +20,8 @@
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1296,
-              "line_end": 1504,
+              "line_start": 1361,
+              "line_end": 1569,
               "metric_value": 208
             }
           ]
@@ -32,10 +32,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1523,
-      "findings_count": 35,
-      "warning_count": 35,
-      "score": 0.9770190413657256,
+      "total_entities_checked": 1532,
+      "findings_count": 38,
+      "warning_count": 38,
+      "score": 0.9751958224543081,
       "finding_groups": [
         {
           "severity": "warning",
@@ -45,9 +45,9 @@
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1296,
-              "line_end": 1504,
-              "metric_value": 35
+              "line_start": 1361,
+              "line_end": 1569,
+              "metric_value": 34
             },
             {
               "entity_name": "static_analyzer.engine.edge_builder._resolve_definitions",
@@ -57,24 +57,24 @@
               "metric_value": 19
             },
             {
-              "entity_name": "agents.incremental_agent.IncrementalAgent.update_scope",
-              "file_path": "agents/incremental_agent.py",
-              "line_start": 97,
-              "line_end": 178,
+              "entity_name": "health.runner._collect_checks_for_language",
+              "file_path": "health/runner.py",
+              "line_start": 72,
+              "line_end": 133,
+              "metric_value": 16
+            },
+            {
+              "entity_name": "static_analyzer.cluster_relations.build_global_relations",
+              "file_path": "static_analyzer/cluster_relations.py",
+              "line_start": 393,
+              "line_end": 467,
               "metric_value": 16
             },
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 878,
-              "line_end": 949,
-              "metric_value": 16
-            },
-            {
-              "entity_name": "health.runner._collect_checks_for_language",
-              "file_path": "health/runner.py",
-              "line_start": 72,
-              "line_end": 133,
+              "line_start": 936,
+              "line_end": 1007,
               "metric_value": 16
             },
             {
@@ -120,6 +120,13 @@
               "metric_value": 14
             },
             {
+              "entity_name": "agents.incremental_agent.IncrementalAgent.update_scope",
+              "file_path": "agents/incremental_agent.py",
+              "line_start": 102,
+              "line_end": 180,
+              "metric_value": 14
+            },
+            {
               "entity_name": "agents.abstraction_agent.AbstractionAgent.run",
               "file_path": "agents/abstraction_agent.py",
               "line_start": 193,
@@ -145,13 +152,6 @@
               "file_path": "static_analyzer/__init__.py",
               "line_start": 578,
               "line_end": 632,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "static_analyzer.cluster_relations.build_global_relations",
-              "file_path": "static_analyzer/cluster_relations.py",
-              "line_start": 219,
-              "line_end": 281,
               "metric_value": 12
             },
             {
@@ -183,13 +183,6 @@
               "metric_value": 11
             },
             {
-              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1139,
-              "line_end": 1188,
-              "metric_value": 11
-            },
-            {
               "entity_name": "github_action.generate_analysis",
               "file_path": "github_action.py",
               "line_start": 99,
@@ -218,17 +211,24 @@
               "metric_value": 11
             },
             {
+              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 1134,
+              "line_end": 1187,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 1204,
+              "line_end": 1253,
+              "metric_value": 11
+            },
+            {
               "entity_name": "agents.abstraction_agent.AbstractionAgent.step_relation_analysis",
               "file_path": "agents/abstraction_agent.py",
               "line_start": 157,
               "line_end": 191,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
-              "file_path": "agents/incremental_agent.py",
-              "line_start": 271,
-              "line_end": 300,
               "metric_value": 10
             },
             {
@@ -286,6 +286,27 @@
               "line_start": 39,
               "line_end": 103,
               "metric_value": 10
+            },
+            {
+              "entity_name": "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
+              "file_path": "agents/incremental_agent.py",
+              "line_start": 287,
+              "line_end": 316,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+              "file_path": "agents/incremental_agent.py",
+              "line_start": 382,
+              "line_end": 480,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.cluster_relations.merge_relations",
+              "file_path": "static_analyzer/cluster_relations.py",
+              "line_start": 470,
+              "line_end": 569,
+              "metric_value": 10
             }
           ]
         }
@@ -295,10 +316,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1523,
-      "findings_count": 12,
-      "warning_count": 12,
-      "score": 0.9921208141825345,
+      "total_entities_checked": 1532,
+      "findings_count": 11,
+      "warning_count": 11,
+      "score": 0.9928198433420365,
       "finding_groups": [
         {
           "severity": "warning",
@@ -346,13 +367,6 @@
               "line_start": 118,
               "line_end": 119,
               "metric_value": 16
-            },
-            {
-              "entity_name": "monitoring.context.trace",
-              "file_path": "monitoring/context.py",
-              "line_start": 131,
-              "line_end": 173,
-              "metric_value": 15
             },
             {
               "entity_name": "agents.prompts.prompt_factory.get_global_factory",
@@ -409,7 +423,7 @@
           "entities": [
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator",
-              "metric_value": 143.0
+              "metric_value": 145.0
             },
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer",
@@ -417,7 +431,7 @@
             },
             {
               "entity_name": "agents.incremental_agent.IncrementalAgent",
-              "metric_value": 77.0
+              "metric_value": 76.0
             },
             {
               "entity_name": "static_analyzer.graph.CallGraph",
@@ -429,7 +443,7 @@
             },
             {
               "entity_name": "static_analyzer.reference_resolver.StaticReferenceResolver",
-              "metric_value": 55.0
+              "metric_value": 53.0
             },
             {
               "entity_name": "agents.details_agent.DetailsAgent",
@@ -477,8 +491,8 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 229,
-      "findings_count": 229,
+      "total_entities_checked": 233,
+      "findings_count": 233,
       "warning_count": 86,
       "score": 0.0,
       "finding_groups": [
@@ -555,62 +569,6 @@
               "file_path": "codeboarding_workflows/rendering.py",
               "line_start": 20,
               "line_end": 20,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 233,
-              "line_end": 233,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 340,
-              "line_end": 340,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 380,
-              "line_end": 380,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 455,
-              "line_end": 455,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1063,
-              "line_end": 1063,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"expanded_components\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1070,
-              "line_end": 1070,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1104,
-              "line_end": 1104,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1319,
-              "line_end": 1319,
               "metric_value": 0.0
             },
             {
@@ -1445,6 +1403,90 @@
               "line_start": 11,
               "line_end": 11,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 158,
+              "line_end": 158,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 253,
+              "line_end": 253,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 383,
+              "line_end": 383,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 360,
+              "line_end": 360,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 417,
+              "line_end": 417,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 500,
+              "line_end": 500,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 523,
+              "line_end": 523,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 508,
+              "line_end": 508,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 1121,
+              "line_end": 1121,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"expanded_components\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 1128,
+              "line_end": 1128,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 1162,
+              "line_end": 1162,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 1384,
+              "line_end": 1384,
+              "metric_value": 0.0
             }
           ]
         },
@@ -2130,16 +2172,16 @@
       "composite_risk_score": 95.0
     },
     {
-      "file_path": "static_analyzer/__init__.py",
-      "total_findings": 6,
+      "file_path": "diagram_analysis/diagram_generator.py",
+      "total_findings": 17,
       "warning_findings": 5,
       "composite_risk_score": 75.0
     },
     {
-      "file_path": "diagram_analysis/diagram_generator.py",
-      "total_findings": 12,
-      "warning_findings": 4,
-      "composite_risk_score": 70.0
+      "file_path": "static_analyzer/__init__.py",
+      "total_findings": 6,
+      "warning_findings": 5,
+      "composite_risk_score": 75.0
     },
     {
       "file_path": "codeboarding_workflows/rendering.py",
@@ -2170,6 +2212,12 @@
       "total_findings": 9,
       "warning_findings": 1,
       "composite_risk_score": 55.0
+    },
+    {
+      "file_path": "agents/incremental_agent.py",
+      "total_findings": 3,
+      "warning_findings": 3,
+      "composite_risk_score": 45.0
     },
     {
       "file_path": "agents/abstraction_agent.py",
@@ -2208,7 +2256,7 @@
       "composite_risk_score": 35.0
     },
     {
-      "file_path": "agents/incremental_agent.py",
+      "file_path": "static_analyzer/cluster_relations.py",
       "total_findings": 2,
       "warning_findings": 2,
       "composite_risk_score": 30.0
@@ -2229,12 +2277,6 @@
       "file_path": "static_analyzer/analysis_result.py",
       "total_findings": 2,
       "warning_findings": 2,
-      "composite_risk_score": 30.0
-    },
-    {
-      "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-      "total_findings": 3,
-      "warning_findings": 0,
       "composite_risk_score": 30.0
     }
   ]

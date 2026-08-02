@@ -2,8 +2,7 @@
 graph LR
     Structural_Analysis_Topology_Engine["Structural Analysis & Topology Engine"]
     Semantic_Reference_Resolver["Semantic Reference Resolver"]
-    Structural_Analysis_Topology_Engine -- "Enriches graph nodes with precise symbol metadata" --> Semantic_Reference_Resolver
-    Semantic_Reference_Resolver -- "Queries global analysis context for symbol lookup" --> Structural_Analysis_Topology_Engine
+    Semantic_Reference_Resolver -- "Queries global fact store for symbol lookups" --> Structural_Analysis_Topology_Engine
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -20,14 +19,14 @@ Responsible for high-level mapping of the codebase, including package dependenci
 
 - `static_analyzer.analysis_result.StaticAnalysisResults`:166-327
 - `agents.tools.component_bridge_edges.ComponentBridgeEdgesTool`:20-84
-- `agents.incremental_agent._cfg_graphs_for_scope_methods`:748-766
+- `agents.incremental_agent._cfg_graphs_for_scope_methods`:806-824
 
 
 
 **Source Files:**
 
 - [`agents/incremental_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py)
-  - `agents.incremental_agent._cfg_graphs_for_scope_methods` ([L748-L766](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L748-L766)) - Function
+  - `agents.incremental_agent._cfg_graphs_for_scope_methods` ([L806-L824](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L806-L824)) - Function
 - [`agents/tools/base.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/base.py)
   - `agents.tools.base.BaseRepoTool.static_analysis` ([L84-L85](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/base.py#L84-L85)) - Method
 - [`agents/tools/component_bridge_edges.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/component_bridge_edges.py)
@@ -86,7 +85,7 @@ Handles micro-level static analysis, focusing on symbol resolution, cross-langua
   - `static_analyzer.analysis_result.StaticAnalysisResults.get_loose_reference` ([L263-L280](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_result.py#L263-L280)) - Method
   - `static_analyzer.analysis_result.StaticAnalysisResults.resolve_across_languages` ([L286-L298](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_result.py#L286-L298)) - Method
 - [`static_analyzer/reference_resolver.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/reference_resolver.py)
-  - `static_analyzer.reference_resolver.StaticReferenceResolver.resolve_node` ([L190-L204](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/reference_resolver.py#L190-L204)) - Method
+  - `static_analyzer.reference_resolver.StaticReferenceResolver._resolve_node_uncached` ([L202-L214](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/reference_resolver.py#L202-L214)) - Method
 
 
 

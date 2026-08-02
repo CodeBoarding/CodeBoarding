@@ -7,7 +7,7 @@ graph LR
     Architectural_Abstraction_Identity_Resolver -- "resolves semantic groups to physical cluster IDs" --> Cluster_Topology_Metadata_Manager
     Architectural_Abstraction_Identity_Resolver -- "validates architectural relations against CFG state" --> Incremental_Synthesis_Orchestrator
     Incremental_Synthesis_Orchestrator -- "queries cluster topology for incremental updates" --> Cluster_Topology_Metadata_Manager
-    Incremental_Synthesis_Orchestrator -- "delegates semantic synthesis and identity stabilization" --> Architectural_Abstraction_Identity_Resolver
+    Incremental_Synthesis_Orchestrator -- "Orchestrates architectural synthesis and identity assignment" --> Architectural_Abstraction_Identity_Resolver
     click Cluster_Topology_Metadata_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Cluster_Topology_Metadata_Manager.md" "Details"
     click Architectural_Abstraction_Identity_Resolver href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Architectural_Abstraction_Identity_Resolver.md" "Details"
 ```
@@ -65,11 +65,11 @@ Manages the underlying cluster definitions and metadata derived from graph commu
   - `agents.cluster_methods_mixin.ClusterMethodsMixin.populate_file_methods` ([L636-L688](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py#L636-L688)) - Method
   - `agents.cluster_methods_mixin.ClusterMethodsMixin._prefix_local_cluster_ids` ([L712-L717](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py#L712-L717)) - Method
 - [`agents/incremental_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py)
-  - `agents.incremental_agent.IncrementalAgent.detail_new_components` ([L213-L248](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L213-L248)) - Method
-  - `agents.incremental_agent.IncrementalAgent._patch_scope_file_methods` ([L271-L300](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L271-L300)) - Method
-  - `agents.incremental_agent._cluster_analysis_for_scope` ([L511-L533](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L511-L533)) - Function
-  - `agents.incremental_agent._local_graph_cluster_ids` ([L536-L553](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L536-L553)) - Function
-  - `agents.incremental_agent._new_component_membership_summary` ([L556-L567](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L556-L567)) - Function
+  - `agents.incremental_agent.IncrementalAgent.detail_new_components` ([L229-L264](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L229-L264)) - Method
+  - `agents.incremental_agent.IncrementalAgent._patch_scope_file_methods` ([L287-L316](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L287-L316)) - Method
+  - `agents.incremental_agent._cluster_analysis_for_scope` ([L569-L591](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L569-L591)) - Function
+  - `agents.incremental_agent._local_graph_cluster_ids` ([L594-L611](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L594-L611)) - Function
+  - `agents.incremental_agent._new_component_membership_summary` ([L614-L625](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L614-L625)) - Function
 - [`diagram_analysis/exceptions.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/exceptions.py)
   - `diagram_analysis.exceptions.IncrementalClusteringError` ([L46-L63](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/exceptions.py#L46-L63)) - Class
   - `diagram_analysis.exceptions.IncrementalClusteringError.__init__` ([L57-L63](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/exceptions.py#L57-L63)) - Method
@@ -158,13 +158,13 @@ The intelligence layer that interprets cluster data to define high-level archite
   - `agents.validation.validate_group_name_coverage` ([L102-L188](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L102-L188)) - Function
   - `agents.validation.validate_key_entities` ([L191-L207](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L191-L207)) - Function
 - [`diagram_analysis/diagram_generator.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py)
-  - `diagram_analysis.diagram_generator.DiagramGenerator._initialize_agents` ([L836-L876](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L836-L876)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator._initialize_agents` ([L894-L934](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L894-L934)) - Method
 - [`static_analyzer/analysis_result.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_result.py)
   - `static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs` ([L213-L219](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_result.py#L213-L219)) - Method
 - [`static_analyzer/cluster_relations.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_relations.py)
   - `static_analyzer.cluster_relations.ClusterRelation` ([L22-L27](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_relations.py#L22-L27)) - Class
   - `static_analyzer.cluster_relations.build_node_to_component_map` ([L30-L41](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_relations.py#L30-L41)) - Function
-  - `static_analyzer.cluster_relations.build_component_relations` ([L110-L148](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_relations.py#L110-L148)) - Function
+  - `static_analyzer.cluster_relations.build_component_relations` ([L284-L322](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_relations.py#L284-L322)) - Function
 
 
 ### Incremental Synthesis Orchestrator
@@ -173,10 +173,10 @@ Coordinates the incremental update process by integrating new analysis results i
 
 **Related Classes/Methods**:
 
-- `agents.incremental_agent.IncrementalAgent`:55-508
+- `agents.incremental_agent.IncrementalAgent`:60-566
 - `agents.agent_responses.ComponentArchitecture`:537-550
 - `agents.incremental_results.ScopeUpdateResult`:18-24
-- `agents.incremental_agent._remove_reassigned_clusters`:587-612
+- `agents.incremental_agent._remove_reassigned_clusters`:645-670
 
 
 
@@ -189,25 +189,26 @@ Coordinates the incremental update process by integrating new analysis results i
   - `agents.cluster_ids.CodeBoardingClusterIds.sort` ([L20-L22](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_ids.py#L20-L22)) - Method
   - `agents.cluster_ids._cluster_id_sort_key` ([L47-L49](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_ids.py#L47-L49)) - Function
 - [`agents/incremental_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py)
-  - `agents.incremental_agent.IncrementalAgent` ([L55-L508](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L55-L508)) - Class
-  - `agents.incremental_agent.IncrementalAgent.update_scope` ([L97-L178](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L97-L178)) - Method
-  - `agents.incremental_agent.IncrementalAgent._create_component_from_operation` ([L180-L210](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L180-L210)) - Method
-  - `agents.incremental_agent.IncrementalAgent._update_component_from_operation` ([L250-L269](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L250-L269)) - Method
-  - `agents.incremental_agent.IncrementalAgent.step_api_surfaces` ([L303-L312](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L303-L312)) - Method
-  - `agents.incremental_agent.IncrementalAgent.step_relation_analysis` ([L315-L352](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L315-L352)) - Method
-  - `agents.incremental_agent.IncrementalAgent._attach_static_relations` ([L354-L363](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L354-L363)) - Method
-  - `agents.incremental_agent.IncrementalAgent.generate_scope_relations` ([L366-L422](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L366-L422)) - Method
-  - `agents.incremental_agent.IncrementalAgent.generate_all_scope_relations` ([L425-L458](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L425-L458)) - Method
-  - `agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel` ([L460-L496](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L460-L496)) - Method
-  - `agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one` ([L476-L486](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L476-L486)) - Function
-  - `agents.incremental_agent.IncrementalAgent._clone_for_worker` ([L498-L508](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L498-L508)) - Method
-  - `agents.incremental_agent._log_scope_relations_summary` ([L570-L575](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L570-L575)) - Function
-  - `agents.incremental_agent._operation_source_cluster_ids` ([L578-L584](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L578-L584)) - Function
-  - `agents.incremental_agent._remove_reassigned_clusters` ([L587-L612](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L587-L612)) - Function
-  - `agents.incremental_agent._log_duplicate_cluster_ownership` ([L615-L628](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L615-L628)) - Function
-  - `agents.incremental_agent._component_id_parent` ([L631-L632](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L631-L632)) - Function
-  - `agents.incremental_agent._live_cfg_qnames` ([L732-L739](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L732-L739)) - Function
-  - `agents.incremental_agent._component_has_live_cfg_methods` ([L742-L745](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L742-L745)) - Function
+  - `agents.incremental_agent.IncrementalAgent` ([L60-L566](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L60-L566)) - Class
+  - `agents.incremental_agent.IncrementalAgent.update_scope` ([L102-L180](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L102-L180)) - Method
+  - `agents.incremental_agent.IncrementalAgent._create_component_from_operation` ([L182-L212](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L182-L212)) - Method
+  - `agents.incremental_agent.IncrementalAgent._sync_noop_component_cluster_ids` ([L214-L226](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L214-L226)) - Method
+  - `agents.incremental_agent.IncrementalAgent._update_component_from_operation` ([L266-L285](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L266-L285)) - Method
+  - `agents.incremental_agent.IncrementalAgent.step_api_surfaces` ([L319-L328](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L319-L328)) - Method
+  - `agents.incremental_agent.IncrementalAgent.step_relation_analysis` ([L331-L368](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L331-L368)) - Method
+  - `agents.incremental_agent.IncrementalAgent._attach_static_relations` ([L370-L379](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L370-L379)) - Method
+  - `agents.incremental_agent.IncrementalAgent.generate_scope_relations` ([L382-L480](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L382-L480)) - Method
+  - `agents.incremental_agent.IncrementalAgent.generate_all_scope_relations` ([L483-L516](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L483-L516)) - Method
+  - `agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel` ([L518-L554](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L518-L554)) - Method
+  - `agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one` ([L534-L544](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L534-L544)) - Function
+  - `agents.incremental_agent.IncrementalAgent._clone_for_worker` ([L556-L566](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L556-L566)) - Method
+  - `agents.incremental_agent._log_scope_relations_summary` ([L628-L633](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L628-L633)) - Function
+  - `agents.incremental_agent._operation_source_cluster_ids` ([L636-L642](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L636-L642)) - Function
+  - `agents.incremental_agent._remove_reassigned_clusters` ([L645-L670](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L645-L670)) - Function
+  - `agents.incremental_agent._log_duplicate_cluster_ownership` ([L673-L686](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L673-L686)) - Function
+  - `agents.incremental_agent._component_id_parent` ([L689-L690](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L689-L690)) - Function
+  - `agents.incremental_agent._live_cfg_qnames` ([L790-L797](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L790-L797)) - Function
+  - `agents.incremental_agent._component_has_live_cfg_methods` ([L800-L803](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L800-L803)) - Function
 - [`agents/incremental_results.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_results.py)
   - `agents.incremental_results.ScopeRelationContext` ([L7-L14](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_results.py#L7-L14)) - Class
   - `agents.incremental_results.ScopeUpdateResult` ([L18-L24](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_results.py#L18-L24)) - Class
