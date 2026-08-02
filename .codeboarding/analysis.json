@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-02T18:39:10.508048+00:00",
-    "source_tree_hash": "5cdb8de16af1bf7e94882f79f39d7083069a3c51a4ec9fa0dc2c3afc40dafd58",
+    "generated_at": "2026-08-02T19:19:26.351795+00:00",
+    "source_tree_hash": "1b975c55942553ae8c52b47e4a1578736a6b903138146f1a74170547a12548e6",
     "repo_name": "CodeBoarding",
     "depth_level": 4,
     "depth_cap": 4,
@@ -1662,13 +1662,14 @@
         "agents/relation_edges.py|agents.relation_edges._edge_touches_changed_method",
         "agents/relation_edges.py|agents.relation_edges._restore_baseline_orientation",
         "agents/relation_edges.py|agents.relation_edges._filter_edges_touched_by_change",
+        "agents/relation_edges.py|agents.relation_edges._commit_deleted_the_backing",
         "agents/relation_edges.py|agents.relation_edges._reconcile_unchanged_edges",
         "agents/relation_edges.py|agents.relation_edges._reconcile_unchanged_edges.split",
         "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
         "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations.touches_change"
       ],
-      "content_hash": "403fd2e4a77b5fec",
-      "module_hash": "0d54c29e19f9b0d4"
+      "content_hash": "76719057304244c4",
+      "module_hash": "d6389a7b75b4b31f"
     },
     "agents/repair.py": {
       "method_keys": [
@@ -11679,35 +11680,43 @@
       "type": "FUNCTION",
       "content_hash": "97c8ff64edaac7fc"
     },
+    "agents/relation_edges.py|agents.relation_edges._commit_deleted_the_backing": {
+      "file_path": "agents/relation_edges.py",
+      "qualified_name": "agents.relation_edges._commit_deleted_the_backing",
+      "start_line": 162,
+      "end_line": 170,
+      "type": "FUNCTION",
+      "content_hash": "43e96f5554219104"
+    },
     "agents/relation_edges.py|agents.relation_edges._reconcile_unchanged_edges": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._reconcile_unchanged_edges",
-      "start_line": 162,
-      "end_line": 186,
+      "start_line": 173,
+      "end_line": 197,
       "type": "FUNCTION",
       "content_hash": "6277796e880bd6e8"
     },
     "agents/relation_edges.py|agents.relation_edges._reconcile_unchanged_edges.split": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._reconcile_unchanged_edges.split",
-      "start_line": 176,
-      "end_line": 179,
+      "start_line": 187,
+      "end_line": 190,
       "type": "FUNCTION",
       "content_hash": "955d4f9b0334b903"
     },
     "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.preserve_unchanged_relations",
-      "start_line": 189,
-      "end_line": 275,
+      "start_line": 200,
+      "end_line": 291,
       "type": "FUNCTION",
-      "content_hash": "a6952014031ed1ba"
+      "content_hash": "3794c492199e47f0"
     },
     "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations.touches_change": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.preserve_unchanged_relations.touches_change",
-      "start_line": 222,
-      "end_line": 223,
+      "start_line": 236,
+      "end_line": 237,
       "type": "FUNCTION",
       "content_hash": "78dc36639a27d377"
     },
@@ -26368,6 +26377,7 @@
             "agents.relation_edges._edge_touches_changed_method",
             "agents.relation_edges._restore_baseline_orientation",
             "agents.relation_edges._filter_edges_touched_by_change",
+            "agents.relation_edges._commit_deleted_the_backing",
             "agents.relation_edges._reconcile_unchanged_edges",
             "agents.relation_edges._reconcile_unchanged_edges.split",
             "agents.relation_edges.preserve_unchanged_relations",
@@ -28643,6 +28653,7 @@
                 "agents.relation_edges._edge_touches_changed_method",
                 "agents.relation_edges._restore_baseline_orientation",
                 "agents.relation_edges._filter_edges_touched_by_change",
+                "agents.relation_edges._commit_deleted_the_backing",
                 "agents.relation_edges._reconcile_unchanged_edges",
                 "agents.relation_edges._reconcile_unchanged_edges.split",
                 "agents.relation_edges.preserve_unchanged_relations",
@@ -29015,8 +29026,8 @@
                 {
                   "qualified_name": "agents.relation_edges.preserve_unchanged_relations",
                   "reference_file": "agents/relation_edges.py",
-                  "reference_start_line": 189,
-                  "reference_end_line": 275
+                  "reference_start_line": 200,
+                  "reference_end_line": 291
                 },
                 {
                   "qualified_name": "agents.relation_edges.append_or_merge_relation",
@@ -29034,7 +29045,7 @@
               "source_cluster_ids": [
                 "3.2.3",
                 "3.2.8",
-                "3.2.10"
+                "3.2.9"
               ],
               "file_methods": [
                 {
@@ -29064,6 +29075,7 @@
                     "agents.relation_edges._edge_touches_changed_method",
                     "agents.relation_edges._restore_baseline_orientation",
                     "agents.relation_edges._filter_edges_touched_by_change",
+                    "agents.relation_edges._commit_deleted_the_backing",
                     "agents.relation_edges._reconcile_unchanged_edges",
                     "agents.relation_edges._reconcile_unchanged_edges.split",
                     "agents.relation_edges.preserve_unchanged_relations",
@@ -29113,10 +29125,10 @@
           ],
           "components_relations": [
             {
-              "relation": "provides data models for",
+              "relation": "Provides structural models for relationship mapping",
               "src_name": "Component Schema & Structural Definitions",
               "dst_name": "Relational Logic & Edge Reconciliation",
-              "evidence": "",
+              "evidence": "The relational logic layer consumes Pydantic models (like Relation and CFGComponent) defined in the schema layer to perform data transformations and edge merging.",
               "key_edges": [],
               "src_id": "3.2.1",
               "dst_id": "3.2.3",
@@ -29136,37 +29148,91 @@
               ]
             },
             {
-              "relation": "updates and persists component insights with",
+              "relation": "Supplies reconciled dependency data for rendering",
               "src_name": "Relational Logic & Edge Reconciliation",
-              "dst_name": "Component Schema & Structural Definitions",
-              "evidence": "Runtime data flow where Relation objects are instantiated and aggregated into CFGAnalysisInsights containers for persistence.",
-              "key_edges": [],
+              "dst_name": "Architectural Surface & Visualization Generator",
+              "evidence": "The visualization generator consumes the processed and projected relations to build the final interactive graphs (Cytoscape) and documentation.",
+              "key_edges": [
+                {
+                  "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
+                  "target": "output_generators/html.py|output_generators.html.generate_html",
+                  "call_sites": [],
+                  "description": "The output of the projection logic is passed directly to the HTML generator for visualization."
+                }
+              ],
               "src_id": "3.2.3",
-              "dst_id": "3.2.1",
+              "dst_id": "3.2.2",
               "is_static": false,
-              "all_edges": []
+              "all_edges": [
+                {
+                  "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
+                  "target": "output_generators/html.py|output_generators.html.generate_html",
+                  "call_sites": [],
+                  "description": "The output of the projection logic is passed directly to the HTML generator for visualization."
+                }
+              ]
             },
             {
-              "relation": "consumes component models and API surface definitions for",
-              "src_name": "Architectural Surface & Visualization Generator",
-              "dst_name": "Component Schema & Structural Definitions",
-              "evidence": "The generator functions in output_generators/html.py and markdown.py iterate over Component and CFGAnalysisInsights Pydantic models to produce documentation.",
-              "key_edges": [],
-              "src_id": "3.2.2",
-              "dst_id": "3.2.1",
+              "relation": "Defines the data contract for documentation output",
+              "src_name": "Component Schema & Structural Definitions",
+              "dst_name": "Architectural Surface & Visualization Generator",
+              "evidence": "Generators for HTML and Markdown directly consume the core schema models (Component, CFGAnalysisInsights) to populate templates and API surface descriptions.",
+              "key_edges": [
+                {
+                  "source": "output_generators/markdown.py|output_generators.markdown.generate_markdown",
+                  "target": "agents/agent_responses.py|agents.agent_responses.Component",
+                  "call_sites": [],
+                  "description": "The markdown generator iterates over Component models to produce documentation sections."
+                },
+                {
+                  "source": "output_generators/html.py|output_generators.html.generate_html",
+                  "target": "agents/agent_responses.py|agents.agent_responses.CFGAnalysisInsights",
+                  "call_sites": [],
+                  "description": "The HTML generator uses analysis insights to enrich the interactive UI."
+                }
+              ],
+              "src_id": "3.2.1",
+              "dst_id": "3.2.2",
               "is_static": false,
-              "all_edges": []
+              "all_edges": [
+                {
+                  "source": "output_generators/markdown.py|output_generators.markdown.generate_markdown",
+                  "target": "agents/agent_responses.py|agents.agent_responses.Component",
+                  "call_sites": [],
+                  "description": "The markdown generator iterates over Component models to produce documentation sections."
+                },
+                {
+                  "source": "output_generators/html.py|output_generators.html.generate_html",
+                  "target": "agents/agent_responses.py|agents.agent_responses.CFGAnalysisInsights",
+                  "call_sites": [],
+                  "description": "The HTML generator uses analysis insights to enrich the interactive UI."
+                }
+              ]
             },
             {
-              "relation": "projects and filters reconciled relations for",
+              "relation": "Requests level-specific projection for visualization",
               "src_name": "Architectural Surface & Visualization Generator",
               "dst_name": "Relational Logic & Edge Reconciliation",
-              "evidence": "codeboarding_workflows.rendering.project_relations_to_level transforms the high-level Relation models into visual-specific graph structures.",
-              "key_edges": [],
+              "evidence": "During the rendering phase, the visualization generator triggers the projection logic to ensure the graph edges match the current zoom/detail level of the UI.",
+              "key_edges": [
+                {
+                  "source": "output_generators/html.py|output_generators.html.generate_html",
+                  "target": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
+                  "call_sites": [],
+                  "description": "The HTML generation process invokes relation projection to filter the visible edge set."
+                }
+              ],
               "src_id": "3.2.2",
               "dst_id": "3.2.3",
               "is_static": false,
-              "all_edges": []
+              "all_edges": [
+                {
+                  "source": "output_generators/html.py|output_generators.html.generate_html",
+                  "target": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
+                  "call_sites": [],
+                  "description": "The HTML generation process invokes relation projection to filter the visible edge set."
+                }
+              ]
             }
           ]
         },
@@ -29869,10 +29935,10 @@
       ],
       "components_relations": [
         {
-          "relation": "Synthesizes and validates architectural models",
+          "relation": "Orchestrates architectural schema generation and mapping",
           "src_name": "Architectural Synthesis & Cluster Orchestrator",
           "dst_name": "Component Modeling & API Definition",
-          "evidence": "Orchestrator instantiates and populates schema models during LLM response parsing and architectural validation.",
+          "evidence": "The Orchestrator uses the Modeling component to transform raw LLM cluster analysis into structured architectural models. It invokes schema-building functions to define component boundaries, API surfaces, and inter-component relations based on agentic reasoning.",
           "key_edges": [],
           "src_id": "3.1",
           "dst_id": "3.2",
@@ -30009,17 +30075,6 @@
               "description": ""
             },
             {
-              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
-              "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
-              "call_sites": [
-                {
-                  "line": 463,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
               "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.build_static_relations",
               "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.merge_relations",
               "call_sites": [
@@ -30062,22 +30117,33 @@
                 }
               ],
               "description": ""
+            },
+            {
+              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+              "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
+              "call_sites": [
+                {
+                  "line": 463,
+                  "column": 42
+                }
+              ],
+              "description": ""
             }
           ]
         },
         {
-          "relation": "Orchestrates codebase indexing and delta detection",
+          "relation": "Synchronizes logical models with physical file state",
           "src_name": "Architectural Synthesis & Cluster Orchestrator",
           "dst_name": "Incremental State & Content Fingerprinting",
-          "evidence": "Orchestrator triggers file indexing and method hashing to maintain architectural stability across runs.",
+          "evidence": "The Orchestrator triggers incremental updates by comparing current codebase state (fingerprints) with existing architectural models. It manages the lifecycle of file indexing and patches method-level metadata during the abstraction process.",
           "key_edges": [
             {
-              "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.populate_file_methods",
-              "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._build_file_methods_from_nodes",
+              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
+              "target": "agents/incremental_agent.py|agents.incremental_agent._patch_file_methods",
               "call_sites": [
                 {
-                  "line": 682,
-                  "column": 38
+                  "line": 315,
+                  "column": 9
                 }
               ],
               "description": ""
@@ -30110,28 +30176,6 @@
               "description": ""
             },
             {
-              "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.run",
-              "target": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
-              "call_sites": [
-                {
-                  "line": 226,
-                  "column": 9
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "agents/details_agent.py|agents.details_agent.DetailsAgent.run",
-              "target": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
-              "call_sites": [
-                {
-                  "line": 295,
-                  "column": 9
-                }
-              ],
-              "description": ""
-            },
-            {
               "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
               "target": "agents/incremental_agent.py|agents.incremental_agent._patch_file_methods",
               "call_sites": [
@@ -30158,17 +30202,6 @@
               "description": ""
             },
             {
-              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
-              "target": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
-              "call_sites": [
-                {
-                  "line": 379,
-                  "column": 9
-                }
-              ],
-              "description": ""
-            },
-            {
               "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
               "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._build_file_methods_from_nodes",
               "call_sites": [
@@ -30189,14 +30222,47 @@
                 }
               ],
               "description": ""
+            },
+            {
+              "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.run",
+              "target": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
+              "call_sites": [
+                {
+                  "line": 226,
+                  "column": 9
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/details_agent.py|agents.details_agent.DetailsAgent.run",
+              "target": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
+              "call_sites": [
+                {
+                  "line": 295,
+                  "column": 9
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
+              "target": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
+              "call_sites": [
+                {
+                  "line": 379,
+                  "column": 9
+                }
+              ],
+              "description": ""
             }
           ]
         },
         {
-          "relation": "Maps logical components to physical file signatures",
+          "relation": "Maps structural symbols to content-hashed entities",
           "src_name": "Component Modeling & API Definition",
           "dst_name": "Incremental State & Content Fingerprinting",
-          "evidence": "Schema definitions include file membership and method groups used for content hashing and state persistence.",
+          "evidence": "The Modeling layer relies on the Incremental layer to resolve physical code locations (FileMethodGroups) and method references into the abstract component schema, ensuring that architectural definitions are grounded in actual source code content.",
           "key_edges": [],
           "src_id": "3.2",
           "dst_id": "3.3",
@@ -30227,10 +30293,10 @@
           ]
         },
         {
-          "relation": "Persists and restores architectural state",
+          "relation": "Hydrates architectural models from persistent state",
           "src_name": "Incremental State & Content Fingerprinting",
           "dst_name": "Component Modeling & API Definition",
-          "evidence": "Incremental agent serializes component models to JSON and restores them during delta analysis.",
+          "evidence": "When loading cached analysis, the Incremental layer transforms serialized JSON data back into the rich Component and Relation objects defined in the Modeling layer, performing sanitization and level-projection during the process.",
           "key_edges": [],
           "src_id": "3.3",
           "dst_id": "3.2",
@@ -30298,10 +30364,10 @@
           ]
         },
         {
-          "relation": "Provides structural feedback for global synthesis",
+          "relation": "Provides structural insights for agentic reasoning",
           "src_name": "Component Modeling & API Definition",
           "dst_name": "Architectural Synthesis & Cluster Orchestrator",
-          "evidence": "Data models provide reflection methods (llm_str) and merging logic used by the Orchestrator to refine the system map.",
+          "evidence": "The Modeling component feeds structured insights and global relationship maps back to the Orchestrator, allowing the Abstraction Agent to make informed decisions about component merging, splitting, or identity assignment.",
           "key_edges": [],
           "src_id": "3.2",
           "dst_id": "3.1",
@@ -30605,8 +30671,8 @@
             "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
             "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
             "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-            "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
             "diagram_analysis.diagram_generator.DiagramGenerator",
+            "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
             "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
             "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
             "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
@@ -30626,8 +30692,8 @@
             "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
             "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
             "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-            "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
             "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
+            "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
             "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary",
             "diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
             "diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
@@ -32542,8 +32608,8 @@
                 "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
                 "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
                 "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-                "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                 "diagram_analysis.diagram_generator.DiagramGenerator",
+                "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                 "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
                 "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
                 "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
@@ -32560,8 +32626,8 @@
                 "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
                 "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
                 "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-                "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
                 "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
+                "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
                 "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary",
                 "diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
                 "diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
@@ -32671,8 +32737,8 @@
                 {
                   "file_path": "diagram_analysis/diagram_generator.py",
                   "methods": [
-                    "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                     "diagram_analysis.diagram_generator.DiagramGenerator",
+                    "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                     "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
                     "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
                     "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
@@ -32689,8 +32755,8 @@
                     "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
                     "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
                     "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-                    "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
                     "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
+                    "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
                     "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary"
                   ]
                 },
@@ -34312,11 +34378,11 @@
             "static_analyzer.method_cluster_paths.MethodClusterPaths.merge",
             "static_analyzer.method_cluster_paths.MethodClusterPaths.prune",
             "static_analyzer.method_cluster_paths.MethodClusterPaths.record",
-            "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
             "static_analyzer.method_cluster_paths.MethodClusterPaths.reroot_scope",
+            "static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
+            "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
             "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot_dict",
-            "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope",
-            "static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to"
+            "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope"
           ]
         },
         {
@@ -34671,11 +34737,11 @@
                 "static_analyzer.method_cluster_paths.MethodClusterPaths.merge",
                 "static_analyzer.method_cluster_paths.MethodClusterPaths.prune",
                 "static_analyzer.method_cluster_paths.MethodClusterPaths.record",
-                "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
                 "static_analyzer.method_cluster_paths.MethodClusterPaths.reroot_scope",
+                "static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
+                "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
                 "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot_dict",
-                "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope",
-                "static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to"
+                "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope"
               ]
             },
             {
@@ -34812,11 +34878,11 @@
                     "static_analyzer.method_cluster_paths.MethodClusterPaths.merge",
                     "static_analyzer.method_cluster_paths.MethodClusterPaths.prune",
                     "static_analyzer.method_cluster_paths.MethodClusterPaths.record",
-                    "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
                     "static_analyzer.method_cluster_paths.MethodClusterPaths.reroot_scope",
+                    "static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
+                    "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot",
                     "static_analyzer.method_cluster_paths.MethodClusterPaths.snapshot_dict",
-                    "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope",
-                    "static_analyzer.method_cluster_paths.MethodClusterPaths._scope_belongs_to"
+                    "static_analyzer.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope"
                   ]
                 },
                 {
@@ -44152,6 +44218,17 @@
       "all_edges": [
         {
           "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+          "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
+          "call_sites": [
+            {
+              "line": 463,
+              "column": 42
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
           "target": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_owner_index",
           "call_sites": [
             {
@@ -44167,17 +44244,6 @@
           "call_sites": [
             {
               "line": 474,
-              "column": 42
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
-          "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
-          "call_sites": [
-            {
-              "line": 463,
               "column": 42
             }
           ],
@@ -44506,10 +44572,10 @@
       ]
     },
     {
-      "relation": "projects and filters reconciled relations for",
+      "relation": "Requests level-specific projection for visualization",
       "src_name": "Architectural Surface & Visualization Generator",
       "dst_name": "Relational Logic & Edge Reconciliation",
-      "evidence": "codeboarding_workflows.rendering.project_relations_to_level transforms the high-level Relation models into visual-specific graph structures.",
+      "evidence": "During the rendering phase, the visualization generator triggers the projection logic to ensure the graph edges match the current zoom/detail level of the UI.",
       "key_edges": [],
       "src_id": "3.2.2",
       "dst_id": "3.2.3",
@@ -44566,15 +44632,29 @@
       ]
     },
     {
-      "relation": "updates and persists component insights with",
+      "relation": "Supplies reconciled dependency data for rendering",
       "src_name": "Relational Logic & Edge Reconciliation",
-      "dst_name": "Component Schema & Structural Definitions",
-      "evidence": "Runtime data flow where Relation objects are instantiated and aggregated into CFGAnalysisInsights containers for persistence.",
-      "key_edges": [],
+      "dst_name": "Architectural Surface & Visualization Generator",
+      "evidence": "The visualization generator consumes the processed and projected relations to build the final interactive graphs (Cytoscape) and documentation.",
+      "key_edges": [
+        {
+          "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
+          "target": "output_generators/html.py|output_generators.html.generate_html",
+          "call_sites": [],
+          "description": "The output of the projection logic is passed directly to the HTML generator for visualization."
+        }
+      ],
       "src_id": "3.2.3",
-      "dst_id": "3.2.1",
+      "dst_id": "3.2.2",
       "is_static": false,
-      "all_edges": []
+      "all_edges": [
+        {
+          "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
+          "target": "output_generators/html.py|output_generators.html.generate_html",
+          "call_sites": [],
+          "description": "The output of the projection logic is passed directly to the HTML generator for visualization."
+        }
+      ]
     },
     {
       "relation": "calls",

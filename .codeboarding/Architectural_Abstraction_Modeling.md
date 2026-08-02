@@ -271,10 +271,11 @@ Defines the structural schema for architectural components, including their publ
   - `agents.relation_edges._edge_touches_changed_method` ([L111-L112](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L111-L112)) - Function
   - `agents.relation_edges._restore_baseline_orientation` ([L115-L143](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L115-L143)) - Function
   - `agents.relation_edges._filter_edges_touched_by_change` ([L146-L159](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L146-L159)) - Function
-  - `agents.relation_edges._reconcile_unchanged_edges` ([L162-L186](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L162-L186)) - Function
-  - `agents.relation_edges._reconcile_unchanged_edges.split` ([L176-L179](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L176-L179)) - Function
-  - `agents.relation_edges.preserve_unchanged_relations` ([L189-L275](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L189-L275)) - Function
-  - `agents.relation_edges.preserve_unchanged_relations.touches_change` ([L222-L223](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L222-L223)) - Function
+  - `agents.relation_edges._commit_deleted_the_backing` ([L162-L170](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L162-L170)) - Function
+  - `agents.relation_edges._reconcile_unchanged_edges` ([L173-L197](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L173-L197)) - Function
+  - `agents.relation_edges._reconcile_unchanged_edges.split` ([L187-L190](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L187-L190)) - Function
+  - `agents.relation_edges.preserve_unchanged_relations` ([L200-L291](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L200-L291)) - Function
+  - `agents.relation_edges.preserve_unchanged_relations.touches_change` ([L236-L237](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/relation_edges.py#L236-L237)) - Function
 - [`codeboarding_workflows/rendering.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingcodeboarding_workflows/rendering.py)
   - `codeboarding_workflows.rendering._ancestor_in_level` ([L27-L32](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingcodeboarding_workflows/rendering.py#L27-L32)) - Function
   - `codeboarding_workflows.rendering.project_relations_to_level` ([L35-L62](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingcodeboarding_workflows/rendering.py#L35-L62)) - Function
