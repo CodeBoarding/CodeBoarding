@@ -12,10 +12,34 @@ POSTHOG_PROJECT_API_KEY = os.getenv("CODEBOARDING_POSTHOG_KEY", "phc_BQWpoXuPYQh
 POSTHOG_HOST = os.getenv("CODEBOARDING_POSTHOG_HOST", "https://us.i.posthog.com")
 
 
+#: Sources that are NOT a person using the product. They still emit — an eval
+#: run is real signal about LSP quality and analysis outcomes, and dropping it
+#: would lose that — but every product metric has to be able to exclude them.
+#:
+#: Declared here, once, and surfaced as the derived ``internal`` property, rather
+#: than left for each dashboard to maintain as a list of source values. A filter
+#: written as ``source not in ('tests', 'evals')`` is correct until the next
+#: internal source is added and then silently is not, which is exactly how
+#: automated traffic comes to be counted as usage.
+INTERNAL_SOURCES = frozenset({"tests", "evals"})
+
+
 def _telemetry_disabled() -> bool:
     if os.getenv("DO_NOT_TRACK", "").strip().lower() in ("1", "true", "yes"):
         return True
     return os.getenv("CODEBOARDING_TELEMETRY", "true").strip().lower() == "false"
+
+
+def _origin() -> dict[str, object]:
+    """Who invoked this run, and whether that is a person using the product.
+
+    ``source`` is the existing discriminator: "vscode" when invoked by the
+    extension, "oss" for the OSS CLI, "github_action" in CI, "tests" for the
+    engine's own suite, "evals" for the benchmark harness, "core" for any other
+    embedding. ``internal`` is derived from it so the two can never disagree.
+    """
+    source = os.getenv("CODEBOARDING_SOURCE", "core")
+    return {"source": source, "internal": source in INTERNAL_SOURCES}
 
 
 class ProductTelemetry:
@@ -61,13 +85,15 @@ class ProductTelemetry:
         if self._client is None:
             return
         try:
-            # "vscode" when invoked by the extension, "oss" for the OSS CLI
-            # (main.py), "core" for any other embedding.
-            source = os.getenv("CODEBOARDING_SOURCE", "core")
             self._client.capture(
                 distinct_id=self.user_id,
                 event=event,
-                properties={"source": source, **(properties or {})},
+                # Origin LAST, so it wins. Who invoked the run is a property of
+                # the process, not a field an event model gets to claim — and
+                # `internal` is the one property a product metric filters on, so
+                # a payload that could overwrite it is a payload that could hide
+                # automated traffic inside usage.
+                properties={**(properties or {}), **_origin()},
             )
         except Exception as e:
             logger.debug("Telemetry capture failed: %s", e)
@@ -77,11 +103,15 @@ class ProductTelemetry:
         if self._client is None:
             return
         try:
-            source = os.getenv("CODEBOARDING_SOURCE", "core")
             self._client.capture_exception(
                 exc,
                 distinct_id=self.user_id,
-                properties={"source": source, **(properties or {})},
+                # Origin LAST, so it wins. Who invoked the run is a property of
+                # the process, not a field an event model gets to claim — and
+                # `internal` is the one property a product metric filters on, so
+                # a payload that could overwrite it is a payload that could hide
+                # automated traffic inside usage.
+                properties={**(properties or {}), **_origin()},
             )
         except Exception as e:
             logger.debug("Telemetry capture_exception failed: %s", e)
