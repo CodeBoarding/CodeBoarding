@@ -6,7 +6,6 @@ import logging
 import time
 from pathlib import Path
 
-from monitoring.memory import MemoryProbe
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_definitions, build_edges_via_references
 from static_analyzer.engine.progress import ProgressLogger
@@ -37,7 +36,6 @@ class CallGraphBuilder:
 
         self._symbol_table = SymbolTable(adapter)
         self._source_inspector = SourceInspector()
-        self._memory = MemoryProbe(label=adapter.language)
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -53,13 +51,7 @@ class CallGraphBuilder:
                 the hierarchy now feeds INHERITS reference edges that complete the
                 graph for clustering (see ``EdgeKind``).
         """
-        self._memory.start()
-        try:
-            return self._build(source_files, skip_hierarchy)
-        finally:
-            # Also stops on the failure path — a language that dies mid-pipeline
-            # is exactly when the peak-memory line is worth having.
-            self._memory.stop()
+        return self._build(source_files, skip_hierarchy)
 
     def _build(self, source_files: list[Path], skip_hierarchy: bool) -> LanguageAnalysisResult:
         t_pipeline = time.monotonic()
@@ -67,22 +59,18 @@ class CallGraphBuilder:
         self._discover_symbols(source_files)
         t_symbols_done = time.monotonic()
         logger.info("Phase 1 total (discover symbols): %.1fs", t_symbols_done - t_pipeline)
-        self._memory.checkpoint("after-phase-1-symbols", symbols=len(self._symbol_table.symbols))
 
         self._symbol_table.build_indices()
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
-        self._memory.checkpoint("after-build-indices")
 
         ctx = EdgeBuildContext(
             self._lsp, self._symbol_table, self._source_inspector, recycler=self._build_recycler(source_files)
         )
         edge_set = self._build_edges(ctx, source_files)
-        self._memory.checkpoint("after-phase-2-edges", edges=len(edge_set), **self._source_inspector.cache_stats())
         edge_set = self._postprocess_edges(edge_set)
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
-        self._memory.checkpoint("after-postprocess-edges", edges=len(edge_set))
 
         next_phase = 3
         hierarchy: dict[str, dict] = {}
@@ -92,7 +80,6 @@ class CallGraphBuilder:
             hierarchy_builder = HierarchyBuilder(self._lsp, self._symbol_table, self._source_inspector, self._adapter)
             hierarchy = hierarchy_builder.build()
             logger.info("Phase %d (hierarchy): %.1fs", next_phase, time.monotonic() - t_edges_done)
-            self._memory.checkpoint("after-hierarchy", entries=len(hierarchy))
             next_phase += 1
 
         t_pre_pkgdeps = time.monotonic()
@@ -128,7 +115,6 @@ class CallGraphBuilder:
             len(hierarchy),
             time.monotonic() - t_pipeline,
         )
-        self._memory.checkpoint("pipeline-complete", **self._source_inspector.cache_stats())
 
         return LanguageAnalysisResult(
             references=references,
@@ -177,15 +163,11 @@ class CallGraphBuilder:
         # each didOpen notification with the matching documentSymbol request.
         if self._adapter.probe_before_open or interleave_open:
             probe_result = self._send_sync_probe(source_files, probe_timeout)
-            self._memory.checkpoint("after-sync-probe", files=total)
             if not interleave_open:
                 self._bulk_did_open(source_files)
-                self._memory.checkpoint("after-bulk-did-open", files=total)
         else:
             self._bulk_did_open(source_files)
-            self._memory.checkpoint("after-bulk-did-open", files=total)
             probe_result = self._send_sync_probe(source_files, probe_timeout)
-            self._memory.checkpoint("after-sync-probe", files=total)
 
         # Phase 1: extract symbols from each file
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")

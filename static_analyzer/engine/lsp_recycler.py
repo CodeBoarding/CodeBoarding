@@ -20,8 +20,8 @@ import os
 import time
 from pathlib import Path
 
-from monitoring.memory import format_bytes, physical_memory_bytes, process_tree_rss
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.process_memory import format_bytes, physical_memory_bytes, process_tree_rss
 
 logger = logging.getLogger(__name__)
 
@@ -147,5 +147,4 @@ class LSPRecycler:
         pid = self._lsp.pid
         if pid is None:
             return 0
-        own, descendants, _ = process_tree_rss(pid)
-        return own + descendants
+        return process_tree_rss(pid)

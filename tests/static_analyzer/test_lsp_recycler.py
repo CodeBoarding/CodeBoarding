@@ -13,9 +13,24 @@ from static_analyzer.engine.lsp_recycler import (
     LSPRecycler,
     default_memory_budget,
 )
+from static_analyzer.engine.process_memory import process_tree_rss
 
 GB = 1024**3
 FULL_BATCH = 50
+
+
+def test_process_tree_rss_includes_descendants_only():
+    table = {
+        10: (1, 100),
+        11: (10, 50),
+        12: (11, 25),
+        20: (1, 1_000),
+    }
+    with (
+        patch("static_analyzer.engine.process_memory._IS_LINUX", True),
+        patch("static_analyzer.engine.process_memory._linux_process_table", return_value=table),
+    ):
+        assert process_tree_rss(10) == 175
 
 
 @pytest.fixture
@@ -28,7 +43,7 @@ def make_recycler(monkeypatch):
 
         def fake_rss(_pid=None):
             last[0] = next(readings, last[0])
-            return last[0], 0, []
+            return last[0]
 
         monkeypatch.setattr("static_analyzer.engine.lsp_recycler.process_tree_rss", fake_rss)
         lsp = MagicMock()
