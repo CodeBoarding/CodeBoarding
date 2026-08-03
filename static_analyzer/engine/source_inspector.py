@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -80,6 +81,13 @@ _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
 _DECLARATION_BLOCK_NODE_TYPES = frozenset({"block", "compound_statement", "statement_block"})
 _EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
 
+# Ceiling on retained tree-sitter nodes. Trees are by far the largest thing this
+# class touches — retaining one per file cost 2.2GB on a 5k-file C# repo — and
+# the common path needs each exactly once, to build that file's usage index,
+# which is cached separately and outlives the tree. Measured: going from
+# unbounded to 500k costs no wall-clock, because nothing re-reads a tree.
+TREE_NODE_BUDGET = 500_000
+
 
 @dataclass(frozen=True)
 class ParsedSource:
@@ -96,12 +104,32 @@ class SourceUsageIndex:
 class SourceInspector:
     """Reads source files and finds call sites from tree-sitter ASTs."""
 
-    def __init__(self) -> None:
+    def __init__(self, tree_node_budget: int = TREE_NODE_BUDGET) -> None:
         self._file_content_cache: dict[str, list[str]] = {}
-        self._file_bytes_cache: dict[str, bytes] = {}
-        self._parsed_cache: dict[str, ParsedSource] = {}
+        # LRU, evicted against ``_tree_node_budget``. Ordered so the oldest tree
+        # goes first; everything derived from a tree is cached in its own map.
+        self._parsed_cache: OrderedDict[str, ParsedSource] = OrderedDict()
+        self._parsed_nodes = 0
+        self._tree_node_budget = tree_node_budget
+        self._trees_evicted = 0
         self._parser_by_suffix: dict[str, Parser] = {}
         self._usage_index_cache: dict[str, SourceUsageIndex] = {}
+
+    def cache_stats(self) -> dict[str, int]:
+        """Retained per-file cache sizes, for the memory checkpoint log."""
+        usage_entries = sum(
+            len(index.invocation_end_positions) + len(index.callable_ranges)
+            for index in self._usage_index_cache.values()
+        )
+        return {
+            "parsed_files": len(self._parsed_cache),
+            "tree_nodes": self._parsed_nodes,
+            "trees_evicted": self._trees_evicted,
+            "line_files": len(self._file_content_cache),
+            "lines": sum(len(lines) for lines in self._file_content_cache.values()),
+            "usage_files": len(self._usage_index_cache),
+            "usage_entries": usage_entries,
+        }
 
     def get_source_line(self, file_path: Path, line: int) -> str | None:
         """Get a source line from cache, loading the file if needed."""
@@ -186,19 +214,23 @@ class SourceInspector:
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
 
-    def _read_file_bytes(self, file_path: Path) -> bytes | None:
-        file_key = str(file_path)
-        if file_key not in self._file_bytes_cache:
-            try:
-                self._file_bytes_cache[file_key] = file_path.read_bytes()
-            except OSError:
-                return None
-        return self._file_bytes_cache[file_key]
+    @staticmethod
+    def _read_file_bytes(file_path: Path) -> bytes | None:
+        """Read a file's bytes. Deliberately uncached — both consumers (the
+        parse tree and the decoded line list) cache their own derived product,
+        so retaining the raw bytes as well just holds a third copy of the repo.
+        """
+        try:
+            return file_path.read_bytes()
+        except OSError:
+            return None
 
     def _parse(self, file_path: Path) -> ParsedSource | None:
         file_key = str(file_path)
-        if file_key in self._parsed_cache:
-            return self._parsed_cache[file_key]
+        cached = self._parsed_cache.get(file_key)
+        if cached is not None:
+            self._parsed_cache.move_to_end(file_key)
+            return cached
 
         content = self._read_file_bytes(file_path)
         if content is None:
@@ -209,7 +241,16 @@ class SourceInspector:
 
         parsed = ParsedSource(content=content, tree=parser.parse(content))
         self._parsed_cache[file_key] = parsed
+        self._parsed_nodes += parsed.tree.root_node.descendant_count
+        self._evict_trees()
         return parsed
+
+    def _evict_trees(self) -> None:
+        """Drop least-recently-parsed trees until the node budget is met."""
+        while self._parsed_nodes > self._tree_node_budget and len(self._parsed_cache) > 1:
+            _, evicted = self._parsed_cache.popitem(last=False)
+            self._parsed_nodes -= evicted.tree.root_node.descendant_count
+            self._trees_evicted += 1
 
     def _usage_index(self, file_path: Path) -> SourceUsageIndex | None:
         file_key = str(file_path)

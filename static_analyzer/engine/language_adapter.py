@@ -191,6 +191,18 @@ class LanguageAdapter(ABC):
         """If True, probe first, then pair each didOpen with its documentSymbol request."""
         return False
 
+    @property
+    def workspace_owns_documents(self) -> bool:
+        """If True, the server reads documents from the project, not from our didOpen.
+
+        Such a server answers position queries for files we never opened, which
+        makes a restarted process equivalent to the one it replaced — so the
+        references phase may recycle it to bound memory (see ``LSPRecycler``).
+        Servers that only know the documents we pushed must not be recycled:
+        they would come back empty.
+        """
+        return False
+
     def get_probe_timeout_minimum(self) -> int:
         """Return the minimum probe timeout in seconds for initial indexing.
 

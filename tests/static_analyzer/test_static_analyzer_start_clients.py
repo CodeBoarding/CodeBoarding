@@ -47,6 +47,52 @@ def analyzer(tmp_path: Path) -> StaticAnalyzer:
     return sa
 
 
+class TestStartClientsSkipsEmptyLanguages:
+    """A detected language with no files of its own must not cost an LSP process.
+
+    The scanner flags a language from a handful of stray files, and starting its
+    server (tsserver plus its node workers, ~350MB) to then analyze nothing is
+    pure overhead held for the whole run.
+    """
+
+    def test_language_without_source_files_starts_no_client(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        py_adapter = _make_adapter("Python")
+        py_adapter.discover_source_files.return_value = [tmp_path / "a.py"]  # type: ignore[attr-defined]
+        js_adapter = _make_adapter("JavaScript")
+        js_adapter.discover_source_files.return_value = []  # type: ignore[attr-defined]
+        analyzer._engine_configs = [EngineConfig(py_adapter, tmp_path), EngineConfig(js_adapter, tmp_path)]
+
+        with patch("static_analyzer.LSPClient", side_effect=[MagicMock(name="PythonClient")]) as client_cls:
+            analyzer.start_clients()
+
+        assert client_cls.call_count == 1
+        assert [c.adapter.language for c, _ in analyzer._engine_clients] == ["Python"]
+
+    def test_discovered_files_are_reused_not_rewalked(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        adapter = _make_adapter("Python")
+        discovered = [tmp_path / "a.py"]
+        adapter.discover_source_files.return_value = discovered  # type: ignore[attr-defined]
+        config = EngineConfig(adapter, tmp_path)
+        analyzer._engine_configs = [config]
+
+        with patch("static_analyzer.LSPClient", side_effect=[MagicMock()]):
+            analyzer.start_clients()
+
+        assert config.source_files == discovered
+
+    def test_no_language_with_files_is_not_a_failure(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        adapter = _make_adapter("JavaScript")
+        adapter.discover_source_files.return_value = []  # type: ignore[attr-defined]
+        analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
+
+        with patch("static_analyzer.LSPClient") as client_cls:
+            analyzer.start_clients()  # must not raise: nothing to analyze != failure
+
+        client_cls.assert_not_called()
+        assert analyzer._clients_started is True
+        assert analyzer._engine_clients == []
+
+
 class TestStartClientsGracefulDegradation:
     def test_partial_failure_skips_failing_language_and_continues(
         self, analyzer: StaticAnalyzer, tmp_path: Path

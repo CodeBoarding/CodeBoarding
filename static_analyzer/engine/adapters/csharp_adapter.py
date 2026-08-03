@@ -168,6 +168,11 @@ class CSharpAdapter(LanguageAdapter):
         """csharp-ls loads all files from the .sln — didOpen before workspace load kills it."""
         return True
 
+    @property
+    def workspace_owns_documents(self) -> bool:
+        """csharp-ls answers position queries from the loaded solution, opened or not."""
+        return True
+
     def get_lsp_default_timeout(self) -> int:
         """csharp-ls needs extra time to load Roslyn workspace for large solutions."""
         return 120

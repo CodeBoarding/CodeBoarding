@@ -197,5 +197,44 @@ class TestUnreadableIgnoreFiles(unittest.TestCase):
         self.assertEqual("codeboardingignore", manager.categorize_file(self.repo_path / "tests" / "x.py"))
 
 
+class TestCheckedIgnorePaths(unittest.TestCase):
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_path = Path(self.temp_dir)
+        (self.repo_path / "src").mkdir()
+        (self.repo_path / "src" / "app.py").write_text("x = 1\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_repeat_calls_reuse_checked_result(self):
+        manager = RepoIgnoreManager(self.repo_path)
+        target = self.repo_path / "src" / "app.py"
+
+        first = manager.should_ignore(target)
+        self.assertFalse(first)
+        self.assertEqual(first, manager.should_ignore(target))
+        self.assertIn(str(target), manager._checked_paths)
+
+    def test_reload_clears_checked_paths(self):
+        manager = RepoIgnoreManager(self.repo_path)
+        target = self.repo_path / "src" / "app.py"
+        self.assertFalse(manager.should_ignore(target))
+
+        (self.repo_path / ".gitignore").write_text("src/\n")
+        manager.reload()
+
+        self.assertTrue(manager.should_ignore(target))
+
+    def test_relative_and_absolute_forms_agree(self):
+        manager = RepoIgnoreManager(self.repo_path)
+        (self.repo_path / ".gitignore").write_text("src/\n")
+        manager.reload()
+
+        self.assertTrue(manager.should_ignore(Path("src/app.py")))
+        self.assertTrue(manager.should_ignore(self.repo_path / "src" / "app.py"))
+
+
 if __name__ == "__main__":
     unittest.main()

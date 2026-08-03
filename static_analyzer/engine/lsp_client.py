@@ -234,6 +234,36 @@ class LSPClient:
         self._opened_uris.clear()
         self._doc_versions.clear()
 
+    def restart(self) -> None:
+        """Replace the server process with a fresh one, same configuration.
+
+        Used to release memory a server accumulated and will not give back (see
+        ``LSPRecycler``). Diagnostics already collected are kept — they describe
+        the source, not the process. Open-document state is not: the new server
+        has nothing open, so only callers whose server reads documents from the
+        project itself may restart mid-analysis. Readiness is the caller's to
+        re-establish; this client has no view of what ready means per server.
+        """
+        self.shutdown()
+        self._shutdown_event.clear()
+        self._server_ready.clear()
+        self._server_health = None
+        self._server_health_message = None
+        self._work_done_progress_titles.clear()
+        self._work_done_progress_failures.clear()
+        self._init_failed = False
+        # Drop responses the dead server never got to be asked about, so a
+        # stale id cannot satisfy a pending request on the new connection.
+        self._msg_queue = queue.Queue()
+        self.start()
+
+    @property
+    def pid(self) -> int | None:
+        """OS pid of the running server process, or None when it is not running."""
+        if self._process is None or self._process.poll() is not None:
+            return None
+        return self._process.pid
+
     # ---- Document management ----
 
     def did_open(self, file_path: Path, language_id: str) -> None:
@@ -299,7 +329,7 @@ class LSPClient:
             return result
         return []
 
-    def references(self, file_path: Path, line: int, character: int) -> list[dict]:
+    def references(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
         """Find all references to the symbol at the given position."""
         result = self._send_request(
             "textDocument/references",
@@ -308,6 +338,7 @@ class LSPClient:
                 "position": {"line": line, "character": character},
                 "context": {"includeDeclaration": True},
             },
+            timeout=timeout,
         )
         if isinstance(result, list):
             return result

@@ -174,6 +174,7 @@ class RepoIgnoreManager:
 
     def reload(self):
         """Reload ignore patterns from .gitignore and .codeboardingignore."""
+        self._checked_paths: dict[str, bool] = {}
         gitignore_patterns = self._load_gitignore_patterns()
         codeboardingignore_patterns = self._load_codeboardingignore_patterns()
 
@@ -227,7 +228,21 @@ class RepoIgnoreManager:
         """Check if a given path should be ignored.
 
         Handles both absolute paths and paths relative to repo_root.
+
+        Records the result for each checked path until ``reload`` because callers
+        ask about the same files during discovery and again while converting
+        symbols and references.
         """
+        path_key = str(path)
+        should_ignore = self._checked_paths.get(path_key)
+        if should_ignore is not None:
+            return should_ignore
+
+        should_ignore = self._compute_should_ignore(path)
+        self._checked_paths[path_key] = should_ignore
+        return should_ignore
+
+    def _compute_should_ignore(self, path: Path) -> bool:
         try:
             # Convert to relative path if absolute
             if path.is_absolute():

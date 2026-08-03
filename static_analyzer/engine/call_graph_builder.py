@@ -13,6 +13,7 @@ from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE, EdgeStrategy
+from static_analyzer.engine.lsp_recycler import LSPRecycler
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
@@ -60,7 +61,9 @@ class CallGraphBuilder:
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
-        ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
+        ctx = EdgeBuildContext(
+            self._lsp, self._symbol_table, self._source_inspector, recycler=self._build_recycler(source_files)
+        )
         edge_set = self._build_edges(ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
         t_edges_done = time.monotonic()
@@ -118,28 +121,37 @@ class CallGraphBuilder:
             source_files=abs_files,
         )
 
+    def _build_recycler(self, source_files: list[Path]) -> LSPRecycler | None:
+        """A recycler for servers whose memory the references phase would otherwise grow without bound."""
+        if not self._adapter.workspace_owns_documents or not source_files:
+            return None
+        return LSPRecycler(self._lsp, source_files[0], self._probe_timeout(len(source_files)))
+
     def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> EdgeMap:
         """Dispatch to the edge-building strategy specified by the adapter."""
         if self._adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
             return build_edges_via_definitions(self._adapter, ctx, source_files)
         return build_edges_via_references(self._adapter, ctx, source_files)
 
-    def _discover_symbols(self, source_files: list[Path]) -> None:
-        """Phase 0+1: Synchronize with the server, open files, and extract symbols."""
-        total = len(source_files)
+    def _probe_timeout(self, total_files: int) -> int:
+        """Seconds to allow a synchronization probe to block on LSP indexing.
 
-        # Synchronization probe — blocks until the LSP server has indexed
-        # the project. Scales linearly with file count (no OS branching);
-        # the per-file ceiling is picked conservatively to cover gopls on
-        # AV-heavy Windows and APFS macOS without being loose enough to
-        # let a hung LSP waste CI minutes. Adapters can raise the floor via
-        # ``get_probe_timeout_minimum()`` (e.g. csharp-ls needs extra time
-        # to load a Roslyn workspace).
+        Scales linearly with file count (no OS branching); the per-file ceiling
+        is picked conservatively to cover gopls on AV-heavy Windows and APFS
+        macOS without being loose enough to let a hung LSP waste CI minutes.
+        Adapters can raise the floor via ``get_probe_timeout_minimum()`` (e.g.
+        csharp-ls needs extra time to load a Roslyn workspace).
+        """
         _PROBE_STARTUP_BASE = 60  # seconds — LSP startup independent of file count
         _PROBE_PER_FILE = 2.0  # seconds — ceiling across OSes (Linux observed ~0.35s/file)
         _PROBE_MAX_TIMEOUT = 1800  # seconds — hard cap
-        probe_timeout = int(min(_PROBE_STARTUP_BASE + total * _PROBE_PER_FILE, _PROBE_MAX_TIMEOUT))
-        probe_timeout = max(probe_timeout, self._adapter.get_probe_timeout_minimum())
+        probe_timeout = int(min(_PROBE_STARTUP_BASE + total_files * _PROBE_PER_FILE, _PROBE_MAX_TIMEOUT))
+        return max(probe_timeout, self._adapter.get_probe_timeout_minimum())
+
+    def _discover_symbols(self, source_files: list[Path]) -> None:
+        """Phase 0+1: Synchronize with the server, open files, and extract symbols."""
+        total = len(source_files)
+        probe_timeout = self._probe_timeout(total)
 
         interleave_open = self._adapter.interleave_did_open_with_symbols
 
@@ -164,7 +176,7 @@ class CallGraphBuilder:
             # Interleaved adapters deliberately query again after didOpen so
             # that each overlay notification has a response barrier.
             should_reuse_probe = idx == 1 and not interleave_open
-            if should_reuse_probe and probe_result is not None:
+            if should_reuse_probe:
                 symbols = probe_result
             elif interleave_open:
                 symbols = self._lsp.document_symbol(file_path, timeout=probe_timeout)
@@ -193,9 +205,9 @@ class CallGraphBuilder:
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
-    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> list[dict] | None:
+    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> list[dict]:
         """Send a documentSymbol probe to wait for the LSP server to finish indexing."""
-        probe_result: list[dict] | None = None
+        probe_result: list[dict] = []
         logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
         t_probe = time.monotonic()
         if source_files:

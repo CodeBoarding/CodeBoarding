@@ -317,3 +317,55 @@ class TestFindCallSites:
         si = SourceInspector()
 
         assert (1, 1) in _positions(si.find_call_sites(f))
+
+
+class TestTreeCacheEviction:
+    def _write_project(self, tmp_path: Path, count: int) -> list[Path]:
+        files = []
+        for i in range(count):
+            f = tmp_path / f"mod{i}.py"
+            f.write_text(f"def caller{i}():\n    target{i}()\n    return other{i}\n")
+            files.append(f)
+        return files
+
+    def test_evicts_trees_past_the_budget(self, tmp_path: Path):
+        files = self._write_project(tmp_path, 20)
+        si = SourceInspector(tree_node_budget=1)
+
+        for f in files:
+            si._usage_index(f)
+
+        stats = si.cache_stats()
+        assert stats["parsed_files"] == 1
+        assert stats["trees_evicted"] == 19
+        # The derived index is what callers actually need, and it survives.
+        assert stats["usage_files"] == 20
+
+    def test_eviction_does_not_change_answers(self, tmp_path: Path):
+        files = self._write_project(tmp_path, 20)
+        unbounded = SourceInspector(tree_node_budget=10**9)
+        evicting = SourceInspector(tree_node_budget=1)
+
+        for f in files:
+            assert evicting.find_call_sites(f) == unbounded.find_call_sites(f)
+            assert evicting.is_invocation(f, 1, 11) == unbounded.is_invocation(f, 1, 11)
+            assert evicting.get_file_lines(f) == unbounded.get_file_lines(f)
+
+        assert evicting.cache_stats()["trees_evicted"] > 0
+        assert unbounded.cache_stats()["trees_evicted"] == 0
+
+    def test_reparses_after_eviction(self, tmp_path: Path):
+        a, b = self._write_project(tmp_path, 2)
+        si = SourceInspector(tree_node_budget=1)
+
+        first = si.find_call_sites(a)
+        si.find_call_sites(b)  # evicts a
+        assert si.cache_stats()["trees_evicted"] == 1
+        assert si.find_call_sites(a) == first
+
+    def test_single_file_larger_than_budget_is_still_usable(self, tmp_path: Path):
+        f = tmp_path / "big.py"
+        f.write_text("\n".join(f"call{i}()" for i in range(200)))
+        si = SourceInspector(tree_node_budget=1)
+
+        assert len(si.find_call_sites(f)) == 200
