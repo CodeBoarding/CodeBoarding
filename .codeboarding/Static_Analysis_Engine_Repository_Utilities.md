@@ -5,7 +5,6 @@ graph LR
     Environment_Identity_Execution_Telemetry["Environment Identity & Execution Telemetry"]
     Analysis_Orchestrator_Partitioning_Engine -- "Orchestrates project discovery and applies structural filtering" --> Repository_State_Multi_Language_Discovery
     Analysis_Orchestrator_Partitioning_Engine -- "Reports pipeline lifecycle events and tech-stack insights" --> Environment_Identity_Execution_Telemetry
-    Repository_State_Multi_Language_Discovery -- "Provides state-based configuration and change detection" --> Analysis_Orchestrator_Partitioning_Engine
     click Analysis_Orchestrator_Partitioning_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Analysis_Orchestrator_Partitioning_Engine.md" "Details"
 ```
 
@@ -99,7 +98,7 @@ Responsible for environmental awareness, project-level metadata extraction, repo
 **Related Classes/Methods**:
 
 - `repo_utils.__init__.get_repo_state_hash`:188-218
-- `repo_utils.ignore.RepoIgnoreManager`:162-320
+- `repo_utils.ignore.RepoIgnoreManager`:162-335
 - `static_analyzer.java_config_scanner.JavaConfigScanner`:33-218
 - `static_analyzer.typescript_config_scanner.TypeScriptConfigScanner`:39-204
 
@@ -113,16 +112,17 @@ Responsible for environmental awareness, project-level metadata extraction, repo
   - `repo_utils.__init__.require_git_import.decorator.wrapper` ([L39-L57](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py#L39-L57)) - Function
   - `repo_utils.__init__.get_repo_state_hash` ([L188-L218](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py#L188-L218)) - Function
 - [`repo_utils/ignore.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py)
-  - `repo_utils.ignore.RepoIgnoreManager` ([L162-L320](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L162-L320)) - Class
+  - `repo_utils.ignore.RepoIgnoreManager` ([L162-L335](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L162-L335)) - Class
   - `repo_utils.ignore.RepoIgnoreManager.__init__` ([L171-L173](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L171-L173)) - Method
-  - `repo_utils.ignore.RepoIgnoreManager.reload` ([L175-L187](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L175-L187)) - Method
-  - `repo_utils.ignore.RepoIgnoreManager._load_gitignore_patterns` ([L189-L204](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L189-L204)) - Method
-  - `repo_utils.ignore.RepoIgnoreManager._load_codeboardingignore_patterns` ([L206-L224](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L206-L224)) - Method
-  - `repo_utils.ignore.RepoIgnoreManager.should_ignore` ([L226-L254](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L226-L254)) - Method
-  - `repo_utils.ignore.RepoIgnoreManager.filter_paths` ([L256-L258](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L256-L258)) - Method
-  - `repo_utils.ignore.RepoIgnoreManager.strip_ignored` ([L260-L290](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L260-L290)) - Method
+  - `repo_utils.ignore.RepoIgnoreManager.reload` ([L175-L188](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L175-L188)) - Method
+  - `repo_utils.ignore.RepoIgnoreManager._load_gitignore_patterns` ([L190-L205](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L190-L205)) - Method
+  - `repo_utils.ignore.RepoIgnoreManager._load_codeboardingignore_patterns` ([L207-L225](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L207-L225)) - Method
+  - `repo_utils.ignore.RepoIgnoreManager.should_ignore` ([L227-L243](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L227-L243)) - Method
+  - `repo_utils.ignore.RepoIgnoreManager._compute_should_ignore` ([L245-L269](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L245-L269)) - Method
+  - `repo_utils.ignore.RepoIgnoreManager.filter_paths` ([L271-L273](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L271-L273)) - Method
+  - `repo_utils.ignore.RepoIgnoreManager.strip_ignored` ([L275-L305](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L275-L305)) - Method
 - [`static_analyzer/engine/language_adapter.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/language_adapter.py)
-  - `static_analyzer.engine.language_adapter.LanguageAdapter._walk` ([L266-L279](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/language_adapter.py#L266-L279)) - Method
+  - `static_analyzer.engine.language_adapter.LanguageAdapter._walk` ([L278-L291](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/language_adapter.py#L278-L291)) - Method
 - [`static_analyzer/engine/models.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/models.py)
   - `static_analyzer.engine.models.AnalysisResults` ([L107-L137](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/models.py#L107-L137)) - Class
   - `static_analyzer.engine.models.AnalysisResults.__init__` ([L110-L111](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/models.py#L110-L111)) - Method

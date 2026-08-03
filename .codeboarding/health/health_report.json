@@ -1,16 +1,16 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-08-02T23:18:07.822856+00:00",
-  "overall_score": 0.9431034482758621,
+  "timestamp": "2026-08-03T22:53:05.983994+00:00",
+  "overall_score": 0.9435499147565827,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1531,
+      "total_entities_checked": 1550,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.999346832135859,
+      "score": 0.9993548387096775,
       "finding_groups": [
         {
           "severity": "warning",
@@ -32,10 +32,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1543,
-      "findings_count": 38,
-      "warning_count": 38,
-      "score": 0.9753726506804925,
+      "total_entities_checked": 1562,
+      "findings_count": 39,
+      "warning_count": 39,
+      "score": 0.9750320102432779,
       "finding_groups": [
         {
           "severity": "warning",
@@ -52,8 +52,8 @@
             {
               "entity_name": "static_analyzer.engine.edge_builder._resolve_definitions",
               "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 318,
-              "line_end": 406,
+              "line_start": 331,
+              "line_end": 419,
               "metric_value": 19
             },
             {
@@ -85,25 +85,25 @@
               "metric_value": 15
             },
             {
-              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
-              "file_path": "static_analyzer/engine/call_graph_builder.py",
-              "line_start": 127,
-              "line_end": 180,
-              "metric_value": 15
-            },
-            {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer.start_clients",
               "file_path": "static_analyzer/__init__.py",
               "line_start": 209,
-              "line_end": 309,
-              "metric_value": 14
+              "line_end": 324,
+              "metric_value": 15
             },
             {
               "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder.build",
               "file_path": "static_analyzer/engine/call_graph_builder.py",
-              "line_start": 44,
-              "line_end": 119,
-              "metric_value": 14
+              "line_start": 45,
+              "line_end": 122,
+              "metric_value": 15
+            },
+            {
+              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
+              "file_path": "static_analyzer/engine/call_graph_builder.py",
+              "line_start": 151,
+              "line_end": 192,
+              "metric_value": 15
             },
             {
               "entity_name": "static_analyzer.engine.result_converter.convert_to_codeboarding_format",
@@ -141,13 +141,6 @@
               "metric_value": 12
             },
             {
-              "entity_name": "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 578,
-              "line_end": 632,
-              "metric_value": 12
-            },
-            {
               "entity_name": "static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
               "file_path": "static_analyzer/dotnet_sdk.py",
               "line_start": 87,
@@ -159,6 +152,13 @@
               "file_path": "diagram_analysis/scope_plan.py",
               "line_start": 107,
               "line_end": 237,
+              "metric_value": 12
+            },
+            {
+              "entity_name": "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 593,
+              "line_end": 647,
               "metric_value": 12
             },
             {
@@ -197,20 +197,6 @@
               "metric_value": 11
             },
             {
-              "entity_name": "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 634,
-              "line_end": 682,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "static_analyzer.engine.edge_builder._process_references_for_position",
-              "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 180,
-              "line_end": 257,
-              "metric_value": 11
-            },
-            {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations",
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 1156,
@@ -222,6 +208,20 @@
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 1230,
               "line_end": 1279,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "static_analyzer.engine.edge_builder._process_references_for_position",
+              "file_path": "static_analyzer/engine/edge_builder.py",
+              "line_start": 193,
+              "line_end": 270,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 649,
+              "line_end": 697,
               "metric_value": 11
             },
             {
@@ -260,20 +260,6 @@
               "metric_value": 10
             },
             {
-              "entity_name": "static_analyzer.__init__._create_engine_configs",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 51,
-              "line_end": 148,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 772,
-              "line_end": 813,
-              "metric_value": 10
-            },
-            {
               "entity_name": "static_analyzer.graph.CallGraph.filter",
               "file_path": "static_analyzer/graph.py",
               "line_start": 276,
@@ -307,6 +293,27 @@
               "line_start": 382,
               "line_end": 481,
               "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.engine.edge_builder.build_edges_via_references",
+              "file_path": "static_analyzer/engine/edge_builder.py",
+              "line_start": 54,
+              "line_end": 156,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.__init__._create_engine_configs",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 51,
+              "line_end": 148,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 787,
+              "line_end": 828,
+              "metric_value": 10
             }
           ]
         }
@@ -316,10 +323,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1543,
+      "total_entities_checked": 1562,
       "findings_count": 11,
       "warning_count": 11,
-      "score": 0.9928710304601426,
+      "score": 0.9929577464788732,
       "finding_groups": [
         {
           "severity": "warning",
@@ -350,8 +357,8 @@
             {
               "entity_name": "repo_utils.ignore.RepoIgnoreManager.should_ignore",
               "file_path": "repo_utils/ignore.py",
-              "line_start": 226,
-              "line_end": 254,
+              "line_start": 227,
+              "line_end": 243,
               "metric_value": 17
             },
             {
@@ -411,10 +418,10 @@
       "check_name": "god_class",
       "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
       "check_type": "standard",
-      "total_entities_checked": 100,
+      "total_entities_checked": 101,
       "findings_count": 13,
       "warning_count": 13,
-      "score": 0.87,
+      "score": 0.8712871287128713,
       "finding_groups": [
         {
           "severity": "warning",
@@ -427,7 +434,7 @@
             },
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer",
-              "metric_value": 110.0
+              "metric_value": 111.0
             },
             {
               "entity_name": "agents.incremental_agent.IncrementalAgent",
@@ -442,6 +449,10 @@
               "metric_value": 59.0
             },
             {
+              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder",
+              "metric_value": 54.0
+            },
+            {
               "entity_name": "static_analyzer.reference_resolver.StaticReferenceResolver",
               "metric_value": 53.0
             },
@@ -450,20 +461,16 @@
               "metric_value": 50.0
             },
             {
-              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder",
-              "metric_value": 49.0
-            },
-            {
               "entity_name": "agents.abstraction_agent.AbstractionAgent",
               "metric_value": 48.0
             },
             {
               "entity_name": "static_analyzer.engine.lsp_client.LSPClient",
-              "metric_value": 39.0
+              "metric_value": 41.0
             },
             {
               "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter",
-              "metric_value": 38.0
+              "metric_value": 39.0
             },
             {
               "entity_name": "agents.agent.CodeBoardingAgent",
@@ -471,7 +478,7 @@
             },
             {
               "entity_name": "static_analyzer.engine.source_inspector.SourceInspector",
-              "metric_value": 33.0
+              "metric_value": 34.0
             }
           ]
         }
@@ -481,7 +488,7 @@
       "check_name": "inheritance_depth",
       "description": "Checks that class inheritance hierarchies do not exceed depth thresholds",
       "check_type": "standard",
-      "total_entities_checked": 269,
+      "total_entities_checked": 270,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -611,13 +618,6 @@
               "file_path": "repo_utils/__init__.py",
               "line_start": 13,
               "line_end": 13,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 206,
-              "line_end": 206,
               "metric_value": 0.0
             },
             {
@@ -1230,83 +1230,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"source_files\" is not accessed",
-              "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 57,
-              "line_end": 57,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 67,
-              "line_end": 67,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 90,
-              "line_end": 90,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 93,
-              "line_end": 93,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 140,
-              "line_end": 140,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"client\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 209,
-              "line_end": 209,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"client\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 226,
-              "line_end": 226,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 230,
-              "line_end": 230,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 234,
-              "line_end": 234,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
-              "file_path": "static_analyzer/engine/lsp_client.py",
-              "line_start": 108,
-              "line_end": 108,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
-              "line_start": 148,
-              "line_end": 148,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
               "file_path": "static_analyzer/engine/adapters/go_adapter.py",
               "line_start": 124,
@@ -1493,6 +1416,90 @@
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 1410,
               "line_end": 1410,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 206,
+              "line_end": 206,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"source_files\" is not accessed",
+              "file_path": "static_analyzer/engine/edge_builder.py",
+              "line_start": 57,
+              "line_end": 57,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 67,
+              "line_end": 67,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 90,
+              "line_end": 90,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 93,
+              "line_end": 93,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 140,
+              "line_end": 140,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"client\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 221,
+              "line_end": 221,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"client\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 238,
+              "line_end": 238,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 242,
+              "line_end": 242,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 246,
+              "line_end": 246,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/engine/lsp_client.py",
+              "line_start": 108,
+              "line_end": 108,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
+              "line_start": 148,
+              "line_end": 148,
               "metric_value": 0.0
             }
           ]
@@ -2209,6 +2216,12 @@
       "composite_risk_score": 70.0
     },
     {
+      "file_path": "static_analyzer/engine/edge_builder.py",
+      "total_findings": 4,
+      "warning_findings": 3,
+      "composite_risk_score": 55.0
+    },
+    {
       "file_path": "static_analyzer/graph.py",
       "total_findings": 4,
       "warning_findings": 3,
@@ -2231,12 +2244,6 @@
       "total_findings": 3,
       "warning_findings": 3,
       "composite_risk_score": 45.0
-    },
-    {
-      "file_path": "static_analyzer/engine/edge_builder.py",
-      "total_findings": 3,
-      "warning_findings": 2,
-      "composite_risk_score": 40.0
     },
     {
       "file_path": "utils.py",
