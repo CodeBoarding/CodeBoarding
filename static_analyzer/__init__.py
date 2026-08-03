@@ -232,6 +232,17 @@ class StaticAnalyzer:
 
         for engine_config in self._engine_configs:
             adapter, project_path = engine_config.adapter, engine_config.project_path
+            # Resolve file membership before paying for the server. A language
+            # the scanner detected from a handful of stray files still costs a
+            # full LSP process (tsserver + its node workers run ~350MB) that
+            # then analyzes nothing. Also reused by ``_run_full_analysis``, so
+            # the directory walk happens once per engine rather than twice.
+            if not engine_config.source_files:
+                engine_config.source_files = adapter.discover_source_files(project_path, self.ignore_manager)
+            if not engine_config.source_files:
+                logger.info(f"No {adapter.language} source files under {project_path}; skipping its LSP server.")
+                continue
+
             attempted.append(adapter.language)
             engine_client: LSPClient | None = None
             try:
@@ -289,12 +300,16 @@ class StaticAnalyzer:
                             f"Error shutting down partially-started {adapter.language} client during cleanup"
                         )
 
+        if not attempted:
+            logger.info(f"No source files for any detected language in {self.repository_path}; no LSP clients started.")
+            self._engine_clients = []
+            self._clients_started = True
+            return
+
         if not started:
             self._clients_started = False
             details = f"; failures: {'; '.join(failed_details)}" if failed_details else ""
-            raise RuntimeError(
-                f"Failed to start any engine LSP client (attempted: {', '.join(attempted) or 'none'}){details}"
-            )
+            raise RuntimeError(f"Failed to start any engine LSP client (attempted: {', '.join(attempted)}){details}")
 
         if failed_languages:
             details = f" Details: {'; '.join(failed_details)}." if failed_details else ""

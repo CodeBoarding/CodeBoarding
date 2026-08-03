@@ -197,5 +197,47 @@ class TestUnreadableIgnoreFiles(unittest.TestCase):
         self.assertEqual("codeboardingignore", manager.categorize_file(self.repo_path / "tests" / "x.py"))
 
 
+class TestShouldIgnoreMemoization(unittest.TestCase):
+    """should_ignore is asked about the same paths tens of thousands of times per
+    run, so it caches. The cache must not outlive a pattern change.
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_path = Path(self.temp_dir)
+        (self.repo_path / "src").mkdir()
+        (self.repo_path / "src" / "app.py").write_text("x = 1\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_repeat_calls_agree_and_hit_the_cache(self):
+        manager = RepoIgnoreManager(self.repo_path)
+        target = self.repo_path / "src" / "app.py"
+
+        first = manager.should_ignore(target)
+        self.assertFalse(first)
+        self.assertEqual(first, manager.should_ignore(target))
+        self.assertIn(str(target), manager._decisions)
+
+    def test_reload_invalidates_cached_decisions(self):
+        manager = RepoIgnoreManager(self.repo_path)
+        target = self.repo_path / "src" / "app.py"
+        self.assertFalse(manager.should_ignore(target))
+
+        (self.repo_path / ".gitignore").write_text("src/\n")
+        manager.reload()
+
+        self.assertTrue(manager.should_ignore(target))
+
+    def test_relative_and_absolute_forms_agree(self):
+        manager = RepoIgnoreManager(self.repo_path)
+        (self.repo_path / ".gitignore").write_text("src/\n")
+        manager.reload()
+
+        self.assertTrue(manager.should_ignore(Path("src/app.py")))
+        self.assertTrue(manager.should_ignore(self.repo_path / "src" / "app.py"))
+
+
 if __name__ == "__main__":
     unittest.main()

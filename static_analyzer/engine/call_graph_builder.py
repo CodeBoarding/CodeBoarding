@@ -6,6 +6,7 @@ import logging
 import time
 from pathlib import Path
 
+from monitoring.memory import MemoryProbe
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_definitions, build_edges_via_references
 from static_analyzer.engine.progress import ProgressLogger
@@ -13,6 +14,7 @@ from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE, EdgeStrategy
+from static_analyzer.engine.lsp_recycler import LSPRecycler
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
@@ -35,6 +37,7 @@ class CallGraphBuilder:
 
         self._symbol_table = SymbolTable(adapter)
         self._source_inspector = SourceInspector()
+        self._memory = MemoryProbe(label=adapter.language)
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -50,21 +53,36 @@ class CallGraphBuilder:
                 the hierarchy now feeds INHERITS reference edges that complete the
                 graph for clustering (see ``EdgeKind``).
         """
+        self._memory.start()
+        try:
+            return self._build(source_files, skip_hierarchy)
+        finally:
+            # Also stops on the failure path — a language that dies mid-pipeline
+            # is exactly when the peak-memory line is worth having.
+            self._memory.stop()
+
+    def _build(self, source_files: list[Path], skip_hierarchy: bool) -> LanguageAnalysisResult:
         t_pipeline = time.monotonic()
 
         self._discover_symbols(source_files)
         t_symbols_done = time.monotonic()
         logger.info("Phase 1 total (discover symbols): %.1fs", t_symbols_done - t_pipeline)
+        self._memory.checkpoint("after-phase-1-symbols", symbols=len(self._symbol_table.symbols))
 
         self._symbol_table.build_indices()
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
+        self._memory.checkpoint("after-build-indices")
 
-        ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
+        ctx = EdgeBuildContext(
+            self._lsp, self._symbol_table, self._source_inspector, recycler=self._build_recycler(source_files)
+        )
         edge_set = self._build_edges(ctx, source_files)
+        self._memory.checkpoint("after-phase-2-edges", edges=len(edge_set), **self._source_inspector.cache_stats())
         edge_set = self._postprocess_edges(edge_set)
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
+        self._memory.checkpoint("after-postprocess-edges", edges=len(edge_set))
 
         next_phase = 3
         hierarchy: dict[str, dict] = {}
@@ -74,6 +92,7 @@ class CallGraphBuilder:
             hierarchy_builder = HierarchyBuilder(self._lsp, self._symbol_table, self._source_inspector, self._adapter)
             hierarchy = hierarchy_builder.build()
             logger.info("Phase %d (hierarchy): %.1fs", next_phase, time.monotonic() - t_edges_done)
+            self._memory.checkpoint("after-hierarchy", entries=len(hierarchy))
             next_phase += 1
 
         t_pre_pkgdeps = time.monotonic()
@@ -109,6 +128,7 @@ class CallGraphBuilder:
             len(hierarchy),
             time.monotonic() - t_pipeline,
         )
+        self._memory.checkpoint("pipeline-complete", **self._source_inspector.cache_stats())
 
         return LanguageAnalysisResult(
             references=references,
@@ -118,28 +138,37 @@ class CallGraphBuilder:
             source_files=abs_files,
         )
 
+    def _build_recycler(self, source_files: list[Path]) -> LSPRecycler | None:
+        """A recycler for servers whose memory the references phase would otherwise grow without bound."""
+        if not self._adapter.workspace_owns_documents or not source_files:
+            return None
+        return LSPRecycler(self._lsp, source_files[0], self._probe_timeout(len(source_files)))
+
     def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> EdgeMap:
         """Dispatch to the edge-building strategy specified by the adapter."""
         if self._adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
             return build_edges_via_definitions(self._adapter, ctx, source_files)
         return build_edges_via_references(self._adapter, ctx, source_files)
 
-    def _discover_symbols(self, source_files: list[Path]) -> None:
-        """Phase 0+1: Synchronize with the server, open files, and extract symbols."""
-        total = len(source_files)
+    def _probe_timeout(self, total_files: int) -> int:
+        """Seconds to allow a synchronization probe to block on LSP indexing.
 
-        # Synchronization probe — blocks until the LSP server has indexed
-        # the project. Scales linearly with file count (no OS branching);
-        # the per-file ceiling is picked conservatively to cover gopls on
-        # AV-heavy Windows and APFS macOS without being loose enough to
-        # let a hung LSP waste CI minutes. Adapters can raise the floor via
-        # ``get_probe_timeout_minimum()`` (e.g. csharp-ls needs extra time
-        # to load a Roslyn workspace).
+        Scales linearly with file count (no OS branching); the per-file ceiling
+        is picked conservatively to cover gopls on AV-heavy Windows and APFS
+        macOS without being loose enough to let a hung LSP waste CI minutes.
+        Adapters can raise the floor via ``get_probe_timeout_minimum()`` (e.g.
+        csharp-ls needs extra time to load a Roslyn workspace).
+        """
         _PROBE_STARTUP_BASE = 60  # seconds — LSP startup independent of file count
         _PROBE_PER_FILE = 2.0  # seconds — ceiling across OSes (Linux observed ~0.35s/file)
         _PROBE_MAX_TIMEOUT = 1800  # seconds — hard cap
-        probe_timeout = int(min(_PROBE_STARTUP_BASE + total * _PROBE_PER_FILE, _PROBE_MAX_TIMEOUT))
-        probe_timeout = max(probe_timeout, self._adapter.get_probe_timeout_minimum())
+        probe_timeout = int(min(_PROBE_STARTUP_BASE + total_files * _PROBE_PER_FILE, _PROBE_MAX_TIMEOUT))
+        return max(probe_timeout, self._adapter.get_probe_timeout_minimum())
+
+    def _discover_symbols(self, source_files: list[Path]) -> None:
+        """Phase 0+1: Synchronize with the server, open files, and extract symbols."""
+        total = len(source_files)
+        probe_timeout = self._probe_timeout(total)
 
         interleave_open = self._adapter.interleave_did_open_with_symbols
 
@@ -148,11 +177,15 @@ class CallGraphBuilder:
         # each didOpen notification with the matching documentSymbol request.
         if self._adapter.probe_before_open or interleave_open:
             probe_result = self._send_sync_probe(source_files, probe_timeout)
+            self._memory.checkpoint("after-sync-probe", files=total)
             if not interleave_open:
                 self._bulk_did_open(source_files)
+                self._memory.checkpoint("after-bulk-did-open", files=total)
         else:
             self._bulk_did_open(source_files)
+            self._memory.checkpoint("after-bulk-did-open", files=total)
             probe_result = self._send_sync_probe(source_files, probe_timeout)
+            self._memory.checkpoint("after-sync-probe", files=total)
 
         # Phase 1: extract symbols from each file
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
