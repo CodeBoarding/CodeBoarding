@@ -51,9 +51,6 @@ class CallGraphBuilder:
                 the hierarchy now feeds INHERITS reference edges that complete the
                 graph for clustering (see ``EdgeKind``).
         """
-        return self._build(source_files, skip_hierarchy)
-
-    def _build(self, source_files: list[Path], skip_hierarchy: bool) -> LanguageAnalysisResult:
         t_pipeline = time.monotonic()
 
         self._discover_symbols(source_files)
@@ -179,7 +176,7 @@ class CallGraphBuilder:
             # Interleaved adapters deliberately query again after didOpen so
             # that each overlay notification has a response barrier.
             should_reuse_probe = idx == 1 and not interleave_open
-            if should_reuse_probe and probe_result is not None:
+            if should_reuse_probe:
                 symbols = probe_result
             elif interleave_open:
                 symbols = self._lsp.document_symbol(file_path, timeout=probe_timeout)
@@ -208,9 +205,9 @@ class CallGraphBuilder:
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
-    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> list[dict] | None:
+    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> list[dict]:
         """Send a documentSymbol probe to wait for the LSP server to finish indexing."""
-        probe_result: list[dict] | None = None
+        probe_result: list[dict] = []
         logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
         t_probe = time.monotonic()
         if source_files:

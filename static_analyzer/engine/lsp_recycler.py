@@ -21,25 +21,17 @@ import time
 from pathlib import Path
 
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_constants import (
+    MAX_MEMORY_BUDGET,
+    MEMORY_BUDGET_ENV_VAR,
+    MEMORY_BUDGET_FRACTION,
+    MIN_MEMORY_BUDGET,
+    PRESSURE_FRACTION,
+    PRESSURED_BATCH_DIVISOR,
+)
 from static_analyzer.engine.process_memory import format_bytes, physical_memory_bytes, process_tree_rss
 
 logger = logging.getLogger(__name__)
-
-# Share of RAM the language server may hold before we recycle it. Sized so the
-# 16GB CI runner recycles around 6GB, leaving room for the Python side, the
-# other engines' servers, and the OS.
-MEMORY_BUDGET_FRACTION = 0.4
-MIN_MEMORY_BUDGET = 2 * 1024**3
-MAX_MEMORY_BUDGET = 12 * 1024**3
-# Above this share of the budget, batches shrink. Measured on bitwarden/server:
-# in the worst region a 50-query batch allocated several GB in one round-trip,
-# which no between-batch check can catch. Fewer concurrent queries there keeps
-# the un-interruptible step small enough that the budget actually holds.
-PRESSURE_FRACTION = 0.5
-PRESSURED_BATCH_DIVISOR = 10
-# Escape hatch for hosts where the derived budget is wrong: a machine shared
-# with other heavy work wants it lower, a dedicated big box wants it higher.
-MEMORY_BUDGET_ENV_VAR = "CODEBOARDING_LSP_MEMORY_BUDGET_MB"
 
 
 def default_memory_budget() -> int:

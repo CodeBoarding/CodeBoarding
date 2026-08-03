@@ -5,11 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer.engine.lsp_recycler import (
+from static_analyzer.engine.lsp_constants import (
     MAX_MEMORY_BUDGET,
     MEMORY_BUDGET_ENV_VAR,
     MIN_MEMORY_BUDGET,
     PRESSURED_BATCH_DIVISOR,
+)
+from static_analyzer.engine.lsp_recycler import (
     LSPRecycler,
     default_memory_budget,
 )
