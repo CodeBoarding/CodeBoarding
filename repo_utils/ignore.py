@@ -174,7 +174,7 @@ class RepoIgnoreManager:
 
     def reload(self):
         """Reload ignore patterns from .gitignore and .codeboardingignore."""
-        self._decisions: dict[str, bool] = {}
+        self._checked_paths: dict[str, bool] = {}
         gitignore_patterns = self._load_gitignore_patterns()
         codeboardingignore_patterns = self._load_codeboardingignore_patterns()
 
@@ -229,20 +229,18 @@ class RepoIgnoreManager:
 
         Handles both absolute paths and paths relative to repo_root.
 
-        Memoized per path (cleared by ``reload``): the answer depends only on
-        the path and the loaded specs, and callers ask about the same few
-        thousand files tens of thousands of times — once per directory entry
-        during discovery, then again per symbol and per reference during
-        conversion. Each uncached answer costs a ``resolve()`` syscall plus a
-        full pathspec match (~180us measured), so the repeats dominate.
+        Records the result for each checked path until ``reload`` because callers
+        ask about the same files during discovery and again while converting
+        symbols and references.
         """
-        cache_key = str(path)
-        cached = self._decisions.get(cache_key)
-        if cached is not None:
-            return cached
-        decision = self._compute_should_ignore(path)
-        self._decisions[cache_key] = decision
-        return decision
+        path_key = str(path)
+        should_ignore = self._checked_paths.get(path_key)
+        if should_ignore is not None:
+            return should_ignore
+
+        should_ignore = self._compute_should_ignore(path)
+        self._checked_paths[path_key] = should_ignore
+        return should_ignore
 
     def _compute_should_ignore(self, path: Path) -> bool:
         try:

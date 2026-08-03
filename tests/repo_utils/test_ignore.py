@@ -197,10 +197,7 @@ class TestUnreadableIgnoreFiles(unittest.TestCase):
         self.assertEqual("codeboardingignore", manager.categorize_file(self.repo_path / "tests" / "x.py"))
 
 
-class TestShouldIgnoreMemoization(unittest.TestCase):
-    """should_ignore is asked about the same paths tens of thousands of times per
-    run, so it caches. The cache must not outlive a pattern change.
-    """
+class TestCheckedIgnorePaths(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -211,16 +208,16 @@ class TestShouldIgnoreMemoization(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_repeat_calls_agree_and_hit_the_cache(self):
+    def test_repeat_calls_reuse_checked_result(self):
         manager = RepoIgnoreManager(self.repo_path)
         target = self.repo_path / "src" / "app.py"
 
         first = manager.should_ignore(target)
         self.assertFalse(first)
         self.assertEqual(first, manager.should_ignore(target))
-        self.assertIn(str(target), manager._decisions)
+        self.assertIn(str(target), manager._checked_paths)
 
-    def test_reload_invalidates_cached_decisions(self):
+    def test_reload_clears_checked_paths(self):
         manager = RepoIgnoreManager(self.repo_path)
         target = self.repo_path / "src" / "app.py"
         self.assertFalse(manager.should_ignore(target))
