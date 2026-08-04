@@ -1068,3 +1068,70 @@ class TestShutdown:
 
         assert len(client._opened_uris) == 0
         assert len(client._doc_versions) == 0
+
+
+class TestBatchStragglerGrace:
+    """A batch must not hold its full timeout once the server goes quiet.
+
+    On a large C# solution a stalled batch burned the whole 120s deadline
+    eleven times in one CI run while most of its answers had arrived seconds
+    earlier. Answers already received are kept; only the stragglers are lost.
+    """
+
+    @staticmethod
+    def _client() -> LSPClient:
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        return client
+
+    def test_gives_up_on_stragglers_instead_of_waiting_out_the_deadline(self):
+        import time
+
+        client = self._client()
+        for req_id in (1, 2):
+            client._msg_queue.put({"jsonrpc": "2.0", "id": req_id, "result": [{"uri": "file:///a"}]})
+
+        with patch("static_analyzer.engine.lsp_client.STRAGGLER_GRACE_SEC", 0.2):
+            started = time.monotonic()
+            results, timed_out, _ = client._collect_batch_responses([1, 2, 3], timeout=30)
+            elapsed = time.monotonic() - started
+
+        assert elapsed < 5, "should not have waited out the 30s batch deadline"
+        assert timed_out == {3}
+        # The answers that did arrive are still returned.
+        assert results[1] == [{"uri": "file:///a"}]
+        assert results[2] == [{"uri": "file:///a"}]
+        assert results[3] == []
+
+    def test_a_silent_server_still_gets_the_full_deadline(self):
+        import time
+
+        client = self._client()
+
+        with patch("static_analyzer.engine.lsp_client.STRAGGLER_GRACE_SEC", 0.2):
+            started = time.monotonic()
+            _, timed_out, _ = client._collect_batch_responses([1], timeout=1)
+            elapsed = time.monotonic() - started
+
+        # Nothing came back at all, so the grace period never armed: a server
+        # slow to start on a batch must not lose every position in it.
+        assert timed_out == {1}
+        assert elapsed >= 1
+
+    def test_each_response_extends_the_grace(self):
+        import threading
+        import time
+
+        client = self._client()
+
+        def drip():
+            for req_id in (1, 2, 3):
+                time.sleep(0.15)
+                client._msg_queue.put({"jsonrpc": "2.0", "id": req_id, "result": []})
+
+        threading.Thread(target=drip, daemon=True).start()
+        with patch("static_analyzer.engine.lsp_client.STRAGGLER_GRACE_SEC", 0.4):
+            _, timed_out, _ = client._collect_batch_responses([1, 2, 3], timeout=30)
+
+        assert timed_out == set(), "steady progress must not trip the straggler cutoff"

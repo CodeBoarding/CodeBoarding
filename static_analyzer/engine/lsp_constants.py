@@ -31,11 +31,13 @@ MEMORY_BUDGET_FRACTION = 0.4
 MIN_MEMORY_BUDGET = 2 * 1024**3
 MAX_MEMORY_BUDGET = 12 * 1024**3
 
-# Reduce reference-query concurrency before reaching the recycle threshold.
-PRESSURE_FRACTION = 0.5
-PRESSURED_BATCH_DIVISOR = 10
-
 MEMORY_BUDGET_ENV_VAR = "CODEBOARDING_LSP_MEMORY_BUDGET_MB"
+
+# How long a batch keeps waiting after the server stops answering. The batch
+# timeout still caps the total wait; this caps the tail. Sized well above a
+# healthy batch's whole round-trip (~3s for 50 queries on a 4k-file C#
+# solution) so only a genuinely stuck query trips it.
+STRAGGLER_GRACE_SEC = 15.0
 
 
 class EdgeStrategy(StrEnum):

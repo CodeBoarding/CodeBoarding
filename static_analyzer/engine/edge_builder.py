@@ -85,13 +85,15 @@ def build_edges_via_references(
     skipped_positions = 0
 
     pbar = ProgressLogger("Phase 2 (edges)", total_unique, unit="pos")
-    batch_start = 0
-    while batch_start < total_unique:
-        # The recycler samples the server here — it decides both whether to
-        # restart it and how many queries this batch may carry.
-        size = batch_size if ctx.recycler is None else ctx.recycler.before_batch(batch_size)
-        batch_positions = unique_positions[batch_start : batch_start + size]
-        batch_start += len(batch_positions)
+    for batch_start in range(0, total_unique, batch_size):
+        batch_positions = unique_positions[batch_start : batch_start + batch_size]
+        if ctx.recycler is not None:
+            # Sampled once per batch: the server is restarted here if it is over
+            # budget, so the restart never lands mid-round-trip. The batch's own
+            # first position doubles as the warm-up query for a restart.
+            ctx.recycler.note_progress(batch_start, total_unique)
+            head = pos_to_syms[batch_positions[0]][0]
+            ctx.recycler.before_batch((head.file_path, head.start_line, head.start_char))
 
         # Filter out positions from files that already produced LSP errors
         filtered_positions: list[tuple[str, int, int]] = []
@@ -149,9 +151,8 @@ def build_edges_via_references(
         # Worth one line at the end: a recycled run answered some queries from a
         # different server process than the one it started with.
         logger.info(
-            "Phase 2 (edges): the language server was recycled %d time(s); %d batches ran shrunk under memory pressure",
+            "Phase 2 (edges): the language server was recycled %d time(s)",
             ctx.recycler.recycle_count,
-            ctx.recycler.shrunk_batches,
         )
     return edge_set
 

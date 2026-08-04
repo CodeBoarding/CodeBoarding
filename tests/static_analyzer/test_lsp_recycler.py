@@ -9,7 +9,6 @@ from static_analyzer.engine.lsp_constants import (
     MAX_MEMORY_BUDGET,
     MEMORY_BUDGET_ENV_VAR,
     MIN_MEMORY_BUDGET,
-    PRESSURED_BATCH_DIVISOR,
 )
 from static_analyzer.engine.lsp_recycler import (
     LSPRecycler,
@@ -18,7 +17,6 @@ from static_analyzer.engine.lsp_recycler import (
 from static_analyzer.engine.process_memory import process_tree_rss
 
 GB = 1024**3
-FULL_BATCH = 50
 
 
 def test_process_tree_rss_includes_descendants_only():
@@ -84,15 +82,15 @@ class TestRecycling:
     def test_stays_out_of_the_way_under_budget(self, make_recycler):
         recycler, lsp = make_recycler([1 * GB])
 
-        assert [recycler.before_batch(FULL_BATCH) for _ in range(20)] == [FULL_BATCH] * 20
+        for _ in range(20):
+            recycler.before_batch()
 
         lsp.restart.assert_not_called()
-        assert recycler.shrunk_batches == 0
 
     def test_restarts_and_reprobes_when_over_budget(self, make_recycler):
         recycler, lsp = make_recycler([9 * GB, 1 * GB])
 
-        assert recycler.before_batch(FULL_BATCH) == FULL_BATCH
+        recycler.before_batch()
         lsp.restart.assert_called_once()
         # The reprobe is what makes the restart synchronous: a workspace-backed
         # server cannot answer until it has re-read the project.
@@ -103,23 +101,27 @@ class TestRecycling:
         recycler, _ = make_recycler([9 * GB, 1 * GB, 1 * GB, 9 * GB, 1 * GB])
 
         for _ in range(5):
-            recycler.before_batch(FULL_BATCH)
+            recycler.before_batch()
 
         assert recycler.recycle_count == 2
 
-    def test_shrinks_the_batch_under_pressure(self, make_recycler):
-        # 3GB of a 4GB budget: past the pressure line, still under the ceiling.
+    def test_under_budget_batches_are_left_at_full_size(self, make_recycler):
+        # 3GB of a 4GB budget: close to the ceiling but not over it. Throttling
+        # here cost 38% of Phase 2's wall clock and bought almost no headroom.
         recycler, lsp = make_recycler([3 * GB])
 
-        assert recycler.before_batch(FULL_BATCH) == FULL_BATCH // PRESSURED_BATCH_DIVISOR
+        recycler.before_batch()
 
         lsp.restart.assert_not_called()
-        assert recycler.shrunk_batches == 1
 
-    def test_shrunk_batch_never_reaches_zero(self, make_recycler):
-        recycler, _ = make_recycler([3 * GB])
+    def test_restart_line_carries_phase_position(self, make_recycler, caplog):
+        recycler, _ = make_recycler([9 * GB, 1 * GB])
+        recycler.note_progress(4200, 15229)
 
-        assert recycler.before_batch(1) == 1
+        with caplog.at_level("WARNING"):
+            recycler.before_batch()
+
+        assert "4200/15229" in caplog.text
 
     def test_dead_server_reads_as_zero_and_is_not_restarted(self):
         lsp = MagicMock()
@@ -127,7 +129,7 @@ class TestRecycling:
         recycler = LSPRecycler(lsp, Path("/repo/a.cs"), probe_timeout=600, budget_bytes=1)
 
         for _ in range(5):
-            recycler.before_batch(FULL_BATCH)
+            recycler.before_batch()
 
         lsp.restart.assert_not_called()
 
@@ -137,7 +139,7 @@ class TestRecycling:
         recycler, lsp = make_recycler([9 * GB, 9 * GB])
 
         for _ in range(5):
-            assert recycler.before_batch(FULL_BATCH) == FULL_BATCH
+            recycler.before_batch()
 
         assert lsp.restart.call_count == 1
         assert recycler.recycle_count == 1
@@ -147,14 +149,23 @@ class TestRecycling:
         # first real batch after a restart burns its deadline building one.
         recycler, lsp = make_recycler([9 * GB, 1 * GB])
 
-        recycler.before_batch(FULL_BATCH)
+        recycler.before_batch()
 
         lsp.references.assert_called_once_with(Path("/repo/a.cs"), 0, 0, timeout=600)
+
+    def test_warms_on_the_position_the_caller_is_about_to_query(self, make_recycler):
+        # Warming on a synthetic (0, 0) usually lands on no symbol, so the server
+        # does no work and the next real batch pays the cold-start stall instead.
+        recycler, lsp = make_recycler([9 * GB, 1 * GB])
+
+        recycler.before_batch((Path("/repo/hot.cs"), 42, 7))
+
+        lsp.references.assert_called_once_with(Path("/repo/hot.cs"), 42, 7, timeout=600)
 
     def test_a_failed_warmup_does_not_abort_the_recycle(self, make_recycler):
         recycler, lsp = make_recycler([9 * GB, 1 * GB])
         lsp.references.side_effect = TimeoutError("cold server")
 
-        recycler.before_batch(FULL_BATCH)
+        recycler.before_batch()
 
         assert recycler.recycle_count == 1

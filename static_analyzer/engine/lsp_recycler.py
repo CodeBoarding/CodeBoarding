@@ -26,8 +26,6 @@ from static_analyzer.engine.lsp_constants import (
     MEMORY_BUDGET_ENV_VAR,
     MEMORY_BUDGET_FRACTION,
     MIN_MEMORY_BUDGET,
-    PRESSURE_FRACTION,
-    PRESSURED_BATCH_DIVISOR,
 )
 from static_analyzer.engine.process_memory import format_bytes, physical_memory_bytes, process_tree_rss
 
@@ -63,39 +61,43 @@ class LSPRecycler:
         self._probe_timeout = probe_timeout
         self._budget = budget_bytes or default_memory_budget()
         self.recycle_count = 0
-        self.shrunk_batches = 0
         self._disarmed = False
+        self._done = 0
+        self._total = 0
         logger.info("LSP recycler armed at a %s budget", format_bytes(self._budget))
 
-    def before_batch(self, full_batch_size: int) -> int:
-        """Sample the server, restart it if over budget, and size the next batch.
+    def note_progress(self, done: int, total: int) -> None:
+        """Record how far the phase has got, for the restart log line."""
+        self._done = done
+        self._total = total
+
+    def before_batch(self, warm_position: tuple[Path, int, int] | None = None) -> None:
+        """Sample the server and restart it if it is over budget.
 
         One sample per batch, not per N batches: a single batch of solution-wide
         reference queries can allocate gigabytes, so a coarser interval sails
         past the budget between checks. Reading the process table costs
         milliseconds against a batch's own LSP round-trip.
 
-        Returns how many positions the next batch may carry. A batch is one
-        round-trip we cannot interrupt, so its own growth is the floor under any
-        bound we can offer; near the ceiling we carry fewer queries at once to
-        keep that floor low.
+        ``warm_position`` is the first position the caller is about to query. A
+        restart uses it to rebuild the reference index on real work rather than
+        on a synthetic probe (see ``_recycle``).
         """
         if self._disarmed:
-            return full_batch_size
+            return
         used = self._server_rss()
         if used >= self._budget:
-            self._recycle(used)
-            return full_batch_size
-        if used < self._budget * PRESSURE_FRACTION:
-            return full_batch_size
-        self.shrunk_batches += 1
-        return max(1, full_batch_size // PRESSURED_BATCH_DIVISOR)
+            self._recycle(used, warm_position)
 
-    def _recycle(self, used: int) -> None:
+    def _recycle(self, used: int, warm_position: tuple[Path, int, int] | None = None) -> None:
+        # Carries the phase position deliberately: on a host that only surfaces
+        # warnings this is the one periodic line proving the run is advancing.
         logger.warning(
-            "LSP holding %s (budget %s) — restarting it to release cached compilations",
+            "LSP holding %s (budget %s) at position %d/%d — restarting it to release cached compilations",
             format_bytes(used),
             format_bytes(self._budget),
+            self._done,
+            self._total,
         )
         t_restart = time.monotonic()
         self._lsp.restart()
@@ -103,12 +105,14 @@ class LSPRecycler:
         # cannot answer a documentSymbol until it has read the project files.
         self._lsp.document_symbol(self._probe_file, timeout=self._probe_timeout)
         # A loaded workspace is not a warm reference index — that is built on the
-        # first references query. Pay for it here, on a request we can give a long
-        # timeout, rather than losing a whole batch of real positions to the
-        # per-request deadline. Measured: recycling without this tripled the
-        # "Timeout waiting for references request" warnings.
+        # first references query, which on a large solution materializes a
+        # compilation per project. Pay for it here on a request we can give a
+        # long timeout, using a position the caller is about to query anyway:
+        # warming on a synthetic (0, 0) coordinate usually lands on no symbol at
+        # all, so the server does nothing and the next real batch eats the stall.
+        warm_file, warm_line, warm_char = warm_position or (self._probe_file, 0, 0)
         try:
-            self._lsp.references(self._probe_file, 0, 0, timeout=self._probe_timeout)
+            self._lsp.references(warm_file, warm_line, warm_char, timeout=self._probe_timeout)
         except Exception as exc:
             logger.debug("Post-restart references warmup failed (non-fatal): %s", exc)
         self.recycle_count += 1

@@ -16,6 +16,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from static_analyzer.engine.lsp_constants import STRAGGLER_GRACE_SEC
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
@@ -681,6 +682,14 @@ class LSPClient:
         - results: dict mapping request_id -> result list
         - timed_out_ids: set of request IDs that did not complete in time
         - error_ids: set of request IDs that returned LSP errors
+
+        Two deadlines apply. The batch deadline caps the whole wait. The
+        straggler deadline caps how long we keep waiting *after the server has
+        gone quiet*: a batch where most answers arrived seconds ago and two are
+        still outstanding used to hold the full batch timeout, which on a large
+        C# solution meant 120s of nothing, eleven times in one CI run. Answers
+        already received are kept either way, so giving up on the stragglers
+        costs those positions' edges, not the batch's.
         """
         if timeout is None:
             timeout = self._default_timeout
@@ -689,10 +698,15 @@ class LSPClient:
         pending = set(request_ids)
         error_ids: set[int] = set()
         error_messages: dict[str, int] = {}
-        deadline = time.monotonic() + timeout
+        now = time.monotonic()
+        deadline = now + timeout
+        # Only armed once something has come back: a server that has answered
+        # nothing yet may simply be slow to start on the batch, and cutting it
+        # off there would discard every position instead of a few.
+        straggler_deadline = deadline
 
-        while pending and time.monotonic() < deadline:
-            msg = self._next_response(deadline)
+        while pending and time.monotonic() < min(deadline, straggler_deadline):
+            msg = self._next_response(min(deadline, straggler_deadline))
             if msg is None:
                 continue
 
@@ -701,6 +715,7 @@ class LSPClient:
                 continue
 
             pending.discard(msg_id)  # type: ignore[arg-type]
+            straggler_deadline = min(deadline, time.monotonic() + STRAGGLER_GRACE_SEC)
 
             if "error" in msg:
                 error_ids.add(msg_id)  # type: ignore[arg-type]
