@@ -4,6 +4,7 @@ graph LR
     Cluster_Evolution_Delta_Processor["Cluster Evolution & Delta Processor"]
     Architectural_Health_Metric_Evaluator["Architectural Health & Metric Evaluator"]
     Structural_Graph_Edge_Validator -- "Provides topological primitives for hierarchical modeling" --> Cluster_Evolution_Delta_Processor
+    Cluster_Evolution_Delta_Processor -- "Injects health metrics into architectural snapshots" --> Architectural_Health_Metric_Evaluator
     Cluster_Evolution_Delta_Processor -- "Orchestrates graph partitioning and node filtering" --> Structural_Graph_Edge_Validator
     Architectural_Health_Metric_Evaluator -- "Validates structural integrity of graph partitions" --> Structural_Graph_Edge_Validator
     Architectural_Health_Metric_Evaluator -- "Queries evolved snapshots for metric calculation" --> Cluster_Evolution_Delta_Processor
@@ -24,7 +25,6 @@ Provides the foundational graph primitives and validation logic required to main
 **Related Classes/Methods**:
 
 - `static_analyzer.graph.CallGraph`:145-811
-- `agents.validation._check_edge_between_cluster_sets`:516-544
 - `static_analyzer.analysis_cache._collect_invalidated_edge`:450-458
 - `static_analyzer.node.Node`:9-69
 
@@ -33,9 +33,8 @@ Provides the foundational graph primitives and validation logic required to main
 **Source Files:**
 
 - [`agents/validation.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py)
-  - `agents.validation._build_cluster_edge_lookup` ([L458-L485](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L458-L485)) - Function
-  - `agents.validation._cluster_sets_have_edge` ([L499-L513](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L499-L513)) - Function
-  - `agents.validation._check_edge_between_cluster_sets` ([L516-L544](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L516-L544)) - Function
+  - `agents.validation._build_cluster_edge_lookup` ([L457-L484](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L457-L484)) - Function
+  - `agents.validation._cluster_sets_have_edge` ([L498-L512](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L498-L512)) - Function
 - [`static_analyzer/analysis_cache.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py)
   - `static_analyzer.analysis_cache._collect_invalidated_edge` ([L450-L458](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L450-L458)) - Function
   - `static_analyzer.analysis_cache._validate_no_dangling_references` ([L461-L494](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L461-L494)) - Function

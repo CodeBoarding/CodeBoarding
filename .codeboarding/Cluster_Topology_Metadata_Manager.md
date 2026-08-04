@@ -18,7 +18,7 @@ Orchestrates the transformation of raw graph clusters into architectural compone
 
 **Related Classes/Methods**:
 
-- `agents.agent_responses.ClusterAnalysis`:440-452
+- `agents.agent_responses.ClusterAnalysis`:431-443
 - `agents.cluster_methods_mixin._summarize_group`:47-66
 - `static_analyzer.cluster_helpers.AnchoredGrouping`:494-501
 - `diagram_analysis.scope_plan._provisional_name`:240-243
@@ -29,10 +29,10 @@ Orchestrates the transformation of raw graph clusters into architectural compone
 **Source Files:**
 
 - [`agents/agent_responses.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py)
-  - `agents.agent_responses.ClustersComponent` ([L389-L437](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L389-L437)) - Class
-  - `agents.agent_responses.ClustersComponent.llm_str` ([L435-L437](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L435-L437)) - Method
-  - `agents.agent_responses.ClusterAnalysis` ([L440-L452](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L440-L452)) - Class
-  - `agents.agent_responses.ClusterAnalysis.llm_str` ([L447-L452](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L447-L452)) - Method
+  - `agents.agent_responses.ClustersComponent` ([L380-L428](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L380-L428)) - Class
+  - `agents.agent_responses.ClustersComponent.llm_str` ([L426-L428](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L426-L428)) - Method
+  - `agents.agent_responses.ClusterAnalysis` ([L431-L443](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L431-L443)) - Class
+  - `agents.agent_responses.ClusterAnalysis.llm_str` ([L438-L443](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L438-L443)) - Method
 - [`agents/cluster_methods_mixin.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py)
   - `agents.cluster_methods_mixin._summarize_group` ([L47-L66](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py#L47-L66)) - Function
   - `agents.cluster_methods_mixin._fallback_component` ([L69-L73](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py#L69-L73)) - Function

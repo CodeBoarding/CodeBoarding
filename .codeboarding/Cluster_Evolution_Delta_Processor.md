@@ -3,7 +3,6 @@ graph LR
     Snapshot_Manager_Delta_Orchestrator["Snapshot Manager & Delta Orchestrator"]
     Structural_Reconciliation_Frontier_Analyzer["Structural Reconciliation & Frontier Analyzer"]
     Snapshot_Manager_Delta_Orchestrator -- "orchestrates incremental structural analysis" --> Structural_Reconciliation_Frontier_Analyzer
-    Structural_Reconciliation_Frontier_Analyzer -- "provides reconciled architectural state" --> Snapshot_Manager_Delta_Orchestrator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Web platform](https://img.shields.io/badge/Open%20in-Web%20platform-2563EB?style=flat-square)](https://app.codeboarding.org)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)

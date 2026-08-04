@@ -74,7 +74,7 @@ Manages the persistence and validation of the analysis state. It normalizes file
 **Source Files:**
 
 - [`agents/validation.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py)
-  - `agents.validation.validate_file_classifications` ([L210-L270](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L210-L270)) - Function
+  - `agents.validation.validate_file_classifications` ([L209-L269](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L209-L269)) - Function
 - [`diagram_analysis/diagram_generator.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py)
   - `diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage` ([L791-L800](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L791-L800)) - Method
 - [`diagram_analysis/file_coverage.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py)
