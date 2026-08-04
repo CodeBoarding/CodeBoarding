@@ -104,6 +104,7 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 ```toml
 [provider]
 # openai_api_key            = "sk-..."
+# openai_base_url           = "https://api.example.com/v1"  # any OpenAI-compatible gateway
 # anthropic_api_key         = "sk-ant-..."
 # google_api_key            = "AIza..."
 # vercel_api_key            = "vck_..."
@@ -117,6 +118,8 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 # agent_model   = "gemini-3-flash"
 # parsing_model = "gemini-3-flash"
 ```
+
+`openai_base_url` points CodeBoarding at any OpenAI-compatible gateway. Set the gateway API key as `openai_api_key`, then choose its model IDs with `agent_model` and `parsing_model`. The equivalent shell variables are `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `AGENT_MODEL`, and `PARSING_MODEL`.
 
 Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, and `OLLAMA_BASE_URL` take precedence over the config file. For private repositories, set `GITHUB_TOKEN` in your environment.
 
