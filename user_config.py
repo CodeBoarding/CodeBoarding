@@ -26,7 +26,6 @@ CONFIG_PATH = Path.home() / CODEBOARDING_DIR_NAME / "config.toml"
 # Secrets: one per provider that accepts a key (api_key_env in agents/llm_config.py).
 _PROVIDER_SECRETS: dict[str, str] = {
     "openai_api_key": "OPENAI_API_KEY",
-    "atlascloud_api_key": "ATLASCLOUD_API_KEY",
     "anthropic_api_key": "ANTHROPIC_API_KEY",
     "google_api_key": "GOOGLE_API_KEY",
     "vercel_api_key": "VERCEL_API_KEY",
@@ -61,7 +60,6 @@ CONFIG_TEMPLATE = """\
 
 [provider]
 # openai_api_key            = "sk-..."
-# atlascloud_api_key        = "..."
 # openai_base_url           = "http://localhost:8000/v1"   # self-hosted / OpenAI-compatible proxy
 # anthropic_api_key         = "sk-ant-..."
 # google_api_key            = "AIza..."
@@ -91,7 +89,6 @@ class ProviderUserConfig:
     """Raw API key / URL values read from [provider] in config.toml."""
 
     openai_api_key: str | None = None
-    atlascloud_api_key: str | None = None
     openai_base_url: str | None = None
     anthropic_api_key: str | None = None
     google_api_key: str | None = None
@@ -142,7 +139,6 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
     return UserConfig(
         provider=ProviderUserConfig(
             openai_api_key=provider_data.get("openai_api_key") or None,
-            atlascloud_api_key=_optional_string(provider_data, "atlascloud_api_key"),
             openai_base_url=provider_data.get("openai_base_url") or None,
             anthropic_api_key=provider_data.get("anthropic_api_key") or None,
             google_api_key=provider_data.get("google_api_key") or None,
@@ -166,53 +162,22 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
     )
 
 
-def _optional_string(data: dict[str, object], key: str) -> str | None:
-    value = data.get(key)
-    if value is None or value == "":
-        return None
-    if not isinstance(value, str):
-        raise ValueError(f"[provider].{key} must be a string")
-    return value
-
-
 def ensure_config_template(path: Path = CONFIG_PATH) -> None:
     """Write the template on first install; otherwise top up with any keys added since."""
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(CONFIG_TEMPLATE)
         return
-    _append_commented_key(path, "provider", "atlascloud_api_key", '# atlascloud_api_key        = "..."')
-    _append_commented_key(path, "llm", "context_window", "# context_window = 272000   # override if needed")
+    _append_commented_key(path, "context_window", "# context_window = 272000   # override if needed")
 
 
-def _append_commented_key(path: Path, section: str, key: str, commented_line: str) -> None:
-    """Insert a missing commented key into its TOML section."""
+def _append_commented_key(path: Path, key: str, commented_line: str) -> None:
+    """Insert `commented_line` under [llm] if `key` is missing anywhere in the file."""
     text = path.read_text()
-    try:
-        table_exists = section in tomllib.loads(text)
-    except tomllib.TOMLDecodeError:
+    if key in text:
         return
-
-    table_name = rf"(?:{re.escape(section)}|\"{re.escape(section)}\"|'{re.escape(section)}')"
-    section_pattern = rf"^[ \t]*\[[ \t]*{table_name}[ \t]*\][ \t]*(?:#[^\n]*)?(?:\n|\Z)"
-    section_match = re.search(section_pattern, text, flags=re.MULTILINE)
-    if section_match:
-        body_start = section_match.end()
-        next_section = re.search(
-            r"^[ \t]*\[[^\]\n]+\][ \t]*(?:#[^\n]*)?(?:\n|\Z)",
-            text[body_start:],
-            flags=re.MULTILINE,
-        )
-        body_end = body_start + next_section.start() if next_section else len(text)
-        section_body = text[body_start:body_end]
-        if re.search(rf"^\s*#?\s*{re.escape(key)}\s*=", section_body, flags=re.MULTILINE):
-            return
-        prefix = text[:body_start]
-        if not prefix.endswith("\n"):
-            prefix += "\n"
-        injected = prefix + commented_line + "\n" + text[body_start:]
-    elif table_exists:
-        return
-    else:
-        injected = text.rstrip() + f"\n\n[{section}]\n" + commented_line + "\n"
+    injected, n = re.subn(r"(^\[llm\]\s*\n)", r"\1" + commented_line + "\n", text, count=1, flags=re.MULTILINE)
+    if n == 0:
+        # Why: no [llm] section yet -- append a fresh one so the key lands in the right table.
+        injected = text.rstrip() + "\n\n[llm]\n" + commented_line + "\n"
     path.write_text(injected)

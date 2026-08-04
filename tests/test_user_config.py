@@ -1,7 +1,4 @@
 import os
-import tomllib
-
-import pytest
 
 from agents.llm_config import LLM_PROVIDERS
 from user_config import (
@@ -143,42 +140,8 @@ class TestLoadUserConfig:
 
         assert cfg.provider.openai_base_url is None
 
-    def test_loads_atlascloud_api_key(self, tmp_path):
-        path = tmp_path / "config.toml"
-        path.write_text('[provider]\natlascloud_api_key = "atlas-local"\n')
-
-        cfg = load_user_config(path)
-
-        assert cfg.provider.atlascloud_api_key == "atlas-local"
-
-    def test_empty_atlascloud_api_key_defaults_none(self, tmp_path):
-        path = tmp_path / "config.toml"
-        path.write_text('[provider]\natlascloud_api_key = ""\n')
-
-        cfg = load_user_config(path)
-
-        assert cfg.provider.atlascloud_api_key is None
-
-    def test_atlascloud_api_key_rejects_non_string(self, tmp_path):
-        path = tmp_path / "config.toml"
-        path.write_text("[provider]\natlascloud_api_key = 123\n")
-
-        with pytest.raises(ValueError, match=r"\[provider\]\.atlascloud_api_key must be a string"):
-            load_user_config(path)
-
 
 class TestEnsureConfigTemplate:
-    def test_appends_atlascloud_key_under_provider_when_missing(self, tmp_path):
-        path = tmp_path / "config.toml"
-        path.write_text('[provider]\n# openai_api_key = "sk-..."\n\n[llm]\n# agent_model = "x"\n')
-
-        ensure_config_template(path)
-
-        text = path.read_text()
-        expected = '# atlascloud_api_key        = "..."'
-        provider_block = text[text.index("[provider]") : text.index("[llm]")]
-        assert expected in provider_block
-
     def test_appends_context_window_under_llm_when_missing(self, tmp_path):
         path = tmp_path / "config.toml"
         path.write_text('[provider]\n# openai_api_key = "sk-..."\n\n[llm]\n# agent_model = "x"\n')
@@ -191,72 +154,14 @@ class TestEnsureConfigTemplate:
         llm_idx = text.index("[llm]")
         assert text.index("context_window") > llm_idx
 
-    def test_noop_when_keys_already_present(self, tmp_path):
+    def test_noop_when_key_already_present(self, tmp_path):
         path = tmp_path / "config.toml"
-        original = '[provider]\n# atlascloud_api_key = "..."\n\n[llm]\n# context_window = 42  # already here\n'
+        original = "[llm]\n# context_window = 42  # already here\n"
         path.write_text(original)
 
         ensure_config_template(path)
 
         assert path.read_text() == original
-
-    def test_adds_provider_section_if_absent(self, tmp_path):
-        path = tmp_path / "config.toml"
-        path.write_text("[llm]\n# context_window = 42\n")
-
-        ensure_config_template(path)
-
-        text = path.read_text()
-        assert "[provider]" in text
-        assert '# atlascloud_api_key        = "..."' in text[text.index("[provider]") :]
-
-    def test_adds_key_when_same_key_exists_outside_provider(self, tmp_path):
-        path = tmp_path / "config.toml"
-        path.write_text(
-            '[other]\natlascloud_api_key = "wrong-section"\n\n'
-            '[provider]\n# openai_api_key = "sk-..."\n\n'
-            "[llm]\n# context_window = 42\n"
-        )
-
-        ensure_config_template(path)
-
-        text = path.read_text()
-        provider_block = text[text.index("[provider]") : text.index("[llm]")]
-        assert '# atlascloud_api_key        = "..."' in provider_block
-
-    def test_recognizes_provider_header_with_inline_comment(self, tmp_path):
-        path = tmp_path / "config.toml"
-        path.write_text('[provider] # credentials\n# openai_api_key = "sk-..."\n\n' "[llm]\n# context_window = 42\n")
-
-        ensure_config_template(path)
-
-        text = path.read_text()
-        assert text.count("[provider]") == 1
-        provider_block = text[text.index("[provider]") : text.index("[llm]")]
-        assert '# atlascloud_api_key        = "..."' in provider_block
-        assert load_user_config(path).provider.atlascloud_api_key is None
-
-    @pytest.mark.parametrize("provider_header", ["[ provider ]", '["provider"]', "['provider']"])
-    def test_preserves_valid_provider_header_variants(self, tmp_path, provider_header):
-        path = tmp_path / "config.toml"
-        path.write_text(f'{provider_header}\nopenai_api_key = "local"\n\n[llm]\ncontext_window = 42\n')
-
-        ensure_config_template(path)
-
-        data = tomllib.loads(path.read_text())
-        assert data["provider"]["openai_api_key"] == "local"
-        assert path.read_text().count("provider") == 1
-
-    def test_inserts_key_when_final_section_header_has_no_trailing_newline(self, tmp_path):
-        path = tmp_path / "config.toml"
-        path.write_text("[provider]")
-
-        ensure_config_template(path)
-
-        text = path.read_text()
-        assert text.count("[provider]") == 1
-        assert '# atlascloud_api_key        = "..."' in text
-        assert tomllib.loads(text)["provider"] == {}
 
     def test_adds_llm_section_if_absent(self, tmp_path):
         path = tmp_path / "config.toml"

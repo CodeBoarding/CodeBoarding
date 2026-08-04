@@ -1,7 +1,5 @@
 """Constants for the agents module."""
 
-from typing import ClassVar
-
 
 class LLMDefaults:
     DEFAULT_AGENT_TEMPERATURE = 0
@@ -37,8 +35,4 @@ class ModelCapabilities:
     OPENROUTER_PREFIX = {
         "kimi": "moonshotai",
         "glm": "z-ai",
-    }
-
-    PROVIDER_CONTEXT_WINDOWS: ClassVar[dict[tuple[str, str], tuple[int, int]]] = {
-        ("atlascloud", "deepseek-ai/deepseek-v4-pro"): (1_048_576, 393_216),
     }
