@@ -84,7 +84,7 @@ def _entries_from_cfg_cache(
 
 
 def snapshot_from_cluster_results(cluster_results: dict[str, ClusterResult]) -> ClusterSnapshot:
-    """Build a snapshot directly from cluster results (test helper).
+    """Convert lightweight ``ClusterResult`` fixtures into snapshots for tests.
 
     ``member_files`` is left empty since ``ClusterResult`` has no per-qname
     file map; tests needing diff-scoping must populate it manually.

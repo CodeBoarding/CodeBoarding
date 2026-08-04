@@ -46,7 +46,6 @@ class ValidationContext:
     cfg_graphs: dict[str, CallGraph] = field(default_factory=dict)  # For edge checking
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
-    existing_component_ids: set[str] = field(default_factory=set)  # For incremental ID-based routing validation
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
@@ -511,34 +510,3 @@ def _cluster_sets_have_edge(
             if src_cluster in src_set and dst_cluster in dst_set:
                 return True
     return False
-
-
-def _check_edge_between_cluster_sets(
-    src_cluster_ids: list[int],
-    dst_cluster_ids: list[int],
-    cluster_results: dict[str, ClusterResult],
-    cfg_graphs: dict[str, CallGraph],
-    cluster_edge_lookup: dict[str, set[tuple[int, int]]] | None = None,
-) -> bool:
-    """
-    Check if there's an edge between any pair of clusters from two sets.
-
-    Args:
-        src_cluster_ids: Source cluster IDs
-        dst_cluster_ids: Destination cluster IDs
-        cluster_results: dict mapping language -> ClusterResult
-        cfg_graphs: dict mapping language -> CallGraph
-        cluster_edge_lookup: Optional precomputed (src_cluster, dst_cluster) edges per language
-
-    Returns:
-        True if any edge exists between the cluster sets
-    """
-    if not src_cluster_ids or not dst_cluster_ids:
-        return False
-
-    if cluster_edge_lookup is None:
-        cluster_edge_lookup = _build_cluster_edge_lookup(cluster_results, cfg_graphs)
-
-    return _cluster_sets_have_edge(src_cluster_ids, dst_cluster_ids, cluster_edge_lookup) or _cluster_sets_have_edge(
-        dst_cluster_ids, src_cluster_ids, cluster_edge_lookup
-    )
