@@ -19,6 +19,34 @@ CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
 {refs}</Project>
 """
 
+# Customer-profile variant: no TFM in the csproj at all — Directory.Build.props supplies it.
+CSPROJ_PROPS = """<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>{name}</RootNamespace>
+  </PropertyGroup>
+{refs}</Project>
+"""
+
+# Analyzer/source-generator projects deviate from the central TFM (netstandard2.0), like the
+# customer's repo and most real-world monorepos.
+CSPROJ_ANALYZER = """<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+{refs}</Project>
+"""
+
+DIRECTORY_BUILD_PROPS = """<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AnalysisLevel>latest-Recommended</AnalysisLevel>
+  </PropertyGroup>
+</Project>
+"""
+
 CLASS_TMPL = """namespace {ns};
 
 public class Service{c}
@@ -53,7 +81,7 @@ def write_project(root: Path, idx: int, files_per_project: int, ref_prev: bool, 
     if ref_prev and idx > 0:
         prev = f"Acme.Svc{idx - 1:03d}"
         refs = "  <ItemGroup>\n" f'    <ProjectReference Include="..\\{prev}\\{prev}.csproj" />\n' "  </ItemGroup>\n"
-    (proj_dir / f"{name}.csproj").write_text(csproj_template.format(refs=refs))
+    (proj_dir / f"{name}.csproj").write_text(csproj_template.format(refs=refs, name=name))
     for c in range(files_per_project):
         (proj_dir / f"Service{c}.cs").write_text(CLASS_TMPL.format(ns=name, c=c))
     return proj_dir / f"{name}.csproj"
@@ -104,7 +132,18 @@ def main() -> None:
     ap.add_argument(
         "--multitarget",
         action="store_true",
-        help="use <TargetFrameworks>net9.0;net10.0</TargetFrameworks> (the hang trigger)",
+        help="use <TargetFrameworks>net9.0;net10.0</TargetFrameworks> (the exponential hang trigger)",
+    )
+    ap.add_argument(
+        "--props",
+        action="store_true",
+        help="customer profile: no TFM in csproj, central <TargetFramework> in Directory.Build.props",
+    )
+    ap.add_argument(
+        "--analyzers",
+        type=int,
+        default=0,
+        help="with --props: number of trailing projects that override to netstandard2.0",
     )
     args = ap.parse_args()
 
@@ -119,8 +158,15 @@ def main() -> None:
             "<TargetFramework>net10.0</TargetFramework>",
             "<TargetFrameworks>net9.0;net10.0</TargetFrameworks>",
         )
+    elif args.props:
+        csproj_template = CSPROJ_PROPS
+        (root / "Directory.Build.props").write_text(DIRECTORY_BUILD_PROPS)
 
-    projects = [write_project(root, i, args.files, args.ref_prev, csproj_template) for i in range(args.projects)]
+    analyzer_start = args.projects - args.analyzers if args.props else args.projects
+    projects = [
+        write_project(root, i, args.files, args.ref_prev, CSPROJ_ANALYZER if i >= analyzer_start else csproj_template)
+        for i in range(args.projects)
+    ]
     if args.format in ("sln", "both"):
         write_sln(root, projects)
     if args.format in ("slnx", "both"):

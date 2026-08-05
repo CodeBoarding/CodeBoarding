@@ -169,27 +169,50 @@ grep -rl "<TargetFrameworks>" --include="*.csproj" --include="Directory.Build.pr
   logs; consider failing fast when the workspace-load progress stalls instead of burning the full
   1800s probe; consider detecting the multi-target count up front and warning.
 
-## Update 2026-08-05: customer clarification narrows their trigger
+## Update 2026-08-05: second round — eliminating every non-exponential explanation
 
-The customer reports ~300 csproj files with **no TFM declared in the csproj at all** — a single
-`<TargetFramework>` is distributed via `Directory.Build.props` (net10.0 everywhere, a few
-netstandard2.0 analyzer/source-generator projects). No multi-targeting means per-project TFM sets
-of size 1, and the fold above stays linear — so **the exponential variant reproduced in this
-document is real (and bites e.g. opentelemetry-dotnet) but is probably not this customer's
-trigger**.
+The customer clarified their layout: ~300 csproj files with **no TFM declared in any csproj** —
+the TFM is distributed centrally via `Directory.Build.props` (net10.0, plus a few netstandard2.0
+analyzer/source-generator projects); one solution; 16 vCPU CI runner. That reads like
+single-targeting, which would rule out the exponential fold — so we measured every alternative
+mechanism at customer scale (csharp-ls 0.24.0, .NET SDK 10.0.300, fast desktop):
 
-Their profile points at the *other* csharp-ls 0.21+ load regression, with the same
-"`Loading solution ...` then silence" symptom: 0.24.0's `loadProjectTfms` runs a **full MSBuild
-evaluation per project, serially, with a fresh `ProjectCollection` each time** (so SDK targets are
-re-parsed ~300 times), followed by `MSBuildWorkspace.OpenSolutionAsync` design-time builds of all
-~300 projects on a small CI runner. Upstream issue #352 measured 30-50x init slowdowns from this on
-*single-target* (Unity) solutions; at 300 real-world projects that lands beyond our 1800s cap.
-Two extra notes:
+| Repo | Load path | Time |
+|---|---|---|
+| Synthetic, 300 projects / 7,500 files, TFM via `Directory.Build.props` (customer profile) | solution (`.slnx`) | 53s |
+| **OrchardCore** (234 real projects, one `.slnx`, props-centralized net10.0 — near-exact customer profile) | solution (`.slnx`) | 52s |
+| Synthetic, 300 projects, no solution file | per-project fallback | 302s |
+| OrchardCore, solution file removed | per-project fallback | 153s |
+| Synthetic, 40 projects, `<TargetFrameworks>net9.0;net10.0</TargetFrameworks>` **only in `Directory.Build.props`**, csproj TFM-free | solution (`.slnx`) | **hang — no response in 600s** |
 
-- 0.25.0's optimization ("read target frameworks from project XML directly") is **defeated by the
-  `Directory.Build.props` pattern** — the TFM is not in the csproj XML, so every project falls back
-  to the slow MSBuild path (0.25.0 does parallelize the probes, which still helps).
-- Verification is in progress with the customer: TargetFrameworks-plural count across csproj *and*
-  props files, solution-file count, IDE solution-open time on a dev machine, and ideally a
-  `lsp_probe.py` run against their repo (it prints exactly which phase the load is stuck in and
-  how long it really needs).
+Conclusions:
+
+1. **Scale is innocent.** 300 single-target projects — synthetic or real (OrchardCore), via
+   solution or via the no-solution per-project fallback — load in 1-5 minutes on a desktop. A
+   16 vCPU runner cannot stretch that to 30+ minutes. The serial-TFM-probe theory from the previous
+   update is measured out as a hang cause (it is a real 3-6x slowdown, not a 35x one).
+2. **The exponential fold does not need TFMs in the csproj.** csharp-ls's `loadProjectTfms` does a
+   full MSBuild evaluation per project, which imports `Directory.Build.props` — multi-targeting
+   declared there (e.g. `<TargetFrameworks>` behind a condition for library/packable projects) is
+   invisible in every csproj yet triggers the exact same 2^N hang. The last row proves it: csproj
+   files identical to the customer's description, hang identical to the customer's log.
+3. Therefore the leading (and only surviving) hypothesis is again the **exponential TFM fold, with
+   the multi-targeting hidden in `Directory.Build.props`**. The customer confirmed the plural form
+   is absent from the *csproj* files; nobody has yet checked the *props* files. The one remaining
+   zero-effort verification: does any `Directory.Build.props`/`.targets` in their repo contain
+   `TargetFrameworks` (plural)? If yes with ≥ ~30 affected projects, the case is closed. If no, the
+   remaining suspects are environment-specific stalls we cannot reproduce blind (e.g. a custom
+   design-time target blocking on network/credentials), and the observability fix below becomes the
+   prerequisite for any further diagnosis.
+
+Repro for the props-hidden variant:
+
+```bash
+python tests/repro/csharp_ls_multitarget_hang/gen_repo.py /tmp/repro --projects 40 --files 3 --format slnx --props
+printf '<Project>\n  <PropertyGroup>\n    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>\n  </PropertyGroup>\n</Project>\n' > /tmp/repro/Directory.Build.props
+cd /tmp/repro && dotnet restore Monorepo.slnx
+python tests/repro/csharp_ls_multitarget_hang/lsp_probe.py /tmp/repro 600   # -> TIMEOUT
+```
+
+(`--props` generates the customer-style layout: TFM-free csproj + central `Directory.Build.props`;
+`--analyzers N` marks the last N projects netstandard2.0.)
