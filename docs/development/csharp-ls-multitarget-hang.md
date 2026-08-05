@@ -1,7 +1,9 @@
 # Investigation: csharp-ls hangs forever on multi-targeted C# monorepos
 
 **Date:** 2026-08-05
-**Status:** Root cause identified and reproduced (synthetic + OSS). Fix not yet decided — this document records the evidence.
+**Status:** csharp-ls load-hang reproduced (synthetic + OSS). Which of the two csharp-ls slow-load
+mechanisms below is the customer's trigger is still being verified — see
+"Update 2026-08-05" at the end. Fix not yet decided — this document records the evidence.
 
 ## TL;DR
 
@@ -131,10 +133,12 @@ main solution contains well over 32 multi-targeted projects (per GitHub code sea
 `DataDog/dd-trace-dotnet` (118 csproj with `TargetFrameworks`), `dotnet/orleans` (109),
 `MassTransit/MassTransit` (34).
 
-To confirm a specific customer repo is hitting this without seeing their code:
+To confirm a specific repo is hitting the exponential variant without seeing its code (note:
+TFMs are often centralized — `Directory.Build.props` files must be included, not just csproj):
 
 ```bash
-grep -rl "<TargetFrameworks>" --include="*.csproj" | wc -l   # >= ~30 -> this hang
+grep -rl "<TargetFrameworks>" --include="*.csproj" --include="Directory.Build.props" \
+    --include="Directory.Build.targets" . | wc -l   # >= ~30 -> the exponential hang
 ```
 
 ## Notes and rejected hypotheses
@@ -164,3 +168,28 @@ grep -rl "<TargetFrameworks>" --include="*.csproj" | wc -l   # >= ~30 -> this ha
 - Our side, independent of upstream: surface csharp-ls narration (stderr + logMessage) into our
   logs; consider failing fast when the workspace-load progress stalls instead of burning the full
   1800s probe; consider detecting the multi-target count up front and warning.
+
+## Update 2026-08-05: customer clarification narrows their trigger
+
+The customer reports ~300 csproj files with **no TFM declared in the csproj at all** — a single
+`<TargetFramework>` is distributed via `Directory.Build.props` (net10.0 everywhere, a few
+netstandard2.0 analyzer/source-generator projects). No multi-targeting means per-project TFM sets
+of size 1, and the fold above stays linear — so **the exponential variant reproduced in this
+document is real (and bites e.g. opentelemetry-dotnet) but is probably not this customer's
+trigger**.
+
+Their profile points at the *other* csharp-ls 0.21+ load regression, with the same
+"`Loading solution ...` then silence" symptom: 0.24.0's `loadProjectTfms` runs a **full MSBuild
+evaluation per project, serially, with a fresh `ProjectCollection` each time** (so SDK targets are
+re-parsed ~300 times), followed by `MSBuildWorkspace.OpenSolutionAsync` design-time builds of all
+~300 projects on a small CI runner. Upstream issue #352 measured 30-50x init slowdowns from this on
+*single-target* (Unity) solutions; at 300 real-world projects that lands beyond our 1800s cap.
+Two extra notes:
+
+- 0.25.0's optimization ("read target frameworks from project XML directly") is **defeated by the
+  `Directory.Build.props` pattern** — the TFM is not in the csproj XML, so every project falls back
+  to the slow MSBuild path (0.25.0 does parallelize the probes, which still helps).
+- Verification is in progress with the customer: TargetFrameworks-plural count across csproj *and*
+  props files, solution-file count, IDE solution-open time on a dev machine, and ideally a
+  `lsp_probe.py` run against their repo (it prints exactly which phase the load is stuck in and
+  how long it really needs).
