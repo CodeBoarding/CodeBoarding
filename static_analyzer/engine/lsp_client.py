@@ -77,6 +77,7 @@ class LSPClient:
         self._request_id = 0
         self._msg_queue: queue.Queue[dict] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
         self._shutdown_event = threading.Event()
         self._write_lock = threading.Lock()
 
@@ -117,7 +118,7 @@ class LSPClient:
                 self._command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 env=env,
                 cwd=str(self._project_root),
             )
@@ -136,6 +137,8 @@ class LSPClient:
         # Start background reader
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
+        self._stderr_thread = threading.Thread(target=self._stderr_loop, daemon=True)
+        self._stderr_thread.start()
 
         root_uri = self._project_root.as_uri()
 
@@ -225,6 +228,8 @@ class LSPClient:
                     pass
         if self._reader_thread and self._reader_thread.is_alive():
             self._reader_thread.join(timeout=2)
+        if self._stderr_thread and self._stderr_thread.is_alive():
+            self._stderr_thread.join(timeout=2)
         if self._stdout_fd is not None:
             try:
                 os.close(self._stdout_fd)
@@ -623,7 +628,17 @@ class LSPClient:
                 return None
             return msg.get("result")
 
-        raise TimeoutError(f"Timeout waiting for LSP response to request {req_id}")
+        process_status = self._process_status()
+        logger.error(
+            "LSP request %d (%s) timed out after %ds; %s",
+            req_id,
+            method,
+            timeout,
+            process_status,
+        )
+        raise TimeoutError(
+            f"Timeout waiting for LSP response to request {req_id} ({method}) after {timeout}s; {process_status}"
+        )
 
     def _send_notification(self, method: str, params: dict | list | None) -> None:
         """Send a JSON-RPC notification (no response expected)."""
@@ -763,6 +778,37 @@ class LSPClient:
                 if not self._shutdown_event.is_set():
                     logger.debug("Reader loop error: %s", e)
                 break
+
+    def _stderr_loop(self) -> None:
+        """Drain server stderr so workspace-load diagnostics remain visible."""
+        if self._process is None or self._process.stderr is None:
+            return
+        server_name = Path(self._command[0]).name if self._command else "lsp"
+        while not self._shutdown_event.is_set():
+            line = self._process.stderr.readline()
+            if not line:
+                break
+            text = line.decode("utf-8", errors="replace").rstrip()
+            if text:
+                logger.info("[%s stderr] %s", server_name, text)
+
+    def _process_status(self) -> str:
+        """Return process state and RSS for timeout diagnostics."""
+        if self._process is None:
+            return "process=not-started"
+        return_code = self._process.poll()
+        if return_code is not None:
+            return f"process=exited({return_code})"
+        rss = "unknown"
+        try:
+            status = Path(f"/proc/{self._process.pid}/status").read_text()
+            for line in status.splitlines():
+                if line.startswith("VmRSS:"):
+                    rss = line.removeprefix("VmRSS:").strip()
+                    break
+        except OSError:
+            pass
+        return f"process=running pid={self._process.pid} rss={rss}"
 
     def _handle_server_request(self, message: dict) -> object:
         """Respond to server-initiated requests.

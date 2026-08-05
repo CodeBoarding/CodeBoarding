@@ -21,12 +21,17 @@ class CSharpProjectConfig:
         self,
         root: Path,
         project_type: str,  # "solution", "project", or "none"
+        project_file: Path | None = None,
     ):
         self.root = root
         self.project_type = project_type
+        self.project_file = project_file
 
     def __repr__(self) -> str:
-        return f"CSharpProjectConfig(root={self.root}, project_type={self.project_type})"
+        return (
+            f"CSharpProjectConfig(root={self.root}, project_type={self.project_type}, "
+            f"project_file={self.project_file})"
+        )
 
 
 class CSharpConfigScanner:
@@ -51,19 +56,20 @@ class CSharpConfigScanner:
         configs: list[CSharpProjectConfig] = []
 
         # 1. Solution files (highest priority)
-        solution_roots = self._find_solution_roots()
-        for root in solution_roots:
-            if not self.ignore_manager.should_ignore(root):
-                configs.append(CSharpProjectConfig(root, "solution"))
+        solution_files = self._find_solution_files()
+        for solution_file in solution_files:
+            if not self.ignore_manager.should_ignore(solution_file):
+                configs.append(CSharpProjectConfig(solution_file.parent, "solution", solution_file))
 
         # 2. Standalone .csproj files not covered by a solution
-        project_roots = self._find_project_roots()
-        for root in project_roots:
-            if self.ignore_manager.should_ignore(root):
+        project_files = self._find_project_files()
+        for project_file in project_files:
+            root = project_file.parent
+            if self.ignore_manager.should_ignore(project_file):
                 continue
             if any(self._is_subpath(root, c.root) for c in configs):
                 continue
-            configs.append(CSharpProjectConfig(root, "project"))
+            configs.append(CSharpProjectConfig(root, "project", project_file))
 
         # 3. Fallback: .cs files exist but no project infrastructure
         if not configs and self._has_cs_files(self.repo_path):
@@ -74,16 +80,16 @@ class CSharpConfigScanner:
 
         return configs
 
-    def _find_solution_roots(self) -> list[Path]:
-        """Find directories containing ``.sln`` or ``.slnx`` files."""
-        roots: set[Path] = set()
+    def _find_solution_files(self) -> list[Path]:
+        """Find ``.sln`` and ``.slnx`` files without discarding their names."""
+        files: set[Path] = set()
         for pattern in SOLUTION_GLOBS:
-            roots.update(p.parent for p in self.repo_path.rglob(pattern) if p.is_file())
-        return sorted(roots)
+            files.update(p for p in self.repo_path.rglob(pattern) if p.is_file())
+        return sorted(files)
 
-    def _find_project_roots(self) -> list[Path]:
-        """Find directories containing .csproj files."""
-        return sorted({p.parent for p in self.repo_path.rglob("*.csproj") if p.is_file()})
+    def _find_project_files(self) -> list[Path]:
+        """Find .csproj files."""
+        return sorted(p for p in self.repo_path.rglob("*.csproj") if p.is_file())
 
     def _has_cs_files(self, directory: Path) -> bool:
         """Check if directory contains any .cs files."""

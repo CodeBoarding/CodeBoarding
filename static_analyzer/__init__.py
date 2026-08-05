@@ -42,6 +42,7 @@ class EngineConfig:
     adapter: LanguageAdapter
     project_path: Path
     source_files: list[Path] = field(default_factory=list)
+    project_file: Path | None = None
 
 
 class StaticAnalysisFatalError(RuntimeError):
@@ -135,7 +136,9 @@ def _create_engine_configs(
                             f"Creating engine config for CSharp ({csharp_config.project_type}) at: "
                             f"{csharp_config.root.relative_to(repository_path)}"
                         )
-                        configs.append(EngineConfig(adapter, csharp_config.root))
+                        configs.append(
+                            EngineConfig(adapter, csharp_config.root, project_file=csharp_config.project_file)
+                        )
                 else:
                     logger.info("No C# projects detected")
 
@@ -250,8 +253,8 @@ class StaticAnalyzer:
                 t_start = time.monotonic()
                 # Allow adapters to prepare the project before LSP startup
                 # (e.g. ``dotnet restore`` so csharp-ls sees framework refs).
-                adapter.prepare_project(project_path)
-                command = adapter.get_lsp_command(project_path)
+                adapter.prepare_project(project_path, engine_config.project_file)
+                command = adapter.get_lsp_command(project_path, engine_config.project_file)
                 init_options = adapter.get_lsp_init_options(self.ignore_manager)
                 extra_env = adapter.get_lsp_env(project_path)
                 # Node-based LSPs spawn child ``node`` processes by name; on
@@ -620,6 +623,8 @@ class StaticAnalyzer:
             except StaticAnalysisFatalError:
                 raise
             except Exception as e:
+                if adapter.fail_on_empty_symbols:
+                    raise StaticAnalysisFatalError(f"{adapter.language} analysis failed: {e}") from e
                 logger.error(f"Error during engine analysis for {adapter.language}: {e}")
                 track_lsp_result(
                     language=adapter.language_enum.value,

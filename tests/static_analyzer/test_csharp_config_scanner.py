@@ -10,9 +10,10 @@ class TestCSharpProjectConfig:
     """Tests for CSharpProjectConfig data class."""
 
     def test_init(self):
-        config = CSharpProjectConfig(Path("/project"), "solution")
+        config = CSharpProjectConfig(Path("/project"), "solution", Path("/project/App.slnx"))
         assert config.root == Path("/project")
         assert config.project_type == "solution"
+        assert config.project_file == Path("/project/App.slnx")
 
     def test_repr(self):
         config = CSharpProjectConfig(Path("/project"), "project")
@@ -36,6 +37,7 @@ class TestCSharpConfigScanner:
         assert len(projects) == 1
         assert projects[0].root == tmp_path
         assert projects[0].project_type == "solution"
+        assert projects[0].project_file == tmp_path / "MyApp.sln"
 
     def test_scan_slnx_solution_file(self, tmp_path: Path):
         """Ensure .slnx files are recognized to avoid per-project fallback scanning."""
@@ -50,6 +52,7 @@ class TestCSharpConfigScanner:
         assert len(projects) == 1
         assert projects[0].root == tmp_path
         assert projects[0].project_type == "solution"
+        assert projects[0].project_file == tmp_path / "MyApp.slnx"
 
     def test_scan_csproj_file(self, tmp_path: Path):
         (tmp_path / "MyApp.csproj").write_text('<Project Sdk="Microsoft.NET.Sdk"/>')
@@ -59,6 +62,7 @@ class TestCSharpConfigScanner:
         assert len(projects) == 1
         assert projects[0].root == tmp_path
         assert projects[0].project_type == "project"
+        assert projects[0].project_file == tmp_path / "MyApp.csproj"
 
     def test_solution_takes_precedence_over_csproj(self, tmp_path: Path):
         """When .sln and .csproj coexist at the same root, only solution is returned."""

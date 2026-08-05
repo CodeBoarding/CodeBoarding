@@ -1733,7 +1733,7 @@ class TestInstallPackageManagerTools(unittest.TestCase):
         csharp = next(d for d in TOOL_REGISTRY if d.key == "csharp")
         assert isinstance(csharp.source, PackageManagerToolSource)
         self.assertNotIn("--framework", csharp.source.install_args)
-        self.assertEqual(csharp.source.tag, "0.24.0")
+        self.assertEqual(csharp.source.tag, "0.25.0")
 
 
 if __name__ == "__main__":

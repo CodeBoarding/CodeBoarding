@@ -211,8 +211,8 @@ TOOL_REGISTRY: list[ToolDependency] = [
         js_entry_parent="intelephense",
     ),
     # csharp-ls ships only as a NuGet dotnet-tool; installed via ``dotnet tool install``.
-    # Pin to 0.24.0 so C# document symbols work reliably for modern .NET 10
-    # repositories. ``--tool-path`` avoids a misleading "DotnetToolSettings.xml
+    # Pin to 0.25.0 for its parallelized solution target-framework discovery.
+    # ``--tool-path`` avoids a misleading "DotnetToolSettings.xml
     # not found" error when no local manifest is present; the package's default
     # target framework is selected by dotnet.
     ToolDependency(
@@ -221,7 +221,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
         kind=ToolKind.PACKAGE_MANAGER,
         config_section=ConfigSection.LSP_SERVERS,
         source=PackageManagerToolSource(
-            tag="0.24.0",
+            tag="0.25.0",
             manager_binary="dotnet",
             install_args=(
                 "tool",

@@ -48,15 +48,19 @@ class CSharpAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "csharp"
 
-    def get_lsp_command(self, project_root: Path) -> list[str]:
-        """Resolve the .NET SDK and ensure the managed csharp-ls install is current."""
+    def get_lsp_command(self, project_root: Path, project_file: Path | None = None) -> list[str]:
+        """Resolve csharp-ls and select the discovered solution explicitly."""
         try:
             resolution = resolve_dotnet_sdk(project_root)
         except DotnetSdkError as exc:
             raise RuntimeError(str(exc)) from exc
 
         self._ensure_csharp_ls_installed(project_root, resolution.dotnet_path, resolution.env)
-        return super().get_lsp_command(project_root)
+        command = super().get_lsp_command(project_root, project_file)
+        if project_file is not None and project_file.suffix.lower() in {".sln", ".slnx"}:
+            logger.info("Starting csharp-ls with explicit solution: %s", project_file)
+            command.extend(["--solution", str(project_file)])
+        return command
 
     def _ensure_csharp_ls_installed(self, project_root: Path, dotnet_path: str, dotnet_env: dict[str, str]) -> None:
         dep = next((d for d in TOOL_REGISTRY if d.key == "csharp" and d.kind is ToolKind.PACKAGE_MANAGER), None)
@@ -88,7 +92,7 @@ class CSharpAdapter(LanguageAdapter):
             )
         if not package_manager_tool_is_current(servers_dir, dep):
             raise RuntimeError(
-                "csharp-ls could not be installed. CodeBoarding needs csharp-ls 0.24.0 and a .NET 10 SDK "
+                "csharp-ls could not be installed. CodeBoarding needs csharp-ls 0.25.0 and a .NET 10 SDK "
                 "to analyze C# projects."
             )
 
@@ -194,7 +198,7 @@ class CSharpAdapter(LanguageAdapter):
         """
         client.wait_for_diagnostics_quiesce(idle_seconds=2.0, max_wait=30.0)
 
-    def prepare_project(self, project_root: Path) -> None:
+    def prepare_project(self, project_root: Path, project_file: Path | None = None) -> None:
         """Run ``dotnet restore`` so csharp-ls can resolve framework references.
 
         Why: csharp-ls relies on Roslyn / MSBuild to load the project, and
@@ -204,8 +208,9 @@ class CSharpAdapter(LanguageAdapter):
         defined`` diagnostics for every file. Restore is idempotent and
         only writes under ``obj/`` (which we already gitignore).
         """
-        # Find solution or csproj/fsproj at the project_root level
-        target = next(iter(project_root.glob("*.sln")), None)
+        target = project_file
+        if target is None:
+            target = next(iter(project_root.glob("*.sln")), None)
         if target is None:
             target = next(iter(project_root.glob("*.slnx")), None)
         if target is None:
@@ -225,7 +230,7 @@ class CSharpAdapter(LanguageAdapter):
         env.update(resolution.env)
         try:
             result = subprocess.run(
-                [resolution.dotnet_path, "restore", str(target.name), "--nologo", "--verbosity", "minimal"],
+                [resolution.dotnet_path, "restore", str(target), "--nologo", "--verbosity", "minimal"],
                 cwd=str(project_root),
                 env=env,
                 capture_output=True,

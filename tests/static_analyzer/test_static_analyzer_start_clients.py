@@ -164,6 +164,16 @@ class TestStartClientsGracefulDegradation:
 
         analyzer._validate_analysis_results(results)
 
+    def test_csharp_analysis_timeout_is_fatal(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        cs_adapter = _make_adapter("CSharp", language_enum=Language.CSHARP, fail_on_empty_symbols=True)
+        analyzer._engine_clients = [(EngineConfig(cs_adapter, tmp_path), MagicMock())]
+
+        with (
+            patch.object(analyzer, "_run_full_analysis", side_effect=TimeoutError("documentSymbol timed out")),
+            pytest.raises(StaticAnalysisFatalError, match="CSharp analysis failed: documentSymbol timed out"),
+        ):
+            analyzer._run_full_lsp_pass()
+
     def test_all_success_records_no_failures(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python")
         ts_adapter = _make_adapter("TypeScript")

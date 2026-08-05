@@ -48,6 +48,19 @@ class TestGetLspCommandDotnetCheck:
             cmd = CSharpAdapter().get_lsp_command(tmp_path)
         assert cmd[0] == resolved
 
+    def test_passes_discovered_solution_to_csharp_ls(self, tmp_path: Path) -> None:
+        solution = tmp_path / "Rapidata.slnx"
+        with (
+            patch(
+                "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+                return_value=_dotnet_resolution(),
+            ),
+            patch.object(CSharpAdapter, "_ensure_csharp_ls_installed"),
+            patch("static_analyzer.engine.language_adapter.get_config", return_value={}),
+        ):
+            cmd = CSharpAdapter().get_lsp_command(tmp_path, solution)
+        assert cmd == ["csharp-ls", "--solution", str(solution)]
+
 
 class TestCSharpAdapterProperties:
     """Tests for basic adapter properties."""
@@ -365,7 +378,7 @@ class TestPrepareProject:
         )
         CSharpAdapter().prepare_project(tmp_path)
         assert called["cmd"][:2] == ["/opt/dotnet/dotnet", "restore"]
-        assert called["cmd"][2] == "Foo.csproj"
+        assert called["cmd"][2] == str(tmp_path / "Foo.csproj")
         assert called["cwd"] == str(tmp_path)
         assert called["env"]["DOTNET_ROOT"] == "/opt/dotnet"
 
@@ -388,7 +401,25 @@ class TestPrepareProject:
             lambda _root: _dotnet_resolution(),
         )
         CSharpAdapter().prepare_project(tmp_path)
-        assert called["cmd"][2] == "Foo.sln"
+        assert called["cmd"][2] == str(tmp_path / "Foo.sln")
+
+    def test_restores_explicit_solution(self, tmp_path, monkeypatch):
+        selected = tmp_path / "Rapidata.slnx"
+        selected.write_text("<Solution />")
+        (tmp_path / "Other.sln").write_text("")
+        called = {}
+
+        def fake_run(cmd, **kwargs):
+            called["cmd"] = cmd
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.subprocess.run", fake_run)
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution(),
+        )
+        CSharpAdapter().prepare_project(tmp_path, selected)
+        assert called["cmd"][2] == str(selected)
 
     def test_skips_when_no_project_file(self, tmp_path, monkeypatch):
         def fake_run(*_args, **_kwargs):

@@ -64,7 +64,7 @@ class LanguageAdapter(ABC):
         """
         return self.language_id
 
-    def get_lsp_command(self, project_root: Path) -> list[str]:
+    def get_lsp_command(self, project_root: Path, project_file: Path | None = None) -> list[str]:
         """Get the LSP command with binary paths resolved from tool_registry.
 
         Looks up the resolved command for this language in the tool config
@@ -243,7 +243,7 @@ class LanguageAdapter(ABC):
         """Return extra environment variables for the LSP server process."""
         return {}
 
-    def prepare_project(self, project_root: Path) -> None:
+    def prepare_project(self, project_root: Path, project_file: Path | None = None) -> None:
         """Run any pre-LSP project preparation (e.g. dependency restore).
 
         Default no-op. C# overrides to run ``dotnet restore`` so csharp-ls

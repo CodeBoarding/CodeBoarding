@@ -48,7 +48,7 @@ class JavaAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "java"
 
-    def get_lsp_command(self, project_root: Path) -> list[str]:
+    def get_lsp_command(self, project_root: Path, project_file: Path | None = None) -> list[str]:
         """Build the full JDTLS launch command.
 
         JDTLS cannot be started with a simple binary name — it requires a Java
