@@ -298,6 +298,8 @@ class TestLspEnv:
         assert "DOTNET_ROLL_FORWARD" not in adapter.get_lsp_env()
 
     def test_project_env_uses_resolved_sdk_and_single_target_override(self, monkeypatch, tmp_path):
+        for index in range(26):
+            (tmp_path / f"Project{index}.csproj").touch()
         monkeypatch.setattr(
             "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
             lambda _root: _dotnet_resolution("/private/dotnet", {"DOTNET_ROOT": "/private"}),
@@ -309,9 +311,22 @@ class TestLspEnv:
 
         assert env["DOTNET_ROOT"] == "/private"
         assert targets_path.is_file()
-        assert "<TargetFrameworks>" in targets_path.read_text()
+        targets = targets_path.read_text()
+        assert "<TargetFrameworks>" in targets
+        assert "$(BundledNETCoreAppTargetFrameworkVersion)" in targets
+
+    def test_project_env_leaves_small_workspaces_unchanged(self, monkeypatch, tmp_path):
+        (tmp_path / "Project.csproj").touch()
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution("/private/dotnet", {"DOTNET_ROOT": "/private"}),
+        )
+
+        assert CSharpAdapter().get_lsp_env(tmp_path) == {"DOTNET_ROOT": "/private"}
 
     def test_project_env_preserves_custom_directory_build_targets(self, monkeypatch, tmp_path):
+        for index in range(26):
+            (tmp_path / f"Project{index}.csproj").touch()
         custom_targets = tmp_path / "custom.targets"
         monkeypatch.setenv("DirectoryBuildTargetsPath", str(custom_targets))
         monkeypatch.setattr(

@@ -25,7 +25,8 @@ from tool_registry import (
 
 logger = logging.getLogger(__name__)
 
-_SINGLE_TARGET_FRAMEWORK_TARGETS = """<Project>
+_MULTI_TARGET_PROJECT_THRESHOLD = 25
+_SINGLE_TARGET_FRAMEWORK_TARGETS = r"""<Project>
   <PropertyGroup Condition="'$(CodeBoardingOriginalDirectoryBuildTargetsPath)' == ''">
     <CodeBoardingDirectoryBuildTargetsPath>$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildProjectDirectory)'))</CodeBoardingDirectoryBuildTargetsPath>
   </PropertyGroup>
@@ -36,14 +37,23 @@ _SINGLE_TARGET_FRAMEWORK_TARGETS = """<Project>
     Project="$(CodeBoardingDirectoryBuildTargetsPath)"
     Condition="Exists('$(CodeBoardingDirectoryBuildTargetsPath)')" />
   <PropertyGroup Condition="'$(TargetFrameworks)' != ''">
-    <TargetFrameworks>$([System.String]::Copy('$(TargetFrameworks)').Trim().Trim(';').Split(';')[0].Trim())</TargetFrameworks>
+    <CodeBoardingTargetFrameworks>$([System.Text.RegularExpressions.Regex]::Replace('$(TargetFrameworks)', '\s', ''))</CodeBoardingTargetFrameworks>
+    <CodeBoardingTargetFrameworks>$([System.Text.RegularExpressions.Regex]::Replace('$(CodeBoardingTargetFrameworks)', ';+', ';'))</CodeBoardingTargetFrameworks>
+    <CodeBoardingTargetFrameworks>;$([System.String]::Copy('$(CodeBoardingTargetFrameworks)').Trim(';'));</CodeBoardingTargetFrameworks>
+    <CodeBoardingPreferredTargetFramework Condition="'$(BundledNETCoreAppTargetFrameworkVersion)' != ''">net$(BundledNETCoreAppTargetFrameworkVersion)</CodeBoardingPreferredTargetFramework>
+    <TargetFrameworks>$([System.String]::Copy('$(CodeBoardingTargetFrameworks)').Trim(';').Split(';')[0])</TargetFrameworks>
+    <TargetFrameworks Condition="'$(CodeBoardingPreferredTargetFramework)' != '' and $(CodeBoardingTargetFrameworks.Contains(';$(CodeBoardingPreferredTargetFramework);'))">$(CodeBoardingPreferredTargetFramework)</TargetFrameworks>
   </PropertyGroup>
 </Project>
 """
 
 
-def _single_target_framework_env() -> dict[str, str]:
+def _single_target_framework_env(project_root: Path) -> dict[str, str]:
     """Prevent csharp-ls's exponential multi-target framework fold."""
+    project_count = sum(1 for pattern in ("*.csproj", "*.fsproj") for _ in project_root.rglob(pattern))
+    if project_count <= _MULTI_TARGET_PROJECT_THRESHOLD:
+        return {}
+
     targets_path = get_servers_dir() / "csharp-ls-single-target.targets"
     targets_path.parent.mkdir(parents=True, exist_ok=True)
     if not targets_path.exists() or targets_path.read_text(encoding="utf-8") != _SINGLE_TARGET_FRAMEWORK_TARGETS:
@@ -290,7 +300,7 @@ class CSharpAdapter(LanguageAdapter):
                 env = resolve_dotnet_sdk(project_root).env
             except DotnetSdkError as exc:
                 raise RuntimeError(str(exc)) from exc
-            env.update(_single_target_framework_env())
+            env.update(_single_target_framework_env(project_root))
             return env
         dotnet = shutil.which("dotnet")
         env = system_dotnet_env(Path(dotnet)) if dotnet else {}
