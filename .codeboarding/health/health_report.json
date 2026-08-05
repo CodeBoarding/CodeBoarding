@@ -1,16 +1,16 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-08-04T10:32:34.236873+00:00",
-  "overall_score": 0.9426911907066796,
+  "timestamp": "2026-08-05T17:09:17.504298+00:00",
+  "overall_score": 0.9427244582043344,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1515,
+      "total_entities_checked": 1516,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.9993399339933994,
+      "score": 0.9993403693931399,
       "finding_groups": [
         {
           "severity": "warning",
@@ -32,10 +32,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1527,
+      "total_entities_checked": 1528,
       "findings_count": 39,
       "warning_count": 39,
-      "score": 0.9744597249508841,
+      "score": 0.974476439790576,
       "finding_groups": [
         {
           "severity": "warning",
@@ -323,10 +323,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1527,
+      "total_entities_checked": 1528,
       "findings_count": 11,
       "warning_count": 11,
-      "score": 0.9927963326784545,
+      "score": 0.9928010471204188,
       "finding_groups": [
         {
           "severity": "warning",
@@ -383,18 +383,18 @@
               "metric_value": 14
             },
             {
+              "entity_name": "tool_registry.paths.get_servers_dir",
+              "file_path": "tool_registry/paths.py",
+              "line_start": 83,
+              "line_end": 85,
+              "metric_value": 13
+            },
+            {
               "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter.language",
               "file_path": "static_analyzer/engine/language_adapter.py",
               "line_start": 32,
               "line_end": 33,
               "metric_value": 13
-            },
-            {
-              "entity_name": "tool_registry.paths.get_servers_dir",
-              "file_path": "tool_registry/paths.py",
-              "line_start": 83,
-              "line_end": 85,
-              "metric_value": 12
             },
             {
               "entity_name": "static_analyzer.engine.symbol_table.SymbolTable.symbols",
@@ -1482,15 +1482,15 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
-              "line_start": 148,
-              "line_end": 148,
+              "entity_name": "[unused_variable] \"context\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 190,
+              "line_end": 190,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"context\" is not accessed",
-              "file_path": "agents/validation.py",
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
               "line_start": 190,
               "line_end": 190,
               "metric_value": 0.0

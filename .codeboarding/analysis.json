@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-04T10:34:15.117461+00:00",
-    "source_tree_hash": "a61fd8d143b7be2459bc21065b10e6f53c4458ac185f29cc9f9fed22c5affe77",
+    "generated_at": "2026-08-05T17:10:43.256647+00:00",
+    "source_tree_hash": "c2482821b62f447328030f445966ca4122391d392a6d2a9aa63d627312c8d172",
     "repo_name": "CodeBoarding",
     "depth_level": 4,
     "depth_cap": 4,
@@ -142,6 +142,7 @@
     },
     "static_analyzer/engine/adapters/csharp_adapter.py": {
       "method_keys": [
+        "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.include_references_on_declaration_line",
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
@@ -165,8 +166,8 @@
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.is_reference_worthy",
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_all_packages"
       ],
-      "content_hash": "d64eeecf92ccf8b4",
-      "module_hash": "b4c392f99bc5cb1d"
+      "content_hash": "f70bb60464cb9bda",
+      "module_hash": "d21b6739189bc0d3"
     },
     "static_analyzer/engine/adapters/go_adapter.py": {
       "method_keys": [
@@ -3448,179 +3449,187 @@
       "type": "FUNCTION",
       "content_hash": "63d78ff1c00617f1"
     },
+    "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env": {
+      "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
+      "qualified_name": "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
+      "start_line": 51,
+      "end_line": 68,
+      "type": "FUNCTION",
+      "content_hash": "051c2f6578703998"
+    },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
-      "start_line": 29,
-      "end_line": 277,
+      "start_line": 71,
+      "end_line": 321,
       "type": "CLASS",
-      "content_hash": "2c5f6647dd8613d9"
+      "content_hash": "b0eb97bb4e74f67f"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.include_references_on_declaration_line": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.include_references_on_declaration_line",
-      "start_line": 32,
-      "end_line": 33,
+      "start_line": 74,
+      "end_line": 75,
       "type": "METHOD",
       "content_hash": "d5ad8f302610b9ea"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
-      "start_line": 36,
-      "end_line": 37,
+      "start_line": 78,
+      "end_line": 79,
       "type": "METHOD",
       "content_hash": "2d3b0533d272c1a0"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_enum": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_enum",
-      "start_line": 40,
-      "end_line": 41,
+      "start_line": 82,
+      "end_line": 83,
       "type": "METHOD",
       "content_hash": "a55d3294503af5d9"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.lsp_command": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.lsp_command",
-      "start_line": 44,
-      "end_line": 45,
+      "start_line": 86,
+      "end_line": 87,
       "type": "METHOD",
       "content_hash": "18dc88ab042a2203"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_id": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_id",
-      "start_line": 48,
-      "end_line": 49,
+      "start_line": 90,
+      "end_line": 91,
       "type": "METHOD",
       "content_hash": "34876d583abc7820"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
-      "start_line": 51,
-      "end_line": 59,
+      "start_line": 93,
+      "end_line": 101,
       "type": "METHOD",
       "content_hash": "066452bf8b86d022"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
-      "start_line": 61,
-      "end_line": 93,
+      "start_line": 103,
+      "end_line": 135,
       "type": "METHOD",
       "content_hash": "1788d7b81d615969"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.build_qualified_name": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.build_qualified_name",
-      "start_line": 95,
-      "end_line": 139,
+      "start_line": 137,
+      "end_line": 181,
       "type": "METHOD",
       "content_hash": "cc650ce24915aa7a"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.extract_package": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.extract_package",
-      "start_line": 141,
-      "end_line": 146,
+      "start_line": 183,
+      "end_line": 188,
       "type": "METHOD",
       "content_hash": "777cfe8ec0b5c75a"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_init_options": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_init_options",
-      "start_line": 148,
-      "end_line": 157,
+      "start_line": 190,
+      "end_line": 199,
       "type": "METHOD",
       "content_hash": "76902df993ef2827"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_workspace_settings": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_workspace_settings",
-      "start_line": 159,
-      "end_line": 164,
+      "start_line": 201,
+      "end_line": 206,
       "type": "METHOD",
       "content_hash": "18468b55260d5e5d"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.probe_before_open": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.probe_before_open",
-      "start_line": 167,
-      "end_line": 169,
+      "start_line": 209,
+      "end_line": 211,
       "type": "METHOD",
       "content_hash": "1fd7826951621718"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_owns_documents": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_owns_documents",
-      "start_line": 172,
-      "end_line": 174,
+      "start_line": 214,
+      "end_line": 216,
       "type": "METHOD",
       "content_hash": "15ed377658c3bbc3"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_default_timeout": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_default_timeout",
-      "start_line": 176,
-      "end_line": 178,
+      "start_line": 218,
+      "end_line": 220,
       "type": "METHOD",
       "content_hash": "f5dec5d96662b923"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_probe_timeout_minimum": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_probe_timeout_minimum",
-      "start_line": 180,
-      "end_line": 182,
+      "start_line": 222,
+      "end_line": 224,
       "type": "METHOD",
       "content_hash": "660c48bb768dfb27"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.wait_for_diagnostics": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.wait_for_diagnostics",
-      "start_line": 184,
-      "end_line": 195,
+      "start_line": 226,
+      "end_line": 237,
       "type": "METHOD",
       "content_hash": "e46f8ea74ced05cc"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
-      "start_line": 197,
-      "end_line": 247,
+      "start_line": 239,
+      "end_line": 289,
       "type": "METHOD",
       "content_hash": "7a762a615a7e047b"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
-      "start_line": 249,
-      "end_line": 265,
+      "start_line": 291,
+      "end_line": 309,
       "type": "METHOD",
-      "content_hash": "64db3f2809e16bbe"
+      "content_hash": "75153d8bd1090a9f"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.fail_on_empty_symbols": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.fail_on_empty_symbols",
-      "start_line": 268,
-      "end_line": 269,
+      "start_line": 312,
+      "end_line": 313,
       "type": "METHOD",
       "content_hash": "026c95c3088d43b5"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.is_reference_worthy": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.is_reference_worthy",
-      "start_line": 271,
-      "end_line": 273,
+      "start_line": 315,
+      "end_line": 317,
       "type": "METHOD",
       "content_hash": "3f9341e4747ddbbc"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_all_packages": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_all_packages",
-      "start_line": 275,
-      "end_line": 277,
+      "start_line": 319,
+      "end_line": 321,
       "type": "METHOD",
       "content_hash": "3b352f0b59a2871c"
     },
@@ -17261,14 +17270,15 @@
         {
           "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
           "methods": [
-            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.include_references_on_declaration_line",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_enum",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.lsp_command",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_id",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
+            "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
+            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.build_qualified_name",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.extract_package",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_init_options",
@@ -17279,10 +17289,10 @@
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_probe_timeout_minimum",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.wait_for_diagnostics",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
-            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.fail_on_empty_symbols",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.is_reference_worthy",
-            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_all_packages"
+            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_all_packages",
+            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env"
           ]
         },
         {
@@ -20096,7 +20106,9 @@
               "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
               "methods": [
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
+                "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
+                "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env"
               ]
@@ -20332,7 +20344,9 @@
                   "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
                   "methods": [
                     "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
+                    "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
                     "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
+                    "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
                     "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
                     "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env"
                   ]
@@ -20566,6 +20580,8 @@
                       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
                       "methods": [
                         "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
+                        "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
+                        "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
                         "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
                         "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env"
                       ]
@@ -20584,6 +20600,31 @@
                 }
               ],
               "components_relations": [
+                {
+                  "relation": "Orchestrates environment readiness for C# analysis",
+                  "src_name": "Multi-Language Toolchain Auditor & Binary Provisioner",
+                  "dst_name": ".NET SDK Lifecycle & Environment Resolver",
+                  "evidence": "The Auditor acts as the entry point for environment setup; during the 'LanguageSupportCheck' phase, it triggers the specialized .NET resolver to validate SDK availability and isolate the execution environment, ensuring the static analysis engine has a valid runtime context.",
+                  "key_edges": [
+                    {
+                      "source": "install.py|install.LanguageSupportCheck",
+                      "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.DotnetSdkResolution",
+                      "call_sites": [],
+                      "description": ""
+                    }
+                  ],
+                  "src_id": "1.2.1.1",
+                  "dst_id": "1.2.1.2",
+                  "is_static": false,
+                  "all_edges": [
+                    {
+                      "source": "install.py|install.LanguageSupportCheck",
+                      "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.DotnetSdkResolution",
+                      "call_sites": [],
+                      "description": ""
+                    }
+                  ]
+                },
                 {
                   "relation": "Delegates binary lifecycle and platform-specific path resolution",
                   "src_name": ".NET SDK Lifecycle & Environment Resolver",
@@ -20625,31 +20666,6 @@
                           "column": 14
                         }
                       ],
-                      "description": ""
-                    }
-                  ]
-                },
-                {
-                  "relation": "Orchestrates environment readiness for C# analysis",
-                  "src_name": "Multi-Language Toolchain Auditor & Binary Provisioner",
-                  "dst_name": ".NET SDK Lifecycle & Environment Resolver",
-                  "evidence": "The Auditor acts as the entry point for environment setup; during the 'LanguageSupportCheck' phase, it triggers the specialized .NET resolver to validate SDK availability and isolate the execution environment, ensuring the static analysis engine has a valid runtime context.",
-                  "key_edges": [
-                    {
-                      "source": "install.py|install.LanguageSupportCheck",
-                      "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.DotnetSdkResolution",
-                      "call_sites": [],
-                      "description": ""
-                    }
-                  ],
-                  "src_id": "1.2.1.1",
-                  "dst_id": "1.2.1.2",
-                  "is_static": false,
-                  "all_edges": [
-                    {
-                      "source": "install.py|install.LanguageSupportCheck",
-                      "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.DotnetSdkResolution",
-                      "call_sites": [],
                       "description": ""
                     }
                   ]
@@ -21381,15 +21397,26 @@
           ],
           "components_relations": [
             {
-              "relation": "requests filesystem locks and path resolution for installations",
+              "relation": "queries environment state and requests runtime setup",
               "src_name": "Language Support Auditor & Binary Resolver",
               "dst_name": "Runtime Provisioner & Tooling Bootstrapper",
-              "evidence": "The Auditor relies on the Provisioner's utility layer to safely manage concurrent installations via file locks and to resolve the platform-specific directories where servers should be persisted.",
+              "evidence": "The auditor evaluates system readiness and triggers the acquisition of missing binaries or environment locks through the provisioner.",
               "key_edges": [],
               "src_id": "1.2.1",
               "dst_id": "1.2.2",
               "is_static": true,
               "all_edges": [
+                {
+                  "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
+                  "target": "tool_registry/paths.py|tool_registry.paths.get_servers_dir",
+                  "call_sites": [
+                    {
+                      "line": 57,
+                      "column": 20
+                    }
+                  ],
+                  "description": ""
+                },
                 {
                   "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
                   "target": "tool_registry/manifest.py|tool_registry.manifest.acquire_lock",
@@ -21698,7 +21725,6 @@
             {
               "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
               "methods": [
-                "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.include_references_on_declaration_line",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_enum",
@@ -22284,12 +22310,6 @@
                   "reference_end_line": 33
                 },
                 {
-                  "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
-                  "reference_file": "static_analyzer/engine/adapters/csharp_adapter.py",
-                  "reference_start_line": 29,
-                  "reference_end_line": 277
-                },
-                {
                   "qualified_name": "static_analyzer.engine.adapters.php_adapter.PHPAdapter",
                   "reference_file": "static_analyzer/engine/adapters/php_adapter.py",
                   "reference_start_line": 24,
@@ -22312,7 +22332,6 @@
                 {
                   "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
                   "methods": [
-                    "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
                     "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.include_references_on_declaration_line",
                     "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
                     "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_enum",
@@ -22386,12 +22405,6 @@
                   "description": "Handles complex hierarchical resolution for enterprise-grade languages (C# and PHP), implementing logic for deep package extraction, qualified name building, and environment-specific symbol filtering.",
                   "key_entities": [
                     {
-                      "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
-                      "reference_file": "static_analyzer/engine/adapters/csharp_adapter.py",
-                      "reference_start_line": 29,
-                      "reference_end_line": 277
-                    },
-                    {
                       "qualified_name": "static_analyzer.engine.adapters.php_adapter.PHPAdapter",
                       "reference_file": "static_analyzer/engine/adapters/php_adapter.py",
                       "reference_start_line": 24,
@@ -22421,7 +22434,6 @@
                     {
                       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
                       "methods": [
-                        "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
                         "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.include_references_on_declaration_line",
                         "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
                         "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_enum",
@@ -22569,22 +22581,33 @@
           ],
           "components_relations": [
             {
-              "relation": "extends base extraction logic and utilizes LSP utilities",
+              "relation": "Orchestrates lifecycle and delegates semantic extraction",
+              "src_name": "Core Adapter Orchestrator & Compiled Language Adapters",
+              "dst_name": "Web & Enterprise Language Adapters",
+              "evidence": "The StaticAnalyzer (Core) acts as a factory/orchestrator that instantiates specific adapters based on project language. It invokes the 'extract_package' and 'build_qualified_name' hooks which Web/Enterprise adapters override to handle complex directory-based namespaces (e.g., PSR-4 in PHP or TSConfig paths).",
+              "key_edges": [],
+              "src_id": "1.3.1",
+              "dst_id": "1.3.2",
+              "is_static": false,
+              "all_edges": []
+            },
+            {
+              "relation": "Extends base abstraction and provides language-specific metadata",
               "src_name": "Web & Enterprise Language Adapters",
               "dst_name": "Core Adapter Orchestrator & Compiled Language Adapters",
-              "evidence": "Web and Enterprise adapters inherit from the base LanguageAdapter to reuse common LSP communication utilities, filesystem path normalization, and the core 'get_hierarchical_packages' logic for namespace resolution.",
+              "evidence": "Web/Enterprise adapters inherit from the base LanguageAdapter class. They provide the Core Orchestrator with the necessary LSP initialization options and command-line arguments required to boot language-specific servers (like intelephense or typescript-language-server).",
               "key_edges": [
                 {
-                  "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
+                  "source": "static_analyzer/engine/adapters/typescript_adapter.py|static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter",
                   "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
                   "call_sites": [],
-                  "description": "Inheritance relationship for base analysis strategy."
+                  "description": ""
                 },
                 {
                   "source": "static_analyzer/engine/adapters/php_adapter.py|static_analyzer.engine.adapters.php_adapter.PHPAdapter",
                   "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
                   "call_sites": [],
-                  "description": "Inheritance from base adapter for shared logic."
+                  "description": ""
                 }
               ],
               "src_id": "1.3.2",
@@ -22592,16 +22615,16 @@
               "is_static": false,
               "all_edges": [
                 {
-                  "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
+                  "source": "static_analyzer/engine/adapters/typescript_adapter.py|static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter",
                   "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
                   "call_sites": [],
-                  "description": "Inheritance relationship for base analysis strategy."
+                  "description": ""
                 },
                 {
                   "source": "static_analyzer/engine/adapters/php_adapter.py|static_analyzer.engine.adapters.php_adapter.PHPAdapter",
                   "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
                   "call_sites": [],
-                  "description": "Inheritance from base adapter for shared logic."
+                  "description": ""
                 }
               ]
             }
@@ -40254,6 +40277,29 @@
       ]
     },
     {
+      "relation": "queries environment state and requests runtime setup",
+      "src_name": ".NET SDK Lifecycle & Environment Resolver",
+      "dst_name": "Installation State & Manifest Registry",
+      "evidence": "The auditor evaluates system readiness and triggers the acquisition of missing binaries or environment locks through the provisioner.",
+      "key_edges": [],
+      "src_id": "1.2.1.2",
+      "dst_id": "1.2.2.3",
+      "is_static": true,
+      "all_edges": [
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
+          "target": "tool_registry/paths.py|tool_registry.paths.get_servers_dir",
+          "call_sites": [
+            {
+              "line": 57,
+              "column": 20
+            }
+          ],
+          "description": ""
+        }
+      ]
+    },
+    {
       "relation": "Validates tool availability for supported languages",
       "src_name": ".NET SDK Lifecycle & Environment Resolver",
       "dst_name": "Compiled Language Adapters",
@@ -41054,17 +41100,11 @@
       ]
     },
     {
-      "relation": "extends base extraction logic and utilizes LSP utilities",
+      "relation": "Extends base abstraction and provides language-specific metadata",
       "src_name": "Web & Enterprise Language Adapters",
       "dst_name": "Core Adapter Orchestrator & Compiled Language Adapters",
-      "evidence": "Web and Enterprise adapters inherit from the base LanguageAdapter to reuse common LSP communication utilities, filesystem path normalization, and the core 'get_hierarchical_packages' logic for namespace resolution.",
+      "evidence": "Web/Enterprise adapters inherit from the base LanguageAdapter class. They provide the Core Orchestrator with the necessary LSP initialization options and command-line arguments required to boot language-specific servers (like intelephense or typescript-language-server).",
       "key_edges": [
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
-          "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
-          "call_sites": [],
-          "description": "Inheritance relationship for base analysis strategy."
-        },
         {
           "source": "static_analyzer/engine/adapters/php_adapter.py|static_analyzer.engine.adapters.php_adapter.PHPAdapter",
           "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
@@ -41076,12 +41116,6 @@
       "dst_id": "1.3.1",
       "is_static": false,
       "all_edges": [
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
-          "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
-          "call_sites": [],
-          "description": "Inheritance relationship for base analysis strategy."
-        },
         {
           "source": "static_analyzer/engine/adapters/php_adapter.py|static_analyzer.engine.adapters.php_adapter.PHPAdapter",
           "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
