@@ -303,7 +303,49 @@ class TestLspEnv:
             lambda _root: _dotnet_resolution("/private/dotnet", {"DOTNET_ROOT": "/private"}),
         )
         adapter = CSharpAdapter()
-        assert adapter.get_lsp_env(tmp_path) == {"DOTNET_ROOT": "/private"}
+        assert adapter.get_lsp_env(tmp_path)["DOTNET_ROOT"] == "/private"
+
+
+class TestSingleTargetFrameworkTargets:
+    """csharp-ls folds per-project target-framework sets pairwise without
+    deduplicating between steps, so a solution with ~30 or more multi-targeted
+    projects never finishes loading. The adapter hands MSBuild a targets file
+    that leaves every project with exactly one framework, keeping that fold
+    linear."""
+
+    def test_env_points_both_msbuild_hooks_at_the_targets_file(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.user_data_dir", lambda: tmp_path)
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution("/private/dotnet", {"DOTNET_ROOT": "/private"}),
+        )
+        env = CSharpAdapter().get_lsp_env(tmp_path)
+
+        targets = Path(env["CustomAfterMicrosoftCommonTargets"])
+        # The cross-targeting hook is the one that fires while a project still
+        # declares several frameworks -- the common hook alone would never run.
+        assert env["CustomAfterMicrosoftCommonCrossTargetingTargets"] == str(targets)
+        assert targets.is_file()
+
+    def test_targets_file_clears_target_frameworks(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.user_data_dir", lambda: tmp_path)
+        monkeypatch.setattr("shutil.which", lambda _: None)
+        targets = Path(CSharpAdapter().get_lsp_env()["CustomAfterMicrosoftCommonTargets"]).read_text()
+
+        assert "<TargetFrameworks></TargetFrameworks>" in targets
+        assert "$(BundledNETCoreAppTargetFrameworkVersion)" in targets
+
+    def test_rewrites_the_targets_file_atomically(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.user_data_dir", lambda: tmp_path)
+        monkeypatch.setattr("shutil.which", lambda _: None)
+        adapter = CSharpAdapter()
+        targets = Path(adapter.get_lsp_env()["CustomAfterMicrosoftCommonTargets"])
+        targets.write_text("stale")
+
+        assert Path(adapter.get_lsp_env()["CustomAfterMicrosoftCommonTargets"]).read_text() != "stale"
+        # A half-written file breaks every project MSBuild evaluates, so the
+        # scratch copy must not survive next to the real one.
+        assert sorted(p.name for p in targets.parent.iterdir()) == [targets.name]
 
 
 class TestReferenceTracking:

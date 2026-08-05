@@ -21,9 +21,38 @@ from tool_registry import (
     install_package_manager_tools,
     package_manager_tool_is_current,
     package_manager_tool_path,
+    user_data_dir,
 )
 
 logger = logging.getLogger(__name__)
+
+# MSBuild file that rewrites every multi-targeted project to a single target framework.
+#
+# Why: before opening a workspace, csharp-ls folds the per-project target-framework sets
+# together pairwise and only deduplicates once, at the end. Each project that declares
+# ``<TargetFrameworks>`` (plural) roughly doubles the work, so a solution with ~30 or more
+# of them takes hours-to-years to load and our readiness probe times out with no C# result.
+# One framework per project keeps that fold linear.
+#
+# The .NET SDK imports this after the project body, so it also catches multi-targeting that
+# only a ``Directory.Build.props`` declares and no csproj mentions. Prefer the SDK's own
+# current framework when the project offers it: positional picks land on .NET Framework or a
+# mobile target for the many repos that order their list newest-first.
+SINGLE_TARGET_FRAMEWORK_TARGETS = r"""<Project>
+  <PropertyGroup Condition="'$(TargetFrameworks)' != ''">
+    <_CbTfms>$([System.Text.RegularExpressions.Regex]::Replace('$(TargetFrameworks)', '\s', ''))</_CbTfms>
+    <_CbTfms>$([System.Text.RegularExpressions.Regex]::Replace('$(_CbTfms)', ';+', ';'))</_CbTfms>
+    <_CbTfms>;$([System.Text.RegularExpressions.Regex]::Replace('$(_CbTfms)', '^;|;$', ''));</_CbTfms>
+    <_CbSdkTfm Condition="'$(BundledNETCoreAppTargetFrameworkVersion)' != ''">net$(BundledNETCoreAppTargetFrameworkVersion)</_CbSdkTfm>
+    <_CbTfm>$([System.Text.RegularExpressions.Regex]::Replace('$(_CbTfms.Substring(1))', ';.*', ''))</_CbTfm>
+    <_CbTfm Condition="'$(_CbSdkTfm)' != '' and $(_CbTfms.Contains(';$(_CbSdkTfm);'))">$(_CbSdkTfm)</_CbTfm>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_CbTfm)' != ''">
+    <TargetFramework Condition="'$(TargetFramework)' == ''">$(_CbTfm)</TargetFramework>
+    <TargetFrameworks></TargetFrameworks>
+  </PropertyGroup>
+</Project>
+"""
 
 
 class CSharpAdapter(LanguageAdapter):
@@ -255,14 +284,33 @@ class CSharpAdapter(LanguageAdapter):
         """
         if project_root is not None:
             try:
-                return resolve_dotnet_sdk(project_root).env
+                env = dict(resolve_dotnet_sdk(project_root).env)
             except DotnetSdkError as exc:
                 raise RuntimeError(str(exc)) from exc
-        dotnet = shutil.which("dotnet")
-        env = system_dotnet_env(Path(dotnet)) if dotnet else {}
-        if not os.environ.get("DOTNET_ROLL_FORWARD"):
-            env["DOTNET_ROLL_FORWARD"] = "Major"
+        else:
+            dotnet = shutil.which("dotnet")
+            env = system_dotnet_env(Path(dotnet)) if dotnet else {}
+            if not os.environ.get("DOTNET_ROLL_FORWARD"):
+                env["DOTNET_ROLL_FORWARD"] = "Major"
+
+        # Both hooks are needed: MSBuild imports the cross-targeting one while
+        # evaluating a project that still declares several frameworks, and the
+        # common one once csharp-ls reopens it pinned to the single framework.
+        targets = str(self._write_single_target_framework_targets())
+        env["CustomAfterMicrosoftCommonTargets"] = targets
+        env["CustomAfterMicrosoftCommonCrossTargetingTargets"] = targets
         return env
+
+    def _write_single_target_framework_targets(self) -> Path:
+        """Materialize ``SINGLE_TARGET_FRAMEWORK_TARGETS`` and return its path."""
+        path = user_data_dir() / "msbuild" / "CodeBoarding.SingleTargetFramework.targets"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Written per run and shared across concurrent analyses, so swap it in
+        # atomically -- MSBuild reading a half-written file fails every project.
+        scratch = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        scratch.write_text(SINGLE_TARGET_FRAMEWORK_TARGETS, encoding="utf-8")
+        os.replace(scratch, path)
+        return path
 
     @property
     def fail_on_empty_symbols(self) -> bool:
