@@ -367,6 +367,12 @@ class StaticAnalyzer:
         except Exception:
             logger.exception("Failed to persist static analysis pkl during stop_clients; continuing teardown")
 
+    def discard_cache(self, artifact_dir: Path) -> None:
+        """Delete an unusable cache and prevent teardown from recreating it."""
+        self._results_need_saving = False
+        self._cached_results = None
+        StaticAnalysisCache(artifact_dir, self.repository_path).clear()
+
     def collect_fresh_diagnostics(self) -> dict[Language, FileDiagnosticsMap]:
         """Read current diagnostics from all running LSP clients without re-analyzing.
 

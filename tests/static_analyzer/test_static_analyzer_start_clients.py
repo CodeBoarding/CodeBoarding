@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from static_analyzer import EngineConfig, StaticAnalysisFatalError, StaticAnalyzer
+from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
@@ -163,6 +164,21 @@ class TestStartClientsGracefulDegradation:
         results.add_source_files(Language.PYTHON, [str(tmp_path / "app.py")])
 
         analyzer._validate_analysis_results(results)
+
+    def test_discard_cache_prevents_teardown_from_recreating_it(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        artifact_dir = tmp_path / "artifacts"
+        results = StaticAnalysisResults()
+        cache = StaticAnalysisCache(artifact_dir, tmp_path)
+        cache.save(results, source_sha="sha")
+        analyzer._cached_results = results
+        analyzer._results_need_saving = True
+        analyzer._pending_cache_dir = artifact_dir
+        analyzer._clients_started = True
+
+        analyzer.discard_cache(artifact_dir)
+        analyzer.stop_clients()
+
+        assert cache.load_with_sha() is None
 
     def test_all_success_records_no_failures(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python")

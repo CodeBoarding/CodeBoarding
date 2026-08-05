@@ -96,6 +96,17 @@ class TestStaticAnalysisCache(unittest.TestCase):
         self.assertTrue((self.artifact_dir / STATIC_ANALYSIS_PKL).exists())
         self.assertTrue((self.artifact_dir / STATIC_ANALYSIS_SHA).exists())
 
+    def test_clear_removes_only_static_analysis_artifacts(self):
+        self.cache.save(StaticAnalysisResults(), source_sha="abc123")
+        analysis_path = self.artifact_dir / "analysis.json"
+        analysis_path.write_text("{}")
+
+        self.cache.clear()
+
+        self.assertFalse((self.artifact_dir / STATIC_ANALYSIS_PKL).exists())
+        self.assertFalse((self.artifact_dir / STATIC_ANALYSIS_SHA).exists())
+        self.assertTrue(analysis_path.exists())
+
 
 class TestStaticAnalysisCacheShaGate(unittest.TestCase):
     """Tests for the SHA-tag gate added in Shape Y phase 1."""
