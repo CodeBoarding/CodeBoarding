@@ -1149,9 +1149,9 @@ class DiagramGenerator:
 
             try:
                 analysis, cluster_results = self.abstraction_agent.run()
-            except StaticAnalysisFatalError:
+            except StaticAnalysisFatalError as exc:
                 self._discard_static_analysis_artifact()
-                raise
+                raise StaticAnalysisFatalError(str(exc)) from exc
             # Get the initial components to analyze (deterministic, no LLM). The
             # separability gate keeps cohesive top-level components as leaves.
             root_components = get_expandable_components(analysis, separable=self._component_separable)

@@ -1164,12 +1164,14 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.details_agent = Mock()
         gen.abstraction_agent = Mock()
-        gen.abstraction_agent.run.side_effect = StaticAnalysisFatalError("No component groups found")
+        fatal_error = StaticAnalysisFatalError("No component groups found")
+        gen.abstraction_agent.run.side_effect = fatal_error
 
-        with self.assertRaisesRegex(StaticAnalysisFatalError, "No component groups found"):
+        with self.assertRaisesRegex(StaticAnalysisFatalError, "No component groups found") as raised:
             gen.generate_analysis()
 
         self.assertIsNone(cache.load_with_sha())
+        self.assertIs(raised.exception.__cause__, fatal_error)
 
     @patch("diagram_analysis.diagram_generator.get_expandable_components")
     def test_generate_analysis_depth_one_preserves_root_expandable_flags(self, mock_get_expandable_components):
