@@ -307,8 +307,9 @@ class CSharpAdapter(LanguageAdapter):
         path.parent.mkdir(parents=True, exist_ok=True)
         # One shared file, so a concurrent analysis may be importing it right
         # now -- on Windows, replacing a file another process holds open fails.
-        # Rewrite it only when the contents actually changed.
-        if path.is_file() and path.read_text(encoding="utf-8") == SINGLE_TARGET_FRAMEWORK_TARGETS:
+        # Rewrite it only when the contents actually changed; anything we cannot
+        # read back as our own text (corrupt, hand-edited) is a mismatch.
+        if path.is_file() and path.read_text(encoding="utf-8", errors="ignore") == SINGLE_TARGET_FRAMEWORK_TARGETS:
             return path
         # MSBuild reading a half-written file fails every project it evaluates,
         # so the new contents have to appear in one step.
