@@ -145,15 +145,6 @@ class StaticAnalysisCache:
     def _legacy_pkl_path(self) -> Path:
         return self.artifact_dir / _LEGACY_CACHE_SUBDIR / _LEGACY_PKL_NAME
 
-    def clear(self) -> None:
-        """Delete persisted static-analysis results without touching sibling artifacts."""
-        if not self.artifact_dir.exists():
-            return
-        with FileLock(self.lock_path, timeout=30):
-            self.pkl_path.unlink(missing_ok=True)
-            self.sha_path.unlink(missing_ok=True)
-            self._legacy_pkl_path().unlink(missing_ok=True)
-
     def load_with_sha(self) -> "tuple[StaticAnalysisResults, str] | None":
         """Load the pkl and its tag SHA together; returns ``None`` if either is absent.
 

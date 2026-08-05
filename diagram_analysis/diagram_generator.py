@@ -71,7 +71,7 @@ from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer import StaticAnalysisFatalError, StaticAnalyzer, get_static_analysis
+from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -892,13 +892,6 @@ class DiagramGenerator:
             return
         StaticAnalysisCache(self.output_dir, self.repo_location).save(self.static_analysis, source_sha=self.source_sha)
 
-    def _discard_static_analysis_artifact(self) -> None:
-        """Discard static analysis that cannot produce an architecture."""
-        if self._static_analyzer is not None:
-            self._static_analyzer.discard_cache(self.output_dir)
-            return
-        StaticAnalysisCache(self.output_dir, self.repo_location).clear()
-
     def _source_tree_fingerprint_map(self) -> dict[str, str]:
         """The whole-tree fingerprint, fingerprinting on first use if pre_analysis didn't."""
         if self._source_tree_fingerprint is None:
@@ -1147,11 +1140,7 @@ class DiagramGenerator:
 
             assert self.abstraction_agent is not None
 
-            try:
-                analysis, cluster_results = self.abstraction_agent.run()
-            except StaticAnalysisFatalError as exc:
-                self._discard_static_analysis_artifact()
-                raise StaticAnalysisFatalError(str(exc)) from exc
+            analysis, cluster_results = self.abstraction_agent.run()
             # Get the initial components to analyze (deterministic, no LLM). The
             # separability gate keeps cohesive top-level components as leaves.
             root_components = get_expandable_components(analysis, separable=self._component_separable)

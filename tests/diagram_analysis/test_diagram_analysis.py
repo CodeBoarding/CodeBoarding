@@ -43,7 +43,6 @@ from diagram_analysis.diagram_generator import (
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
 from repo_utils.change_detector import ChangeSet
-from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
@@ -1149,29 +1148,6 @@ class TestDiagramGenerator(unittest.TestCase):
             sorted([c.component_id for c in captured["expandable_components"]]),
             [comp1.component_id],
         )
-
-    def test_generate_analysis_discards_cache_when_static_analysis_has_no_groups(self):
-        cache = StaticAnalysisCache(self.output_dir, self.repo_location)
-        cache.save(StaticAnalysisResults(), source_sha="sha")
-        gen = DiagramGenerator(
-            repo_location=self.repo_location,
-            temp_folder=self.temp_folder,
-            repo_name="test_repo",
-            output_dir=self.output_dir,
-            depth_level=1,
-            run_id="test-run-id",
-            log_path="test_repo/test-run-log",
-        )
-        gen.details_agent = Mock()
-        gen.abstraction_agent = Mock()
-        fatal_error = StaticAnalysisFatalError("No component groups found")
-        gen.abstraction_agent.run.side_effect = fatal_error
-
-        with self.assertRaisesRegex(StaticAnalysisFatalError, "No component groups found") as raised:
-            gen.generate_analysis()
-
-        self.assertIsNone(cache.load_with_sha())
-        self.assertIs(raised.exception.__cause__, fatal_error)
 
     @patch("diagram_analysis.diagram_generator.get_expandable_components")
     def test_generate_analysis_depth_one_preserves_root_expandable_flags(self, mock_get_expandable_components):
