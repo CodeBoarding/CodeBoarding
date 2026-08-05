@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-05T17:10:43.256647+00:00",
-    "source_tree_hash": "c2482821b62f447328030f445966ca4122391d392a6d2a9aa63d627312c8d172",
+    "generated_at": "2026-08-05T17:16:08.222462+00:00",
+    "source_tree_hash": "8209a6a3c108f6b1ceb94f20c083cd31cad9ed170d14a32ce4e0eabcf2347be4",
     "repo_name": "CodeBoarding",
     "depth_level": 4,
     "depth_cap": 4,
@@ -17270,15 +17270,15 @@
         {
           "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
           "methods": [
+            "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
+            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.include_references_on_declaration_line",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_enum",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.lsp_command",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_id",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
-            "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
-            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.build_qualified_name",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.extract_package",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_init_options",
@@ -17289,10 +17289,10 @@
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_probe_timeout_minimum",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.wait_for_diagnostics",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
+            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.fail_on_empty_symbols",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.is_reference_worthy",
-            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_all_packages",
-            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env"
+            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_all_packages"
           ]
         },
         {
@@ -20105,10 +20105,10 @@
             {
               "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
               "methods": [
-                "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
                 "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
-                "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
+                "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
+                "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env"
               ]
@@ -20343,10 +20343,10 @@
                 {
                   "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
                   "methods": [
-                    "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
                     "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
-                    "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
                     "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
+                    "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
+                    "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
                     "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
                     "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env"
                   ]
@@ -20579,9 +20579,9 @@
                     {
                       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
                       "methods": [
-                        "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
                         "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
                         "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
+                        "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
                         "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
                         "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env"
                       ]
