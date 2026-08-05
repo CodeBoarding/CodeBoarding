@@ -305,8 +305,13 @@ class CSharpAdapter(LanguageAdapter):
         """Materialize ``SINGLE_TARGET_FRAMEWORK_TARGETS`` and return its path."""
         path = user_data_dir() / "msbuild" / "CodeBoarding.SingleTargetFramework.targets"
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Written per run and shared across concurrent analyses, so swap it in
-        # atomically -- MSBuild reading a half-written file fails every project.
+        # One shared file, so a concurrent analysis may be importing it right
+        # now -- on Windows, replacing a file another process holds open fails.
+        # Rewrite it only when the contents actually changed.
+        if path.is_file() and path.read_text(encoding="utf-8") == SINGLE_TARGET_FRAMEWORK_TARGETS:
+            return path
+        # MSBuild reading a half-written file fails every project it evaluates,
+        # so the new contents have to appear in one step.
         scratch = path.with_name(f"{path.name}.{os.getpid()}.tmp")
         scratch.write_text(SINGLE_TARGET_FRAMEWORK_TARGETS, encoding="utf-8")
         os.replace(scratch, path)
