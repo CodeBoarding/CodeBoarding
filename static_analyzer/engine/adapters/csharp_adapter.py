@@ -25,6 +25,38 @@ from tool_registry import (
 
 logger = logging.getLogger(__name__)
 
+_SINGLE_TARGET_FRAMEWORK_TARGETS = """<Project>
+  <PropertyGroup Condition="'$(CodeBoardingOriginalDirectoryBuildTargetsPath)' == ''">
+    <CodeBoardingDirectoryBuildTargetsPath>$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildProjectDirectory)'))</CodeBoardingDirectoryBuildTargetsPath>
+  </PropertyGroup>
+  <Import
+    Project="$(CodeBoardingOriginalDirectoryBuildTargetsPath)"
+    Condition="Exists('$(CodeBoardingOriginalDirectoryBuildTargetsPath)')" />
+  <Import
+    Project="$(CodeBoardingDirectoryBuildTargetsPath)"
+    Condition="Exists('$(CodeBoardingDirectoryBuildTargetsPath)')" />
+  <PropertyGroup Condition="'$(TargetFrameworks)' != ''">
+    <TargetFrameworks>$([System.String]::Copy('$(TargetFrameworks)').Trim().Trim(';').Split(';')[0].Trim())</TargetFrameworks>
+  </PropertyGroup>
+</Project>
+"""
+
+
+def _single_target_framework_env() -> dict[str, str]:
+    """Prevent csharp-ls's exponential multi-target framework fold."""
+    targets_path = get_servers_dir() / "csharp-ls-single-target.targets"
+    targets_path.parent.mkdir(parents=True, exist_ok=True)
+    if not targets_path.exists() or targets_path.read_text(encoding="utf-8") != _SINGLE_TARGET_FRAMEWORK_TARGETS:
+        temporary_path = targets_path.with_name(f"{targets_path.name}.{os.getpid()}.tmp")
+        temporary_path.write_text(_SINGLE_TARGET_FRAMEWORK_TARGETS, encoding="utf-8")
+        os.replace(temporary_path, targets_path)
+
+    env = {"DirectoryBuildTargetsPath": str(targets_path)}
+    original_targets_path = os.environ.get("DirectoryBuildTargetsPath")
+    if original_targets_path:
+        env["CodeBoardingOriginalDirectoryBuildTargetsPath"] = original_targets_path
+    return env
+
 
 class CSharpAdapter(LanguageAdapter):
 
@@ -255,9 +287,11 @@ class CSharpAdapter(LanguageAdapter):
         """
         if project_root is not None:
             try:
-                return resolve_dotnet_sdk(project_root).env
+                env = resolve_dotnet_sdk(project_root).env
             except DotnetSdkError as exc:
                 raise RuntimeError(str(exc)) from exc
+            env.update(_single_target_framework_env())
+            return env
         dotnet = shutil.which("dotnet")
         env = system_dotnet_env(Path(dotnet)) if dotnet else {}
         if not os.environ.get("DOTNET_ROLL_FORWARD"):

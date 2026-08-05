@@ -297,13 +297,33 @@ class TestLspEnv:
         adapter = CSharpAdapter()
         assert "DOTNET_ROLL_FORWARD" not in adapter.get_lsp_env()
 
-    def test_project_env_uses_resolved_sdk(self, monkeypatch, tmp_path):
+    def test_project_env_uses_resolved_sdk_and_single_target_override(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
             "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
             lambda _root: _dotnet_resolution("/private/dotnet", {"DOTNET_ROOT": "/private"}),
         )
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.get_servers_dir", lambda: tmp_path)
         adapter = CSharpAdapter()
-        assert adapter.get_lsp_env(tmp_path) == {"DOTNET_ROOT": "/private"}
+        env = adapter.get_lsp_env(tmp_path)
+        targets_path = Path(env["DirectoryBuildTargetsPath"])
+
+        assert env["DOTNET_ROOT"] == "/private"
+        assert targets_path.is_file()
+        assert "<TargetFrameworks>" in targets_path.read_text()
+
+    def test_project_env_preserves_custom_directory_build_targets(self, monkeypatch, tmp_path):
+        custom_targets = tmp_path / "custom.targets"
+        monkeypatch.setenv("DirectoryBuildTargetsPath", str(custom_targets))
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution(),
+        )
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.get_servers_dir", lambda: tmp_path)
+
+        env = CSharpAdapter().get_lsp_env(tmp_path)
+
+        assert env["CodeBoardingOriginalDirectoryBuildTargetsPath"] == str(custom_targets)
+        assert env["DirectoryBuildTargetsPath"] != str(custom_targets)
 
 
 class TestReferenceTracking:
