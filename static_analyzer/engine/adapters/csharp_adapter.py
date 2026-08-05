@@ -25,6 +25,48 @@ from tool_registry import (
 
 logger = logging.getLogger(__name__)
 
+_MULTI_TARGET_PROJECT_THRESHOLD = 25
+_SINGLE_TARGET_FRAMEWORK_TARGETS = r"""<Project>
+  <PropertyGroup Condition="'$(CodeBoardingOriginalDirectoryBuildTargetsPath)' == ''">
+    <CodeBoardingDirectoryBuildTargetsPath>$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildProjectDirectory)'))</CodeBoardingDirectoryBuildTargetsPath>
+  </PropertyGroup>
+  <Import
+    Project="$(CodeBoardingOriginalDirectoryBuildTargetsPath)"
+    Condition="Exists('$(CodeBoardingOriginalDirectoryBuildTargetsPath)')" />
+  <Import
+    Project="$(CodeBoardingDirectoryBuildTargetsPath)"
+    Condition="Exists('$(CodeBoardingDirectoryBuildTargetsPath)')" />
+  <PropertyGroup Condition="'$(TargetFrameworks)' != ''">
+    <CodeBoardingTargetFrameworks>$([System.Text.RegularExpressions.Regex]::Replace('$(TargetFrameworks)', '\s', ''))</CodeBoardingTargetFrameworks>
+    <CodeBoardingTargetFrameworks>$([System.Text.RegularExpressions.Regex]::Replace('$(CodeBoardingTargetFrameworks)', ';+', ';'))</CodeBoardingTargetFrameworks>
+    <CodeBoardingTargetFrameworks>;$([System.String]::Copy('$(CodeBoardingTargetFrameworks)').Trim(';'));</CodeBoardingTargetFrameworks>
+    <CodeBoardingPreferredTargetFramework Condition="'$(BundledNETCoreAppTargetFrameworkVersion)' != ''">net$(BundledNETCoreAppTargetFrameworkVersion)</CodeBoardingPreferredTargetFramework>
+    <TargetFrameworks>$([System.String]::Copy('$(CodeBoardingTargetFrameworks)').Trim(';').Split(';')[0])</TargetFrameworks>
+    <TargetFrameworks Condition="'$(CodeBoardingPreferredTargetFramework)' != '' and $(CodeBoardingTargetFrameworks.Contains(';$(CodeBoardingPreferredTargetFramework);'))">$(CodeBoardingPreferredTargetFramework)</TargetFrameworks>
+  </PropertyGroup>
+</Project>
+"""
+
+
+def _single_target_framework_env(project_root: Path) -> dict[str, str]:
+    """Prevent csharp-ls's exponential multi-target framework fold."""
+    project_count = sum(1 for pattern in ("*.csproj", "*.fsproj") for _ in project_root.rglob(pattern))
+    if project_count <= _MULTI_TARGET_PROJECT_THRESHOLD:
+        return {}
+
+    targets_path = get_servers_dir() / "csharp-ls-single-target.targets"
+    targets_path.parent.mkdir(parents=True, exist_ok=True)
+    if not targets_path.exists() or targets_path.read_text(encoding="utf-8") != _SINGLE_TARGET_FRAMEWORK_TARGETS:
+        temporary_path = targets_path.with_name(f"{targets_path.name}.{os.getpid()}.tmp")
+        temporary_path.write_text(_SINGLE_TARGET_FRAMEWORK_TARGETS, encoding="utf-8")
+        os.replace(temporary_path, targets_path)
+
+    env = {"DirectoryBuildTargetsPath": str(targets_path)}
+    original_targets_path = os.environ.get("DirectoryBuildTargetsPath")
+    if original_targets_path:
+        env["CodeBoardingOriginalDirectoryBuildTargetsPath"] = original_targets_path
+    return env
+
 
 class CSharpAdapter(LanguageAdapter):
 
@@ -255,9 +297,11 @@ class CSharpAdapter(LanguageAdapter):
         """
         if project_root is not None:
             try:
-                return resolve_dotnet_sdk(project_root).env
+                env = resolve_dotnet_sdk(project_root).env
             except DotnetSdkError as exc:
                 raise RuntimeError(str(exc)) from exc
+            env.update(_single_target_framework_env(project_root))
+            return env
         dotnet = shutil.which("dotnet")
         env = system_dotnet_env(Path(dotnet)) if dotnet else {}
         if not os.environ.get("DOTNET_ROLL_FORWARD"):
