@@ -310,19 +310,25 @@ class TestLspEnv:
         targets_path = Path(env["DirectoryBuildTargetsPath"])
 
         assert env["DOTNET_ROOT"] == "/private"
+        assert env["CodeBoardingFoldMultiTargetFrameworks"] == "true"
         assert targets_path.is_file()
         targets = targets_path.read_text()
         assert "<TargetFrameworks>" in targets
         assert "$(BundledNETCoreAppTargetFrameworkVersion)" in targets
 
-    def test_project_env_leaves_small_workspaces_unchanged(self, monkeypatch, tmp_path):
+    def test_project_env_leaves_small_workspaces_multi_targeting(self, monkeypatch, tmp_path):
+        """Folding away frameworks costs a small solution coverage; demoting the property does not."""
         (tmp_path / "Project.csproj").touch()
         monkeypatch.setattr(
             "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
             lambda _root: _dotnet_resolution("/private/dotnet", {"DOTNET_ROOT": "/private"}),
         )
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.get_servers_dir", lambda: tmp_path)
 
-        assert CSharpAdapter().get_lsp_env(tmp_path) == {"DOTNET_ROOT": "/private"}
+        env = CSharpAdapter().get_lsp_env(tmp_path)
+
+        assert "CodeBoardingFoldMultiTargetFrameworks" not in env
+        assert Path(env["DirectoryBuildPropsPath"]).is_file()
 
     def test_project_env_preserves_custom_directory_build_targets(self, monkeypatch, tmp_path):
         for index in range(26):
@@ -339,6 +345,45 @@ class TestLspEnv:
 
         assert env["CodeBoardingOriginalDirectoryBuildTargetsPath"] == str(custom_targets)
         assert env["DirectoryBuildTargetsPath"] != str(custom_targets)
+
+    def test_project_env_demotes_workspace_target_framework(self, monkeypatch, tmp_path):
+        """A global TargetFramework silently rewrites projects that target something else."""
+        for index in range(26):
+            (tmp_path / f"Project{index}.csproj").touch()
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution(),
+        )
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.get_servers_dir", lambda: tmp_path)
+
+        env = CSharpAdapter().get_lsp_env(tmp_path)
+        props_path = Path(env["DirectoryBuildPropsPath"])
+
+        assert props_path.is_file()
+        props = props_path.read_text()
+        assert 'TreatAsLocalProperty="TargetFramework"' in props
+        assert (
+            "<CodeBoardingWorkspaceTargetFramework>$(TargetFramework)</CodeBoardingWorkspaceTargetFramework>" in props
+        )
+        # Multi-target projects still get one framework picked for them.
+        targets = Path(env["DirectoryBuildTargetsPath"]).read_text()
+        assert "$(CodeBoardingWorkspaceTargetFramework)" in targets
+
+    def test_project_env_preserves_custom_directory_build_props(self, monkeypatch, tmp_path):
+        for index in range(26):
+            (tmp_path / f"Project{index}.csproj").touch()
+        custom_props = tmp_path / "custom.props"
+        monkeypatch.setenv("DirectoryBuildPropsPath", str(custom_props))
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution(),
+        )
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.get_servers_dir", lambda: tmp_path)
+
+        env = CSharpAdapter().get_lsp_env(tmp_path)
+
+        assert env["CodeBoardingOriginalDirectoryBuildPropsPath"] == str(custom_props)
+        assert env["DirectoryBuildPropsPath"] != str(custom_props)
 
 
 class TestReferenceTracking:
