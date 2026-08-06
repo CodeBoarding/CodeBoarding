@@ -1,16 +1,16 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-08-05T17:15:55.786272+00:00",
-  "overall_score": 0.9427244582043344,
+  "timestamp": "2026-08-06T21:23:51.951407+00:00",
+  "overall_score": 0.9427576871011409,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1516,
+      "total_entities_checked": 1517,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.9993403693931399,
+      "score": 0.999340804218853,
       "finding_groups": [
         {
           "severity": "warning",
@@ -32,10 +32,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1528,
+      "total_entities_checked": 1529,
       "findings_count": 39,
       "warning_count": 39,
-      "score": 0.974476439790576,
+      "score": 0.9744931327665141,
       "finding_groups": [
         {
           "severity": "warning",
@@ -323,10 +323,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1528,
+      "total_entities_checked": 1529,
       "findings_count": 11,
       "warning_count": 11,
-      "score": 0.9928010471204188,
+      "score": 0.9928057553956835,
       "finding_groups": [
         {
           "severity": "warning",
@@ -1491,8 +1491,8 @@
             {
               "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
               "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
-              "line_start": 190,
-              "line_end": 190,
+              "line_start": 234,
+              "line_end": 234,
               "metric_value": 0.0
             }
           ]

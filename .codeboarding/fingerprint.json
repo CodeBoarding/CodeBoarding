@@ -93,7 +93,7 @@
     "static_analyzer/engine/adapters/typescript_adapter.py": "5334d3384a90f723",
     "static_analyzer/engine/adapters/python_adapter.py": "4f2332b88d5139fa",
     "static_analyzer/engine/adapters/rust_adapter.py": "5f31818d84abe251",
-    "static_analyzer/engine/adapters/csharp_adapter.py": "f70bb60464cb9bda",
+    "static_analyzer/engine/adapters/csharp_adapter.py": "af5d324e58147d9d",
     "static_analyzer/engine/adapters/go_adapter.py": "73b931991eb7a6ae",
     "agents/change_status.py": "79435dc17a3e6106",
     "agents/dependency_discovery.py": "c4a54196739aec0e",
