@@ -365,9 +365,9 @@ class TestLspEnv:
         assert (
             "<CodeBoardingWorkspaceTargetFramework>$(TargetFramework)</CodeBoardingWorkspaceTargetFramework>" in props
         )
-        # Multi-target projects still get one framework picked for them.
         targets = Path(env["DirectoryBuildTargetsPath"]).read_text()
-        assert "$(CodeBoardingWorkspaceTargetFramework)" in targets
+        assert "<TargetFramework Condition=" not in targets
+        assert "<TargetFramework>$(TargetFrameworks)</TargetFramework>" not in targets
 
     def test_project_env_preserves_custom_directory_build_props(self, monkeypatch, tmp_path):
         for index in range(26):

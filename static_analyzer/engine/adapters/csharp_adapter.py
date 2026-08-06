@@ -44,10 +44,6 @@ _SINGLE_TARGET_FRAMEWORK_TARGETS = r"""<Project>
     <TargetFrameworks>$([System.String]::Copy('$(CodeBoardingTargetFrameworks)').Trim(';').Split(';')[0])</TargetFrameworks>
     <TargetFrameworks Condition="'$(CodeBoardingPreferredTargetFramework)' != '' and $(CodeBoardingTargetFrameworks.Contains(';$(CodeBoardingPreferredTargetFramework);'))">$(CodeBoardingPreferredTargetFramework)</TargetFrameworks>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetFramework)' == '' and '$(TargetFrameworks)' != ''">
-    <TargetFramework Condition="$(TargetFrameworks.Contains('$(CodeBoardingWorkspaceTargetFramework)'))">$(CodeBoardingWorkspaceTargetFramework)</TargetFramework>
-    <TargetFramework Condition="'$(TargetFramework)' == ''">$(TargetFrameworks)</TargetFramework>
-  </PropertyGroup>
 </Project>
 """
 
@@ -89,9 +85,8 @@ def _single_target_framework_env(project_root: Path) -> dict[str, str]:
     'netstandard2.0'"`` guard around analyzer ``ProjectReference`` items inverts
     and the analyzer projects reference themselves, which sends Roslyn's
     solution load into unbounded growth. ``TreatAsLocalProperty`` demotes the
-    property so each project sees its declared framework again; the targets file
-    reinstates it for projects that genuinely multi-target and so need one
-    picked for them.
+    property so each project sees its declared framework again. Roslyn retains
+    its normal inner-build expansion for projects that genuinely multi-target.
 
     Folding a multi-target project down to a single framework stays behind
     ``_MULTI_TARGET_PROJECT_THRESHOLD``, because that fold discards frameworks a
