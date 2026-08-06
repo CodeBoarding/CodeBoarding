@@ -36,7 +36,7 @@ _SINGLE_TARGET_FRAMEWORK_TARGETS = r"""<Project>
   <Import
     Project="$(CodeBoardingDirectoryBuildTargetsPath)"
     Condition="Exists('$(CodeBoardingDirectoryBuildTargetsPath)')" />
-  <PropertyGroup Condition="'$(TargetFrameworks)' != ''">
+  <PropertyGroup Condition="'$(TargetFrameworks)' != '' and '$(CodeBoardingFoldMultiTargetFrameworks)' == 'true'">
     <CodeBoardingTargetFrameworks>$([System.Text.RegularExpressions.Regex]::Replace('$(TargetFrameworks)', '\s', ''))</CodeBoardingTargetFrameworks>
     <CodeBoardingTargetFrameworks>$([System.Text.RegularExpressions.Regex]::Replace('$(CodeBoardingTargetFrameworks)', ';+', ';'))</CodeBoardingTargetFrameworks>
     <CodeBoardingTargetFrameworks>;$([System.String]::Copy('$(CodeBoardingTargetFrameworks)').Trim(';'));</CodeBoardingTargetFrameworks>
@@ -47,24 +47,68 @@ _SINGLE_TARGET_FRAMEWORK_TARGETS = r"""<Project>
 </Project>
 """
 
+_WORKSPACE_TARGET_FRAMEWORK_PROPS = r"""<Project TreatAsLocalProperty="TargetFramework">
+  <PropertyGroup>
+    <CodeBoardingWorkspaceTargetFramework>$(TargetFramework)</CodeBoardingWorkspaceTargetFramework>
+    <CodeBoardingDirectoryBuildPropsPath Condition="'$(CodeBoardingOriginalDirectoryBuildPropsPath)' == ''">$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildProjectDirectory)'))</CodeBoardingDirectoryBuildPropsPath>
+  </PropertyGroup>
+  <Import
+    Project="$(CodeBoardingOriginalDirectoryBuildPropsPath)"
+    Condition="Exists('$(CodeBoardingOriginalDirectoryBuildPropsPath)')" />
+  <Import
+    Project="$(CodeBoardingDirectoryBuildPropsPath)"
+    Condition="Exists('$(CodeBoardingDirectoryBuildPropsPath)')" />
+</Project>
+"""
+
+
+def _write_injected_import(name: str, content: str) -> Path:
+    """Materialize an MSBuild import CodeBoarding injects via environment variable."""
+    path = get_servers_dir() / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists() or path.read_text(encoding="utf-8") != content:
+        temporary_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        temporary_path.write_text(content, encoding="utf-8")
+        os.replace(temporary_path, path)
+    return path
+
 
 def _single_target_framework_env(project_root: Path) -> dict[str, str]:
-    """Prevent csharp-ls's exponential multi-target framework fold."""
+    """Keep csharp-ls's workspace-wide TargetFramework from rewriting single-target projects.
+
+    Why: csharp-ls folds every project's frameworks into one global MSBuild
+    ``TargetFramework``. A global property outranks a project's own
+    ``<TargetFramework>``, so a solution whose projects do not all share one
+    framework has that property forced onto the odd ones out. Conditions keyed
+    on ``$(TargetFramework)`` then evaluate against a framework the project does
+    not target -- the idiomatic ``Condition="'$(TargetFramework)' !=
+    'netstandard2.0'"`` guard around analyzer ``ProjectReference`` items inverts
+    and the analyzer projects reference themselves, which sends Roslyn's
+    solution load into unbounded growth. ``TreatAsLocalProperty`` demotes the
+    property so each project sees its declared framework again. Roslyn retains
+    its normal inner-build expansion for projects that genuinely multi-target.
+
+    Folding a multi-target project down to a single framework stays behind
+    ``_MULTI_TARGET_PROJECT_THRESHOLD``, because that fold discards frameworks a
+    small solution may want analyzed. Demoting the property has no such cost: it
+    only changes evaluation for a project whose declared framework the workspace
+    value contradicts, so it applies to every solution.
+    """
+    targets_path = _write_injected_import("csharp-ls-single-target.targets", _SINGLE_TARGET_FRAMEWORK_TARGETS)
+    props_path = _write_injected_import("csharp-ls-workspace-tfm.props", _WORKSPACE_TARGET_FRAMEWORK_PROPS)
+
+    env = {"DirectoryBuildTargetsPath": str(targets_path), "DirectoryBuildPropsPath": str(props_path)}
+
     project_count = sum(1 for pattern in ("*.csproj", "*.fsproj") for _ in project_root.rglob(pattern))
-    if project_count <= _MULTI_TARGET_PROJECT_THRESHOLD:
-        return {}
+    if project_count > _MULTI_TARGET_PROJECT_THRESHOLD:
+        env["CodeBoardingFoldMultiTargetFrameworks"] = "true"
 
-    targets_path = get_servers_dir() / "csharp-ls-single-target.targets"
-    targets_path.parent.mkdir(parents=True, exist_ok=True)
-    if not targets_path.exists() or targets_path.read_text(encoding="utf-8") != _SINGLE_TARGET_FRAMEWORK_TARGETS:
-        temporary_path = targets_path.with_name(f"{targets_path.name}.{os.getpid()}.tmp")
-        temporary_path.write_text(_SINGLE_TARGET_FRAMEWORK_TARGETS, encoding="utf-8")
-        os.replace(temporary_path, targets_path)
-
-    env = {"DirectoryBuildTargetsPath": str(targets_path)}
     original_targets_path = os.environ.get("DirectoryBuildTargetsPath")
     if original_targets_path:
         env["CodeBoardingOriginalDirectoryBuildTargetsPath"] = original_targets_path
+    original_props_path = os.environ.get("DirectoryBuildPropsPath")
+    if original_props_path:
+        env["CodeBoardingOriginalDirectoryBuildPropsPath"] = original_props_path
     return env
 
 
