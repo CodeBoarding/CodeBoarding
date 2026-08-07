@@ -92,14 +92,13 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
     ) -> ClusterAnalysis:
         """Deterministically partition the component's subgraph into sub-component groups.
 
-        Same resolution-tuned Leiden as the top level, but with the sub-component
-        range ``[3, 8]``: the count (modularity peak) and membership are chosen
-        deterministically from the subgraph structure, not by the LLM.
+        Same hierarchical Infomap program map as the top level, but selecting a
+        sub-component view in ``[3, 8]``. The LLM only names the fixed groups.
         """
-        logger.info(f"[DetailsAgent] Super-clustering subgraph for component: {component.name}")
+        logger.info(f"[DetailsAgent] Building subgraph program map for component: {component.name}")
         return self.deterministic_cluster_grouping(
             subgraph_cluster_results,
-            {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()},
+            {lang: cfg.program_map_networkx() for lang, cfg in subgraph_cfgs.items()},
             SUBCOMPONENTS_MIN,
             SUBCOMPONENTS_MAX,
         )

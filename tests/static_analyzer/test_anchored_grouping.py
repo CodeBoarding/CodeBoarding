@@ -1,8 +1,8 @@
 """The anchored grouping contract: a change moves only what it touched.
 
-``supercluster_by_modularity_peak`` re-optimizes from scratch, which is deterministic but
-not continuous — modularity has many near-equal optima, so a small edit can select a
-different one and reshuffle ownership. The incremental path uses ``anchored_grouping``
+``build_program_map`` re-optimizes from scratch, which is deterministic but
+not continuous — flow maps can have near-equal optima, so a small edit can select
+a different one and reshuffle ownership. The incremental path uses ``anchored_grouping``
 instead, and these tests pin the properties it exists to provide.
 """
 
@@ -13,13 +13,8 @@ import networkx as nx
 from static_analyzer.cluster_helpers import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
-    _absorb_leftovers,
-    _build_meta_graph,
-    _method_counts,
-    _modularity,
-    _seeds_from_partition,
     anchored_grouping,
-    supercluster_by_modularity_peak,
+    build_program_map,
 )
 from static_analyzer.graph import ClusterResult
 
@@ -199,6 +194,24 @@ class TestAnchoredGrouping(unittest.TestCase):
         inherited = [owner for owner in result.owners if owner]
         self.assertEqual(len(inherited), len(set(inherited)))
 
+    def test_component_count_below_budget_preserves_existing_identity(self):
+        cr, graph = blocks(n_blocks=6, per_block=4)
+        previous = {cid: "C0" for cid in cr.clusters}
+
+        result = anchored_grouping(cr, graph, previous, drift_budget=1.0)
+
+        self.assertFalse(result.regrouped)
+        self.assertEqual(result.groups, [set(cr.clusters)])
+
+    def test_component_count_above_budget_forces_fresh_program_map(self):
+        cr, graph = blocks(n_blocks=9, per_block=2)
+        previous = {cid: f"C{cid}" for cid in cr.clusters}
+
+        result = anchored_grouping(cr, graph, previous, drift_budget=1.0)
+
+        self.assertTrue(result.regrouped)
+        self.assertLessEqual(len(result.groups), 8)
+
     def test_every_live_cluster_is_owned_exactly_once(self):
         cr, graph = blocks(n_blocks=5, per_block=4)
         previous = self._previous(cr, graph)
@@ -255,34 +268,14 @@ class TestAnchoredGrouping(unittest.TestCase):
         unowned = [group for group, owner in zip(result.groups, result.owners) if not owner]
         self.assertTrue(any(group == set(new_ids) for group in unowned), f"unowned groups: {unowned}")
 
-    def test_reported_modularity_scores_the_returned_grouping(self):
-        # The score must describe the groups actually returned, never the pre-absorption
-        # partition -- the drift gate and the expansion threshold both read it, and a stale
-        # score judges a grouping that was never applied.
+    def test_program_map_reports_flow_quality(self):
         cr, graph = blocks(n_blocks=5, per_block=4)
 
-        groups, modularity = supercluster_by_modularity_peak(cr, graph)
+        program_map = build_program_map(cr, graph)
 
-        meta = _build_meta_graph(cr, graph)
-        self.assertEqual(round(modularity, 10), round(_modularity(meta, groups), 10))
-
-    def test_absorbing_an_edged_leftover_moves_the_score(self):
-        # Guards the seam the fix protects: when a non-singleton community is demoted past
-        # ``high`` and absorbed into a seed it shares edges with, the merged grouping scores
-        # differently from the pre-absorption partition, so the two must not be conflated.
-        cr, graph = blocks(n_blocks=9, per_block=2)
-        meta = _build_meta_graph(cr, graph)
-        method_count = _method_counts(cr)
-        # Force the overflow demotion directly: nine 2-cluster communities, capped at high=8.
-        communities = [{2 * b + 1, 2 * b + 2} for b in range(9)]
-        seeds, leftovers = _seeds_from_partition(communities, method_count, low=5, high=8)
-        self.assertTrue(leftovers, "the ninth community must be demoted to a leftover")
-        _absorb_leftovers(seeds, leftovers, meta, cr, method_count)
-
-        self.assertNotEqual(
-            round(_modularity(meta, [set(c) for c in communities]), 10),
-            round(_modularity(meta, seeds), 10),
-        )
+        self.assertGreater(program_map.compression, 0.0)
+        self.assertAlmostEqual(sum(program_map.node_flow.values()), 1.0)
+        self.assertEqual(set().union(*program_map.groups), set(cr.clusters))
 
 
 if __name__ == "__main__":
