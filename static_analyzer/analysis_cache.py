@@ -29,11 +29,12 @@ from typing import TYPE_CHECKING, Any
 
 from filelock import FileLock
 
+from constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
+from repo_utils.path_utils import to_absolute_path, to_relative_path
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge
 from static_analyzer.graph import CallGraph, Edge, EdgeKind
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
-from repo_utils.path_utils import to_absolute_path, to_relative_path
 
 if TYPE_CHECKING:
     from static_analyzer.analysis_result import StaticAnalysisResults
@@ -44,8 +45,6 @@ logger = logging.getLogger(__name__)
 # Run-artifact filenames. Stored in ``<repo>/.codeboarding/`` (sibling of
 # ``analysis.json``), not under ``cache/`` — losing them costs a full LSP
 # re-index, so they're not safe to wipe with the rest of the cache.
-STATIC_ANALYSIS_PKL = "static_analysis.pkl"
-STATIC_ANALYSIS_SHA = "static_analysis.sha"
 STATIC_ANALYSIS_LOCK = "static_analysis.lock"
 # Legacy location ``StaticAnalysisCache`` wrote to before the run-artifact
 # split. Kept for one-time read fallback so CLI users transition smoothly.

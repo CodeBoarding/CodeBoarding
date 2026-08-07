@@ -1,6 +1,18 @@
 """Application-level constants for CodeBoarding."""
 
 CODEBOARDING_DIR_NAME = ".codeboarding"
+ANALYSIS_FILENAME = "analysis.json"
+FINGERPRINT_FILENAME = "fingerprint.json"
+STATIC_ANALYSIS_PKL = "static_analysis.pkl"
+STATIC_ANALYSIS_SHA = "static_analysis.sha"
+CODEBOARDING_VERSION_FILENAME = "codeboarding_version.json"
+PERSISTED_ANALYSIS_ARTIFACT_FILENAMES = (
+    ANALYSIS_FILENAME,
+    FINGERPRINT_FILENAME,
+    STATIC_ANALYSIS_PKL,
+    STATIC_ANALYSIS_SHA,
+    CODEBOARDING_VERSION_FILENAME,
+)
 # Ignore-file names read from a repo (``.gitignore`` at the repo root,
 # ``.codeboardingignore`` under ``CODEBOARDING_DIR_NAME``).
 GITIGNORE_FILENAME = ".gitignore"
