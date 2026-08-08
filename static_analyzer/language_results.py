@@ -25,6 +25,11 @@ class ControlFlowGraph:
         if self.graph is None:
             self.graph = other
             return
+        if self.graph is other:
+            # Why: two engine configs can share a language (two tsconfig projects give
+            # two TypeScript engines) and warm-start hands both the same cached graph.
+            # Iterating a container while adding to it is unbounded, not just wasteful.
+            return
         for node in other.nodes.values():
             self.graph.add_node(node)
         for edge in other.edges:
@@ -55,6 +60,11 @@ class ControlFlowGraph:
         # Re-added via the API so alias-resolution and node-existence guards apply post-merge.
         for src, dst, kind in getattr(other, "reference_edges", ()):
             self.graph.add_reference_edge(src, dst, EdgeKind(kind))
+        # Nodes and call edges are keyed, reference edges are appended, so only they
+        # survive a repeat merge. Dedup after the loop rather than per-add: the stored
+        # tuple is post-alias-resolution, and a membership scan per edge is quadratic.
+        # getattr for the same reason as above: pre-reference-edge caches lack the field.
+        self.graph.reference_edges = list(dict.fromkeys(getattr(self.graph, "reference_edges", ())))
         self.graph.method_cluster_paths.merge(other.method_cluster_paths)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
@@ -126,9 +136,16 @@ class SourceFiles:
     paths: list[str] | None = None
 
     def extend(self, files: list[str]) -> None:
+        # Why: called once per engine config, and two engines of one language are
+        # handed the same cached list on warm-start. Duplicates persist into the pkl,
+        # so an undeduped extend doubles the list on every subsequent run.
         if self.paths is None:
             self.paths = []
-        self.paths.extend(files)
+        known = set(self.paths)
+        for path in files:
+            if path not in known:
+                known.add(path)
+                self.paths.append(path)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         if self.paths is None:
