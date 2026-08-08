@@ -1,18 +1,7 @@
 """Regression tests for per-language CFG bucket merging.
 
-Two engine configs can share one language: a repo with two ``tsconfig.json``
-projects produces two TypeScript engines. On the warm-start path both are
-handed the *same* cached ``CallGraph`` object -- ``_extract_language_dict``
-keys the cache by language, not by engine -- so the second
-``_absorb_into_results`` merges a bucket into itself.
-
-Merging must therefore stay safe both when a bucket is handed the graph it
-already holds and when it is handed one it absorbed earlier.
-
-Why the subprocess: a merge that iterates a container while adding to it does
-not raise, it allocates until the machine dies. Anything that executes a
-self-merge runs in a child, assertions included, so a regression cannot hang
-the suite or exhaust the test machine.
+Why the subprocess: a self-merge does not raise, it allocates until the machine
+dies, so an inline test would hang the suite instead of reporting.
 """
 
 import multiprocessing
