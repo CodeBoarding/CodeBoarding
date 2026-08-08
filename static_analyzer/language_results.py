@@ -63,7 +63,8 @@ class ControlFlowGraph:
         # Nodes and call edges are keyed, reference edges are appended, so only they
         # survive a repeat merge. Dedup after the loop rather than per-add: the stored
         # tuple is post-alias-resolution, and a membership scan per edge is quadratic.
-        self.graph.reference_edges = list(dict.fromkeys(self.graph.reference_edges))
+        # getattr for the same reason as above: pre-reference-edge caches lack the field.
+        self.graph.reference_edges = list(dict.fromkeys(getattr(self.graph, "reference_edges", ())))
         self.graph.method_cluster_paths.merge(other.method_cluster_paths)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
