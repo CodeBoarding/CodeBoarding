@@ -97,11 +97,11 @@ Acts as the primary entry point for the application, responsible for parsing com
 - [`repo_utils/ignore.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py)
   - `repo_utils.ignore.initialize_codeboardingignore` ([L338-L351](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L338-L351)) - Function
 - [`utils.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py)
-  - `utils.CFGGenerationError` ([L20-L21](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L20-L21)) - Class
-  - `utils.get_project_root` ([L59-L64](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L59-L64)) - Function
-  - `utils.monitoring_enabled` ([L78-L80](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L78-L80)) - Function
-  - `utils.generate_run_id` ([L97-L98](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L97-L98)) - Function
-  - `utils.copy_files` ([L101-L107](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L101-L107)) - Function
+  - `utils.CFGGenerationError` ([L18-L19](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L18-L19)) - Class
+  - `utils.get_project_root` ([L57-L62](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L57-L62)) - Function
+  - `utils.monitoring_enabled` ([L76-L78](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L76-L78)) - Function
+  - `utils.generate_run_id` ([L95-L96](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L95-L96)) - Function
+  - `utils.copy_files` ([L99-L105](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L99-L105)) - Function
 
 
 ### Configuration & System Health Validator [[Expand]](./Configuration_System_Health_Validator.md)
@@ -228,8 +228,8 @@ Handles repository lifecycle management and transforms internal analysis data in
 - [`repo_utils/errors.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/errors.py)
   - `repo_utils.errors.RepoDontExistError` ([L5-L6](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/errors.py#L5-L6)) - Class
 - [`utils.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py)
-  - `utils.create_temp_repo_folder` ([L24-L28](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L24-L28)) - Function
-  - `utils.remove_temp_repo_folder` ([L31-L35](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L31-L35)) - Function
+  - `utils.create_temp_repo_folder` ([L22-L26](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L22-L26)) - Function
+  - `utils.remove_temp_repo_folder` ([L29-L33](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L29-L33)) - Function
 
 
 

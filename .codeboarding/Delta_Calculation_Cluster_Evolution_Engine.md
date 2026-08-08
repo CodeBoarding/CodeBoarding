@@ -25,7 +25,7 @@ Provides the foundational graph primitives and validation logic required to main
 **Related Classes/Methods**:
 
 - `static_analyzer.graph.CallGraph`:145-811
-- `static_analyzer.analysis_cache._collect_invalidated_edge`:450-458
+- `static_analyzer.analysis_cache._collect_invalidated_edge`:449-457
 - `static_analyzer.node.Node`:9-69
 
 
@@ -36,8 +36,8 @@ Provides the foundational graph primitives and validation logic required to main
   - `agents.validation._build_cluster_edge_lookup` ([L457-L484](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L457-L484)) - Function
   - `agents.validation._cluster_sets_have_edge` ([L498-L512](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py#L498-L512)) - Function
 - [`static_analyzer/analysis_cache.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py)
-  - `static_analyzer.analysis_cache._collect_invalidated_edge` ([L450-L458](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L450-L458)) - Function
-  - `static_analyzer.analysis_cache._validate_no_dangling_references` ([L461-L494](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L461-L494)) - Function
+  - `static_analyzer.analysis_cache._collect_invalidated_edge` ([L449-L457](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L449-L457)) - Function
+  - `static_analyzer.analysis_cache._validate_no_dangling_references` ([L460-L493](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L460-L493)) - Function
 - [`static_analyzer/engine/result_converter.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/result_converter.py)
   - `static_analyzer.engine.result_converter.convert_to_codeboarding_format` ([L21-L164](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/result_converter.py#L21-L164)) - Function
   - `static_analyzer.engine.result_converter._add_reference_edges` ([L167-L197](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/result_converter.py#L167-L197)) - Function

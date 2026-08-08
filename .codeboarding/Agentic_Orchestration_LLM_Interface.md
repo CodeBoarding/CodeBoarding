@@ -399,7 +399,7 @@ Manages the selection, initialization, and capability mapping of LLM providers, 
 - [`telemetry/schemas.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingtelemetry/schemas.py)
   - `telemetry.schemas.TokenSnapshot` ([L63-L67](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingtelemetry/schemas.py#L63-L67)) - Class
 - [`utils.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py)
-  - `utils.get_cache_dir` ([L38-L45](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L38-L45)) - Function
+  - `utils.get_cache_dir` ([L36-L43](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L36-L43)) - Function
 
 
 ### Analysis Context & Persistence Layer [[Expand]](./Analysis_Context_Persistence_Layer.md)
@@ -411,7 +411,7 @@ Handles project-level dependency discovery and result caching to support increme
 - `agents.meta_agent.MetaAgent`:18-66
 - `agents.dependency_discovery.discover_dependency_files`:103-159
 - `caching.details_cache.FinalAnalysisCache`:18-34
-- `utils.fingerprint_file`:67-75
+- `utils.fingerprint_file`:65-73
 
 
 
@@ -466,7 +466,7 @@ Handles project-level dependency discovery and result caching to support increme
 - [`diagram_analysis/run_context.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/run_context.py)
   - `diagram_analysis.run_context._load_existing_run_id` ([L59-L71](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/run_context.py#L59-L71)) - Function
 - [`utils.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py)
-  - `utils.fingerprint_file` ([L67-L75](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L67-L75)) - Function
+  - `utils.fingerprint_file` ([L65-L73](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L65-L73)) - Function
 
 
 

@@ -3,9 +3,7 @@ graph LR
     Codebase_Partitioning_Language_Strategy["Codebase Partitioning & Language Strategy"]
     Analysis_Engine_Orchestrator["Analysis Engine Orchestrator"]
     Artifact_Scanner_Cache_Manager["Artifact Scanner & Cache Manager"]
-    Codebase_Partitioning_Language_Strategy -- "Persists cluster metadata to cache" --> Artifact_Scanner_Cache_Manager
     Analysis_Engine_Orchestrator -- "Configures language-specific analysis strategies" --> Codebase_Partitioning_Language_Strategy
-    Analysis_Engine_Orchestrator -- "Provides execution configuration for scanning" --> Artifact_Scanner_Cache_Manager
     Artifact_Scanner_Cache_Manager -- "Triggers language-specific build and partitioning" --> Codebase_Partitioning_Language_Strategy
     Artifact_Scanner_Cache_Manager -- "Reports project metrics for engine refinement" --> Analysis_Engine_Orchestrator
 ```
@@ -95,10 +93,10 @@ Manages the physical execution of analysis tools and the persistence of their ou
 
 **Related Classes/Methods**:
 
-- `static_analyzer.analysis_cache.copy_cache_files`:279-318
+- `static_analyzer.analysis_cache.copy_cache_files`:278-317
 - `static_analyzer.scanner.ProjectScanner`:64-179
 - `tool_registry.registry.ToolSource`:73-76
-- `static_analyzer.analysis_cache._atomic_copy`:321-336
+- `static_analyzer.analysis_cache._atomic_copy`:320-335
 
 
 
@@ -107,8 +105,8 @@ Manages the physical execution of analysis tools and the persistence of their ou
 - [`static_analyzer/__init__.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py)
   - `static_analyzer.__init__.StaticAnalyzer.__init__` ([L172-L200](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py#L172-L200)) - Method
 - [`static_analyzer/analysis_cache.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py)
-  - `static_analyzer.analysis_cache.copy_cache_files` ([L279-L318](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L279-L318)) - Function
-  - `static_analyzer.analysis_cache._atomic_copy` ([L321-L336](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L321-L336)) - Function
+  - `static_analyzer.analysis_cache.copy_cache_files` ([L278-L317](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L278-L317)) - Function
+  - `static_analyzer.analysis_cache._atomic_copy` ([L320-L335](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L320-L335)) - Function
 - [`static_analyzer/scanner.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py)
   - `static_analyzer.scanner._format_command` ([L16-L21](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py#L16-L21)) - Function
   - `static_analyzer.scanner._format_stderr` ([L24-L30](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py#L24-L30)) - Function
@@ -125,7 +123,7 @@ Manages the physical execution of analysis tools and the persistence of their ou
   - `tool_registry.registry.UpstreamToolSource` ([L105-L109](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingtool_registry/registry.py#L105-L109)) - Class
   - `tool_registry.registry.PackageManagerToolSource` ([L113-L121](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingtool_registry/registry.py#L113-L121)) - Class
 - [`utils.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py)
-  - `utils.get_artifact_dir` ([L48-L56](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L48-L56)) - Function
+  - `utils.get_artifact_dir` ([L46-L54](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L46-L54)) - Function
 
 
 
