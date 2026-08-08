@@ -7,14 +7,12 @@ import uuid
 from collections.abc import Iterable
 from pathlib import Path
 
-from constants import CODEBOARDING_DIR_NAME
+from constants import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, FINGERPRINT_FILENAME
 from repo_utils.path_utils import to_absolute_path, to_relative_path
 
 logger = logging.getLogger(__name__)
 
 RUN_OUTPUT_DIR_NAME = "run-output"
-ANALYSIS_FILENAME = "analysis.json"
-FINGERPRINT_FILENAME = "fingerprint.json"
 
 
 class CFGGenerationError(Exception):
