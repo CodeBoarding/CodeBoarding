@@ -162,6 +162,10 @@ class CallGraphBuilder:
             probe_result = self._send_sync_probe(source_files, probe_timeout)
             if not interleave_open:
                 self._bulk_did_open(source_files)
+                # Opening every file queues server work proportional to the file
+                # count, and the next request waits behind all of it. The other
+                # ordering below gets that barrier from its post-open probe.
+                probe_result = self._send_sync_probe(source_files, probe_timeout, phase="overlay processing")
         else:
             self._bulk_did_open(source_files)
             probe_result = self._send_sync_probe(source_files, probe_timeout)
@@ -205,10 +209,10 @@ class CallGraphBuilder:
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
-    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> list[dict]:
-        """Send a documentSymbol probe to wait for the LSP server to finish indexing."""
+    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int, phase: str = "indexing") -> list[dict]:
+        """Send a documentSymbol probe to wait for the LSP server to finish a bulk phase."""
         probe_result: list[dict] = []
-        logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
+        logger.info("Waiting for LSP server %s (timeout=%ds)...", phase, probe_timeout)
         t_probe = time.monotonic()
         if source_files:
             probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
