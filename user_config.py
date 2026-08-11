@@ -36,6 +36,7 @@ _PROVIDER_SECRETS: dict[str, str] = {
     "kimi_api_key": "KIMI_API_KEY",
     "ollama_api_key": "OLLAMA_API_KEY",
     "openrouter_api_key": "OPENROUTER_API_KEY",
+    "orcarouter_api_key": "ORCAROUTER_API_KEY",
     "litellm_api_key": "LITELLM_API_KEY",
 }
 
@@ -72,6 +73,7 @@ CONFIG_TEMPLATE = """\
 # ollama_base_url           = "http://localhost:11434"
 # ollama_api_key            = "..."              # only for Ollama cloud (https://ollama.com)
 # openrouter_api_key        = "sk..."
+# orcarouter_api_key        = "sk-orca-..."
 # litellm_base_url          = "http://localhost:4000"  # LiteLLM proxy server URL (required)
 # litellm_api_key           = "sk-..."           # LiteLLM proxy server key (optional)
 
@@ -101,6 +103,7 @@ class ProviderUserConfig:
     ollama_base_url: str | None = None
     ollama_api_key: str | None = None
     openrouter_api_key: str | None = None
+    orcarouter_api_key: str | None = None
     litellm_api_key: str | None = None
     litellm_base_url: str | None = None
 
@@ -151,6 +154,7 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
             ollama_base_url=provider_data.get("ollama_base_url") or None,
             ollama_api_key=provider_data.get("ollama_api_key") or None,
             openrouter_api_key=provider_data.get("openrouter_api_key") or None,
+            orcarouter_api_key=provider_data.get("orcarouter_api_key") or None,
             litellm_api_key=provider_data.get("litellm_api_key") or None,
             litellm_base_url=provider_data.get("litellm_base_url") or None,
         ),

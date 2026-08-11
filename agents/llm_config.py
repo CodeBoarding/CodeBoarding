@@ -295,6 +295,20 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "orcarouter": LLMConfig(
+        chat_class=ChatOpenAI,
+        selection_envs=["ORCAROUTER_API_KEY"],
+        api_key_env="ORCAROUTER_API_KEY",
+        agent_model="openai/gpt-5.4-mini",
+        parsing_model="openai/gpt-5.4-mini",
+        llm_type=LLMType.GPT4,
+        extra_args={
+            "base_url": lambda: os.getenv("ORCAROUTER_BASE_URL", "https://api.orcarouter.ai/v1"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
     "litellm": LLMConfig(
         chat_class=ChatOpenAI,
         # Base URL only: a key alone must not select litellm, since there is no
