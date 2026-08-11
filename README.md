@@ -97,7 +97,7 @@ in your browser, nothing is uploaded. (The CLI prints this reminder after every 
 
 To also generate `overview` and one file per expanded component, pass `--render` with one of
 `md`, `html`, `mdx`, or `rst`. Rendering is available after full, incremental, and partial local analyses;
-existing files for the selected format are replaced after the analysis succeeds:
+previously generated files for the selected format are reconciled from a renderer-owned manifest:
 
 ```bash
 codeboarding full --local /path/to/repo --render md

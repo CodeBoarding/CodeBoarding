@@ -3,6 +3,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
@@ -51,6 +53,12 @@ class TestOutputGeneratorsSanitize(unittest.TestCase):
 def test_node_type_label_supports_names_and_legacy_numbers() -> None:
     assert node_type_label("ENUM_MEMBER") == "EnumMember"
     assert node_type_label("6") == "Method"
+
+
+@pytest.mark.parametrize("node_type", ["0", "31", "UNKNOWN"])
+def test_node_type_label_rejects_unknown_values(node_type: str) -> None:
+    with pytest.raises(ValueError, match=f"Unknown node type: {node_type}"):
+        node_type_label(node_type)
 
 
 class TestMarkdownGenerator(unittest.TestCase):

@@ -75,6 +75,38 @@ FORMAT_EXTENSIONS = {
     "rst": ".rst",
 }
 SUPPORTED_FORMATS = tuple(FORMAT_EXTENSIONS)
+_RENDER_MANIFEST_FILENAME = ".codeboarding-render.json"
+_RENDER_MANIFEST_VERSION = 1
+
+
+def _load_render_manifest(output_dir: Path) -> dict[str, list[str]]:
+    """Load renderer-owned output paths."""
+    manifest_path = output_dir / _RENDER_MANIFEST_FILENAME
+    if not manifest_path.is_file():
+        return {}
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Invalid render manifest: {manifest_path}") from exc
+
+    if not isinstance(manifest, dict):
+        raise ValueError(f"Invalid render manifest: {manifest_path}")
+    outputs = manifest.get("outputs")
+    if manifest.get("version") != _RENDER_MANIFEST_VERSION or not isinstance(outputs, dict):
+        raise ValueError(f"Invalid render manifest: {manifest_path}")
+
+    rendered_files: dict[str, list[str]] = {}
+    for output_format, filenames in outputs.items():
+        extension = FORMAT_EXTENSIONS.get(output_format)
+        if extension is None or not isinstance(filenames, list):
+            raise ValueError(f"Invalid render manifest: {manifest_path}")
+        if any(
+            not isinstance(filename, str) or Path(filename).name != filename or not filename.endswith(extension)
+            for filename in filenames
+        ):
+            raise ValueError(f"Invalid render manifest: {manifest_path}")
+        rendered_files[output_format] = filenames
+    return rendered_files
 
 
 def _load_entries(analysis_path: Path) -> list[tuple[str, AnalysisInsights, set[str]]]:
@@ -158,8 +190,13 @@ def render(
         extension = FORMAT_EXTENSIONS[output_format]
     except KeyError as exc:
         raise ValueError(f"Unsupported output format: {output_format}") from exc
+    if not analysis_path.is_file():
+        logger.warning("Skipping %s render because %s does not exist", output_format, analysis_path)
+        return
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    render_manifest = _load_render_manifest(output_dir)
+    previous_names = set(render_manifest.get(output_format, []))
     with TemporaryDirectory(prefix=".render-", dir=output_dir) as staging_dir:
         staging_path = Path(staging_dir)
         render_docs(
@@ -172,7 +209,20 @@ def render(
             demo_mode=demo_mode,
         )
         generated_files = list(staging_path.glob(f"*{extension}"))
-        for existing_file in output_dir.glob(f"*{extension}"):
-            existing_file.unlink()
+        if not generated_files:
+            raise RuntimeError(f"Rendering {output_format} produced no files")
+
+        generated_names = sorted(file.name for file in generated_files)
+        render_manifest[output_format] = generated_names
+        staged_manifest = staging_path / _RENDER_MANIFEST_FILENAME
+        staged_manifest.write_text(
+            json.dumps({"version": _RENDER_MANIFEST_VERSION, "outputs": render_manifest}, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+
+        stale_names = previous_names - set(generated_names)
         for generated_file in generated_files:
             generated_file.replace(output_dir / generated_file.name)
+        for stale_name in stale_names:
+            (output_dir / stale_name).unlink(missing_ok=True)
+        staged_manifest.replace(output_dir / _RENDER_MANIFEST_FILENAME)

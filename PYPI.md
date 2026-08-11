@@ -145,7 +145,7 @@ codeboarding-render PATH/analysis.json --format FORMAT # render an existing anal
 | Option | Description |
 |---|---|
 | `--local PATH` | Analyze a local repository (output: `PATH/.codeboarding/`) |
-| `--render {md,html,mdx,rst}` | Render overview and component files after a successful full, incremental, or partial analysis |
+| `--render {md,html,mdx,rst}` | Render overview and component files from the local `analysis.json` for full, incremental, or partial commands |
 | `--depth-level INT` | Safety-valve depth cap (default: 3) on how deep auto-expansion goes; a component that outgrows the leaf ceiling is flagged expandable regardless, and can be expanded on demand |
 | `--force` | (full only) Force full reanalysis, skip cached static analysis |
 | `--base-ref REF` / `--target-ref REF` | (incremental only) Git refs to diff |

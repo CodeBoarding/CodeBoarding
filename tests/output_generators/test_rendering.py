@@ -9,6 +9,7 @@ import pytest
 from agents.agent_responses import Relation, RelationEdge, SourceCodeReference
 from output_generators.rendering import (
     FORMAT_EXTENSIONS,
+    _RENDER_MANIFEST_FILENAME,
     _ancestor_in_level,
     _load_entries,
     project_relations_to_level,
@@ -335,16 +336,22 @@ def test_load_entries_projects_per_level(tmp_path: Path):
 
 
 @pytest.mark.parametrize(("output_format", "extension"), FORMAT_EXTENSIONS.items())
-def test_render_replaces_stale_files_for_selected_format(
+def test_render_reconciles_owned_files_and_preserves_unrelated_files(
     tmp_path: Path,
     output_format: str,
     extension: str,
 ) -> None:
     analysis_path = tmp_path / "analysis.json"
     analysis_path.write_text(json.dumps(_make_depth3_unified_json()))
+    render(output_format, analysis_path=analysis_path, repo_name="fake", output_dir=tmp_path)
+
     stale_file = tmp_path / f"removed_component{extension}"
     stale_file.write_text("stale")
-    untouched_file = tmp_path / "keep.txt"
+    manifest_path = tmp_path / _RENDER_MANIFEST_FILENAME
+    manifest = json.loads(manifest_path.read_text())
+    manifest["outputs"][output_format].append(stale_file.name)
+    manifest_path.write_text(json.dumps(manifest))
+    untouched_file = tmp_path / f"keep{extension}"
     untouched_file.write_text("keep")
 
     render(output_format, analysis_path=analysis_path, repo_name="fake", output_dir=tmp_path)
@@ -352,6 +359,13 @@ def test_render_replaces_stale_files_for_selected_format(
     assert not stale_file.exists()
     assert (tmp_path / f"overview{extension}").is_file()
     assert untouched_file.read_text() == "keep"
+
+
+def test_render_skips_when_analysis_does_not_exist(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    render("md", analysis_path=tmp_path / "analysis.json", repo_name="fake", output_dir=tmp_path / "output")
+
+    assert "does not exist" in caplog.text
+    assert not (tmp_path / "output").exists()
 
 
 def test_render_rejects_filename_collisions_before_replacing_files(tmp_path: Path) -> None:
