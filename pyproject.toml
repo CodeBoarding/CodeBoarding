@@ -97,6 +97,7 @@ packages = [
     "codeboarding_workflows",
     "codeboarding_workflows.sources",
     "telemetry",
+    "cluster_viz",
 ]
 py-modules = [
     "constants",
@@ -109,6 +110,9 @@ py-modules = [
     "install",
 ]
 include-package-data = true
+
+[tool.setuptools.package-data]
+cluster_viz = ["viewer.html"]
 
 [project.scripts]
 codeboarding = "main:main"

@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CodeBoarding — clustering explorer</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #16191d; --muted: #6b7280; --line: #dfe3e8;
+    --accent: #2f6feb; --warn: #b45309; --canvas: #ffffff; --hull: #10151c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --panel: #161a20; --ink: #e6e9ee; --muted: #98a2b3; --line: #262c35;
+      --accent: #6ea8ff; --warn: #f59e0b; --canvas: #0c0f13; --hull: #cbd5e1;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid; grid-template-columns: 340px 1fr; background: var(--bg); color: var(--ink);
+    font: 13px/1.45 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  aside { display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--panel); min-height: 0; }
+  header { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0 0 2px; font-size: 15px; }
+  header p { margin: 0; color: var(--muted); font-size: 11.5px; }
+  .controls { padding: 10px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .row label { color: var(--muted); font-size: 11.5px; min-width: 54px; }
+  button, select, input {
+    font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 8px;
+  }
+  button { cursor: pointer; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  input[type=search] { width: 100%; }
+  input[type=range] { flex: 1; min-width: 120px; padding: 0; }
+  .scroll { overflow: auto; min-height: 0; flex: 1; padding: 10px 14px 24px; }
+  .tree div { padding: 2px 0 2px 0; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tree div:hover { color: var(--accent); }
+  .tree .sel { color: var(--accent); font-weight: 600; }
+  .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: baseline; }
+  .count { color: var(--muted); font-size: 11px; }
+  main { position: relative; min-width: 0; }
+  canvas { display: block; width: 100%; height: 100%; background: var(--canvas); cursor: grab; }
+  canvas.drag { cursor: grabbing; }
+  #tip {
+    position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 8px; font-size: 11.5px; max-width: 380px; box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    display: none; z-index: 5;
+  }
+  #why {
+    position: absolute; right: 12px; top: 12px; bottom: 12px; width: 400px; overflow: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.18); display: none;
+  }
+  #why.open { display: block; }
+  #why h2 { font-size: 14px; margin: 0 0 2px; }
+  #why h3 { font-size: 12px; margin: 14px 0 4px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  #why .close { position: absolute; right: 10px; top: 8px; border: none; background: none; font-size: 16px; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+  th, td { text-align: left; padding: 2px 6px 2px 0; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+  tr.pick td { color: var(--accent); font-weight: 600; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  ul { margin: 4px 0; padding-left: 16px; }
+  li { margin: 1px 0; }
+  .pill { display: inline-block; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 10.5px; }
+  .warn { color: var(--warn); }
+  .legend { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+  .legend span { font-size: 11px; }
+  .hint { color: var(--muted); font-size: 11px; }
+</style>
+</head>
+<body>
+<aside>
+  <header>
+    <h1 id="title">clustering explorer</h1>
+    <p id="subtitle"></p>
+  </header>
+  <div class="controls">
+    <div class="row">
+      <label>View</label>
+      <button id="viewMap" class="on">Map</button>
+      <button id="viewScope">Scope</button>
+      <button id="fit">Fit</button>
+    </div>
+    <div class="row">
+      <label>Level</label>
+      <input type="range" id="level" min="1" max="4" step="1" value="1">
+      <span id="levelLabel" class="count"></span>
+    </div>
+    <div class="row">
+      <label>Colour</label>
+      <select id="colorBy">
+        <option value="component">component at level</option>
+        <option value="cluster">leaf cluster at level</option>
+        <option value="file">directory</option>
+        <option value="lang">language</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Edges</label>
+      <select id="edgeMode">
+        <option value="none">none</option>
+        <option value="cross">crossing only</option>
+        <option value="all">all</option>
+      </select>
+      <label style="min-width:auto">Scope</label>
+      <select id="scopeSel"></select>
+    </div>
+    <div class="row">
+      <label>Outlines</label>
+      <button id="clusterRings">leaf clusters</button>
+      <span class="hint">circles = components, one ring per level</span>
+    </div>
+    <div class="row"><input type="search" id="search" placeholder="find a method, file or component…"></div>
+  </div>
+  <div class="scroll">
+    <div id="panel"></div>
+  </div>
+</aside>
+<main>
+  <canvas id="stage"></canvas>
+  <div id="tip"></div>
+  <div id="why"><button class="close" id="whyClose">&times;</button><div id="whyBody"></div></div>
+</main>
+<script>
+const DATA = /*__CLUSTERING_PAYLOAD__*/null;
+
+const PALETTE = ["#4E79A7","#F28E2B","#59A14F","#E15759","#B07AA1","#76B7B2","#EDC948","#FF9DA7",
+                 "#9C755F","#BAB0AC","#86BCB6","#D37295","#8CD17D","#B6992D","#499894","#FABFD2",
+                 "#79706E","#D7B5A6","#A0CBE8","#F1CE63"];
+const el = (id) => document.getElementById(id);
+const canvas = el("stage"), ctx = canvas.getContext("2d");
+
+/* ---------- derived indexes ---------- */
+const scopeById = new Map(DATA.scopes.map(s => [s.scope_id, s]));
+const componentById = new Map(DATA.components.map(c => [c.component_id, c]));
+const ownerOfCluster = new Map();
+for (const scope of DATA.scopes) {
+  for (const group of scope.groups) for (const cid of group.cluster_ids) ownerOfCluster.set(cid, group.component_id);
+}
+const maxLevel = Math.max(1, DATA.meta.levels);
+const childrenOf = new Map([["", []]]);
+for (const c of DATA.components) {
+  if (!childrenOf.has(c.component_id)) childrenOf.set(c.component_id, []);
+  if (!childrenOf.has(c.parent_id)) childrenOf.set(c.parent_id, []);
+  childrenOf.get(c.parent_id).push(c.component_id);
+}
+
+const state = {
+  view: "map", level: 1, colorBy: "component", edgeMode: "none", scopeId: "", clusterRings: false,
+  hit: null, selection: null, search: "", matches: new Set(),
+  tx: 0, ty: 0, scale: 1,
+};
+
+function clusterAtLevel(node, level) {
+  for (let i = Math.min(level, node.path.length); i > 0; i--) if (node.path[i - 1]) return node.path[i - 1];
+  return "";
+}
+function componentAtLevel(node, level) {
+  return node.comp ? node.comp.split(".").slice(0, level).join(".") : "";
+}
+function colorKey(node) {
+  // "c:" keeps cluster ids out of the component ids' colour slots — both spell "1" at level 1.
+  if (state.colorBy === "cluster") return "c:" + clusterAtLevel(node, state.level);
+  if (state.colorBy === "file") return node.f.includes("/") ? node.f.slice(0, node.f.lastIndexOf("/")) : ".";
+  if (state.colorBy === "lang") return node.lang;
+  return componentAtLevel(node, state.level);
+}
+const colorCache = new Map();
+function colorFor(key) {
+  if (!key) return "#8b95a5";
+  if (!colorCache.has(key)) {
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+    colorCache.set(key, PALETTE[hash % PALETTE.length]);
+  }
+  return colorCache.get(key);
+}
+/* Palette slots by position rather than by hash, so sibling components and sibling
+   clusters within one scope never collide on the same colour. */
+DATA.components.filter(c => c.level === 1).forEach((c, i) => colorCache.set(c.component_id, PALETTE[i % PALETTE.length]));
+for (const scope of DATA.scopes) {
+  Object.keys(scope.clusters)
+    .sort((a, b) => +a.split(".").pop() - +b.split(".").pop())
+    .forEach((cid, i) => colorCache.set("c:" + cid, PALETTE[i % PALETTE.length]));
+}
+
+/* ---------- viewport ---------- */
+let width = 0, height = 0;
+function resize() {
+  const ratio = window.devicePixelRatio || 1;
+  width = canvas.clientWidth; height = canvas.clientHeight;
+  canvas.width = width * ratio; canvas.height = height * ratio;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  draw();
+}
+function currentPoints() {
+  if (state.view === "map") return DATA.layout.nodes;
+  const scope = scopeById.get(state.scopeId);
+  if (!scope) return [[0, 0]];
+  return Object.values(scope.meta_layout);
+}
+function fit() {
+  const points = currentPoints();
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of points) {
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  if (!isFinite(minX)) { minX = minY = -1; maxX = maxY = 1; }
+  const pad = 40;
+  const spanX = Math.max(maxX - minX, 1e-6), spanY = Math.max(maxY - minY, 1e-6);
+  state.scale = Math.min((width - 2 * pad) / spanX, (height - 2 * pad) / spanY);
+  state.tx = width / 2 - ((minX + maxX) / 2) * state.scale;
+  state.ty = height / 2 - ((minY + maxY) / 2) * state.scale;
+  draw();
+}
+const toScreen = (x, y) => [x * state.scale + state.tx, y * state.scale + state.ty];
+
+/* ---------- drawing ---------- */
+function draw() {
+  ctx.clearRect(0, 0, width, height);
+  state.view === "map" ? drawMap() : drawScope();
+}
+
+function drawMap() {
+  const circles = DATA.layout.circles, positions = DATA.layout.nodes;
+  ctx.lineWidth = 1;
+  for (const [key, [cx, cy, r]] of Object.entries(circles)) {
+    if (key.startsWith("c:")) {
+      if (!state.clusterRings) continue;
+      const [sx, sy] = toScreen(cx, cy);
+      ctx.beginPath();
+      ctx.arc(sx, sy, r * state.scale, 0, Math.PI * 2);
+      ctx.strokeStyle = colorFor(key);
+      ctx.globalAlpha = 0.55;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    const depth = key === "" ? 0 : key.split(".").length;
+    if (depth > state.level) continue;
+    const [sx, sy] = toScreen(cx, cy);
+    ctx.beginPath();
+    ctx.arc(sx, sy, r * state.scale, 0, Math.PI * 2);
+    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--hull").trim();
+    ctx.globalAlpha = depth === 0 ? 0.08 : 0.10 + 0.06 * depth;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  if (state.edgeMode !== "none") {
+    ctx.lineWidth = 0.5;
+    ctx.globalAlpha = 0.16;
+    for (const [a, b] of DATA.edges) {
+      const na = DATA.nodes[a], nb = DATA.nodes[b];
+      const ka = componentAtLevel(na, state.level), kb = componentAtLevel(nb, state.level);
+      if (state.edgeMode === "cross" && ka === kb) continue;
+      const [x1, y1] = toScreen(positions[a][0], positions[a][1]);
+      const [x2, y2] = toScreen(positions[b][0], positions[b][1]);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+      ctx.strokeStyle = ka === kb ? colorFor(colorKey(na)) : "#94a3b8";
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  const radius = Math.max(1.4, Math.min(4, 2.2 * Math.sqrt(state.scale)));
+  const filtering = state.matches.size > 0;
+  for (let i = 0; i < DATA.nodes.length; i++) {
+    const [sx, sy] = toScreen(positions[i][0], positions[i][1]);
+    if (sx < -20 || sy < -20 || sx > width + 20 || sy > height + 20) continue;
+    const dim = filtering && !state.matches.has(i);
+    ctx.globalAlpha = dim ? 0.12 : 1;
+    ctx.fillStyle = colorFor(colorKey(DATA.nodes[i]));
+    ctx.beginPath(); ctx.arc(sx, sy, radius, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.font = "600 12px ui-sans-serif, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  for (const [key, [cx, cy, r]] of Object.entries(circles)) {
+    if (key.startsWith("c:") || key === "") continue;
+    if (key.split(".").length !== state.level) continue;
+    const [sx, sy] = toScreen(cx, cy);
+    const label = DATA.layout.labels[key] || key;
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--ink").trim();
+    ctx.globalAlpha = 0.85;
+    ctx.fillText(label, sx, sy - r * state.scale - 6);
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = "left";
+
+  if (state.hit !== null) {
+    const [sx, sy] = toScreen(positions[state.hit][0], positions[state.hit][1]);
+    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--accent").trim();
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(sx, sy, radius + 4, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
+function scopeBubbles() {
+  const scope = scopeById.get(state.scopeId);
+  if (!scope) return [];
+  const sizes = Object.values(scope.clusters).map(c => c.size);
+  const largest = Math.max(1, ...sizes);
+  return Object.entries(scope.meta_layout).map(([cid, [x, y]]) => {
+    const cluster = scope.clusters[cid];
+    return { cid, x, y, r: 0.02 + 0.09 * Math.sqrt(cluster.size / largest), cluster };
+  });
+}
+
+function drawScope() {
+  const scope = scopeById.get(state.scopeId);
+  if (!scope) return;
+  const bubbles = scopeBubbles();
+  const byId = new Map(bubbles.map(b => [b.cid, b]));
+  const maxWeight = Math.max(1, ...scope.meta_graph.map(e => e[2]));
+
+  for (const [a, b, weight] of scope.meta_graph) {
+    const from = byId.get(a), to = byId.get(b);
+    if (!from || !to) continue;
+    const [x1, y1] = toScreen(from.x, from.y), [x2, y2] = toScreen(to.x, to.y);
+    const sameGroup = from.cluster.component === to.cluster.component;
+    ctx.strokeStyle = sameGroup ? colorFor(from.cluster.component) : "#94a3b8";
+    ctx.globalAlpha = sameGroup ? 0.5 : 0.32;
+    ctx.lineWidth = 0.4 + 3.2 * (weight / maxWeight);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  for (const bubble of bubbles) {
+    const [sx, sy] = toScreen(bubble.x, bubble.y);
+    const r = Math.max(4, bubble.r * state.scale);
+    ctx.fillStyle = colorFor(bubble.cluster.component);
+    ctx.globalAlpha = bubble.cluster.role === "absorbed" ? 0.55 : 0.95;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    if (state.selection && state.selection.type === "cluster" && state.selection.id === bubble.cid) {
+      ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--accent").trim();
+      ctx.lineWidth = 2.5; ctx.stroke();
+    }
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--ink").trim();
+    ctx.globalAlpha = 0.75;
+    ctx.fillText(bubble.cid, sx, sy - r - 3);
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = "left";
+}
+
+/* ---------- picking ---------- */
+function pick(mx, my) {
+  if (state.view === "map") {
+    let best = null, bestDistance = 12 * 12;
+    for (let i = 0; i < DATA.nodes.length; i++) {
+      const [sx, sy] = toScreen(DATA.layout.nodes[i][0], DATA.layout.nodes[i][1]);
+      const d = (sx - mx) ** 2 + (sy - my) ** 2;
+      if (d < bestDistance) { bestDistance = d; best = i; }
+    }
+    return best === null ? null : { type: "node", index: best };
+  }
+  for (const bubble of scopeBubbles()) {
+    const [sx, sy] = toScreen(bubble.x, bubble.y);
+    const r = Math.max(5, bubble.r * state.scale);
+    if ((sx - mx) ** 2 + (sy - my) ** 2 <= r * r) return { type: "cluster", id: bubble.cid };
+  }
+  return null;
+}
+
+/* ---------- side panel ---------- */
+const esc = (text) => String(text).replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
+
+function renderPanel() {
+  const rows = [];
+  rows.push(`<h3 style="margin-top:0">Levels</h3><table><tr><th>level</th><th>components</th><th>clusters</th><th>scopes</th></tr>` +
+    DATA.levels.map(l => `<tr class="${l.level === state.level ? "pick" : ""}"><td>${l.level}</td><td>${l.components}</td><td>${l.clusters}</td><td>${l.scopes.length}</td></tr>`).join("") +
+    `</table>`);
+
+  rows.push(`<h3>Component tree</h3><div class="tree">`);
+  const walk = (id, depth) => {
+    for (const childId of (childrenOf.get(id) || []).sort()) {
+      const component = componentById.get(childId);
+      const selected = state.selection && state.selection.type === "component" && state.selection.id === childId;
+      rows.push(
+        `<div class="${selected ? "sel" : ""}" style="padding-left:${depth * 12}px" data-component="${childId}">` +
+        `<span class="swatch" style="background:${colorFor(childId.split(".").slice(0, 1).join("."))}"></span>` +
+        `${esc(component.name)} <span class="count">${childId} · ${component.subtree_methods}</span></div>`
+      );
+      walk(childId, depth + 1);
+    }
+  };
+  walk("", 0);
+  rows.push(`</div>`);
+
+  const warnings = DATA.meta.warnings;
+  if (warnings.length) {
+    rows.push(`<h3>Notes</h3><ul class="warn">` + warnings.map(w => `<li>${esc(w)}</li>`).join("") + `</ul>`);
+  }
+  el("panel").innerHTML = rows.join("");
+  el("panel").querySelectorAll("[data-component]").forEach(node => {
+    node.onclick = () => selectComponent(node.dataset.component);
+  });
+}
+
+function selectComponent(componentId) {
+  state.selection = { type: "component", id: componentId };
+  const circle = DATA.layout.circles[componentId];
+  if (circle && state.view === "map") {
+    const [cx, cy, r] = circle;
+    state.scale = Math.min(width, height) / (2.4 * r);
+    state.tx = width / 2 - cx * state.scale;
+    state.ty = height / 2 - cy * state.scale;
+  }
+  showWhyComponent(componentId);
+  renderPanel();
+  draw();
+}
+
+/* ---------- why panel ---------- */
+function openWhy(html) { el("whyBody").innerHTML = html; el("why").classList.add("open"); }
+el("whyClose").onclick = () => el("why").classList.remove("open");
+
+function sweepTable(decision) {
+  if (!decision.sweep.length) return `<p class="hint">${esc(decision.note || "no resolution sweep was needed")}</p>`;
+  return `<table><tr><th>resolution</th><th>communities</th><th>non-singleton</th><th>modularity</th></tr>` +
+    decision.sweep.map(entry =>
+      `<tr class="${entry.chosen ? "pick" : ""}"><td>${entry.resolution}</td><td>${entry.communities}</td>` +
+      `<td>${entry.non_singleton}${entry.in_range ? "" : " ·"}</td><td>${entry.modularity.toFixed(4)}</td></tr>`
+    ).join("") + `</table><p class="hint">· = outside the ${decision.low}–${decision.high} target range. ` +
+    `The highest-modularity partition inside the range wins.</p>`;
+}
+
+function showWhyScope(scope) {
+  const decision = scope.decision;
+  const groups = scope.groups.map(group =>
+    `<li><span class="swatch" style="background:${colorFor(group.component_id)}"></span>` +
+    `<b>${esc(group.name)}</b> <span class="count">${group.component_id}</span><br>` +
+    `<span class="count">${group.cluster_ids.length} clusters · ${group.size} methods · cohesion ${group.cohesion} ` +
+    `(${group.internal_edges} internal vs ${group.external_edges} external call-weighted edges)</span></li>`
+  ).join("");
+  const absorbed = decision.absorptions.map(a =>
+    `<li><code>${a.cluster_id}</code> → group ${a.group_index} <span class="count">` +
+    (a.reason === "hops" ? `${a.hops} hop(s) away in the cluster graph` :
+     a.reason === "package" ? `no path; shared ${a.package_affinity} directory level(s)` :
+     `no path and no shared directory; went to the smallest group`) + `</span></li>`
+  ).join("");
+  const boundaries = scope.boundaries.slice(0, 12).map(b =>
+    `<li><b>${esc((componentById.get(b.from) || {}).name || b.from)}</b> → ` +
+    `<b>${esc((componentById.get(b.to) || {}).name || b.to)}</b> <span class="count">${b.weight} calls</span>` +
+    `<ul>${b.examples.slice(0, 3).map(e => `<li class="mono">${esc(e[0].split(".").slice(-2).join("."))} → ${esc(e[1].split(".").slice(-2).join("."))} <span class="count">${e[2]}</span></li>`).join("")}</ul></li>`
+  ).join("");
+
+  openWhy(`
+    <h2>${scope.scope_id === "" ? "Repository root" : esc((componentById.get(scope.scope_id) || {}).name || scope.scope_id)}</h2>
+    <p class="count">scope <code>${scope.scope_id || "(root)"}</code> · level ${scope.level} · ${scope.size} methods ·
+      ${scope.cluster_count} leaf clusters → ${scope.groups.length} components</p>
+    ${scope.method_level_expansion ? `<p class="warn">Too few natural clusters here: every method became its own cluster before grouping.</p>` : ""}
+    <h3>How the components were chosen</h3>
+    <p>Leiden ran over the weighted graph <i>between</i> leaf clusters at each resolution below; the partition with the
+      highest modularity whose non-singleton community count landed in ${decision.low}–${decision.high} was taken.
+      Leftover clusters were then absorbed into the nearest of those seeds.</p>
+    ${decision.note && decision.matches_pipeline ? `<p class="warn">${esc(decision.note)}</p>` : ""}
+    ${sweepTable(decision)}
+    <p class="count">Final grouping modularity ${decision.modularity.toFixed(4)}
+      ${decision.shipped_matches_replay ? "· matches the shipped grouping exactly" :
+        `· <span class="warn">shipped grouping differs (scores ${decision.shipped_modularity.toFixed(4)})</span>`}
+      ${decision.matches_pipeline ? "" : `· <span class="warn">${esc(decision.note)}</span>`}</p>
+    <h3>Components</h3><ul>${groups}</ul>
+    ${decision.promoted.length ? `<h3>Promoted to their own component</h3><p class="count">Too few connected communities to reach the floor of ${decision.low}, so the biggest leftovers became components: <code>${decision.promoted.join("</code>, <code>")}</code></p>` : ""}
+    ${absorbed ? `<h3>Absorbed leftovers (${decision.absorptions.length})</h3><ul>${absorbed}</ul>` : ""}
+    ${boundaries ? `<h3>What crosses the boundaries</h3><ul>${boundaries}</ul>` : ""}
+  `);
+}
+
+function showWhyCluster(scope, clusterId) {
+  const cluster = scope.clusters[clusterId];
+  if (!cluster) return;
+  const owner = componentById.get(cluster.component);
+  const absorption = cluster.absorbed_by || {};
+  openWhy(`
+    <h2>Cluster ${clusterId}</h2>
+    <p class="count">${cluster.size} methods · ${cluster.files.length} files · in
+      <b style="color:${colorFor(cluster.component)}">${esc(owner ? owner.name : cluster.component || "—")}</b></p>
+    <h3>Why it sits there</h3>
+    <p>${cluster.role === "seed" ? "It was part of a community Leiden resolved directly — the seed the component was built around." :
+        cluster.role === "promoted_seed" ? "Nothing connected it strongly enough to join a community, but it was large enough to be promoted into its own component." :
+        absorption.reason === "hops" ? `It was a leftover singleton, absorbed into the nearest seed — ${absorption.hops} hop(s) away in the cluster graph.` :
+        absorption.reason === "package" ? `It was a leftover with no path to any seed; it went to the group sharing ${absorption.package_affinity} directory level(s) with it.` :
+        "It was a leftover with neither a path nor a shared directory, so it went to the smallest group."}</p>
+    <p class="count">cohesion ${cluster.cohesion} — ${cluster.internal_edges} call-weighted edges inside vs
+      ${cluster.external_edges} leaving it.</p>
+    <h3>Directories</h3><ul>${Object.entries(cluster.packages).map(([dir, n]) => `<li class="mono">${esc(dir)} <span class="count">${n}</span></li>`).join("")}</ul>
+    <h3>Top symbols</h3><ul>${cluster.symbols.map(s => `<li class="mono">${esc(s)}</li>`).join("")}</ul>
+    <h3>Files</h3><ul>${cluster.files.slice(0, 14).map(f => `<li class="mono">${esc(f)}</li>`).join("")}</ul>
+  `);
+}
+
+function showWhyComponent(componentId) {
+  const component = componentById.get(componentId);
+  if (!component) return;
+  const parentScope = scopeById.get(component.parent_id);
+  const group = parentScope && parentScope.groups.find(g => g.component_id === componentId);
+  const ownScope = scopeById.get(componentId);
+  openWhy(`
+    <h2>${esc(component.name)}</h2>
+    <p class="count">component <code>${componentId}</code> · level ${component.level} ·
+      ${component.subtree_methods} methods · built from clusters <code>${component.cluster_ids.join("</code>, <code>")}</code></p>
+    <p>${esc(component.description)}</p>
+    ${group ? `<h3>Cohesion</h3><p class="count">${group.internal_edges} call-weighted edges inside vs ${group.external_edges} leaving (${group.cohesion}).</p>
+      <h3>Directories it spans</h3><ul>${Object.entries(group.packages).map(([dir, n]) => `<li class="mono">${esc(dir)} <span class="count">${n}</span></li>`).join("")}</ul>` : ""}
+    ${component.key_entities.length ? `<h3>Key entities</h3><ul>${component.key_entities.map(e => `<li class="mono">${esc(e)}</li>`).join("")}</ul>` : ""}
+    ${parentScope ? `<p><button data-scope="${component.parent_id}">Why this component exists (grouping at level ${parentScope.level})</button></p>` : ""}
+    ${ownScope ? `<p><button data-scope="${componentId}">How it was split (${ownScope.cluster_count} clusters → ${ownScope.groups.length} sub-components)</button></p>` : ""}
+  `);
+  el("whyBody").querySelectorAll("[data-scope]").forEach(button => {
+    button.onclick = () => { setScope(button.dataset.scope); setView("scope"); };
+  });
+}
+
+/* ---------- interaction ---------- */
+function setView(view) {
+  state.view = view;
+  el("viewMap").classList.toggle("on", view === "map");
+  el("viewScope").classList.toggle("on", view === "scope");
+  fit();
+}
+function setScope(scopeId) {
+  state.scopeId = scopeId;
+  el("scopeSel").value = scopeId;
+  const scope = scopeById.get(scopeId);
+  if (scope) { state.level = Math.max(state.level, scope.level); el("level").value = state.level; updateLevelLabel(); }
+}
+function updateLevelLabel() {
+  const info = DATA.levels[state.level - 1];
+  el("levelLabel").textContent = info ? `${info.components} components · ${info.clusters} clusters` : "";
+}
+
+canvas.addEventListener("mousemove", (event) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = event.clientX - rect.left, my = event.clientY - rect.top;
+  if (dragging) {
+    state.tx += mx - lastX; state.ty += my - lastY; lastX = mx; lastY = my; draw(); return;
+  }
+  const hit = pick(mx, my);
+  const tip = el("tip");
+  if (!hit) { tip.style.display = "none"; if (state.hit !== null) { state.hit = null; draw(); } return; }
+  if (hit.type === "node") {
+    state.hit = hit.index;
+    const node = DATA.nodes[hit.index];
+    const chain = node.path.map((cid, i) => cid ? `L${i + 1}: ${cid} → ${(componentById.get(ownerOfCluster.get(cid)) || {}).name || "—"}` : null).filter(Boolean);
+    tip.innerHTML = `<b class="mono">${esc(node.q)}</b><br><span class="count mono">${esc(node.f)}:${node.s} · ${node.t}</span><br>` +
+      chain.map(line => `<span class="count">${esc(line)}</span>`).join("<br>");
+  } else {
+    const scope = scopeById.get(state.scopeId);
+    const cluster = scope.clusters[hit.id];
+    tip.innerHTML = `<b>Cluster ${hit.id}</b> <span class="count">${cluster.size} methods, ${cluster.role}</span><br>` +
+      `<span class="count mono">${esc(cluster.symbols.slice(0, 3).join(", "))}</span>`;
+  }
+  tip.style.display = "block";
+  tip.style.left = Math.min(mx + 14, width - 390) + "px";
+  tip.style.top = (my + 16) + "px";
+  draw();
+});
+
+let dragging = false, lastX = 0, lastY = 0, downX = 0, downY = 0;
+canvas.addEventListener("mousedown", (event) => {
+  const rect = canvas.getBoundingClientRect();
+  dragging = true; lastX = downX = event.clientX - rect.left; lastY = downY = event.clientY - rect.top;
+  canvas.classList.add("drag");
+});
+window.addEventListener("mouseup", (event) => {
+  if (!dragging) return;
+  dragging = false; canvas.classList.remove("drag");
+  const rect = canvas.getBoundingClientRect();
+  const mx = event.clientX - rect.left, my = event.clientY - rect.top;
+  if (Math.hypot(mx - downX, my - downY) > 4) return;
+  const hit = pick(mx, my);
+  if (!hit) return;
+  if (hit.type === "node") {
+    const node = DATA.nodes[hit.index];
+    const componentId = componentAtLevel(node, state.level) || node.comp;
+    if (componentId) selectComponent(componentId);
+  } else {
+    state.selection = { type: "cluster", id: hit.id };
+    showWhyCluster(scopeById.get(state.scopeId), hit.id);
+    draw();
+  }
+});
+canvas.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mx = event.clientX - rect.left, my = event.clientY - rect.top;
+  const factor = Math.exp(-event.deltaY * 0.0015);
+  state.tx = mx - (mx - state.tx) * factor;
+  state.ty = my - (my - state.ty) * factor;
+  state.scale *= factor;
+  draw();
+}, { passive: false });
+
+el("level").addEventListener("input", (event) => { state.level = +event.target.value; updateLevelLabel(); renderPanel(); draw(); });
+el("colorBy").addEventListener("change", (event) => { state.colorBy = event.target.value; draw(); });
+el("edgeMode").addEventListener("change", (event) => { state.edgeMode = event.target.value; draw(); });
+el("scopeSel").addEventListener("change", (event) => { setScope(event.target.value); if (state.view === "scope") fit(); else draw(); });
+el("viewMap").onclick = () => setView("map");
+el("viewScope").onclick = () => { setView("scope"); showWhyScope(scopeById.get(state.scopeId)); };
+el("fit").onclick = fit;
+el("clusterRings").onclick = () => {
+  state.clusterRings = !state.clusterRings;
+  el("clusterRings").classList.toggle("on", state.clusterRings);
+  draw();
+};
+el("search").addEventListener("input", (event) => {
+  const query = event.target.value.trim().toLowerCase();
+  state.matches = new Set();
+  if (query) {
+    DATA.nodes.forEach((node, index) => {
+      if (node.q.toLowerCase().includes(query) || node.f.toLowerCase().includes(query)) state.matches.add(index);
+    });
+  }
+  draw();
+});
+window.addEventListener("resize", resize);
+
+/* ---------- boot ---------- */
+el("title").textContent = `${DATA.meta.project} — clustering explorer`;
+el("subtitle").textContent =
+  `${DATA.meta.node_count} methods · ${DATA.meta.edge_count} edges · ${DATA.meta.levels} levels · ` +
+  `${DATA.scopes.length} clustering runs · ${DATA.meta.languages.join(", ")}`;
+el("level").max = String(maxLevel);
+el("scopeSel").innerHTML = DATA.scopes
+  .map(scope => `<option value="${scope.scope_id}">${scope.scope_id === "" ? "root" : scope.scope_id + " · " +
+    ((componentById.get(scope.scope_id) || {}).name || "")}</option>`)
+  .join("");
+state.scopeId = DATA.scopes.length ? DATA.scopes[0].scope_id : "";
+el("scopeSel").value = state.scopeId;
+updateLevelLabel();
+renderPanel();
+resize();
+fit();
+</script>
+</body>
+</html>
