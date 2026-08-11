@@ -106,7 +106,8 @@
     <div class="row">
       <label>Edges</label>
       <select id="edgeMode">
-        <option value="cross" selected>crossing only</option>
+        <option value="cluster" selected>between clusters</option>
+        <option value="cross">crossing components</option>
         <option value="all">all</option>
         <option value="none">none</option>
       </select>
@@ -154,7 +155,7 @@ for (const c of DATA.components) {
 }
 
 const state = {
-  view: "map", level: 1, colorBy: "component", edgeMode: "cross", scopeId: "", clusterRings: false,
+  view: "map", level: 1, colorBy: "component", edgeMode: "cluster", scopeId: "", clusterRings: false,
   hit: null, selection: null, search: "", matches: new Set(),
   tx: 0, ty: 0, scale: 1, fitScale: 1,
 };
@@ -270,14 +271,16 @@ function drawMap() {
   }
 
   if (state.edgeMode !== "none") {
-    // "all" is 3-4k lines, most of them shorter than a pixel at fit zoom, so it stays faint;
-    // "cross" is the handful that leave a component and is drawn to be read.
-    ctx.lineWidth = state.edgeMode === "cross" ? 0.9 : 0.5;
-    ctx.globalAlpha = state.edgeMode === "cross" ? 0.45 : 0.14;
+    // "all" is 3-4k lines and most of them are the intra-cluster hairball — shorter than a
+    // pixel at fit zoom — so it stays faint. The other two modes drop that hairball and are
+    // drawn to be read: "between clusters" is what the grouping was actually scored on.
+    ctx.lineWidth = state.edgeMode === "all" ? 0.5 : 0.9;
+    ctx.globalAlpha = state.edgeMode === "all" ? 0.14 : 0.42;
     for (const [a, b] of DATA.edges) {
       const na = DATA.nodes[a], nb = DATA.nodes[b];
       const ka = componentAtLevel(na, state.level), kb = componentAtLevel(nb, state.level);
       if (state.edgeMode === "cross" && ka === kb) continue;
+      if (state.edgeMode === "cluster" && clusterAtLevel(na, state.level) === clusterAtLevel(nb, state.level)) continue;
       const [x1, y1] = toScreen(positions[a][0], positions[a][1]);
       const [x2, y2] = toScreen(positions[b][0], positions[b][1]);
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
