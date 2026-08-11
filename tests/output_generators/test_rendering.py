@@ -366,7 +366,7 @@ def test_render_reconciles_owned_files_and_preserves_unrelated_files(
 def test_render_rejects_missing_analysis(tmp_path: Path) -> None:
     analysis_path = tmp_path / "analysis.json"
 
-    with pytest.raises(FileNotFoundError, match=f"Analysis file not found: {analysis_path}"):
+    with pytest.raises(FileNotFoundError, match=re.escape(f"Analysis file not found: {analysis_path}")):
         render("md", analysis_path=analysis_path, repo_name="fake", output_dir=tmp_path / "output")
 
 
@@ -380,12 +380,15 @@ def test_render_refuses_to_overwrite_unowned_output(
     analysis_path.write_text(json.dumps(_make_depth3_unified_json()))
     unowned_file = tmp_path / f"overview{extension}"
     unowned_file.write_text("user-owned")
+    manifest_path = tmp_path / _RENDER_MANIFEST_FILENAME
+    initial_manifest = json.dumps({"version": 1, "outputs": {output_format: []}})
+    manifest_path.write_text(initial_manifest)
 
     with pytest.raises(FileExistsError, match="Refusing to overwrite unowned render output"):
         render(output_format, analysis_path=analysis_path, repo_name="fake", output_dir=tmp_path)
 
     assert unowned_file.read_text() == "user-owned"
-    assert not (tmp_path / _RENDER_MANIFEST_FILENAME).exists()
+    assert manifest_path.read_text() == initial_manifest
 
 
 def test_render_rejects_filename_collisions_before_replacing_files(tmp_path: Path) -> None:
