@@ -1,5 +1,7 @@
+import json
 from unittest.mock import patch
 
+from codeboarding_cli.render import main as render_main
 from main import build_parser, main
 
 
@@ -68,3 +70,32 @@ def test_force_flag_registered_and_defaults_false() -> None:
 def test_force_flag_sets_true_when_passed() -> None:
     args = build_parser().parse_args(["full", "--local", "/tmp/repo", "--force"])
     assert args.force is True
+
+
+def test_render_flag_registered_and_defaults_none() -> None:
+    args = build_parser().parse_args(["full", "--local", "/tmp/repo"])
+    assert args.render is None
+
+
+def test_render_flag_accepts_markdown() -> None:
+    args = build_parser().parse_args(["full", "--local", "/tmp/repo", "--render", "md"])
+    assert args.render == "md"
+
+
+@patch("codeboarding_cli.render.setup_logging")
+@patch("codeboarding_cli.render.render_docs")
+def test_standalone_render_uses_existing_analysis(mock_render_docs, _mock_setup_logging, tmp_path) -> None:
+    analysis_path = tmp_path / "analysis.json"
+    analysis_path.write_text(json.dumps({"metadata": {"repo_name": "demo"}}))
+    output_dir = tmp_path / "rendered"
+
+    render_main([str(analysis_path), "--output-dir", str(output_dir)])
+
+    mock_render_docs.assert_called_once_with(
+        analysis_path=analysis_path.resolve(),
+        repo_name="demo",
+        repo_ref="",
+        temp_dir=output_dir.resolve(),
+        format=".md",
+        root_name="overview",
+    )

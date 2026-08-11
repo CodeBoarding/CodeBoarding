@@ -17,7 +17,7 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_branch, store_token
 from repo_utils.git_ops import get_current_commit
 from repo_utils.ignore import initialize_codeboardingignore
-from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
+from utils import CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,12 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
         "--force",
         action="store_true",
         help="Force full reanalysis, skipping cached static analysis",
+    )
+    parser.add_argument(
+        "--render",
+        choices=("md",),
+        metavar="FORMAT",
+        help="Render generated documentation after analysis (supported: md)",
     )
     parser.add_argument(
         "--depth-level",
@@ -94,8 +100,8 @@ def _run_local(args: argparse.Namespace) -> None:
     run_paths.output_dir.mkdir(parents=True, exist_ok=True)
     initialize_codeboardingignore(run_paths.output_dir)
 
-    def scope(src: SourceContext, run_context: RunContext) -> None:
-        run_full(
+    def scope(src: SourceContext, run_context: RunContext) -> Path:
+        return run_full(
             RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
             run_context,
             depth_level=args.depth_level,
@@ -104,7 +110,7 @@ def _run_local(args: argparse.Namespace) -> None:
             source_sha=get_current_commit(src.repo_path),
         )
 
-    run_analysis_pipeline(
+    analysis_path = run_analysis_pipeline(
         source=local_source(
             repo_path=run_paths.repo_path,
             project_name=run_paths.project_name,
@@ -112,9 +118,21 @@ def _run_local(args: argparse.Namespace) -> None:
         ),
         scope=scope,
     )
+    if analysis_path is None:
+        raise RuntimeError("Local analysis completed without producing analysis.json")
+
+    if args.render == "md":
+        render_docs(
+            analysis_path=analysis_path,
+            repo_name=run_paths.project_name,
+            repo_ref="",
+            temp_dir=run_paths.output_dir,
+            format=".md",
+            root_name="overview",
+        )
     logger.info(f"Documentation generated successfully in {run_paths.output_dir}")
 
-    print_view_instructions(run_paths.output_dir / ANALYSIS_FILENAME)
+    print_view_instructions(analysis_path)
 
 
 def _run_remote(args: argparse.Namespace) -> None:

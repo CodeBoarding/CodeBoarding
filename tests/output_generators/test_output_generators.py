@@ -87,6 +87,12 @@ class TestMarkdownGenerator(unittest.TestCase):
 
         self.assertIn('click Authentication href "/repo/Authentication.md"', result)
 
+    def test_generated_mermaid_str_with_local_links(self):
+        expanded = {self.comp1.component_id}
+        result = generated_mermaid_str(self.insights, expanded_components=expanded, repo_ref="", project="test")
+
+        self.assertIn('click Authentication href "./Authentication.md"', result)
+
     def test_generated_mermaid_str_demo_mode(self):
         # Test demo mode links
         expanded = {self.comp1.component_id}

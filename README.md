@@ -95,6 +95,20 @@ Output is written to `/path/to/repo/.codeboarding/`. To explore it interactively
 [web platform](https://app.codeboarding.org) and drop in the generated `analysis.json` — it stays
 in your browser, nothing is uploaded. (The CLI prints this reminder after every successful run.)
 
+To also generate `overview.md` and one Markdown file per expanded component, pass `--render md`:
+
+```bash
+codeboarding full --local /path/to/repo --render md
+```
+
+You can render an existing analysis without rerunning analysis or configuring an LLM:
+
+```bash
+codeboarding-render /path/to/repo/.codeboarding/analysis.json
+# Write the Markdown files somewhere else:
+codeboarding-render /path/to/analysis.json --output-dir /path/to/docs
+```
+
 `python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
 
 ## Configuration

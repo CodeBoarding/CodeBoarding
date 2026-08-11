@@ -136,13 +136,16 @@ Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) always
 ```
 codeboarding full [REPO_URL ...]           # remote: clone + analyze
 codeboarding full --local PATH             # local: analyze in-place
+codeboarding full --local PATH --render md # analyze and render Markdown docs
 codeboarding incremental --local PATH      # re-analyze only changed parts
 codeboarding partial --local PATH --component-id ID   # update one component
+codeboarding-render PATH/analysis.json     # render Markdown from an existing analysis
 ```
 
 | Option | Description |
 |---|---|
 | `--local PATH` | Analyze a local repository (output: `PATH/.codeboarding/`) |
+| `--render md` | (full only) Render `overview.md` and component Markdown files after analysis |
 | `--depth-level INT` | Safety-valve depth cap (default: 3) on how deep auto-expansion goes; a component that outgrows the leaf ceiling is flagged expandable regardless, and can be expanded on demand |
 | `--force` | (full only) Force full reanalysis, skip cached static analysis |
 | `--base-ref REF` / `--target-ref REF` | (incremental only) Git refs to diff |
