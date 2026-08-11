@@ -356,16 +356,36 @@ def test_render_reconciles_owned_files_and_preserves_unrelated_files(
 
     render(output_format, analysis_path=analysis_path, repo_name="fake", output_dir=tmp_path)
 
+    updated_manifest = json.loads(manifest_path.read_text())
+    assert stale_file.name not in updated_manifest["outputs"][output_format]
     assert not stale_file.exists()
     assert (tmp_path / f"overview{extension}").is_file()
     assert untouched_file.read_text() == "keep"
 
 
-def test_render_skips_when_analysis_does_not_exist(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
-    render("md", analysis_path=tmp_path / "analysis.json", repo_name="fake", output_dir=tmp_path / "output")
+def test_render_rejects_missing_analysis(tmp_path: Path) -> None:
+    analysis_path = tmp_path / "analysis.json"
 
-    assert "does not exist" in caplog.text
-    assert not (tmp_path / "output").exists()
+    with pytest.raises(FileNotFoundError, match=f"Analysis file not found: {analysis_path}"):
+        render("md", analysis_path=analysis_path, repo_name="fake", output_dir=tmp_path / "output")
+
+
+@pytest.mark.parametrize(("output_format", "extension"), FORMAT_EXTENSIONS.items())
+def test_render_refuses_to_overwrite_unowned_output(
+    tmp_path: Path,
+    output_format: str,
+    extension: str,
+) -> None:
+    analysis_path = tmp_path / "analysis.json"
+    analysis_path.write_text(json.dumps(_make_depth3_unified_json()))
+    unowned_file = tmp_path / f"overview{extension}"
+    unowned_file.write_text("user-owned")
+
+    with pytest.raises(FileExistsError, match="Refusing to overwrite unowned render output"):
+        render(output_format, analysis_path=analysis_path, repo_name="fake", output_dir=tmp_path)
+
+    assert unowned_file.read_text() == "user-owned"
+    assert not (tmp_path / _RENDER_MANIFEST_FILENAME).exists()
 
 
 def test_render_rejects_filename_collisions_before_replacing_files(tmp_path: Path) -> None:

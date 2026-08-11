@@ -96,12 +96,14 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
 
         if args.render is not None:
             run_paths = resolve_local_run_paths(args)
-            render_output(
-                args.render,
-                analysis_path=run_paths.output_dir / ANALYSIS_FILENAME,
-                repo_name=run_paths.project_name,
-                output_dir=run_paths.output_dir,
-            )
+            analysis_path = run_paths.output_dir / ANALYSIS_FILENAME
+            if analysis_path.is_file():
+                render_output(
+                    args.render,
+                    analysis_path=analysis_path,
+                    repo_name=run_paths.project_name,
+                    output_dir=run_paths.output_dir,
+                )
     except LLMAuthError as exc:
         # A rejected API key is the user's to fix, not a crash: print one
         # actionable line (no traceback) and exit with a distinct code.

@@ -153,7 +153,10 @@ def test_main_renders_after_any_successful_analysis(
     analysis_path = Path("/tmp/repo/.codeboarding/analysis.json")
     events: list[str] = []
     mock_render_output.side_effect = lambda *args, **kwargs: events.append("render")
-    with patch(command_module, side_effect=lambda *args, **kwargs: events.append("analysis")):
+    with (
+        patch(command_module, side_effect=lambda *args, **kwargs: events.append("analysis")),
+        patch("main.Path.is_file", return_value=True),
+    ):
         main([*command_args, "--render", "rst"])
 
     assert events == ["analysis", "render"]
@@ -163,3 +166,15 @@ def test_main_renders_after_any_successful_analysis(
         repo_name="repo",
         output_dir=Path("/tmp/repo/.codeboarding"),
     )
+
+
+@patch("main.render_output")
+@patch("main.incremental_analysis.run_from_args")
+def test_main_skips_render_when_analysis_does_not_exist(
+    _mock_run_incremental,
+    mock_render_output,
+    tmp_path: Path,
+) -> None:
+    main(["incremental", "--local", str(tmp_path), "--render", "md"])
+
+    mock_render_output.assert_not_called()

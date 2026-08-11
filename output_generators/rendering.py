@@ -191,8 +191,7 @@ def render(
     except KeyError as exc:
         raise ValueError(f"Unsupported output format: {output_format}") from exc
     if not analysis_path.is_file():
-        logger.warning("Skipping %s render because %s does not exist", output_format, analysis_path)
-        return
+        raise FileNotFoundError(f"Analysis file not found: {analysis_path}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     render_manifest = _load_render_manifest(output_dir)
@@ -213,6 +212,11 @@ def render(
             raise RuntimeError(f"Rendering {output_format} produced no files")
 
         generated_names = sorted(file.name for file in generated_files)
+        for generated_name in generated_names:
+            destination = output_dir / generated_name
+            if destination.exists() and generated_name not in previous_names:
+                raise FileExistsError(f"Refusing to overwrite unowned render output: {destination}")
+
         render_manifest[output_format] = generated_names
         staged_manifest = staging_path / _RENDER_MANIFEST_FILENAME
         staged_manifest.write_text(
