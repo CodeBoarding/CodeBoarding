@@ -116,7 +116,7 @@ class TestMDXOutput(unittest.TestCase):
         )
 
         self.assertIn("click", result)
-        self.assertIn("/codeboarding/", result)
+        self.assertIn('href "./Component1.mdx"', result)
 
     def test_component_header_with_link(self):
         # Test component header with link

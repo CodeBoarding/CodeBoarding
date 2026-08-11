@@ -6,13 +6,14 @@ import logging
 import sys
 from pathlib import Path
 
-from codeboarding_workflows.rendering import render_docs
 from logging_config import setup_logging
+from output_generators import SUPPORTED_FORMATS, render as render_output
 
 logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the standalone rendering argument parser."""
     parser = argparse.ArgumentParser(
         prog="codeboarding-render",
         description="Render documentation from an existing CodeBoarding analysis.json",
@@ -20,7 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("analysis_path", type=Path, help="Path to analysis.json")
     parser.add_argument(
         "--format",
-        choices=("md",),
+        choices=SUPPORTED_FORMATS,
         default="md",
         help="Output format (default: md)",
     )
@@ -33,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Render one existing analysis according to parsed arguments."""
     analysis_path = args.analysis_path.resolve()
     if not analysis_path.is_file():
         parser.error(f"Analysis file not found: {analysis_path}")
@@ -51,18 +53,17 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     output_dir = args.output_dir.resolve() if args.output_dir else analysis_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
     setup_logging()
-    render_docs(
+    render_output(
+        args.format,
         analysis_path=analysis_path,
         repo_name=repo_name,
-        repo_ref="",
-        temp_dir=output_dir,
-        format=f".{args.format}",
-        root_name="overview",
+        output_dir=output_dir,
     )
     logger.info("Rendered %s documentation in %s", args.format, output_dir)
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Run the standalone rendering CLI."""
     parser = build_parser()
     run_from_args(parser.parse_args(sys.argv[1:] if argv is None else argv), parser)
 

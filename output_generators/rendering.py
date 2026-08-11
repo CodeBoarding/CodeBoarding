@@ -1,14 +1,10 @@
-"""Unified docs rendering from ``analysis.json``.
-
-Collapses the four ``generate_markdown/html/mdx/rst`` functions in
-``github_action.py`` and ``generate_markdown_docs`` in the former
-``markdown.py`` into a single table-driven entry point.
-"""
+"""Render documentation from ``analysis.json``."""
 
 import json
 import logging
 from collections.abc import Callable
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from agents.agent_responses import AnalysisInsights, Relation
@@ -18,7 +14,6 @@ from output_generators.html import generate_html_file
 from output_generators.markdown import generate_markdown_file
 from output_generators.mdx import generate_mdx_file
 from output_generators.sphinx import generate_rst_file
-from static_analyzer.cluster_relations import iter_ancestor_ids
 from utils import sanitize
 
 logger = logging.getLogger(__name__)
@@ -26,7 +21,9 @@ logger = logging.getLogger(__name__)
 
 def _ancestor_in_level(component_id: str, level_ids: set[str]) -> str | None:
     """Return the closest ancestor present in level_ids."""
-    for ancestor in iter_ancestor_ids(component_id):
+    parts = component_id.split(".")
+    for index in range(len(parts), 0, -1):
+        ancestor = ".".join(parts[:index])
         if ancestor in level_ids:
             return ancestor
     return None
@@ -71,14 +68,17 @@ _FORMAT_WRITERS: dict[str, tuple[str, bool]] = {
     ".rst": ("generate_rst_file", False),
 }
 
+FORMAT_EXTENSIONS = {
+    "md": ".md",
+    "html": ".html",
+    "mdx": ".mdx",
+    "rst": ".rst",
+}
+SUPPORTED_FORMATS = tuple(FORMAT_EXTENSIONS)
+
 
 def _load_entries(analysis_path: Path) -> list[tuple[str, AnalysisInsights, set[str]]]:
-    """Return ``(filename, analysis, expanded_component_ids)`` for root + each sub-analysis.
-
-    Each entry's ``components_relations`` is replaced with the root's global
-    leaf set projected to that level (see :func:`project_relations_to_level`).
-    The root entry uses ``"__root__"`` as a placeholder filename for the caller.
-    """
+    """Load the root and sub-analyses with relations projected to each level."""
     with open(analysis_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -111,23 +111,25 @@ def render_docs(
     root_name: str = "overview",
     demo_mode: bool = False,
 ) -> None:
-    """Render an ``analysis.json`` into *format* docs under *temp_dir*.
-
-    - ``repo_ref`` is the fully-formed link prefix (e.g.
-      ``https://github.com/x/y/blob/main/.codeboarding``); this function
-      does not construct it, because callers disagree on the tail segment.
-    - ``root_name`` names the top-level file (``"overview"`` in the GitHub
-      Action, ``"on_boarding"`` in the CLI workflow).
-    - ``demo_mode`` is honored only by writers that accept it (currently
-      markdown); it is silently ignored by others.
-    """
+    """Render docs in one extension under ``temp_dir``."""
     if format not in _FORMAT_WRITERS:
         raise ValueError(f"Unsupported extension: {format}")
 
     writer_name, accepts_demo = _FORMAT_WRITERS[format]
     writer: Callable[..., Any] = globals()[writer_name]
-    for fname, analysis, expanded in _load_entries(analysis_path):
-        out_name = root_name if fname == "__root__" else fname
+    named_entries = [
+        (root_name if fname == "__root__" else fname, analysis, expanded)
+        for fname, analysis, expanded in _load_entries(analysis_path)
+    ]
+    names_by_key: dict[str, str] = {}
+    for out_name, _, _ in named_entries:
+        key = out_name.casefold()
+        if key in names_by_key:
+            existing = names_by_key[key]
+            raise ValueError(f"Output filename collision: {existing}{format} and {out_name}{format}")
+        names_by_key[key] = out_name
+
+    for out_name, analysis, expanded in named_entries:
         logger.info("Generating %s for: %s", format, out_name)
         kwargs: dict[str, Any] = {
             "repo_ref": repo_ref,
@@ -137,3 +139,40 @@ def render_docs(
         if accepts_demo:
             kwargs["demo"] = demo_mode
         writer(out_name, analysis, repo_name, **kwargs)
+
+
+def render(
+    output_format: str | None,
+    *,
+    analysis_path: Path,
+    repo_name: str,
+    output_dir: Path,
+    repo_ref: str = "",
+    root_name: str = "overview",
+    demo_mode: bool = False,
+) -> None:
+    """Replace rendered docs for one format from a completed analysis.json."""
+    if output_format is None:
+        return
+    try:
+        extension = FORMAT_EXTENSIONS[output_format]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported output format: {output_format}") from exc
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix=".render-", dir=output_dir) as staging_dir:
+        staging_path = Path(staging_dir)
+        render_docs(
+            analysis_path=analysis_path,
+            repo_name=repo_name,
+            repo_ref=repo_ref,
+            temp_dir=staging_path,
+            format=extension,
+            root_name=root_name,
+            demo_mode=demo_mode,
+        )
+        generated_files = list(staging_path.glob(f"*{extension}"))
+        for existing_file in output_dir.glob(f"*{extension}"):
+            existing_file.unlink()
+        for generated_file in generated_files:
+            generated_file.replace(output_dir / generated_file.name)

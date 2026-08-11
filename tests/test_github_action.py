@@ -33,7 +33,7 @@ def _write_analysis_file(path: Path) -> Path:
 
 
 class TestGenerateMarkdown(unittest.TestCase):
-    @patch("codeboarding_workflows.rendering.generate_markdown_file")
+    @patch("output_generators.rendering.generate_markdown_file")
     def test_generate_markdown_with_analysis_file(self, mock_generate_file):
         # Test markdown generation with a unified analysis file
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -57,7 +57,7 @@ class TestGenerateMarkdown(unittest.TestCase):
             self.assertEqual(args[0][0], "overview")
             self.assertEqual(args[1]["repo_ref"], f"https://github.com/test/repo/blob/main/{CODEBOARDING_DIR_NAME}")
 
-    @patch("codeboarding_workflows.rendering.generate_markdown_file")
+    @patch("output_generators.rendering.generate_markdown_file")
     def test_generate_markdown_with_components(self, mock_generate_file):
         # Test with components that produce multiple entries
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -112,7 +112,7 @@ class TestGenerateMarkdown(unittest.TestCase):
 
 
 class TestGenerateHtml(unittest.TestCase):
-    @patch("codeboarding_workflows.rendering.generate_html_file")
+    @patch("output_generators.rendering.generate_html_file")
     def test_generate_html_with_analysis_file(self, mock_generate_file):
         # Test HTML generation with a unified analysis file
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -135,7 +135,7 @@ class TestGenerateHtml(unittest.TestCase):
 
 
 class TestGenerateMdx(unittest.TestCase):
-    @patch("codeboarding_workflows.rendering.generate_mdx_file")
+    @patch("output_generators.rendering.generate_mdx_file")
     def test_generate_mdx_with_analysis_file(self, mock_generate_file):
         # Test MDX generation with a unified analysis file
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -159,7 +159,7 @@ class TestGenerateMdx(unittest.TestCase):
 
 
 class TestGenerateRst(unittest.TestCase):
-    @patch("codeboarding_workflows.rendering.generate_rst_file")
+    @patch("output_generators.rendering.generate_rst_file")
     def test_generate_rst_with_analysis_file(self, mock_generate_file):
         # Test RST generation with a unified analysis file
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -4,7 +4,10 @@ import sys
 from pathlib import Path
 
 from agents.llm_errors import EXIT_AUTH_ERROR, LLMAuthError
+from codeboarding_cli.bootstrap import resolve_local_run_paths
 from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
+from output_generators import SUPPORTED_FORMATS, render as render_output
+from utils import ANALYSIS_FILENAME
 
 _SUBCOMMANDS = {"full", "incremental", "partial"}
 
@@ -14,6 +17,11 @@ def _build_shared_parser() -> argparse.ArgumentParser:
     shared.add_argument("--local", type=Path, help="Path to a local repository")
     shared.add_argument("--output-dir", type=Path, help="Output directory for local analysis")
     shared.add_argument("--project-name", type=str, help="Project name for local analysis")
+    shared.add_argument(
+        "--render",
+        choices=SUPPORTED_FORMATS,
+        help="Render documentation after analysis",
+    )
     shared.add_argument(
         "--binary-location",
         type=Path,
@@ -85,6 +93,15 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
             partial_analysis.run_from_args(args, parser)
         else:
             full_analysis.run_from_args(args, parser)
+
+        if args.render is not None:
+            run_paths = resolve_local_run_paths(args)
+            render_output(
+                args.render,
+                analysis_path=run_paths.output_dir / ANALYSIS_FILENAME,
+                repo_name=run_paths.project_name,
+                output_dir=run_paths.output_dir,
+            )
     except LLMAuthError as exc:
         # A rejected API key is the user's to fix, not a crash: print one
         # actionable line (no traceback) and exit with a distinct code.

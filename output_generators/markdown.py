@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
-from static_analyzer.constants import NodeType
+from output_generators.node_types import node_type_label
 from utils import sanitize
 
 
@@ -75,7 +75,7 @@ def generate_markdown(
             for reference in comp.key_entities:
                 if not reference.reference_file:
                     continue
-                if not os.path.exists(Path(root_dir) / reference.reference_file):
+                if not repo_ref or not os.path.exists(Path(root_dir) / reference.reference_file):
                     qn_list.append(f"{reference}")
                     continue
                 ref_url = repo_ref + reference.reference_file
@@ -107,7 +107,7 @@ def generate_markdown(
                 else:
                     fm_lines += f"- `{fg.file_path}`\n"
                 for method in fg.methods:
-                    label = NodeType.from_name(method.node_type).label()
+                    label = node_type_label(method.node_type)
                     line_ref = f"L{method.start_line}-L{method.end_line}"
                     if repo_ref:
                         line_link = f"[{line_ref}]({repo_ref}{fg.file_path}#{line_ref})"

@@ -9,15 +9,15 @@ from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_
 from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import run_full
 from codeboarding_workflows.orchestration import run_analysis_pipeline
-from codeboarding_workflows.rendering import render_docs
 from codeboarding_workflows.sources import SourceContext, local_source, remote_source
 from diagram_analysis import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
+from output_generators.rendering import render_docs
 from repo_utils import get_branch, store_token
 from repo_utils.git_ops import get_current_commit
 from repo_utils.ignore import initialize_codeboardingignore
-from utils import CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +44,6 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
         help="Force full reanalysis, skipping cached static analysis",
     )
     parser.add_argument(
-        "--render",
-        choices=("md",),
-        metavar="FORMAT",
-        help="Render generated documentation after analysis (supported: md)",
-    )
-    parser.add_argument(
         "--depth-level",
         type=int,
         default=DEFAULT_DEPTH_LEVEL,
@@ -69,6 +63,8 @@ def validate_arguments(args: argparse.Namespace, parser: argparse.ArgumentParser
         parser.error("Provide either one or more remote repositories or --local, but not both.")
 
     if not has_local_repo:
+        if args.render is not None:
+            parser.error("--render only works with --local")
         if args.output_dir:
             parser.error("--output-dir only works with --local")
         if args.project_name:
@@ -100,8 +96,8 @@ def _run_local(args: argparse.Namespace) -> None:
     run_paths.output_dir.mkdir(parents=True, exist_ok=True)
     initialize_codeboardingignore(run_paths.output_dir)
 
-    def scope(src: SourceContext, run_context: RunContext) -> Path:
-        return run_full(
+    def scope(src: SourceContext, run_context: RunContext) -> None:
+        run_full(
             RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
             run_context,
             depth_level=args.depth_level,
@@ -110,7 +106,7 @@ def _run_local(args: argparse.Namespace) -> None:
             source_sha=get_current_commit(src.repo_path),
         )
 
-    analysis_path = run_analysis_pipeline(
+    run_analysis_pipeline(
         source=local_source(
             repo_path=run_paths.repo_path,
             project_name=run_paths.project_name,
@@ -118,21 +114,9 @@ def _run_local(args: argparse.Namespace) -> None:
         ),
         scope=scope,
     )
-    if analysis_path is None:
-        raise RuntimeError("Local analysis completed without producing analysis.json")
+    logger.info(f"Analysis generated successfully in {run_paths.output_dir}")
 
-    if args.render == "md":
-        render_docs(
-            analysis_path=analysis_path,
-            repo_name=run_paths.project_name,
-            repo_ref="",
-            temp_dir=run_paths.output_dir,
-            format=".md",
-            root_name="overview",
-        )
-    logger.info(f"Documentation generated successfully in {run_paths.output_dir}")
-
-    print_view_instructions(analysis_path)
+    print_view_instructions(run_paths.output_dir / ANALYSIS_FILENAME)
 
 
 def _run_remote(args: argparse.Namespace) -> None:

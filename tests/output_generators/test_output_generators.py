@@ -23,6 +23,7 @@ from output_generators.markdown import (
     generate_markdown_file,
     generated_mermaid_str,
 )
+from output_generators.node_types import node_type_label
 
 
 class TestOutputGeneratorsSanitize(unittest.TestCase):
@@ -45,6 +46,11 @@ class TestOutputGeneratorsSanitize(unittest.TestCase):
         # Test with consecutive special characters
         result = sanitize("Test:::Component")
         self.assertEqual(result, "Test_Component")
+
+
+def test_node_type_label_supports_names_and_legacy_numbers() -> None:
+    assert node_type_label("ENUM_MEMBER") == "EnumMember"
+    assert node_type_label("6") == "Method"
 
 
 class TestMarkdownGenerator(unittest.TestCase):
@@ -92,6 +98,13 @@ class TestMarkdownGenerator(unittest.TestCase):
         result = generated_mermaid_str(self.insights, expanded_components=expanded, repo_ref="", project="test")
 
         self.assertIn('click Authentication href "./Authentication.md"', result)
+
+    def test_generated_mermaid_str_normalizes_trailing_slash(self):
+        expanded = {self.comp1.component_id}
+        result = generated_mermaid_str(self.insights, expanded_components=expanded, repo_ref="/repo/", project="test")
+
+        self.assertIn('click Authentication href "/repo/Authentication.md"', result)
+        self.assertNotIn('href "/repo//Authentication.md"', result)
 
     def test_generated_mermaid_str_demo_mode(self):
         # Test demo mode links

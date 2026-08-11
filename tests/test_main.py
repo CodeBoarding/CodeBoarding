@@ -411,36 +411,6 @@ class TestFullCliLocal(unittest.TestCase):
 
         self.assertTrue(mock_run_full.call_args.kwargs["force_full"])
 
-    @patch("codeboarding_cli.commands.full_analysis.render_docs")
-    @patch("codeboarding_cli.commands.full_analysis.run_full")
-    @patch("codeboarding_workflows.orchestration.RunContext")
-    @patch("codeboarding_cli.commands.full_analysis.bootstrap_environment")
-    def test_render_markdown_after_local_full(
-        self,
-        _mock_bootstrap,
-        mock_run_context,
-        mock_run_full,
-        mock_render_docs,
-    ):
-        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l", finalize=lambda: None)
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir) / "repo"
-            repo_path.mkdir()
-            analysis_path = repo_path / ".codeboarding" / "analysis.json"
-            mock_run_full.return_value = analysis_path
-
-            run_from_args(self._make_args(repo_path, render="md"), MagicMock())
-
-        mock_render_docs.assert_called_once_with(
-            analysis_path=analysis_path,
-            repo_name="repo",
-            repo_ref="",
-            temp_dir=repo_path / ".codeboarding",
-            format=".md",
-            root_name="overview",
-        )
-
 
 class TestPartialCliLocal(unittest.TestCase):
     """CLI-level composition: `partial` dispatches to run_partial with the component id."""
@@ -523,6 +493,7 @@ class TestValidateArguments(unittest.TestCase):
         args.output_dir = None
         args.project_name = None
         args.upload = False
+        args.render = None
 
         validate_arguments(args, parser)
         parser.error.assert_not_called()
@@ -535,6 +506,7 @@ class TestValidateArguments(unittest.TestCase):
         args.output_dir = None
         args.project_name = None
         args.upload = False
+        args.render = None
 
         validate_arguments(args, parser)
         parser.error.assert_not_called()

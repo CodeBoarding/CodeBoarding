@@ -1,20 +1,18 @@
-"""Render-time projection of global leaf-only relations to per-level views.
-
-Catches the bug Devin flagged on PR #246: if ``components_relations`` is
-serialized as a single global leaf set at root, the mermaid render at root
-(or at any non-leaf sub-analysis level) must not emit edges referencing
-component names that are not declared as nodes in that diagram.
-"""
+"""Test relation projection and rendering from unified analyses."""
 
 import json
 import re
 from pathlib import Path
 
+import pytest
+
 from agents.agent_responses import Relation, RelationEdge, SourceCodeReference
-from codeboarding_workflows.rendering import (
+from output_generators.rendering import (
+    FORMAT_EXTENSIONS,
     _ancestor_in_level,
     _load_entries,
     project_relations_to_level,
+    render,
     render_docs,
 )
 
@@ -334,3 +332,35 @@ def test_load_entries_projects_per_level(tmp_path: Path):
     # 1->2 (aggregated); 1.1.1->3 collapses to 1->3; 1.1.1->1.1.2 collapses to a
     # 1->1 self-loop and is dropped.
     assert root_pairs == {("1", "2"), ("1", "3")}
+
+
+@pytest.mark.parametrize(("output_format", "extension"), FORMAT_EXTENSIONS.items())
+def test_render_replaces_stale_files_for_selected_format(
+    tmp_path: Path,
+    output_format: str,
+    extension: str,
+) -> None:
+    analysis_path = tmp_path / "analysis.json"
+    analysis_path.write_text(json.dumps(_make_depth3_unified_json()))
+    stale_file = tmp_path / f"removed_component{extension}"
+    stale_file.write_text("stale")
+    untouched_file = tmp_path / "keep.txt"
+    untouched_file.write_text("keep")
+
+    render(output_format, analysis_path=analysis_path, repo_name="fake", output_dir=tmp_path)
+
+    assert not stale_file.exists()
+    assert (tmp_path / f"overview{extension}").is_file()
+    assert untouched_file.read_text() == "keep"
+
+
+def test_render_rejects_filename_collisions_before_replacing_files(tmp_path: Path) -> None:
+    analysis_path = tmp_path / "analysis.json"
+    analysis_path.write_text(json.dumps(_make_depth3_unified_json()))
+    existing_file = tmp_path / "existing.md"
+    existing_file.write_text("keep after failed render")
+
+    with pytest.raises(ValueError, match="Output filename collision"):
+        render("md", analysis_path=analysis_path, repo_name="fake", output_dir=tmp_path, root_name="API")
+
+    assert existing_file.read_text() == "keep after failed render"

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
-from static_analyzer.constants import NodeType
+from output_generators.node_types import node_type_label
 from utils import sanitize
 
 
@@ -33,7 +33,8 @@ def generated_mermaid_str(
         if comp.component_id in expanded_components:
             # Create a link to the component's details file
             if not demo:
-                lines.append(f'      click {node_key} href "{repo_ref}/{node_key}.html" "Details"')
+                docs_ref = repo_ref.rstrip("/") if repo_ref else "."
+                lines.append(f'      click {node_key} href "{docs_ref}/{node_key}.html" "Details"')
             else:
                 # For demo, link to a static URL
                 lines.append(
@@ -112,6 +113,9 @@ def generate_rst(
             for reference in comp.key_entities:
                 if not reference.reference_file:
                     continue
+                if not repo_ref:
+                    lines.append(f"* {str(reference).replace('`', '')}")
+                    continue
                 # Normalize paths for comparison
                 ref_file_normalized = str(Path(reference.reference_file)).replace("\\", "/")
                 root_dir_normalized = str(Path(root_dir)).replace("\\", "/")
@@ -146,7 +150,7 @@ def generate_rst(
                     lines.append(f"* ``{group.file_path}``")
                 for method in group.methods:
                     # https://github.com/owner/repo/blob/branch -> 7 segments; file path follows after
-                    label = NodeType.from_name(method.node_type).label()
+                    label = node_type_label(method.node_type)
                     line_ref = f"L{method.start_line}-L{method.end_line}"
                     if url:
                         lines.append(
