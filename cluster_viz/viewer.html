@@ -85,6 +85,9 @@
       <button id="viewMap" class="on">Map</button>
       <button id="viewScope">Scope</button>
       <button id="fit">Fit</button>
+      <button id="zoomOut" title="Zoom out">&minus;</button>
+      <button id="zoomIn" title="Zoom in">+</button>
+      <span id="zoomLabel" class="count"></span>
     </div>
     <div class="row">
       <label>Level</label>
@@ -103,9 +106,9 @@
     <div class="row">
       <label>Edges</label>
       <select id="edgeMode">
-        <option value="none">none</option>
-        <option value="cross">crossing only</option>
+        <option value="cross" selected>crossing only</option>
         <option value="all">all</option>
+        <option value="none">none</option>
       </select>
       <label style="min-width:auto">Scope</label>
       <select id="scopeSel"></select>
@@ -151,9 +154,9 @@ for (const c of DATA.components) {
 }
 
 const state = {
-  view: "map", level: 1, colorBy: "component", edgeMode: "none", scopeId: "", clusterRings: false,
+  view: "map", level: 1, colorBy: "component", edgeMode: "cross", scopeId: "", clusterRings: false,
   hit: null, selection: null, search: "", matches: new Set(),
-  tx: 0, ty: 0, scale: 1,
+  tx: 0, ty: 0, scale: 1, fitScale: 1,
 };
 
 function clusterAtLevel(node, level) {
@@ -215,11 +218,24 @@ function fit() {
   const pad = 40;
   const spanX = Math.max(maxX - minX, 1e-6), spanY = Math.max(maxY - minY, 1e-6);
   state.scale = Math.min((width - 2 * pad) / spanX, (height - 2 * pad) / spanY);
+  state.fitScale = state.scale;
   state.tx = width / 2 - ((minX + maxX) / 2) * state.scale;
   state.ty = height / 2 - ((minY + maxY) / 2) * state.scale;
+  el("zoomLabel").textContent = "100%";
   draw();
 }
 const toScreen = (x, y) => [x * state.scale + state.tx, y * state.scale + state.ty];
+
+/* Zoom about a screen point, keeping whatever sits under it in place. */
+function zoomAt(mx, my, factor) {
+  const scale = Math.max(state.fitScale / 4, Math.min(state.fitScale * 400, state.scale * factor));
+  factor = scale / state.scale;
+  state.tx = mx - (mx - state.tx) * factor;
+  state.ty = my - (my - state.ty) * factor;
+  state.scale = scale;
+  el("zoomLabel").textContent = `${Math.round((state.scale / state.fitScale) * 100)}%`;
+  draw();
+}
 
 /* ---------- drawing ---------- */
 function draw() {
@@ -254,8 +270,10 @@ function drawMap() {
   }
 
   if (state.edgeMode !== "none") {
-    ctx.lineWidth = 0.5;
-    ctx.globalAlpha = 0.16;
+    // "all" is 3-4k lines, most of them shorter than a pixel at fit zoom, so it stays faint;
+    // "cross" is the handful that leave a component and is drawn to be read.
+    ctx.lineWidth = state.edgeMode === "cross" ? 0.9 : 0.5;
+    ctx.globalAlpha = state.edgeMode === "cross" ? 0.45 : 0.14;
     for (const [a, b] of DATA.edges) {
       const na = DATA.nodes[a], nb = DATA.nodes[b];
       const ka = componentAtLevel(na, state.level), kb = componentAtLevel(nb, state.level);
@@ -416,6 +434,7 @@ function selectComponent(componentId) {
     state.scale = Math.min(width, height) / (2.4 * r);
     state.tx = width / 2 - cx * state.scale;
     state.ty = height / 2 - cy * state.scale;
+    el("zoomLabel").textContent = `${Math.round((state.scale / state.fitScale) * 100)}%`;
   }
   showWhyComponent(componentId);
   renderPanel();
@@ -595,12 +614,12 @@ window.addEventListener("mouseup", (event) => {
 canvas.addEventListener("wheel", (event) => {
   event.preventDefault();
   const rect = canvas.getBoundingClientRect();
-  const mx = event.clientX - rect.left, my = event.clientY - rect.top;
-  const factor = Math.exp(-event.deltaY * 0.0015);
-  state.tx = mx - (mx - state.tx) * factor;
-  state.ty = my - (my - state.ty) * factor;
-  state.scale *= factor;
-  draw();
+  // deltaY is per-pixel on some devices and per-line (or per-page) on others, and a
+  // trackpad can deliver a burst of huge deltas. Normalise the unit, then clamp, so one
+  // gesture zooms by a predictable amount instead of jumping across three orders of scale.
+  const perUnit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
+  const delta = Math.max(-60, Math.min(60, event.deltaY * perUnit));
+  zoomAt(event.clientX - rect.left, event.clientY - rect.top, Math.exp(-delta * 0.002));
 }, { passive: false });
 
 el("level").addEventListener("input", (event) => { state.level = +event.target.value; updateLevelLabel(); renderPanel(); draw(); });
@@ -610,6 +629,14 @@ el("scopeSel").addEventListener("change", (event) => { setScope(event.target.val
 el("viewMap").onclick = () => setView("map");
 el("viewScope").onclick = () => { setView("scope"); showWhyScope(scopeById.get(state.scopeId)); };
 el("fit").onclick = fit;
+el("zoomIn").onclick = () => zoomAt(width / 2, height / 2, 1.4);
+el("zoomOut").onclick = () => zoomAt(width / 2, height / 2, 1 / 1.4);
+window.addEventListener("keydown", (event) => {
+  if (event.target && event.target.id === "search") return;
+  if (event.key === "+" || event.key === "=") zoomAt(width / 2, height / 2, 1.4);
+  if (event.key === "-" || event.key === "_") zoomAt(width / 2, height / 2, 1 / 1.4);
+  if (event.key === "0") fit();
+});
 el("clusterRings").onclick = () => {
   state.clusterRings = !state.clusterRings;
   el("clusterRings").classList.toggle("on", state.clusterRings);
