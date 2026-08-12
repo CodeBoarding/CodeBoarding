@@ -33,6 +33,11 @@ _FAKE_MODELSDEV = {
     },
     "zai": {"models": {"glm-4.6": {"limit": {"context": 204_800, "output": 131_072}}}},
     "moonshotai": {"models": {"kimi-k2.5": {"limit": {"context": 262_144, "output": 262_144}}}},
+    "orcarouter": {
+        "models": {
+            "openai/gpt-5.4-mini": {"limit": {"context": 400_000, "input": 272_000, "output": 128_000}},
+        }
+    },
 }
 
 _FAKE_LITELLM = {
@@ -102,6 +107,13 @@ class TestModelsdevResolution:
 
     def test_slug_mapping_kimi_moonshotai(self, fake_catalogs):
         assert get_context_window("kimi", "kimi-k2.5").input_tokens == 262_144
+
+    def test_orcarouter_namespaced_model_resolves_via_modelsdev(self, fake_catalogs):
+        # OrcaRouter's models.dev slug defaults to the provider name, and its model
+        # ids are namespaced (openai/gpt-5.4-mini) exactly like the catalog keys.
+        cw = get_context_window("orcarouter", "openai/gpt-5.4-mini")
+        assert cw.input_tokens == 272_000
+        assert not cw.is_fallback
 
 
 class TestLitellmResolution:

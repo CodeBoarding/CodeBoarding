@@ -73,6 +73,20 @@ class TestUserConfigApplyToEnv:
             os.environ.clear()
             os.environ.update(original)
 
+    def test_injects_orcarouter_api_key(self):
+        cfg = UserConfig(provider=ProviderUserConfig(orcarouter_api_key="sk-orca-test"))
+
+        original = os.environ.copy()
+        try:
+            os.environ.pop("ORCAROUTER_API_KEY", None)
+
+            cfg.apply_to_env()
+
+            assert os.environ["ORCAROUTER_API_KEY"] == "sk-orca-test"
+        finally:
+            os.environ.clear()
+            os.environ.update(original)
+
     def test_injects_openai_base_url_for_self_hosted_proxy(self):
         cfg = UserConfig(provider=ProviderUserConfig(openai_base_url="http://127.0.0.1:8000/v1"))
 

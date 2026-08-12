@@ -95,6 +95,14 @@ class TestProviderSelection:
             assert ollama.is_selected_by_env() is True
             assert ollama.has_real_api_key() is True
 
+    def test_orcarouter_selected_via_api_key(self):
+        orcarouter = LLM_PROVIDERS["orcarouter"]
+        env = {"ORCAROUTER_API_KEY": "sk-orca-test"}
+        with patch.dict(os.environ, env, clear=True):
+            assert orcarouter.is_selected_by_env() is True
+            assert orcarouter.has_real_api_key() is True
+            assert orcarouter.get_resolved_extra_args()["base_url"] == "https://api.orcarouter.ai/v1"
+
     def test_aws_has_no_api_key_env(self):
         # botocore consumes AWS_BEARER_TOKEN_BEDROCK directly; it is never passed as a kwarg.
         aws = LLM_PROVIDERS["aws"]
