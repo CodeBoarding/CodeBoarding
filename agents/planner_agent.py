@@ -18,7 +18,7 @@ from collections.abc import Callable
 import networkx as nx
 
 from agents.agent_responses import AnalysisInsights, Component
-from static_analyzer.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN, supercluster_leaf_ids
+from clustering.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN, supercluster_leaf_ids
 from static_analyzer.graph import METHOD_LEVEL_STRATEGY, ClusterResult
 
 logger = logging.getLogger(__name__)
@@ -97,7 +97,7 @@ def should_expand_component(
     - If neither component nor parent has clusters -> stop (leaf node)
 
     Note: Method-level cluster expansion is handled separately in
-    cluster_methods_mixin._expand_to_method_level_clusters() when a subgraph
+    clustering.service (``ClusteringService.component_subgraph``) when a subgraph
     has fewer than MIN_CLUSTERS_THRESHOLD clusters. This ensures the planner
     doesn't need to worry about method counts.
 

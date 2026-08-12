@@ -79,6 +79,7 @@ packages = [
     "agents",
     "agents.prompts",
     "agents.tools",
+    "clustering",
     "core",
     "diagram_analysis",
     "health",

@@ -27,7 +27,7 @@ from agents.cluster_ids import CodeBoardingClusterIds
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
 from repo_utils.path_utils import normalize_repo_path
-from static_analyzer.cluster_helpers import (
+from clustering.cluster_helpers import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
     TOP_LEVEL_COMPONENTS_MAX,

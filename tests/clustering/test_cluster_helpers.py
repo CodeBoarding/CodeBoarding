@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_helpers import (
+from clustering.cluster_helpers import (
     TOP_LEVEL_COMPONENTS_MAX,
     TOP_LEVEL_COMPONENTS_MIN,
     build_all_cluster_results,

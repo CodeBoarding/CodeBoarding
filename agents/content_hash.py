@@ -1,7 +1,7 @@
 """Content fingerprinting helpers — a leaf module with no analysis imports.
 
 Standalone (no heavy analysis imports) so clustering, the JSON layer, and the
-wrapper can all import it without an ``analysis_json`` <-> ``cluster_methods_mixin``
+wrapper can all import it without an ``analysis_json`` <-> ``clustering.assignment``
 cycle. ``splitlines()`` folds line-ending-only edits — accepted for change
 detection. Decode/encode both use ``surrogateescape`` so invalid UTF-8 bytes stay
 distinct (``replace`` would collapse them to U+FFFD and mask real changes).

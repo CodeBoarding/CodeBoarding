@@ -967,8 +967,9 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
 
-        # Setup agents
+        # Setup agents and clustering stage
         gen.details_agent = Mock()
+        gen.clustering_service = Mock()
 
         # Mock to raise exception
         gen.details_agent.run.side_effect = Exception("Test error")
@@ -1026,8 +1027,9 @@ class TestDiagramGenerator(unittest.TestCase):
         sub_analysis_child = AnalysisInsights(description="Child sub", components=[], components_relations=[])
 
         gen.abstraction_agent = Mock()
-        gen.abstraction_agent.run.return_value = (root_analysis, {})
+        gen.abstraction_agent.run.return_value = root_analysis
         gen.details_agent = Mock()  # pre_analysis is skipped when details/abstraction are already initialized
+        gen.clustering_service = Mock()
         mock_get_expandable_components.return_value = [root_a, root_b]
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
@@ -1075,6 +1077,7 @@ class TestDiagramGenerator(unittest.TestCase):
         # Prevent pre_analysis from running.
         gen.abstraction_agent = Mock()
         gen.details_agent = Mock()
+        gen.clustering_service = Mock()
 
         comp1 = Component(
             name="Component1",
@@ -1115,7 +1118,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         assign_component_ids(analysis)
 
-        gen.abstraction_agent.run.return_value = (analysis, {})
+        gen.abstraction_agent.run.return_value = analysis
 
         planned = [analysis.components[0]]
         captured: dict[str, list[Component]] = {}
@@ -1200,7 +1203,8 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.abstraction_agent = Mock()
         gen.incremental_agent = Mock()
-        gen.abstraction_agent.run.return_value = (analysis, {})
+        gen.clustering_service = Mock()
+        gen.abstraction_agent.run.return_value = analysis
 
         gen.generate_analysis()
 
@@ -1277,12 +1281,13 @@ class TestDiagramGenerator(unittest.TestCase):
             components_relations=[],
         )
 
-        gen.details_agent.run.return_value = (child_analysis, {})
+        gen.clustering_service = Mock()
+        gen.details_agent.run.return_value = child_analysis
         mock_get_expandable_components.return_value = [generated_child]
 
         expanded_components, sub_analyses = gen._generate_subcomponents(root_analysis, [depth_two, max_depth_leaf])
 
-        gen.details_agent.run.assert_called_once_with(depth_two)
+        gen.details_agent.run.assert_called_once_with(depth_two, gen.clustering_service.cluster_component.return_value)
         self.assertEqual([component.component_id for component in expanded_components], ["1.1"])
         self.assertEqual(set(sub_analyses), {"1.1"})
         self.assertEqual(mock_save_analysis.call_count, 1)
@@ -1393,6 +1398,7 @@ class TestDiagramGenerator(unittest.TestCase):
             ScopeUpdateResult(relation_context=child_context, refresh_ids={"1.1"}),
         ]
         gen.incremental_agent = incremental_agent
+        gen.clustering_service = MagicMock()
         root_component = Component(name="Parent", description="", key_entities=[], component_id="1")
         child_component = Component(
             name="Child",
@@ -1470,6 +1476,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.details_agent = Mock()
         gen.incremental_agent = _mock_incremental_agent.return_value
+        gen.clustering_service = Mock()
         gen.static_analysis = Mock()
         gen.static_analysis.get_languages.return_value = []
         base_static_analysis = Mock()
@@ -1570,7 +1577,6 @@ class TestDiagramGenerator(unittest.TestCase):
                 new_component_ids=set(),
             ),
         ]
-        _mock_incremental_agent.return_value._create_strict_component_subgraph.return_value = ("", {}, {})
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
@@ -1585,7 +1591,7 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_build_scope_inputs.assert_called_once_with(
             root_component,
             "1",
-            _mock_incremental_agent.return_value,
+            gen.clustering_service,
             gen.changes,
             gen.repo_location,
             None,
@@ -1621,6 +1627,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.details_agent = Mock()
         gen.incremental_agent = _mock_incremental_agent.return_value
+        gen.clustering_service = Mock()
         gen.static_analysis = Mock()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = Mock()
@@ -1672,7 +1679,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.details_agent = Mock()
         gen.incremental_agent = Mock()
-        gen.incremental_agent._create_strict_component_subgraph.return_value = ("", {}, {})
+        gen.clustering_service = Mock()
         gen.static_analysis = Mock()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = Mock()
