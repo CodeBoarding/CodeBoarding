@@ -1,10 +1,13 @@
-from pathlib import Path
-from typing import Dict, Any
 import json
+import logging
+from pathlib import Path
+from typing import Any, Dict
 
 from agents.agent_responses import AnalysisInsights
-from utils import sanitize
 from output_generators.html_template import populate_html_template
+from utils import sanitize
+
+logger = logging.getLogger(__name__)
 
 
 def generate_cytoscape_data(
@@ -49,8 +52,10 @@ def generate_cytoscape_data(
             elements.append(edge_data)
             edge_count += 1
         else:
-            print(
-                f"Warning: Skipping edge from '{rel.src_name}' to '{rel.dst_name}' - one or both nodes don't exist in components"
+            logger.warning(
+                "Skipping edge from '%s' to '%s' because one or both nodes are missing",
+                rel.src_name,
+                rel.dst_name,
             )
 
     return {"elements": elements}
@@ -89,6 +94,9 @@ def generate_html(
                     references_html += f"<li><code>{reference.llm_str()}</code></li>"
                     continue
                 if not reference.reference_file:
+                    references_html += f"<li><code>{reference.llm_str()}</code></li>"
+                    continue
+                if not repo_ref:
                     references_html += f"<li><code>{reference.llm_str()}</code></li>"
                     continue
                 if not reference.reference_file.startswith(root_dir):

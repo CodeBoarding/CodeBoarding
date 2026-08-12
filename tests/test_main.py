@@ -375,6 +375,7 @@ class TestFullCliLocal(unittest.TestCase):
         args.upload = False
         args.enable_monitoring = False
         args.force = False
+        args.render = None
         for k, v in overrides.items():
             setattr(args, k, v)
         return args
@@ -493,6 +494,7 @@ class TestValidateArguments(unittest.TestCase):
             args.output_dir = None
             args.project_name = None
             args.upload = False
+            args.render = None
 
             validate_arguments(args, parser)
 
@@ -522,6 +524,7 @@ class TestValidateArguments(unittest.TestCase):
         args.output_dir = None
         args.project_name = None
         args.upload = False
+        args.render = None
 
         validate_arguments(args, parser)
         parser.error.assert_not_called()

@@ -4,9 +4,9 @@ import shutil
 from pathlib import Path
 
 from codeboarding_workflows.analysis import run_incremental_workflow
-from codeboarding_workflows.rendering import render_docs
 from diagram_analysis import DEFAULT_DEPTH_LEVEL, DiagramGenerator, RunContext
 from diagram_analysis.io_utils import load_analysis_metadata
+from output_generators.rendering import render_docs
 from repo_utils import checkout_repo, clone_repository
 from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, create_temp_repo_folder
 

@@ -113,6 +113,7 @@ include-package-data = true
 [project.scripts]
 codeboarding = "main:main"
 codeboarding-setup = "install:main"
+codeboarding-render = "codeboarding_cli.render:main"
 
 [project.urls]
 Repository = "https://github.com/CodeBoarding/CodeBoarding"
