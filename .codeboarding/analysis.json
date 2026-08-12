@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-12T09:15:16.119253+00:00",
-    "source_tree_hash": "c5108495daf50b01fe3c471d511db7b8bad4c20723fd7acbd94df92c2b1e13d1",
+    "generated_at": "2026-08-12T09:23:41.813783+00:00",
+    "source_tree_hash": "55b7106ba8e71d61f4672fa8b31001b84f975f08866bed244b908eecac7f9a17",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -781,8 +781,8 @@
         "user_config.py|user_config.ensure_config_template",
         "user_config.py|user_config._append_commented_key"
       ],
-      "content_hash": "c94bf2ed38c3948e",
-      "module_hash": "3a217b712be32fcd"
+      "content_hash": "d937ce473ae0b1ed",
+      "module_hash": "9b6bc7e6335d61c9"
     },
     "utils.py": {
       "method_keys": [
@@ -1027,8 +1027,8 @@
         "agents/llm_config.py|agents.llm_config.initialize_llms",
         "agents/llm_config.py|agents.llm_config.supports_prompt_caching"
       ],
-      "content_hash": "a0a62e21665fca3b",
-      "module_hash": "60cf9f2871a34836"
+      "content_hash": "e52b1a8b07e0fa64",
+      "module_hash": "4729f5d3ab09a948"
     },
     "agents/llm_errors.py": {
       "method_keys": [
@@ -6976,56 +6976,56 @@
     "user_config.py|user_config.ProviderUserConfig": {
       "file_path": "user_config.py",
       "qualified_name": "user_config.ProviderUserConfig",
-      "start_line": 88,
-      "end_line": 105,
+      "start_line": 90,
+      "end_line": 108,
       "type": "CLASS",
-      "content_hash": "31fdbd0ab29ff49e"
+      "content_hash": "efc0cdcc68eb0532"
     },
     "user_config.py|user_config.LLMUserConfig": {
       "file_path": "user_config.py",
       "qualified_name": "user_config.LLMUserConfig",
-      "start_line": 109,
-      "end_line": 112,
+      "start_line": 112,
+      "end_line": 115,
       "type": "CLASS",
       "content_hash": "4cd7188b80774c71"
     },
     "user_config.py|user_config.UserConfig": {
       "file_path": "user_config.py",
       "qualified_name": "user_config.UserConfig",
-      "start_line": 116,
-      "end_line": 125,
+      "start_line": 119,
+      "end_line": 128,
       "type": "CLASS",
       "content_hash": "e904c35992e60fb5"
     },
     "user_config.py|user_config.UserConfig.apply_to_env": {
       "file_path": "user_config.py",
       "qualified_name": "user_config.UserConfig.apply_to_env",
-      "start_line": 120,
-      "end_line": 125,
+      "start_line": 123,
+      "end_line": 128,
       "type": "METHOD",
       "content_hash": "2f2802d1c4765057"
     },
     "user_config.py|user_config.load_user_config": {
       "file_path": "user_config.py",
       "qualified_name": "user_config.load_user_config",
-      "start_line": 128,
-      "end_line": 162,
+      "start_line": 131,
+      "end_line": 166,
       "type": "FUNCTION",
-      "content_hash": "2eb747d8d02338f6"
+      "content_hash": "1e7f16d2c095795a"
     },
     "user_config.py|user_config.ensure_config_template": {
       "file_path": "user_config.py",
       "qualified_name": "user_config.ensure_config_template",
-      "start_line": 165,
-      "end_line": 171,
+      "start_line": 169,
+      "end_line": 175,
       "type": "FUNCTION",
       "content_hash": "73f9de07a91b6cca"
     },
     "user_config.py|user_config._append_commented_key": {
       "file_path": "user_config.py",
       "qualified_name": "user_config._append_commented_key",
-      "start_line": 174,
-      "end_line": 183,
+      "start_line": 178,
+      "end_line": 187,
       "type": "FUNCTION",
       "content_hash": "c36cc646fee900c7"
     },
@@ -8456,112 +8456,112 @@
     "agents/llm_config.py|agents.llm_config._all_selection_envs": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._all_selection_envs",
-      "start_line": 318,
-      "end_line": 319,
+      "start_line": 332,
+      "end_line": 333,
       "type": "FUNCTION",
       "content_hash": "cd80e7d32c9c8da2"
     },
     "agents/llm_config.py|agents.llm_config._unselected_key_hints": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._unselected_key_hints",
-      "start_line": 322,
-      "end_line": 329,
+      "start_line": 336,
+      "end_line": 343,
       "type": "FUNCTION",
       "content_hash": "3b7a72d945b128e8"
     },
     "agents/llm_config.py|agents.llm_config.selected_providers": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.selected_providers",
-      "start_line": 332,
-      "end_line": 334,
+      "start_line": 346,
+      "end_line": 348,
       "type": "FUNCTION",
       "content_hash": "fffa8daecdd78b5a"
     },
     "agents/llm_config.py|agents.llm_config._initialize_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._initialize_llm",
-      "start_line": 337,
-      "end_line": 373,
+      "start_line": 351,
+      "end_line": 387,
       "type": "FUNCTION",
       "content_hash": "74b0bd64958af462"
     },
     "agents/llm_config.py|agents.llm_config._resolve_selected_provider": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._resolve_selected_provider",
-      "start_line": 376,
-      "end_line": 385,
+      "start_line": 390,
+      "end_line": 399,
       "type": "FUNCTION",
       "content_hash": "04eb6117a228f929"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfigError": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfigError",
-      "start_line": 388,
-      "end_line": 389,
+      "start_line": 402,
+      "end_line": 403,
       "type": "CLASS",
       "content_hash": "0d7294e6a41547e6"
     },
     "agents/llm_config.py|agents.llm_config.validate_api_key_provided": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.validate_api_key_provided",
-      "start_line": 392,
-      "end_line": 422,
+      "start_line": 406,
+      "end_line": 436,
       "type": "FUNCTION",
       "content_hash": "21460ab4637e3b34"
     },
     "agents/llm_config.py|agents.llm_config.initialize_agent_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.initialize_agent_llm",
-      "start_line": 425,
-      "end_line": 428,
+      "start_line": 439,
+      "end_line": 442,
       "type": "FUNCTION",
       "content_hash": "d4452d5c6613c001"
     },
     "agents/llm_config.py|agents.llm_config.get_current_agent_context_window": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.get_current_agent_context_window",
-      "start_line": 431,
-      "end_line": 445,
+      "start_line": 445,
+      "end_line": 459,
       "type": "FUNCTION",
       "content_hash": "5ae336e3eaf9be40"
     },
     "agents/llm_config.py|agents.llm_config.get_current_agent_model_ref": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.get_current_agent_model_ref",
-      "start_line": 448,
-      "end_line": 454,
+      "start_line": 462,
+      "end_line": 468,
       "type": "FUNCTION",
       "content_hash": "d32f768a1dde3576"
     },
     "agents/llm_config.py|agents.llm_config.current_provider_key_context": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.current_provider_key_context",
-      "start_line": 457,
-      "end_line": 471,
+      "start_line": 471,
+      "end_line": 485,
       "type": "FUNCTION",
       "content_hash": "9f65632e6800f2fa"
     },
     "agents/llm_config.py|agents.llm_config.initialize_parsing_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.initialize_parsing_llm",
-      "start_line": 474,
-      "end_line": 476,
+      "start_line": 488,
+      "end_line": 490,
       "type": "FUNCTION",
       "content_hash": "f2349fcb8ba98c51"
     },
     "agents/llm_config.py|agents.llm_config.initialize_llms": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.initialize_llms",
-      "start_line": 479,
-      "end_line": 482,
+      "start_line": 493,
+      "end_line": 496,
       "type": "FUNCTION",
       "content_hash": "883dc7c7adfadfd3"
     },
     "agents/llm_config.py|agents.llm_config.supports_prompt_caching": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.supports_prompt_caching",
-      "start_line": 485,
-      "end_line": 491,
+      "start_line": 499,
+      "end_line": 505,
       "type": "FUNCTION",
       "content_hash": "26a3423b70fff963"
     },
@@ -24867,14 +24867,14 @@
             {
               "qualified_name": "agents.llm_config.initialize_agent_llm",
               "reference_file": "agents/llm_config.py",
-              "reference_start_line": 425,
-              "reference_end_line": 428
+              "reference_start_line": 439,
+              "reference_end_line": 442
             },
             {
               "qualified_name": "agents.llm_config.get_current_agent_context_window",
               "reference_file": "agents/llm_config.py",
-              "reference_start_line": 431,
-              "reference_end_line": 445
+              "reference_start_line": 445,
+              "reference_end_line": 459
             }
           ],
           "source_cluster_ids": [
@@ -27094,8 +27094,8 @@
                   "file_path": "output_generators/rendering.py",
                   "methods": [
                     "output_generators.rendering._ancestor_in_level",
-                    "output_generators.rendering._load_entries",
-                    "output_generators.rendering.project_relations_to_level"
+                    "output_generators.rendering.project_relations_to_level",
+                    "output_generators.rendering._load_entries"
                   ]
                 }
               ],
@@ -27210,8 +27210,8 @@
                       "file_path": "output_generators/rendering.py",
                       "methods": [
                         "output_generators.rendering._ancestor_in_level",
-                        "output_generators.rendering._load_entries",
-                        "output_generators.rendering.project_relations_to_level"
+                        "output_generators.rendering.project_relations_to_level",
+                        "output_generators.rendering._load_entries"
                       ]
                     }
                   ],
@@ -31720,14 +31720,14 @@
                 {
                   "qualified_name": "user_config.UserConfig",
                   "reference_file": "user_config.py",
-                  "reference_start_line": 116,
-                  "reference_end_line": 125
+                  "reference_start_line": 119,
+                  "reference_end_line": 128
                 },
                 {
                   "qualified_name": "user_config.load_user_config",
                   "reference_file": "user_config.py",
-                  "reference_start_line": 128,
-                  "reference_end_line": 162
+                  "reference_start_line": 131,
+                  "reference_end_line": 166
                 },
                 {
                   "qualified_name": "health_main.run_health_check_local",
@@ -31890,14 +31890,14 @@
                     {
                       "qualified_name": "user_config.UserConfig",
                       "reference_file": "user_config.py",
-                      "reference_start_line": 116,
-                      "reference_end_line": 125
+                      "reference_start_line": 119,
+                      "reference_end_line": 128
                     },
                     {
                       "qualified_name": "user_config.load_user_config",
                       "reference_file": "user_config.py",
-                      "reference_start_line": 128,
-                      "reference_end_line": 162
+                      "reference_start_line": 131,
+                      "reference_end_line": 166
                     },
                     {
                       "qualified_name": "health_main.run_health_check_local",
@@ -32120,6 +32120,17 @@
                       "description": ""
                     }
                   ]
+                },
+                {
+                  "relation": "Provides discovered tool capabilities for environment validation",
+                  "src_name": "Plugin & Tool Registry Manager",
+                  "dst_name": "System Configuration & Health Orchestrator",
+                  "evidence": "The Registry Manager flows data back by providing the specific tool factories and health check functions discovered during plugin loading, which the Orchestrator consumes to determine environment readiness.",
+                  "key_edges": [],
+                  "src_id": "4.1.2.2",
+                  "dst_id": "4.1.2.1",
+                  "is_static": false,
+                  "all_edges": []
                 }
               ]
             },
@@ -33519,6 +33530,17 @@
         }
       ],
       "components_relations": [
+        {
+          "relation": "Loads historical metadata for report generation",
+          "src_name": "CI/CD Entrypoint & Multi-Format Reporter",
+          "dst_name": "Incremental State & Structural Planner",
+          "evidence": "The reporter accesses the persisted analysis metadata and file coverage reports managed by the planner to generate the final documentation artifacts.",
+          "key_edges": [],
+          "src_id": "4.1",
+          "dst_id": "4.2",
+          "is_static": false,
+          "all_edges": []
+        },
         {
           "relation": "Orchestrates analysis lifecycle and report generation",
           "src_name": "CI/CD Entrypoint & Multi-Format Reporter",
@@ -45211,6 +45233,17 @@
           "description": ""
         }
       ]
+    },
+    {
+      "relation": "Loads historical metadata for report generation",
+      "src_name": "CI/CD Entrypoint & Multi-Format Reporter",
+      "dst_name": "Incremental State & Structural Planner",
+      "evidence": "The reporter accesses the persisted analysis metadata and file coverage reports managed by the planner to generate the final documentation artifacts.",
+      "key_edges": [],
+      "src_id": "4.1",
+      "dst_id": "4.2",
+      "is_static": false,
+      "all_edges": []
     },
     {
       "relation": "Orchestrates agent lifecycle and context",
