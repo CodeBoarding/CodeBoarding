@@ -39,7 +39,7 @@ ANALYSIS_KEY_ENTITIES: list[tuple[str, str]] = [
     ("agents.tools.read_cfg.ReadCFG", "agents/tools/read_cfg.py"),
     ("diagram_analysis.cluster_delta.ClusterDelta", "diagram_analysis/cluster_delta.py"),
     ("agents.abstraction_agent.AbstractionAgent", "agents/abstraction_agent.py"),
-    ("agents.cluster_methods_mixin.ClusterMethodsMixin", "agents/cluster_methods_mixin.py"),
+    ("clustering.service.ClusteringService", "clustering/service.py"),
     ("agents.meta_agent.MetaAgent", "agents/meta_agent.py"),
     ("agents.validation.ValidationContext", "agents/validation.py"),
     ("diagram_analysis.analysis_json.UnifiedAnalysisJson", "diagram_analysis/analysis_json.py"),
@@ -378,7 +378,7 @@ class TestMultiComponentAnalysis(unittest.TestCase):
             ],
             "AI Agentic Layer": [
                 ("agents.abstraction_agent.AbstractionAgent", "agents/abstraction_agent.py"),
-                ("agents.cluster_methods_mixin.ClusterMethodsMixin", "agents/cluster_methods_mixin.py"),
+                ("clustering.service.ClusteringService", "clustering/service.py"),
                 ("agents.meta_agent.MetaAgent", "agents/meta_agent.py"),
                 ("agents.validation.ValidationContext", "agents/validation.py"),
             ],

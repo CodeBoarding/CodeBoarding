@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from static_analyzer import get_static_analysis
-from static_analyzer.cluster_relations import build_component_relations
+from clustering.cluster_relations import build_component_relations
 from static_analyzer.graph import CallGraph
 from utils import get_artifact_dir
 

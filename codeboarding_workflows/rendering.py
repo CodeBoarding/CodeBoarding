@@ -18,7 +18,7 @@ from output_generators.html import generate_html_file
 from output_generators.markdown import generate_markdown_file
 from output_generators.mdx import generate_mdx_file
 from output_generators.sphinx import generate_rst_file
-from static_analyzer.cluster_relations import iter_ancestor_ids
+from clustering.cluster_relations import iter_ancestor_ids
 from utils import sanitize
 
 logger = logging.getLogger(__name__)

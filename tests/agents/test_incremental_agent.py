@@ -167,7 +167,6 @@ class TestUpdateScope(unittest.TestCase):
                     ]
 
         agent._patch_scope_file_methods = MagicMock(side_effect=populate)
-        agent.build_static_relations = MagicMock()
         return agent
 
     def test_update_without_selected_key_entities_does_not_synthesize_them(self) -> None:

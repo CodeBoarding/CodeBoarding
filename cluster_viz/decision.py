@@ -17,7 +17,7 @@ import networkx as nx
 import networkx.algorithms.community as nx_comm
 from dataclasses import dataclass, field
 
-from static_analyzer.cluster_helpers import (
+from clustering.cluster_helpers import (
     _RESOLUTION_LADDER,
     _build_meta_graph,
     _cluster_packages,

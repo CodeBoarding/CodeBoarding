@@ -87,6 +87,9 @@ def _write_artifacts(directory: Path) -> None:
 
 
 class TestExportClustering(unittest.TestCase):
+    _tmp: tempfile.TemporaryDirectory
+    payload: dict
+
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()

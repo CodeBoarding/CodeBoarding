@@ -23,7 +23,6 @@ from agents.agent_responses import (
     SourceCodeReference,
     index_components_by_id,
 )
-from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
 from agents.details_agent import DetailsAgent
 from agents.incremental_agent import (
     IncrementalAgent,
@@ -39,6 +38,7 @@ from agents.planner_agent import component_is_separable, get_expandable_componen
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
+from clustering import ClusteringService, scoped_snapshot_from_lineage
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
@@ -75,7 +75,7 @@ from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
-from static_analyzer.cluster_relations import (
+from clustering.cluster_relations import (
     build_global_node_to_component_map,
     build_global_relations,
     build_owner_index,
@@ -610,6 +610,7 @@ class DiagramGenerator:
 
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
+        self.clustering_service: ClusteringService | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
         self.incremental_agent: IncrementalAgent | None = None
@@ -646,7 +647,7 @@ class DiagramGenerator:
         nothing else. A component whose membership changed (including one pruned
         by ``_strip_ignored``) gets a different key and is re-evaluated.
         """
-        assert self.details_agent is not None
+        assert self.clustering_service is not None
         load = leaf_load(component)
         if load >= 1.0:
             logger.info(f"[Planner] Component '{component.name}' is past the leaf ceiling (load {load:.2f}); expanding")
@@ -655,7 +656,7 @@ class DiagramGenerator:
         if key in self._separable_cache:
             return self._separable_cache[key]
         try:
-            cluster_results, subgraph_cfgs = self.details_agent._create_strict_component_subgraph(component)
+            cluster_results, subgraph_cfgs = self.clustering_service.component_subgraph(component)
         except Exception:
             logger.exception("Separability check failed for '%s'; defaulting to expandable", component.name)
             return True
@@ -725,8 +726,14 @@ class DiagramGenerator:
         """Process a single component and return its name, sub-analysis, and new components to analyze."""
         try:
             assert self.details_agent is not None
+            assert self.clustering_service is not None
 
-            analysis, _ = self.details_agent.run(component)
+            # Clustering stage first: the component's subgraph clustering is an input
+            # to the agent, which only names and relates the fixed groups.
+            clustering = self.clustering_service.cluster_component(
+                component, source_cluster_id_prefix=component.component_id
+            )
+            analysis = self.details_agent.run(component, clustering)
 
             # Track whether parent had clusters for expansion decision
             parent_had_clusters = bool(component.source_cluster_ids)
@@ -990,6 +997,8 @@ class DiagramGenerator:
 
         self.static_analysis = static_analysis
         self.meta_context = meta_context
+        # Clustering is its own pipeline stage: static analysis -> clustering -> agents.
+        self.clustering_service = ClusteringService(self.repo_location, static_analysis)
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
@@ -1139,8 +1148,12 @@ class DiagramGenerator:
             logger.info("Generating initial analysis")
 
             assert self.abstraction_agent is not None
+            assert self.clustering_service is not None
 
-            analysis, cluster_results = self.abstraction_agent.run()
+            # Clustering stage: derive the deterministic top-level structure once,
+            # then hand it to the agent, which only names and relates the groups.
+            project_clustering = self.clustering_service.cluster_project()
+            analysis = self.abstraction_agent.run(project_clustering)
             # Get the initial components to analyze (deterministic, no LLM). The
             # separability gate keeps cohesive top-level components as leaves.
             root_components = get_expandable_components(analysis, separable=self._component_separable)
@@ -1357,10 +1370,11 @@ class DiagramGenerator:
             child_component = components_by_id.get(component_id)
             if child_scope is None or child_component is None or _component_depth(component_id) >= self.depth_level:
                 continue
+            assert self.clustering_service is not None
             child_cluster_results, child_cfgs, child_diff = _build_scope_incremental_inputs(
                 child_component,
                 component_id,
-                self.incremental_agent,
+                self.clustering_service,
                 self.changes,
                 self.repo_location,
                 changed_members,
@@ -1697,16 +1711,16 @@ def _child_scope_needs_recursive_update(
 def _build_scope_incremental_inputs(
     component: Component,
     scope_id: str,
-    incremental_agent: IncrementalAgent,
+    clustering_service: ClusteringService,
     changes: ChangeSet | None,
     repo_dir: Path,
     changed_members: ChangedMembers | None,
 ) -> tuple[dict[str, ClusterResult], dict[str, nx.DiGraph], StructuralClusterDiff]:
-    old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
+    old_snapshot = scoped_snapshot_for_component(component, scope_id, clustering_service.static_analysis)
     if not old_snapshot.all_cluster_ids():
         return {}, {}, StructuralClusterDiff()
 
-    cluster_results, subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
+    cluster_results, subgraph_cfgs = clustering_service.component_subgraph(
         component,
         source_cluster_id_prefix=scope_id,
     )
@@ -1730,14 +1744,14 @@ def _build_scope_incremental_inputs(
 def scoped_snapshot_for_component(
     component: Component,
     scope_id: str,
-    incremental_agent: IncrementalAgent,
+    static_analysis: StaticAnalysisResults,
 ) -> ClusterSnapshot:
     assigned_qnames = {
         method.qualified_name for group in component.file_methods for method in group.methods if method.qualified_name
     }
     by_language = {}
-    for language in incremental_agent.static_analysis.get_languages():
-        cfg = incremental_agent.static_analysis.get_cfg(language)
+    for language in static_analysis.get_languages():
+        cfg = static_analysis.get_cfg(language)
         sub_cfg = cfg.filter_by_nodes(assigned_qnames)
         if sub_cfg.nodes:
             by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, scope_id)

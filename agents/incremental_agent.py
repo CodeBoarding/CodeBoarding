@@ -28,7 +28,6 @@ from agents.agent_responses import (
     iter_components,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.content_hash import SourceCache
 from agents.cluster_ids import CodeBoardingClusterIds
 from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
@@ -40,7 +39,12 @@ from agents.prompts import (
     get_system_message,
 )
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
-from static_analyzer.cluster_relations import (
+from clustering.assignment import (
+    build_scope_cfg_string,
+    build_static_relations,
+    component_file_method_groups,
+)
+from clustering.cluster_relations import (
     build_node_to_component_map,
     build_owner_index,
     prune_ungrounded_edges,
@@ -57,7 +61,7 @@ from static_analyzer.graph import CallGraph, ClusterResult
 logger = logging.getLogger(__name__)
 
 
-class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
+class IncrementalAgent(CodeBoardingAgent):
     """Materialize incremental plans and regenerate touched scope relations."""
 
     def __init__(
@@ -292,26 +296,17 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         touched_ids: set[str],
         scope_id: str,
     ) -> None:
-        all_nodes = self._collect_all_cfg_nodes(cluster_results, cfg_graphs)
-        cluster_to_component = self._build_cluster_to_component_map(scope)
         cluster_id_prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
-        node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results, cluster_id_prefix)
-        self._validate_cluster_coverage(cluster_to_component, all_cluster_ids)
-
-        component_nodes = self._assign_nodes_to_components(
-            all_nodes,
-            node_to_cluster,
-            cluster_to_component,
+        source_cache: SourceCache = {}
+        patched_groups = component_file_method_groups(
+            scope,
             cluster_results,
-            scope.components[0],
+            self.repo_dir,
+            self.static_analysis,
             cfg_graphs,
             cluster_id_prefix,
+            source_cache,
         )
-        source_cache: SourceCache = {}
-        patched_groups = {
-            component_id: self._build_file_methods_from_nodes(nodes, source_cache)
-            for component_id, nodes in component_nodes.items()
-        }
         _patch_file_methods(scope, patched_groups, touched_ids, _live_cfg_qnames(self.static_analysis))
         scope.files = build_files_index(scope, self.repo_dir, source_cache)
 
@@ -323,7 +318,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             component_summaries=ComponentArchitecture(
                 description=scope.description, components=scope.components
             ).llm_str(),
-            static_call_evidence=self.build_scope_cfg_string(scope),
+            static_call_evidence=build_scope_cfg_string(scope, self.static_analysis),
         )
         return self._parse_invoke(prompt, ComponentApiSurfaces)
 
@@ -347,7 +342,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 description=scope.description, components=scope.components
             ).llm_str(),
             api_surfaces=api_surfaces.llm_str(),
-            static_call_evidence=self.build_scope_cfg_string(scope),
+            static_call_evidence=build_scope_cfg_string(scope, self.static_analysis),
         )
         relation_result: ComponentRelations = self._invoke_validate(
             prompt,
@@ -374,7 +369,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         the deterministic static call edges remain.
         """
         assign_relation_ids(scope)
-        self.build_static_relations(scope, cfg_graphs)
+        build_static_relations(scope, self.static_analysis, cfg_graphs)
         self.reference_resolver.fix_source_code_reference_lines(scope)
         index_relation_endpoints(scope, self.repo_dir)
 

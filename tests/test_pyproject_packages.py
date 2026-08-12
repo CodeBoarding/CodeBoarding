@@ -7,7 +7,8 @@ REPO_ROOT = Path(__file__).parent.parent
 
 def _find_packages_on_disk() -> set[str]:
     """Return all Python packages (directories with __init__.py) under the repo root."""
-    exclude_prefixes = {".venv", "tests", "repos", "build", "dist"}
+    # ``temp`` holds cloned analysis-target repos locally; mypy excludes it too.
+    exclude_prefixes = {".venv", "tests", "repos", "build", "dist", "temp"}
     packages = set()
     for init_file in REPO_ROOT.rglob("__init__.py"):
         parts = init_file.relative_to(REPO_ROOT).parts

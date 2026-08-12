@@ -12,7 +12,7 @@ from cluster_viz.hierarchy import (
     split_cluster_id,
 )
 
-_COMPONENTS = [
+_COMPONENTS: list[dict] = [
     {
         "component_id": "1",
         "name": "Engine",

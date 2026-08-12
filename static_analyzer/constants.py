@@ -76,7 +76,7 @@ class ClusteringConfig:
     # A future per-language switch (e.g. Rust to ``::``) would need both a
     # per-adapter override and updates to consumers that hardcode
     # ``.split(".")`` (``language_adapter.extract_package``,
-    # ``cluster_methods_mixin.py``, ``diagnose_relations.py``).
+    # ``clustering/assignment.py``, ``diagnose_relations.py``).
     QUALIFIED_NAME_DELIMITER = "."
 
     # Deterministic seed for clustering algorithms

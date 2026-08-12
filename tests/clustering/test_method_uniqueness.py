@@ -33,21 +33,13 @@ from agents.agent_responses import (
     Component,
     SourceCodeReference,
 )
-from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
+from clustering.assignment import populate_file_methods
 from diagram_analysis.diagram_generator import DiagramGenerator, assert_scope_containment
 from diagram_analysis.exceptions import ScopeContainmentError
 from static_analyzer.constants import Language, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
-
-
-class MockMixin(ClusterMethodsMixin):
-    """Concrete implementation for testing the mixin."""
-
-    def __init__(self, repo_dir: Path, static_analysis: MagicMock):
-        self.repo_dir = repo_dir
-        self.static_analysis = static_analysis
 
 
 def _assert_no_duplicate_methods(test_case: unittest.TestCase, analysis: AnalysisInsights):
@@ -199,25 +191,23 @@ class TestMethodUniquenessWithAliases(unittest.TestCase):
         static_analysis.get_cfg.return_value = cfg
         static_analysis.get_languages.return_value = ["typescript"]
 
-        mixin = MockMixin(repo_dir=repo_dir, static_analysis=static_analysis)
-
-        return mixin, analysis, {"typescript": cluster_result}
+        return repo_dir, static_analysis, analysis, {"typescript": cluster_result}
 
     def test_aliased_methods_not_duplicated_across_components(self):
         """When the same physical method has two qualified-name aliases in different
         clusters/components, the deduplicated method must appear in only ONE component."""
-        mixin, analysis, cluster_results = self._make_alias_scenario()
+        repo_dir, static_analysis, analysis, cluster_results = self._make_alias_scenario()
 
-        mixin.populate_file_methods(analysis, cluster_results)
+        populate_file_methods(analysis, cluster_results, repo_dir, static_analysis)
 
         # Check by location (start_line + end_line + type) — this is the key assertion
         _assert_no_duplicate_methods_by_location(self, analysis)
 
     def test_aliased_methods_all_assigned(self):
         """All physical methods must be assigned to exactly one component (not lost)."""
-        mixin, analysis, cluster_results = self._make_alias_scenario()
+        repo_dir, static_analysis, analysis, cluster_results = self._make_alias_scenario()
 
-        mixin.populate_file_methods(analysis, cluster_results)
+        populate_file_methods(analysis, cluster_results, repo_dir, static_analysis)
 
         # We have 3 aliased methods + 2 unique = 5 physical methods
         all_locations: set[tuple[str, int, int]] = set()
@@ -330,8 +320,7 @@ class TestMethodUniquenessNanoclaw(unittest.TestCase):
         static_analysis.get_cfg.return_value = cfg
         static_analysis.get_languages.return_value = ["typescript"]
 
-        mixin = MockMixin(repo_dir=repo_dir, static_analysis=static_analysis)
-        mixin.populate_file_methods(analysis, {"typescript": cluster_result})
+        populate_file_methods(analysis, {"typescript": cluster_result}, repo_dir, static_analysis)
 
         _assert_no_duplicate_methods_by_location(self, analysis)
 
@@ -410,8 +399,7 @@ class TestMethodUniquenessNoAliases(unittest.TestCase):
         static_analysis.get_cfg.return_value = cfg
         static_analysis.get_languages.return_value = ["typescript"]
 
-        mixin = MockMixin(repo_dir=repo_dir, static_analysis=static_analysis)
-        mixin.populate_file_methods(analysis, {"typescript": cluster_result})
+        populate_file_methods(analysis, {"typescript": cluster_result}, repo_dir, static_analysis)
 
         _assert_no_duplicate_methods(self, analysis)
         _assert_no_duplicate_methods_by_location(self, analysis)
@@ -505,8 +493,7 @@ class TestScopeContainment(unittest.TestCase):
             run_id="test-run",
             log_path="repo/test-run",
         )
-        # _rescope_child_analyses only needs the mixin half of IncrementalAgent.
-        gen.incremental_agent = MockMixin(repo_dir=self.repo_location, static_analysis=static_analysis)  # type: ignore[assignment]
+        gen.static_analysis = static_analysis
         return gen
 
     def test_stale_child_scope_is_detected(self):

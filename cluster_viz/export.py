@@ -29,7 +29,7 @@ from cluster_viz.hierarchy import (
 )
 from cluster_viz.layout import Bucket, layout_graph, layout_hierarchy
 from constants import STATIC_ANALYSIS_PKL
-from static_analyzer.cluster_helpers import (
+from clustering.cluster_helpers import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
     TOP_LEVEL_COMPONENTS_MAX,
