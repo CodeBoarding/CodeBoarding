@@ -1,16 +1,16 @@
 {
   "metadata": {
-    "generated_at": "2026-08-12T09:10:32.863416+00:00",
-    "source_tree_hash": "1ef2395372e5f4e29018f6a1d0dce82735efb87d53bc2fee9c2fddeddde21082",
+    "generated_at": "2026-08-12T09:15:16.119253+00:00",
+    "source_tree_hash": "c5108495daf50b01fe3c471d511db7b8bad4c20723fd7acbd94df92c2b1e13d1",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
     "file_coverage_summary": {
-      "total_files": 331,
+      "total_files": 330,
       "analyzed": 183,
-      "not_analyzed": 148,
+      "not_analyzed": 147,
       "not_analyzed_by_reason": {
-        "other": 14,
+        "other": 13,
         "codeboardingignore": 134
       }
     }
@@ -2127,7 +2127,7 @@
         "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote",
         "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope"
       ],
-      "content_hash": "7aa9d3c7fc6c7c34",
+      "content_hash": "c6fda4cd86df5d3f",
       "module_hash": "1f03ac26cff92f16"
     },
     "codeboarding_cli/commands/incremental_analysis.py": {
@@ -14145,55 +14145,55 @@
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis.validate_arguments",
       "start_line": 58,
-      "end_line": 73,
+      "end_line": 75,
       "type": "FUNCTION",
-      "content_hash": "eeea662333e825a6"
+      "content_hash": "83b7170a4e43fea1"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis.run_from_args": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis.run_from_args",
-      "start_line": 76,
-      "end_line": 82,
+      "start_line": 78,
+      "end_line": 84,
       "type": "FUNCTION",
       "content_hash": "4551f4f41d2ba4b0"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_local": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis._run_local",
-      "start_line": 85,
-      "end_line": 119,
+      "start_line": 87,
+      "end_line": 121,
       "type": "FUNCTION",
       "content_hash": "f0b830b79964ceb8"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_local.scope": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis._run_local.scope",
-      "start_line": 99,
-      "end_line": 107,
+      "start_line": 101,
+      "end_line": 109,
       "type": "FUNCTION",
       "content_hash": "635a915ec1f9974f"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_remote": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis._run_remote",
-      "start_line": 122,
-      "end_line": 160,
+      "start_line": 124,
+      "end_line": 162,
       "type": "FUNCTION",
       "content_hash": "61966f8fae3c0532"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis._process_one_remote",
-      "start_line": 163,
-      "end_line": 209,
+      "start_line": 165,
+      "end_line": 211,
       "type": "FUNCTION",
       "content_hash": "ce7aa1b1ca834c74"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis._process_one_remote.scope",
-      "start_line": 170,
-      "end_line": 203,
+      "start_line": 172,
+      "end_line": 205,
       "type": "FUNCTION",
       "content_hash": "1ed907eb3ce30b19"
     },
@@ -26949,8 +26949,8 @@
               "file_path": "output_generators/rendering.py",
               "methods": [
                 "output_generators.rendering._ancestor_in_level",
-                "output_generators.rendering._load_entries",
-                "output_generators.rendering.project_relations_to_level"
+                "output_generators.rendering.project_relations_to_level",
+                "output_generators.rendering._load_entries"
               ]
             }
           ],
@@ -27089,6 +27089,14 @@
                   "methods": [
                     "static_analyzer.graph.detect_communities"
                   ]
+                },
+                {
+                  "file_path": "output_generators/rendering.py",
+                  "methods": [
+                    "output_generators.rendering._ancestor_in_level",
+                    "output_generators.rendering._load_entries",
+                    "output_generators.rendering.project_relations_to_level"
+                  ]
                 }
               ],
               "component_id": "3.1.1",
@@ -27196,6 +27204,14 @@
                       "file_path": "static_analyzer/graph.py",
                       "methods": [
                         "static_analyzer.graph.detect_communities"
+                      ]
+                    },
+                    {
+                      "file_path": "output_generators/rendering.py",
+                      "methods": [
+                        "output_generators.rendering._ancestor_in_level",
+                        "output_generators.rendering._load_entries",
+                        "output_generators.rendering.project_relations_to_level"
                       ]
                     }
                   ],
