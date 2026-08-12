@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
-from output_generators.node_types import node_type_label
+from static_analyzer.constants import NodeType
 from utils import sanitize
 
 
@@ -150,7 +150,7 @@ def generate_rst(
                     lines.append(f"* ``{group.file_path}``")
                 for method in group.methods:
                     # https://github.com/owner/repo/blob/branch -> 7 segments; file path follows after
-                    label = node_type_label(method.node_type)
+                    label = NodeType.from_name(method.node_type).label()
                     line_ref = f"L{method.start_line}-L{method.end_line}"
                     if url:
                         lines.append(
