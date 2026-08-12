@@ -486,17 +486,35 @@ class TestCopyFiles(unittest.TestCase):
 
 class TestValidateArguments(unittest.TestCase):
     def test_valid_local(self):
-        parser = MagicMock()
-        args = MagicMock()
-        args.repositories = None
-        args.local = "/path/to/repo"
-        args.output_dir = None
-        args.project_name = None
-        args.upload = False
-        args.render = None
+        with tempfile.TemporaryDirectory() as repo_path:
+            parser = MagicMock()
+            args = MagicMock()
+            args.repositories = None
+            args.local = Path(repo_path)
+            args.output_dir = None
+            args.project_name = None
+            args.upload = False
+            args.render = None
 
-        validate_arguments(args, parser)
-        parser.error.assert_not_called()
+            validate_arguments(args, parser)
+
+            parser.error.assert_not_called()
+
+    def test_missing_local_directory_exits_without_creating_it(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "missing"
+
+            with (
+                patch("codeboarding_cli.commands.full_analysis.bootstrap_environment") as mock_bootstrap,
+                self.assertRaises(SystemExit) as ctx,
+            ):
+                main.main(["full", "--local", str(repo_path)])
+
+            self.assertEqual(ctx.exception.code, 2)
+            self.assertFalse(repo_path.exists())
+            mock_bootstrap.assert_not_called()
 
     def test_valid_remote(self):
         parser = MagicMock()
@@ -524,16 +542,18 @@ class TestValidateArguments(unittest.TestCase):
         parser.error.assert_called_once()
 
     def test_upload_with_local_errors(self):
-        parser = MagicMock()
-        args = MagicMock()
-        args.repositories = None
-        args.local = "/path/to/repo"
-        args.output_dir = None
-        args.project_name = None
-        args.upload = True
+        with tempfile.TemporaryDirectory() as repo_path:
+            parser = MagicMock()
+            args = MagicMock()
+            args.repositories = None
+            args.local = Path(repo_path)
+            args.output_dir = None
+            args.project_name = None
+            args.upload = True
 
-        validate_arguments(args, parser)
-        parser.error.assert_called_once()
+            validate_arguments(args, parser)
+
+            parser.error.assert_called_once()
 
 
 class TestMainAuthErrorHandler(unittest.TestCase):

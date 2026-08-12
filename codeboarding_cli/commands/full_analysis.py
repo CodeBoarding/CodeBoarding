@@ -61,16 +61,18 @@ def validate_arguments(args: argparse.Namespace, parser: argparse.ArgumentParser
 
     if has_remote_repos == has_local_repo:
         parser.error("Provide either one or more remote repositories or --local, but not both.")
-
-    if not has_local_repo:
+    elif not has_local_repo:
         if args.render is not None:
             parser.error("--render only works with --local")
         if args.output_dir:
             parser.error("--output-dir only works with --local")
         if args.project_name:
             parser.error("--project-name only works with --local")
-    elif args.upload:
-        parser.error("--upload only works with remote repositories")
+    else:
+        if not args.local.is_dir():
+            parser.error(f"Local repository path is not an existing directory: {args.local}")
+        if args.upload:
+            parser.error("--upload only works with remote repositories")
 
 
 def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
