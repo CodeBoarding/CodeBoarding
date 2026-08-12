@@ -1,13 +1,13 @@
 {
   "metadata": {
-    "generated_at": "2026-08-08T23:03:53.545517+00:00",
-    "source_tree_hash": "a6c3c6f5ea45d250c0c549ba245f2371d84061584ac49b8ccee76ca243de3da2",
-    "repo_name": "CodeBoarding",
+    "generated_at": "2026-08-12T09:10:32.863416+00:00",
+    "source_tree_hash": "1ef2395372e5f4e29018f6a1d0dce82735efb87d53bc2fee9c2fddeddde21082",
+    "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
     "file_coverage_summary": {
-      "total_files": 330,
-      "analyzed": 182,
+      "total_files": 331,
+      "analyzed": 183,
       "not_analyzed": 148,
       "not_analyzed_by_reason": {
         "other": 14,
@@ -1683,16 +1683,6 @@
       "content_hash": "e217226d19a1d152",
       "module_hash": "eeda6e684bb0c036"
     },
-    "codeboarding_workflows/rendering.py": {
-      "method_keys": [
-        "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering._ancestor_in_level",
-        "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-        "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering._load_entries",
-        "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.render_docs"
-      ],
-      "content_hash": "d3246e123b4d3cfc",
-      "module_hash": "759d8834e666de3d"
-    },
     "diagram_analysis/analysis_json.py": {
       "method_keys": [
         "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.RelationEdgeJson",
@@ -1871,8 +1861,8 @@
         "output_generators/html.py|output_generators.html.generate_html_file",
         "output_generators/html.py|output_generators.html.component_header_html"
       ],
-      "content_hash": "1ab7a0d2251042d0",
-      "module_hash": "76e9c73d614933f8"
+      "content_hash": "e646eb5c1e8256e4",
+      "module_hash": "6057f8cea437ee2f"
     },
     "output_generators/html_template.py": {
       "method_keys": [
@@ -1897,7 +1887,7 @@
         "output_generators/markdown.py|output_generators.markdown.generate_markdown_file",
         "output_generators/markdown.py|output_generators.markdown.component_header"
       ],
-      "content_hash": "d5df131cf1f4e560",
+      "content_hash": "8c94b83588e7572f",
       "module_hash": "db3222157fc88f72"
     },
     "output_generators/mdx.py": {
@@ -1908,8 +1898,20 @@
         "output_generators/mdx.py|output_generators.mdx.generate_mdx_file",
         "output_generators/mdx.py|output_generators.mdx.component_header"
       ],
-      "content_hash": "8b19f884168f934a",
+      "content_hash": "b0d1f3eb3bb6130f",
       "module_hash": "28f35aae5843363c"
+    },
+    "output_generators/rendering.py": {
+      "method_keys": [
+        "output_generators/rendering.py|output_generators.rendering._ancestor_in_level",
+        "output_generators/rendering.py|output_generators.rendering.project_relations_to_level",
+        "output_generators/rendering.py|output_generators.rendering._load_render_manifest",
+        "output_generators/rendering.py|output_generators.rendering._load_entries",
+        "output_generators/rendering.py|output_generators.rendering.render_docs",
+        "output_generators/rendering.py|output_generators.rendering.render"
+      ],
+      "content_hash": "10c135a7d33689a8",
+      "module_hash": "e6940710bf4b9f52"
     },
     "output_generators/sphinx.py": {
       "method_keys": [
@@ -1918,7 +1920,7 @@
         "output_generators/sphinx.py|output_generators.sphinx.generate_rst_file",
         "output_generators/sphinx.py|output_generators.sphinx.component_header"
       ],
-      "content_hash": "8e9bcdce6f8fabb2",
+      "content_hash": "4ba8d040c935bdeb",
       "module_hash": "5b215eb052cdba7e"
     },
     "repo_utils/path_utils.py": {
@@ -2125,8 +2127,8 @@
         "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote",
         "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope"
       ],
-      "content_hash": "bab233ff79f14971",
-      "module_hash": "c272d22942817469"
+      "content_hash": "7aa9d3c7fc6c7c34",
+      "module_hash": "1f03ac26cff92f16"
     },
     "codeboarding_cli/commands/incremental_analysis.py": {
       "method_keys": [
@@ -2148,6 +2150,15 @@
       ],
       "content_hash": "813cc58a54e02890",
       "module_hash": "fd8a46d9860e91d3"
+    },
+    "codeboarding_cli/render.py": {
+      "method_keys": [
+        "codeboarding_cli/render.py|codeboarding_cli.render.build_parser",
+        "codeboarding_cli/render.py|codeboarding_cli.render.run_from_args",
+        "codeboarding_cli/render.py|codeboarding_cli.render.main"
+      ],
+      "content_hash": "95b9e7f39d3a5cf6",
+      "module_hash": "ed020f98456e72c9"
     },
     "codeboarding_cli/view_instructions.py": {
       "method_keys": [
@@ -2289,8 +2300,8 @@
         "github_action.py|github_action._resolve_depth_level",
         "github_action.py|github_action.generate_analysis"
       ],
-      "content_hash": "6447e4f0625effbc",
-      "module_hash": "bc3215229d91457e"
+      "content_hash": "55809bea23342c34",
+      "module_hash": "f12a672f97b2b63a"
     },
     "health/config.py": {
       "method_keys": [
@@ -2361,8 +2372,8 @@
         "main.py|main._dispatch",
         "main.py|main.main"
       ],
-      "content_hash": "81071cf3059a2bee",
-      "module_hash": "759047f63b34a54b"
+      "content_hash": "5007c5d6188cfaea",
+      "module_hash": "27f6c204554e4f76"
     },
     "monitoring/paths.py": {
       "method_keys": [
@@ -11666,38 +11677,6 @@
       "type": "FUNCTION",
       "content_hash": "8e8ff7feae26bb06"
     },
-    "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering._ancestor_in_level": {
-      "file_path": "codeboarding_workflows/rendering.py",
-      "qualified_name": "codeboarding_workflows.rendering._ancestor_in_level",
-      "start_line": 27,
-      "end_line": 32,
-      "type": "FUNCTION",
-      "content_hash": "b203df203fed9722"
-    },
-    "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level": {
-      "file_path": "codeboarding_workflows/rendering.py",
-      "qualified_name": "codeboarding_workflows.rendering.project_relations_to_level",
-      "start_line": 35,
-      "end_line": 62,
-      "type": "FUNCTION",
-      "content_hash": "f2ef0ee344019c32"
-    },
-    "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering._load_entries": {
-      "file_path": "codeboarding_workflows/rendering.py",
-      "qualified_name": "codeboarding_workflows.rendering._load_entries",
-      "start_line": 75,
-      "end_line": 101,
-      "type": "FUNCTION",
-      "content_hash": "a8fca0d697254c97"
-    },
-    "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.render_docs": {
-      "file_path": "codeboarding_workflows/rendering.py",
-      "qualified_name": "codeboarding_workflows.rendering.render_docs",
-      "start_line": 104,
-      "end_line": 139,
-      "type": "FUNCTION",
-      "content_hash": "451972804620df03"
-    },
     "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.RelationEdgeJson": {
       "file_path": "diagram_analysis/analysis_json.py",
       "qualified_name": "diagram_analysis.analysis_json.RelationEdgeJson",
@@ -12781,32 +12760,32 @@
     "output_generators/html.py|output_generators.html.generate_cytoscape_data": {
       "file_path": "output_generators/html.py",
       "qualified_name": "output_generators.html.generate_cytoscape_data",
-      "start_line": 10,
-      "end_line": 56,
+      "start_line": 13,
+      "end_line": 61,
       "type": "FUNCTION",
-      "content_hash": "0991a03f84792ed4"
+      "content_hash": "2ce94ddf4e42facd"
     },
     "output_generators/html.py|output_generators.html.generate_html": {
       "file_path": "output_generators/html.py",
       "qualified_name": "output_generators.html.generate_html",
-      "start_line": 59,
-      "end_line": 125,
+      "start_line": 64,
+      "end_line": 133,
       "type": "FUNCTION",
-      "content_hash": "8b0f824f7e23054d"
+      "content_hash": "678676fd6e6363f6"
     },
     "output_generators/html.py|output_generators.html.generate_html_file": {
       "file_path": "output_generators/html.py",
       "qualified_name": "output_generators.html.generate_html_file",
-      "start_line": 128,
-      "end_line": 152,
+      "start_line": 136,
+      "end_line": 160,
       "type": "FUNCTION",
       "content_hash": "b9158c4a8dfbb89f"
     },
     "output_generators/html.py|output_generators.html.component_header_html": {
       "file_path": "output_generators/html.py",
       "qualified_name": "output_generators.html.component_header_html",
-      "start_line": 155,
-      "end_line": 163,
+      "start_line": 163,
+      "end_line": 171,
       "type": "FUNCTION",
       "content_hash": "e53f027d58ed9830"
     },
@@ -12894,31 +12873,31 @@
       "file_path": "output_generators/markdown.py",
       "qualified_name": "output_generators.markdown.generated_mermaid_str",
       "start_line": 9,
-      "end_line": 40,
+      "end_line": 41,
       "type": "FUNCTION",
-      "content_hash": "9d7654ffdef946db"
+      "content_hash": "db10b666670cb233"
     },
     "output_generators/markdown.py|output_generators.markdown.generate_markdown": {
       "file_path": "output_generators/markdown.py",
       "qualified_name": "output_generators.markdown.generate_markdown",
-      "start_line": 43,
-      "end_line": 122,
+      "start_line": 44,
+      "end_line": 123,
       "type": "FUNCTION",
-      "content_hash": "c6203f6f73a381bb"
+      "content_hash": "1456352646822f62"
     },
     "output_generators/markdown.py|output_generators.markdown.generate_markdown_file": {
       "file_path": "output_generators/markdown.py",
       "qualified_name": "output_generators.markdown.generate_markdown_file",
-      "start_line": 125,
-      "end_line": 146,
+      "start_line": 126,
+      "end_line": 147,
       "type": "FUNCTION",
       "content_hash": "b782a76519c02f8d"
     },
     "output_generators/markdown.py|output_generators.markdown.component_header": {
       "file_path": "output_generators/markdown.py",
       "qualified_name": "output_generators.markdown.component_header",
-      "start_line": 149,
-      "end_line": 157,
+      "start_line": 150,
+      "end_line": 158,
       "type": "FUNCTION",
       "content_hash": "e7882d5346c02d02"
     },
@@ -12926,71 +12905,119 @@
       "file_path": "output_generators/mdx.py",
       "qualified_name": "output_generators.mdx.generated_mermaid_str",
       "start_line": 8,
-      "end_line": 35,
+      "end_line": 34,
       "type": "FUNCTION",
-      "content_hash": "00d00f19f60d2daa"
+      "content_hash": "abea8a792ffb54cd"
     },
     "output_generators/mdx.py|output_generators.mdx.generate_frontmatter": {
       "file_path": "output_generators/mdx.py",
       "qualified_name": "output_generators.mdx.generate_frontmatter",
-      "start_line": 38,
-      "end_line": 49,
+      "start_line": 37,
+      "end_line": 48,
       "type": "FUNCTION",
       "content_hash": "0784ed3ec19b739a"
     },
     "output_generators/mdx.py|output_generators.mdx.generate_mdx": {
       "file_path": "output_generators/mdx.py",
       "qualified_name": "output_generators.mdx.generate_mdx",
-      "start_line": 52,
-      "end_line": 158,
+      "start_line": 51,
+      "end_line": 165,
       "type": "FUNCTION",
-      "content_hash": "de42495c8780c049"
+      "content_hash": "17df0af95508da61"
     },
     "output_generators/mdx.py|output_generators.mdx.generate_mdx_file": {
       "file_path": "output_generators/mdx.py",
       "qualified_name": "output_generators.mdx.generate_mdx_file",
-      "start_line": 161,
-      "end_line": 183,
+      "start_line": 168,
+      "end_line": 190,
       "type": "FUNCTION",
       "content_hash": "885595456852d476"
     },
     "output_generators/mdx.py|output_generators.mdx.component_header": {
       "file_path": "output_generators/mdx.py",
       "qualified_name": "output_generators.mdx.component_header",
-      "start_line": 186,
-      "end_line": 194,
+      "start_line": 193,
+      "end_line": 201,
       "type": "FUNCTION",
       "content_hash": "ab02e3e7d11bf1e8"
+    },
+    "output_generators/rendering.py|output_generators.rendering._ancestor_in_level": {
+      "file_path": "output_generators/rendering.py",
+      "qualified_name": "output_generators.rendering._ancestor_in_level",
+      "start_line": 22,
+      "end_line": 29,
+      "type": "FUNCTION",
+      "content_hash": "6ea94f445bb7ab08"
+    },
+    "output_generators/rendering.py|output_generators.rendering.project_relations_to_level": {
+      "file_path": "output_generators/rendering.py",
+      "qualified_name": "output_generators.rendering.project_relations_to_level",
+      "start_line": 32,
+      "end_line": 59,
+      "type": "FUNCTION",
+      "content_hash": "f2ef0ee344019c32"
+    },
+    "output_generators/rendering.py|output_generators.rendering._load_render_manifest": {
+      "file_path": "output_generators/rendering.py",
+      "qualified_name": "output_generators.rendering._load_render_manifest",
+      "start_line": 82,
+      "end_line": 109,
+      "type": "FUNCTION",
+      "content_hash": "3b307574456ae0c6"
+    },
+    "output_generators/rendering.py|output_generators.rendering._load_entries": {
+      "file_path": "output_generators/rendering.py",
+      "qualified_name": "output_generators.rendering._load_entries",
+      "start_line": 112,
+      "end_line": 133,
+      "type": "FUNCTION",
+      "content_hash": "e72064553fe675d7"
+    },
+    "output_generators/rendering.py|output_generators.rendering.render_docs": {
+      "file_path": "output_generators/rendering.py",
+      "qualified_name": "output_generators.rendering.render_docs",
+      "start_line": 136,
+      "end_line": 173,
+      "type": "FUNCTION",
+      "content_hash": "0526e093acd3ba17"
+    },
+    "output_generators/rendering.py|output_generators.rendering.render": {
+      "file_path": "output_generators/rendering.py",
+      "qualified_name": "output_generators.rendering.render",
+      "start_line": 176,
+      "end_line": 232,
+      "type": "FUNCTION",
+      "content_hash": "8c616d510da56ddd"
     },
     "output_generators/sphinx.py|output_generators.sphinx.generated_mermaid_str": {
       "file_path": "output_generators/sphinx.py",
       "qualified_name": "output_generators.sphinx.generated_mermaid_str",
       "start_line": 8,
-      "end_line": 43,
+      "end_line": 44,
       "type": "FUNCTION",
-      "content_hash": "222ebb7079ba7d2f"
+      "content_hash": "0975c392c9cecbd8"
     },
     "output_generators/sphinx.py|output_generators.sphinx.generate_rst": {
       "file_path": "output_generators/sphinx.py",
       "qualified_name": "output_generators.sphinx.generate_rst",
-      "start_line": 46,
-      "end_line": 159,
+      "start_line": 47,
+      "end_line": 163,
       "type": "FUNCTION",
-      "content_hash": "d19315b0642f591a"
+      "content_hash": "5d6403ceddc9b536"
     },
     "output_generators/sphinx.py|output_generators.sphinx.generate_rst_file": {
       "file_path": "output_generators/sphinx.py",
       "qualified_name": "output_generators.sphinx.generate_rst_file",
-      "start_line": 162,
-      "end_line": 187,
+      "start_line": 166,
+      "end_line": 191,
       "type": "FUNCTION",
       "content_hash": "e299d9bb8d801747"
     },
     "output_generators/sphinx.py|output_generators.sphinx.component_header": {
       "file_path": "output_generators/sphinx.py",
       "qualified_name": "output_generators.sphinx.component_header",
-      "start_line": 190,
-      "end_line": 201,
+      "start_line": 194,
+      "end_line": 205,
       "type": "FUNCTION",
       "content_hash": "0192b966cc0c11db"
     },
@@ -14118,55 +14145,55 @@
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis.validate_arguments",
       "start_line": 58,
-      "end_line": 71,
+      "end_line": 73,
       "type": "FUNCTION",
-      "content_hash": "4f3f8376148e25f9"
+      "content_hash": "eeea662333e825a6"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis.run_from_args": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis.run_from_args",
-      "start_line": 74,
-      "end_line": 80,
+      "start_line": 76,
+      "end_line": 82,
       "type": "FUNCTION",
       "content_hash": "4551f4f41d2ba4b0"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_local": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis._run_local",
-      "start_line": 83,
-      "end_line": 117,
+      "start_line": 85,
+      "end_line": 119,
       "type": "FUNCTION",
-      "content_hash": "78cfaf1ec2677db4"
+      "content_hash": "f0b830b79964ceb8"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_local.scope": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis._run_local.scope",
-      "start_line": 97,
-      "end_line": 105,
+      "start_line": 99,
+      "end_line": 107,
       "type": "FUNCTION",
       "content_hash": "635a915ec1f9974f"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_remote": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis._run_remote",
-      "start_line": 120,
-      "end_line": 158,
+      "start_line": 122,
+      "end_line": 160,
       "type": "FUNCTION",
       "content_hash": "61966f8fae3c0532"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis._process_one_remote",
-      "start_line": 161,
-      "end_line": 207,
+      "start_line": 163,
+      "end_line": 209,
       "type": "FUNCTION",
       "content_hash": "ce7aa1b1ca834c74"
     },
     "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope": {
       "file_path": "codeboarding_cli/commands/full_analysis.py",
       "qualified_name": "codeboarding_cli.commands.full_analysis._process_one_remote.scope",
-      "start_line": 168,
-      "end_line": 201,
+      "start_line": 170,
+      "end_line": 203,
       "type": "FUNCTION",
       "content_hash": "1ed907eb3ce30b19"
     },
@@ -14241,6 +14268,30 @@
       "end_line": 56,
       "type": "FUNCTION",
       "content_hash": "5f94c8372ed6e5cd"
+    },
+    "codeboarding_cli/render.py|codeboarding_cli.render.build_parser": {
+      "file_path": "codeboarding_cli/render.py",
+      "qualified_name": "codeboarding_cli.render.build_parser",
+      "start_line": 15,
+      "end_line": 33,
+      "type": "FUNCTION",
+      "content_hash": "7e186855ae45a8a0"
+    },
+    "codeboarding_cli/render.py|codeboarding_cli.render.run_from_args": {
+      "file_path": "codeboarding_cli/render.py",
+      "qualified_name": "codeboarding_cli.render.run_from_args",
+      "start_line": 36,
+      "end_line": 62,
+      "type": "FUNCTION",
+      "content_hash": "c5b8bdd9695b6fcf"
+    },
+    "codeboarding_cli/render.py|codeboarding_cli.render.main": {
+      "file_path": "codeboarding_cli/render.py",
+      "qualified_name": "codeboarding_cli.render.main",
+      "start_line": 65,
+      "end_line": 68,
+      "type": "FUNCTION",
+      "content_hash": "0fd2d650004ac1f3"
     },
     "codeboarding_cli/view_instructions.py|codeboarding_cli.view_instructions.print_view_instructions": {
       "file_path": "codeboarding_cli/view_instructions.py",
@@ -15013,40 +15064,40 @@
     "main.py|main._build_shared_parser": {
       "file_path": "main.py",
       "qualified_name": "main._build_shared_parser",
-      "start_line": 12,
-      "end_line": 23,
+      "start_line": 15,
+      "end_line": 31,
       "type": "FUNCTION",
-      "content_hash": "86cbc6024b41ea94"
+      "content_hash": "396a7d53a2ee058c"
     },
     "main.py|main.build_parser": {
       "file_path": "main.py",
       "qualified_name": "main.build_parser",
-      "start_line": 26,
-      "end_line": 61,
+      "start_line": 34,
+      "end_line": 69,
       "type": "FUNCTION",
       "content_hash": "0039c2e65471e59c"
     },
     "main.py|main._inject_default_subcommand": {
       "file_path": "main.py",
       "qualified_name": "main._inject_default_subcommand",
-      "start_line": 64,
-      "end_line": 77,
+      "start_line": 72,
+      "end_line": 85,
       "type": "FUNCTION",
       "content_hash": "b04bf96418ec9bf1"
     },
     "main.py|main._dispatch": {
       "file_path": "main.py",
       "qualified_name": "main._dispatch",
-      "start_line": 80,
-      "end_line": 96,
+      "start_line": 88,
+      "end_line": 115,
       "type": "FUNCTION",
-      "content_hash": "38fd2df86117582e"
+      "content_hash": "76a6d301bc42d078"
     },
     "main.py|main.main": {
       "file_path": "main.py",
       "qualified_name": "main.main",
-      "start_line": 99,
-      "end_line": 106,
+      "start_line": 118,
+      "end_line": 125,
       "type": "FUNCTION",
       "content_hash": "a0f8ce901fb89082"
     },
@@ -26383,14 +26434,6 @@
           ]
         },
         {
-          "file_path": "codeboarding_workflows/rendering.py",
-          "methods": [
-            "codeboarding_workflows.rendering._ancestor_in_level",
-            "codeboarding_workflows.rendering.project_relations_to_level",
-            "codeboarding_workflows.rendering._load_entries"
-          ]
-        },
-        {
           "file_path": "diagram_analysis/analysis_json.py",
           "methods": [
             "diagram_analysis.analysis_json.RelationEdgeJson",
@@ -26521,6 +26564,14 @@
             "output_generators.mdx.generate_mdx",
             "output_generators.mdx.generate_mdx_file",
             "output_generators.mdx.component_header"
+          ]
+        },
+        {
+          "file_path": "output_generators/rendering.py",
+          "methods": [
+            "output_generators.rendering._ancestor_in_level",
+            "output_generators.rendering.project_relations_to_level",
+            "output_generators.rendering._load_entries"
           ]
         },
         {
@@ -26892,6 +26943,14 @@
               "file_path": "static_analyzer/graph.py",
               "methods": [
                 "static_analyzer.graph.detect_communities"
+              ]
+            },
+            {
+              "file_path": "output_generators/rendering.py",
+              "methods": [
+                "output_generators.rendering._ancestor_in_level",
+                "output_generators.rendering._load_entries",
+                "output_generators.rendering.project_relations_to_level"
               ]
             }
           ],
@@ -28575,13 +28634,6 @@
               ]
             },
             {
-              "file_path": "codeboarding_workflows/rendering.py",
-              "methods": [
-                "codeboarding_workflows.rendering._ancestor_in_level",
-                "codeboarding_workflows.rendering.project_relations_to_level"
-              ]
-            },
-            {
               "file_path": "diagram_analysis/analysis_json.py",
               "methods": [
                 "diagram_analysis.analysis_json.ComponentJson",
@@ -28925,12 +28977,6 @@
                   "reference_file": "agents/relation_edges.py",
                   "reference_start_line": 9,
                   "reference_end_line": 23
-                },
-                {
-                  "qualified_name": "codeboarding_workflows.rendering.project_relations_to_level",
-                  "reference_file": "codeboarding_workflows/rendering.py",
-                  "reference_start_line": 35,
-                  "reference_end_line": 62
                 }
               ],
               "source_cluster_ids": [
@@ -28970,13 +29016,6 @@
                     "agents.relation_edges._reconcile_unchanged_edges.split",
                     "agents.relation_edges.preserve_unchanged_relations",
                     "agents.relation_edges.preserve_unchanged_relations.touches_change"
-                  ]
-                },
-                {
-                  "file_path": "codeboarding_workflows/rendering.py",
-                  "methods": [
-                    "codeboarding_workflows.rendering._ancestor_in_level",
-                    "codeboarding_workflows.rendering.project_relations_to_level"
                   ]
                 },
                 {
@@ -29171,12 +29210,6 @@
               ]
             },
             {
-              "file_path": "codeboarding_workflows/rendering.py",
-              "methods": [
-                "codeboarding_workflows.rendering._load_entries"
-              ]
-            },
-            {
               "file_path": "diagram_analysis/analysis_json.py",
               "methods": [
                 "diagram_analysis.analysis_json.RelationEdgeJson",
@@ -29296,12 +29329,6 @@
                   "methods": [
                     "agents.relation_edges.merge_relations_by_pair",
                     "agents.relation_edges.index_relation_endpoints"
-                  ]
-                },
-                {
-                  "file_path": "codeboarding_workflows/rendering.py",
-                  "methods": [
-                    "codeboarding_workflows.rendering._load_entries"
                   ]
                 },
                 {
@@ -30403,6 +30430,14 @@
           ]
         },
         {
+          "file_path": "codeboarding_cli/render.py",
+          "methods": [
+            "codeboarding_cli.render.build_parser",
+            "codeboarding_cli.render.run_from_args",
+            "codeboarding_cli.render.main"
+          ]
+        },
+        {
           "file_path": "codeboarding_cli/view_instructions.py",
           "methods": [
             "codeboarding_cli.view_instructions.print_view_instructions"
@@ -30422,12 +30457,6 @@
           "file_path": "codeboarding_workflows/orchestration.py",
           "methods": [
             "codeboarding_workflows.orchestration.run_analysis_pipeline"
-          ]
-        },
-        {
-          "file_path": "codeboarding_workflows/rendering.py",
-          "methods": [
-            "codeboarding_workflows.rendering.render_docs"
           ]
         },
         {
@@ -30697,6 +30726,14 @@
           ]
         },
         {
+          "file_path": "output_generators/rendering.py",
+          "methods": [
+            "output_generators.rendering._load_render_manifest",
+            "output_generators.rendering.render_docs",
+            "output_generators.rendering.render"
+          ]
+        },
+        {
           "file_path": "repo_utils/__init__.py",
           "methods": [
             "repo_utils.__init__.sanitize_repo_url",
@@ -30912,6 +30949,14 @@
               ]
             },
             {
+              "file_path": "codeboarding_cli/render.py",
+              "methods": [
+                "codeboarding_cli.render.build_parser",
+                "codeboarding_cli.render.run_from_args",
+                "codeboarding_cli.render.main"
+              ]
+            },
+            {
               "file_path": "codeboarding_cli/view_instructions.py",
               "methods": [
                 "codeboarding_cli.view_instructions.print_view_instructions"
@@ -30927,12 +30972,6 @@
               "file_path": "codeboarding_workflows/orchestration.py",
               "methods": [
                 "codeboarding_workflows.orchestration.run_analysis_pipeline"
-              ]
-            },
-            {
-              "file_path": "codeboarding_workflows/rendering.py",
-              "methods": [
-                "codeboarding_workflows.rendering.render_docs"
               ]
             },
             {
@@ -31078,6 +31117,14 @@
               ]
             },
             {
+              "file_path": "output_generators/rendering.py",
+              "methods": [
+                "output_generators.rendering._load_render_manifest",
+                "output_generators.rendering.render_docs",
+                "output_generators.rendering.render"
+              ]
+            },
+            {
               "file_path": "repo_utils/__init__.py",
               "methods": [
                 "repo_utils.__init__.sanitize_repo_url",
@@ -31164,14 +31211,14 @@
                 {
                   "qualified_name": "main.main",
                   "reference_file": "main.py",
-                  "reference_start_line": 99,
-                  "reference_end_line": 106
+                  "reference_start_line": 118,
+                  "reference_end_line": 125
                 },
                 {
                   "qualified_name": "main._dispatch",
                   "reference_file": "main.py",
-                  "reference_start_line": 80,
-                  "reference_end_line": 96
+                  "reference_start_line": 88,
+                  "reference_end_line": 115
                 },
                 {
                   "qualified_name": "codeboarding_cli.bootstrap.resolve_local_run_paths",
@@ -31344,8 +31391,8 @@
                     {
                       "qualified_name": "main.main",
                       "reference_file": "main.py",
-                      "reference_start_line": 99,
-                      "reference_end_line": 106
+                      "reference_start_line": 118,
+                      "reference_end_line": 125
                     },
                     {
                       "qualified_name": "codeboarding_workflows.orchestration.run_analysis_pipeline",
@@ -31606,7 +31653,7 @@
                       "target": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_local.scope",
                       "call_sites": [
                         {
-                          "line": 113,
+                          "line": 115,
                           "column": 15
                         }
                       ],
@@ -32071,12 +32118,6 @@
                   "reference_end_line": 143
                 },
                 {
-                  "qualified_name": "codeboarding_workflows.rendering.render_docs",
-                  "reference_file": "codeboarding_workflows/rendering.py",
-                  "reference_start_line": 104,
-                  "reference_end_line": 139
-                },
-                {
                   "qualified_name": "github_action.generate_markdown",
                   "reference_file": "github_action.py",
                   "reference_start_line": 16,
@@ -32101,9 +32142,11 @@
               ],
               "file_methods": [
                 {
-                  "file_path": "codeboarding_workflows/rendering.py",
+                  "file_path": "codeboarding_cli/render.py",
                   "methods": [
-                    "codeboarding_workflows.rendering.render_docs"
+                    "codeboarding_cli.render.build_parser",
+                    "codeboarding_cli.render.run_from_args",
+                    "codeboarding_cli.render.main"
                   ]
                 },
                 {
@@ -32129,6 +32172,14 @@
                     "github_action._seed_existing_analysis",
                     "github_action._resolve_depth_level",
                     "github_action.generate_analysis"
+                  ]
+                },
+                {
+                  "file_path": "output_generators/rendering.py",
+                  "methods": [
+                    "output_generators.rendering._load_render_manifest",
+                    "output_generators.rendering.render_docs",
+                    "output_generators.rendering.render"
                   ]
                 },
                 {
@@ -32178,7 +32229,7 @@
                   "target": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
                   "call_sites": [
                     {
-                      "line": 87,
+                      "line": 89,
                       "column": 9
                     }
                   ],
@@ -32220,15 +32271,26 @@
               ]
             },
             {
-              "relation": "Delegates documentation rendering and source context extraction",
+              "relation": "Dispatches analysis results for artifact generation",
               "src_name": "Workflow Orchestrator & CLI Engine",
               "dst_name": "CI/CD Automation & Multi-Format Reporter",
-              "evidence": "The orchestrator invokes rendering workflows to transform analyzed codebase data into final documentation formats.",
+              "evidence": "After the analysis workflow completes, the orchestrator passes the resulting source context and graph data to the reporter to generate Markdown, HTML, or JSON artifacts.",
               "key_edges": [],
               "src_id": "4.1.1",
               "dst_id": "4.1.3",
               "is_static": true,
               "all_edges": [
+                {
+                  "source": "main.py|main._dispatch",
+                  "target": "output_generators/rendering.py|output_generators.rendering.render",
+                  "call_sites": [
+                    {
+                      "line": 101,
+                      "column": 17
+                    }
+                  ],
+                  "description": ""
+                },
                 {
                   "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote",
                   "target": "codeboarding_workflows/sources/remote.py|codeboarding_workflows.sources.remote.remote_source",
@@ -32236,17 +32298,6 @@
                     {
                       "line": 204,
                       "column": 16
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope",
-                  "target": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.render_docs",
-                  "call_sites": [
-                    {
-                      "line": 187,
-                      "column": 13
                     }
                   ],
                   "description": ""
@@ -32338,6 +32389,29 @@
                     {
                       "line": 112,
                       "column": 30
+                    }
+                  ],
+                  "description": ""
+                }
+              ]
+            },
+            {
+              "relation": "Configures runtime logging and environment",
+              "src_name": "CI/CD Automation & Multi-Format Reporter",
+              "dst_name": "Configuration & System Health Validator",
+              "evidence": "Automation entry points (like the GitHub Action runner) initialize the global logging state and validate the environment using the configuration validator's utilities.",
+              "key_edges": [],
+              "src_id": "4.1.3",
+              "dst_id": "4.1.2",
+              "is_static": true,
+              "all_edges": [
+                {
+                  "source": "codeboarding_cli/render.py|codeboarding_cli.render.run_from_args",
+                  "target": "logging_config.py|logging_config.setup_logging",
+                  "call_sites": [
+                    {
+                      "line": 55,
+                      "column": 5
                     }
                   ],
                   "description": ""
@@ -36020,8 +36094,8 @@
             {
               "qualified_name": "static_analyzer.language_results.ClassHierarchy",
               "reference_file": "static_analyzer/language_results.py",
-              "reference_start_line": 67,
-              "reference_end_line": 85
+              "reference_start_line": 77,
+              "reference_end_line": 95
             }
           ],
           "source_cluster_ids": [
@@ -42218,6 +42292,97 @@
       ]
     },
     {
+      "relation": "Orchestrates architectural schema generation and mapping",
+      "src_name": "Architectural Synthesis & Cluster Orchestrator",
+      "dst_name": "Architectural Surface & Visualization Generator",
+      "evidence": "The Orchestrator uses the Modeling component to transform raw LLM cluster analysis into structured architectural models. It invokes schema-building functions to define component boundaries, API surfaces, and inter-component relations based on agentic reasoning.",
+      "key_edges": [],
+      "src_id": "3.1",
+      "dst_id": "3.2.2",
+      "is_static": true,
+      "all_edges": [
+        {
+          "source": "output_generators/rendering.py|output_generators.rendering._load_entries",
+          "target": "utils.py|utils.sanitize",
+          "call_sites": [
+            {
+              "line": 131,
+              "column": 25
+            }
+          ],
+          "description": ""
+        }
+      ]
+    },
+    {
+      "relation": "Orchestrates architectural schema generation and mapping",
+      "src_name": "Architectural Synthesis & Cluster Orchestrator",
+      "dst_name": "Relational Logic & Edge Reconciliation",
+      "evidence": "The Orchestrator uses the Modeling component to transform raw LLM cluster analysis into structured architectural models. It invokes schema-building functions to define component boundaries, API surfaces, and inter-component relations based on agentic reasoning.",
+      "key_edges": [],
+      "src_id": "3.1",
+      "dst_id": "3.2.3",
+      "is_static": true,
+      "all_edges": [
+        {
+          "source": "output_generators/rendering.py|output_generators.rendering.project_relations_to_level",
+          "target": "agents/relation_edges.py|agents.relation_edges.append_or_merge_relation",
+          "call_sites": [
+            {
+              "line": 44,
+              "column": 9
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "output_generators/rendering.py|output_generators.rendering.project_relations_to_level",
+          "target": "agents/agent_responses.py|agents.agent_responses.Relation",
+          "call_sites": [
+            {
+              "line": 46,
+              "column": 13
+            }
+          ],
+          "description": ""
+        }
+      ]
+    },
+    {
+      "relation": "Synchronizes logical models with physical file state",
+      "src_name": "Architectural Synthesis & Cluster Orchestrator",
+      "dst_name": "Persistent State Schema & Index Models",
+      "evidence": "The Orchestrator triggers incremental updates by comparing current codebase state (fingerprints) with existing architectural models. It manages the lifecycle of file indexing and patches method-level metadata during the abstraction process.",
+      "key_edges": [],
+      "src_id": "3.1",
+      "dst_id": "3.3.1",
+      "is_static": true,
+      "all_edges": [
+        {
+          "source": "output_generators/rendering.py|output_generators.rendering._load_entries",
+          "target": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.parse_unified_analysis",
+          "call_sites": [
+            {
+              "line": 117,
+              "column": 35
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "output_generators/rendering.py|output_generators.rendering._load_entries",
+          "target": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.build_id_to_name_map",
+          "call_sites": [
+            {
+              "line": 118,
+              "column": 18
+            }
+          ],
+          "description": ""
+        }
+      ]
+    },
+    {
       "relation": "Requests LLM reasoning and validation",
       "src_name": "Cluster Synthesis & Summarization Engine",
       "dst_name": "Agent Resilience & Error Management",
@@ -44225,29 +44390,15 @@
       ]
     },
     {
-      "relation": "provides the data contract for visualization",
+      "relation": "Defines the data contract for documentation output",
       "src_name": "Component Schema & Structural Definitions",
       "dst_name": "Architectural Surface & Visualization Generator",
-      "evidence": "The visualization templates (Jinja2) and generator functions directly access attributes of Component and ComponentApiSurface objects.",
-      "key_edges": [
-        {
-          "source": "output_generators/html.py|output_generators.html.generate_html",
-          "target": "agents/agent_responses.py|agents.agent_responses.Component",
-          "call_sites": [],
-          "description": "HTML generator consumes Component schema attributes."
-        }
-      ],
+      "evidence": "Generators for HTML and Markdown directly consume the core schema models (Component, CFGAnalysisInsights) to populate templates and API surface descriptions.",
+      "key_edges": [],
       "src_id": "3.2.1",
       "dst_id": "3.2.2",
       "is_static": false,
-      "all_edges": [
-        {
-          "source": "output_generators/html.py|output_generators.html.generate_html",
-          "target": "agents/agent_responses.py|agents.agent_responses.Component",
-          "call_sites": [],
-          "description": "HTML generator consumes Component schema attributes."
-        }
-      ]
+      "all_edges": []
     },
     {
       "relation": "defines structural domain for graph reconciliation",
@@ -44360,25 +44511,11 @@
       "src_name": "Relational Logic & Edge Reconciliation",
       "dst_name": "Architectural Surface & Visualization Generator",
       "evidence": "The visualization generator consumes the processed and projected relations to build the final interactive graphs (Cytoscape) and documentation.",
-      "key_edges": [
-        {
-          "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-          "target": "output_generators/html.py|output_generators.html.generate_html",
-          "call_sites": [],
-          "description": "The output of the projection logic is passed directly to the HTML generator for visualization."
-        }
-      ],
+      "key_edges": [],
       "src_id": "3.2.3",
       "dst_id": "3.2.2",
       "is_static": false,
-      "all_edges": [
-        {
-          "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-          "target": "output_generators/html.py|output_generators.html.generate_html",
-          "call_sites": [],
-          "description": "The output of the projection logic is passed directly to the HTML generator for visualization."
-        }
-      ]
+      "all_edges": []
     },
     {
       "relation": "calls",
@@ -44603,29 +44740,6 @@
     {
       "relation": "Reconstitutes architectural models from persisted state",
       "src_name": "Persistent State Schema & Index Models",
-      "dst_name": "Architectural Surface & Visualization Generator",
-      "evidence": "The state layer parses unified analysis data and project relations back into the logical component models during incremental loads.",
-      "key_edges": [],
-      "src_id": "3.3.1",
-      "dst_id": "3.2.2",
-      "is_static": true,
-      "all_edges": [
-        {
-          "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering._load_entries",
-          "target": "utils.py|utils.sanitize",
-          "call_sites": [
-            {
-              "line": 99,
-              "column": 25
-            }
-          ],
-          "description": ""
-        }
-      ]
-    },
-    {
-      "relation": "Reconstitutes architectural models from persisted state",
-      "src_name": "Persistent State Schema & Index Models",
       "dst_name": "Relational Logic & Edge Reconciliation",
       "evidence": "The state layer parses unified analysis data and project relations back into the logical component models during incremental loads.",
       "key_edges": [],
@@ -44640,21 +44754,6 @@
             {
               "line": 29,
               "column": 9
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering._load_entries",
-          "target": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-          "call_sites": [
-            {
-              "line": 90,
-              "column": 42
-            },
-            {
-              "line": 96,
-              "column": 45
             }
           ],
           "description": ""
@@ -45158,7 +45257,7 @@
           "target": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_local.scope",
           "call_sites": [
             {
-              "line": 113,
+              "line": 115,
               "column": 15
             }
           ],
@@ -45192,7 +45291,7 @@
           "target": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
           "call_sites": [
             {
-              "line": 87,
+              "line": 89,
               "column": 9
             }
           ],
@@ -45234,15 +45333,26 @@
       ]
     },
     {
-      "relation": "Delegates documentation rendering and source context extraction",
+      "relation": "Dispatches analysis results for artifact generation",
       "src_name": "CLI Entry & Workflow Orchestrator",
       "dst_name": "CI/CD Automation & Multi-Format Reporter",
-      "evidence": "The orchestrator invokes rendering workflows to transform analyzed codebase data into final documentation formats.",
+      "evidence": "After the analysis workflow completes, the orchestrator passes the resulting source context and graph data to the reporter to generate Markdown, HTML, or JSON artifacts.",
       "key_edges": [],
       "src_id": "4.1.1.1",
       "dst_id": "4.1.3",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "main.py|main._dispatch",
+          "target": "output_generators/rendering.py|output_generators.rendering.render",
+          "call_sites": [
+            {
+              "line": 101,
+              "column": 17
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote",
           "target": "codeboarding_workflows/sources/remote.py|codeboarding_workflows.sources.remote.remote_source",
@@ -45378,19 +45488,7 @@
       "src_id": "4.1.1.2",
       "dst_id": "4.1.3",
       "is_static": true,
-      "all_edges": [
-        {
-          "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope",
-          "target": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.render_docs",
-          "call_sites": [
-            {
-              "line": 187,
-              "column": 13
-            }
-          ],
-          "description": ""
-        }
-      ]
+      "all_edges": []
     },
     {
       "relation": "Triggers analysis workflows and configures generators",
@@ -45711,22 +45809,22 @@
       ]
     },
     {
-      "relation": "Triggers high-level model generation",
+      "relation": "Triggers model generation and updates",
       "src_name": "CI/CD Automation & Multi-Format Reporter",
-      "dst_name": "Persistent State Schema & Index Models",
-      "evidence": "The workflow executes the AbstractionAgent to transform raw code structures into component-based architectural views and handles the resulting Pydantic models for reporting.",
+      "dst_name": "Architectural Synthesis & Cluster Orchestrator",
+      "evidence": "The final phase of the workflow invokes the abstraction agent to rebuild global relations and update the architectural scope based on new analysis.",
       "key_edges": [],
       "src_id": "4.1.3",
-      "dst_id": "3.3.1",
+      "dst_id": "3.1",
       "is_static": true,
       "all_edges": [
         {
-          "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.render_docs",
-          "target": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering._load_entries",
+          "source": "output_generators/rendering.py|output_generators.rendering.render_docs",
+          "target": "output_generators/rendering.py|output_generators.rendering._load_entries",
           "call_sites": [
             {
-              "line": 129,
-              "column": 38
+              "line": 154,
+              "column": 42
             }
           ],
           "description": ""
@@ -45773,6 +45871,29 @@
             {
               "line": 64,
               "column": 17
+            }
+          ],
+          "description": ""
+        }
+      ]
+    },
+    {
+      "relation": "Configures runtime logging and environment",
+      "src_name": "CI/CD Automation & Multi-Format Reporter",
+      "dst_name": "System Configuration & Health Orchestrator",
+      "evidence": "Automation entry points (like the GitHub Action runner) initialize the global logging state and validate the environment using the configuration validator's utilities.",
+      "key_edges": [],
+      "src_id": "4.1.3",
+      "dst_id": "4.1.2.1",
+      "is_static": true,
+      "all_edges": [
+        {
+          "source": "codeboarding_cli/render.py|codeboarding_cli.render.run_from_args",
+          "target": "logging_config.py|logging_config.setup_logging",
+          "call_sites": [
+            {
+              "line": 55,
+              "column": 5
             }
           ],
           "description": ""
