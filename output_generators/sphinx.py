@@ -33,7 +33,8 @@ def generated_mermaid_str(
         if comp.component_id in expanded_components:
             # Create a link to the component's details file
             if not demo:
-                lines.append(f'      click {node_key} href "{repo_ref}/{node_key}.html" "Details"')
+                docs_ref = repo_ref.rstrip("/") if repo_ref else "."
+                lines.append(f'      click {node_key} href "{docs_ref}/{node_key}.html" "Details"')
             else:
                 # For demo, link to a static URL
                 lines.append(
@@ -111,6 +112,9 @@ def generate_rst(
 
             for reference in comp.key_entities:
                 if not reference.reference_file:
+                    continue
+                if not repo_ref:
+                    lines.append(f"* {str(reference).replace('`', '')}")
                     continue
                 # Normalize paths for comparison
                 ref_file_normalized = str(Path(reference.reference_file)).replace("\\", "/")

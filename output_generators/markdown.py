@@ -30,7 +30,8 @@ def generated_mermaid_str(
         if comp.component_id in expanded_components:
             # Create a link to the component's details file
             if not demo:
-                lines.append(f'    click {node_key} href "{repo_ref}/{node_key}.md" "Details"')
+                docs_ref = repo_ref.rstrip("/") if repo_ref else "."
+                lines.append(f'    click {node_key} href "{docs_ref}/{node_key}.md" "Details"')
             else:
                 # For demo, link to a static URL
                 lines.append(
@@ -74,7 +75,7 @@ def generate_markdown(
             for reference in comp.key_entities:
                 if not reference.reference_file:
                     continue
-                if not os.path.exists(Path(root_dir) / reference.reference_file):
+                if not repo_ref or not os.path.exists(Path(root_dir) / reference.reference_file):
                     qn_list.append(f"{reference}")
                     continue
                 ref_url = repo_ref + reference.reference_file

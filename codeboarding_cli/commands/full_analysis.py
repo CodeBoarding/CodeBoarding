@@ -9,11 +9,11 @@ from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_
 from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import run_full
 from codeboarding_workflows.orchestration import run_analysis_pipeline
-from codeboarding_workflows.rendering import render_docs
 from codeboarding_workflows.sources import SourceContext, local_source, remote_source
 from diagram_analysis import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
+from output_generators.rendering import render_docs
 from repo_utils import get_branch, store_token
 from repo_utils.git_ops import get_current_commit
 from repo_utils.ignore import initialize_codeboardingignore
@@ -63,6 +63,8 @@ def validate_arguments(args: argparse.Namespace, parser: argparse.ArgumentParser
         parser.error("Provide either one or more remote repositories or --local, but not both.")
 
     if not has_local_repo:
+        if args.render is not None:
+            parser.error("--render only works with --local")
         if args.output_dir:
             parser.error("--output-dir only works with --local")
         if args.project_name:
@@ -112,7 +114,7 @@ def _run_local(args: argparse.Namespace) -> None:
         ),
         scope=scope,
     )
-    logger.info(f"Documentation generated successfully in {run_paths.output_dir}")
+    logger.info(f"Analysis generated successfully in {run_paths.output_dir}")
 
     print_view_instructions(run_paths.output_dir / ANALYSIS_FILENAME)
 
