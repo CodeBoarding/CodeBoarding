@@ -34,11 +34,12 @@ from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
-from agents.planner_agent import component_is_separable, get_expandable_components, leaf_load
+from agents.planner_agent import get_expandable_components
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
-from clustering import ClusteringService, scoped_snapshot_from_lineage
+from static_analyzer.clustering.separability import member_keys
+from static_analyzer.clustering.service import ClusteringResults, ClusteringService, scoped_snapshot_from_lineage
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
@@ -75,7 +76,7 @@ from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
-from clustering.cluster_relations import (
+from static_analyzer.clustering.cluster_relations import (
     build_global_node_to_component_map,
     build_global_relations,
     build_owner_index,
@@ -83,7 +84,7 @@ from clustering.cluster_relations import (
     prune_ungrounded_edges,
 )
 from static_analyzer.constants import Language
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
@@ -106,16 +107,9 @@ def _component_expansion_seeds(components: list[Component], max_depth: int) -> l
     ]
 
 
-def _member_keys(component: Component) -> frozenset[tuple[str, str]]:
-    """The ``(file_path, qualified_name)`` set a component owns — its membership identity."""
-    return frozenset(
-        (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
-    )
-
-
 def _owned_method_keys(components: Iterable[Component]) -> set[tuple[str, str]]:
     """The ``(file_path, qualified_name)`` set the given components collectively own."""
-    return {key for component in components for key in _member_keys(component)}
+    return {key for component in components for key in member_keys(component)}
 
 
 def _key_entity_is_owned(
@@ -154,7 +148,7 @@ def _reconcile_child_scope(
             for group in child.file_methods:
                 group.methods = [m for m in group.methods if (group.file_path, m.qualified_name) not in departed]
             child.file_methods = [group for group in child.file_methods if group.methods]
-            remaining = set(_member_keys(child))
+            remaining = set(member_keys(child))
             child.key_entities = [
                 entity for entity in child.key_entities if _key_entity_is_owned(entity, remaining, repo_dir)
             ]
@@ -275,7 +269,7 @@ def _capture_baseline_member_keys(
         for component in analysis.components:
             if not component.component_id:
                 continue
-            keys[component.component_id] = _member_keys(component)
+            keys[component.component_id] = member_keys(component)
     return keys
 
 
@@ -383,7 +377,7 @@ def _restore_unchanged_metadata(
             meta = baseline.meta_by_id.get(component.component_id)
             if meta is None:
                 continue
-            final_keys = _member_keys(component)
+            final_keys = member_keys(component)
             owns_changed_file = any(group.file_path in changed_files for group in component.file_methods)
             # Ignore membership changes caused only by symbols the commit added or deleted.
             drifted = {key for key in (final_keys ^ meta.member_keys) if key[1] not in changed_members}
@@ -446,7 +440,7 @@ def _fully_unchanged_component_ids(
                 continue
             if any(is_self_or_descendant(protected_id, cid) for protected_id in protected_ids):
                 continue
-            if _member_keys(component) == meta.member_keys:
+            if member_keys(component) == meta.member_keys:
                 fully_unchanged.add(cid)
     return fully_unchanged
 
@@ -532,7 +526,7 @@ def _incremental_changed_component_ids(
             component_id = component.component_id
             if not component_id:
                 continue
-            live_keys = _member_keys(component)
+            live_keys = member_keys(component)
             body_changed = any(
                 method.qualified_name in changed_members for group in component.file_methods for method in group.methods
             )
@@ -573,44 +567,26 @@ class DiagramGenerator:
         self.log_path = log_path
         self.monitoring_enabled = monitoring_enabled
         self.force_full_analysis = False  # Set to True to skip incremental updates
-        # Source-tree changeset for the iterative path. When set, the cluster
-        # delta drops drift qnames whose file is outside the diff AND outside
-        # the prior analysis (see ``compute_cluster_delta``). ``None`` runs
-        # unscoped (no drift filtering).
+        # Source-tree changeset for the iterative path; None runs unscoped (no drift filtering).
         self.changes: ChangeSet | None = changes
-        # Qnames whose method body changed vs the baseline, derived once per incremental run
-        # from the member-granular change signal. Drives copy-forward: an unchanged method is
-        # pinned back to its baseline owner, and the save-time global relation rebuild treats a
-        # component owning one of these as changed.
+        # Qnames whose method body changed vs the baseline; drives incremental copy-forward.
         self._changed_members: set[str] = set()
         # Changed files whose edit no hashed member represents (module-level/config content).
-        # A component owning one of these counts as changed even with no body-hash or membership
-        # change, so its metadata and global relations are re-derived, not carried over stale.
         self._changed_unattributed_files: set[str] = set()
-        # Incremental-only baseline captured at the top of ``generate_analysis_incremental``,
-        # so the save-time global relation rebuild can carry an edge between two unchanged
-        # components over verbatim instead of re-deriving (and re-labelling) it.
-        # ``None`` => full analysis: rebuild every relation. Keyed by ``(src_id, dst_id)``.
+        # Incremental-only relation baseline; None => full analysis rebuilds every relation.
         self._baseline_global_relations: dict[tuple[str, str], Relation] | None = None
         self._baseline_component_ids: set[str] = set()
-        # Per-component baseline member-key set, captured with the membership baseline. A
-        # component whose live member keys differ from these gained or lost a member (without
-        # necessarily a body-hash change), so its relations may legitimately relabel — the
-        # save-time global rebuild must treat it as changed.
         self._baseline_member_keys: dict[str, frozenset[tuple[str, str]]] = {}
-        # Whole-tree content hash, stamped into the pkl's sibling .sha file as the
-        # diff base for the next warm-start (NOT a cache gate). ``pre_analysis``
-        # fills it from the live tree when unset; ``None`` is a tag-less save.
+        # Whole-tree content hash, the diff base for the next warm-start (NOT a cache gate).
         self.source_sha: str | None = None
-        # Whole-tree ``{posix_path: sha16}`` fingerprint, computed once per run and
-        # reused for source_sha, the sidecar, and every save's source_tree_hash
-        # instead of re-walking the tree each time.
+        # Whole-tree {posix_path: sha16} fingerprint, computed once per run and reused.
         self._source_tree_fingerprint: dict[str, str] | None = None
         self._static_analyzer = static_analyzer
 
         self.details_agent: DetailsAgent | None = None
-        self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
+        self.static_analysis: StaticAnalysisResults | None = None
         self.clustering_service: ClusteringService | None = None
+        self.clustering_result: ClusteringResults | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
         self.incremental_agent: IncrementalAgent | None = None
@@ -619,57 +595,12 @@ class DiagramGenerator:
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
-        # Separability verdict per component member set. Traversal asks once per
-        # component and every save asks again for the whole tree; the subgraph build
-        # plus Leiden sweep behind each answer is the expensive part of the
-        # deterministic pipeline. Keyed by membership, so a changed component re-runs.
-        self._separable_cache: dict[frozenset[tuple[str, str]], bool] = {}
 
     @track_analysis
     def process_component(
         self, component: Component
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
         return self._process_component(component)
-
-    def _component_separable(self, component: Component) -> bool:
-        """Deterministic gate: should this component be split into sub-components?
-
-        A component past the leaf ceiling is split whatever its call structure
-        says — it is too big to read as one box, and that verdict needs no
-        subgraph. Otherwise the component's own subgraph decides, against a bar
-        that eases as the component grows. If the subgraph can't be built (e.g. a
-        legacy static-analysis baseline whose pickled edges predate the current
-        schema), fall back to the structural default of expanding rather than
-        aborting the run.
-
-        Memoized on the component's member set: traversal asks once per component
-        and every save asks again for the whole tree, and the answer depends on
-        nothing else. A component whose membership changed (including one pruned
-        by ``_strip_ignored``) gets a different key and is re-evaluated.
-        """
-        assert self.clustering_service is not None
-        load = leaf_load(component)
-        if load >= 1.0:
-            logger.info(f"[Planner] Component '{component.name}' is past the leaf ceiling (load {load:.2f}); expanding")
-            return True
-        key = _member_keys(component)
-        if key in self._separable_cache:
-            return self._separable_cache[key]
-        try:
-            cluster_results, subgraph_cfgs = self.clustering_service.component_subgraph(component)
-        except Exception:
-            logger.exception("Separability check failed for '%s'; defaulting to expandable", component.name)
-            return True
-        if not cluster_results:
-            separable = False
-        else:
-            # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
-            # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
-            # must not be judged cohesive on a call-only graph.
-            cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
-            separable = component_is_separable(cluster_results, cfg_graphs, load)
-        self._separable_cache[key] = separable
-        return separable
 
     def _expandable_ids_for_tree(
         self,
@@ -695,11 +626,15 @@ class DiagramGenerator:
         if self.details_agent is None:
             return None, None
 
+        def separable(component: Component) -> bool:
+            assert self.clustering_service is not None
+            return self.clustering_service.component_is_separable(component)
+
         def expandable_ids(scope: AnalysisInsights, parent_had_clusters: bool = True) -> list[str]:
             ids = [
                 component.component_id
                 for component in get_expandable_components(
-                    scope, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+                    scope, parent_had_clusters=parent_had_clusters, separable=separable
                 )
                 if component.component_id
             ]
@@ -730,18 +665,17 @@ class DiagramGenerator:
 
             # Clustering stage first: the component's subgraph clustering is an input
             # to the agent, which only names and relates the fixed groups.
-            clustering = self.clustering_service.cluster_component(
-                component, source_cluster_id_prefix=component.component_id
-            )
+            clustering = self.clustering_service.cluster_component(component)
             analysis = self.details_agent.run(component, clustering)
 
-            # Track whether parent had clusters for expansion decision
             parent_had_clusters = bool(component.source_cluster_ids)
 
-            # Get new components to analyze (deterministic, no LLM). The separability
-            # gate keeps cohesive sub-components as leaves rather than splitting them.
+            # Deterministic, no LLM: the separability gate keeps cohesive
+            # sub-components as leaves rather than splitting them.
             new_components = get_expandable_components(
-                analysis, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+                analysis,
+                parent_had_clusters=parent_had_clusters,
+                separable=self.clustering_service.component_is_separable,
             )
 
             return component.component_id, analysis, new_components
@@ -922,16 +856,16 @@ class DiagramGenerator:
 
     def _initialize_agents(
         self,
-        static_analysis: StaticAnalysisResults,
+        clustering: ClusteringResults,
         meta_context: MetaAnalysisInsights,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
     ) -> None:
-        """Initialize agents that depend on static analysis and project metadata."""
+        """Initialize agents that depend on the clustering result and project metadata."""
         self.details_agent = DetailsAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
-            static_analysis=static_analysis,
+            clustering=clustering,
             meta_context=meta_context,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
@@ -940,14 +874,14 @@ class DiagramGenerator:
         self.abstraction_agent = AbstractionAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
-            static_analysis=static_analysis,
+            clustering=clustering,
             meta_context=meta_context,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
         self.incremental_agent = IncrementalAgent(
             repo_dir=self.repo_location,
-            static_analysis=static_analysis,
+            clustering=clustering,
             project_name=self.repo_name,
             meta_context=meta_context,
             agent_llm=agent_llm,
@@ -998,7 +932,9 @@ class DiagramGenerator:
         self.static_analysis = static_analysis
         self.meta_context = meta_context
         # Clustering is its own pipeline stage: static analysis -> clustering -> agents.
+        # The project-scope result is derived once here and reused everywhere.
         self.clustering_service = ClusteringService(self.repo_location, static_analysis)
+        self.clustering_result = self.clustering_service.cluster_project()
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
@@ -1016,7 +952,7 @@ class DiagramGenerator:
 
         self._run_health_report(static_analysis)
 
-        self._initialize_agents(static_analysis, meta_context, agent_llm, parsing_llm)
+        self._initialize_agents(self.clustering_result, meta_context, agent_llm, parsing_llm)
 
         if self.monitoring_enabled:
             monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
@@ -1150,13 +1086,14 @@ class DiagramGenerator:
             assert self.abstraction_agent is not None
             assert self.clustering_service is not None
 
-            # Clustering stage: derive the deterministic top-level structure once,
-            # then hand it to the agent, which only names and relates the groups.
-            project_clustering = self.clustering_service.cluster_project()
-            analysis = self.abstraction_agent.run(project_clustering)
+            # The agent names and relates the deterministic top-level structure
+            # derived once in pre_analysis.
+            analysis = self.abstraction_agent.run()
             # Get the initial components to analyze (deterministic, no LLM). The
             # separability gate keeps cohesive top-level components as leaves.
-            root_components = get_expandable_components(analysis, separable=self._component_separable)
+            root_components = get_expandable_components(
+                analysis, separable=self.clustering_service.component_is_separable
+            )
             logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
             # Process components using a frontier queue: submit children as soon as parent finishes.
@@ -1643,9 +1580,9 @@ def assert_scope_containment(
         parent = components_by_id.get(component_id)
         if parent is None:
             continue
-        owned = _member_keys(parent)
+        owned = member_keys(parent)
         for child in child_scope.components:
-            escaped = _member_keys(child) - owned
+            escaped = member_keys(child) - owned
             if escaped:
                 violations.append(
                     f"{child.component_id or child.name} holds {len(escaped)} method(s) outside parent {component_id}"
@@ -1720,10 +1657,7 @@ def _build_scope_incremental_inputs(
     if not old_snapshot.all_cluster_ids():
         return {}, {}, StructuralClusterDiff()
 
-    cluster_results, subgraph_cfgs = clustering_service.component_subgraph(
-        component,
-        source_cluster_id_prefix=scope_id,
-    )
+    cluster_results, subgraph_cfgs = clustering_service.subgraph_clusters(component)
     delta = ClusterDelta(
         by_language={
             language: LanguageDelta(language=language, cluster_results=cluster_result)

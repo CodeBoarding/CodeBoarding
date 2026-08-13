@@ -30,16 +30,30 @@ from unittest.mock import MagicMock
 
 from agents.agent_responses import (
     AnalysisInsights,
+    ClusterAnalysis,
     Component,
     SourceCodeReference,
 )
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
-from clustering.assignment import populate_file_methods
+from agents.enrichment import StaticAnalysisEnricher
+from static_analyzer.clustering.service import ClusteringResults
 from diagram_analysis.diagram_generator import DiagramGenerator, assert_scope_containment
 from diagram_analysis.exceptions import ScopeContainmentError
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
+
+
+def populate_file_methods(analysis, cluster_results, repo_dir, static_analysis):
+    """Route through the enricher the way the agents do."""
+    clustering = ClusteringResults(
+        cluster_results=cluster_results,
+        cfg_graphs={},
+        cluster_analysis=ClusterAnalysis(cluster_components=[]),
+        static_analysis=static_analysis,
+    )
+    StaticAnalysisEnricher(clustering, repo_dir).populate_file_methods(analysis)
 
 
 def _assert_no_duplicate_methods(test_case: unittest.TestCase, analysis: AnalysisInsights):

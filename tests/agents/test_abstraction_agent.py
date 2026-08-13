@@ -13,7 +13,8 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.clustering.service import ClusteringResults
 
 
 class TestAbstractionAgent(unittest.TestCase):
@@ -52,50 +53,39 @@ class TestAbstractionAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_init(self):
-        # Test initialization
-        mock_llm = MagicMock()
-        mock_parsing_llm = MagicMock()
-        agent = AbstractionAgent(
-            repo_dir=self.repo_dir,
+    def _make_clustering(
+        self,
+        cluster_analysis: ClusterAnalysis | None = None,
+        cluster_results: dict[str, ClusterResult] | None = None,
+    ) -> ClusteringResults:
+        return ClusteringResults(
+            cluster_results=cluster_results or {},
+            cfg_graphs={},
+            cluster_analysis=cluster_analysis or ClusterAnalysis(cluster_components=[]),
             static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
         )
 
-        self.assertEqual(agent.project_name, self.project_name)
-        self.assertEqual(agent.meta_context, self.mock_meta_context)
-        self.assertIn("final_analysis", agent.prompts)
-
-    def _make_agent(self):
+    def _make_agent(self, clustering: ClusteringResults | None = None) -> AbstractionAgent:
         return AbstractionAgent(
             repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
+            clustering=clustering or self._make_clustering(),
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
             agent_llm=MagicMock(),
             parsing_llm=MagicMock(),
         )
 
-    @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
-    def test_step_final_analysis(self, mock_invoke_repair_validate):
-        # Test step_final_analysis
-        mock_llm = MagicMock()
-        mock_parsing_llm = MagicMock()
-        agent = AbstractionAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
+    def test_init(self):
+        agent = self._make_agent()
 
-        cluster_analysis = ClusterAnalysis(
-            cluster_components=[],
-        )
+        self.assertEqual(agent.project_name, self.project_name)
+        self.assertEqual(agent.meta_context, self.mock_meta_context)
+        self.assertIn("final_analysis", agent.prompts)
+
+    @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
+    def test_step_analysis_shell(self, mock_invoke_repair_validate):
+        cluster_results = {"python": ClusterResult(clusters={1: {"node1"}})}
+        agent = self._make_agent(self._make_clustering(cluster_results=cluster_results))
 
         mock_response = AnalysisInsights(
             description="Final analysis",
@@ -104,21 +94,13 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         mock_invoke_repair_validate.return_value = mock_response
 
-        # Create mock cluster_results
-        from static_analyzer.graph import ClusterResult
-
-        mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
-        cluster_results = {"python": mock_cluster_result}
-
-        result = agent.step_final_analysis(cluster_analysis, cluster_results)
+        result = agent.step_analysis_shell()
 
         self.assertEqual(result, mock_response)
 
     @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
-    def test_step_final_analysis_pins_one_component_per_group(self, mock_invoke_repair_validate):
+    def test_step_analysis_shell_pins_one_component_per_group(self, mock_invoke_repair_validate):
         """Even when the LLM merges/drops groups, the result has exactly one component per group."""
-        agent = self._make_agent()
-
         cluster_analysis = ClusterAnalysis(
             cluster_components=[
                 ClustersComponent(name="Group 1", cluster_ids=[1, 2], description="g1"),
@@ -126,6 +108,13 @@ class TestAbstractionAgent(unittest.TestCase):
                 ClustersComponent(name="Group 3", cluster_ids=[4, 5], description="g3"),
             ]
         )
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={1: {"a"}, 2: {"b"}, 3: {"c"}, 4: {"pkg.Widget"}, 5: {"e"}},
+            )
+        }
+        agent = self._make_agent(self._make_clustering(cluster_analysis, cluster_results))
+
         # LLM output: keeps Group 1, merges Group 2 + 3 into one component (drops a slot).
         mock_invoke_repair_validate.return_value = ComponentArchitecture(
             description="arch",
@@ -135,13 +124,7 @@ class TestAbstractionAgent(unittest.TestCase):
             ],
         )
 
-        cluster_results = {
-            "python": ClusterResult(
-                clusters={1: {"a"}, 2: {"b"}, 3: {"c"}, 4: {"pkg.Widget"}, 5: {"e"}},
-            )
-        }
-
-        result = agent.step_final_analysis(cluster_analysis, cluster_results)
+        result = agent.step_analysis_shell()
 
         # Exactly one component per group, each backed by exactly one group.
         self.assertEqual(len(result.components), 3)

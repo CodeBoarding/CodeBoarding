@@ -1,9 +1,13 @@
-"""Deterministic post-LLM assignment: pin the LLM's named components back onto the clusters.
+"""Enrichment of the LLM-generated analysis with static-analysis-derived facts.
 
-The clustering stage fixes the component groups; the LLM only names and describes
-them. These functions reconcile the LLM output with the clustering results —
-one component per group, every CFG method assigned to exactly one component, and
-the static relations between them — with all inputs passed explicitly.
+The clustering stage fixes the component groups; the LLM only names and
+describes them. ``StaticAnalysisEnricher`` reconciles the LLM output with one
+scope's ``ClusteringResults`` — one component per group, every CFG method
+assigned to exactly one component, and the static relations between them.
+
+The module-level functions serve the incremental path, whose scoped inputs
+(cluster results, subgraphs, id prefixes) are assembled per operation rather
+than carried by a ``ClusteringResults``.
 """
 
 import logging
@@ -26,20 +30,129 @@ from agents.content_hash import (
     read_source_lines,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from clustering.cluster_helpers import combine_cluster_results, group_symbols
-from clustering.cluster_relations import (
+from diagram_analysis.file_index import build_files_index
+from repo_utils.path_utils import normalize_repo_path
+from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering.cluster_helpers import combine_cluster_results, group_symbols
+from static_analyzer.clustering.cluster_relations import (
     build_component_relations,
     build_node_to_component_map,
     merge_relations,
 )
-from diagram_analysis.file_index import build_files_index
-from repo_utils.path_utils import normalize_repo_path
-from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.clustering.service import ClusteringResults
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
+
+
+class StaticAnalysisEnricher:
+    """Infills deterministic data into one scope's LLM-generated analysis.
+
+    Bound to the scope's ``ClusteringResults``: the project scope for the
+    abstraction flow, a component's subgraph scope for the details flow.
+    """
+
+    def __init__(self, clustering: ClusteringResults, repo_dir: Path):
+        self.clustering = clustering
+        self.repo_dir = repo_dir
+
+    def pin_components_to_groups(self, architecture: ComponentArchitecture) -> None:
+        """Force exactly one component per fixed group — the count is Leiden's, not the LLM's.
+
+        The groups (and their membership) are decided deterministically upstream;
+        the LLM only names and describes them. Whatever the LLM returns, we pin the
+        result to one component per group: the LLM's component that claimed a group
+        keeps its name/description/key_entities; any group the LLM merged away or
+        dropped gets a deterministic fallback so the count never drifts.
+        """
+        node_lookup = combine_cluster_results(self.clustering.cluster_results).clusters
+        claimant: dict[str, Component] = {}
+        for comp in architecture.components:
+            for group_name in comp.source_group_names:
+                claimant.setdefault(group_name.lower(), comp)
+
+        used: set[int] = set()
+        final: list[Component] = []
+        for group in self.clustering.cluster_analysis.cluster_components:
+            comp = claimant.get(group.name.lower())
+            if comp is None or id(comp) in used:
+                comp = _fallback_component(group, node_lookup)
+            else:
+                used.add(id(comp))
+                comp = comp.model_copy(deep=True)
+            comp.source_group_names = [group.name]
+            final.append(comp)
+
+        if len(final) != len(architecture.components):
+            logger.info(
+                f"[Enrichment] Reconciled {len(architecture.components)} LLM components "
+                f"to {len(final)} (one per deterministic group)"
+            )
+        architecture.components = final
+
+    def resolve_cluster_ids(self, analysis: AnalysisInsights) -> None:
+        """Resolve source_cluster_ids deterministically from source_group_names via case-insensitive lookup."""
+        group_name_to_ids: dict[str, list[GraphClusterId]] = {
+            cc.name.lower(): cc.cluster_ids for cc in self.clustering.cluster_analysis.cluster_components
+        }
+
+        for component in analysis.components:
+            resolved_ids = [
+                cid for gname in component.source_group_names for cid in group_name_to_ids.get(gname.lower(), [])
+            ]
+            unresolved = [g for g in component.source_group_names if g.lower() not in group_name_to_ids]
+            for gname in unresolved:
+                logger.warning(f"[Enrichment] Unresolved group name '{gname}' for component '{component.name}'")
+            component.source_cluster_ids = CodeBoardingClusterIds.from_graph_ids(set(resolved_ids))
+
+    def populate_file_methods(self, analysis: AnalysisInsights) -> None:
+        """Deterministically populate ``file_methods`` on every component.
+
+        Node-centric approach guaranteeing 100% coverage:
+        1. Build cluster_id -> component mapping from source_cluster_ids.
+        2. Validate that all clusters are mapped (log error if not).
+        3. For each node, assign via its cluster -> component mapping.
+        4. Orphan nodes (not in any cluster) go to the nearest cluster's component
+           or fall back to the first component.
+        5. Build ``FileMethodGroup`` lists grouped by file path.
+
+        Runs before ``build_static_relations`` prefixes the scope's cluster ids,
+        so the components still carry unqualified ids here.
+        """
+        # NOTE: These maps are intentionally rebuilt on each call — not cached — because
+        # cluster_results differ per scope (full graph at the top level vs.
+        # per-component subgraph in the details flow, which runs in parallel).
+        component_nodes, total_nodes = _assign_component_nodes(
+            analysis, self.clustering.cluster_results, self.clustering.static_analysis, self.clustering.cfg_graphs, ""
+        )
+
+        # One cache shared across the per-component method build and the files
+        # index so each source file is read from disk once, not twice.
+        source_cache: SourceCache = {}
+        for comp in analysis.components:
+            comp.file_methods = _build_file_methods_from_nodes(
+                component_nodes.get(comp.component_id, []), self.repo_dir, source_cache
+            )
+
+        analysis.files = build_files_index(analysis, self.repo_dir, source_cache)
+
+        _log_node_coverage(analysis, total_nodes)
+
+    def build_static_relations(self, analysis: AnalysisInsights) -> None:
+        """Ground the scope's relations in CFG edges, prefixing cluster ids with the scope id."""
+        build_static_relations(
+            analysis,
+            self.clustering.static_analysis,
+            self.clustering.cfg_graphs,
+            self.clustering.scope_id,
+        )
+
+    def cfg_evidence(self, analysis: AnalysisInsights) -> str:
+        """Cross-component static call evidence rendered for the LLM prompts."""
+        return build_scope_cfg_string(analysis, self.clustering.static_analysis)
 
 
 def _fallback_component(group: ClustersComponent, node_lookup: dict[int, set[str]]) -> Component:
@@ -47,111 +160,6 @@ def _fallback_component(group: ClustersComponent, node_lookup: dict[int, set[str
     symbols = group_symbols(group.cluster_ids, node_lookup)
     name = symbols[0].split(".")[-1] if symbols else group.name
     return Component(name=name, description=group.description, key_entities=[])
-
-
-def assemble_one_component_per_group(
-    architecture: ComponentArchitecture,
-    cluster_analysis: ClusterAnalysis,
-    cluster_results: dict[str, ClusterResult],
-) -> None:
-    """Force exactly one component per fixed group — the count is Leiden's, not the LLM's.
-
-    The groups (and their membership) are decided deterministically upstream;
-    the LLM only names and describes them. Whatever the LLM returns, we pin the
-    result to one component per group: the LLM's component that claimed a group
-    keeps its name/description/key_entities; any group the LLM merged away or
-    dropped gets a deterministic fallback so the count never drifts.
-    """
-    node_lookup = combine_cluster_results(cluster_results).clusters
-    claimant: dict[str, Component] = {}
-    for comp in architecture.components:
-        for group_name in comp.source_group_names:
-            claimant.setdefault(group_name.lower(), comp)
-
-    used: set[int] = set()
-    final: list[Component] = []
-    for group in cluster_analysis.cluster_components:
-        comp = claimant.get(group.name.lower())
-        if comp is None or id(comp) in used:
-            comp = _fallback_component(group, node_lookup)
-        else:
-            used.add(id(comp))
-            comp = comp.model_copy(deep=True)
-        comp.source_group_names = [group.name]
-        final.append(comp)
-
-    if len(final) != len(architecture.components):
-        logger.info(
-            f"[Assignment] Reconciled {len(architecture.components)} LLM components "
-            f"to {len(final)} (one per deterministic group)"
-        )
-    architecture.components = final
-
-
-def ensure_unique_key_entities(analysis: AnalysisInsights) -> None:
-    """
-    Ensure that key_entities are unique across components.
-
-    If a key_entity (identified by qualified_name) appears in multiple components,
-    keep it only in the component where it's most relevant:
-    1. If it's in the component's file_methods -> keep it there (highest priority)
-    2. Otherwise, keep it in the first component that references it
-
-    This prevents confusion in documentation where the same class/method
-    is listed as a "key entity" for multiple components.
-    """
-    logger.info("Ensuring key_entities are unique across components")
-
-    seen_entities: dict[str, Component] = {}
-
-    for component in analysis.components:
-        entities_to_remove = []
-
-        for key_entity in component.key_entities:
-            qname = key_entity.qualified_name
-
-            if qname in seen_entities:
-                original_component = seen_entities[qname]
-                ref_file = key_entity.reference_file
-
-                component_files = component.file_paths()
-                original_files = original_component.file_paths()
-                current_has_file = ref_file and any(ref_file in f for f in component_files)
-                original_has_file = ref_file and any(ref_file in f for f in original_files)
-
-                if current_has_file and not original_has_file:
-                    # Move to current component
-                    original_component.key_entities = [
-                        e for e in original_component.key_entities if e.qualified_name != qname
-                    ]
-                    seen_entities[qname] = component
-                    logger.debug(f"Moved key_entity '{qname}' from {original_component.name} to {component.name}")
-                else:
-                    # Keep in original component
-                    entities_to_remove.append(key_entity)
-                    logger.debug(
-                        f"Removed duplicate key_entity '{qname}' from {component.name} (kept in {original_component.name})"
-                    )
-            else:
-                seen_entities[qname] = component
-
-        component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
-
-
-def resolve_cluster_ids_from_groups(analysis: AnalysisInsights, cluster_analysis: ClusterAnalysis) -> None:
-    """Resolve source_cluster_ids deterministically from source_group_names via case-insensitive lookup."""
-    group_name_to_ids: dict[str, list[GraphClusterId]] = {
-        cc.name.lower(): cc.cluster_ids for cc in cluster_analysis.cluster_components
-    }
-
-    for component in analysis.components:
-        resolved_ids = [
-            cid for gname in component.source_group_names for cid in group_name_to_ids.get(gname.lower(), [])
-        ]
-        unresolved = [g for g in component.source_group_names if g.lower() not in group_name_to_ids]
-        for gname in unresolved:
-            logger.warning(f"[Assignment] Unresolved group name '{gname}' for component '{component.name}'")
-        component.source_cluster_ids = CodeBoardingClusterIds.from_graph_ids(set(resolved_ids))
 
 
 def _scoped_cfg(
@@ -457,47 +465,6 @@ def _assign_component_nodes(
         source_cluster_id_prefix,
     )
     return component_nodes, len(all_nodes)
-
-
-def populate_file_methods(
-    analysis: AnalysisInsights,
-    cluster_results: dict[str, ClusterResult],
-    repo_dir: Path,
-    static_analysis: StaticAnalysisResults,
-    cfg_graphs: dict[str, CallGraph] | None = None,
-    source_cluster_id_prefix: str = "",
-) -> None:
-    """Deterministically populate ``file_methods`` on every component.
-
-    Node-centric approach guaranteeing 100% coverage:
-    1. Build cluster_id -> component mapping from source_cluster_ids.
-    2. Validate that all clusters are mapped (log error if not).
-    3. For each node, assign via its cluster -> component mapping.
-    4. Orphan nodes (not in any cluster) go to the nearest cluster's component
-       or fall back to the first component.
-    5. Build ``FileMethodGroup`` lists grouped by file path.
-
-    ``cfg_graphs`` scopes node collection to the given graphs (e.g. a component
-    subgraph), preventing child components from exceeding parent scope.
-    """
-    # NOTE: These maps are intentionally rebuilt on each call — not cached — because
-    # cluster_results differ per invocation (full graph at the top level vs.
-    # per-component subgraph in the details flow, which runs in parallel).
-    component_nodes, total_nodes = _assign_component_nodes(
-        analysis, cluster_results, static_analysis, cfg_graphs, source_cluster_id_prefix
-    )
-
-    # One cache shared across the per-component method build and the files
-    # index so each source file is read from disk once, not twice.
-    source_cache: SourceCache = {}
-    for comp in analysis.components:
-        comp.file_methods = _build_file_methods_from_nodes(
-            component_nodes.get(comp.component_id, []), repo_dir, source_cache
-        )
-
-    analysis.files = build_files_index(analysis, repo_dir, source_cache)
-
-    _log_node_coverage(analysis, total_nodes)
 
 
 def component_file_method_groups(

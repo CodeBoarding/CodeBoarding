@@ -11,7 +11,7 @@ from agents.agent_responses import (
     assign_component_ids,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from clustering.cluster_relations import (
+from static_analyzer.clustering.cluster_relations import (
     ClusterRelation,
     build_node_to_component_map,
     build_component_relations,
@@ -238,7 +238,7 @@ class TestMergeRelations(unittest.TestCase):
         ]
         static_rels: list[ClusterRelation] = []  # No static evidence
 
-        with self.assertLogs("clustering.cluster_relations", level="WARNING") as logs:
+        with self.assertLogs("static_analyzer.clustering.cluster_relations", level="WARNING") as logs:
             merged = merge_relations(llm_rels, static_rels, analysis)
 
         self.assertEqual(len(merged), 1)

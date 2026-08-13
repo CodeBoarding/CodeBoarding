@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.graph import CallGraph
 
 
 @dataclass(frozen=True)

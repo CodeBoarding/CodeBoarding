@@ -6,12 +6,13 @@ import networkx as nx
 
 from agents.agent_responses import ClusterAnalysis, Component, SourceCodeReference
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from clustering.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN
-from clustering.service import ClusteringService, _expand_to_method_level_clusters
+from static_analyzer.clustering.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN
+from static_analyzer.clustering.service import ClusteringService, _expand_to_method_level_clusters
 from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
 
 
@@ -60,8 +61,8 @@ class TestGroupClusters(unittest.TestCase):
         cr, graph = _clustered_graph(range(1, 13))
         cluster_results = {"python": cr}
 
-        result = self.service.group_clusters(cluster_results, {"python": graph})
-        result_again = self.service.group_clusters(cluster_results, {"python": graph})
+        result = self.service._group_clusters(cluster_results, {"python": graph})
+        result_again = self.service._group_clusters(cluster_results, {"python": graph})
 
         self._assert_partition(result, list(range(1, 13)))
         # Deterministic: same membership on a re-run.
@@ -77,12 +78,12 @@ class TestGroupClusters(unittest.TestCase):
         js_cr, _ = _clustered_graph(range(7, 13))
         cluster_results = {"python": py_cr, "javascript": js_cr}
 
-        result = self.service.group_clusters(cluster_results, {"python": graph, "javascript": graph})
+        result = self.service._group_clusters(cluster_results, {"python": graph, "javascript": graph})
 
         self._assert_partition(result, list(range(1, 13)))
 
     def test_group_clusters_no_languages(self):
-        result = self.service.group_clusters({}, {})
+        result = self.service._group_clusters({}, {})
 
         self.assertIsInstance(result, ClusterAnalysis)
         self.assertEqual(result.cluster_components, [])
@@ -90,8 +91,8 @@ class TestGroupClusters(unittest.TestCase):
     def test_group_clusters_subcomponent_range(self):
         cr, graph = _clustered_graph(range(1, 11))
 
-        result = self.service.group_clusters({"python": cr}, {"python": graph}, SUBCOMPONENTS_MIN, SUBCOMPONENTS_MAX)
-        result_again = self.service.group_clusters(
+        result = self.service._group_clusters({"python": cr}, {"python": graph}, SUBCOMPONENTS_MIN, SUBCOMPONENTS_MAX)
+        result_again = self.service._group_clusters(
             {"python": cr}, {"python": graph}, SUBCOMPONENTS_MIN, SUBCOMPONENTS_MAX
         )
 
@@ -167,7 +168,7 @@ class TestComponentSubgraph(unittest.TestCase):
 
         self.mock_static_analysis.get_cfg.return_value = mock_cfg
 
-        subgraph_cluster_results, subgraph_cfgs = self.service.component_subgraph(self.test_component)
+        subgraph_cluster_results, subgraph_cfgs = self.service._component_subgraph(self.test_component)
 
         self.assertIs(subgraph_cluster_results["python"], mock_sub_cluster_result)
         self.assertIn("python", subgraph_cfgs)
@@ -179,7 +180,7 @@ class TestComponentSubgraph(unittest.TestCase):
     def test_component_without_methods_yields_empty_clustering(self):
         empty = Component(name="Empty", description="", key_entities=[])
 
-        cluster_results, subgraph_cfgs = self.service.component_subgraph(empty)
+        cluster_results, subgraph_cfgs = self.service._component_subgraph(empty)
 
         self.assertEqual(cluster_results, {})
         self.assertEqual(subgraph_cfgs, {})

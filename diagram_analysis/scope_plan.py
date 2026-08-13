@@ -27,7 +27,7 @@ from agents.cluster_ids import CodeBoardingClusterIds
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
 from repo_utils.path_utils import normalize_repo_path
-from clustering.cluster_helpers import (
+from static_analyzer.clustering.cluster_helpers import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
     TOP_LEVEL_COMPONENTS_MAX,
@@ -36,7 +36,7 @@ from clustering.cluster_helpers import (
     combine_cluster_results,
     group_symbols,
 )
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering.models import ClusterResult
 
 logger = logging.getLogger(__name__)
 

@@ -11,7 +11,7 @@ from agents.repair import ComponentRepairContext, repair_component_group_names, 
 from agents.validation import ValidationContext, validate_group_name_coverage, validate_key_entities
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.node import Node
 from static_analyzer.reference_resolver import StaticReferenceResolver
 

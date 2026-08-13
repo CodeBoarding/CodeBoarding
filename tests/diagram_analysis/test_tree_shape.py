@@ -8,7 +8,8 @@ from unittest.mock import patch
 from agents.agent_responses import AnalysisInsights, Component, Relation, SourceCodeReference
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from diagram_analysis.analysis_json import build_unified_analysis_json, parse_unified_analysis
-from diagram_analysis.diagram_generator import DiagramGenerator, _member_keys, _reconcile_child_scope
+from diagram_analysis.diagram_generator import DiagramGenerator, _reconcile_child_scope
+from static_analyzer.clustering.separability import member_keys
 from diagram_analysis.exceptions import ScopeContainmentError
 from static_analyzer.graph import CallGraph
 from static_analyzer.method_cluster_paths import MethodClusterPaths
@@ -347,8 +348,8 @@ class TestMembershipReconciliation(unittest.TestCase):
         _reconcile_child_scope(
             parent,
             child_scope,
-            set(_member_keys(parent)),
-            set(_member_keys(child)),
+            set(member_keys(parent)),
+            set(member_keys(child)),
             Path("."),
         )
 
@@ -364,7 +365,7 @@ class TestMembershipReconciliation(unittest.TestCase):
             parent,
             analysis(child),
             set(),
-            set(_member_keys(child)),
+            set(member_keys(child)),
             Path("."),
         )
 

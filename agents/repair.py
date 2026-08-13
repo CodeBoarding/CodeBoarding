@@ -7,7 +7,7 @@ from difflib import SequenceMatcher
 from typing import Protocol
 
 from agents.agent_responses import ClusterAnalysis, Component
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
@@ -73,6 +73,61 @@ def _fuzzy_match_group_name(
             best_score = score
             best_match = canonical_name
     return best_match
+
+
+def ensure_unique_key_entities(result: ComponentRepairTarget) -> None:
+    """Keep each key_entity (by qualified_name) in exactly one component.
+
+    If a key_entity appears in multiple components, keep it where it's most
+    relevant: the component whose files contain its reference_file, else the
+    first component that claimed it. Prevents documentation listing the same
+    class/method as a "key entity" of multiple components.
+    """
+    logger.info("Ensuring key_entities are unique across components")
+
+    seen_entities: dict[str, Component] = {}
+
+    for component in result.components:
+        entities_to_remove = []
+
+        for key_entity in component.key_entities:
+            qname = key_entity.qualified_name
+
+            if qname in seen_entities:
+                original_component = seen_entities[qname]
+                ref_file = key_entity.reference_file
+
+                component_files = component.file_paths()
+                original_files = original_component.file_paths()
+                current_has_file = ref_file and any(ref_file in f for f in component_files)
+                original_has_file = ref_file and any(ref_file in f for f in original_files)
+
+                if current_has_file and not original_has_file:
+                    # Move to current component
+                    original_component.key_entities = [
+                        e for e in original_component.key_entities if e.qualified_name != qname
+                    ]
+                    seen_entities[qname] = component
+                    logger.debug(f"Moved key_entity '{qname}' from {original_component.name} to {component.name}")
+                else:
+                    # Keep in original component
+                    entities_to_remove.append(key_entity)
+                    logger.debug(
+                        f"Removed duplicate key_entity '{qname}' from {component.name} (kept in {original_component.name})"
+                    )
+            else:
+                seen_entities[qname] = component
+
+        component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
+
+
+def repair_unique_key_entities(result: ComponentRepairTarget, context: ComponentRepairContext) -> None:
+    """Repair-chain form of ``ensure_unique_key_entities``.
+
+    Runs again post-resolution in the agents' pipelines, where resolved
+    reference files can settle which component keeps a contested entity.
+    """
+    ensure_unique_key_entities(result)
 
 
 def repair_key_entities(result: ComponentRepairTarget, context: ComponentRepairContext) -> None:

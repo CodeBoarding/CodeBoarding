@@ -15,6 +15,7 @@ from agents.agent_responses import AnalysisInsights, Component, Relation, Relati
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.incremental_agent import prune_empty_components, remove_deleted_files
+from static_analyzer.clustering.separability import member_keys
 from diagram_analysis.diagram_generator import (
     DiagramGenerator,
     _capture_baseline_member_keys,
@@ -22,7 +23,6 @@ from diagram_analysis.diagram_generator import (
     _fully_unchanged_component_ids,
     _graft_entered_methods,
     _incremental_changed_component_ids,
-    _member_keys,
     preserve_unchanged_relations,
     _restore_unchanged_membership,
     _restore_unchanged_metadata,
@@ -55,7 +55,7 @@ def analysis(*components: Component) -> AnalysisInsights:
 class TestMemberKeys(unittest.TestCase):
     def test_member_keys_pairs_every_method_with_its_file(self):
         comp = component("1", "A", {"a.py": ["a.one", "a.two"], "b.py": ["b.one"]})
-        self.assertEqual(_member_keys(comp), {("a.py", "a.one"), ("a.py", "a.two"), ("b.py", "b.one")})
+        self.assertEqual(member_keys(comp), {("a.py", "a.one"), ("a.py", "a.two"), ("b.py", "b.one")})
 
     def test_baseline_member_keys_span_root_and_sub_scopes(self):
         root = analysis(component("1", "A", {"a.py": ["a.one"]}))
@@ -209,8 +209,8 @@ class TestFullyUnchangedSubtrees(unittest.TestCase):
         preserved = _restore_unchanged_subtrees(root, subs, baseline, set(), set(), set())
 
         self.assertIn("1", preserved)
-        self.assertEqual(_member_keys(subs["1"].components[0]), frozenset({("a.py", "a.one")}))
-        self.assertEqual(_member_keys(subs["1"].components[1]), frozenset({("a.py", "a.two")}))
+        self.assertEqual(member_keys(subs["1"].components[0]), frozenset({("a.py", "a.one")}))
+        self.assertEqual(member_keys(subs["1"].components[1]), frozenset({("a.py", "a.two")}))
 
 
 class TestIncrementalChangedComponentIds(unittest.TestCase):
@@ -489,7 +489,7 @@ class TestGraftEnteredMethods(unittest.TestCase):
 
         _graft_entered_methods(child_scope, {("a.py", "a.three")}, parent_methods)
 
-        self.assertIn(("a.py", "a.three"), _member_keys(child_scope.components[0]))
+        self.assertIn(("a.py", "a.three"), member_keys(child_scope.components[0]))
 
     def test_method_from_an_unowned_file_falls_back_to_the_largest_child(self):
         child_scope = analysis(
@@ -500,7 +500,7 @@ class TestGraftEnteredMethods(unittest.TestCase):
 
         _graft_entered_methods(child_scope, {("c.py", "c.one")}, parent_methods)
 
-        self.assertIn(("c.py", "c.one"), _member_keys(child_scope.components[0]))
+        self.assertIn(("c.py", "c.one"), member_keys(child_scope.components[0]))
 
     def test_grafting_is_idempotent(self):
         child_scope = analysis(component("1.1", "A1", {"a.py": ["a.one"]}))
@@ -509,7 +509,7 @@ class TestGraftEnteredMethods(unittest.TestCase):
         _graft_entered_methods(child_scope, {("a.py", "a.two")}, parent_methods)
         _graft_entered_methods(child_scope, {("a.py", "a.two")}, parent_methods)
 
-        self.assertEqual(len(_member_keys(child_scope.components[0])), 2)
+        self.assertEqual(len(member_keys(child_scope.components[0])), 2)
 
 
 class TestProgressSaveNeverTruncates(unittest.TestCase):
@@ -574,7 +574,8 @@ class TestAnalysedSubtreeSurvivesTheSaveTimeVerdict(unittest.TestCase):
         )
         generator.details_agent = MagicMock()
         # The gate says "keep it as a leaf" for everything.
-        generator._component_separable = MagicMock(return_value=False)  # type: ignore[method-assign]
+        generator.clustering_service = MagicMock()
+        generator.clustering_service.component_is_separable = MagicMock(return_value=False)
         return generator
 
     def test_a_component_with_children_stays_expandable(self):
@@ -687,7 +688,7 @@ class TestChangedComponentGranularity(unittest.TestCase):
 
     def _changed(self, components, changed_members, changed_files):
         analysis = self._analysis(components)
-        baseline_keys = {c.component_id: _member_keys(c) for c in components}
+        baseline_keys = {c.component_id: member_keys(c) for c in components}
         return _incremental_changed_component_ids(
             analysis, {}, {c.component_id for c in components}, baseline_keys, changed_members, changed_files
         )

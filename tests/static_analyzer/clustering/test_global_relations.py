@@ -47,7 +47,7 @@ from agents.agent_responses import (
     assign_component_ids,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from clustering.cluster_relations import (
+from static_analyzer.clustering.cluster_relations import (
     build_component_relations,
     build_global_node_to_component_map,
     build_global_relations,

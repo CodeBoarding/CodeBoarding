@@ -5,7 +5,8 @@ import networkx as nx
 
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
-from static_analyzer.graph import Edge, CallGraph, ClusterResult
+from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.graph import Edge, CallGraph
 
 
 class TestNode(unittest.TestCase):

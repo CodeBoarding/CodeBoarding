@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from agents.agent_responses import (
     AnalysisInsights,
+    ClusterAnalysis,
     ComponentApiSurface,
     ComponentApiSurfaces,
     ComponentRelations,
@@ -27,7 +28,9 @@ from agents.incremental_agent import (
 from agents.incremental_results import ScopeRelationContext
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.clustering.service import ClusteringResults
+from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
 
 
@@ -510,10 +513,16 @@ class TestIncrementalRelations(unittest.TestCase):
             "python": ClusterResult(clusters={1: {source.fully_qualified_name}, 2: {target.fully_qualified_name}})
         }
 
+        clustering = ClusteringResults(
+            cluster_results={},
+            cfg_graphs={},
+            cluster_analysis=ClusterAnalysis(cluster_components=[]),
+            static_analysis=static_analysis,
+        )
         with patch("agents.agent.create_agent", return_value=MagicMock()):
             agent = IncrementalAgent(
                 repo_dir=Path("/tmp/fake-repo"),
-                static_analysis=static_analysis,
+                clustering=clustering,
                 project_name="Test",
                 meta_context=None,
                 agent_llm=MagicMock(),

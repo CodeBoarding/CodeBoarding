@@ -15,7 +15,8 @@ from pathlib import Path
 import networkx as nx
 
 from agents.agent_responses import ClusterAnalysis, ClustersComponent, Component
-from clustering.cluster_helpers import (
+from static_analyzer.clustering import separability
+from static_analyzer.clustering.cluster_helpers import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
     TOP_LEVEL_COMPONENTS_MAX,
@@ -32,17 +33,20 @@ from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
 from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
-from static_analyzer.graph import METHOD_LEVEL_STRATEGY, CallGraph, ClusterResult
+from static_analyzer.clustering.models import ClusterResult, METHOD_LEVEL_STRATEGY
+from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class ClusteringResults:
-    """One scope's clustering output, handed to the agents as a plain input.
+    """One scope's clustering output — the agents' single analysis input.
 
     Produced for the whole repository (``cluster_project``) or for one
-    component's subgraph (``cluster_component``).
+    component's subgraph (``cluster_component``). Carries the
+    ``StaticAnalysisResults`` the clustering was derived from, so consumers
+    need no separate static-analysis handle.
     """
 
     #: language -> leaf clusters
@@ -51,6 +55,10 @@ class ClusteringResults:
     cfg_graphs: dict[str, CallGraph]
     #: deterministic component groups ("Group i"); the LLM only names them
     cluster_analysis: ClusterAnalysis
+    #: the static analysis this clustering was derived from
+    static_analysis: StaticAnalysisResults
+    #: component id whose subgraph this scope is; "" for the whole project
+    scope_id: str = ""
 
 
 def scoped_snapshot_from_lineage(cfg: CallGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
@@ -152,6 +160,11 @@ class ClusteringService:
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults):
         self.repo_dir = repo_dir
         self.static_analysis = static_analysis
+        # Separability verdict per component member set: traversal asks once per
+        # component and every save asks again for the whole tree, and the subgraph
+        # build plus Leiden sweep behind each answer is the expensive part of the
+        # deterministic pipeline. A changed component gets a different key.
+        self._separable_cache: dict[frozenset[tuple[str, str]], bool] = {}
 
     def cluster_project(self) -> ClusteringResults:
         """Cluster the whole repository and group the leaf clusters into top-level components.
@@ -161,7 +174,7 @@ class ClusteringService:
         here beats handing the agents an empty architecture that crashes downstream.
         """
         cluster_results = build_all_cluster_results(self.static_analysis)
-        cluster_analysis = self.group_clusters(
+        cluster_analysis = self._group_clusters(
             cluster_results,
             {lang: self.static_analysis.get_cfg(Language(lang)).clustering_networkx() for lang in cluster_results},
         )
@@ -174,12 +187,17 @@ class ClusteringService:
             cluster_results=cluster_results,
             cfg_graphs=self.static_analysis.available_cfgs(),
             cluster_analysis=cluster_analysis,
+            static_analysis=self.static_analysis,
         )
 
-    def cluster_component(self, component: Component, source_cluster_id_prefix: str = "") -> ClusteringResults:
-        """Cluster one component's subgraph and group it into sub-component groups."""
-        cluster_results, subgraph_cfgs = self.component_subgraph(component, source_cluster_id_prefix)
-        cluster_analysis = self.group_clusters(
+    def cluster_component(self, component: Component) -> ClusteringResults:
+        """Cluster one component's subgraph and group it into sub-component groups.
+
+        Records the resulting cluster lineage on the parent CFG under the
+        component's id.
+        """
+        cluster_results, subgraph_cfgs = self._component_subgraph(component, component.component_id)
+        cluster_analysis = self._group_clusters(
             cluster_results,
             {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()},
             SUBCOMPONENTS_MIN,
@@ -189,9 +207,60 @@ class ClusteringService:
             cluster_results=cluster_results,
             cfg_graphs=subgraph_cfgs,
             cluster_analysis=cluster_analysis,
+            static_analysis=self.static_analysis,
+            scope_id=component.component_id,
         )
 
-    def group_clusters(
+    def subgraph_clusters(self, component: Component) -> tuple[dict[str, ClusterResult], dict[str, CallGraph]]:
+        """The component's scoped leaf clusters and subgraph CFGs, without grouping.
+
+        For consumers that need the raw scoped clustering (e.g. the incremental
+        structural diff) rather than component groups. Records cluster lineage
+        under the component's id, like ``cluster_component``.
+        """
+        return self._component_subgraph(component, component.component_id)
+
+    def component_is_separable(self, component: Component) -> bool:
+        """Deterministic gate: should this component be split into sub-components?
+
+        A component past the leaf ceiling is split whatever its call structure
+        says — it is too big to read as one box, and that verdict needs no
+        subgraph. Otherwise the component's own subgraph decides, against a bar
+        that eases as the component grows. If the subgraph can't be built (e.g. a
+        legacy static-analysis baseline whose pickled edges predate the current
+        schema), fall back to the structural default of expanding rather than
+        aborting the run.
+
+        Memoized on the component's member set; a component whose membership
+        changed gets a different key and is re-evaluated. The probe never
+        records cluster lineage.
+        """
+        load = separability.leaf_load(component)
+        if load >= 1.0:
+            logger.info(
+                f"[Clustering] Component '{component.name}' is past the leaf ceiling (load {load:.2f}); expanding"
+            )
+            return True
+        key = separability.member_keys(component)
+        if key in self._separable_cache:
+            return self._separable_cache[key]
+        try:
+            cluster_results, subgraph_cfgs = self._component_subgraph(component, source_cluster_id_prefix="")
+        except Exception:
+            logger.exception("Separability check failed for '%s'; defaulting to expandable", component.name)
+            return True
+        if not cluster_results:
+            separable = False
+        else:
+            # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
+            # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
+            # must not be judged cohesive on a call-only graph.
+            cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
+            separable = separability.component_is_separable(cluster_results, cfg_graphs, load)
+        self._separable_cache[key] = separable
+        return separable
+
+    def _group_clusters(
         self,
         cluster_results: dict[str, ClusterResult],
         cfg_graphs: dict[str, nx.DiGraph],
@@ -203,7 +272,7 @@ class ClusteringService:
         The count (modularity peak over ``[low, high]``) and membership are chosen
         deterministically, so the structure is stable across re-runs — the LLM no
         longer decides it. Each group gets a stable ``Group i`` label and a summary
-        of its members; the agents' final-analysis step only names and describes them.
+        of its members; the agents' analysis-shell step only names and describes them.
 
         ``cfg_graphs`` must span exactly the same scope as ``cluster_results`` — the
         component's own subgraph when splitting a component, the whole repo at the
@@ -226,7 +295,7 @@ class ClusteringService:
         )
         return ClusterAnalysis(cluster_components=cluster_components)
 
-    def component_subgraph(
+    def _component_subgraph(
         self,
         component: Component,
         source_cluster_id_prefix: str = "",

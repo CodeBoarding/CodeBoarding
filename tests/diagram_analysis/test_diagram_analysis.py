@@ -46,7 +46,8 @@ from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
 
 
@@ -944,8 +945,12 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
 
-        with (patch("diagram_analysis.diagram_generator.IncrementalAgent") as mock_incremental,):
+        with (
+            patch("diagram_analysis.diagram_generator.IncrementalAgent") as mock_incremental,
+            patch("diagram_analysis.diagram_generator.ClusteringService") as mock_clustering_service,
+        ):
             gen.pre_analysis()
+        self.assertIs(gen.clustering_result, mock_clustering_service.return_value.cluster_project.return_value)
 
         # Verify agents were created
         self.assertIsNotNone(gen.meta_agent)

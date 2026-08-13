@@ -10,7 +10,7 @@ import unittest
 
 import networkx as nx
 
-from clustering.cluster_helpers import (
+from static_analyzer.clustering.cluster_helpers import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
     _absorb_leftovers,
@@ -21,7 +21,7 @@ from clustering.cluster_helpers import (
     anchored_grouping,
     supercluster_by_modularity_peak,
 )
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering.models import ClusterResult
 
 
 def blocks(n_blocks: int, per_block: int, members_each: int = 3):

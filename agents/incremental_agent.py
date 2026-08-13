@@ -39,12 +39,12 @@ from agents.prompts import (
     get_system_message,
 )
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
-from clustering.assignment import (
+from agents.enrichment import (
     build_scope_cfg_string,
     build_static_relations,
     component_file_method_groups,
 )
-from clustering.cluster_relations import (
+from static_analyzer.clustering.cluster_relations import (
     build_node_to_component_map,
     build_owner_index,
     prune_ungrounded_edges,
@@ -56,7 +56,9 @@ from monitoring import trace
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.clustering.service import ClusteringResults
+from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +69,7 @@ class IncrementalAgent(CodeBoardingAgent):
     def __init__(
         self,
         repo_dir: Path,
-        static_analysis: StaticAnalysisResults,
+        clustering: ClusteringResults,
         project_name: str,
         meta_context: MetaAnalysisInsights | None,
         agent_llm: BaseChatModel,
@@ -75,11 +77,12 @@ class IncrementalAgent(CodeBoardingAgent):
         changes: ChangeSet | None = None,
     ):
         system_message = format_project_system_message(get_system_message(), project_name, meta_context)
-        super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
+        super().__init__(repo_dir, clustering.static_analysis, system_message, agent_llm, parsing_llm)
         if changes is not None:
             self.toolkit.context.changes = changes
         self.project_name = project_name
         self.meta_context = meta_context
+        self.clustering = clustering
         self.prompts = {
             "new_component_details": PromptTemplate(
                 template=get_final_analysis_message(),
@@ -553,7 +556,7 @@ class IncrementalAgent(CodeBoardingAgent):
         """A sibling agent with its own toolkit context, for concurrent scope regeneration."""
         return IncrementalAgent(
             repo_dir=self.repo_dir,
-            static_analysis=self.static_analysis,
+            clustering=self.clustering,
             project_name=self.project_name,
             meta_context=self.meta_context,
             agent_llm=self.agent_llm,

@@ -4,13 +4,12 @@ import unittest
 
 import networkx as nx
 
-from agents.planner_agent import (
+from agents.planner_agent import get_expandable_components, should_expand_component
+from static_analyzer.clustering.separability import (
     MAX_LEAF_FILES,
     MAX_LEAF_METHODS,
     component_is_separable,
-    get_expandable_components,
     leaf_load,
-    should_expand_component,
 )
 from agents.agent_responses import (
     AnalysisInsights,
@@ -18,7 +17,7 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from static_analyzer.graph import METHOD_LEVEL_STRATEGY, ClusterResult
+from static_analyzer.clustering.models import ClusterResult, METHOD_LEVEL_STRATEGY
 
 
 class TestShouldExpandComponent(unittest.TestCase):

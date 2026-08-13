@@ -46,7 +46,7 @@ class IncrementalCacheMissingError(RuntimeError):
 class IncrementalClusteringError(RuntimeError):
     """Raised when a scope's clustering comes back empty but it still owns live methods.
 
-    ``ClusteringService.component_subgraph`` expands to one cluster per method whenever a
+    ``ClusteringService.cluster_component`` expands to one cluster per method whenever a
     component has any live callable node, so an empty clustering means none of the methods
     the scope claims exist in the live call graph. Continuing would save the scope's stale
     membership and relations and hide the missed change; per the fail-fast rule the caller

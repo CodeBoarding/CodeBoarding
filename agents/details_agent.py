@@ -7,7 +7,6 @@ from langchain_core.language_models import BaseChatModel
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
-    ClusterAnalysis,
     ComponentApiSurfaces,
     ComponentArchitecture,
     ComponentRelations,
@@ -16,6 +15,7 @@ from agents.agent_responses import (
     assign_component_ids,
     assign_relation_ids,
 )
+from agents.enrichment import StaticAnalysisEnricher
 from agents.prompts import (
     get_system_details_message,
     get_details_message,
@@ -24,7 +24,13 @@ from agents.prompts import (
     format_project_system_message,
 )
 from agents.relation_edges import index_relation_endpoints
-from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
+from agents.repair import (
+    ComponentRepairContext,
+    ensure_unique_key_entities,
+    repair_component_group_names,
+    repair_key_entities,
+    repair_unique_key_entities,
+)
 from caching.cache import ModelSettings
 from caching.details_cache import FinalAnalysisCache
 from agents.validation import (
@@ -33,29 +39,18 @@ from agents.validation import (
     validate_key_entities,
     validate_relations,
 )
-from clustering import ClusteringResults
-from clustering.assignment import (
-    assemble_one_component_per_group,
-    build_scope_cfg_string,
-    build_static_relations,
-    ensure_unique_key_entities,
-    populate_file_methods,
-    resolve_cluster_ids_from_groups,
-)
 from monitoring import trace
-from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering.service import ClusteringResults
 
 logger = logging.getLogger(__name__)
 
 
 class DetailsAgent(CodeBoardingAgent):
-    """Names and relates one component's sub-components fixed by the clustering stage."""
 
     def __init__(
         self,
         repo_dir: Path,
-        static_analysis: StaticAnalysisResults,
+        clustering: ClusteringResults,
         project_name: str,
         meta_context: MetaAnalysisInsights,
         agent_llm: BaseChatModel,
@@ -63,7 +58,7 @@ class DetailsAgent(CodeBoardingAgent):
         run_id: str,
     ):
         system_message = format_project_system_message(get_system_details_message(), project_name, meta_context)
-        super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
+        super().__init__(repo_dir, clustering.static_analysis, system_message, agent_llm, parsing_llm)
         self.project_name = project_name
         self.meta_context = meta_context
         self.run_id = run_id
@@ -93,25 +88,15 @@ class DetailsAgent(CodeBoardingAgent):
         }
 
     @trace
-    def step_final_analysis(
+    def step_analysis_shell(
         self,
         component: Component,
-        cluster_analysis: ClusterAnalysis,
-        subgraph_cluster_results: dict[str, ClusterResult],
-        subgraph_cfgs: dict[str, CallGraph],
+        clustering: ClusteringResults,
+        enricher: StaticAnalysisEnricher,
     ) -> AnalysisInsights:
-        """
-        Generate detailed final analysis from grouped clusters.
-
-        Args:
-            component: The component being analyzed
-            cluster_analysis: The clustered structure from the clustering stage
-            subgraph_cluster_results: Cluster results for the subgraph (for validation)
-
-        Returns:
-            AnalysisInsights with detailed component information
-        """
-        logger.info(f"[DetailsAgent] Generating final detailed analysis for: {component.name}")
+        """Name and describe the component's fixed sub-groups into the analysis shell (no relations yet)."""
+        logger.info(f"[DetailsAgent] Generating detailed analysis shell for: {component.name}")
+        cluster_analysis = clustering.cluster_analysis
         cluster_str = cluster_analysis.llm_str() if cluster_analysis else "No cluster analysis available."
 
         group_names = [cc.name for cc in cluster_analysis.cluster_components] if cluster_analysis else []
@@ -128,12 +113,12 @@ class DetailsAgent(CodeBoardingAgent):
             )
 
         self.toolkit.context.cluster_analysis = cluster_analysis
-        self.toolkit.context.cluster_results = subgraph_cluster_results
-        self.toolkit.context.cfg_graphs = subgraph_cfgs
+        self.toolkit.context.cluster_results = clustering.cluster_results
+        self.toolkit.context.cfg_graphs = clustering.cfg_graphs
 
         context = ValidationContext(
-            cluster_results=subgraph_cluster_results,
-            static_analysis=self.static_analysis,
+            cluster_results=clustering.cluster_results,
+            static_analysis=clustering.static_analysis,
             llm_cluster_analysis=cluster_analysis,
         )
 
@@ -144,20 +129,20 @@ class DetailsAgent(CodeBoardingAgent):
         architecture = self._invoke_repair_validate(
             prompt,
             ComponentArchitecture,
-            repairs=[repair_component_group_names, repair_key_entities],
+            repairs=[repair_component_group_names, repair_key_entities, repair_unique_key_entities],
             validators=[
                 validate_group_name_coverage,
                 validate_key_entities,
             ],
             repair_context=ComponentRepairContext(
                 reference_resolver=self.reference_resolver,
-                cluster_results=subgraph_cluster_results,
+                cluster_results=clustering.cluster_results,
                 llm_cluster_analysis=cluster_analysis,
             ),
             validation_context=context,
             max_validation_attempts=3,
         )
-        assemble_one_component_per_group(architecture, cluster_analysis, subgraph_cluster_results)
+        enricher.pin_components_to_groups(architecture)
         result = AnalysisInsights(
             description=architecture.description,
             components=architecture.components,
@@ -171,12 +156,11 @@ class DetailsAgent(CodeBoardingAgent):
         return result
 
     @trace
-    def step_api_surfaces(self, analysis: AnalysisInsights) -> ComponentApiSurfaces:
+    def step_api_surfaces(self, analysis: AnalysisInsights, enricher: StaticAnalysisEnricher) -> ComponentApiSurfaces:
         logger.info(f"[DetailsAgent] Analyzing component API surfaces for: {self.project_name}")
-        static_call_evidence = build_scope_cfg_string(analysis, self.static_analysis)
         prompt = self.prompts["api_surfaces"].format(
             component_summaries=analysis.llm_str(),
-            static_call_evidence=static_call_evidence,
+            static_call_evidence=enricher.cfg_evidence(analysis),
         )
         return self._parse_invoke(prompt, ComponentApiSurfaces)
 
@@ -185,30 +169,28 @@ class DetailsAgent(CodeBoardingAgent):
         self,
         analysis: AnalysisInsights,
         api_surfaces: ComponentApiSurfaces,
-        cluster_analysis: ClusterAnalysis,
-        cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph],
-        source_cluster_id_prefix: str,
+        clustering: ClusteringResults,
+        enricher: StaticAnalysisEnricher,
     ) -> None:
         logger.info(f"[DetailsAgent] Discovering component relations for: {self.project_name}")
-        static_call_evidence = build_scope_cfg_string(analysis, self.static_analysis)
+        cluster_analysis = clustering.cluster_analysis
         self.toolkit.context.cluster_analysis = cluster_analysis
-        self.toolkit.context.cluster_results = cluster_results
-        self.toolkit.context.cfg_graphs = cfg_graphs
+        self.toolkit.context.cluster_results = clustering.cluster_results
+        self.toolkit.context.cfg_graphs = clustering.cfg_graphs
         prompt = self.prompts["relation_analysis"].format(
             component_summaries=analysis.llm_str(),
             api_surfaces=api_surfaces.llm_str(),
-            static_call_evidence=static_call_evidence,
+            static_call_evidence=enricher.cfg_evidence(analysis),
         )
         relation_result = self._invoke_validate(
             prompt,
             ComponentRelations,
             validators=[validate_relations],
             validation_context=ValidationContext(
-                cluster_results=cluster_results,
-                cfg_graphs=cfg_graphs,
+                cluster_results=clustering.cluster_results,
+                cfg_graphs=clustering.cfg_graphs,
                 repo_dir=str(self.repo_dir),
-                static_analysis=self.static_analysis,
+                static_analysis=clustering.static_analysis,
                 llm_cluster_analysis=cluster_analysis,
                 components=analysis.components,
             ),
@@ -216,68 +198,29 @@ class DetailsAgent(CodeBoardingAgent):
         )
         analysis.components_relations = relation_result.components_relations
         assign_relation_ids(analysis)
-        build_static_relations(analysis, self.static_analysis, cfg_graphs, source_cluster_id_prefix)
+        enricher.build_static_relations(analysis)
 
     def run(self, component: Component, clustering: ClusteringResults) -> AnalysisInsights:
-        """
-        Analyze a component in detail from its pre-clustered subgraph.
+        """Analyze a component in detail from its pre-clustered subgraph.
 
-        This follows the same pattern as AbstractionAgent but operates on the
-        component-level clustering produced by ``ClusteringService.cluster_component``.
-
-        Pipeline:
-        1. LLM creates components from the fixed sub-component groups
-           (validated: key_entities must be in cluster scope)
-        2. Deterministically assign methods via cluster -> component mapping
-        3. Discover relations, resolve references
-
-        Args:
-            component: Component to analyze in detail
-            clustering: The component's subgraph clustering results
-
-        Returns:
-            AnalysisInsights with detailed component information
+        ``clustering`` is the component-level scope produced by
+        ``ClusteringService.cluster_component``: the LLM names the fixed
+        sub-component groups, then the enricher infills the deterministic data.
         """
         logger.info(f"[DetailsAgent] Processing component: {component.name}")
-        cluster_analysis = clustering.cluster_analysis
-        subgraph_cluster_results = clustering.cluster_results
-        subgraph_cfgs = clustering.cfg_graphs
+        enricher = StaticAnalysisEnricher(clustering, self.repo_dir)
 
-        # Step 1: Generate detailed analysis from grouped clusters
-        # Validation ensures key_entities are within cluster scope (no rescue needed)
-        analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results, subgraph_cfgs)
-
-        # Step 2: Assign hierarchical component IDs (e.g., "1.1", "1.2" under parent "1")
+        analysis = self.step_analysis_shell(component, clustering, enricher)
         assign_component_ids(analysis, parent_id=component.component_id)
+        enricher.resolve_cluster_ids(analysis)
+        enricher.populate_file_methods(analysis)
 
-        # Step 3: Resolve cluster IDs deterministically from group names
-        resolve_cluster_ids_from_groups(analysis, cluster_analysis)
+        api_surfaces = self.step_api_surfaces(analysis, enricher)
+        self.step_relation_analysis(analysis, api_surfaces, clustering, enricher)
 
-        # Step 4: Populate file_methods deterministically from cluster results + orphan assignment
-        # Pass subgraph_cfgs to scope node collection to the component's filtered graph
-        # With method-level expansion, each method has its own cluster -> deterministic assignment
-        populate_file_methods(analysis, subgraph_cluster_results, self.repo_dir, self.static_analysis, subgraph_cfgs)
-
-        # Step 5: Analyze component API surfaces
-        api_surfaces = self.step_api_surfaces(analysis)
-
-        # Step 6: Discover relations from API surfaces and attach deterministic all_edges
-        self.step_relation_analysis(
-            analysis,
-            api_surfaces,
-            cluster_analysis,
-            subgraph_cluster_results,
-            subgraph_cfgs,
-            component.component_id,
-        )
-
-        # Step 7: Fix source code reference lines (resolves reference_file paths)
+        # Resolve source references, then finish the passes that depend on them.
         analysis = self.reference_resolver.fix_source_code_reference_lines(analysis)
-
-        # Step 8: Index relation endpoints after reference resolution
         index_relation_endpoints(analysis, self.repo_dir)
-
-        # Step 9: Ensure unique key entities across components
         ensure_unique_key_entities(analysis)
 
         return analysis

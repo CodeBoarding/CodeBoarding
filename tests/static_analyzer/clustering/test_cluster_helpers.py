@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from clustering.cluster_helpers import (
+from static_analyzer.clustering.cluster_helpers import (
     TOP_LEVEL_COMPONENTS_MAX,
     TOP_LEVEL_COMPONENTS_MIN,
     build_all_cluster_results,
@@ -13,7 +13,7 @@ from clustering.cluster_helpers import (
     supercluster_by_modularity_peak,
     supercluster_leaf_ids,
 )
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering.models import ClusterResult
 
 
 def _make_cluster_result(prefix: str, count: int) -> ClusterResult:

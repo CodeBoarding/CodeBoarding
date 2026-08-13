@@ -1,6 +1,6 @@
 import unittest
 
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering.models import ClusterResult
 
 
 class TestClusterResult(unittest.TestCase):

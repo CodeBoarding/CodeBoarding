@@ -11,18 +11,35 @@ from agents.agent_responses import (
     Component,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from clustering.assignment import (
+from agents.enrichment import (
+    StaticAnalysisEnricher,
     _build_file_methods_from_nodes,
     _build_undirected_graphs,
     _find_nearest_cluster,
     build_scope_cfg_string,
     build_static_relations,
-    populate_file_methods,
-    resolve_cluster_ids_from_groups,
 )
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering.service import ClusteringResults
+from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.graph import CallGraph
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
+
+
+def _enricher(
+    cluster_results: dict | None = None,
+    cluster_analysis: ClusterAnalysis | None = None,
+    static=None,
+    repo_dir: Path = Path("/repo"),
+) -> StaticAnalysisEnricher:
+    """Enricher over a minimal ClusteringResults scope for these tests."""
+    clustering = ClusteringResults(
+        cluster_results=cluster_results or {},
+        cfg_graphs={},
+        cluster_analysis=cluster_analysis or ClusterAnalysis(cluster_components=[]),
+        static_analysis=static if static is not None else MagicMock(),
+    )
+    return StaticAnalysisEnricher(clustering, repo_dir)
 
 
 class TestBuildScopeCfgString(unittest.TestCase):
@@ -256,7 +273,7 @@ class TestResolveClusterIdsFromGroups(unittest.TestCase):
             components_relations=[],
         )
 
-        resolve_cluster_ids_from_groups(analysis, cluster_analysis)
+        _enricher(cluster_analysis=cluster_analysis).resolve_cluster_ids(analysis)
 
         self.assertEqual(analysis.components[0].source_cluster_ids, ["1", "2", "3", "4"])
         self.assertEqual(analysis.components[1].source_cluster_ids, ["1", "2"])
@@ -281,7 +298,7 @@ class TestResolveClusterIdsFromGroups(unittest.TestCase):
             components_relations=[],
         )
 
-        resolve_cluster_ids_from_groups(analysis, cluster_analysis)
+        _enricher(cluster_analysis=cluster_analysis).resolve_cluster_ids(analysis)
 
         self.assertEqual(analysis.components[0].source_cluster_ids, ["1", "2"])
 
@@ -355,7 +372,9 @@ class TestPopulateFileMethods(unittest.TestCase):
         )
         cluster_results = {"python": cluster_result}
 
-        populate_file_methods(analysis, cluster_results, self.repo_dir, static)
+        _enricher(cluster_results=cluster_results, static=static, repo_dir=self.repo_dir).populate_file_methods(
+            analysis
+        )
 
         self.assertEqual([group.file_path for group in sub_component.file_methods], ["cluster_file.py", "test_file.py"])
         self.assertEqual(sub_component.file_methods[0].methods[0].qualified_name, "pkg.cluster_fn")

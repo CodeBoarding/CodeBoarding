@@ -6,6 +6,7 @@ from unittest.mock import ANY, MagicMock, patch
 import networkx as nx
 
 from agents.details_agent import DetailsAgent
+from agents.enrichment import StaticAnalysisEnricher
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
@@ -16,12 +17,12 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from clustering import ClusteringService
+from static_analyzer.clustering.service import ClusteringResults, ClusteringService
 
 from diagram_analysis.file_index import build_files_index
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering.models import ClusterResult
 
 
 class TestDetailsAgent(unittest.TestCase):
@@ -79,10 +80,18 @@ class TestDetailsAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def _project_clustering(self) -> ClusteringResults:
+        return ClusteringResults(
+            cluster_results={},
+            cfg_graphs={},
+            cluster_analysis=ClusterAnalysis(cluster_components=[]),
+            static_analysis=self.mock_static_analysis,
+        )
+
     def _make_agent(self):
         return DetailsAgent(
             repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
+            clustering=self._project_clustering(),
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
             agent_llm=MagicMock(),
@@ -119,7 +128,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
+            clustering=self._project_clustering(),
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
@@ -132,13 +141,13 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertIn("final_analysis", agent.prompts)
 
     @patch("agents.details_agent.DetailsAgent._invoke_repair_validate")
-    def test_step_final_analysis(self, mock_invoke_repair_validate):
-        # Test step_final_analysis
+    def test_step_analysis_shell(self, mock_invoke_repair_validate):
+
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
+            clustering=self._project_clustering(),
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
@@ -152,8 +161,9 @@ class TestDetailsAgent(unittest.TestCase):
         )
         mock_invoke_repair_validate.return_value = mock_response
 
-        cluster_analysis = ClusterAnalysis(cluster_components=[])
-        result = agent.step_final_analysis(self.test_component, cluster_analysis, {}, {})
+        clustering = self._project_clustering()
+        enricher = StaticAnalysisEnricher(clustering, self.repo_dir)
+        result = agent.step_analysis_shell(self.test_component, clustering, enricher)
 
         self.assertEqual(result, mock_response)
         mock_invoke_repair_validate.assert_called_once()
@@ -167,7 +177,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
+            clustering=self._project_clustering(),
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
