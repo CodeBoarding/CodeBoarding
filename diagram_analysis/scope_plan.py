@@ -1,7 +1,7 @@
 """Derive one scope's incremental update from the clustering, without asking an LLM.
 
 Full analysis already fixes component count and membership deterministically
-(``supercluster_leaf_ids`` + ``assemble_one_component_per_group``), leaving the LLM only
+(``build_program_map_for_languages`` + ``assemble_one_component_per_group``), leaving the LLM only
 the naming. ``plan_scope_update`` gives the incremental path the same treatment: every
 surviving component keeps what it owned, genuinely new clusters are absorbed, and only a
 component left holding nothing is deleted. Structure is derived; wording stays the LLM's.

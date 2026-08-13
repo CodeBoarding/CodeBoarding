@@ -620,7 +620,7 @@ class DiagramGenerator:
         self.stats_writer: StreamingStatsWriter | None = None
         # Separability verdict per component member set. Traversal asks once per
         # component and every save asks again for the whole tree; the subgraph build
-        # plus Leiden sweep behind each answer is the expensive part of the
+        # plus Infomap run behind each answer is the expensive part of the
         # deterministic pipeline. Keyed by membership, so a changed component re-runs.
         self._separable_cache: dict[frozenset[tuple[str, str]], bool] = {}
 
@@ -662,10 +662,10 @@ class DiagramGenerator:
         if not cluster_results:
             separable = False
         else:
-            # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
-            # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
+            # Reference-augmented graph, matching the production Infomap split: a component
+            # separable only via CONTAINS/INHERITS edges
             # must not be judged cohesive on a call-only graph.
-            cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
+            cfg_graphs = {lang: cfg.program_map_networkx() for lang, cfg in subgraph_cfgs.items()}
             separable = component_is_separable(cluster_results, cfg_graphs, load)
         self._separable_cache[key] = separable
         return separable
@@ -1496,7 +1496,7 @@ class DiagramGenerator:
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
             root_cluster_results = delta.cluster_results()
             root_cfgs = {
-                language: self.static_analysis.get_cfg(Language(language)).clustering_networkx()
+                language: self.static_analysis.get_cfg(Language(language)).program_map_networkx()
                 for language in root_cluster_results
             }
             apply_result = self._apply_incremental_scope_recursively(
@@ -1724,7 +1724,7 @@ def _build_scope_incremental_inputs(
         scope_id=scope_id,
         changed=changed_members,
     )
-    return cluster_results, {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}, structural_diff
+    return cluster_results, {lang: cfg.program_map_networkx() for lang, cfg in subgraph_cfgs.items()}, structural_diff
 
 
 def scoped_snapshot_for_component(

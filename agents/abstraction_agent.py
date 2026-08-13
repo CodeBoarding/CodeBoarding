@@ -83,14 +83,13 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
     def step_clusters_grouping(self, cluster_results: dict[str, ClusterResult]) -> ClusterAnalysis:
         """Deterministically partition leaf clusters into the top-level component groups.
 
-        Resolution-tuned Leiden picks both the count (modularity peak over
-        ``[5, 8]``) and the membership, so the top-level structure is stable across
-        re-runs — the LLM no longer decides it; it only names them in the
+        Hierarchical Infomap maps directed static flow, then fits the closest
+        module level to ``[5, 8]``. The LLM only names the fixed groups in the
         final-analysis step.
         """
-        logger.info(f"[AbstractionAgent] Super-clustering leaf clusters for: {self.project_name}")
+        logger.info(f"[AbstractionAgent] Building program map for: {self.project_name}")
         cfg_graphs = {
-            lang: self.static_analysis.get_cfg(Language(lang)).clustering_networkx() for lang in cluster_results
+            lang: self.static_analysis.get_cfg(Language(lang)).program_map_networkx() for lang in cluster_results
         }
         return self.deterministic_cluster_grouping(cluster_results, cfg_graphs)
 
@@ -194,7 +193,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Build full cluster results dict for all languages ONCE
         cluster_results = build_all_cluster_results(self.static_analysis)
 
-        # Step 1: Deterministically partition leaf clusters into the top-level groups (Leiden, modularity-peak N)
+        # Step 1: Build the Infomap program map before agentic naming.
         cluster_analysis = self.step_clusters_grouping(cluster_results)
         if not cluster_analysis.cluster_components:
             # No leaf clusters means the repo has no callable structure to abstract
