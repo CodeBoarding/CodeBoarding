@@ -204,3 +204,4 @@ evals/artifacts/
 # - MD files associated with components
 .codeboarding/cache/
 .codeboarding/components/
+.codeboarding/health
