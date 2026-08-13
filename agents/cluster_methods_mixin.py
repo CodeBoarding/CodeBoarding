@@ -38,7 +38,14 @@ from static_analyzer.cluster_relations import (
     merge_relations,
 )
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
-from static_analyzer.graph import METHOD_LEVEL_STRATEGY, CallGraph, ClusterResult
+from static_analyzer.cfg import CallGraph
+from static_analyzer.clustering import (
+    CLUSTERING_REFERENCE_KINDS,
+    METHOD_LEVEL_STRATEGY,
+    ClusterResult,
+    ClusteringService,
+    MethodClusterPaths,
+)
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -73,13 +80,15 @@ def _fallback_component(group: ClustersComponent, node_lookup: dict[int, set[str
     return Component(name=name, description=group.description, key_entities=[])
 
 
-def scoped_snapshot_from_lineage(cfg: CallGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
+def scoped_snapshot_from_lineage(
+    cfg: CallGraph, method_paths: MethodClusterPaths, scope_id: str
+) -> dict[int, ClusterSnapshotEntry]:
     """Build a scoped snapshot from each method's recorded cluster ancestry/path."""
     if not scope_id:
         return {}
     prefix = f"{scope_id}."
     entries: dict[int, ClusterSnapshotEntry] = {}
-    for qname, cluster_ids in cfg.method_cluster_paths_snapshot():
+    for qname, cluster_ids in method_paths.snapshot():
         if qname not in cfg.nodes:
             continue
         for cluster_id in cluster_ids:
@@ -336,13 +345,15 @@ class ClusterMethodsMixin:
                 continue
             subgraph_cfgs[lang] = sub_cfg
 
-            seeded_snapshot = scoped_snapshot_from_lineage(sub_cfg, source_cluster_id_prefix)
+            seeded_snapshot = scoped_snapshot_from_lineage(
+                sub_cfg, self.static_analysis.get_clusters(lang).method_paths, source_cluster_id_prefix
+            )
             if seeded_snapshot:
                 sub_cluster_result = _delta_for_language(
-                    str(lang), sub_cfg.clustering_networkx(), seeded_snapshot
+                    str(lang), sub_cfg.to_networkx(CLUSTERING_REFERENCE_KINDS), seeded_snapshot
                 ).cluster_results
             else:
-                sub_cluster_result = sub_cfg.cluster()
+                sub_cluster_result = ClusteringService().cluster(sub_cfg)
 
             cluster_results[lang] = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
 
@@ -350,9 +361,7 @@ class ClusterMethodsMixin:
 
         if source_cluster_id_prefix:
             for lang, cluster_result in cluster_results.items():
-                self.static_analysis.get_cfg(Language(lang)).record_cluster_paths(
-                    cluster_result, source_cluster_id_prefix
-                )
+                self.static_analysis.get_clusters(Language(lang)).record_scope(cluster_result, source_cluster_id_prefix)
 
         return cluster_results, subgraph_cfgs
 

@@ -32,7 +32,7 @@ from filelock import FileLock
 from constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
 from repo_utils.path_utils import to_absolute_path, to_relative_path
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge
-from static_analyzer.graph import CallGraph, Edge, EdgeKind
+from static_analyzer.cfg import CallGraph, Edge, EdgeKind
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
 
@@ -51,9 +51,11 @@ STATIC_ANALYSIS_LOCK = "static_analysis.lock"
 _LEGACY_PKL_NAME = "static_analysis_results.pkl"
 _LEGACY_CACHE_SUBDIR = "cache"
 # Tag file format prefix; bump if the on-disk pickle layout changes.
-# v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
-# dataclass storage. v1 pickles will be treated as cache misses and re-run.
-_TAG_VERSION = "v2"
+# v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults storage.
+# v3: clustering state moved off CallGraph into LanguageResults.clusters, and
+# reference edges became ReferenceEdge objects rather than 3-tuples.
+# Older pickles are treated as cache misses and re-run.
+_TAG_VERSION = "v3"
 
 
 class StaticAnalysisCache:
@@ -439,7 +441,7 @@ def _rederive_inherits_edges(call_graph: CallGraph, class_hierarchies: dict[str,
     cross-file superclass now present in the merged graph gets its link; existing edges are
     skipped to avoid duplicates.
     """
-    existing = {(s, d) for s, d, k in call_graph.reference_edges if k == str(EdgeKind.INHERITS)}
+    existing = {(ref.src, ref.dst) for ref in call_graph.reference_edges if ref.kind is EdgeKind.INHERITS}
     for child, info in class_hierarchies.items():
         for superclass in info.get("superclasses", []):
             if (child, superclass) not in existing:

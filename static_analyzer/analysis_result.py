@@ -5,8 +5,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from static_analyzer.cfg import CallGraph
+from static_analyzer.clustering import ClusterCache
 from static_analyzer.constants import Language
-from static_analyzer.graph import CallGraph
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
@@ -209,6 +210,18 @@ class StaticAnalysisResults:
         if bucket is not None and bucket.cfg.graph is not None:
             return bucket.cfg.graph
         raise ValueError(f"Control flow graph for language '{language}' not found in results.")
+
+    def get_clusters(self, language: Language) -> ClusterCache:
+        """Return the clustering state for ``language``, creating an empty one if absent.
+
+        Unlike ``get_cfg`` this never raises: an unclustered language has an empty
+        cache, and callers write their partition straight into it.
+        """
+        return self._bucket(language).clusters
+
+    def set_clusters(self, language: Language, clusters: ClusterCache) -> None:
+        """Replace the clustering state for ``language`` wholesale."""
+        self._bucket(language).clusters = clusters
 
     def available_cfgs(self) -> dict[str, CallGraph]:
         """Return every language CFG that is already present."""

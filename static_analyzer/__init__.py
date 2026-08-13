@@ -16,7 +16,7 @@ from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -327,9 +327,9 @@ class StaticAnalyzer:
         """Gracefully shut down all engine LSP server processes. Idempotent.
 
         Persists the latest ``_cached_results`` to the pkl on the way down so
-        downstream mutations (``CallGraph._cluster_cache`` populated by the
-        abstraction agent) reach disk in one save instead of two. Save errors
-        are logged but never block teardown.
+        downstream mutations (the ``ClusterCache`` populated by the abstraction
+        agent) reach disk in one save instead of two. Save errors are logged but
+        never block teardown.
         """
         if not self._clients_started:
             return
@@ -656,9 +656,9 @@ class StaticAnalyzer:
         Per language: determine the changed-file list, hand it to
         ``update_cfg_for_changed_files`` along with the language's portion of the
         cached state, and put the merged result back into a fresh
-        ``StaticAnalysisResults``. Merging (rather than a full re-LSP) is what
-        preserves the cached CFG's ``_cluster_cache``, so the next incremental
-        run still finds a cluster baseline.
+        ``StaticAnalysisResults``. Merging (rather than a full re-LSP) is what lets
+        the cached ``ClusterCache`` be carried onto the merged graph, so the next
+        incremental run still finds a cluster baseline.
 
         Changed-file source: ``self.changed_files`` when set at construction
         (git-free — e.g. the wrapper's fingerprint diff), else ``git diff`` via
@@ -684,6 +684,14 @@ class StaticAnalyzer:
                 )
 
             self._absorb_into_results(results, language, analysis)
+            # Carry the cached partition onto the merged graph — nodes the re-LSP dropped
+            # fall out of the pruned copy. Without this the warm start would hand the next
+            # incremental run an empty cluster baseline.
+            try:
+                surviving = results.get_cfg(language).nodes
+            except ValueError:
+                surviving = {}
+            results.set_clusters(language, cached_results.get_clusters(language).pruned_to(surviving))
             self._collect_diagnostics_for(adapter, engine_client, analysis)
             track_lsp_result(
                 language=adapter.language_enum.value,

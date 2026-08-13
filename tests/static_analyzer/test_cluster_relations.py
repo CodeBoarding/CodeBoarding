@@ -24,7 +24,7 @@ from static_analyzer.cluster_relations import (
     prune_ungrounded_edges,
 )
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, Edge
+from static_analyzer.cfg import CallGraph, Edge
 from static_analyzer.node import Node
 
 

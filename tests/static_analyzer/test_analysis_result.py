@@ -3,7 +3,7 @@ import unittest
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
 from static_analyzer.node import Node
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 
 
 class TestStaticAnalysisResults(unittest.TestCase):

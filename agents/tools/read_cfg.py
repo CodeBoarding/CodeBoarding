@@ -1,5 +1,6 @@
 import logging
 from agents.agent_responses import Component
+from agents.llm_renderers import render_call_graph
 from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class GetCFGTool(BaseRepoTool):
             if cfg is None:
                 logger.warning(f"[CFG Tool] No control flow graph found for {lang}.")
                 continue
-            result_str += f"Control flow graph for {lang}:\n{cfg.llm_str()}\n"
+            result_str += f"Control flow graph for {lang}:\n{render_call_graph(cfg)}\n"
         if not result_str:
             logger.error("[CFG Tool] No control flow graph data available.")
             return "No control flow graph data available. Ensure static analysis was performed correctly."
@@ -52,7 +53,7 @@ class GetCFGTool(BaseRepoTool):
             for _, node in cfg.nodes.items():
                 if node.file_path not in component_files:
                     skip_nodes.append(node)
-            result += f"{lang}:\n{cfg.llm_str(skip_nodes=skip_nodes)}\n"
+            result += f"{lang}:\n{render_call_graph(cfg, skip_nodes=skip_nodes)}\n"
             items += len(cfg.nodes) - len(skip_nodes)
 
         logger.info(f"[CFG Tool] Filtering CFG for component {component.name}, items found: {items}")

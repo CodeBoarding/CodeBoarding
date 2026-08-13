@@ -21,7 +21,8 @@ from agents.file_index_models import FileMethodGroup, MethodEntry
 from diagram_analysis.file_index import build_files_index
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.cfg import CallGraph
+from static_analyzer.clustering import ClusterCache, ClusterResult, ClusteringService
 from static_analyzer.node import Node
 
 
@@ -177,30 +178,30 @@ class TestDetailsAgent(unittest.TestCase):
 
         mock_subgraph = MagicMock()
         mock_subgraph.nodes = {"n1": mock_node}
-        mock_subgraph.cluster.return_value = mock_sub_cluster_result
-        mock_subgraph.method_cluster_paths_snapshot.return_value = []
 
         mock_cfg = MagicMock()
         mock_cfg.filter_by_nodes.return_value = mock_subgraph
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
         self.mock_static_analysis.get_cfg.return_value = mock_cfg
+        self.mock_static_analysis.get_clusters.return_value = ClusterCache()
 
-        subgraph_cluster_results, subgraph_cfgs = agent._create_strict_component_subgraph(self.test_component)
+        with patch.object(ClusteringService, "cluster", return_value=mock_sub_cluster_result) as mock_cluster:
+            subgraph_cluster_results, subgraph_cfgs = agent._create_strict_component_subgraph(self.test_component)
 
         self.assertIs(subgraph_cluster_results["python"], mock_sub_cluster_result)
         self.assertIn("python", subgraph_cfgs)
         self.assertIs(subgraph_cfgs["python"], mock_subgraph)
         self.mock_static_analysis.get_cfg.assert_called_with("python")
         mock_cfg.filter_by_nodes.assert_called_with(expected_qnames)
-        mock_subgraph.cluster.assert_called_once()
+        mock_cluster.assert_called_once_with(mock_subgraph)
 
     def test_step_clusters_grouping(self):
         # Grouping is deterministic (resolution-tuned Leiden on the subgraph), no LLM call.
         agent = self._make_agent()
         cr, graph = self._clustered_graph(range(1, 11))
         subgraph_cfg = MagicMock()
-        subgraph_cfg.clustering_networkx.return_value = graph
+        subgraph_cfg.to_networkx.return_value = graph
         subgraph_cluster_results = {"python": cr}
         subgraph_cfgs = {"python": subgraph_cfg}
 

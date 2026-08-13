@@ -12,7 +12,7 @@ from static_analyzer.constants import CLASS_TYPES, GRAPH_NODE_TYPES, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import LanguageAnalysisResult
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.graph import CallGraph, EdgeKind
+from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -197,8 +197,8 @@ def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult) 
         call_graph.add_reference_edge(src, dst, EdgeKind.IMPORT)
 
 
-def _count_by_kind(reference_edges: list[tuple[str, str, str]]) -> Counter:
-    return Counter(kind for _, _, kind in reference_edges)
+def _count_by_kind(reference_edges: list[ReferenceEdge]) -> Counter:
+    return Counter(ref.kind for ref in reference_edges)
 
 
 def _map_symbol_kind(kind: int) -> NodeType:

@@ -32,7 +32,7 @@ from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEn
 from repo_utils.path_utils import normalize_repo_path
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import CLUSTERING_REFERENCE_KINDS, ClusterResult
 from static_analyzer.leiden_utils import find_partition_seeded
 
 logger = logging.getLogger(__name__)
@@ -281,7 +281,7 @@ def compute_cluster_delta(
         cfg = new_static.get_cfg(language)
         # Cluster the same reference-augmented graph the full run uses; a call-only graph would
         # re-cluster type-coupled methods differently and drift from what a full analysis produces.
-        nx_graph = cfg.clustering_networkx()
+        nx_graph = cfg.to_networkx(CLUSTERING_REFERENCE_KINDS)
         old_clusters = old_snapshot.get_language(language)
         language_delta = _delta_for_language(
             language,

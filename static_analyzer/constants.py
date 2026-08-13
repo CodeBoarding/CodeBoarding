@@ -82,15 +82,6 @@ class ClusteringConfig:
     # Deterministic seed for clustering algorithms
     CLUSTERING_SEED = 42
 
-    # Which reference-edge kinds (beyond call edges) to fold into the graph used
-    # for clustering. The static call graph misses ~a fifth of symbols (isolated
-    # constructors, dunders, DI/interface methods), so completing it with these
-    # relationships avoids grab-bag components. Values are ``graph.EdgeKind`` string
-    # values. TYPEREF and IMPORT are plumbed through ``LanguageAnalysisResult`` but no
-    # engine emits them yet, so listing them here would be a no-op; IMPORT is also
-    # expected to over-merge (coarse, dense, file-level) once it does arrive.
-    CLUSTERING_EDGE_KINDS = ("contains", "inherits")
-
 
 class NodeType(IntEnum):
     """LSP SymbolKind constants as an IntEnum.

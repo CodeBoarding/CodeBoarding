@@ -1,12 +1,19 @@
+from __future__ import annotations
+
 import threading
 from collections.abc import Mapping
+from types import MappingProxyType
+
+from static_analyzer.clustering.models import ClusterResult
+
+_EMPTY_PATHS: Mapping[str, set[str]] = MappingProxyType({})
 
 
 class MethodClusterPaths:
     """Thread-safe lineage map for qname -> scoped cluster ids."""
 
-    def __init__(self, paths: dict[str, set[str]] | None = None) -> None:
-        self._paths: dict[str, set[str]] = {qname: set(cluster_ids) for qname, cluster_ids in (paths or {}).items()}
+    def __init__(self, paths: Mapping[str, set[str]] = _EMPTY_PATHS) -> None:
+        self._paths: dict[str, set[str]] = {qname: set(cluster_ids) for qname, cluster_ids in paths.items()}
         self._lock = threading.RLock()
 
     def __getstate__(self) -> dict[str, set[str]]:
@@ -16,18 +23,18 @@ class MethodClusterPaths:
         self._paths = {qname: set(cluster_ids) for qname, cluster_ids in state.items()}
         self._lock = threading.RLock()
 
-    def merge(self, other: "MethodClusterPaths") -> None:
+    def merge(self, other: MethodClusterPaths) -> None:
         with self._lock:
             for qname, cluster_ids in other.snapshot():
                 self._paths.setdefault(qname, set()).update(cluster_ids)
 
-    def prune(self, surviving_nodes: Mapping[str, object]) -> "MethodClusterPaths":
+    def prune(self, surviving_nodes: Mapping[str, object]) -> MethodClusterPaths:
         with self._lock:
             return MethodClusterPaths(
                 {qname: set(cluster_ids) for qname, cluster_ids in self._paths.items() if qname in surviving_nodes}
             )
 
-    def record(self, cluster_result, scope_id: str = "") -> None:
+    def record(self, cluster_result: ClusterResult, scope_id: str = "") -> None:
         prefix = f"{scope_id}." if scope_id else ""
         with self._lock:
             for existing in self._paths.values():
