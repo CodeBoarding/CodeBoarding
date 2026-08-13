@@ -6,6 +6,7 @@ import networkx as nx
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
 from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.clustering.graph_clustering import cluster_call_graph, detect_communities
 from static_analyzer.graph import Edge, CallGraph
 
 
@@ -367,7 +368,7 @@ class TestCallGraph(unittest.TestCase):
         for i in range(9):
             graph.add_edge(f"module.func{i}", f"module.func{i+1}")
 
-        result = graph.cluster()
+        result = cluster_call_graph(graph)
 
         self.assertIsInstance(result, ClusterResult)
         self.assertIsInstance(result.clusters, dict)
@@ -383,8 +384,8 @@ class TestCallGraph(unittest.TestCase):
             node = Node(f"module.func{i}", 12, "/file.py", i * 10, i * 10 + 5)
             graph.add_node(node)
 
-        result1 = graph.cluster()
-        result2 = graph.cluster()
+        result1 = cluster_call_graph(graph)
+        result2 = cluster_call_graph(graph)
 
         # Should be the same object (cached)
         self.assertIs(result1, result2)
@@ -392,7 +393,7 @@ class TestCallGraph(unittest.TestCase):
     def test_cluster_empty_graph(self):
         """Test cluster() on empty graph."""
         graph = CallGraph()
-        result = graph.cluster()
+        result = cluster_call_graph(graph)
 
         self.assertEqual(result.clusters, {})
         self.assertEqual(result.strategy, "empty")
@@ -415,7 +416,7 @@ class TestCallGraph(unittest.TestCase):
         graph.add_edge("module.func1", "module.func2")
         graph.add_edge("module.func3", "module.func4")
 
-        result = graph.cluster()
+        result = cluster_call_graph(graph)
 
         # Check that file_to_clusters and cluster_to_files are populated
         self.assertTrue(len(result.file_to_clusters) > 0 or result.strategy in ("empty", "none"))
@@ -431,7 +432,7 @@ class TestCallGraph(unittest.TestCase):
         for i in range(9):
             graph.add_edge(f"module.func{i}", f"module.func{i+1}")
 
-        cluster_result = graph.cluster()
+        cluster_result = cluster_call_graph(graph)
         if cluster_result.clusters:
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
             file_paths = cluster_result.cluster_to_files.get(first_cluster_id, set())
@@ -468,7 +469,7 @@ class TestCallGraph(unittest.TestCase):
         graph.add_edge("module.func1", "module.func2")
         graph.add_edge("module.func2", "module.func3")
 
-        cluster_result = graph.cluster()
+        cluster_result = cluster_call_graph(graph)
         if cluster_result.clusters:
             # Get a cluster and create filter_by_files
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
@@ -491,14 +492,14 @@ class TestCallGraph(unittest.TestCase):
         for i in range(19):
             graph.add_edge(f"module.func{i}", f"module.func{i+1}")
 
-        cluster_result = graph.cluster()
+        cluster_result = cluster_call_graph(graph)
         if cluster_result.clusters:
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
             file_paths = cluster_result.cluster_to_files.get(first_cluster_id, set())
             sub_graph = graph.filter_by_files(file_paths)
 
             # Subgraph should be clusterable
-            sub_result = sub_graph.cluster()
+            sub_result = cluster_call_graph(sub_graph)
             self.assertIsInstance(sub_result, ClusterResult)
 
             # Should only include the specified cluster
@@ -518,8 +519,8 @@ class TestCallGraph(unittest.TestCase):
         graph1 = create_graph()
         graph2 = create_graph()
 
-        result1 = graph1.cluster()
-        result2 = graph2.cluster()
+        result1 = cluster_call_graph(graph1)
+        result2 = cluster_call_graph(graph2)
 
         # Cluster IDs and contents should be identical
         self.assertEqual(result1.clusters.keys(), result2.clusters.keys())
@@ -618,7 +619,6 @@ class TestDetectCommunitiesDeterminism(unittest.TestCase):
     """
 
     def test_detect_communities_is_deterministic(self):
-        from static_analyzer.graph import detect_communities
 
         g = nx.karate_club_graph()
         a: list[set[int]] = detect_communities(g, seed=42)

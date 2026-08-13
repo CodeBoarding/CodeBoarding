@@ -10,9 +10,8 @@ import unittest
 
 import networkx as nx
 
+from static_analyzer.clustering.constants import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN
 from static_analyzer.clustering.cluster_helpers import (
-    SUBCOMPONENTS_MAX,
-    SUBCOMPONENTS_MIN,
     _absorb_leftovers,
     _build_meta_graph,
     _method_counts,

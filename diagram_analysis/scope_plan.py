@@ -27,16 +27,14 @@ from agents.cluster_ids import CodeBoardingClusterIds
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
 from repo_utils.path_utils import normalize_repo_path
-from static_analyzer.clustering.cluster_helpers import (
+from static_analyzer.clustering.cluster_helpers import anchored_grouping, group_symbols
+from static_analyzer.clustering.constants import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
     TOP_LEVEL_COMPONENTS_MAX,
     TOP_LEVEL_COMPONENTS_MIN,
-    anchored_grouping,
-    combine_cluster_results,
-    group_symbols,
 )
-from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.clustering.models import ClusterResult, combine_cluster_results
 
 logger = logging.getLogger(__name__)
 

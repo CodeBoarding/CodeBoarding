@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
-    ClustersComponent,
+    ClustersGroup,
     Component,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
@@ -19,7 +19,7 @@ from agents.enrichment import (
     build_scope_cfg_string,
     build_static_relations,
 )
-from static_analyzer.clustering.service import ClusteringResults
+from static_analyzer.clustering.models import ClusteringResults
 from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.graph import CallGraph
 from static_analyzer.constants import NodeType
@@ -36,7 +36,7 @@ def _enricher(
     clustering = ClusteringResults(
         cluster_results=cluster_results or {},
         cfg_graphs={},
-        cluster_analysis=cluster_analysis or ClusterAnalysis(cluster_components=[]),
+        cluster_analysis=cluster_analysis or ClusterAnalysis(cluster_groups=[]),
         static_analysis=static if static is not None else MagicMock(),
     )
     return StaticAnalysisEnricher(clustering, repo_dir)
@@ -147,7 +147,7 @@ class TestFindNearestCluster(unittest.TestCase):
         cluster_results = {"python": cr}
         static = self._make_static(cfg)
 
-        undirected_graphs = _build_undirected_graphs(cluster_results, static)
+        undirected_graphs = _build_undirected_graphs(cluster_results, static, {})
         # C is distance-1 from D (cluster 2) and distance-1 from B (cluster 1).
         # Both clusters have a member at distance 1, so the first one found wins
         # (deterministic dict order).
@@ -163,7 +163,7 @@ class TestFindNearestCluster(unittest.TestCase):
         cluster_results = {"python": cr}
         static = self._make_static(cfg)
 
-        undirected_graphs = _build_undirected_graphs(cluster_results, static)
+        undirected_graphs = _build_undirected_graphs(cluster_results, static, {})
         result = _find_nearest_cluster("Z", cluster_results, undirected_graphs)
         self.assertIsNone(result)
 
@@ -174,7 +174,7 @@ class TestFindNearestCluster(unittest.TestCase):
         cluster_results = {"python": cr}
         static = self._make_static(cfg)
 
-        undirected_graphs = _build_undirected_graphs(cluster_results, static)
+        undirected_graphs = _build_undirected_graphs(cluster_results, static, {})
         result = _find_nearest_cluster("NONEXISTENT", cluster_results, undirected_graphs)
         self.assertIsNone(result)
 
@@ -185,7 +185,7 @@ class TestFindNearestCluster(unittest.TestCase):
         cluster_results = {"python": cr}
         static = self._make_static(cfg)
 
-        undirected_graphs = _build_undirected_graphs(cluster_results, static)
+        undirected_graphs = _build_undirected_graphs(cluster_results, static, {})
         result = _find_nearest_cluster("A", cluster_results, undirected_graphs)
         self.assertEqual(result, 1)
 
@@ -212,7 +212,7 @@ class TestFindNearestCluster(unittest.TestCase):
         cluster_results = {"python": cr}
         static = self._make_static(cfg)
 
-        undirected_graphs = _build_undirected_graphs(cluster_results, static)
+        undirected_graphs = _build_undirected_graphs(cluster_results, static, {})
         result = _find_nearest_cluster("W", cluster_results, undirected_graphs)
         self.assertEqual(result, 10)
 
@@ -248,9 +248,9 @@ class TestBuildFileMethodsFromNodes(unittest.TestCase):
 class TestResolveClusterIdsFromGroups(unittest.TestCase):
     def test_resolve_cluster_ids_from_groups(self):
         cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="GroupA", cluster_ids=[1, 2], description="Group A"),
-                ClustersComponent(name="GroupB", cluster_ids=[3, 4], description="Group B"),
+            cluster_groups=[
+                ClustersGroup(name="GroupA", cluster_ids=[1, 2], description="Group A"),
+                ClustersGroup(name="GroupB", cluster_ids=[3, 4], description="Group B"),
             ]
         )
 
@@ -280,8 +280,8 @@ class TestResolveClusterIdsFromGroups(unittest.TestCase):
 
     def test_resolve_cluster_ids_from_groups_case_insensitive(self):
         cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="GroupA", cluster_ids=[1, 2], description="Group A"),
+            cluster_groups=[
+                ClustersGroup(name="GroupA", cluster_ids=[1, 2], description="Group A"),
             ]
         )
 

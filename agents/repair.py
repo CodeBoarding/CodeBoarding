@@ -2,12 +2,12 @@
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Protocol
 
-from agents.agent_responses import ClusterAnalysis, Component
-from static_analyzer.clustering.models import ClusterResult
+from agents.agent_responses import Component
+from static_analyzer.clustering.models import ClusteringResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
@@ -20,13 +20,12 @@ class ComponentRepairTarget(Protocol):
 @dataclass
 class ComponentRepairContext:
     reference_resolver: StaticReferenceResolver
-    llm_cluster_analysis: ClusterAnalysis
-    cluster_results: dict[str, ClusterResult] = field(default_factory=dict)
+    clustering: ClusteringResults
 
 
 def repair_component_group_names(result: ComponentRepairTarget, context: ComponentRepairContext) -> None:
     """Canonicalize unambiguous component source-group names."""
-    expected_group_names = {group.name for group in context.llm_cluster_analysis.cluster_components}
+    expected_group_names = {group.name for group in context.clustering.cluster_analysis.cluster_groups}
     canonical_names = {_normalize_group_name(name): name for name in expected_group_names}
     corrected_count = 0
 
@@ -134,7 +133,7 @@ def repair_key_entities(result: ComponentRepairTarget, context: ComponentRepairC
     """Resolve key entities and remove references outside the current scope."""
     nodes_in_scope = {
         qualified_name
-        for cluster_result in context.cluster_results.values()
+        for cluster_result in context.clustering.cluster_results.values()
         for members in cluster_result.clusters.values()
         for qualified_name in members
     }
@@ -144,7 +143,7 @@ def repair_key_entities(result: ComponentRepairTarget, context: ComponentRepairC
     for component in result.components:
         repair = context.reference_resolver.repair_key_entity_references(
             component.key_entities,
-            allowed_qnames=nodes_in_scope if context.cluster_results else None,
+            allowed_qnames=nodes_in_scope if context.clustering.cluster_results else None,
         )
         canonicalized_count += repair.canonicalized_count
         dropped_qnames.update(repair.unresolved_qnames)

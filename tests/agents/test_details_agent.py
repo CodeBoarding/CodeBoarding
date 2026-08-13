@@ -17,7 +17,8 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from static_analyzer.clustering.service import ClusteringResults, ClusteringService
+from static_analyzer.clustering.models import ClusteringResults
+from static_analyzer.clustering.service import ClusteringService
 
 from diagram_analysis.file_index import build_files_index
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -84,7 +85,7 @@ class TestDetailsAgent(unittest.TestCase):
         return ClusteringResults(
             cluster_results={},
             cfg_graphs={},
-            cluster_analysis=ClusterAnalysis(cluster_components=[]),
+            cluster_analysis=ClusterAnalysis(cluster_groups=[]),
             static_analysis=self.mock_static_analysis,
         )
 
@@ -202,13 +203,13 @@ class TestDetailsAgent(unittest.TestCase):
 
         mock_subgraph = MagicMock()
         mock_subgraph.nodes = {"n1": mock_node}
-        mock_subgraph.cluster.return_value = sub_cluster_result
+        mock_subgraph.cluster_cache = sub_cluster_result
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
         mock_subgraph.to_networkx.return_value = subgraph_graph
         mock_subgraph.clustering_networkx.return_value = subgraph_graph
 
         mock_cfg = MagicMock()
-        mock_cfg.cluster.return_value = mock_cluster_result
+        mock_cfg.cluster_cache = mock_cluster_result
         mock_cfg.filter_by_nodes.return_value = mock_subgraph
         # _build_cluster_string calls cfg.to_cluster_string on the original cfg
         mock_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"

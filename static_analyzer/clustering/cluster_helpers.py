@@ -22,22 +22,11 @@ import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig, Language
-from static_analyzer.clustering.models import ClusterResult
-from static_analyzer.graph import detect_communities
+from static_analyzer.clustering.constants import TOP_LEVEL_COMPONENTS_MAX, TOP_LEVEL_COMPONENTS_MIN
+from static_analyzer.clustering.graph_clustering import cluster_call_graph, detect_communities
+from static_analyzer.clustering.models import ClusterResult, combine_cluster_results
 
 logger = logging.getLogger(__name__)
-
-# Range for the number of top-level architecture components. The exact count N
-# inside this range is chosen deterministically by the modularity peak of a
-# resolution-tuned Leiden partition (see ``supercluster_leaf_ids``), not by the
-# LLM — so the component structure is stable across re-runs.
-TOP_LEVEL_COMPONENTS_MIN = 5
-TOP_LEVEL_COMPONENTS_MAX = 8
-
-# Same idea for a component's sub-components (one level down); a component is
-# usually smaller than the whole repo, so the floor is lower.
-SUBCOMPONENTS_MIN = 3
-SUBCOMPONENTS_MAX = 8
 
 # Resolution ladder swept to steer Leiden toward a target community count.
 # Ascending: higher resolution -> more, finer communities. Reaches well past 1.0
@@ -55,7 +44,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     cluster_results: dict[str, ClusterResult] = {}
     offset = 0
     for lang in static_analysis.get_languages():
-        result = static_analysis.get_cfg(lang).cluster()
+        result = cluster_call_graph(static_analysis.get_cfg(lang))
         if offset:
             result = reindex_cluster_result(result, offset)
             logger.info(f"[Cluster] {lang}: offset IDs by +{offset} ({len(result.clusters)} clusters)")
@@ -71,7 +60,7 @@ def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results:
     for lang, result in cluster_results.items():
         try:
             cfg = static_analysis.get_cfg(Language(lang))
-            cfg._cluster_cache = result
+            cfg.set_cluster_cache(result)
             cfg.record_cluster_paths(result)
         except ValueError:
             logger.warning("Could not sync cluster cache for missing language %s", lang)
@@ -165,28 +154,6 @@ def group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> l
     """Qualified names in a group, most top-level first (fewest name segments)."""
     names = {qname for cid in cluster_ids for qname in node_lookup.get(cid, set())}
     return sorted(names, key=lambda qname: (qname.count("."), qname))
-
-
-def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> ClusterResult:
-    """Union per-language ClusterResults into one.
-
-    Cluster IDs are globally unique across languages, so a plain union is safe and
-    lets us group every language's leaf clusters against a single meta-graph.
-    """
-    clusters: dict[int, set[str]] = {}
-    cluster_to_files: dict[int, set[str]] = {}
-    file_to_clusters: dict[str, set[int]] = defaultdict(set)
-    for cr in cluster_results.values():
-        clusters.update(cr.clusters)
-        cluster_to_files.update(cr.cluster_to_files)
-        for file_path, cids in cr.file_to_clusters.items():
-            file_to_clusters[file_path].update(cids)
-    return ClusterResult(
-        clusters=clusters,
-        cluster_to_files=cluster_to_files,
-        file_to_clusters=dict(file_to_clusters),
-        strategy="combined",
-    )
 
 
 # ---------------------------------------------------------------------------

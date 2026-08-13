@@ -38,8 +38,9 @@ from agents.planner_agent import get_expandable_components
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
+from static_analyzer.clustering.models import ClusteringResults
 from static_analyzer.clustering.separability import member_keys
-from static_analyzer.clustering.service import ClusteringResults, ClusteringService, scoped_snapshot_from_lineage
+from static_analyzer.clustering.service import ClusteringService, scoped_snapshot_from_lineage
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
@@ -625,10 +626,8 @@ class DiagramGenerator:
         """
         if self.details_agent is None:
             return None, None
-
-        def separable(component: Component) -> bool:
-            assert self.clustering_service is not None
-            return self.clustering_service.component_is_separable(component)
+        assert self.clustering_service is not None
+        separable = self.clustering_service.component_is_separable
 
         def expandable_ids(scope: AnalysisInsights, parent_had_clusters: bool = True) -> list[str]:
             ids = [
@@ -1447,7 +1446,7 @@ class DiagramGenerator:
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
             root_cluster_results = delta.cluster_results()
             root_cfgs = {
-                language: self.static_analysis.get_cfg(Language(language)).clustering_networkx()
+                language: self.static_analysis.get_cfg(Language(language)).to_networkx_with_references()
                 for language in root_cluster_results
             }
             apply_result = self._apply_incremental_scope_recursively(
@@ -1653,7 +1652,7 @@ def _build_scope_incremental_inputs(
     repo_dir: Path,
     changed_members: ChangedMembers | None,
 ) -> tuple[dict[str, ClusterResult], dict[str, nx.DiGraph], StructuralClusterDiff]:
-    old_snapshot = scoped_snapshot_for_component(component, scope_id, clustering_service.static_analysis)
+    old_snapshot = clustering_service.scoped_snapshot(component, scope_id)
     if not old_snapshot.all_cluster_ids():
         return {}, {}, StructuralClusterDiff()
 
@@ -1672,24 +1671,11 @@ def _build_scope_incremental_inputs(
         scope_id=scope_id,
         changed=changed_members,
     )
-    return cluster_results, {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}, structural_diff
-
-
-def scoped_snapshot_for_component(
-    component: Component,
-    scope_id: str,
-    static_analysis: StaticAnalysisResults,
-) -> ClusterSnapshot:
-    assigned_qnames = {
-        method.qualified_name for group in component.file_methods for method in group.methods if method.qualified_name
-    }
-    by_language = {}
-    for language in static_analysis.get_languages():
-        cfg = static_analysis.get_cfg(language)
-        sub_cfg = cfg.filter_by_nodes(assigned_qnames)
-        if sub_cfg.nodes:
-            by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, scope_id)
-    return ClusterSnapshot(by_language=by_language)
+    return (
+        cluster_results,
+        {lang: cfg.to_networkx_with_references() for lang, cfg in subgraph_cfgs.items()},
+        structural_diff,
+    )
 
 
 def _merge_sub_analyses(

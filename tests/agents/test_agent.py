@@ -10,7 +10,7 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ClustersComponent, Relation
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ClustersGroup, Relation
 from agents.validation import ValidationResult
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
@@ -415,7 +415,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         mock_extractor.invoke.return_value = {
             "responses": [
                 {
-                    "cluster_components": [
+                    "cluster_groups": [
                         {
                             "name": "VS Code Extension Host & View Providers",
                             "cluster_ids": [1, 15],
@@ -441,7 +441,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         fenced = (
             "```json\n"
             "{\n"
-            '  "cluster_components": [\n'
+            '  "cluster_groups": [\n'
             "    {\n"
             '      "name": "VS Code Extension Host & View Providers",\n'
             '      "cluster_ids": [1, 15],\n'
@@ -461,10 +461,10 @@ class TestCodeBoardingAgent(unittest.TestCase):
         result = agent._parse_response("Test prompt", fenced, ClusterAnalysis)
 
         self.assertIsInstance(result, ClusterAnalysis)
-        self.assertEqual(len(result.cluster_components), 2)
-        self.assertEqual(result.cluster_components[0].name, "VS Code Extension Host & View Providers")
-        self.assertEqual(result.cluster_components[0].cluster_ids, [1, 15])
-        self.assertEqual(result.cluster_components[1].cluster_ids, [2, 3])
+        self.assertEqual(len(result.cluster_groups), 2)
+        self.assertEqual(result.cluster_groups[0].name, "VS Code Extension Host & View Providers")
+        self.assertEqual(result.cluster_groups[0].cluster_ids, [1, 15])
+        self.assertEqual(result.cluster_groups[1].cluster_ids, [2, 3])
 
     @patch("agents.agent.create_extractor")
     @patch("agents.agent.create_agent")
@@ -589,26 +589,26 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
 class TestIncludeHidden(unittest.TestCase):
     def test_extractor_str_hides_hidden_fields_by_default(self):
-        prompt = ClustersComponent.extractor_str()
+        prompt = ClustersGroup.extractor_str()
         for field in ("existing_component_id", "parent_id", "redetail_needed"):
             self.assertNotIn(field, prompt)
 
     def test_extractor_str_shows_hidden_fields_when_requested(self):
-        prompt = ClustersComponent.extractor_str(include_hidden=True)
+        prompt = ClustersGroup.extractor_str(include_hidden=True)
         for field in ("existing_component_id", "parent_id", "redetail_needed"):
             self.assertIn(field, prompt)
 
     def test_model_json_schema_hides_hidden_fields_by_default(self):
-        schema = ClustersComponent.model_json_schema()
+        schema = ClustersGroup.model_json_schema()
         props = schema.get("properties", {})
         for field in ("existing_component_id", "parent_id", "redetail_needed"):
             self.assertNotIn(field, props)
-        defs = schema.get("$defs", {}).get("ClustersComponent", {}).get("properties", {})
+        defs = schema.get("$defs", {}).get("ClustersGroup", {}).get("properties", {})
         for field in ("existing_component_id", "parent_id", "redetail_needed"):
             self.assertNotIn(field, defs)
 
     def test_model_json_schema_shows_hidden_fields_when_requested(self):
-        schema = ClustersComponent.model_json_schema(include_hidden=True)
+        schema = ClustersGroup.model_json_schema(include_hidden=True)
         props = schema.get("properties", {})
         for field in ("existing_component_id", "parent_id", "redetail_needed"):
             self.assertIn(field, props)

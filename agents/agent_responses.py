@@ -377,7 +377,7 @@ class Relation(LLMBaseModel):
         return len(self.all_edges)
 
 
-class ClustersComponent(LLMBaseModel):
+class ClustersGroup(LLMBaseModel):
     """A grouped component from cluster analysis - may contain multiple clusters."""
 
     name: str = Field(
@@ -431,15 +431,15 @@ class ClustersComponent(LLMBaseModel):
 class ClusterAnalysis(LLMBaseModel):
     """Analysis results containing grouped cluster components."""
 
-    cluster_components: list[ClustersComponent] = Field(
+    cluster_groups: list[ClustersGroup] = Field(
         description="Grouped clusters into logical components. Multiple cluster IDs can be grouped together if they work as a cohesive unit."
     )
 
     def llm_str(self):
-        if not self.cluster_components:
+        if not self.cluster_groups:
             return "No clusters analyzed."
         title = "# Grouped Cluster Components\n"
-        body = "\n".join(cc.llm_str() for cc in self.cluster_components)
+        body = "\n".join(cc.llm_str() for cc in self.cluster_groups)
         return title + body
 
 

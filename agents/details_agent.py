@@ -40,7 +40,7 @@ from agents.validation import (
     validate_relations,
 )
 from monitoring import trace
-from static_analyzer.clustering.service import ClusteringResults
+from static_analyzer.clustering.models import ClusteringResults
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ class DetailsAgent(CodeBoardingAgent):
         cluster_analysis = clustering.cluster_analysis
         cluster_str = cluster_analysis.llm_str() if cluster_analysis else "No cluster analysis available."
 
-        group_names = [cc.name for cc in cluster_analysis.cluster_components] if cluster_analysis else []
+        group_names = [cc.name for cc in cluster_analysis.cluster_groups] if cluster_analysis else []
 
         prompt = self.prompts["final_analysis"].format(
             cluster_analysis=cluster_str,
@@ -116,12 +116,6 @@ class DetailsAgent(CodeBoardingAgent):
         self.toolkit.context.cluster_results = clustering.cluster_results
         self.toolkit.context.cfg_graphs = clustering.cfg_graphs
 
-        context = ValidationContext(
-            cluster_results=clustering.cluster_results,
-            static_analysis=clustering.static_analysis,
-            llm_cluster_analysis=cluster_analysis,
-        )
-
         cache_key = self._analysis_cache.build_key(prompt, self._cache_model_settings)
 
         if (cached := self._analysis_cache.load(cache_key)) is not None:
@@ -134,12 +128,8 @@ class DetailsAgent(CodeBoardingAgent):
                 validate_group_name_coverage,
                 validate_key_entities,
             ],
-            repair_context=ComponentRepairContext(
-                reference_resolver=self.reference_resolver,
-                cluster_results=clustering.cluster_results,
-                llm_cluster_analysis=cluster_analysis,
-            ),
-            validation_context=context,
+            repair_context=ComponentRepairContext(self.reference_resolver, clustering),
+            validation_context=ValidationContext.for_shell(clustering),
             max_validation_attempts=3,
         )
         enricher.pin_components_to_groups(architecture)
@@ -186,13 +176,8 @@ class DetailsAgent(CodeBoardingAgent):
             prompt,
             ComponentRelations,
             validators=[validate_relations],
-            validation_context=ValidationContext(
-                cluster_results=clustering.cluster_results,
-                cfg_graphs=clustering.cfg_graphs,
-                repo_dir=str(self.repo_dir),
-                static_analysis=clustering.static_analysis,
-                llm_cluster_analysis=cluster_analysis,
-                components=analysis.components,
+            validation_context=ValidationContext.for_relations(
+                clustering, repo_dir=str(self.repo_dir), components=analysis.components
             ),
             max_validation_attempts=3,
         )

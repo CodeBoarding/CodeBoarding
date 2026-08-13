@@ -35,8 +35,8 @@ class TestClusterHelpers(unittest.TestCase):
 
         python_cfg = MagicMock()
         typescript_cfg = MagicMock()
-        python_cfg.cluster.return_value = _make_cluster_result("py", 40)
-        typescript_cfg.cluster.return_value = _make_cluster_result("ts", 40)
+        python_cfg.cluster_cache = _make_cluster_result("py", 40)
+        typescript_cfg.cluster_cache = _make_cluster_result("ts", 40)
         analysis.get_cfg.side_effect = lambda language: {
             "python": python_cfg,
             "typescript": typescript_cfg,
@@ -52,15 +52,15 @@ class TestClusterHelpers(unittest.TestCase):
 
         shifted_ts_ids = set().union(*result["typescript"].file_to_clusters.values())
         self.assertEqual(shifted_ts_ids, typescript_ids)
-        self.assertIs(python_cfg._cluster_cache, result["python"])
-        self.assertIs(typescript_cfg._cluster_cache, result["typescript"])
+        python_cfg.set_cluster_cache.assert_called_once_with(result["python"])
+        typescript_cfg.set_cluster_cache.assert_called_once_with(result["typescript"])
 
     def test_all_clusters_survive_grouping(self):
         """Every leaf cluster keeps its members — nothing is merged away before grouping."""
         analysis = MagicMock(spec=StaticAnalysisResults)
         analysis.get_languages.return_value = ["python"]
         cfg = MagicMock()
-        cfg.cluster.return_value = _make_cluster_result("py", 120)
+        cfg.cluster_cache = _make_cluster_result("py", 120)
         analysis.get_cfg.return_value = cfg
 
         result = build_all_cluster_results(analysis)

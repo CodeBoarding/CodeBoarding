@@ -15,7 +15,7 @@ from agents.agent_responses import (
 )
 from repo_utils import normalize_path
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.clustering.models import ClusteringResults, ClusterResult
 from static_analyzer.graph import CallGraph
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
@@ -51,6 +51,29 @@ class ValidationContext:
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
     components: list[Component] = field(default_factory=list)  # For relation-only validation steps
+
+    @classmethod
+    def for_shell(cls, clustering: ClusteringResults) -> "ValidationContext":
+        """Context for the analysis-shell step of one clustering scope (no edge checking)."""
+        return cls(
+            cluster_results=clustering.cluster_results,
+            static_analysis=clustering.static_analysis,
+            llm_cluster_analysis=clustering.cluster_analysis,
+        )
+
+    @classmethod
+    def for_relations(
+        cls, clustering: ClusteringResults, repo_dir: str, components: list[Component]
+    ) -> "ValidationContext":
+        """Context for the relation step of one clustering scope, with edge checking."""
+        return cls(
+            cluster_results=clustering.cluster_results,
+            cfg_graphs=clustering.cfg_graphs,
+            repo_dir=repo_dir,
+            static_analysis=clustering.static_analysis,
+            llm_cluster_analysis=clustering.cluster_analysis,
+            components=components,
+        )
 
 
 @dataclass
@@ -117,7 +140,7 @@ def validate_group_name_coverage(result: ComponentValidationTarget, context: Val
         logger.warning("[Validation] No cluster_analysis provided for group name coverage validation")
         return ValidationResult(is_valid=True)
 
-    expected_group_names = {cc.name for cc in context.llm_cluster_analysis.cluster_components}
+    expected_group_names = {cc.name for cc in context.llm_cluster_analysis.cluster_groups}
 
     referenced_group_names: set[str] = set()
     for component in result.components:
@@ -486,7 +509,7 @@ def _build_cluster_edge_lookup(
 
 
 def _component_cluster_ids(components: list[Component], cluster_analysis: ClusterAnalysis) -> dict[str, list[int]]:
-    group_to_cluster_ids = {group.name: group.cluster_ids for group in cluster_analysis.cluster_components}
+    group_to_cluster_ids = {group.name: group.cluster_ids for group in cluster_analysis.cluster_groups}
     component_to_clusters: dict[str, list[int]] = {}
     for component in components:
         cluster_ids: list[int] = []

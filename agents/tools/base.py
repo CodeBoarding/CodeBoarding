@@ -20,7 +20,7 @@ class RepoContext(BaseModel):
     ignore_manager: RepoIgnoreManager
     static_analysis: Optional[StaticAnalysisResults] = None
     changes: ChangeSet | None = None
-    cluster_analysis: ClusterAnalysis = Field(default_factory=lambda: ClusterAnalysis(cluster_components=[]))
+    cluster_analysis: ClusterAnalysis = Field(default_factory=lambda: ClusterAnalysis(cluster_groups=[]))
     cluster_results: dict[str, ClusterResult] = Field(default_factory=dict)
     cfg_graphs: dict[str, CallGraph] = Field(default_factory=dict)
     # Shared caches to prevent redundant filesystem walks

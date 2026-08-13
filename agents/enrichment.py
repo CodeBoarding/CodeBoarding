@@ -19,7 +19,7 @@ import networkx as nx
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
-    ClustersComponent,
+    ClustersGroup,
     Component,
     ComponentArchitecture,
 )
@@ -33,14 +33,14 @@ from agents.file_index_models import FileMethodGroup, MethodEntry
 from diagram_analysis.file_index import build_files_index
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.clustering.cluster_helpers import combine_cluster_results, group_symbols
+from static_analyzer.clustering.cluster_helpers import group_symbols
 from static_analyzer.clustering.cluster_relations import (
     build_component_relations,
     build_node_to_component_map,
     merge_relations,
 )
 from static_analyzer.clustering.models import ClusterResult
-from static_analyzer.clustering.service import ClusteringResults
+from static_analyzer.clustering.models import ClusteringResults
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
@@ -68,16 +68,16 @@ class StaticAnalysisEnricher:
         keeps its name/description/key_entities; any group the LLM merged away or
         dropped gets a deterministic fallback so the count never drifts.
         """
-        node_lookup = combine_cluster_results(self.clustering.cluster_results).clusters
-        claimant: dict[str, Component] = {}
+        node_lookup = self.clustering.combined().clusters
+        src_group_to_component: dict[str, Component] = {}
         for comp in architecture.components:
             for group_name in comp.source_group_names:
-                claimant.setdefault(group_name.lower(), comp)
+                src_group_to_component.setdefault(group_name.lower(), comp)
 
         used: set[int] = set()
         final: list[Component] = []
-        for group in self.clustering.cluster_analysis.cluster_components:
-            comp = claimant.get(group.name.lower())
+        for group in self.clustering.cluster_analysis.cluster_groups:
+            comp = src_group_to_component.get(group.name.lower())
             if comp is None or id(comp) in used:
                 comp = _fallback_component(group, node_lookup)
             else:
@@ -96,7 +96,7 @@ class StaticAnalysisEnricher:
     def resolve_cluster_ids(self, analysis: AnalysisInsights) -> None:
         """Resolve source_cluster_ids deterministically from source_group_names via case-insensitive lookup."""
         group_name_to_ids: dict[str, list[GraphClusterId]] = {
-            cc.name.lower(): cc.cluster_ids for cc in self.clustering.cluster_analysis.cluster_components
+            cc.name.lower(): cc.cluster_ids for cc in self.clustering.cluster_analysis.cluster_groups
         }
 
         for component in analysis.components:
@@ -155,7 +155,7 @@ class StaticAnalysisEnricher:
         return build_scope_cfg_string(analysis, self.clustering.static_analysis)
 
 
-def _fallback_component(group: ClustersComponent, node_lookup: dict[int, set[str]]) -> Component:
+def _fallback_component(group: ClustersGroup, node_lookup: dict[int, set[str]]) -> Component:
     """Deterministic component for a group the LLM failed to name (merged/dropped it)."""
     symbols = group_symbols(group.cluster_ids, node_lookup)
     name = symbols[0].split(".")[-1] if symbols else group.name
@@ -165,7 +165,7 @@ def _fallback_component(group: ClustersComponent, node_lookup: dict[int, set[str
 def _scoped_cfg(
     lang: str,
     static_analysis: StaticAnalysisResults,
-    cfg_graphs: dict[str, CallGraph] | None,
+    cfg_graphs: dict[str, CallGraph],
 ) -> CallGraph:
     """The scoped CallGraph for *lang*, falling back to the global CFG."""
     if cfg_graphs and lang in cfg_graphs:
@@ -176,7 +176,7 @@ def _scoped_cfg(
 def _collect_all_cfg_nodes(
     cluster_results: dict[str, ClusterResult],
     static_analysis: StaticAnalysisResults,
-    cfg_graphs: dict[str, CallGraph] | None = None,
+    cfg_graphs: dict[str, CallGraph],
 ) -> dict[str, Node]:
     """Build a lookup of qualified_name -> Node for all languages present in cluster_results.
 
@@ -192,7 +192,7 @@ def _collect_all_cfg_nodes(
 def _build_undirected_graphs(
     cluster_results: dict[str, ClusterResult],
     static_analysis: StaticAnalysisResults,
-    cfg_graphs: dict[str, CallGraph] | None = None,
+    cfg_graphs: dict[str, CallGraph],
 ) -> dict[str, nx.Graph]:
     """Pre-build undirected networkx graphs for each language in cluster_results.
 
@@ -365,7 +365,7 @@ def _assign_nodes_to_components(
     cluster_results: dict[str, ClusterResult],
     fallback_component: Component,
     static_analysis: StaticAnalysisResults,
-    cfg_graphs: dict[str, CallGraph] | None = None,
+    cfg_graphs: dict[str, CallGraph],
     source_cluster_id_prefix: str = "",
 ) -> dict[str, list[Node]]:
     """Assign every node to a component via its cluster, file co-location, graph distance, or fallback."""
@@ -445,7 +445,7 @@ def _assign_component_nodes(
     analysis: AnalysisInsights,
     cluster_results: dict[str, ClusterResult],
     static_analysis: StaticAnalysisResults,
-    cfg_graphs: dict[str, CallGraph] | None,
+    cfg_graphs: dict[str, CallGraph],
     source_cluster_id_prefix: str,
 ) -> tuple[dict[str, list[Node]], int]:
     """Map every CFG node onto a component; returns the mapping and the node total."""
@@ -472,7 +472,7 @@ def component_file_method_groups(
     cluster_results: dict[str, ClusterResult],
     repo_dir: Path,
     static_analysis: StaticAnalysisResults,
-    cfg_graphs: dict[str, CallGraph] | None = None,
+    cfg_graphs: dict[str, CallGraph],
     source_cluster_id_prefix: str = "",
     source_cache: SourceCache | None = None,
 ) -> dict[str, list[FileMethodGroup]]:
@@ -495,7 +495,7 @@ def component_file_method_groups(
 def build_static_relations(
     analysis: AnalysisInsights,
     static_analysis: StaticAnalysisResults,
-    cfg_graphs: dict[str, CallGraph] | None = None,
+    cfg_graphs: dict[str, CallGraph],
     source_cluster_id_prefix: str = "",
 ) -> None:
     """Build inter-component relations from CFG edges and merge with LLM relations.
@@ -505,10 +505,9 @@ def build_static_relations(
     - LLM only with evidence/key_edges: keep as runtime or external communication.
     - Static only: keep out of user-facing relations unless the LLM selected the pair.
 
-    If cfg_graphs is not provided, builds them from static_analysis.
+    ``cfg_graphs`` is the scope's graphs — pass ``static_analysis.available_cfgs()``
+    for the whole project.
     """
-    if cfg_graphs is None:
-        cfg_graphs = static_analysis.available_cfgs()
     node_to_component = build_node_to_component_map(analysis)
     static_relations = build_component_relations(node_to_component, cfg_graphs)
     analysis.components_relations = merge_relations(analysis.components_relations, static_relations, analysis)

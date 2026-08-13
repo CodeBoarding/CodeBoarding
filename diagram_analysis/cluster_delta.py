@@ -281,7 +281,7 @@ def compute_cluster_delta(
         cfg = new_static.get_cfg(language)
         # Cluster the same reference-augmented graph the full run uses; a call-only graph would
         # re-cluster type-coupled methods differently and drift from what a full analysis produces.
-        nx_graph = cfg.clustering_networkx()
+        nx_graph = cfg.to_networkx_with_references()
         old_clusters = old_snapshot.get_language(language)
         language_delta = _delta_for_language(
             language,

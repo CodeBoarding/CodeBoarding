@@ -101,7 +101,7 @@ def _collect_checks_for_language(
         summaries.append(check_package_instability(package_deps, config))
 
     # Component-cohesion check intentionally not run here. It's the only health
-    # check that calls ``CallGraph.cluster()``, which would seed
+    # check that calls ``cluster_call_graph``, which would seed
     # ``_cluster_cache`` with a current-graph partition and let it masquerade
     # as a historical snapshot in the next incremental delta. Re-enable via
     # ``health.checks.cohesion.check_component_cohesion`` only after addressing

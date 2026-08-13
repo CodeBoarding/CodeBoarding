@@ -2,11 +2,12 @@ from pathlib import Path
 
 from agents.agent_responses import (
     ClusterAnalysis,
-    ClustersComponent,
+    ClustersGroup,
     Component,
     ComponentArchitecture,
     SourceCodeReference,
 )
+from static_analyzer.clustering.models import ClusteringResults
 from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
 from agents.validation import ValidationContext, validate_group_name_coverage, validate_key_entities
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -46,12 +47,16 @@ def _component_repair_context() -> ComponentRepairContext:
         )
     }
     cluster_analysis = ClusterAnalysis(
-        cluster_components=[ClustersComponent(name="API Handler", cluster_ids=[1], description="Handles requests.")]
+        cluster_groups=[ClustersGroup(name="API Handler", cluster_ids=[1], description="Handles requests.")]
     )
     return ComponentRepairContext(
         reference_resolver=StaticReferenceResolver(Path("/tmp/fake-repo"), static_analysis),
-        cluster_results=cluster_results,
-        llm_cluster_analysis=cluster_analysis,
+        clustering=ClusteringResults(
+            cluster_results=cluster_results,
+            cfg_graphs={},
+            cluster_analysis=cluster_analysis,
+            static_analysis=static_analysis,
+        ),
     )
 
 
@@ -93,11 +98,7 @@ def test_component_validators_do_not_mutate_repairable_metadata() -> None:
         ],
     )
     repair_context = _component_repair_context()
-    validation_context = ValidationContext(
-        cluster_results=repair_context.cluster_results,
-        static_analysis=repair_context.reference_resolver.static_analysis,
-        llm_cluster_analysis=repair_context.llm_cluster_analysis,
-    )
+    validation_context = ValidationContext.for_shell(repair_context.clustering)
     before = architecture.model_dump()
 
     validate_group_name_coverage(architecture, validation_context)

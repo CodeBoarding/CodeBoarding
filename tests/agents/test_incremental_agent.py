@@ -29,7 +29,7 @@ from agents.incremental_results import ScopeRelationContext
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.clustering.models import ClusterResult
-from static_analyzer.clustering.service import ClusteringResults
+from static_analyzer.clustering.models import ClusteringResults
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
 
@@ -444,7 +444,7 @@ class TestIncrementalRelations(unittest.TestCase):
         )
 
         self.assertEqual(component.source_group_names, ["Worker"])
-        self.assertEqual(cluster_analysis.cluster_components[0].cluster_ids, [2])
+        self.assertEqual(cluster_analysis.cluster_groups[0].cluster_ids, [2])
 
     def test_uses_api_surface_relation_pipeline_and_attaches_static_call_sites(self) -> None:
         source = Node("pkg.api.run", NodeType.FUNCTION, "api.py", 1, 5)
@@ -516,7 +516,7 @@ class TestIncrementalRelations(unittest.TestCase):
         clustering = ClusteringResults(
             cluster_results={},
             cfg_graphs={},
-            cluster_analysis=ClusterAnalysis(cluster_components=[]),
+            cluster_analysis=ClusterAnalysis(cluster_groups=[]),
             static_analysis=static_analysis,
         )
         with patch("agents.agent.create_agent", return_value=MagicMock()):

@@ -37,7 +37,7 @@ from agents.validation import (
     validate_relations,
 )
 from monitoring import trace
-from static_analyzer.clustering.service import ClusteringResults
+from static_analyzer.clustering.models import ClusteringResults
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class AbstractionAgent(CodeBoardingAgent):
         cluster_analysis = self.clustering.cluster_analysis
         cluster_str = cluster_analysis.llm_str() if cluster_analysis else "No cluster analysis available."
 
-        group_names = [cc.name for cc in cluster_analysis.cluster_components] if cluster_analysis else []
+        group_names = [cc.name for cc in cluster_analysis.cluster_groups] if cluster_analysis else []
 
         prompt = self.prompts["final_analysis"].format(
             cluster_analysis=cluster_str,
@@ -103,12 +103,6 @@ class AbstractionAgent(CodeBoardingAgent):
                 f"Every one of these names must appear in exactly one component's source_group_names: {group_names}\n"
             )
 
-        context = ValidationContext(
-            cluster_results=self.clustering.cluster_results,
-            static_analysis=self.clustering.static_analysis,
-            llm_cluster_analysis=cluster_analysis,
-        )
-
         architecture = self._invoke_repair_validate(
             prompt,
             ComponentArchitecture,
@@ -117,12 +111,8 @@ class AbstractionAgent(CodeBoardingAgent):
                 validate_group_name_coverage,
                 validate_key_entities,
             ],
-            repair_context=ComponentRepairContext(
-                reference_resolver=self.reference_resolver,
-                cluster_results=self.clustering.cluster_results,
-                llm_cluster_analysis=cluster_analysis,
-            ),
-            validation_context=context,
+            repair_context=ComponentRepairContext(self.reference_resolver, self.clustering),
+            validation_context=ValidationContext.for_shell(self.clustering),
             max_validation_attempts=3,
         )
         self.enricher.pin_components_to_groups(architecture)
@@ -158,13 +148,8 @@ class AbstractionAgent(CodeBoardingAgent):
             prompt,
             ComponentRelations,
             validators=[validate_relations],
-            validation_context=ValidationContext(
-                cluster_results=self.clustering.cluster_results,
-                cfg_graphs=cfg_graphs,
-                repo_dir=str(self.repo_dir),
-                static_analysis=self.clustering.static_analysis,
-                llm_cluster_analysis=cluster_analysis,
-                components=analysis.components,
+            validation_context=ValidationContext.for_relations(
+                self.clustering, repo_dir=str(self.repo_dir), components=analysis.components
             ),
             max_validation_attempts=3,
         )

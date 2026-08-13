@@ -5,19 +5,16 @@ import unittest
 import networkx as nx
 
 from agents.planner_agent import get_expandable_components, should_expand_component
-from static_analyzer.clustering.separability import (
-    MAX_LEAF_FILES,
-    MAX_LEAF_METHODS,
-    component_is_separable,
-    leaf_load,
-)
+from static_analyzer.clustering.constants import MAX_LEAF_FILES, MAX_LEAF_METHODS
+from static_analyzer.clustering.separability import leaf_load, subgraph_is_separable
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from static_analyzer.clustering.models import ClusterResult, METHOD_LEVEL_STRATEGY
+from static_analyzer.clustering.constants import METHOD_LEVEL_STRATEGY
+from static_analyzer.clustering.models import ClusterResult
 
 
 class TestShouldExpandComponent(unittest.TestCase):
@@ -364,16 +361,16 @@ class TestComponentIsSeparable(unittest.TestCase):
 
     def test_large_separable_component_expands(self):
         crs, cfgs = self._subgraph(n_blocks=3, clusters_per_block=3, methods_per_cluster=4)  # 36 methods
-        self.assertTrue(component_is_separable(crs, cfgs, load=0.3))
+        self.assertTrue(subgraph_is_separable(crs, cfgs, load=0.3))
 
     def test_large_cohesive_component_is_leaf(self):
         crs, cfgs = self._subgraph(n_blocks=1, clusters_per_block=6, methods_per_cluster=6, cohesive=True)  # 36 methods
-        self.assertFalse(component_is_separable(crs, cfgs, load=0.3))
+        self.assertFalse(subgraph_is_separable(crs, cfgs, load=0.3))
 
     def test_small_component_is_leaf_regardless_of_structure(self):
         # Strong structure but only 9 methods — below the min-method gate.
         crs, cfgs = self._subgraph(n_blocks=3, clusters_per_block=1, methods_per_cluster=3)  # 9 methods
-        self.assertFalse(component_is_separable(crs, cfgs, load=0.3))
+        self.assertFalse(subgraph_is_separable(crs, cfgs, load=0.3))
 
     def test_method_level_expansion_does_not_masquerade_as_structure(self):
         # A subgraph with too few natural clusters is re-expanded to one synthetic cluster
@@ -382,14 +379,14 @@ class TestComponentIsSeparable(unittest.TestCase):
         crs, cfgs = self._subgraph(n_blocks=3, clusters_per_block=3, methods_per_cluster=4)
         for cr in crs.values():
             cr.strategy = METHOD_LEVEL_STRATEGY
-        self.assertFalse(component_is_separable(crs, cfgs, load=0.3))
+        self.assertFalse(subgraph_is_separable(crs, cfgs, load=0.3))
 
     def test_bar_eases_as_the_component_approaches_the_leaf_ceiling(self):
         # Weak but real structure: not worth splitting a small component over, worth
         # splitting a component that is nearly too big to read whole.
         crs, cfgs = self._subgraph(n_blocks=3, clusters_per_block=3, methods_per_cluster=4, cross_ratio=0.34)
-        self.assertFalse(component_is_separable(crs, cfgs, load=0.1))
-        self.assertTrue(component_is_separable(crs, cfgs, load=0.8))
+        self.assertFalse(subgraph_is_separable(crs, cfgs, load=0.1))
+        self.assertTrue(subgraph_is_separable(crs, cfgs, load=0.8))
 
 
 class TestLeafLoad(unittest.TestCase):

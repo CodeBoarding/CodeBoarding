@@ -13,7 +13,7 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
-    ClustersComponent,
+    ClustersGroup,
     Component,
     ComponentApiSurfaces,
     ComponentArchitecture,
@@ -57,7 +57,7 @@ from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.clustering.models import ClusterResult
-from static_analyzer.clustering.service import ClusteringResults
+from static_analyzer.clustering.models import ClusteringResults
 from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
@@ -235,12 +235,12 @@ class IncrementalAgent(CodeBoardingAgent):
     @trace
     def detail_new_components(self, components: list[Component]) -> None:
         """Replace new components' provisional names and descriptions in one LLM call."""
-        groups: list[ClustersComponent] = []
+        groups: list[ClustersGroup] = []
         target_by_group: dict[str, Component] = {}
         for component in components:
             group_name = f"Incremental Group {component.component_id}"
             groups.append(
-                ClustersComponent(
+                ClustersGroup(
                     name=group_name,
                     cluster_ids=[],
                     description=_new_component_membership_summary(component),
@@ -248,7 +248,7 @@ class IncrementalAgent(CodeBoardingAgent):
             )
             target_by_group[group_name.casefold()] = component
 
-        cluster_analysis = ClusterAnalysis(cluster_components=groups)
+        cluster_analysis = ClusterAnalysis(cluster_groups=groups)
         prompt = self.prompts["new_component_details"].format(cluster_analysis=cluster_analysis.llm_str())
         group_names = [group.name for group in groups]
         prompt += (
@@ -574,20 +574,20 @@ def _cluster_analysis_for_scope(
     valid_cluster_ids = {
         cluster_id for cluster_result in cluster_results.values() for cluster_id in cluster_result.clusters
     }
-    groups: list[ClustersComponent] = []
+    groups: list[ClustersGroup] = []
     for component in scope.components:
         cluster_ids = _local_graph_cluster_ids(component.source_cluster_ids, scope_id, valid_cluster_ids)
         if not component.source_group_names:
             component.source_group_names = [component.name]
         for group_name in component.source_group_names:
             groups.append(
-                ClustersComponent(
+                ClustersGroup(
                     name=group_name,
                     cluster_ids=cluster_ids,
                     description=component.description,
                 )
             )
-    return ClusterAnalysis(cluster_components=groups)
+    return ClusterAnalysis(cluster_groups=groups)
 
 
 def _local_graph_cluster_ids(

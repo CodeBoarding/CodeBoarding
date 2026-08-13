@@ -6,7 +6,7 @@ import networkx as nx
 
 from agents.agent_responses import ClusterAnalysis, Component, SourceCodeReference
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from static_analyzer.clustering.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN
+from static_analyzer.clustering.constants import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN
 from static_analyzer.clustering.service import ClusteringService, _expand_to_method_level_clusters
 from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -46,14 +46,14 @@ class TestGroupClusters(unittest.TestCase):
 
     def _assert_partition(self, result, expected_ids):
         self.assertIsInstance(result, ClusterAnalysis)
-        self.assertGreaterEqual(len(result.cluster_components), 1)
+        self.assertGreaterEqual(len(result.cluster_groups), 1)
         # Names are the deterministic Group-1..N labels.
         self.assertEqual(
-            [cc.name for cc in result.cluster_components],
-            [f"Group {i}" for i in range(1, len(result.cluster_components) + 1)],
+            [cc.name for cc in result.cluster_groups],
+            [f"Group {i}" for i in range(1, len(result.cluster_groups) + 1)],
         )
         # Every leaf cluster is owned by exactly one group (a true, disjoint partition).
-        assigned = [cid for cc in result.cluster_components for cid in cc.cluster_ids]
+        assigned = [cid for cc in result.cluster_groups for cid in cc.cluster_ids]
         self.assertEqual(sorted(assigned), sorted(expected_ids))
         self.assertEqual(len(assigned), len(set(assigned)))
 
@@ -67,8 +67,8 @@ class TestGroupClusters(unittest.TestCase):
         self._assert_partition(result, list(range(1, 13)))
         # Deterministic: same membership on a re-run.
         self.assertEqual(
-            [sorted(cc.cluster_ids) for cc in result.cluster_components],
-            [sorted(cc.cluster_ids) for cc in result_again.cluster_components],
+            [sorted(cc.cluster_ids) for cc in result.cluster_groups],
+            [sorted(cc.cluster_ids) for cc in result_again.cluster_groups],
         )
 
     def test_group_clusters_multiple_languages(self):
@@ -86,7 +86,7 @@ class TestGroupClusters(unittest.TestCase):
         result = self.service._group_clusters({}, {})
 
         self.assertIsInstance(result, ClusterAnalysis)
-        self.assertEqual(result.cluster_components, [])
+        self.assertEqual(result.cluster_groups, [])
 
     def test_group_clusters_subcomponent_range(self):
         cr, graph = _clustered_graph(range(1, 11))
@@ -98,8 +98,8 @@ class TestGroupClusters(unittest.TestCase):
 
         self._assert_partition(result, list(range(1, 11)))
         self.assertEqual(
-            [sorted(cc.cluster_ids) for cc in result.cluster_components],
-            [sorted(cc.cluster_ids) for cc in result_again.cluster_components],
+            [sorted(cc.cluster_ids) for cc in result.cluster_groups],
+            [sorted(cc.cluster_ids) for cc in result_again.cluster_groups],
         )
 
     def test_cluster_project_raises_on_empty_structure(self):
@@ -160,7 +160,7 @@ class TestComponentSubgraph(unittest.TestCase):
 
         mock_subgraph = MagicMock()
         mock_subgraph.nodes = {"n1": mock_node}
-        mock_subgraph.cluster.return_value = mock_sub_cluster_result
+        mock_subgraph.cluster_cache = mock_sub_cluster_result
         mock_subgraph.method_cluster_paths_snapshot.return_value = []
 
         mock_cfg = MagicMock()
@@ -175,7 +175,6 @@ class TestComponentSubgraph(unittest.TestCase):
         self.assertIs(subgraph_cfgs["python"], mock_subgraph)
         self.mock_static_analysis.get_cfg.assert_called_with("python")
         mock_cfg.filter_by_nodes.assert_called_with(expected_qnames)
-        mock_subgraph.cluster.assert_called_once()
 
     def test_component_without_methods_yields_empty_clustering(self):
         empty = Component(name="Empty", description="", key_entities=[])

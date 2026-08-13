@@ -2,41 +2,59 @@
 
 import logging
 from collections import defaultdict
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
+from agents.agent_responses import ClusterAnalysis
+from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.graph import CallGraph
+from static_analyzer.graph import ClusterResult as ClusterResult
 
 logger = logging.getLogger(__name__)
 
-# Marker on a ClusterResult whose clusters are synthetic one-method-per-cluster
-# groups, produced when a subgraph had too few natural clusters to assign methods
-# at a useful granularity. Its modularity is not comparable to a real clustering's.
-METHOD_LEVEL_STRATEGY = "method_level_expansion"
+
+def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> ClusterResult:
+    """Union per-language ClusterResults into one.
+
+    Cluster IDs are globally unique across languages, so a plain union is safe and
+    lets us group every language's leaf clusters against a single meta-graph.
+    """
+    clusters: dict[int, set[str]] = {}
+    cluster_to_files: dict[int, set[str]] = {}
+    file_to_clusters: dict[str, set[int]] = defaultdict(set)
+    for cr in cluster_results.values():
+        clusters.update(cr.clusters)
+        cluster_to_files.update(cr.cluster_to_files)
+        for file_path, cids in cr.file_to_clusters.items():
+            file_to_clusters[file_path].update(cids)
+    return ClusterResult(
+        clusters=clusters,
+        cluster_to_files=cluster_to_files,
+        file_to_clusters=dict(file_to_clusters),
+        strategy="combined",
+    )
 
 
 @dataclass
-class ClusterResult:
-    """Result of clustering a CallGraph. Provides deterministic cluster IDs and file mappings."""
+class ClusteringResults:
+    """One scope's clustering output — the agents' single analysis input.
 
-    clusters: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> node names
-    cluster_to_files: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> file_paths
-    file_to_clusters: dict[str, set[int]] = field(default_factory=dict)  # file_path -> cluster_ids
-    strategy: str = ""  # which algorithm was used
+    Produced for the whole repository (``cluster_project``) or for one
+    component's subgraph (``cluster_component``). Carries the
+    ``StaticAnalysisResults`` the clustering was derived from, so consumers
+    need no separate static-analysis handle.
+    """
 
-    def get_cluster_ids(self) -> set[int]:
-        return set(self.clusters.keys())
+    #: language -> leaf clusters
+    cluster_results: dict[str, ClusterResult]
+    #: language -> the call graph the clusters were derived from
+    cfg_graphs: dict[str, CallGraph]
+    #: deterministic component groups ("Group i"); the LLM only names them
+    cluster_analysis: ClusterAnalysis
+    #: the static analysis this clustering was derived from
+    static_analysis: StaticAnalysisResults
+    #: component id whose subgraph this scope is; "" for the whole project
+    scope_id: str = ""
 
-    def get_files_for_cluster(self, cluster_id: int) -> set[str]:
-        return self.cluster_to_files.get(cluster_id, set())
-
-    def get_clusters_for_file(self, file_path: str) -> set[int]:
-        return self.file_to_clusters.get(file_path, set())
-
-    def get_nodes_for_cluster(self, cluster_id: int) -> set[str]:
-        return self.clusters.get(cluster_id, set())
-
-    def visit_paths(self, fn: Callable[[str], str]) -> None:
-        self.cluster_to_files = {cid: {fn(path) for path in paths} for cid, paths in self.cluster_to_files.items()}
-        remapped_file_to_clusters: dict[str, set[int]] = defaultdict(set)
-        for path, cluster_ids in self.file_to_clusters.items():
-            remapped_file_to_clusters[fn(path)].update(cluster_ids)
-        self.file_to_clusters = dict(remapped_file_to_clusters)
+    def combined(self) -> ClusterResult:
+        """All languages' leaf clusters unioned into one ClusterResult."""
+        return combine_cluster_results(self.cluster_results)

@@ -7,14 +7,14 @@ from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
-    ClustersComponent,
+    ClustersGroup,
     Component,
     ComponentArchitecture,
     MetaAnalysisInsights,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering.models import ClusterResult
-from static_analyzer.clustering.service import ClusteringResults
+from static_analyzer.clustering.models import ClusteringResults
 
 
 class TestAbstractionAgent(unittest.TestCase):
@@ -61,7 +61,7 @@ class TestAbstractionAgent(unittest.TestCase):
         return ClusteringResults(
             cluster_results=cluster_results or {},
             cfg_graphs={},
-            cluster_analysis=cluster_analysis or ClusterAnalysis(cluster_components=[]),
+            cluster_analysis=cluster_analysis or ClusterAnalysis(cluster_groups=[]),
             static_analysis=self.mock_static_analysis,
         )
 
@@ -102,10 +102,10 @@ class TestAbstractionAgent(unittest.TestCase):
     def test_step_analysis_shell_pins_one_component_per_group(self, mock_invoke_repair_validate):
         """Even when the LLM merges/drops groups, the result has exactly one component per group."""
         cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="Group 1", cluster_ids=[1, 2], description="g1"),
-                ClustersComponent(name="Group 2", cluster_ids=[3], description="g2"),
-                ClustersComponent(name="Group 3", cluster_ids=[4, 5], description="g3"),
+            cluster_groups=[
+                ClustersGroup(name="Group 1", cluster_ids=[1, 2], description="g1"),
+                ClustersGroup(name="Group 2", cluster_ids=[3], description="g2"),
+                ClustersGroup(name="Group 3", cluster_ids=[4, 5], description="g3"),
             ]
         )
         cluster_results = {

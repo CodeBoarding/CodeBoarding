@@ -15,7 +15,7 @@ from agents.validation import (
 )
 from agents.agent_responses import (
     ClusterAnalysis,
-    ClustersComponent,
+    ClustersGroup,
     AnalysisInsights,
     Component,
     Relation,
@@ -342,9 +342,9 @@ class TestValidateRelationEvidence(unittest.TestCase):
             strategy="test",
         )
         cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="GroupA", cluster_ids=[1], description="A"),
-                ClustersComponent(name="GroupB", cluster_ids=[2], description="B"),
+            cluster_groups=[
+                ClustersGroup(name="GroupA", cluster_ids=[1], description="A"),
+                ClustersGroup(name="GroupB", cluster_ids=[2], description="B"),
             ]
         )
         return ValidationContext(

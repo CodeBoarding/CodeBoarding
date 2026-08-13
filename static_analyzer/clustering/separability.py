@@ -9,26 +9,19 @@ import logging
 import networkx as nx
 
 from agents.agent_responses import Component
-from static_analyzer.clustering.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN, supercluster_leaf_ids
-from static_analyzer.clustering.models import METHOD_LEVEL_STRATEGY, ClusterResult
+from static_analyzer.clustering.cluster_helpers import supercluster_leaf_ids
+from static_analyzer.clustering.constants import (
+    EXPAND_MODULARITY_THRESHOLD,
+    MAX_LEAF_FILES,
+    MAX_LEAF_METHODS,
+    METHOD_LEVEL_STRATEGY,
+    MIN_METHODS_TO_EXPAND,
+    SUBCOMPONENTS_MAX,
+    SUBCOMPONENTS_MIN,
+)
+from static_analyzer.clustering.models import ClusterResult
 
 logger = logging.getLogger(__name__)
-
-# Below this a component holds too little to be worth sub-dividing at all.
-MIN_METHODS_TO_EXPAND = 30
-
-# The size at which a component stops being readable as one box and must be split
-# whatever its call structure says. Measured across the eval corpus: at 12 files /
-# 120 methods every repo's tree comes out with no oversized leaf, while small repos
-# are untouched (they stop at the modularity gate long before this).
-MAX_LEAF_FILES = 12
-MAX_LEAF_METHODS = 120
-
-# Modularity a *small* component's split must reach to be worth making. The bar
-# ramps linearly to zero as the component approaches the leaf ceiling: a large
-# component gets split on weaker structural evidence, because leaving it whole
-# costs the reader more than an imperfect boundary does.
-EXPAND_MODULARITY_THRESHOLD = 0.15
 
 
 def member_keys(component: Component) -> frozenset[tuple[str, str]]:
@@ -44,7 +37,7 @@ def leaf_load(component: Component) -> float:
     return max(methods / MAX_LEAF_METHODS, len(component.file_methods) / MAX_LEAF_FILES)
 
 
-def component_is_separable(
+def subgraph_is_separable(
     cluster_results: dict[str, ClusterResult],
     cfg_graphs: dict[str, nx.DiGraph],
     load: float,

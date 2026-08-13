@@ -27,7 +27,7 @@ class ComponentBridgeEdgesTool(BaseRepoTool):
     args_schema: ArgsSchema = ComponentBridgeEdgesInput
 
     def _run(self, source_group_names: list[str], destination_group_names: list[str]) -> str:
-        if not self.context.cluster_analysis.cluster_components:
+        if not self.context.cluster_analysis.cluster_groups:
             return "No grouped cluster context available."
 
         source_clusters = self._cluster_ids_for_groups(source_group_names)
@@ -71,7 +71,7 @@ class ComponentBridgeEdgesTool(BaseRepoTool):
     def _cluster_ids_for_groups(self, group_names: list[str]) -> set[int]:
         requested = set(group_names)
         cluster_ids: set[int] = set()
-        for group in self.context.cluster_analysis.cluster_components:
+        for group in self.context.cluster_analysis.cluster_groups:
             if group.name in requested:
                 cluster_ids.update(group.cluster_ids)
         return cluster_ids

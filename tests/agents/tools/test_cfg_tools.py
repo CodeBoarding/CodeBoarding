@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 from agents.agent_responses import (
     ClusterAnalysis,
-    ClustersComponent,
+    ClustersGroup,
     Component,
 )
 from agents.file_index_models import FileMethodGroup
@@ -165,10 +165,10 @@ class TestComponentBridgeEdgesTool(unittest.TestCase):
             )
         }
         cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="Source Group", cluster_ids=[1], description="source"),
-                ClustersComponent(name="Destination Group", cluster_ids=[2], description="destination"),
-                ClustersComponent(name="Other Group", cluster_ids=[3], description="other"),
+            cluster_groups=[
+                ClustersGroup(name="Source Group", cluster_ids=[1], description="source"),
+                ClustersGroup(name="Destination Group", cluster_ids=[2], description="destination"),
+                ClustersGroup(name="Other Group", cluster_ids=[3], description="other"),
             ]
         )
         context = RepoContext(
