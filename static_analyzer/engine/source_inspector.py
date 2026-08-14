@@ -78,6 +78,10 @@ _NAME_NODE_TYPES = frozenset(
 _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
+_TYPE_DECLARATION_NODE_TYPES = frozenset(
+    {"class_declaration", "interface_declaration", "record_declaration", "struct_declaration"}
+)
+_BASE_LIST_NODE_TYPES = frozenset({"base_list", "superclass", "super_interfaces", "extends_interfaces"})
 _DECLARATION_BLOCK_NODE_TYPES = frozenset({"block", "compound_statement", "statement_block"})
 _EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
 
@@ -195,23 +199,35 @@ class SourceInspector:
             node = node.parent
         return False
 
-    def find_call_sites(self, file_path: Path) -> list[CallSite]:
-        """Find definition-query positions for identifiers used at call sites."""
+    def find_call_sites(self, file_path: Path, *, include_method_groups: bool = False) -> list[CallSite]:
+        """Find definition-query positions for identifiers used at call sites.
+
+        Why ``include_method_groups``: a method passed as a value rather than
+        invoked (``app.MapGet("/items", GetAllItems)``) has no invocation node,
+        so the call-target walk cannot see it. Languages that route real control
+        flow that way (C# minimal APIs, delegates, event handlers) would lose
+        those edges entirely under the definitions strategy.
+        """
         parsed = self._parse(file_path)
         if parsed is None:
             return []
 
         sites: list[CallSite] = []
         seen: set[tuple[int, int]] = set()
-        for node in self._walk(parsed.tree.root_node):
-            target = self._call_target_node(node)
-            if target is None:
-                continue
-            pos = (target.start_point.row, target.start_point.column)
+
+        def add(node: TreeSitterNode) -> None:
+            pos = (node.start_point.row, node.start_point.column)
             if pos in seen:
-                continue
+                return
             seen.add(pos)
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
+
+        for node in self._walk(parsed.tree.root_node):
+            target = self._call_target_node(node)
+            if target is not None:
+                add(target)
+            elif include_method_groups and node.type in _NAME_NODE_TYPES and self._node_is_call_argument(node):
+                add(node)
         return sites
 
     @staticmethod
@@ -333,6 +349,37 @@ class SourceInspector:
                 return True
             node = parent
         return False
+
+    def find_type_bases(self, file_path: Path) -> list[tuple[str, list[str]]]:
+        """Return ``(declared type name, base type names)`` for each type in the file.
+
+        Why: csharp-ls answers neither ``textDocument/implementation`` nor
+        ``typeHierarchy``, so the parse tree is the only place the inheritance
+        needed to expand a virtual call into its overrides survives.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        declarations: list[tuple[str, list[str]]] = []
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _TYPE_DECLARATION_NODE_TYPES:
+                continue
+            name_node = node.child_by_field_name("name")
+            if name_node is None:
+                continue
+            bases = [
+                text(self._select_query_node(base) or base)
+                for child in node.children
+                if child.type in _BASE_LIST_NODE_TYPES
+                for base in child.named_children
+            ]
+            if bases:
+                declarations.append((text(name_node), bases))
+        return declarations
 
     @staticmethod
     def _node_is_return_value(target: TreeSitterNode) -> bool:

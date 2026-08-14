@@ -271,6 +271,21 @@ class TestFindCallSites:
         assert (1, 1) not in positions  # "if" at 1,1
         assert (2, 12) in positions  # foo
 
+    def test_method_group_argument_is_a_site_only_when_opted_in(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text('class A { void M(){ app.MapGet("/items", GetAllItems); } }\n')
+        si = SourceInspector()
+
+        assert (1, 42) not in _positions(si.find_call_sites(f))
+        assert (1, 42) in _positions(si.find_call_sites(f, include_method_groups=True))
+
+    def test_method_group_opt_in_keeps_the_invocation_itself(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text('class A { void M(){ app.MapGet("/items", GetAllItems); } }\n')
+        si = SourceInspector()
+        positions = _positions(si.find_call_sites(f, include_method_groups=True))
+        assert (1, 25) in positions  # MapGet
+
     def test_skips_comments(self, tmp_path: Path):
         f = tmp_path / "test.java"
         f.write_text("// foo()\n/* bar()\n   baz() */\nclass A { void m(){ real(); } }\n")
@@ -317,6 +332,26 @@ class TestFindCallSites:
         si = SourceInspector()
 
         assert (1, 1) in _positions(si.find_call_sites(f))
+
+
+class TestFindTypeBases:
+    def test_csharp_base_class(self, tmp_path: Path):
+        f = tmp_path / "Animal.cs"
+        f.write_text("abstract class Animal {}\nclass Dog : Animal {}\nclass Cat : Animal {}\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("Dog", ["Animal"]), ("Cat", ["Animal"])]
+
+    def test_csharp_generic_interface_reduces_to_its_name(self, tmp_path: Path):
+        f = tmp_path / "Repo.cs"
+        f.write_text("class Repo : Base, IRepo<Task> {}\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("Repo", ["Base", "IRepo"])]
+
+    def test_type_without_bases_is_omitted(self, tmp_path: Path):
+        f = tmp_path / "Plain.cs"
+        f.write_text("class Plain { void M(){} }\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == []
 
 
 class TestTreeCacheEviction:

@@ -322,6 +322,19 @@ class LanguageAdapter(ABC):
         return EdgeStrategy.REFERENCES
 
     @property
+    def resolves_method_groups(self) -> bool:
+        """Whether the definitions strategy should also query bare identifiers
+        passed as call arguments, and keep only callable/class-like targets."""
+        return False
+
+    @property
+    def expands_virtual_dispatch(self) -> bool:
+        """Whether to add edges to overrides of a resolved call target, using
+        inheritance read from source. Only needed when the server answers
+        neither ``textDocument/implementation`` nor ``typeHierarchy``."""
+        return False
+
+    @property
     def extra_client_capabilities(self) -> dict:
         """Vendor-specific keys to shallow-merge into the LSP ``initialize``
         capabilities (e.g. ``{"experimental": {...}}``). Default ``{}`` keeps

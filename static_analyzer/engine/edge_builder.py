@@ -344,9 +344,12 @@ def _resolve_definitions(
     batch_size = 50
     impl_queries_pending: list[ImplementationQuery] = []
 
+    method_groups = adapter.resolves_method_groups
+    subclasses = _build_subclass_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else {}
+
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
-        call_sites = ctx.source_inspector.find_call_sites(file_path)
+        call_sites = ctx.source_inspector.find_call_sites(file_path, include_method_groups=method_groups)
         if not call_sites:
             pbar.update(1)
             continue
@@ -381,10 +384,19 @@ def _resolve_definitions(
                         continue
                     total_resolved += 1
 
+                    # Querying bare argument identifiers also resolves ordinary
+                    # locals; only callables and the types they hang off are edges.
+                    if method_groups and not (adapter.is_callable(target.kind) or adapter.is_class_like(target.kind)):
+                        continue
+
                     if not _is_valid_edge(caller, target):
                         continue
 
                     _add_edge_call_site(edge_set, caller.qualified_name, target.qualified_name, call_site)
+
+                    for override in _override_targets(target, st, subclasses):
+                        if _is_valid_edge(caller, override):
+                            _add_edge_call_site(edge_set, caller.qualified_name, override.qualified_name, call_site)
 
                     # If target is a callable with a class-like parent, also add edge to the parent class
                     if adapter.is_callable(target.kind) and target.parent_chain:
@@ -500,6 +512,63 @@ def _add_edge_call_site(edge_set: EdgeMap, source: str, destination: str, call_s
     sites = edge_set.setdefault((source, destination), [])
     if call_site not in sites:
         sites.append(call_site)
+
+
+def _build_subclass_index(
+    adapter: EdgeBuildAdapter,
+    ctx: EdgeBuildContext,
+    source_files: list[Path],
+) -> dict[str, list[SymbolInfo]]:
+    """Map a type's simple name to the class-like symbols that derive from it."""
+    st = ctx.symbol_table
+    classes_by_file: dict[str, dict[str, SymbolInfo]] = {}
+    for sym in st.symbols.values():
+        if adapter.is_class_like(sym.kind):
+            classes_by_file.setdefault(str(sym.file_path), {}).setdefault(sym.name, sym)
+
+    subclasses: dict[str, list[SymbolInfo]] = {}
+    for file_path in source_files:
+        declared = classes_by_file.get(str(file_path))
+        if not declared:
+            continue
+        for type_name, bases in ctx.source_inspector.find_type_bases(file_path):
+            sub = declared.get(type_name)
+            if sub is None:
+                continue
+            for base in bases:
+                subclasses.setdefault(base, []).append(sub)
+    return subclasses
+
+
+def _override_targets(
+    target: SymbolInfo,
+    st: SymbolTable,
+    subclasses: dict[str, list[SymbolInfo]],
+) -> list[SymbolInfo]:
+    """Same-named members on every type deriving from the target's own type.
+
+    A call through a base-typed reference resolves to the base declaration,
+    which for an abstract member has no body; the overrides are what actually run.
+    """
+    owner_qname = parent_qualified_name(target.qualified_name)
+    owner = st.symbols.get(owner_qname)
+    if owner is None or not subclasses.get(owner.name):
+        return []
+
+    member = target.qualified_name[len(owner_qname) + 1 :]
+    overrides: list[SymbolInfo] = []
+    seen: set[str] = set()
+    stack = list(subclasses[owner.name])
+    while stack:
+        sub = stack.pop()
+        if sub.qualified_name in seen:
+            continue
+        seen.add(sub.qualified_name)
+        override = st.symbols.get(f"{sub.qualified_name}.{member}")
+        if override is not None:
+            overrides.append(override)
+        stack.extend(subclasses.get(sub.name, []))
+    return overrides
 
 
 def _is_valid_edge(caller: SymbolInfo, target: SymbolInfo) -> bool:

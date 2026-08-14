@@ -13,6 +13,7 @@ from static_analyzer.constants import Language, NodeType
 from static_analyzer.dotnet_sdk import DotnetSdkError, resolve_dotnet_sdk, system_dotnet_env
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_constants import EdgeStrategy
 from tool_registry import (
     TOOL_REGISTRY,
     ToolKind,
@@ -257,6 +258,29 @@ class CSharpAdapter(LanguageAdapter):
     @property
     def workspace_owns_documents(self) -> bool:
         """csharp-ls answers position queries from the loaded solution, opened or not."""
+        return True
+
+    @property
+    def edge_strategy(self) -> EdgeStrategy:
+        """Use definition-based edges — csharp-ls serializes references requests.
+
+        Why: on a 3.5k-file workspace ~5% of references queries cost 60-100s
+        each (some never return) while definition queries stay sub-millisecond,
+        so references-based phase 2 does not finish at any timeout setting.
+        """
+        return EdgeStrategy.DEFINITIONS
+
+    @property
+    def resolves_method_groups(self) -> bool:
+        """Minimal-API routing (``app.MapGet("/items", GetAllItems)``) passes
+        handlers as values, so the invocation walk alone would miss them."""
+        return True
+
+    @property
+    def expands_virtual_dispatch(self) -> bool:
+        """csharp-ls returns an empty result for both ``textDocument/implementation``
+        and ``typeHierarchy``, so a call through a base-typed reference would
+        otherwise stop at the abstract declaration."""
         return True
 
     def get_lsp_default_timeout(self) -> int:
