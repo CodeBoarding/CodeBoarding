@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, merge_results
 from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.cfg import CallGraph, Edge
+from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterCache, ClusterResult
 from static_analyzer.node import Node
 from static_analyzer.incremental_orchestrator import (
@@ -259,7 +259,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         cg = self._cg()
         original_node_count = len(cg.nodes)
 
-        cg.filter(lambda n: n.file_path != "a.py", on_dropped_edge=lambda _edge: None)
+        cg.filter(lambda n: n.file_path != "a.py")
 
         self.assertEqual(len(cg.nodes), original_node_count)
 
@@ -268,14 +268,12 @@ class TestClusterCachePreservation(unittest.TestCase):
         cg.add_node(_node("a.foo", "a.py"))
         cg.add_node(_node("b.bar", "b.py"))
         cg.add_edge("a.foo", "b.bar")
-        dropped_edges: list[Edge] = []
 
-        filtered = cg.filter(lambda n: n.file_path != "a.py", on_dropped_edge=dropped_edges.append)
+        filtered = cg.filter(lambda n: n.file_path != "a.py")
 
         self.assertEqual(len(filtered.edges), 0)
         self.assertNotIn("a.foo", filtered.nodes)
         self.assertIn("b.bar", filtered.nodes)
-        self.assertEqual([(edge.get_source(), edge.get_destination()) for edge in dropped_edges], [("a.foo", "b.bar")])
 
     def test_union_then_prune_leaves_new_nodes_unclustered(self) -> None:
         new = CallGraph(language="python")

@@ -22,10 +22,6 @@ logger = logging.getLogger(__name__)
 _EMPTY_NODES: Mapping[str, Node] = MappingProxyType({})
 
 
-def _ignore_dropped_edge(edge: Edge) -> None:
-    """Default for ``filter`` callers that don't care which edges were cascaded out."""
-
-
 class CallGraph:
     def __init__(
         self,
@@ -149,15 +145,11 @@ class CallGraph:
                     carried.append(resolved)
         out.reference_edges = list(dict.fromkeys(carried))
 
-    def filter(
-        self,
-        keep_node: Callable[[Node], bool],
-        on_dropped_edge: Callable[[Edge], None] = _ignore_dropped_edge,
-    ) -> CallGraph:
-        """Return a new CallGraph keeping only nodes matching ``keep_node`` and connecting edges.
+    def filter(self, keep_node: Callable[[Node], bool]) -> CallGraph:
+        """Return a new CallGraph of the nodes matching ``keep_node`` and the edges between them.
 
-        Edges whose endpoints both survive are re-added; edges with a dropped
-        endpoint are cascaded out and handed to ``on_dropped_edge``.
+        Edges with a dropped endpoint cascade out. Callers that need to know which
+        ones can derive them from their own ``keep_node`` over ``self.edges``.
         """
         out = CallGraph(language=self.language)
         for node in self.nodes.values():
@@ -165,13 +157,12 @@ class CallGraph:
                 out.add_node(node)
         for edge in self.edges:
             src, dst = edge.get_source(), edge.get_destination()
-            if out.has_node(src) and out.has_node(dst):
-                try:
-                    out.add_edge(src, dst, call_sites=edge.call_sites)
-                except ValueError as e:
-                    logger.warning(f"Failed to add edge {src} -> {dst} during filter: {e}")
-            else:
-                on_dropped_edge(edge)
+            if not (out.has_node(src) and out.has_node(dst)):
+                continue
+            try:
+                out.add_edge(src, dst, call_sites=edge.call_sites)
+            except ValueError as e:
+                logger.warning(f"Failed to add edge {src} -> {dst} during filter: {e}")
         self._carry_reference_edges(out)
         return out
 

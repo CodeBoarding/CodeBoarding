@@ -374,10 +374,7 @@ def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
     merged_analysis.source_files = list(all_existing)
     merged_analysis.references = [ref for ref in merged_analysis.references if ref.file_path in existing_file_strs]
 
-    merged_analysis.call_graph = merged_analysis.call_graph.filter(
-        lambda node: node.file_path in existing_file_strs,
-        on_dropped_edge=lambda _edge: None,
-    )
+    merged_analysis.call_graph = merged_analysis.call_graph.filter(lambda node: node.file_path in existing_file_strs)
 
     # Hierarchy entries are keyed by class qname and carry no file_path, so filter by whether the
     # class still exists as a live call-graph node (already filtered above) — the old

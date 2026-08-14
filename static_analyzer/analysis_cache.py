@@ -32,7 +32,7 @@ from filelock import FileLock
 from constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
 from repo_utils.path_utils import to_absolute_path, to_relative_path
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge
-from static_analyzer.cfg import CallGraph, Edge, EdgeKind
+from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
 
@@ -351,11 +351,14 @@ def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) 
 
     cached = AnalysisData.from_dict(analysis_result)
     call_graph = cached.call_graph
-    invalidated_edges: list[InvalidatedEdge] = []
-    filtered_cg = call_graph.filter(
-        lambda node: node.file_path not in changed_file_strs,
-        on_dropped_edge=lambda edge: _collect_invalidated_edge(edge, changed_file_strs, invalidated_edges),
-    )
+    # Edges spanning the change boundary: exactly one endpoint moved, so the filter below
+    # drops them and they need LSP re-validation before they can be restored.
+    invalidated_edges: list[InvalidatedEdge] = [
+        (edge.get_source(), edge.get_destination(), edge.src_node, edge.dst_node)
+        for edge in call_graph.edges
+        if (edge.src_node.file_path in changed_file_strs) != (edge.dst_node.file_path in changed_file_strs)
+    ]
+    filtered_cg = call_graph.filter(lambda node: node.file_path not in changed_file_strs)
 
     diagnostics = None
     if cached.diagnostics is not None:
@@ -446,17 +449,6 @@ def _rederive_inherits_edges(call_graph: CallGraph, class_hierarchies: dict[str,
         for superclass in info.get("superclasses", []):
             if (child, superclass) not in existing:
                 call_graph.add_reference_edge(child, superclass, EdgeKind.INHERITS)
-
-
-def _collect_invalidated_edge(
-    edge: Edge, changed_file_strs: set[str], invalidated_edges: list[InvalidatedEdge]
-) -> None:
-    src_node = edge.src_node
-    dst_node = edge.dst_node
-    src_changed = src_node.file_path in changed_file_strs
-    dst_changed = dst_node.file_path in changed_file_strs
-    if src_changed != dst_changed:
-        invalidated_edges.append((edge.get_source(), edge.get_destination(), src_node, dst_node))
 
 
 def _validate_no_dangling_references(analysis_result: AnalysisData) -> None:
