@@ -8,7 +8,7 @@ import multiprocessing
 import unittest
 
 from static_analyzer.constants import NodeType
-from static_analyzer.cfg import CallGraph, EdgeKind
+from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.language_results import ControlFlowGraph
 from static_analyzer.node import Node
 
@@ -32,7 +32,7 @@ def _graph_with_reference_edges(edge_count: int = 25) -> CallGraph:
         graph.add_node(_node(index))
     for index in range(edge_count):
         graph.add_reference_edge(
-            _node(index).fully_qualified_name, _node(index + 1).fully_qualified_name, EdgeKind.TYPEREF
+            ReferenceEdge(_node(index).fully_qualified_name, _node(index + 1).fully_qualified_name, EdgeKind.TYPEREF)
         )
     return graph
 
@@ -83,7 +83,9 @@ class TestControlFlowGraphMerge(unittest.TestCase):
         subgraph = CallGraph(language="typescript")
         subgraph.add_node(_node(0))
         subgraph.add_node(_node(1))
-        subgraph.add_reference_edge(_node(0).fully_qualified_name, _node(1).fully_qualified_name, EdgeKind.TYPEREF)
+        subgraph.add_reference_edge(
+            ReferenceEdge(_node(0).fully_qualified_name, _node(1).fully_qualified_name, EdgeKind.TYPEREF)
+        )
         bucket.merge(subgraph)
 
         self.assertEqual((list(merged.reference_edges), sorted(merged.nodes), len(merged.edges)), before)

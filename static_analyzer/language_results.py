@@ -60,7 +60,7 @@ class ControlFlowGraph:
         # same-language sub-project's completed graph isn't reduced to call-only after merge.
         # Re-added via the API so alias-resolution and node-existence guards apply post-merge.
         for ref in other.reference_edges:
-            self.graph.add_reference_edge(ref.src, ref.dst, ref.kind)
+            self.graph.add_reference_edge(ref)
         # Nodes and call edges are keyed, reference edges are appended, so only they
         # survive a repeat merge. Dedup after the loop rather than per-add: the stored
         # edge is post-alias-resolution, and a membership scan per edge is quadratic.

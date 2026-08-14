@@ -181,20 +181,20 @@ def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult) 
         for i in range(len(parts) - 1, 0, -1):
             parent = ".".join(parts[:i])
             if parent in class_qnames:
-                call_graph.add_reference_edge(qname, parent, EdgeKind.CONTAINS)
+                call_graph.add_reference_edge(ReferenceEdge(qname, parent, EdgeKind.CONTAINS))
                 break
 
     # INHERITS: child class -> each superclass (already computed by HierarchyBuilder).
     for child, info in (result.hierarchy or {}).items():
         for superclass in info.get("superclasses", []):
-            call_graph.add_reference_edge(child, superclass, EdgeKind.INHERITS)
+            call_graph.add_reference_edge(ReferenceEdge(child, superclass, EdgeKind.INHERITS))
 
     # TYPEREF / IMPORT: no engine populates these yet, so both loops are empty in
     # production. Kept so an engine that starts emitting them needs no converter change.
     for src, dst in result.type_references:
-        call_graph.add_reference_edge(src, dst, EdgeKind.TYPEREF)
+        call_graph.add_reference_edge(ReferenceEdge(src, dst, EdgeKind.TYPEREF))
     for src, dst in result.import_edges:
-        call_graph.add_reference_edge(src, dst, EdgeKind.IMPORT)
+        call_graph.add_reference_edge(ReferenceEdge(src, dst, EdgeKind.IMPORT))
 
 
 def _count_by_kind(reference_edges: list[ReferenceEdge]) -> Counter:

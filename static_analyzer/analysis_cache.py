@@ -32,7 +32,7 @@ from filelock import FileLock
 from constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
 from repo_utils.path_utils import to_absolute_path, to_relative_path
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge
-from static_analyzer.cfg import CallGraph, EdgeKind
+from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
 
@@ -449,7 +449,7 @@ def _rederive_inherits_edges(call_graph: CallGraph, class_hierarchies: dict[str,
     for child, info in class_hierarchies.items():
         for superclass in info.get("superclasses", []):
             if (child, superclass) not in existing:
-                call_graph.add_reference_edge(child, superclass, EdgeKind.INHERITS)
+                call_graph.add_reference_edge(ReferenceEdge(child, superclass, EdgeKind.INHERITS))
 
 
 def _validate_no_dangling_references(analysis_result: AnalysisData) -> None:

@@ -108,16 +108,15 @@ class CallGraph:
 
         self.nodes[src_name].added_method_called_by_me(self.nodes[dst_name])
 
-    def add_reference_edge(self, src_name: str, dst_name: str, kind: EdgeKind) -> None:
+    def add_reference_edge(self, ref: ReferenceEdge) -> None:
         """Record a non-call relationship edge (CONTAINS/INHERITS/TYPEREF/IMPORT).
 
         Stored separately from call edges. Silently ignores endpoints that aren't
         nodes or self-loops.
         """
-        src_name = self._resolve_name(src_name)
-        dst_name = self._resolve_name(dst_name)
-        if src_name in self.nodes and dst_name in self.nodes and src_name != dst_name:
-            self.reference_edges.append(ReferenceEdge(src_name, dst_name, kind))
+        src, dst = self._resolve_name(ref.src), self._resolve_name(ref.dst)
+        if src in self.nodes and dst in self.nodes and src != dst:
+            self.reference_edges.append(ReferenceEdge(src, dst, ref.kind))
 
     def filter(self, keep_node: Callable[[Node], bool]) -> CallGraph:
         """Return a new CallGraph of the nodes matching ``keep_node`` and the edges between them.
