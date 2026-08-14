@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from static_analyzer.cfg.call_graph import CallGraph
-from static_analyzer.clustering.constants import CLUSTERING_REFERENCE_KINDS
 from static_analyzer.clustering.engine import cluster_graph
 from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.constants import ClusteringConfig
@@ -25,7 +24,7 @@ class ClusteringService:
         self.min_cluster_size = min_cluster_size
 
     def cluster(self, graph: CallGraph) -> ClusterResult:
-        nx_graph = graph.to_networkx(CLUSTERING_REFERENCE_KINDS)
+        nx_graph = graph.to_networkx()
         return cluster_graph(
             nx_graph,
             delimiter=graph.delimiter,

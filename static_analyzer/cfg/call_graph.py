@@ -13,7 +13,7 @@ from types import MappingProxyType
 import networkx as nx
 
 from static_analyzer.cfg.canonical import LocationKey
-from static_analyzer.cfg.edge import Edge, EdgeKind, ReferenceEdge
+from static_analyzer.cfg.edge import DEFAULT_REFERENCE_KINDS, Edge, EdgeKind, ReferenceEdge
 from static_analyzer.constants import ClusteringConfig
 from static_analyzer.node import Node
 
@@ -49,7 +49,7 @@ class CallGraph:
         self._alias_to_canonical: dict[str, str] = {}
         # Non-call relationship edges (CONTAINS/INHERITS/TYPEREF/IMPORT), kept off
         # ``self.edges`` so relations and ``methods_called_by_me`` stay call-only.
-        # Folded into the export only when ``to_networkx`` is asked for them.
+        # ``to_networkx`` folds them into the export by default.
         self.reference_edges: list[ReferenceEdge] = []
 
     def add_node(self, node: Node) -> None:
@@ -202,12 +202,13 @@ class CallGraph:
         for edge in self.edges:
             edge.visit_paths(fn)
 
-    def to_networkx(self, reference_kinds: Collection[EdgeKind] = ()) -> nx.DiGraph:
+    def to_networkx(self, reference_kinds: Collection[EdgeKind] = DEFAULT_REFERENCE_KINDS) -> nx.DiGraph:
         """Export to networkx: always call edges, plus reference edges of the given kinds.
 
-        Why: relation analysis wants call edges only, while clustering folds in
-        CONTAINS/INHERITS so constructors, dunders and interface methods aren't
-        graph-isolated.
+        Why: folding in CONTAINS/INHERITS keeps constructors, dunders and interface
+        methods from being graph-isolated, which is what every structural consumer
+        wants. Pass ``()`` for call edges only — degree-counting metrics need that,
+        since a CONTAINS edge is not a call.
         """
         nx_graph = nx.DiGraph()
         for node in self.nodes.values():

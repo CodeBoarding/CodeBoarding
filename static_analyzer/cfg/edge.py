@@ -23,6 +23,12 @@ class EdgeKind(StrEnum):
     IMPORT = "import"
 
 
+# Folded in on top of call edges by ``CallGraph.to_networkx`` unless a caller opts out.
+# CONTAINS and INHERITS reconnect the symbols the call graph leaves isolated —
+# constructors, dunders, interface methods. No engine emits TYPEREF/IMPORT yet.
+DEFAULT_REFERENCE_KINDS: tuple[EdgeKind, ...] = (EdgeKind.CONTAINS, EdgeKind.INHERITS)
+
+
 @dataclass(frozen=True)
 class ReferenceEdge:
     """A non-call relationship between two qualified names."""

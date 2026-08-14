@@ -83,7 +83,7 @@ from static_analyzer.cluster_relations import (
     prune_ungrounded_edges,
 )
 from static_analyzer.constants import Language
-from static_analyzer.clustering import CLUSTERING_REFERENCE_KINDS, ClusterResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
@@ -665,7 +665,7 @@ class DiagramGenerator:
             # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
             # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
             # must not be judged cohesive on a call-only graph.
-            cfg_graphs = {lang: cfg.to_networkx(CLUSTERING_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()}
+            cfg_graphs = {lang: cfg.to_networkx() for lang, cfg in subgraph_cfgs.items()}
             separable = component_is_separable(cluster_results, cfg_graphs, load)
         self._separable_cache[key] = separable
         return separable
@@ -1494,7 +1494,7 @@ class DiagramGenerator:
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
             root_cluster_results = delta.cluster_results()
             root_cfgs = {
-                language: self.static_analysis.get_cfg(Language(language)).to_networkx(CLUSTERING_REFERENCE_KINDS)
+                language: self.static_analysis.get_cfg(Language(language)).to_networkx()
                 for language in root_cluster_results
             }
             apply_result = self._apply_incremental_scope_recursively(
@@ -1724,7 +1724,7 @@ def _build_scope_incremental_inputs(
     )
     return (
         cluster_results,
-        {lang: cfg.to_networkx(CLUSTERING_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()},
+        {lang: cfg.to_networkx() for lang, cfg in subgraph_cfgs.items()},
         structural_diff,
     )
 

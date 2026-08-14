@@ -40,7 +40,6 @@ from static_analyzer.cluster_relations import (
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import (
-    CLUSTERING_REFERENCE_KINDS,
     METHOD_LEVEL_STRATEGY,
     ClusterResult,
     ClusteringService,
@@ -350,7 +349,7 @@ class ClusterMethodsMixin:
             )
             if seeded_snapshot:
                 sub_cluster_result = _delta_for_language(
-                    str(lang), sub_cfg.to_networkx(CLUSTERING_REFERENCE_KINDS), seeded_snapshot
+                    str(lang), sub_cfg.to_networkx(), seeded_snapshot
                 ).cluster_results
             else:
                 sub_cluster_result = ClusteringService().cluster(sub_cfg)

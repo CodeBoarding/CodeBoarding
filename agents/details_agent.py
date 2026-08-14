@@ -38,7 +38,7 @@ from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import CLUSTERING_REFERENCE_KINDS, ClusterResult
+from static_analyzer.clustering import ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         logger.info(f"[DetailsAgent] Super-clustering subgraph for component: {component.name}")
         return self.deterministic_cluster_grouping(
             subgraph_cluster_results,
-            {lang: cfg.to_networkx(CLUSTERING_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()},
+            {lang: cfg.to_networkx() for lang, cfg in subgraph_cfgs.items()},
             SUBCOMPONENTS_MIN,
             SUBCOMPONENTS_MAX,
         )
