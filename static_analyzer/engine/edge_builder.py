@@ -22,7 +22,7 @@ from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.engine.utils import definition_location, uri_to_path
-from static_analyzer.internal_references import parent_qualified_name
+from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name
 
 logger = logging.getLogger(__name__)
 
@@ -573,11 +573,7 @@ def _override_targets(
 
 def _is_valid_edge(caller: SymbolInfo, target: SymbolInfo) -> bool:
     """Check if an edge between caller and target is valid."""
-    if target.qualified_name == caller.qualified_name:
-        return False
-    if target.qualified_name.startswith(caller.qualified_name + "."):
-        return False
-    if caller.qualified_name.startswith(target.qualified_name + "."):
+    if is_self_or_container_edge(caller.qualified_name, target.qualified_name):
         return False
     if target.definition_location == caller.definition_location:
         return False

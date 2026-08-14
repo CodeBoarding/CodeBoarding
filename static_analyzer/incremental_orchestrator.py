@@ -27,7 +27,7 @@ from static_analyzer.engine.result_converter import convert_to_codeboarding_form
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location, uri_to_path
 from static_analyzer.graph import CallGraph
-from static_analyzer.internal_references import parent_qualified_name
+from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -244,7 +244,7 @@ def _add_outbound_edges_from_changed_files(
                 continue
             for definition in definitions:
                 for dst_node in _definition_nodes(call_graph, definition, include_callable_parent):
-                    if dst_node.fully_qualified_name == src_node.fully_qualified_name:
+                    if is_self_or_container_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name):
                         continue
                     try:
                         before = len(call_graph.edges)
