@@ -17,6 +17,7 @@ from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_recycler import default_memory_budget
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
@@ -54,8 +55,14 @@ class StaticAnalysisFatalError(RuntimeError):
 MAX_CONCURRENT_ENGINES_ENV_VAR = "CODEBOARDING_MAX_CONCURRENT_ENGINES"
 
 
-_CORES_PER_ENGINE = 3  # measured: one csharp-ls peaks around 1.9 cores
-_MAX_ENGINE_CEILING = 8
+# An engine costs about three cores: the server itself peaks near 1.9 (measured
+# from csharp-ls), plus its dotnet children and the tree-sitter parsing the same
+# pass does on the Python side. On a 12-core host that predicts 4, which is where
+# abp actually peaked (612s, against 698s at 6 and 677s at 8).
+CORES_PER_ENGINE = 3
+
+# Peak resident set per engine, from abp at cap=4 (7.09GB across four servers).
+ENGINE_MEMORY_FOOTPRINT_BYTES = 2 * 1024**3
 
 
 def max_concurrent_engines() -> int:
@@ -86,9 +93,24 @@ def max_concurrent_engines() -> int:
         return 0
 
 
-def recommended_engine_concurrency() -> int:
-    """The bound the abp measurements point at, given this host's core count."""
-    return max(1, min((os.cpu_count() or 1) // _CORES_PER_ENGINE, _MAX_ENGINE_CEILING))
+def recommended_engine_concurrency(engine_count: int) -> int:
+    """The smallest of the three limits that actually bind engine concurrency.
+
+    - Work: never more servers than there are engines. Most repos have one or
+      two; abp's 28 is the outlier this bound exists for.
+    - CPU: ``cores // CORES_PER_ENGINE``, the term the abp sweep measured.
+    - Memory: the recycler's per-server budget divided by what an engine
+      actually occupies. This is the binding term on a large host — 128 cores
+      would allow 42 engines on CPU alone, which no memory budget supports.
+
+    The memory term deliberately reuses ``default_memory_budget()`` so the two
+    mechanisms agree on how much RAM the analysis may hold. Without it the
+    recycler lets every server grow to the full budget while nothing accounts
+    for how many are resident.
+    """
+    cpu_bound = (os.cpu_count() or CORES_PER_ENGINE) // CORES_PER_ENGINE
+    memory_bound = default_memory_budget() // ENGINE_MEMORY_FOOTPRINT_BYTES
+    return max(1, min(engine_count, cpu_bound, memory_bound))
 
 
 def _create_engine_configs(
