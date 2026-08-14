@@ -1,5 +1,5 @@
 """Physical-location identity, used to dedup the several qualified names the LSP
-can emit for one symbol. Issue #471 moves the canonicalization itself here."""
+can emit for one symbol."""
 
 from dataclasses import dataclass
 
