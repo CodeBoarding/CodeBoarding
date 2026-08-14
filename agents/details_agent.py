@@ -100,7 +100,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         logger.info(f"[DetailsAgent] Super-clustering subgraph for component: {component.name}")
         return self.deterministic_cluster_grouping(
             subgraph_cluster_results,
-            {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()},
+            {lang: cfg.to_networkx() for lang, cfg in subgraph_cfgs.items()},
             SUBCOMPONENTS_MIN,
             SUBCOMPONENTS_MAX,
         )

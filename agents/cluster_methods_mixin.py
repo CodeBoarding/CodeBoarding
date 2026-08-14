@@ -349,7 +349,7 @@ class ClusterMethodsMixin:
             )
             if seeded_snapshot:
                 sub_cluster_result = _delta_for_language(
-                    str(lang), sub_cfg.clustering_networkx(), seeded_snapshot
+                    str(lang), sub_cfg.to_networkx(), seeded_snapshot
                 ).cluster_results
             else:
                 sub_cluster_result = ClusteringService().cluster(sub_cfg)

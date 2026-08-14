@@ -643,7 +643,7 @@ def test_add_reference_edges_contains_and_inherits():
     assert not any(s == "mod.helper" and k == str(EdgeKind.CONTAINS) for s, d, k in cg.reference_edges)
 
 
-def test_clustering_networkx_includes_configured_reference_kinds():
+def test_to_networkx_folds_in_default_reference_kinds():
     from static_analyzer.cfg import CallGraph, EdgeKind
     from static_analyzer.node import Node
 
@@ -661,9 +661,11 @@ def test_clustering_networkx_includes_configured_reference_kinds():
     cg.add_reference_edge("mod.A", "mod.B", EdgeKind.CONTAINS)
 
     # default kinds include contains -> edge present
-    assert cg.clustering_networkx().has_edge("mod.A", "mod.B")
+    assert cg.to_networkx().has_edge("mod.A", "mod.B")
     # restricting to a kind that isn't present -> edge absent (call graph had no edges)
-    assert not cg.clustering_networkx(reference_kinds={"import"}).has_edge("mod.A", "mod.B")
+    assert not cg.to_networkx(reference_kinds={"import"}).has_edge("mod.A", "mod.B")
+    # opting out entirely -> call edges only
+    assert not cg.to_networkx(reference_kinds=()).has_edge("mod.A", "mod.B")
 
 
 class TestIgnoredFilesExcluded:

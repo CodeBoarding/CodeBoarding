@@ -202,7 +202,7 @@ class TestDetailsAgent(unittest.TestCase):
         cr, graph = self._clustered_graph(range(1, 11))
         subgraph_cfg = MagicMock()
         subgraph_cfg.to_networkx.return_value = graph
-        subgraph_cfg.clustering_networkx.return_value = graph
+        subgraph_cfg.to_networkx.return_value = graph
         subgraph_cluster_results = {"python": cr}
         subgraph_cfgs = {"python": subgraph_cfg}
 
@@ -399,7 +399,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_subgraph.cluster.return_value = sub_cluster_result
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
         mock_subgraph.to_networkx.return_value = subgraph_graph
-        mock_subgraph.clustering_networkx.return_value = subgraph_graph
+        mock_subgraph.to_networkx.return_value = subgraph_graph
 
         mock_cfg = MagicMock()
         mock_cfg.cluster.return_value = mock_cluster_result
@@ -408,7 +408,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"
         # deterministic_cluster_grouping reads the (super-)graph via get_cfg(...).to_networkx()
         mock_cfg.to_networkx.return_value = subgraph_graph
-        mock_cfg.clustering_networkx.return_value = subgraph_graph
+        mock_cfg.to_networkx.return_value = subgraph_graph
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
         self.mock_static_analysis.get_cfg.return_value = mock_cfg

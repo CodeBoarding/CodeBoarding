@@ -89,9 +89,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         final-analysis step.
         """
         logger.info(f"[AbstractionAgent] Super-clustering leaf clusters for: {self.project_name}")
-        cfg_graphs = {
-            lang: self.static_analysis.get_cfg(Language(lang)).clustering_networkx() for lang in cluster_results
-        }
+        cfg_graphs = {lang: self.static_analysis.get_cfg(Language(lang)).to_networkx() for lang in cluster_results}
         return self.deterministic_cluster_grouping(cluster_results, cfg_graphs)
 
     @trace

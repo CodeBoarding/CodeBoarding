@@ -20,7 +20,7 @@ class ClusteringService:
         self.min_cluster_size = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE
 
     def cluster(self, graph: CallGraph) -> ClusterResult:
-        nx_graph = graph.clustering_networkx()
+        nx_graph = graph.to_networkx()
         return cluster_graph(
             nx_graph,
             delimiter=graph.delimiter,
