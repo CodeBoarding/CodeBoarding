@@ -6,9 +6,6 @@ from types import MappingProxyType
 
 import networkx as nx
 
-from static_analyzer.clustering.engine import cluster_graph
-from static_analyzer.clustering.method_cluster_paths import MethodClusterPaths
-from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.constants import ClusteringConfig
 from static_analyzer.node import Node
 
@@ -107,10 +104,6 @@ class CallGraph:
         # Every adapter currently emits ``.``-separated qualified names; see
         # ``constants.QUALIFIED_NAME_DELIMITER`` for the language-switch caveat.
         self.delimiter = ClusteringConfig.QUALIFIED_NAME_DELIMITER
-        # Cache for cluster result
-        self._cluster_cache: ClusterResult | None = None
-        # qname -> scoped cluster ids it belongs to, e.g. ["1", "1.3", "1.3.6"].
-        self.method_cluster_paths = MethodClusterPaths()
         # Location-based dedup: (file_path, line_start, line_end, type) -> canonical qualified name.
         # When the LSP produces multiple qualified-name aliases for the same
         # physical symbol (e.g. ``src.index.funcA`` vs
@@ -228,10 +221,9 @@ class CallGraph:
     ) -> "CallGraph":
         """Return a new CallGraph keeping only nodes matching ``keep_node`` and connecting edges.
 
-        ``_cluster_cache`` is preserved and pruned to the surviving qnames so
-        a warm-start invalidation/filter step doesn't silently drop the prior
-        clustering. Edges whose endpoints both survive are re-added; edges
-        with a dropped endpoint are cascaded out and optionally collected.
+        Edges whose endpoints both survive are re-added; edges with a dropped
+        endpoint are cascaded out and optionally collected. Any partition over
+        this graph lives in a ``ClusterCache`` and is pruned by its owner.
         """
         out = CallGraph(language=self.language)
         for node in self.nodes.values():
@@ -246,19 +238,11 @@ class CallGraph:
                     logger.warning(f"Failed to add edge {src} -> {dst} during filter: {e}")
             else:
                 on_dropped_edge(edge)
-        out._cluster_cache = self._prune_cluster_cache(out.nodes)
-        out.method_cluster_paths = self._prune_method_cluster_paths(out.nodes)
         self._carry_reference_edges(out)
         return out
 
     def union(self, other: "CallGraph") -> "CallGraph":
-        """Return a new CallGraph unioning ``self`` (cached) with ``other`` (fresh).
-
-        ``_cluster_cache`` comes from ``self`` (the cached side that was
-        clustered in a prior run), pruned to the merged-node set. ``other``'s
-        nodes are new and unclustered until the next clustering pass; that's
-        the intended cluster_delta input — new files appear unassigned.
-        """
+        """Return a new CallGraph unioning ``self`` (cached) with ``other`` (fresh)."""
         out = CallGraph(language=self.language)
         for node in self.nodes.values():
             out.add_node(node)
@@ -274,57 +258,16 @@ class CallGraph:
                 out.add_edge(edge.get_source(), edge.get_destination(), call_sites=edge.call_sites)
             except ValueError:
                 pass
-        out._cluster_cache = self._prune_cluster_cache(out.nodes)
-        out.method_cluster_paths = self._prune_method_cluster_paths(out.nodes)
         # Carry reference edges from BOTH sides: ``other`` holds the fresh reference edges for
         # changed/added files, which would otherwise be lost and revert those files to call-only.
         self._carry_reference_edges(out, other)
         return out
-
-    def _prune_cluster_cache(self, surviving_nodes: dict[str, Node]) -> "ClusterResult | None":
-        """Drop qnames not in ``surviving_nodes`` from ``_cluster_cache``; recompute file maps."""
-        if self._cluster_cache is None:
-            return None
-        pruned_clusters: dict[int, set[str]] = {}
-        pruned_cluster_to_files: dict[int, set[str]] = {}
-        pruned_file_to_clusters: dict[str, set[int]] = {}
-        for cid, members in self._cluster_cache.clusters.items():
-            kept = {m for m in members if m in surviving_nodes}
-            if not kept:
-                continue
-            pruned_clusters[cid] = kept
-            files: set[str] = set()
-            for qname in kept:
-                fp = surviving_nodes[qname].file_path
-                if fp:
-                    files.add(fp)
-                    pruned_file_to_clusters.setdefault(fp, set()).add(cid)
-            if files:
-                pruned_cluster_to_files[cid] = files
-        return ClusterResult(
-            clusters=pruned_clusters,
-            cluster_to_files=pruned_cluster_to_files,
-            file_to_clusters=pruned_file_to_clusters,
-            strategy=self._cluster_cache.strategy,
-        )
-
-    def _prune_method_cluster_paths(self, surviving_nodes: dict[str, Node]) -> MethodClusterPaths:
-        return self.method_cluster_paths.prune(surviving_nodes)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         for node in self.nodes.values():
             node.file_path = fn(node.file_path)
         for edge in self.edges:
             edge.visit_paths(fn)
-        if self._cluster_cache is not None:
-            self._cluster_cache.visit_paths(fn)
-
-    def record_cluster_paths(self, cluster_result: ClusterResult, scope_id: str = "") -> None:
-        """Record each member's current cluster id for this scope."""
-        self.method_cluster_paths.record(cluster_result, scope_id)
-
-    def method_cluster_paths_snapshot(self) -> list[tuple[str, set[str]]]:
-        return self.method_cluster_paths.snapshot()
 
     def to_networkx(self) -> nx.DiGraph:
         nx_graph = nx.DiGraph()
@@ -360,22 +303,6 @@ class CallGraph:
                 nx_graph.add_edge(rsrc, rdst)
         return nx_graph
 
-    def cluster(
-        self,
-        target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
-        min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
-    ) -> ClusterResult:
-        """Cluster the graph, caching the partition on first call."""
-        if self._cluster_cache is not None:
-            return self._cluster_cache
-        self._cluster_cache = cluster_graph(
-            self.clustering_networkx(),
-            delimiter=self.delimiter,
-            target_clusters=target_clusters,
-            min_cluster_size=min_cluster_size,
-        )
-        return self._cluster_cache
-
     def filter_by_files(self, file_paths: set[str]) -> "CallGraph":
         """
         Create a new CallGraph containing only nodes from the specified files.
@@ -400,7 +327,6 @@ class CallGraph:
 
         # Create new graph, preserving the source language
         sub_graph = CallGraph(nodes=relevant_nodes, edges=filtered_edges, language=self.language)
-        sub_graph.method_cluster_paths = self._prune_method_cluster_paths(relevant_nodes)
         self._carry_reference_edges(sub_graph)
 
         return sub_graph
@@ -424,7 +350,6 @@ class CallGraph:
                 )
 
         sub_graph = CallGraph(nodes=relevant_nodes, edges=filtered_edges, language=self.language)
-        sub_graph.method_cluster_paths = self._prune_method_cluster_paths(relevant_nodes)
         self._carry_reference_edges(sub_graph)
         return sub_graph
 

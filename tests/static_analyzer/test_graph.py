@@ -7,7 +7,7 @@ from static_analyzer.constants import NodeType
 from static_analyzer.leiden_utils import find_partition
 from static_analyzer.node import Node
 from static_analyzer.graph import CallGraph, Edge
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, ClusteringService
 
 
 class TestNode(unittest.TestCase):
@@ -290,7 +290,7 @@ class TestCallGraph(unittest.TestCase):
         for i in range(9):
             graph.add_edge(f"module.func{i}", f"module.func{i+1}")
 
-        result = graph.cluster()
+        result = ClusteringService().cluster(graph)
 
         self.assertIsInstance(result, ClusterResult)
         self.assertIsInstance(result.clusters, dict)
@@ -298,24 +298,24 @@ class TestCallGraph(unittest.TestCase):
         self.assertIsInstance(result.cluster_to_files, dict)
         self.assertIsInstance(result.strategy, str)
 
-    def test_cluster_is_cached(self):
-        """Test that cluster() results are cached."""
+    def test_clustering_does_not_mutate_the_graph(self):
+        """The service is pure — the same graph clusters twice to an equal, fresh result."""
         graph = CallGraph()
 
         for i in range(5):
             node = Node(f"module.func{i}", 12, "/file.py", i * 10, i * 10 + 5)
             graph.add_node(node)
 
-        result1 = graph.cluster()
-        result2 = graph.cluster()
+        result1 = ClusteringService().cluster(graph)
+        result2 = ClusteringService().cluster(graph)
 
-        # Should be the same object (cached)
-        self.assertIs(result1, result2)
+        self.assertIsNot(result1, result2)
+        self.assertEqual(result1.clusters, result2.clusters)
 
     def test_cluster_empty_graph(self):
         """Test cluster() on empty graph."""
         graph = CallGraph()
-        result = graph.cluster()
+        result = ClusteringService().cluster(graph)
 
         self.assertEqual(result.clusters, {})
         self.assertEqual(result.strategy, "empty")
@@ -338,7 +338,7 @@ class TestCallGraph(unittest.TestCase):
         graph.add_edge("module.func1", "module.func2")
         graph.add_edge("module.func3", "module.func4")
 
-        result = graph.cluster()
+        result = ClusteringService().cluster(graph)
 
         # Check that file_to_clusters and cluster_to_files are populated
         self.assertTrue(len(result.file_to_clusters) > 0 or result.strategy in ("empty", "none"))
@@ -354,7 +354,7 @@ class TestCallGraph(unittest.TestCase):
         for i in range(9):
             graph.add_edge(f"module.func{i}", f"module.func{i+1}")
 
-        cluster_result = graph.cluster()
+        cluster_result = ClusteringService().cluster(graph)
         if cluster_result.clusters:
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
             file_paths = cluster_result.cluster_to_files.get(first_cluster_id, set())
@@ -391,7 +391,7 @@ class TestCallGraph(unittest.TestCase):
         graph.add_edge("module.func1", "module.func2")
         graph.add_edge("module.func2", "module.func3")
 
-        cluster_result = graph.cluster()
+        cluster_result = ClusteringService().cluster(graph)
         if cluster_result.clusters:
             # Get a cluster and create filter_by_files
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
@@ -414,14 +414,14 @@ class TestCallGraph(unittest.TestCase):
         for i in range(19):
             graph.add_edge(f"module.func{i}", f"module.func{i+1}")
 
-        cluster_result = graph.cluster()
+        cluster_result = ClusteringService().cluster(graph)
         if cluster_result.clusters:
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
             file_paths = cluster_result.cluster_to_files.get(first_cluster_id, set())
             sub_graph = graph.filter_by_files(file_paths)
 
             # Subgraph should be clusterable
-            sub_result = sub_graph.cluster()
+            sub_result = ClusteringService().cluster(sub_graph)
             self.assertIsInstance(sub_result, ClusterResult)
 
             # Should only include the specified cluster
@@ -441,8 +441,8 @@ class TestCallGraph(unittest.TestCase):
         graph1 = create_graph()
         graph2 = create_graph()
 
-        result1 = graph1.cluster()
-        result2 = graph2.cluster()
+        result1 = ClusteringService().cluster(graph1)
+        result2 = ClusteringService().cluster(graph2)
 
         # Cluster IDs and contents should be identical
         self.assertEqual(result1.clusters.keys(), result2.clusters.keys())

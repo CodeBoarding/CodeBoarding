@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import networkx as nx
 
@@ -13,7 +13,7 @@ from static_analyzer.cluster_helpers import (
     supercluster_by_modularity_peak,
     supercluster_leaf_ids,
 )
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterCache, ClusterResult, ClusteringService
 
 
 def _make_cluster_result(prefix: str, count: int) -> ClusterResult:
@@ -35,14 +35,19 @@ class TestClusterHelpers(unittest.TestCase):
 
         python_cfg = MagicMock()
         typescript_cfg = MagicMock()
-        python_cfg.cluster.return_value = _make_cluster_result("py", 40)
-        typescript_cfg.cluster.return_value = _make_cluster_result("ts", 40)
         analysis.get_cfg.side_effect = lambda language: {
             "python": python_cfg,
             "typescript": typescript_cfg,
         }[language]
+        partitions = {python_cfg: _make_cluster_result("py", 40), typescript_cfg: _make_cluster_result("ts", 40)}
+        python_clusters, typescript_clusters = ClusterCache(), ClusterCache()
+        analysis.get_clusters.side_effect = lambda language: {
+            "python": python_clusters,
+            "typescript": typescript_clusters,
+        }[language]
 
-        result = build_all_cluster_results(analysis)
+        with patch.object(ClusteringService, "cluster", side_effect=lambda graph: partitions[graph]):
+            result = build_all_cluster_results(analysis)
 
         python_ids = set(result["python"].clusters.keys())
         typescript_ids = set(result["typescript"].clusters.keys())
@@ -52,18 +57,18 @@ class TestClusterHelpers(unittest.TestCase):
 
         shifted_ts_ids = set().union(*result["typescript"].file_to_clusters.values())
         self.assertEqual(shifted_ts_ids, typescript_ids)
-        self.assertIs(python_cfg._cluster_cache, result["python"])
-        self.assertIs(typescript_cfg._cluster_cache, result["typescript"])
+        self.assertIs(python_clusters.result, result["python"])
+        self.assertIs(typescript_clusters.result, result["typescript"])
 
     def test_all_clusters_survive_grouping(self):
         """Every leaf cluster keeps its members — nothing is merged away before grouping."""
         analysis = MagicMock(spec=StaticAnalysisResults)
         analysis.get_languages.return_value = ["python"]
-        cfg = MagicMock()
-        cfg.cluster.return_value = _make_cluster_result("py", 120)
-        analysis.get_cfg.return_value = cfg
+        analysis.get_cfg.return_value = MagicMock()
+        analysis.get_clusters.return_value = ClusterCache()
 
-        result = build_all_cluster_results(analysis)
+        with patch.object(ClusteringService, "cluster", return_value=_make_cluster_result("py", 120)):
+            result = build_all_cluster_results(analysis)
 
         self.assertEqual(len(result["python"].clusters), 120)
 

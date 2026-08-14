@@ -1,14 +1,19 @@
-"""Clustering of call graphs: the search, the result types, and method lineage.
+"""Clustering of call graphs: the search, the result types, and where results are kept.
 
-``engine`` is the search over an exported ``nx.DiGraph``; ``models`` holds the
-result types; ``method_cluster_paths`` tracks each method's scoped cluster ancestry.
+``service`` is the entry point; ``engine`` is the search over an exported
+``nx.DiGraph``; ``models`` holds the result types; ``cache`` holds the per-language
+state that ``LanguageResults`` owns.
 """
 
+from static_analyzer.clustering.cache import ClusterCache
 from static_analyzer.clustering.method_cluster_paths import MethodClusterPaths
 from static_analyzer.clustering.models import METHOD_LEVEL_STRATEGY, ClusterResult
+from static_analyzer.clustering.service import ClusteringService
 
 __all__ = [
     "METHOD_LEVEL_STRATEGY",
+    "ClusterCache",
     "ClusterResult",
+    "ClusteringService",
     "MethodClusterPaths",
 ]

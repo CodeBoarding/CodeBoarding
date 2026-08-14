@@ -11,7 +11,7 @@ from diagram_analysis.analysis_json import build_unified_analysis_json, parse_un
 from diagram_analysis.diagram_generator import DiagramGenerator, _member_keys, _reconcile_child_scope
 from diagram_analysis.exceptions import ScopeContainmentError
 from static_analyzer.graph import CallGraph
-from static_analyzer.clustering.method_cluster_paths import MethodClusterPaths
+from static_analyzer.clustering import ClusterCache, MethodClusterPaths
 from diagram_analysis.tree_shape import absorb_single_child_components
 
 
@@ -409,12 +409,11 @@ class TestClusterLineageMovesWithTheTree(unittest.TestCase):
                 component("1.1.1", "G", {"a.py": ["a.one"]}), component("1.1.2", "G2", {"a.py": ["a.one"]})
             ),
         }
-        cfg = CallGraph()
-        cfg.method_cluster_paths = MethodClusterPaths({"a.one": {"1.0", "1.1.4"}})
+        clusters = ClusterCache(method_paths=MethodClusterPaths({"a.one": {"1.0", "1.1.4"}}))
 
-        absorb_single_child_components(root, subs, [cfg])
+        absorb_single_child_components(root, subs, [clusters])
 
-        self.assertEqual(cfg.method_cluster_paths.snapshot_dict(), {"a.one": {"1.4"}})
+        self.assertEqual(clusters.method_paths.snapshot_dict(), {"a.one": {"1.4"}})
 
 
 class TestAbsorptionKeepsTheDocumentRenderable(unittest.TestCase):

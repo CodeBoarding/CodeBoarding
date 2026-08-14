@@ -684,6 +684,14 @@ class StaticAnalyzer:
                 )
 
             self._absorb_into_results(results, language, analysis)
+            # Carry the cached partition onto the merged graph — nodes the re-LSP dropped
+            # fall out of the pruned copy. Without this the warm start would hand the next
+            # incremental run an empty cluster baseline.
+            try:
+                surviving = results.get_cfg(language).nodes
+            except ValueError:
+                surviving = {}
+            results.set_clusters(language, cached_results.get_clusters(language).prune(surviving))
             self._collect_diagnostics_for(adapter, engine_client, analysis)
             track_lsp_result(
                 language=adapter.language_enum.value,

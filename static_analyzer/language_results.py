@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
 
+from static_analyzer.clustering import ClusterCache
 from static_analyzer.graph import CallGraph, EdgeKind
 from static_analyzer.node import Node
 
@@ -65,7 +66,6 @@ class ControlFlowGraph:
         # tuple is post-alias-resolution, and a membership scan per edge is quadratic.
         # getattr for the same reason as above: pre-reference-edge caches lack the field.
         self.graph.reference_edges = list(dict.fromkeys(getattr(self.graph, "reference_edges", ())))
-        self.graph.method_cluster_paths.merge(other.method_cluster_paths)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         if self.graph is None:
@@ -162,6 +162,7 @@ class LanguageResults:
     references: References = field(default_factory=References)
     dependencies: PackageDependencies = field(default_factory=PackageDependencies)
     source_files: SourceFiles = field(default_factory=SourceFiles)
+    clusters: ClusterCache = field(default_factory=ClusterCache)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         self.cfg.visit_paths(fn)
@@ -169,3 +170,4 @@ class LanguageResults:
         self.references.visit_paths(fn)
         self.dependencies.visit_paths(fn)
         self.source_files.visit_paths(fn)
+        self.clusters.visit_paths(fn)
