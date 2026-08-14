@@ -1,8 +1,4 @@
-"""The call graph: nodes, call edges, reference edges, and derivation of subgraphs.
-
-Clustering lives in ``static_analyzer.clustering``; LLM rendering lives in
-``agents.llm_renderers``. This module owns graph structure only.
-"""
+"""The call graph: nodes, call edges, reference edges, and derivation of subgraphs."""
 
 from __future__ import annotations
 
@@ -12,8 +8,8 @@ from types import MappingProxyType
 
 import networkx as nx
 
-from static_analyzer.cfg.canonical import LocationKey
 from static_analyzer.cfg.edge import DEFAULT_REFERENCE_KINDS, Edge, EdgeKind, ReferenceEdge
+from static_analyzer.cfg.location_key import LocationKey
 from static_analyzer.constants import ClusteringConfig
 from static_analyzer.node import Node
 

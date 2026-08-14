@@ -4,6 +4,7 @@ import networkx as nx
 
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterCache, ClusterResult, ClusteringService
+from static_analyzer.constants import ClusteringConfig
 from static_analyzer.leiden_utils import find_partition
 from static_analyzer.node import Node
 
@@ -39,6 +40,21 @@ class TestClusteringService(unittest.TestCase):
         self.assertEqual(first.clusters, second.clusters)
         self.assertEqual(graph.nodes, nodes_before)
         self.assertEqual(graph.edges, edges_before)
+
+    def test_connected_components_fallback_keeps_every_component(self):
+        """No member may vanish from the partition just because Leiden scored 0."""
+        graph = CallGraph()
+        target = ClusteringConfig.DEFAULT_TARGET_CLUSTERS
+        for component in range(target + 3):
+            for i in range(2):
+                graph.add_node(Node(f"mod{component}.func{i}", 12, f"/file{component}.py", i * 10, i * 10 + 5))
+            graph.add_edge(f"mod{component}.func0", f"mod{component}.func1")
+
+        result = ClusteringService(min_cluster_size=1).cluster(graph)
+
+        self.assertEqual(result.strategy, "connected_components")
+        clustered = {qname for members in result.clusters.values() for qname in members}
+        self.assertEqual(clustered, set(graph.nodes))
 
     def test_empty_graph(self):
         result = ClusteringService().cluster(CallGraph())
@@ -98,7 +114,7 @@ class TestClusterCache(unittest.TestCase):
         self.assertIs(cache.result, top_level)
         self.assertEqual(cache.method_paths.snapshot_dict(), {"a.foo": {"1", "1.2"}})
 
-    def test_pruned_to_drops_departed_nodes(self):
+    def test_prune_drops_departed_nodes(self):
         cache = ClusterCache()
         cache.adopt(
             ClusterResult(
@@ -109,16 +125,16 @@ class TestClusterCache(unittest.TestCase):
         )
         surviving = {"a.foo": Node("a.foo", 12, "a.py", 1, 5)}
 
-        pruned = cache.pruned_to(surviving)
+        pruned = cache.prune(surviving)
 
         self.assertEqual(pruned.result.clusters, {1: {"a.foo"}})
         self.assertEqual(pruned.result.cluster_to_files, {1: {"a.py"}})
         self.assertEqual(pruned.result.file_to_clusters, {"a.py": {1}})
         self.assertEqual(pruned.method_paths.snapshot_dict(), {"a.foo": {"1"}})
 
-    def test_pruned_to_without_a_partition(self):
+    def test_prune_without_a_partition(self):
         """An unclustered language prunes to an empty partition, never to None."""
-        self.assertEqual(ClusterCache().pruned_to({}).result.clusters, {})
+        self.assertEqual(ClusterCache().prune({}).result.clusters, {})
 
 
 class TestFindPartitionDeterminism(unittest.TestCase):

@@ -52,11 +52,11 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     Downstream code maps ``cluster_id -> component`` in a single dict, so IDs must
     not collide across languages.
     """
-    service = ClusteringService()
+    cluster_service = ClusteringService()
     cluster_results: dict[str, ClusterResult] = {}
     offset = 0
     for lang in static_analysis.get_languages():
-        result = service.cluster(static_analysis.get_cfg(lang))
+        result = cluster_service.cluster(static_analysis.get_cfg(lang))
         if offset:
             result = reindex_cluster_result(result, offset)
             logger.info(f"[Cluster] {lang}: offset IDs by +{offset} ({len(result.clusters)} clusters)")

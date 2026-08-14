@@ -187,13 +187,7 @@ class TestMergeResults(unittest.TestCase):
 
 
 class TestClusterCachePreservation(unittest.TestCase):
-    """The partition must survive warm-start invalidation/merge, pruned to the survivors.
-
-    Regression: dropping it caused ``IncrementalCacheMissingError`` even
-    when the pkl on disk had a populated cache. The graph no longer carries the
-    partition, so the warm-start path prunes a ``ClusterCache`` against the
-    rebuilt graph instead — see ``StaticAnalyzer._update_cached_results``.
-    """
+    """The partition must survive warm-start invalidation/merge, pruned to the survivors."""
 
     def _cg(self) -> CallGraph:
         cg = CallGraph(language="python")
@@ -218,7 +212,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         cached = _result(self._cg(), source_files=["a.py", "b.py"])
 
         updated = invalidate_files(cached, {Path("a.py")}).analysis
-        pruned = self._cache().pruned_to(updated.call_graph.nodes)
+        pruned = self._cache().prune(updated.call_graph.nodes)
 
         cc = pruned.result
         # Cluster 1 had only a.py members -> dropped entirely.
@@ -235,7 +229,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         # cluster 2 (b.qux only) drops.
         updated = invalidate_files(cached, {Path("b.py")}).analysis
 
-        cc = self._cache().pruned_to(updated.call_graph.nodes).result
+        cc = self._cache().prune(updated.call_graph.nodes).result
 
         self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
         self.assertNotIn(2, cc.clusters)
@@ -247,7 +241,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         new = _result(new_cg, source_files=["c.py"])
 
         merged = merge_results(_analysis_data(cached), new)
-        cc = self._cache().pruned_to(merged.call_graph.nodes).result
+        cc = self._cache().prune(merged.call_graph.nodes).result
 
         # Cached clusters survive; new node 'c.new' is unclustered (intentional —
         # cluster_delta will pick it up as drift on the next run).
@@ -280,7 +274,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         new.add_node(_node("c.new", "c.py"))
 
         unioned = self._cg().union(new)
-        cc = self._cache().pruned_to(unioned.nodes).result
+        cc = self._cache().prune(unioned.nodes).result
 
         self.assertEqual(cc.clusters, {1: {"a.foo", "a.bar"}, 2: {"b.qux"}})
         # New node from `other` participates in the graph but not yet in any cluster.

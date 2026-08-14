@@ -42,7 +42,7 @@ class ClusterResult:
             remapped_file_to_clusters[fn(path)].update(cluster_ids)
         self.file_to_clusters = dict(remapped_file_to_clusters)
 
-    def pruned_to(self, surviving_nodes: Mapping[str, Node]) -> ClusterResult:
+    def prune(self, surviving_nodes: Mapping[str, Node]) -> ClusterResult:
         """Drop qnames not in ``surviving_nodes`` and recompute the file mappings."""
         pruned_clusters: dict[int, set[str]] = {}
         pruned_cluster_to_files: dict[int, set[str]] = {}

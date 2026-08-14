@@ -8,11 +8,17 @@ parameters, and dual-registration aliases are correctly excluded from references
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
-from static_analyzer.engine.result_converter import _map_symbol_kind, convert_to_codeboarding_format
+from static_analyzer.engine.result_converter import (
+    _add_reference_edges,
+    _map_symbol_kind,
+    convert_to_codeboarding_format,
+)
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.node import Node
 
 
 # ---------------------------------------------------------------------------
@@ -599,10 +605,6 @@ class TestOutputStructure:
 
 def test_add_reference_edges_contains_and_inherits():
     """CONTAINS from the qualified-name hierarchy; INHERITS from the class hierarchy."""
-    from static_analyzer.engine.result_converter import _add_reference_edges
-    from static_analyzer.cfg import CallGraph, EdgeKind
-    from static_analyzer.node import Node
-
     cg = CallGraph(language="python")
     for i, (qname, kind) in enumerate(
         [
@@ -644,9 +646,6 @@ def test_add_reference_edges_contains_and_inherits():
 
 
 def test_to_networkx_folds_in_default_reference_kinds():
-    from static_analyzer.cfg import CallGraph, EdgeKind
-    from static_analyzer.node import Node
-
     cg = CallGraph(language="python")
     for i, qname in enumerate(("mod.A", "mod.B")):
         cg.add_node(

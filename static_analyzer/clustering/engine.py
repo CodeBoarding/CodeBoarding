@@ -69,10 +69,10 @@ def cluster_graph(
             return _build_result(best_communities, best_strategy, min_cluster_size, nx_graph)
 
     logger.warning("All clustering strategies scored 0, falling back to connected components")
+    # Every component is kept: truncating to target_clusters would drop its members from the
+    # partition entirely, and downstream snapshots could then not render those methods.
     components = list(nx.connected_components(nx_graph.to_undirected()))
-    return _build_result(
-        [set(c) for c in components[:target_clusters]], "connected_components", min_cluster_size, nx_graph
-    )
+    return _build_result([set(c) for c in components], "connected_components", min_cluster_size, nx_graph)
 
 
 def _abstract_node_name(node_name: str, level: str, delimiter: str) -> str:

@@ -12,7 +12,8 @@ from agents.tools import ComponentBridgeEdgesTool, GetCFGTool, MethodInvocations
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
-from static_analyzer.constants import NodeType
+from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.cfg import CallGraph, Edge
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
@@ -194,3 +195,37 @@ class TestComponentBridgeEdgesTool(unittest.TestCase):
         result = tool._run(["Destination Group"], ["Source Group"])
 
         self.assertEqual(result, "No directed static bridge edges found between these component groups.")
+
+
+class TestComponentCFGScoping(unittest.TestCase):
+    """component_cfg must render only the component's own graph, targets included."""
+
+    def _make_tool(self, cfg: CallGraph) -> GetCFGTool:
+        static_analysis = StaticAnalysisResults()
+        static_analysis.add_cfg(Language.PYTHON, cfg)
+        context = RepoContext(
+            repo_dir=Path("."),
+            ignore_manager=RepoIgnoreManager(Path(".")),
+            static_analysis=static_analysis,
+        )
+        return GetCFGTool(context=context)
+
+    def test_out_of_component_call_target_is_absent(self):
+        cfg = CallGraph()
+        cfg.add_node(Node("pkg.inside.caller", NodeType.FUNCTION, "/inside.py", 1, 10))
+        cfg.add_node(Node("pkg.inside.helper", NodeType.FUNCTION, "/inside.py", 20, 30))
+        cfg.add_node(Node("pkg.outside.secret", NodeType.FUNCTION, "/outside.py", 1, 10))
+        cfg.add_edge("pkg.inside.caller", "pkg.inside.helper")
+        cfg.add_edge("pkg.inside.caller", "pkg.outside.secret")
+
+        component = Component(
+            name="InsideComponent",
+            description="Spans /inside.py only",
+            key_entities=[],
+            file_methods=[FileMethodGroup(file_path="/inside.py")],
+        )
+        result = self._make_tool(cfg).component_cfg(component)
+
+        self.assertIn("pkg.inside.caller", result)
+        self.assertIn("pkg.inside.helper", result)
+        self.assertNotIn("pkg.outside.secret", result)
