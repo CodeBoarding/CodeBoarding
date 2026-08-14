@@ -19,7 +19,7 @@ from static_analyzer.node import Node
 class ClusterCache:
     """The partition of a language's call graph, plus each method's scoped cluster path."""
 
-    result: ClusterResult | None = None
+    result: ClusterResult = field(default_factory=ClusterResult)
     method_paths: MethodClusterPaths = field(default_factory=MethodClusterPaths)
 
     def adopt(self, cluster_result: ClusterResult) -> None:
@@ -36,17 +36,12 @@ class ClusterCache:
         """
         self.method_paths.record(cluster_result, scope_id)
 
-    def merge(self, other: ClusterCache) -> None:
-        """Absorb ``other``'s method lineage, keeping this cache's partition."""
-        self.method_paths.merge(other.method_paths)
-
     def pruned_to(self, surviving_nodes: Mapping[str, Node]) -> ClusterCache:
         """Return a copy restricted to ``surviving_nodes``, for filter/union of the graph."""
         return ClusterCache(
-            result=self.result.pruned_to(surviving_nodes) if self.result is not None else None,
+            result=self.result.pruned_to(surviving_nodes),
             method_paths=self.method_paths.prune(surviving_nodes),
         )
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
-        if self.result is not None:
-            self.result.visit_paths(fn)
+        self.result.visit_paths(fn)

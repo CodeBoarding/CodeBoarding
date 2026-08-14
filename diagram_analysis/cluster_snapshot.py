@@ -39,7 +39,7 @@ class ClusterSnapshot:
 def snapshot_from_static_analysis(static_analysis: StaticAnalysisResults) -> ClusterSnapshot:
     """Reconstruct a ``ClusterSnapshot`` from each language's ``ClusterCache``.
 
-    Languages whose cache holds no partition (first-ever run on a fresh repo)
+    Languages whose cache holds an empty partition (first-ever run on a fresh repo)
     contribute nothing; the resulting snapshot's
     ``all_cluster_ids()`` will be empty for those languages, which causes
     ``DiagramGenerator.generate_analysis_incremental`` to fall back to a full
@@ -53,7 +53,7 @@ def snapshot_from_static_analysis(static_analysis: StaticAnalysisResults) -> Clu
         except ValueError:
             continue
         partition = static_analysis.get_clusters(language).result
-        if partition is None:
+        if not partition.clusters:
             continue
         by_language[language] = _entries_from_partition(partition, cfg.to_networkx())
     return ClusterSnapshot(by_language=by_language)

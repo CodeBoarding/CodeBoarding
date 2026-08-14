@@ -10,18 +10,13 @@ from static_analyzer.node import Node
 
 
 class EdgeKind(StrEnum):
-    """Kind of relationship an edge represents.
+    """Kind of a *reference* edge — the structural relationships a call graph misses.
 
-    ``CALL`` edges live in ``CallGraph.edges`` and drive component *relations*.
-    The rest are *reference edges* (``CallGraph.reference_edges``): structural
-    relationships the pure call graph misses — a method belongs to its class
-    (CONTAINS), a class extends another (INHERITS), code names a type (TYPEREF),
-    a module imports another (IMPORT). They complete the graph for *clustering*
-    (so constructors/dunders/DI/interface methods aren't graph-isolated) without
-    polluting the call-relation semantics.
+    A method belongs to its class (CONTAINS), a class extends another (INHERITS),
+    code names a type (TYPEREF), a module imports another (IMPORT). Call edges are
+    not listed: they live in ``CallGraph.edges`` and carry no kind tag.
     """
 
-    CALL = "call"
     CONTAINS = "contains"
     INHERITS = "inherits"
     TYPEREF = "typeref"

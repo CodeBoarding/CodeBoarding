@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Mapping
+from collections.abc import Container, Mapping
 from types import MappingProxyType
 
 from static_analyzer.clustering.models import ClusterResult
@@ -28,7 +28,7 @@ class MethodClusterPaths:
             for qname, cluster_ids in other.snapshot():
                 self._paths.setdefault(qname, set()).update(cluster_ids)
 
-    def prune(self, surviving_nodes: Mapping[str, object]) -> MethodClusterPaths:
+    def prune(self, surviving_nodes: Container[str]) -> MethodClusterPaths:
         with self._lock:
             return MethodClusterPaths(
                 {qname: set(cluster_ids) for qname, cluster_ids in self._paths.items() if qname in surviving_nodes}

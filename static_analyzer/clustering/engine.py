@@ -1,4 +1,4 @@
-"""Leiden clustering with a try-all-then-level-up search over an exported graph.
+"""Seeded-Leiden clustering with a level-up search over an exported graph.
 
 Operates on ``nx.DiGraph`` only — it never sees a ``CallGraph``, so the search
 can be exercised on any graph. ``ClusteringService`` does the export.
@@ -10,7 +10,6 @@ import logging
 from collections import defaultdict
 
 import networkx as nx
-import networkx.algorithms.community as nx_comm
 
 from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.constants import ClusteringConfig
@@ -18,8 +17,8 @@ from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
 
-# Abstraction levels tried in order; ``None`` means the raw method-level graph.
-_LEVELS: tuple[str | None, ...] = (None, "class", "file")
+# Abstraction levels tried in order; "" is the raw method-level graph.
+_LEVELS: tuple[str, ...] = ("", "class", "file")
 
 # (communities, strategy name, score)
 Candidate = tuple[list[set[str]], str, float]
@@ -32,11 +31,11 @@ def cluster_graph(
     target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
     min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
 ) -> ClusterResult:
-    """Cluster ``nx_graph`` using a try-all-then-level-up approach.
+    """Cluster ``nx_graph``, levelling up until the partition covers enough of it.
 
-    Tries every algorithm at each abstraction level (None, class, file); stops at
-    the first level reaching ``MIN_COVERAGE_RATIO``. Falls back to connected
-    components if everything scores zero.
+    Scores a Leiden partition at each abstraction level (raw, class, file) and stops
+    at the first to reach ``MIN_COVERAGE_RATIO``, else keeps the best-scoring level.
+    Falls back to connected components if every level scores zero.
     """
     if nx_graph.number_of_nodes() == 0:
         logger.warning("No nodes available for clustering.")
@@ -46,28 +45,23 @@ def cluster_graph(
     all_candidates: list[Candidate] = []
 
     for level in _LEVELS:
-        if level is None:
-            work_graph = nx_graph
-        else:
+        work_graph = nx_graph
+        if level:
             work_graph = _abstract_at_level(nx_graph, level, delimiter)
             if work_graph.number_of_nodes() == 0:
                 continue
 
-        candidates = _try_all_algorithms(work_graph, min_cluster_size, total_nodes)
+        candidate = _leiden_candidate(work_graph, min_cluster_size, total_nodes)
+        if level:
+            candidate = _map_candidate_to_original(candidate, nx_graph, level, delimiter, min_cluster_size, total_nodes)
 
-        if level is not None:
-            candidates = _map_candidates_to_original(
-                candidates, nx_graph, level, delimiter, min_cluster_size, total_nodes
-            )
+        all_candidates.append(candidate)
 
-        all_candidates.extend(candidates)
-
-        if candidates:
-            best = max(candidates, key=lambda c: c[2])
-            best_coverage = _coverage(best[0], min_cluster_size, total_nodes)
-            logger.info(f"Level {level or 'raw'}: best={best[1]} score={best[2]:.3f} coverage={best_coverage:.3f}")
-            if best_coverage >= ClusteringConfig.MIN_COVERAGE_RATIO:
-                break
+        communities, strategy, score = candidate
+        coverage = _coverage(communities, min_cluster_size, total_nodes)
+        logger.info(f"Level {level or 'raw'}: best={strategy} score={score:.3f} coverage={coverage:.3f}")
+        if coverage >= ClusteringConfig.MIN_COVERAGE_RATIO:
+            break
 
     if all_candidates:
         best_communities, best_strategy, best_score = max(all_candidates, key=lambda c: c[2])
@@ -92,19 +86,6 @@ def _abstract_node_name(node_name: str, level: str, delimiter: str) -> str:
         return parts[0]
     else:
         return node_name
-
-
-def _cluster_with_algorithm(graph: nx.DiGraph, algorithm: str) -> list[set[str]]:
-    # Seeded for reproducibility - Leiden/Louvain are non-deterministic without it
-    if algorithm == "leiden":
-        return find_partition(graph, seed=ClusteringConfig.CLUSTERING_SEED)
-    elif algorithm == "louvain":
-        return list(nx_comm.louvain_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
-    elif algorithm == "greedy_modularity":
-        return list(nx.community.greedy_modularity_communities(graph))
-    else:
-        logger.warning(f"Algorithm {algorithm} not supported, defaulting to leiden")
-        return find_partition(graph, seed=ClusteringConfig.CLUSTERING_SEED)
 
 
 def _score_clustering(communities: list[set[str]], min_cluster_size: int, total_nodes: int) -> float:
@@ -159,47 +140,45 @@ def _abstract_at_level(graph: nx.DiGraph, level: str, delimiter: str) -> nx.DiGr
     return abstracted
 
 
-def _try_all_algorithms(graph: nx.DiGraph, min_cluster_size: int, total_nodes: int) -> list[Candidate]:
-    """Run Leiden and return a single scored candidate.
+def _leiden_candidate(graph: nx.DiGraph, min_cluster_size: int, total_nodes: int) -> Candidate:
+    """Score one seeded-Leiden partition of ``graph``; a failure scores 0 and loses.
 
-    Returned as a list so the cross-level pooling in ``cluster_graph`` stays uniform.
+    Why seeded: Leiden is non-deterministic otherwise, and cluster IDs persisted in
+    analysis.json must reproduce on the next run.
     """
-    candidates: list[Candidate] = []
+    communities: list[set[str]] = []
     try:
-        communities = _cluster_with_algorithm(graph, "leiden")
-        score = _score_clustering(communities, min_cluster_size, total_nodes)
-        candidates.append((communities, "leiden", score))
-        logger.debug(f"leiden: score={score:.3f}, clusters={len(communities)}")
+        communities = find_partition(graph, seed=ClusteringConfig.CLUSTERING_SEED)
     except Exception as e:
-        logger.debug(f"Algorithm leiden failed: {e}")
-    return candidates
+        logger.debug(f"Leiden failed: {e}")
+    score = _score_clustering(communities, min_cluster_size, total_nodes)
+    logger.debug(f"leiden: score={score:.3f}, clusters={len(communities)}")
+    return communities, "leiden", score
 
 
-def _map_candidates_to_original(
-    candidates: list[Candidate],
+def _map_candidate_to_original(
+    candidate: Candidate,
     original_graph: nx.DiGraph,
     level: str,
     delimiter: str,
     min_cluster_size: int,
     total_nodes: int,
-) -> list[Candidate]:
-    """Map abstract community results back to original node names and re-score."""
+) -> Candidate:
+    """Map an abstract-level community result back to original node names and re-score."""
     abstract_to_original: dict[str, list[str]] = defaultdict(list)
     for node in original_graph.nodes():
         abstract_to_original[_abstract_node_name(node, level, delimiter)].append(node)
 
-    mapped: list[Candidate] = []
-    for communities, algo, _ in candidates:
-        original_communities: list[set[str]] = []
-        for community in communities:
-            orig: set[str] = set()
-            for abstract_node in community:
-                orig.update(abstract_to_original[abstract_node])
-            if orig:
-                original_communities.append(orig)
-        new_score = _score_clustering(original_communities, min_cluster_size, total_nodes)
-        mapped.append((original_communities, f"{algo}_level_{level}", new_score))
-    return mapped
+    communities, algo, _ = candidate
+    original_communities: list[set[str]] = []
+    for community in communities:
+        orig: set[str] = set()
+        for abstract_node in community:
+            orig.update(abstract_to_original[abstract_node])
+        if orig:
+            original_communities.append(orig)
+    score = _score_clustering(original_communities, min_cluster_size, total_nodes)
+    return original_communities, f"{algo}_level_{level}", score
 
 
 def _coverage(communities: list[set[str]], min_cluster_size: int, total_nodes: int) -> float:

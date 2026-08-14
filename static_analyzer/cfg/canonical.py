@@ -1,10 +1,5 @@
-"""Physical-location identity for call-graph symbols.
-
-The LSP can emit several qualified names for one physical symbol (two tsconfig
-projects resolving the same file under different roots). ``LocationKey`` is what
-lets the graph recognise those as one node. See issue #471 for moving the
-canonicalization itself out of ``CallGraph.add_node`` into an explicit pass here.
-"""
+"""Physical-location identity, used to dedup the several qualified names the LSP
+can emit for one symbol. Issue #471 moves the canonicalization itself here."""
 
 from __future__ import annotations
 

@@ -221,7 +221,6 @@ class TestClusterCachePreservation(unittest.TestCase):
         pruned = self._cache().pruned_to(updated.call_graph.nodes)
 
         cc = pruned.result
-        assert cc is not None
         # Cluster 1 had only a.py members -> dropped entirely.
         # Cluster 2 keeps b.qux from b.py.
         self.assertNotIn(1, cc.clusters)
@@ -238,7 +237,6 @@ class TestClusterCachePreservation(unittest.TestCase):
 
         cc = self._cache().pruned_to(updated.call_graph.nodes).result
 
-        assert cc is not None
         self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
         self.assertNotIn(2, cc.clusters)
 
@@ -251,7 +249,6 @@ class TestClusterCachePreservation(unittest.TestCase):
         merged = merge_results(_analysis_data(cached), new)
         cc = self._cache().pruned_to(merged.call_graph.nodes).result
 
-        assert cc is not None
         # Cached clusters survive; new node 'c.new' is unclustered (intentional —
         # cluster_delta will pick it up as drift on the next run).
         self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
@@ -287,7 +284,6 @@ class TestClusterCachePreservation(unittest.TestCase):
         unioned = self._cg().union(new)
         cc = self._cache().pruned_to(unioned.nodes).result
 
-        assert cc is not None
         self.assertEqual(cc.clusters, {1: {"a.foo", "a.bar"}, 2: {"b.qux"}})
         # New node from `other` participates in the graph but not yet in any cluster.
         self.assertIn("c.new", unioned.nodes)
@@ -341,7 +337,6 @@ class TestClusterCachePreservation(unittest.TestCase):
             expected_file = str(repo_b.resolve() / "pkg" / "a.py")
             self.assertEqual(loaded.get_cfg(Language.PYTHON).nodes["pkg.a.foo"].file_path, expected_file)
             loaded_partition = loaded.get_clusters(Language.PYTHON).result
-            assert loaded_partition is not None
             self.assertEqual(loaded_partition.cluster_to_files, {1: {expected_file}})
             self.assertEqual(loaded_partition.file_to_clusters, {expected_file: {1}})
 

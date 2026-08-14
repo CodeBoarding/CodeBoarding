@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 _EMPTY_NODES: Mapping[str, Node] = MappingProxyType({})
 
 
+def _ignore_dropped_edge(edge: Edge) -> None:
+    """Default for ``filter`` callers that don't care which edges were cascaded out."""
+
+
 class CallGraph:
     def __init__(
         self,
@@ -134,7 +138,6 @@ class CallGraph:
         reference edges freshly computed for changed/added files are not dropped when both
         endpoints survive. Deduped, keeping only edges whose endpoints are both in ``out``.
         """
-        seen: set[ReferenceEdge] = set()
         carried: list[ReferenceEdge] = []
         for source in (self, *extra_sources):
             for ref in source.reference_edges:
@@ -143,15 +146,13 @@ class CallGraph:
                 # (which add_edge resolves) survives while its reference edge is silently dropped.
                 resolved = ReferenceEdge(source._resolve_name(ref.src), source._resolve_name(ref.dst), ref.kind)
                 if resolved.src in out.nodes and resolved.dst in out.nodes and resolved.src != resolved.dst:
-                    if resolved not in seen:
-                        seen.add(resolved)
-                        carried.append(resolved)
-        out.reference_edges = carried
+                    carried.append(resolved)
+        out.reference_edges = list(dict.fromkeys(carried))
 
     def filter(
         self,
         keep_node: Callable[[Node], bool],
-        on_dropped_edge: Callable[[Edge], None],
+        on_dropped_edge: Callable[[Edge], None] = _ignore_dropped_edge,
     ) -> CallGraph:
         """Return a new CallGraph keeping only nodes matching ``keep_node`` and connecting edges.
 
@@ -197,32 +198,12 @@ class CallGraph:
         return out
 
     def filter_by_files(self, file_paths: set[str]) -> CallGraph:
-        """Return a new CallGraph with only nodes from ``file_paths`` and edges internal to them."""
-        relevant_nodes = {node_id: node for node_id, node in self.nodes.items() if node.file_path in file_paths}
-
-        filtered_edges = []
-        for edge in self.edges:
-            src, dst = edge.get_source(), edge.get_destination()
-            if self.nodes[src].file_path in file_paths and self.nodes[dst].file_path in file_paths:
-                filtered_edges.append(Edge(self.nodes[src], self.nodes[dst], [dict(site) for site in edge.call_sites]))
-
-        sub_graph = CallGraph(nodes=relevant_nodes, edges=filtered_edges, language=self.language)
-        self._carry_reference_edges(sub_graph)
-        return sub_graph
+        """Subgraph of the nodes declared in ``file_paths``."""
+        return self.filter(lambda node: node.file_path in file_paths)
 
     def filter_by_nodes(self, qualified_names: set[str]) -> CallGraph:
-        """Return a new CallGraph with only ``qualified_names`` and edges internal to them."""
-        relevant_nodes = {nid: node for nid, node in self.nodes.items() if nid in qualified_names}
-
-        filtered_edges = []
-        for edge in self.edges:
-            src, dst = edge.get_source(), edge.get_destination()
-            if src in relevant_nodes and dst in relevant_nodes:
-                filtered_edges.append(Edge(self.nodes[src], self.nodes[dst], [dict(site) for site in edge.call_sites]))
-
-        sub_graph = CallGraph(nodes=relevant_nodes, edges=filtered_edges, language=self.language)
-        self._carry_reference_edges(sub_graph)
-        return sub_graph
+        """Subgraph of the named nodes."""
+        return self.filter(lambda node: node.fully_qualified_name in qualified_names)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         for node in self.nodes.values():
@@ -250,6 +231,8 @@ class CallGraph:
             nx_graph.add_edge(edge.get_source(), edge.get_destination())
 
         kinds = set(reference_kinds)
+        if not kinds:
+            return nx_graph
         for ref in self.reference_edges:
             if ref.kind not in kinds:
                 continue

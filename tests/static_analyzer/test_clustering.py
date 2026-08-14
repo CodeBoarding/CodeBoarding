@@ -111,14 +111,14 @@ class TestClusterCache(unittest.TestCase):
 
         pruned = cache.pruned_to(surviving)
 
-        assert pruned.result is not None
         self.assertEqual(pruned.result.clusters, {1: {"a.foo"}})
         self.assertEqual(pruned.result.cluster_to_files, {1: {"a.py"}})
         self.assertEqual(pruned.result.file_to_clusters, {"a.py": {1}})
         self.assertEqual(pruned.method_paths.snapshot_dict(), {"a.foo": {"1"}})
 
     def test_pruned_to_without_a_partition(self):
-        self.assertIsNone(ClusterCache().pruned_to({}).result)
+        """An unclustered language prunes to an empty partition, never to None."""
+        self.assertEqual(ClusterCache().pruned_to({}).result.clusters, {})
 
 
 class TestFindPartitionDeterminism(unittest.TestCase):
