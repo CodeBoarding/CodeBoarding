@@ -36,11 +36,11 @@ class ClusterCache:
         """
         self.method_paths.record(cluster_result, scope_id)
 
-    def prune(self, surviving_nodes: Mapping[str, Node]) -> ClusterCache:
-        """Return a copy restricted to ``surviving_nodes``, for filter/union of the graph."""
+    def select(self, surviving_nodes: Mapping[str, Node]) -> ClusterCache:
+        """Return a copy keeping only ``surviving_nodes``, for filter/union of the graph."""
         return ClusterCache(
-            result=self.result.prune(surviving_nodes),
-            method_paths=self.method_paths.prune(surviving_nodes),
+            result=self.result.select(surviving_nodes),
+            method_paths=self.method_paths.select(surviving_nodes),
         )
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:

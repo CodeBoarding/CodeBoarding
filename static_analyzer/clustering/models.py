@@ -42,27 +42,27 @@ class ClusterResult:
             remapped_file_to_clusters[fn(path)].update(cluster_ids)
         self.file_to_clusters = dict(remapped_file_to_clusters)
 
-    def prune(self, surviving_nodes: Mapping[str, Node]) -> ClusterResult:
-        """Drop qnames not in ``surviving_nodes`` and recompute the file mappings."""
-        pruned_clusters: dict[int, set[str]] = {}
-        pruned_cluster_to_files: dict[int, set[str]] = {}
-        pruned_file_to_clusters: dict[str, set[int]] = {}
+    def select(self, surviving_nodes: Mapping[str, Node]) -> ClusterResult:
+        """Return a copy keeping only qnames in ``surviving_nodes``, with file mappings recomputed."""
+        kept_clusters: dict[int, set[str]] = {}
+        kept_cluster_to_files: dict[int, set[str]] = {}
+        kept_file_to_clusters: dict[str, set[int]] = {}
         for cid, members in self.clusters.items():
             kept = {m for m in members if m in surviving_nodes}
             if not kept:
                 continue
-            pruned_clusters[cid] = kept
+            kept_clusters[cid] = kept
             files: set[str] = set()
             for qname in kept:
                 file_path = surviving_nodes[qname].file_path
                 if file_path:
                     files.add(file_path)
-                    pruned_file_to_clusters.setdefault(file_path, set()).add(cid)
+                    kept_file_to_clusters.setdefault(file_path, set()).add(cid)
             if files:
-                pruned_cluster_to_files[cid] = files
+                kept_cluster_to_files[cid] = files
         return ClusterResult(
-            clusters=pruned_clusters,
-            cluster_to_files=pruned_cluster_to_files,
-            file_to_clusters=pruned_file_to_clusters,
+            clusters=kept_clusters,
+            cluster_to_files=kept_cluster_to_files,
+            file_to_clusters=kept_file_to_clusters,
             strategy=self.strategy,
         )

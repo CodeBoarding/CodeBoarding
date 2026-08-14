@@ -691,7 +691,7 @@ class StaticAnalyzer:
                 surviving = results.get_cfg(language).nodes
             except ValueError:
                 surviving = {}
-            results.set_clusters(language, cached_results.get_clusters(language).prune(surviving))
+            results.set_clusters(language, cached_results.get_clusters(language).select(surviving))
             self._collect_diagnostics_for(adapter, engine_client, analysis)
             track_lsp_result(
                 language=adapter.language_enum.value,

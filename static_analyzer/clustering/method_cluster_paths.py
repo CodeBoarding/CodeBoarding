@@ -21,7 +21,7 @@ class MethodClusterPaths:
             for qname, cluster_ids in other.snapshot():
                 self._paths.setdefault(qname, set()).update(cluster_ids)
 
-    def prune(self, surviving_nodes: Mapping[str, object]) -> "MethodClusterPaths":
+    def select(self, surviving_nodes: Mapping[str, object]) -> "MethodClusterPaths":
         with self._lock:
             return MethodClusterPaths(
                 {qname: set(cluster_ids) for qname, cluster_ids in self._paths.items() if qname in surviving_nodes}
