@@ -83,7 +83,7 @@ from static_analyzer.cluster_relations import (
     prune_ungrounded_edges,
 )
 from static_analyzer.constants import Language
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 

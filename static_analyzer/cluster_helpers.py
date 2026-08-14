@@ -22,7 +22,8 @@ import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig, Language
-from static_analyzer.graph import ClusterResult, detect_communities
+from static_analyzer.graph import detect_communities
+from static_analyzer.clustering import ClusterResult
 
 logger = logging.getLogger(__name__)
 

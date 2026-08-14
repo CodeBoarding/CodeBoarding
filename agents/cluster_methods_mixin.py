@@ -38,7 +38,8 @@ from static_analyzer.cluster_relations import (
     merge_relations,
 )
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
-from static_analyzer.graph import METHOD_LEVEL_STRATEGY, CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph
+from static_analyzer.clustering import ClusterResult, METHOD_LEVEL_STRATEGY
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)

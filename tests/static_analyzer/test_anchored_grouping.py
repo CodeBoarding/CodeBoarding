@@ -21,7 +21,7 @@ from static_analyzer.cluster_helpers import (
     anchored_grouping,
     supercluster_by_modularity_peak,
 )
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 
 
 def blocks(n_blocks: int, per_block: int, members_each: int = 3):

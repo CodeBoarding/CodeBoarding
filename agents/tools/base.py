@@ -7,7 +7,8 @@ from agents.agent_responses import ClusterAnalysis
 from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph
+from static_analyzer.clustering import ClusterResult
 
 
 class RepoContext(BaseModel):

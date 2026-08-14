@@ -21,7 +21,8 @@ from agents.file_index_models import FileMethodGroup, MethodEntry
 from diagram_analysis.file_index import build_files_index
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
 
 

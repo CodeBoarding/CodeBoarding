@@ -15,7 +15,7 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 
 
 class TestAbstractionAgent(unittest.TestCase):
@@ -185,7 +185,7 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_invoke_repair_validate.return_value = mock_response
 
         # Create mock cluster_results
-        from static_analyzer.graph import ClusterResult
+        from static_analyzer.clustering import ClusterResult
 
         mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
         cluster_results = {"python": mock_cluster_result}
