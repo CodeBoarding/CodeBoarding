@@ -22,7 +22,7 @@ import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig, Language
-from static_analyzer.graph import detect_communities
+from static_analyzer.leiden_utils import find_partition
 from static_analyzer.clustering import ClusterResult
 
 logger = logging.getLogger(__name__)
@@ -216,9 +216,7 @@ def _pick_peak_partition(
     candidates: list[tuple[int, float, list[set[int]]]] = []
     for resolution in _RESOLUTION_LADDER:
         try:
-            communities: list[set[int]] = detect_communities(
-                meta_graph, weight="weight", resolution=resolution, seed=seed
-            )
+            communities: list[set[int]] = find_partition(meta_graph, weight="weight", resolution=resolution, seed=seed)
         except Exception as e:  # noqa: BLE001 - a bad resolution shouldn't abort the sweep
             logger.debug(f"[SuperCluster] resolution={resolution} failed: {e}")
             continue

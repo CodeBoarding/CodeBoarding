@@ -4,6 +4,7 @@ from unittest.mock import patch, Mock
 import networkx as nx
 
 from static_analyzer.constants import NodeType
+from static_analyzer.leiden_utils import find_partition
 from static_analyzer.node import Node
 from static_analyzer.graph import CallGraph, Edge
 from static_analyzer.clustering import ClusterResult
@@ -530,21 +531,19 @@ class TestCallGraph(unittest.TestCase):
         self.assertTrue(graph2.has_node("bar"))
 
 
-class TestDetectCommunitiesDeterminism(unittest.TestCase):
+class TestFindPartitionDeterminism(unittest.TestCase):
     """Property test: same input + same seed -> byte-equal output.
 
-    Why: ``detect_communities`` is the entry point for both incremental and
+    Why: ``find_partition`` is the entry point for both incremental and
     full clustering. Determinism is the contract every downstream piece
     relies on (cluster IDs persisted in analysis.json must reproduce on
     subsequent runs of the same code).
     """
 
-    def test_detect_communities_is_deterministic(self):
-        from static_analyzer.graph import detect_communities
-
+    def test_find_partition_is_deterministic(self):
         g = nx.karate_club_graph()
-        a: list[set[int]] = detect_communities(g, seed=42)
-        b: list[set[int]] = detect_communities(g, seed=42)
+        a: list[set[int]] = find_partition(g, seed=42)
+        b: list[set[int]] = find_partition(g, seed=42)
         canon_a = sorted(sorted(c) for c in a)
         canon_b = sorted(sorted(c) for c in b)
         self.assertEqual(canon_a, canon_b)
