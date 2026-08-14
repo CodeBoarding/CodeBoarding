@@ -32,7 +32,7 @@ from filelock import FileLock
 from constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
 from repo_utils.path_utils import to_absolute_path, to_relative_path
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge
-from static_analyzer.graph import CallGraph, Edge, EdgeKind
+from static_analyzer.cfg import CallGraph, Edge, EdgeKind
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
 

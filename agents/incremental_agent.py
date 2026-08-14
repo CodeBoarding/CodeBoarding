@@ -52,7 +52,7 @@ from monitoring import trace
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterResult
 
 logger = logging.getLogger(__name__)

@@ -11,7 +11,7 @@ from health.checks.inheritance import check_inheritance_depth
 from health.checks.instability import check_package_instability
 from health.models import HealthCheckConfig, Severity
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
 

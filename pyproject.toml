@@ -88,6 +88,7 @@ packages = [
     "output_generators",
     "repo_utils",
     "static_analyzer",
+    "static_analyzer.cfg",
     "static_analyzer.clustering",
     "static_analyzer.engine",
     "static_analyzer.engine.adapters",

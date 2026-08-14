@@ -10,7 +10,7 @@ from agents.file_index_models import FileMethodGroup, MethodEntry
 from diagram_analysis.analysis_json import build_unified_analysis_json, parse_unified_analysis
 from diagram_analysis.diagram_generator import DiagramGenerator, _member_keys, _reconcile_child_scope
 from diagram_analysis.exceptions import ScopeContainmentError
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterCache, MethodClusterPaths
 from diagram_analysis.tree_shape import absorb_single_child_components
 

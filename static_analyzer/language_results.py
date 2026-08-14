@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 import logging
 
 from static_analyzer.clustering import ClusterCache
-from static_analyzer.graph import CallGraph, EdgeKind
+from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)

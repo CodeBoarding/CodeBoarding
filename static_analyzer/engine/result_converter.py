@@ -12,7 +12,7 @@ from static_analyzer.constants import CLASS_TYPES, GRAPH_NODE_TYPES, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import LanguageAnalysisResult
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.graph import CallGraph, EdgeKind
+from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
