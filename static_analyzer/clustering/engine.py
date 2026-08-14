@@ -1,8 +1,4 @@
-"""Seeded-Leiden clustering with a level-up search over an exported graph.
-
-Operates on ``nx.DiGraph`` only — it never sees a ``CallGraph``, so the search
-can be exercised on any graph. ``ClusteringService`` does the export.
-"""
+"""Seeded-Leiden clustering with a level-up search over a graph the caller exports."""
 
 from __future__ import annotations
 
