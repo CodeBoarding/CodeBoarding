@@ -7,7 +7,7 @@ from difflib import SequenceMatcher
 from typing import Protocol
 
 from agents.agent_responses import ClusterAnalysis, Component
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)

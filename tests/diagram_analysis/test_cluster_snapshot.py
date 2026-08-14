@@ -17,7 +17,8 @@ from diagram_analysis.cluster_snapshot import (
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
 
 
