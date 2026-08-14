@@ -30,6 +30,17 @@ def render_call_graph(graph: CallGraph, size_limit: int = DEFAULT_SIZE_LIMIT, sk
     return class_level
 
 
+def _visible_targets(graph: CallGraph, node: Node, skip_set: set[Node]) -> list[str]:
+    """Sorted call targets of ``node``, minus those resolving to a skipped node."""
+    visible = []
+    for name in node.methods_called_by_me:
+        target = graph.nodes.get(name)
+        if target is not None and target in skip_set:
+            continue
+        visible.append(name)
+    return sorted(visible)
+
+
 def _render_detailed(graph: CallGraph, skip_set: set[Node]) -> str:
     """File-grouped, method-level detail with call targets."""
     file_nodes: dict[str, list[Node]] = defaultdict(list)
@@ -49,10 +60,10 @@ def _render_detailed(graph: CallGraph, skip_set: set[Node]) -> str:
     for file_path in sorted(file_nodes):
         nodes = sorted(file_nodes[file_path], key=lambda n: n.fully_qualified_name)
         for node in nodes:
-            if node.methods_called_by_me:
+            targets = _visible_targets(graph, node, skip_set)
+            if targets:
                 label = node.entity_label()
-                targets = ", ".join(sorted(node.methods_called_by_me))
-                result += f"{label} {node.fully_qualified_name} calls: {targets}\n"
+                result += f"{label} {node.fully_qualified_name} calls: {', '.join(targets)}\n"
 
     return result
 
@@ -64,7 +75,10 @@ def _render_class_level(graph: CallGraph, skip_set: set[Node]) -> str:
     function_calls: list[str] = []
 
     for node in graph.nodes.values():
-        if node in skip_set or not node.methods_called_by_me:
+        if node in skip_set:
+            continue
+        targets = _visible_targets(graph, node, skip_set)
+        if not targets:
             continue
 
         parts = node.fully_qualified_name.split(delimiter)
@@ -72,7 +86,7 @@ def _render_class_level(graph: CallGraph, skip_set: set[Node]) -> str:
             class_name = delimiter.join(parts[:-1])
             method_short = parts[-1]
 
-            for called_method in node.methods_called_by_me:
+            for called_method in targets:
                 called_parts = called_method.split(delimiter)
                 if len(called_parts) > 1:
                     called_class = delimiter.join(called_parts[:-1])
@@ -81,8 +95,7 @@ def _render_class_level(graph: CallGraph, skip_set: set[Node]) -> str:
                 else:
                     class_calls[class_name][called_method].append(f"{method_short}->{called_method}")
         else:
-            targets = ", ".join(sorted(node.methods_called_by_me))
-            function_calls.append(f"Function {node.fully_qualified_name} calls: {targets}")
+            function_calls.append(f"Function {node.fully_qualified_name} calls: {', '.join(targets)}")
 
     active_count = sum(1 for n in graph.nodes.values() if n not in skip_set)
     result = f"Control flow graph with {active_count} nodes (class-level summary)\n"
