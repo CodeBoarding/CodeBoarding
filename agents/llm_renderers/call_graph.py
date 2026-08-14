@@ -1,11 +1,13 @@
 """Render a CallGraph into the text an LLM sees."""
 
+from __future__ import annotations
+
 import logging
 from collections import defaultdict
 from collections.abc import Sequence
 
+from static_analyzer.cfg.call_graph import CallGraph
 from static_analyzer.constants import NodeType
-from static_analyzer.cfg import CallGraph
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)

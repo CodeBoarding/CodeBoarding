@@ -100,8 +100,8 @@ def _collect_checks_for_language(
         summaries.append(check_circular_dependencies(package_deps, config))
         summaries.append(check_package_instability(package_deps, config))
 
-    # check_component_cohesion is not wired in: ClusteringService has no side effects
-    # now, so enabling it is only a cost question.
+    # check_component_cohesion is not wired in: it clusters the whole graph, and the
+    # cluster-cache side effect that used to block it is gone. Cost is the only question.
 
     # Run LSP-based unused code detection
     exclude_patterns = config.health_exclude_patterns

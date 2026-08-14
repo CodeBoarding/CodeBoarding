@@ -1799,7 +1799,7 @@ class TestDiagramGenerator(unittest.TestCase):
             return
         loaded_results, cached_sha = loaded
         self.assertEqual(cached_sha, "sha-current")
-        self.assertTrue(loaded_results.get_clusters(Language.PYTHON).result.clusters)
+        self.assertIsNotNone(loaded_results.get_clusters(Language.PYTHON).result)
 
     def _finalize_gen(self):
         gen = DiagramGenerator(

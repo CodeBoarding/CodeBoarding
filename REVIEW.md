@@ -40,6 +40,7 @@
 - [ ] **No line-number references to external files:** e.g. "see lines ~1116-1133 of nodeenv.py" — those rot the moment upstream changes
 
 ### Code Clarity
+- [ ] **Public API first:** Within a class or module, all public methods come before any private (`_`-prefixed) ones, so scrolling from the top reads the API before the implementation. Do not interleave.
 - [ ] **Descriptive naming:** Variable/function names clearly indicate purpose (avoid `data`, `temp`, `x`)
 - [ ] **No trivial pass-through methods:** Inline one-line wrappers that only delegate to another helper with fixed arguments, unless they define a real domain boundary used in multiple places
 - [ ] **Early returns:** Use guard clauses instead of deep nesting

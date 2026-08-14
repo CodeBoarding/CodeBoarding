@@ -12,8 +12,13 @@ from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
-from static_analyzer.engine.result_converter import _map_symbol_kind, convert_to_codeboarding_format
+from static_analyzer.engine.result_converter import (
+    _add_reference_edges,
+    _map_symbol_kind,
+    convert_to_codeboarding_format,
+)
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.node import Node
 
 
 # ---------------------------------------------------------------------------
@@ -600,10 +605,6 @@ class TestOutputStructure:
 
 def test_add_reference_edges_contains_and_inherits():
     """CONTAINS from the qualified-name hierarchy; INHERITS from the class hierarchy."""
-    from static_analyzer.engine.result_converter import _add_reference_edges
-    from static_analyzer.cfg import CallGraph, EdgeKind
-    from static_analyzer.node import Node
-
     cg = CallGraph(language="python")
     for i, (qname, kind) in enumerate(
         [
@@ -631,7 +632,7 @@ def test_add_reference_edges_contains_and_inherits():
     )
     _add_reference_edges(cg, result)
 
-    got = {(s, d, k) for s, d, k in cg.reference_edges}
+    got = {(ref.src, ref.dst, ref.kind) for ref in cg.reference_edges}
     # methods -> their class
     assert ("mod.Widget.render", "mod.Widget", str(EdgeKind.CONTAINS)) in got
     assert ("mod.Widget.__init__", "mod.Widget", str(EdgeKind.CONTAINS)) in got
@@ -641,13 +642,10 @@ def test_add_reference_edges_contains_and_inherits():
     assert ("mod.helper", "mod.Widget", str(EdgeKind.TYPEREF)) in got
     assert ("mod.helper", "mod.Base", str(EdgeKind.IMPORT)) in got
     # top-level function is not "contained" by any class
-    assert not any(s == "mod.helper" and k == str(EdgeKind.CONTAINS) for s, d, k in cg.reference_edges)
+    assert not any(ref.src == "mod.helper" and ref.kind is EdgeKind.CONTAINS for ref in cg.reference_edges)
 
 
 def test_to_networkx_folds_in_default_reference_kinds():
-    from static_analyzer.cfg import CallGraph, EdgeKind
-    from static_analyzer.node import Node
-
     cg = CallGraph(language="python")
     for i, qname in enumerate(("mod.A", "mod.B")):
         cg.add_node(
@@ -664,7 +662,7 @@ def test_to_networkx_folds_in_default_reference_kinds():
     # the default kinds include contains -> edge present
     assert cg.to_networkx(DEFAULT_REFERENCE_KINDS).has_edge("mod.A", "mod.B")
     # restricting to a kind that isn't present -> edge absent (call graph had no edges)
-    assert not cg.to_networkx(reference_kinds={"import"}).has_edge("mod.A", "mod.B")
+    assert not cg.to_networkx({EdgeKind.IMPORT}).has_edge("mod.A", "mod.B")
     # opting out entirely -> call edges only
     assert not cg.to_networkx(reference_kinds=()).has_edge("mod.A", "mod.B")
 

@@ -41,8 +41,8 @@ from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,
-    ClusteringService,
     ClusterResult,
+    ClusteringService,
     MethodClusterPaths,
 )
 from static_analyzer.node import Node

@@ -1,24 +1,22 @@
-"""Call-graph edge types: call edges and the kinds a reference edge can carry."""
+"""Call-graph edge types: call edges and the non-call reference edges."""
+
+from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Mapping, Sequence
+from dataclasses import dataclass
 from enum import StrEnum
 
 from static_analyzer.node import Node
 
 
 class EdgeKind(StrEnum):
-    """Kind of relationship an edge represents.
+    """Kind of a *reference* edge — the structural relationships a call graph misses.
 
-    ``CALL`` edges live in ``CallGraph.edges`` and drive component *relations*.
-    The rest are *reference edges* (``CallGraph.reference_edges``): structural
-    relationships the pure call graph misses — a method belongs to its class
-    (CONTAINS), a class extends another (INHERITS), code names a type (TYPEREF),
-    a module imports another (IMPORT). They complete the graph for *clustering*
-    (so constructors/dunders/DI/interface methods aren't graph-isolated) without
-    polluting the call-relation semantics.
+    A method belongs to its class (CONTAINS), a class extends another (INHERITS),
+    code names a type (TYPEREF), a module imports another (IMPORT). Call edges are
+    not listed: they live in ``CallGraph.edges`` and carry no kind tag.
     """
 
-    CALL = "call"
     CONTAINS = "contains"
     INHERITS = "inherits"
     TYPEREF = "typeref"
@@ -31,6 +29,15 @@ class EdgeKind(StrEnum):
 # ``LanguageAnalysisResult`` but no engine emits them yet, and IMPORT is expected to over-merge
 # (coarse, dense, file-level) when one does.
 DEFAULT_REFERENCE_KINDS: tuple[EdgeKind, ...] = (EdgeKind.CONTAINS, EdgeKind.INHERITS)
+
+
+@dataclass(frozen=True)
+class ReferenceEdge:
+    """A non-call relationship between two qualified names."""
+
+    src: str
+    dst: str
+    kind: EdgeKind
 
 
 class Edge:

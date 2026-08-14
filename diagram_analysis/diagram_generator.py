@@ -1743,9 +1743,8 @@ def scoped_snapshot_for_component(
         cfg = incremental_agent.static_analysis.get_cfg(language)
         sub_cfg = cfg.filter_by_nodes(assigned_qnames)
         if sub_cfg.nodes:
-            by_language[str(language)] = scoped_snapshot_from_lineage(
-                sub_cfg, incremental_agent.static_analysis.get_clusters(language).method_paths, scope_id
-            )
+            method_paths = incremental_agent.static_analysis.get_clusters(language).method_paths
+            by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, method_paths, scope_id)
     return ClusterSnapshot(by_language=by_language)
 
 
