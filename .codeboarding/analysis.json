@@ -1,17 +1,17 @@
 {
   "metadata": {
-    "generated_at": "2026-08-13T22:27:21.635552+00:00",
-    "source_tree_hash": "55b7106ba8e71d61f4672fa8b31001b84f975f08866bed244b908eecac7f9a17",
+    "generated_at": "2026-08-16T14:45:35.413882+00:00",
+    "source_tree_hash": "7ece9cbf33068e9155756cf83c9e8475123c79752f9387e354dccf339b1b3a77",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
     "file_coverage_summary": {
-      "total_files": 330,
-      "analyzed": 183,
-      "not_analyzed": 147,
+      "total_files": 333,
+      "analyzed": 185,
+      "not_analyzed": 148,
       "not_analyzed_by_reason": {
         "other": 13,
-        "codeboardingignore": 134
+        "codeboardingignore": 135
       }
     }
   },
@@ -1296,8 +1296,8 @@
         "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool._run",
         "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool.component_cfg"
       ],
-      "content_hash": "4da7abdab8b1b26f",
-      "module_hash": "9ce024c6d36047a6"
+      "content_hash": "d88d29ece96a1503",
+      "module_hash": "bfc897509a660c86"
     },
     "agents/tools/read_docs.py": {
       "method_keys": [
@@ -2090,13 +2090,10 @@
         "static_analyzer/graph.py|static_analyzer.graph.CallGraph._coverage",
         "static_analyzer/graph.py|static_analyzer.graph.CallGraph._build_result",
         "static_analyzer/graph.py|static_analyzer.graph.CallGraph._common_dot_prefix",
-        "static_analyzer/graph.py|static_analyzer.graph.CallGraph.__str__",
-        "static_analyzer/graph.py|static_analyzer.graph.CallGraph.llm_str",
-        "static_analyzer/graph.py|static_analyzer.graph.CallGraph._llm_str_detailed",
-        "static_analyzer/graph.py|static_analyzer.graph.CallGraph._llm_str_class_level"
+        "static_analyzer/graph.py|static_analyzer.graph.CallGraph.__str__"
       ],
-      "content_hash": "3fa832b3008bd894",
-      "module_hash": "2bd46a217903217a"
+      "content_hash": "55492f9765c9a784",
+      "module_hash": "a9a9f82be061424d"
     },
     "agents/planner_agent.py": {
       "method_keys": [
@@ -2487,6 +2484,15 @@
       ],
       "content_hash": "a1197a001710ab8d",
       "module_hash": "e55b1a5e1edc8207"
+    },
+    "agents/llm_renderers/call_graph.py": {
+      "method_keys": [
+        "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph.render_call_graph",
+        "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
+        "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_class_level"
+      ],
+      "content_hash": "db1b6ccf5d0edf6b",
+      "module_hash": "66df869f99c22491"
     },
     "agents/tools/component_bridge_edges.py": {
       "method_keys": [
@@ -9832,26 +9838,26 @@
     "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool": {
       "file_path": "agents/tools/read_cfg.py",
       "qualified_name": "agents.tools.read_cfg.GetCFGTool",
-      "start_line": 8,
-      "end_line": 61,
+      "start_line": 9,
+      "end_line": 62,
       "type": "CLASS",
-      "content_hash": "19a37d0bb273f8d6"
+      "content_hash": "252fe6838617afa8"
     },
     "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool._run": {
       "file_path": "agents/tools/read_cfg.py",
       "qualified_name": "agents.tools.read_cfg.GetCFGTool._run",
-      "start_line": 18,
-      "end_line": 37,
+      "start_line": 19,
+      "end_line": 38,
       "type": "METHOD",
-      "content_hash": "d1cc5bbe0ee41d2c"
+      "content_hash": "2ff583fc94ae3dae"
     },
     "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool.component_cfg": {
       "file_path": "agents/tools/read_cfg.py",
       "qualified_name": "agents.tools.read_cfg.GetCFGTool.component_cfg",
-      "start_line": 39,
-      "end_line": 61,
+      "start_line": 40,
+      "end_line": 62,
       "type": "METHOD",
-      "content_hash": "3696b93ad1419833"
+      "content_hash": "65197a1538e1746a"
     },
     "agents/tools/read_docs.py|agents.tools.read_docs.ReadDocsFile": {
       "file_path": "agents/tools/read_docs.py",
@@ -13825,9 +13831,9 @@
       "file_path": "static_analyzer/graph.py",
       "qualified_name": "static_analyzer.graph.CallGraph",
       "start_line": 145,
-      "end_line": 811,
+      "end_line": 717,
       "type": "CLASS",
-      "content_hash": "f934dbd40750d9b5"
+      "content_hash": "24e9579907f68855"
     },
     "static_analyzer/graph.py|static_analyzer.graph.CallGraph.__init__": {
       "file_path": "static_analyzer/graph.py",
@@ -14060,30 +14066,6 @@
       "end_line": 717,
       "type": "METHOD",
       "content_hash": "a47e408b0d5b3608"
-    },
-    "static_analyzer/graph.py|static_analyzer.graph.CallGraph.llm_str": {
-      "file_path": "static_analyzer/graph.py",
-      "qualified_name": "static_analyzer.graph.CallGraph.llm_str",
-      "start_line": 719,
-      "end_line": 737,
-      "type": "METHOD",
-      "content_hash": "c2ba7f47e7857754"
-    },
-    "static_analyzer/graph.py|static_analyzer.graph.CallGraph._llm_str_detailed": {
-      "file_path": "static_analyzer/graph.py",
-      "qualified_name": "static_analyzer.graph.CallGraph._llm_str_detailed",
-      "start_line": 739,
-      "end_line": 764,
-      "type": "METHOD",
-      "content_hash": "06147eeae853198a"
-    },
-    "static_analyzer/graph.py|static_analyzer.graph.CallGraph._llm_str_class_level": {
-      "file_path": "static_analyzer/graph.py",
-      "qualified_name": "static_analyzer.graph.CallGraph._llm_str_class_level",
-      "start_line": 766,
-      "end_line": 811,
-      "type": "METHOD",
-      "content_hash": "e1566fd40e0c5e45"
     },
     "agents/planner_agent.py|agents.planner_agent.leaf_load": {
       "file_path": "agents/planner_agent.py",
@@ -15668,6 +15650,30 @@
       "end_line": 351,
       "type": "FUNCTION",
       "content_hash": "6a23e084d74b7caf"
+    },
+    "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph.render_call_graph": {
+      "file_path": "agents/llm_renderers/call_graph.py",
+      "qualified_name": "agents.llm_renderers.call_graph.render_call_graph",
+      "start_line": 16,
+      "end_line": 30,
+      "type": "FUNCTION",
+      "content_hash": "9a27246a5203092d"
+    },
+    "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed": {
+      "file_path": "agents/llm_renderers/call_graph.py",
+      "qualified_name": "agents.llm_renderers.call_graph._render_detailed",
+      "start_line": 33,
+      "end_line": 57,
+      "type": "FUNCTION",
+      "content_hash": "949cf723a01895d4"
+    },
+    "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_class_level": {
+      "file_path": "agents/llm_renderers/call_graph.py",
+      "qualified_name": "agents.llm_renderers.call_graph._render_class_level",
+      "start_line": 60,
+      "end_line": 104,
+      "type": "FUNCTION",
+      "content_hash": "0e15e0f2f6a561f9"
     },
     "agents/tools/component_bridge_edges.py|agents.tools.component_bridge_edges.ComponentBridgeEdgesInput": {
       "file_path": "agents/tools/component_bridge_edges.py",
@@ -24668,6 +24674,55 @@
           ],
           "components_relations": [
             {
+              "relation": "delegates execution stability and retry logic",
+              "src_name": "Agent Orchestration & Tool Interface",
+              "dst_name": "Agent Resilience & Error Management",
+              "evidence": "The orchestrator wraps non-deterministic LLM interactions and tool executions with retry decorators and specialized exception handlers to maintain agent state during transient failures or authentication issues.",
+              "key_edges": [
+                {
+                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
+                  "target": "agents/retry.py|agents.retry.with_retries",
+                  "call_sites": [],
+                  "description": ""
+                },
+                {
+                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
+                  "target": "agents/llm_errors.py|agents.llm_errors.LLMAuthError",
+                  "call_sites": [],
+                  "description": ""
+                },
+                {
+                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
+                  "target": "agents/retry.py|agents.retry.RetryDecision",
+                  "call_sites": [],
+                  "description": ""
+                }
+              ],
+              "src_id": "2.2.2",
+              "dst_id": "2.2.1",
+              "is_static": false,
+              "all_edges": [
+                {
+                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
+                  "target": "agents/retry.py|agents.retry.with_retries",
+                  "call_sites": [],
+                  "description": ""
+                },
+                {
+                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
+                  "target": "agents/llm_errors.py|agents.llm_errors.LLMAuthError",
+                  "call_sites": [],
+                  "description": ""
+                },
+                {
+                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
+                  "target": "agents/retry.py|agents.retry.RetryDecision",
+                  "call_sites": [],
+                  "description": ""
+                }
+              ]
+            },
+            {
               "relation": "orchestrates codebase sensing via tool-use",
               "src_name": "Agent Orchestration & Tool Interface",
               "dst_name": "Codebase Sensor Toolkit",
@@ -24774,80 +24829,6 @@
                       "column": 45
                     }
                   ],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "delegates execution stability and retry logic",
-              "src_name": "Agent Orchestration & Tool Interface",
-              "dst_name": "Agent Resilience & Error Management",
-              "evidence": "The orchestrator wraps non-deterministic LLM interactions and tool executions with retry decorators and specialized exception handlers to maintain agent state during transient failures or authentication issues.",
-              "key_edges": [
-                {
-                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
-                  "target": "agents/retry.py|agents.retry.with_retries",
-                  "call_sites": [],
-                  "description": ""
-                },
-                {
-                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
-                  "target": "agents/llm_errors.py|agents.llm_errors.LLMAuthError",
-                  "call_sites": [],
-                  "description": ""
-                },
-                {
-                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
-                  "target": "agents/retry.py|agents.retry.RetryDecision",
-                  "call_sites": [],
-                  "description": ""
-                }
-              ],
-              "src_id": "2.2.2",
-              "dst_id": "2.2.1",
-              "is_static": false,
-              "all_edges": [
-                {
-                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
-                  "target": "agents/retry.py|agents.retry.with_retries",
-                  "call_sites": [],
-                  "description": ""
-                },
-                {
-                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
-                  "target": "agents/llm_errors.py|agents.llm_errors.LLMAuthError",
-                  "call_sites": [],
-                  "description": ""
-                },
-                {
-                  "source": "agents/agent.py|agents.agent.CodeBoardingAgent",
-                  "target": "agents/retry.py|agents.retry.RetryDecision",
-                  "call_sites": [],
-                  "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "provides structured codebase telemetry",
-              "src_name": "Codebase Sensor Toolkit",
-              "dst_name": "Agent Orchestration & Tool Interface",
-              "evidence": "Sensors return structured data (file trees, dependency graphs, source snippets) that the Orchestrator consumes to update its internal state and inform the next step in the agentic workflow.",
-              "key_edges": [
-                {
-                  "source": "agents/tools/base.py|agents.tools.base.BaseRepoTool",
-                  "target": "agents/tools/base.py|agents.tools.base.RepoContext",
-                  "call_sites": [],
-                  "description": ""
-                }
-              ],
-              "src_id": "2.2.3",
-              "dst_id": "2.2.2",
-              "is_static": false,
-              "all_edges": [
-                {
-                  "source": "agents/tools/base.py|agents.tools.base.BaseRepoTool",
-                  "target": "agents/tools/base.py|agents.tools.base.RepoContext",
-                  "call_sites": [],
                   "description": ""
                 }
               ]
@@ -26903,6 +26884,14 @@
               ]
             },
             {
+              "file_path": "output_generators/rendering.py",
+              "methods": [
+                "output_generators.rendering._ancestor_in_level",
+                "output_generators.rendering.project_relations_to_level",
+                "output_generators.rendering._load_entries"
+              ]
+            },
+            {
               "file_path": "static_analyzer/analysis_result.py",
               "methods": [
                 "static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs"
@@ -26943,14 +26932,6 @@
               "file_path": "static_analyzer/graph.py",
               "methods": [
                 "static_analyzer.graph.detect_communities"
-              ]
-            },
-            {
-              "file_path": "output_generators/rendering.py",
-              "methods": [
-                "output_generators.rendering._ancestor_in_level",
-                "output_generators.rendering.project_relations_to_level",
-                "output_generators.rendering._load_entries"
               ]
             }
           ],
@@ -27062,6 +27043,14 @@
                   ]
                 },
                 {
+                  "file_path": "output_generators/rendering.py",
+                  "methods": [
+                    "output_generators.rendering._ancestor_in_level",
+                    "output_generators.rendering.project_relations_to_level",
+                    "output_generators.rendering._load_entries"
+                  ]
+                },
+                {
                   "file_path": "static_analyzer/cluster_helpers.py",
                   "methods": [
                     "static_analyzer.cluster_helpers._build_meta_graph",
@@ -27088,14 +27077,6 @@
                   "file_path": "static_analyzer/graph.py",
                   "methods": [
                     "static_analyzer.graph.detect_communities"
-                  ]
-                },
-                {
-                  "file_path": "output_generators/rendering.py",
-                  "methods": [
-                    "output_generators.rendering._ancestor_in_level",
-                    "output_generators.rendering.project_relations_to_level",
-                    "output_generators.rendering._load_entries"
                   ]
                 }
               ],
@@ -27140,7 +27121,8 @@
                   "source_cluster_ids": [
                     "3.1.1.1",
                     "3.1.1.4",
-                    "3.1.1.5"
+                    "3.1.1.5",
+                    "3.1.1.6"
                   ],
                   "file_methods": [
                     {
@@ -27204,14 +27186,6 @@
                       "file_path": "static_analyzer/graph.py",
                       "methods": [
                         "static_analyzer.graph.detect_communities"
-                      ]
-                    },
-                    {
-                      "file_path": "output_generators/rendering.py",
-                      "methods": [
-                        "output_generators.rendering._ancestor_in_level",
-                        "output_generators.rendering.project_relations_to_level",
-                        "output_generators.rendering._load_entries"
                       ]
                     }
                   ],
@@ -27312,6 +27286,28 @@
                     }
                   ],
                   "component_id": "3.1.1.2",
+                  "can_expand": false,
+                  "components": [],
+                  "components_relations": []
+                },
+                {
+                  "name": "Project Relationship Renderer",
+                  "description": "This component is responsible for the hierarchical transformation of static analysis data into structured visual levels, managing the logic for ancestor resolution and entry-point loading for diagram generation.",
+                  "key_entities": [],
+                  "source_cluster_ids": [
+                    "3.1.1.7"
+                  ],
+                  "file_methods": [
+                    {
+                      "file_path": "output_generators/rendering.py",
+                      "methods": [
+                        "output_generators.rendering._ancestor_in_level",
+                        "output_generators.rendering.project_relations_to_level",
+                        "output_generators.rendering._load_entries"
+                      ]
+                    }
+                  ],
+                  "component_id": "3.1.1.3",
                   "can_expand": false,
                   "components": [],
                   "components_relations": []
@@ -28858,8 +28854,8 @@
                 {
                   "qualified_name": "output_generators.html.generate_html",
                   "reference_file": "output_generators/html.py",
-                  "reference_start_line": 59,
-                  "reference_end_line": 125
+                  "reference_start_line": 64,
+                  "reference_end_line": 133
                 },
                 {
                   "qualified_name": "output_generators.html_template._generate_cytoscape_script",
@@ -28870,8 +28866,8 @@
                 {
                   "qualified_name": "output_generators.markdown.generate_markdown",
                   "reference_file": "output_generators/markdown.py",
-                  "reference_start_line": 43,
-                  "reference_end_line": 122
+                  "reference_start_line": 44,
+                  "reference_end_line": 123
                 }
               ],
               "source_cluster_ids": [
@@ -29114,31 +29110,6 @@
                     }
                   ],
                   "description": ""
-                }
-              ]
-            },
-            {
-              "relation": "Supplies reconciled dependency data for rendering",
-              "src_name": "Relational Logic & Edge Reconciliation",
-              "dst_name": "Architectural Surface & Visualization Generator",
-              "evidence": "The visualization generator consumes the processed and projected relations to build the final interactive graphs (Cytoscape) and documentation.",
-              "key_edges": [
-                {
-                  "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-                  "target": "output_generators/html.py|output_generators.html.generate_html",
-                  "call_sites": [],
-                  "description": "The output of the projection logic is passed directly to the HTML generator for visualization."
-                }
-              ],
-              "src_id": "3.2.3",
-              "dst_id": "3.2.2",
-              "is_static": false,
-              "all_edges": [
-                {
-                  "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-                  "target": "output_generators/html.py|output_generators.html.generate_html",
-                  "call_sites": [],
-                  "description": "The output of the projection logic is passed directly to the HTML generator for visualization."
                 }
               ]
             }
@@ -30258,32 +30229,6 @@
           "dst_id": "3.2",
           "is_static": true,
           "all_edges": [
-            {
-              "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering._load_entries",
-              "target": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering.project_relations_to_level",
-              "call_sites": [
-                {
-                  "line": 90,
-                  "column": 42
-                },
-                {
-                  "line": 96,
-                  "column": 45
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "codeboarding_workflows/rendering.py|codeboarding_workflows.rendering._load_entries",
-              "target": "utils.py|utils.sanitize",
-              "call_sites": [
-                {
-                  "line": 99,
-                  "column": 25
-                }
-              ],
-              "description": ""
-            },
             {
               "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.from_component_to_json_component",
               "target": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.ComponentJson",
@@ -33895,6 +33840,14 @@
           ]
         },
         {
+          "file_path": "agents/llm_renderers/call_graph.py",
+          "methods": [
+            "agents.llm_renderers.call_graph.render_call_graph",
+            "agents.llm_renderers.call_graph._render_detailed",
+            "agents.llm_renderers.call_graph._render_class_level"
+          ]
+        },
+        {
           "file_path": "agents/tools/base.py",
           "methods": [
             "agents.tools.base.BaseRepoTool.static_analysis"
@@ -34257,10 +34210,7 @@
             "static_analyzer.graph.CallGraph._coverage",
             "static_analyzer.graph.CallGraph._build_result",
             "static_analyzer.graph.CallGraph._common_dot_prefix",
-            "static_analyzer.graph.CallGraph.__str__",
-            "static_analyzer.graph.CallGraph.llm_str",
-            "static_analyzer.graph.CallGraph._llm_str_detailed",
-            "static_analyzer.graph.CallGraph._llm_str_class_level"
+            "static_analyzer.graph.CallGraph.__str__"
           ]
         },
         {
@@ -34424,6 +34374,12 @@
               "file_path": "agents/incremental_agent.py",
               "methods": [
                 "agents.incremental_agent._cfg_graphs_for_cluster_results"
+              ]
+            },
+            {
+              "file_path": "agents/llm_renderers/call_graph.py",
+              "methods": [
+                "agents.llm_renderers.call_graph._render_detailed"
               ]
             },
             {
@@ -34645,8 +34601,7 @@
                 "static_analyzer.graph.CallGraph._coverage",
                 "static_analyzer.graph.CallGraph._build_result",
                 "static_analyzer.graph.CallGraph._common_dot_prefix",
-                "static_analyzer.graph.CallGraph.__str__",
-                "static_analyzer.graph.CallGraph._llm_str_detailed"
+                "static_analyzer.graph.CallGraph.__str__"
               ]
             },
             {
@@ -34706,7 +34661,7 @@
                   "qualified_name": "static_analyzer.graph.CallGraph",
                   "reference_file": "static_analyzer/graph.py",
                   "reference_start_line": 145,
-                  "reference_end_line": 811
+                  "reference_end_line": 717
                 },
                 {
                   "qualified_name": "static_analyzer.analysis_cache._collect_invalidated_edge",
@@ -34728,6 +34683,12 @@
                 "5.1.8"
               ],
               "file_methods": [
+                {
+                  "file_path": "agents/llm_renderers/call_graph.py",
+                  "methods": [
+                    "agents.llm_renderers.call_graph._render_detailed"
+                  ]
+                },
                 {
                   "file_path": "agents/validation.py",
                   "methods": [
@@ -34788,8 +34749,7 @@
                     "static_analyzer.graph.CallGraph._coverage",
                     "static_analyzer.graph.CallGraph._build_result",
                     "static_analyzer.graph.CallGraph._common_dot_prefix",
-                    "static_analyzer.graph.CallGraph.__str__",
-                    "static_analyzer.graph.CallGraph._llm_str_detailed"
+                    "static_analyzer.graph.CallGraph.__str__"
                   ]
                 },
                 {
@@ -36314,6 +36274,13 @@
               ]
             },
             {
+              "file_path": "agents/llm_renderers/call_graph.py",
+              "methods": [
+                "agents.llm_renderers.call_graph.render_call_graph",
+                "agents.llm_renderers.call_graph._render_class_level"
+              ]
+            },
+            {
               "file_path": "agents/tools/base.py",
               "methods": [
                 "agents.tools.base.BaseRepoTool.static_analysis"
@@ -36397,9 +36364,7 @@
             {
               "file_path": "static_analyzer/graph.py",
               "methods": [
-                "static_analyzer.graph.ClusterResult.get_nodes_for_cluster",
-                "static_analyzer.graph.CallGraph.llm_str",
-                "static_analyzer.graph.CallGraph._llm_str_class_level"
+                "static_analyzer.graph.ClusterResult.get_nodes_for_cluster"
               ]
             },
             {
@@ -36479,8 +36444,8 @@
                 {
                   "qualified_name": "agents.validation._valid_key_edge_descriptions",
                   "reference_file": "agents/validation.py",
-                  "reference_start_line": 430,
-                  "reference_end_line": 448
+                  "reference_start_line": 429,
+                  "reference_end_line": 447
                 }
               ],
               "source_cluster_ids": [
@@ -36573,8 +36538,8 @@
                 {
                   "qualified_name": "agents.incremental_agent._cfg_graphs_for_scope_methods",
                   "reference_file": "agents/incremental_agent.py",
-                  "reference_start_line": 806,
-                  "reference_end_line": 824
+                  "reference_start_line": 807,
+                  "reference_end_line": 825
                 },
                 {
                   "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_loose_reference",
@@ -36593,6 +36558,13 @@
                   "file_path": "agents/incremental_agent.py",
                   "methods": [
                     "agents.incremental_agent._cfg_graphs_for_scope_methods"
+                  ]
+                },
+                {
+                  "file_path": "agents/llm_renderers/call_graph.py",
+                  "methods": [
+                    "agents.llm_renderers.call_graph.render_call_graph",
+                    "agents.llm_renderers.call_graph._render_class_level"
                   ]
                 },
                 {
@@ -36671,9 +36643,7 @@
                 {
                   "file_path": "static_analyzer/graph.py",
                   "methods": [
-                    "static_analyzer.graph.ClusterResult.get_nodes_for_cluster",
-                    "static_analyzer.graph.CallGraph.llm_str",
-                    "static_analyzer.graph.CallGraph._llm_str_class_level"
+                    "static_analyzer.graph.ClusterResult.get_nodes_for_cluster"
                   ]
                 },
                 {
@@ -36705,8 +36675,8 @@
                     {
                       "qualified_name": "agents.incremental_agent._cfg_graphs_for_scope_methods",
                       "reference_file": "agents/incremental_agent.py",
-                      "reference_start_line": 806,
-                      "reference_end_line": 824
+                      "reference_start_line": 807,
+                      "reference_end_line": 825
                     }
                   ],
                   "source_cluster_ids": [
@@ -36719,6 +36689,13 @@
                       "file_path": "agents/incremental_agent.py",
                       "methods": [
                         "agents.incremental_agent._cfg_graphs_for_scope_methods"
+                      ]
+                    },
+                    {
+                      "file_path": "agents/llm_renderers/call_graph.py",
+                      "methods": [
+                        "agents.llm_renderers.call_graph.render_call_graph",
+                        "agents.llm_renderers.call_graph._render_class_level"
                       ]
                     },
                     {
@@ -36784,9 +36761,7 @@
                     {
                       "file_path": "static_analyzer/graph.py",
                       "methods": [
-                        "static_analyzer.graph.ClusterResult.get_nodes_for_cluster",
-                        "static_analyzer.graph.CallGraph.llm_str",
-                        "static_analyzer.graph.CallGraph._llm_str_class_level"
+                        "static_analyzer.graph.ClusterResult.get_nodes_for_cluster"
                       ]
                     }
                   ],
@@ -36849,6 +36824,17 @@
                 }
               ],
               "components_relations": [
+                {
+                  "relation": "Provides structural context for reference resolution",
+                  "src_name": "Structural Analysis & Topology Engine",
+                  "dst_name": "Semantic Reference Resolver",
+                  "evidence": "While no direct static calls flow from the Engine to the Resolver, the Engine provides the underlying data structure (StaticAnalysisResults) that the Resolver extends and operates upon.",
+                  "key_edges": [],
+                  "src_id": "5.3.2.1",
+                  "dst_id": "5.3.2.2",
+                  "is_static": false,
+                  "all_edges": []
+                },
                 {
                   "relation": "Queries global fact store for symbol lookups",
                   "src_name": "Semantic Reference Resolver",
@@ -37144,29 +37130,15 @@
               "all_edges": []
             },
             {
-              "relation": "depends on package root validation for analysis scope",
-              "src_name": "Static Analysis Grounding Provider",
-              "dst_name": "Package Discovery Guard",
-              "evidence": "Grounding tools and analysis results rely on the discovery guard to ensure the target repository is valid before attempting to resolve package-level metadata.",
-              "key_edges": [
-                {
-                  "source": "agents/tools/component_bridge_edges.py|agents.tools.component_bridge_edges.ComponentBridgeEdgesTool.run",
-                  "target": "agents/tools/read_packages.py|agents.tools.read_packages.NoRootPackageFoundError",
-                  "call_sites": [],
-                  "description": "Exception handling for invalid package roots"
-                }
-              ],
-              "src_id": "5.3.2",
-              "dst_id": "5.3.3",
+              "relation": "Validates environment for analysis",
+              "src_name": "Package Discovery Guard",
+              "dst_name": "Static Analysis Grounding Provider",
+              "evidence": "Runtime dependency where package discovery must succeed to define the analysis scope; failure to find a root package prevents the initialization of the grounding provider's data structures. CLI and Agent initialization logic invokes read_packages to establish the workspace root; if NoRootPackageFoundError is raised, the StaticAnalysisResults provider is never instantiated or populated.",
+              "key_edges": [],
+              "src_id": "5.3.3",
+              "dst_id": "5.3.2",
               "is_static": false,
-              "all_edges": [
-                {
-                  "source": "agents/tools/component_bridge_edges.py|agents.tools.component_bridge_edges.ComponentBridgeEdgesTool.run",
-                  "target": "agents/tools/read_packages.py|agents.tools.read_packages.NoRootPackageFoundError",
-                  "call_sites": [],
-                  "description": "Exception handling for invalid package roots"
-                }
-              ]
+              "all_edges": []
             }
           ]
         }
@@ -37574,10 +37546,10 @@
           ]
         },
         {
-          "relation": "Grounds architectural edges in Control Flow Graphs (CFG)",
+          "relation": "Resolves high-level references against the global CFG",
           "src_name": "Semantic Reference & Edge Resolver",
           "dst_name": "Delta Calculation & Cluster Evolution Engine",
-          "evidence": "The Resolver uses the Engine's CFG and CallGraph structures to verify if high-level architectural connections are supported by actual code-level call paths. It provides the 'semantic truth' that the Engine uses to define component boundaries.",
+          "evidence": "The Resolver provides the 'Intelligence' to map abstract architectural connections back to concrete code. It frequently calls back into the Delta Engine's underlying graph storage (get_cfg).",
           "key_edges": [
             {
               "source": "agents/incremental_agent.py|agents.incremental_agent._cfg_graphs_for_scope_methods",
@@ -37595,6 +37567,39 @@
           "dst_id": "5.1",
           "is_static": true,
           "all_edges": [
+            {
+              "source": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph.render_call_graph",
+              "target": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
+              "call_sites": [
+                {
+                  "line": 20,
+                  "column": 16
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool._run",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 27,
+                  "column": 40
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool.component_cfg",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 48,
+                  "column": 40
+                }
+              ],
+              "description": ""
+            },
             {
               "source": "agents/incremental_agent.py|agents.incremental_agent._cfg_graphs_for_scope_methods",
               "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
@@ -37651,28 +37656,6 @@
               "description": ""
             },
             {
-              "source": "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool._run",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "call_sites": [
-                {
-                  "line": 26,
-                  "column": 40
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool.component_cfg",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "call_sites": [
-                {
-                  "line": 47,
-                  "column": 40
-                }
-              ],
-              "description": ""
-            },
-            {
               "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
               "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
               "call_sites": [
@@ -37690,17 +37673,6 @@
                 {
                   "line": 709,
                   "column": 26
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.llm_str",
-              "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph._llm_str_detailed",
-              "call_sites": [
-                {
-                  "line": 723,
-                  "column": 28
                 }
               ],
               "description": ""
@@ -41892,31 +41864,6 @@
       ]
     },
     {
-      "relation": "provides structured codebase telemetry",
-      "src_name": "Codebase Sensor Toolkit",
-      "dst_name": "Agent Orchestration & Tool Interface",
-      "evidence": "Sensors return structured data (file trees, dependency graphs, source snippets) that the Orchestrator consumes to update its internal state and inform the next step in the agentic workflow.",
-      "key_edges": [
-        {
-          "source": "agents/tools/base.py|agents.tools.base.BaseRepoTool",
-          "target": "agents/tools/base.py|agents.tools.base.RepoContext",
-          "call_sites": [],
-          "description": ""
-        }
-      ],
-      "src_id": "2.2.3",
-      "dst_id": "2.2.2",
-      "is_static": false,
-      "all_edges": [
-        {
-          "source": "agents/tools/base.py|agents.tools.base.BaseRepoTool",
-          "target": "agents/tools/base.py|agents.tools.base.RepoContext",
-          "call_sites": [],
-          "description": ""
-        }
-      ]
-    },
-    {
       "relation": "Discovers project structure and manages local state",
       "src_name": "Codebase Sensor Toolkit",
       "dst_name": "Dependency Discovery & State Fingerprinting",
@@ -42847,6 +42794,39 @@
           "description": ""
         }
       ]
+    },
+    {
+      "relation": "Orchestrates architectural schema generation and mapping",
+      "src_name": "Project Relationship Renderer",
+      "dst_name": "Architectural Surface & Visualization Generator",
+      "evidence": "The Orchestrator uses the Modeling component to transform raw LLM cluster analysis into structured architectural models. It invokes schema-building functions to define component boundaries, API surfaces, and inter-component relations based on agentic reasoning.",
+      "key_edges": [],
+      "src_id": "3.1.1.3",
+      "dst_id": "3.2.2",
+      "is_static": true,
+      "all_edges": []
+    },
+    {
+      "relation": "Orchestrates architectural schema generation and mapping",
+      "src_name": "Project Relationship Renderer",
+      "dst_name": "Relational Logic & Edge Reconciliation",
+      "evidence": "The Orchestrator uses the Modeling component to transform raw LLM cluster analysis into structured architectural models. It invokes schema-building functions to define component boundaries, API surfaces, and inter-component relations based on agentic reasoning.",
+      "key_edges": [],
+      "src_id": "3.1.1.3",
+      "dst_id": "3.2.3",
+      "is_static": true,
+      "all_edges": []
+    },
+    {
+      "relation": "Synchronizes logical models with physical file state",
+      "src_name": "Project Relationship Renderer",
+      "dst_name": "Persistent State Schema & Index Models",
+      "evidence": "The Orchestrator triggers incremental updates by comparing current codebase state (fingerprints) with existing architectural models. It manages the lifecycle of file indexing and patches method-level metadata during the abstraction process.",
+      "key_edges": [],
+      "src_id": "3.1.1.3",
+      "dst_id": "3.3.1",
+      "is_static": true,
+      "all_edges": []
     },
     {
       "relation": "Requests LLM reasoning and validation",
@@ -49582,7 +49562,7 @@
           "target": "agents/agent_responses.py|agents.agent_responses.Component.file_paths",
           "call_sites": [
             {
-              "line": 44,
+              "line": 45,
               "column": 41
             }
           ],
@@ -49591,15 +49571,26 @@
       ]
     },
     {
-      "relation": "Grounds architectural edges in Control Flow Graphs (CFG)",
+      "relation": "Resolves high-level references against the global CFG",
       "src_name": "Structural Analysis & Topology Engine",
       "dst_name": "Structural Graph & Edge Validator",
-      "evidence": "The Resolver uses the Engine's CFG and CallGraph structures to verify if high-level architectural connections are supported by actual code-level call paths. It provides the 'semantic truth' that the Engine uses to define component boundaries.",
+      "evidence": "The Resolver provides the 'Intelligence' to map abstract architectural connections back to concrete code. It frequently calls back into the Delta Engine's underlying graph storage (get_cfg).",
       "key_edges": [],
       "src_id": "5.3.2.1",
       "dst_id": "5.1.1",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph.render_call_graph",
+          "target": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
+          "call_sites": [
+            {
+              "line": 20,
+              "column": 16
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "agents/incremental_agent.py|agents.incremental_agent._cfg_graphs_for_scope_methods",
           "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.filter_by_nodes",
@@ -49643,17 +49634,6 @@
             }
           ],
           "description": ""
-        },
-        {
-          "source": "static_analyzer/graph.py|static_analyzer.graph.CallGraph.llm_str",
-          "target": "static_analyzer/graph.py|static_analyzer.graph.CallGraph._llm_str_detailed",
-          "call_sites": [
-            {
-              "line": 723,
-              "column": 28
-            }
-          ],
-          "description": ""
         }
       ]
     },
@@ -49680,6 +49660,28 @@
       "is_static": true,
       "all_edges": [
         {
+          "source": "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool._run",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+          "call_sites": [
+            {
+              "line": 27,
+              "column": 40
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool.component_cfg",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+          "call_sites": [
+            {
+              "line": 48,
+              "column": 40
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "agents/incremental_agent.py|agents.incremental_agent._cfg_graphs_for_scope_methods",
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
           "call_sites": [
@@ -49696,28 +49698,6 @@
           "call_sites": [
             {
               "line": 35,
-              "column": 40
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool._run",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-          "call_sites": [
-            {
-              "line": 26,
-              "column": 40
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/tools/read_cfg.py|agents.tools.read_cfg.GetCFGTool.component_cfg",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-          "call_sites": [
-            {
-              "line": 47,
               "column": 40
             }
           ],
