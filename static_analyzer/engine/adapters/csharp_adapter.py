@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
@@ -68,7 +69,9 @@ def _write_injected_import(name: str, content: str) -> Path:
     path = get_servers_dir() / name
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists() or path.read_text(encoding="utf-8") != content:
-        temporary_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        # Per thread, not just per process: several engines can publish these
+        # concurrently, and a shared temp name loses the race to os.replace.
+        temporary_path = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
         temporary_path.write_text(content, encoding="utf-8")
         os.replace(temporary_path, path)
     return path
