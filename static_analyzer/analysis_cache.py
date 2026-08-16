@@ -454,7 +454,7 @@ def _collect_invalidated_edge(
     src_changed = src_node.file_path in changed_file_strs
     dst_changed = dst_node.file_path in changed_file_strs
     if src_changed != dst_changed:
-        invalidated_edges.append((edge.get_source(), edge.get_destination(), src_node, dst_node))
+        invalidated_edges.append((edge.get_source(), edge.get_destination(), src_node, dst_node, edge.call_sites))
 
 
 def _validate_no_dangling_references(analysis_result: AnalysisData) -> None:

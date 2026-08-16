@@ -126,6 +126,7 @@ def _rebuild_changed_file_edges(
         engine_client,
         source_inspector,
         include_callable_parent=adapter.edge_strategy == EdgeStrategy.DEFINITIONS,
+        include_method_groups=adapter.resolves_method_groups,
     )
 
 
@@ -140,11 +141,15 @@ def _restore_cross_boundary_edges(
     if not invalidated_edges:
         return
 
+    if adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
+        _restore_inbound_edges_from_cache(call_graph, invalidated_edges, changed_file_strs)
+        return
+
     checked = {"inbound": 0, "outbound": 0}
     restored = {"inbound": 0, "outbound": 0}
     references_cache: dict[str, list[dict]] = {}
 
-    for src_name, dst_name, old_src_node, old_dst_node in invalidated_edges:
+    for src_name, dst_name, old_src_node, old_dst_node, _cached_sites in invalidated_edges:
         src_changed = old_src_node.file_path in changed_file_strs
         dst_changed = old_dst_node.file_path in changed_file_strs
         if src_changed == dst_changed:
@@ -184,6 +189,37 @@ def _restore_cross_boundary_edges(
     )
 
 
+def _restore_inbound_edges_from_cache(
+    call_graph: CallGraph,
+    invalidated_edges: list[InvalidatedEdge],
+    changed_file_strs: set[str],
+) -> None:
+    """Put invalidated edges back without asking the server for references.
+
+    Why: an adapter on the definitions strategy is there because its server
+    answers references far too slowly to sit on this path — the hot symbols that
+    make a full rebuild unusable are exactly the destinations an edit invalidates.
+    The two directions need no query anyway. When the *source* file is unchanged
+    its call sites are unchanged, so the cached edge is still true as long as
+    both endpoints survived. When the source file *did* change,
+    ``_add_outbound_edges_from_changed_files`` re-resolves it from live source,
+    so restoring here would only risk resurrecting a call the edit deleted.
+    """
+    restored = 0
+    for src_name, dst_name, old_src_node, _old_dst_node, cached_sites in invalidated_edges:
+        if old_src_node.file_path in changed_file_strs:
+            continue
+        if not call_graph.has_node(src_name) or not call_graph.has_node(dst_name):
+            continue
+        try:
+            call_graph.add_edge(src_name, dst_name, call_sites=cached_sites)
+            restored += 1
+        except ValueError:
+            logger.debug("Failed to restore edge %s -> %s", src_name, dst_name, exc_info=True)
+
+    logger.info("Restored %d cached inbound edge(s) without a references query", restored)
+
+
 def _edge_reference_call_sites(
     src_node: Node,
     dst_node: Node,
@@ -219,6 +255,7 @@ def _add_outbound_edges_from_changed_files(
     engine_client: LSPClient,
     source_inspector: SourceInspector,
     include_callable_parent: bool = False,
+    include_method_groups: bool = False,
 ) -> None:
     if not changed_source_files:
         return
@@ -227,6 +264,14 @@ def _add_outbound_edges_from_changed_files(
 
     for file_path in changed_source_files:
         call_sites = source_inspector.find_call_sites(file_path)
+        method_group_positions: set[tuple[int, int]] = set()
+        if include_method_groups:
+            known = {(site.lsp_line, site.lsp_column) for site in call_sites}
+            for site in source_inspector.find_method_group_sites(file_path):
+                if (site.lsp_line, site.lsp_column) in known:
+                    continue
+                method_group_positions.add((site.lsp_line, site.lsp_column))
+                call_sites.append(site)
         if not call_sites:
             continue
         queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
@@ -242,8 +287,13 @@ def _add_outbound_edges_from_changed_files(
             src_node = _most_specific_node_at_position(call_graph, file_path, line, char, callable_only=True)
             if src_node is None:
                 continue
+            is_method_group = (line, char) in method_group_positions
             for definition in definitions:
                 for dst_node in _definition_nodes(call_graph, definition, include_callable_parent):
+                    # Same rule as the full rebuild: an argument position is a
+                    # method group only when it resolves to something callable.
+                    if is_method_group and not (dst_node.is_callable() or dst_node.is_class()):
+                        continue
                     if is_self_or_container_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name):
                         continue
                     try:

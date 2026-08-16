@@ -78,10 +78,17 @@ _NAME_NODE_TYPES = frozenset(
 _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
+_ARGUMENT_NODE_TYPES = frozenset({"argument"})
 _TYPE_DECLARATION_NODE_TYPES = frozenset(
     {"class_declaration", "interface_declaration", "record_declaration", "struct_declaration"}
 )
 _BASE_LIST_NODE_TYPES = frozenset({"base_list", "superclass", "super_interfaces", "extends_interfaces"})
+# Java groups several bases under one node; C# wraps a record's base in its
+# primary-constructor call, whose ``type`` field is the base itself.
+_BASE_GROUP_NODE_TYPES = frozenset({"type_list"})
+_MEMBER_DECLARATION_NODE_TYPES = frozenset(
+    {"method_declaration", "property_declaration", "indexer_declaration", "event_declaration"}
+)
 _DECLARATION_BLOCK_NODE_TYPES = frozenset({"block", "compound_statement", "statement_block"})
 _EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
 
@@ -199,14 +206,32 @@ class SourceInspector:
             node = node.parent
         return False
 
-    def find_call_sites(self, file_path: Path, *, include_method_groups: bool = False) -> list[CallSite]:
-        """Find definition-query positions for identifiers used at call sites.
+    def find_call_sites(self, file_path: Path) -> list[CallSite]:
+        """Find definition-query positions for identifiers used at call sites."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
 
-        Why ``include_method_groups``: a method passed as a value rather than
-        invoked (``app.MapGet("/items", GetAllItems)``) has no invocation node,
-        so the call-target walk cannot see it. Languages that route real control
-        flow that way (C# minimal APIs, delegates, event handlers) would lose
-        those edges entirely under the definitions strategy.
+        sites: list[CallSite] = []
+        seen: set[tuple[int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            target = self._call_target_node(node)
+            if target is None:
+                continue
+            pos = (target.start_point.row, target.start_point.column)
+            if pos in seen:
+                continue
+            seen.add(pos)
+            sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
+        return sites
+
+    def find_method_group_sites(self, file_path: Path) -> list[CallSite]:
+        """Positions of arguments passed by name instead of invoked (``MapGet("/i", Handler)``).
+
+        Why separate from ``find_call_sites``: a handler passed as a value has no
+        invocation node, so the call-target walk cannot see it — but the same
+        position shape is also every ordinary argument, so the caller has to
+        discard whatever does not resolve to something callable.
         """
         parsed = self._parse(file_path)
         if parsed is None:
@@ -214,20 +239,23 @@ class SourceInspector:
 
         sites: list[CallSite] = []
         seen: set[tuple[int, int]] = set()
-
-        def add(node: TreeSitterNode) -> None:
-            pos = (node.start_point.row, node.start_point.column)
-            if pos in seen:
-                return
-            seen.add(pos)
-            sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
-
         for node in self._walk(parsed.tree.root_node):
-            target = self._call_target_node(node)
-            if target is not None:
-                add(target)
-            elif include_method_groups and node.type in _NAME_NODE_TYPES and self._node_is_call_argument(node):
-                add(node)
+            if node.type not in _CALLABLE_USAGE_ANCESTORS or not self._parent_is_call_like(node):
+                continue
+            for child in node.named_children:
+                # Only the argument itself: a named argument (``f(handler: H)``)
+                # keeps its label as the first named child.
+                expression = (
+                    child.named_children[-1] if child.type in _ARGUMENT_NODE_TYPES and child.named_children else child
+                )
+                target = self._select_query_node(expression)
+                if target is None:
+                    continue
+                pos = (target.start_point.row, target.start_point.column)
+                if pos in seen:
+                    continue
+                seen.add(pos)
+                sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
 
     @staticmethod
@@ -375,11 +403,57 @@ class SourceInspector:
                 text(self._select_query_node(base) or base)
                 for child in node.children
                 if child.type in _BASE_LIST_NODE_TYPES
-                for base in child.named_children
+                for base in self._base_type_nodes(child)
             ]
             if bases:
                 declarations.append((text(name_node), bases))
         return declarations
+
+    @staticmethod
+    def _base_type_nodes(base_list: TreeSitterNode) -> list[TreeSitterNode]:
+        """The individual base types in a base list, past the wrappers grammars add."""
+        nodes: list[TreeSitterNode] = []
+        for base in base_list.named_children:
+            if base.type in _BASE_GROUP_NODE_TYPES:
+                nodes.extend(base.named_children)
+                continue
+            nodes.append(base.child_by_field_name("type") or base)
+        return nodes
+
+    def find_member_modifiers(self, file_path: Path) -> dict[tuple[str, str], frozenset[str]]:
+        """C# modifiers on each ``(declaring type, member)`` the file declares.
+
+        Why: whether a call can dispatch to a same-named member of a derived type
+        is a modifier question — ``new``, ``static`` and plain redeclarations bind
+        to the base — and no LSP request this engine makes carries modifiers.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return {}
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        modifiers: dict[tuple[str, str], frozenset[str]] = {}
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _TYPE_DECLARATION_NODE_TYPES:
+                continue
+            type_name_node = node.child_by_field_name("name")
+            body = node.child_by_field_name("body")
+            if type_name_node is None or body is None:
+                continue
+            type_name = text(type_name_node)
+            for member in body.named_children:
+                if member.type not in _MEMBER_DECLARATION_NODE_TYPES:
+                    continue
+                member_name_node = member.child_by_field_name("name")
+                if member_name_node is None:
+                    continue
+                found = {text(child) for child in member.children if child.type == "modifier"}
+                if any(child.type == "explicit_interface_specifier" for child in member.children):
+                    found.add("explicit")
+                modifiers[(type_name, text(member_name_node))] = frozenset(found)
+        return modifiers
 
     @staticmethod
     def _node_is_return_value(target: TreeSitterNode) -> bool:

@@ -46,6 +46,31 @@ class DefinitionResolution:
     total_resolved: int
 
 
+# Modifiers that mean a derived member does NOT take part in dispatch through
+# the base: ``new`` hides, ``static`` and ``private`` cannot be reached at all.
+_NON_DISPATCHING_MODIFIERS = frozenset({"new", "static", "private"})
+
+
+@dataclass(frozen=True)
+class DispatchIndex:
+    """What source says about inheritance, for servers that answer no hierarchy query."""
+
+    subclasses: dict[str, list[SymbolInfo]]
+    modifiers: dict[tuple[str, str], frozenset[str]]
+    ambiguous: set[str]
+
+    def dispatches_to(self, owner: SymbolInfo, subclass_name: str, member: str) -> bool:
+        """Whether a call on *owner* can actually land on *subclass_name*'s *member*."""
+        if owner.kind == NodeType.INTERFACE:
+            # Implicit implementations carry no modifier at all, so the only
+            # thing to exclude is a member that is not an implementation.
+            return not (self.modifiers.get((subclass_name, member), frozenset()) & _NON_DISPATCHING_MODIFIERS)
+        found = self.modifiers.get((subclass_name, member))
+        if found is None:
+            return True
+        return "override" in found or "explicit" in found
+
+
 # ---------------------------------------------------------------------------
 # References-based strategy (default)
 # ---------------------------------------------------------------------------
@@ -344,12 +369,19 @@ def _resolve_definitions(
     batch_size = 50
     impl_queries_pending: list[ImplementationQuery] = []
 
-    method_groups = adapter.resolves_method_groups
-    subclasses = _build_subclass_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else {}
+    dispatch = _build_dispatch_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else None
 
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
-        call_sites = ctx.source_inspector.find_call_sites(file_path, include_method_groups=method_groups)
+        call_sites = ctx.source_inspector.find_call_sites(file_path)
+        method_group_positions: set[tuple[int, int]] = set()
+        if adapter.resolves_method_groups:
+            known = {(site.lsp_line, site.lsp_column) for site in call_sites}
+            for site in ctx.source_inspector.find_method_group_sites(file_path):
+                if (site.lsp_line, site.lsp_column) in known:
+                    continue
+                method_group_positions.add((site.lsp_line, site.lsp_column))
+                call_sites.append(site)
         if not call_sites:
             pbar.update(1)
             continue
@@ -384,9 +416,11 @@ def _resolve_definitions(
                         continue
                     total_resolved += 1
 
-                    # Querying bare argument identifiers also resolves ordinary
-                    # locals; only callables and the types they hang off are edges.
-                    if method_groups and not (adapter.is_callable(target.kind) or adapter.is_class_like(target.kind)):
+                    # An argument position is a method group only if it resolves
+                    # to something callable; otherwise it is an ordinary value.
+                    if (call_site.lsp_line, call_site.lsp_column) in method_group_positions and not (
+                        adapter.is_callable(target.kind) or adapter.is_class_like(target.kind)
+                    ):
                         continue
 
                     if not _is_valid_edge(caller, target):
@@ -394,7 +428,7 @@ def _resolve_definitions(
 
                     _add_edge_call_site(edge_set, caller.qualified_name, target.qualified_name, call_site)
 
-                    for override in _override_targets(target, st, subclasses):
+                    for override in _override_targets(target, st, dispatch):
                         if _is_valid_edge(caller, override):
                             _add_edge_call_site(edge_set, caller.qualified_name, override.qualified_name, call_site)
 
@@ -514,60 +548,75 @@ def _add_edge_call_site(edge_set: EdgeMap, source: str, destination: str, call_s
         sites.append(call_site)
 
 
-def _build_subclass_index(
+def _build_dispatch_index(
     adapter: EdgeBuildAdapter,
     ctx: EdgeBuildContext,
     source_files: list[Path],
-) -> dict[str, list[SymbolInfo]]:
-    """Map a type's simple name to the class-like symbols that derive from it."""
+) -> DispatchIndex:
+    """Inheritance and member modifiers, read from source, for virtual-dispatch expansion."""
     st = ctx.symbol_table
     classes_by_file: dict[str, dict[str, SymbolInfo]] = {}
+    declaring_files: dict[str, set[tuple[str, int]]] = {}
     for sym in st.symbols.values():
-        if adapter.is_class_like(sym.kind):
-            classes_by_file.setdefault(str(sym.file_path), {}).setdefault(sym.name, sym)
+        if not adapter.is_class_like(sym.kind):
+            continue
+        classes_by_file.setdefault(str(sym.file_path), {}).setdefault(sym.name, sym)
+        declaring_files.setdefault(sym.name, set()).add((str(sym.file_path), sym.start_line))
+
+    # A base is only ever its simple name in source, so a name two namespaces
+    # both declare cannot be told apart — and expanding it would wire every
+    # subclass of one to calls on the other.
+    ambiguous = {name for name, sites in declaring_files.items() if len(sites) > 1}
 
     subclasses: dict[str, list[SymbolInfo]] = {}
+    modifiers: dict[tuple[str, str], frozenset[str]] = {}
     for file_path in source_files:
         declared = classes_by_file.get(str(file_path))
         if not declared:
             continue
+        modifiers.update(ctx.source_inspector.find_member_modifiers(file_path))
         for type_name, bases in ctx.source_inspector.find_type_bases(file_path):
             sub = declared.get(type_name)
             if sub is None:
                 continue
             for base in bases:
-                subclasses.setdefault(base, []).append(sub)
-    return subclasses
+                if base not in ambiguous:
+                    subclasses.setdefault(base, []).append(sub)
+    if ambiguous:
+        logger.info("Skipped %d ambiguous base type name(s) for virtual dispatch", len(ambiguous))
+    return DispatchIndex(subclasses=subclasses, modifiers=modifiers, ambiguous=ambiguous)
 
 
 def _override_targets(
     target: SymbolInfo,
     st: SymbolTable,
-    subclasses: dict[str, list[SymbolInfo]],
+    dispatch: DispatchIndex | None,
 ) -> list[SymbolInfo]:
     """Same-named members on every type deriving from the target's own type.
 
     A call through a base-typed reference resolves to the base declaration,
     which for an abstract member has no body; the overrides are what actually run.
     """
+    if dispatch is None:
+        return []
     owner_qname = parent_qualified_name(target.qualified_name)
     owner = st.symbols.get(owner_qname)
-    if owner is None or not subclasses.get(owner.name):
+    if owner is None or owner.name in dispatch.ambiguous or not dispatch.subclasses.get(owner.name):
         return []
 
     member = target.qualified_name[len(owner_qname) + 1 :]
     overrides: list[SymbolInfo] = []
     seen: set[str] = set()
-    stack = list(subclasses[owner.name])
+    stack = list(dispatch.subclasses[owner.name])
     while stack:
         sub = stack.pop()
         if sub.qualified_name in seen:
             continue
         seen.add(sub.qualified_name)
         override = st.symbols.get(f"{sub.qualified_name}.{member}")
-        if override is not None:
+        if override is not None and dispatch.dispatches_to(owner, sub.name, member):
             overrides.append(override)
-        stack.extend(subclasses.get(sub.name, []))
+        stack.extend(dispatch.subclasses.get(sub.name, []))
     return overrides
 
 

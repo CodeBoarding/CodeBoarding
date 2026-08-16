@@ -262,12 +262,9 @@ class CSharpAdapter(LanguageAdapter):
 
     @property
     def edge_strategy(self) -> EdgeStrategy:
-        """Use definition-based edges — csharp-ls serializes references requests.
-
-        Why: on a 3.5k-file workspace ~5% of references queries cost 60-100s
-        each (some never return) while definition queries stay sub-millisecond,
-        so references-based phase 2 does not finish at any timeout setting.
-        """
+        """Definition-based edges: on a 3.5k-file workspace ~5% of csharp-ls
+        references queries take 60-100s (some never return), so a
+        references-based phase 2 never finishes."""
         return EdgeStrategy.DEFINITIONS
 
     @property

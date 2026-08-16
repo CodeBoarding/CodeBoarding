@@ -271,21 +271,6 @@ class TestFindCallSites:
         assert (1, 1) not in positions  # "if" at 1,1
         assert (2, 12) in positions  # foo
 
-    def test_method_group_argument_is_a_site_only_when_opted_in(self, tmp_path: Path):
-        f = tmp_path / "test.cs"
-        f.write_text('class A { void M(){ app.MapGet("/items", GetAllItems); } }\n')
-        si = SourceInspector()
-
-        assert (1, 42) not in _positions(si.find_call_sites(f))
-        assert (1, 42) in _positions(si.find_call_sites(f, include_method_groups=True))
-
-    def test_method_group_opt_in_keeps_the_invocation_itself(self, tmp_path: Path):
-        f = tmp_path / "test.cs"
-        f.write_text('class A { void M(){ app.MapGet("/items", GetAllItems); } }\n')
-        si = SourceInspector()
-        positions = _positions(si.find_call_sites(f, include_method_groups=True))
-        assert (1, 25) in positions  # MapGet
-
     def test_skips_comments(self, tmp_path: Path):
         f = tmp_path / "test.java"
         f.write_text("// foo()\n/* bar()\n   baz() */\nclass A { void m(){ real(); } }\n")
@@ -352,6 +337,88 @@ class TestFindTypeBases:
         f.write_text("class Plain { void M(){} }\n")
         si = SourceInspector()
         assert si.find_type_bases(f) == []
+
+    def test_positional_record_base_is_the_type_not_its_constructor_argument(self, tmp_path: Path):
+        f = tmp_path / "Item.cs"
+        f.write_text("record Item(int Id) : Entity(Id), IItem { }\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("Item", ["Entity", "IItem"])]
+
+    def test_java_keeps_every_implemented_interface(self, tmp_path: Path):
+        f = tmp_path / "Dog.java"
+        f.write_text("public class Dog extends Animal implements Walker, Runner {}\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("Dog", ["Animal", "Walker", "Runner"])]
+
+    def test_java_interface_extends_list(self, tmp_path: Path):
+        f = tmp_path / "Cat.java"
+        f.write_text("interface Cat extends Pet, Feline {}\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("Cat", ["Pet", "Feline"])]
+
+
+class TestFindMethodGroupSites:
+    def test_handler_passed_as_an_argument_is_a_site(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text('class A { void M(){ app.MapGet("/items", GetAllItems); } }\n')
+        si = SourceInspector()
+
+        assert (1, 42) not in _positions(si.find_call_sites(f))
+        assert (1, 42) in _positions(si.find_method_group_sites(f))
+
+    def test_dotted_handler_resolves_to_the_member(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text('class A { void M(){ app.MapGet("/i", Handlers.Create); } }\n')
+        si = SourceInspector()
+        positions = _positions(si.find_method_group_sites(f))
+
+        assert (1, 47) in positions  # Create
+        assert (1, 38) not in positions  # Handlers, the type it hangs off
+
+    def test_named_argument_skips_the_label(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text("class A { void M(){ Map(handler: GetAllItems); } }\n")
+        si = SourceInspector()
+        positions = _positions(si.find_method_group_sites(f))
+
+        assert (1, 34) in positions  # GetAllItems
+        assert (1, 25) not in positions  # handler:, the parameter name
+
+    def test_type_mentioned_deeper_in_an_argument_is_not_a_site(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text('class A { void M(){ Log("{K}", OrderKind.Retail); Run(x.Where(o => o.T > Limits.Max)); } }\n')
+        si = SourceInspector()
+        positions = _positions(si.find_method_group_sites(f))
+
+        assert (1, 32) not in positions  # OrderKind
+        assert (1, 74) not in positions  # Limits
+
+    def test_leaves_the_invocation_itself_to_find_call_sites(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text('class A { void M(){ app.MapGet("/items", GetAllItems); } }\n')
+        si = SourceInspector()
+
+        assert (1, 25) in _positions(si.find_call_sites(f))  # MapGet
+
+
+class TestFindMemberModifiers:
+    def test_reports_modifiers_per_declaring_type(self, tmp_path: Path):
+        f = tmp_path / "Types.cs"
+        f.write_text(
+            "class Base { public virtual void V() {} }\n"
+            "class Derived : Base {\n"
+            "  public override void V() {}\n"
+            "  public new void Plain() {}\n"
+            "  void IThing.Run() {}\n"
+            "}\n"
+        )
+        si = SourceInspector()
+        modifiers = si.find_member_modifiers(f)
+
+        assert modifiers[("Base", "V")] == frozenset({"public", "virtual"})
+        assert modifiers[("Derived", "V")] == frozenset({"public", "override"})
+        assert modifiers[("Derived", "Plain")] == frozenset({"public", "new"})
+        assert modifiers[("Derived", "Run")] == frozenset({"explicit"})
 
 
 class TestTreeCacheEviction:
