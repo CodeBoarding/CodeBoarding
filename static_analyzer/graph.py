@@ -8,7 +8,7 @@ from types import MappingProxyType
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
-from static_analyzer.constants import ClusteringConfig, NodeType
+from static_analyzer.constants import ClusteringConfig
 from static_analyzer.leiden_utils import find_partition as _leiden_find_partition
 from static_analyzer.method_cluster_paths import MethodClusterPaths
 from static_analyzer.node import Node
@@ -714,98 +714,4 @@ class CallGraph:
         for _, node in self.nodes.items():
             if node.methods_called_by_me:
                 result += f"Method {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}\n"
-        return result
-
-    def llm_str(self, size_limit: int = 2_500_000, skip_nodes: Sequence[Node] = ()) -> str:
-        skip_set = set(skip_nodes)
-
-        # Level 1: Full method-level detail (default __str__ but with file grouping)
-        default_str = self._llm_str_detailed(skip_set)
-
-        logger.info(f"[CFG Tool] LLM string: {len(default_str)} characters, size limit: {size_limit} characters")
-
-        if len(default_str) <= size_limit:
-            return default_str
-
-        # Level 2: Class-level with top method edges preserved
-        logger.info(
-            f"[CallGraph] Control flow graph is too large ({len(default_str)} chars), switching to class-level summary."
-        )
-        class_str = self._llm_str_class_level(skip_set)
-
-        logger.info(f"[CallGraph] Class-level summary: {len(class_str)} characters")
-        return class_str
-
-    def _llm_str_detailed(self, skip_set: set[Node]) -> str:
-        """Level 1: File-grouped, method-level detail with call targets."""
-        # Group nodes by file
-        file_nodes: dict[str, list[Node]] = defaultdict(list)
-        for node in self.nodes.values():
-            if node not in skip_set:
-                file_nodes[node.file_path].append(node)
-
-        active_nodes = sum(len(v) for v in file_nodes.values())
-        active_edges = sum(
-            1
-            for e in self.edges
-            if self.nodes[e.get_source()] not in skip_set and self.nodes[e.get_destination()] not in skip_set
-        )
-
-        result = f"Control flow graph with {active_nodes} nodes and {active_edges} edges\n"
-
-        for file_path in sorted(file_nodes):
-            nodes = sorted(file_nodes[file_path], key=lambda n: n.fully_qualified_name)
-            for node in nodes:
-                if node.methods_called_by_me:
-                    label = node.entity_label()
-                    targets = ", ".join(sorted(node.methods_called_by_me))
-                    result += f"{label} {node.fully_qualified_name} calls: {targets}\n"
-
-        return result
-
-    def _llm_str_class_level(self, skip_set: set[Node]) -> str:
-        """Level 2: Class-to-class summary with call counts and top edges."""
-        class_calls: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
-        function_calls: list[str] = []
-
-        for node in self.nodes.values():
-            if node in skip_set or not node.methods_called_by_me:
-                continue
-
-            parts = node.fully_qualified_name.split(self.delimiter)
-            if node.type == NodeType.METHOD and len(parts) > 1:
-                class_name = self.delimiter.join(parts[:-1])
-                method_short = parts[-1]
-
-                for called_method in node.methods_called_by_me:
-                    called_parts = called_method.split(self.delimiter)
-                    if len(called_parts) > 1:
-                        called_class = self.delimiter.join(called_parts[:-1])
-                        called_short = called_parts[-1]
-                        class_calls[class_name][called_class].append(f"{method_short}->{called_short}")
-                    else:
-                        class_calls[class_name][called_method].append(f"{method_short}->{called_method}")
-            else:
-                targets = ", ".join(sorted(node.methods_called_by_me))
-                function_calls.append(f"Function {node.fully_qualified_name} calls: {targets}")
-
-        active_count = sum(1 for n in self.nodes.values() if n not in skip_set)
-        result = f"Control flow graph with {active_count} nodes (class-level summary)\n"
-
-        for class_name in sorted(class_calls):
-            called_targets = class_calls[class_name]
-            target_strs = []
-            for target_class in sorted(called_targets):
-                edges = called_targets[target_class]
-                count = len(edges)
-                # Show up to 3 representative method pairs
-                examples = ", ".join(edges[:3])
-                suffix = f" +{count - 3} more" if count > 3 else ""
-                target_strs.append(f"{target_class} ({count} calls: {examples}{suffix})")
-            result += f"Class {class_name} -> {'; '.join(target_strs)}\n"
-
-        for func_call in function_calls:
-            result += func_call + "\n"
-
-        logger.info(f"[CallGraph] Class-level summary: {len(result)} characters")
         return result
