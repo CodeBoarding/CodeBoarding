@@ -32,6 +32,8 @@ from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
+_DEFINITION_BATCH_SIZE = 50
+
 
 def update_cfg_for_changed_files(
     cached_analysis: dict[str, Any],
@@ -142,7 +144,14 @@ def _restore_cross_boundary_edges(
         return
 
     if adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
-        _restore_inbound_edges_from_cache(call_graph, invalidated_edges, changed_file_strs)
+        _restore_inbound_edges_via_definitions(
+            call_graph,
+            invalidated_edges,
+            changed_file_strs,
+            adapter,
+            engine_client,
+            include_callable_parent=True,
+        )
         return
 
     checked = {"inbound": 0, "outbound": 0}
@@ -189,35 +198,76 @@ def _restore_cross_boundary_edges(
     )
 
 
-def _restore_inbound_edges_from_cache(
+def _restore_inbound_edges_via_definitions(
     call_graph: CallGraph,
     invalidated_edges: list[InvalidatedEdge],
     changed_file_strs: set[str],
+    adapter: LanguageAdapter,
+    engine_client: LSPClient,
+    include_callable_parent: bool,
 ) -> None:
-    """Put invalidated edges back without asking the server for references.
+    """Re-resolve invalidated edges whose source file is unchanged, from their cached call sites.
 
-    Why: an adapter on the definitions strategy is there because its server
-    answers references far too slowly to sit on this path — the hot symbols that
-    make a full rebuild unusable are exactly the destinations an edit invalidates.
-    The two directions need no query anyway. When the *source* file is unchanged
-    its call sites are unchanged, so the cached edge is still true as long as
-    both endpoints survived. When the source file *did* change,
-    ``_add_outbound_edges_from_changed_files`` re-resolves it from live source,
-    so restoring here would only risk resurrecting a call the edit deleted.
+    Why not references: an adapter on the definitions strategy is there because
+    its server answers references far too slowly to sit on this path, and the
+    hot symbols an edit invalidates are its worst cases. The cached call sites
+    let us ask the same question with a definition query instead: does this
+    position still resolve to that destination? Restoring without asking is not
+    enough, an unchanged caller can still lose the edge when the destination's
+    own declaration moves out from under it.
+
+    The outbound direction is absent here on purpose:
+    ``_add_outbound_edges_from_changed_files`` re-resolves those from live source.
     """
-    restored = 0
+    pending: dict[tuple[str, str], list[dict[str, str | int]]] = {}
     for src_name, dst_name, old_src_node, _old_dst_node, cached_sites in invalidated_edges:
         if old_src_node.file_path in changed_file_strs:
             continue
         if not call_graph.has_node(src_name) or not call_graph.has_node(dst_name):
             continue
+        if cached_sites:
+            pending[(src_name, dst_name)] = cached_sites
+    if not pending:
+        return
+
+    for file_path in {str(site["file"]) for sites in pending.values() for site in sites}:
         try:
-            call_graph.add_edge(src_name, dst_name, call_sites=cached_sites)
+            engine_client.did_open(Path(file_path), adapter.language_id)
+        except Exception:
+            logger.debug("Failed to open %s while restoring cached edges", file_path, exc_info=True)
+
+    queries: list[tuple[Path, int, int]] = []
+    lookup: list[tuple[tuple[str, str], dict[str, str | int]]] = []
+    for edge, sites in pending.items():
+        for site in sites:
+            queries.append((Path(str(site["file"])), int(site["line"]) - 1, int(site["column"]) - 1))
+            lookup.append((edge, site))
+
+    confirmed: dict[tuple[str, str], list[dict[str, str | int]]] = {}
+    for start in range(0, len(queries), _DEFINITION_BATCH_SIZE):
+        batch = lookup[start : start + _DEFINITION_BATCH_SIZE]
+        try:
+            definition_results, _ = engine_client.send_definition_batch(queries[start : start + _DEFINITION_BATCH_SIZE])
+        except Exception:
+            logger.debug("Definition batch failed while restoring cached edges", exc_info=True)
+            continue
+        for (edge, site), definitions in zip(batch, definition_results):
+            if any(
+                dst_node.fully_qualified_name == edge[1]
+                for definition in definitions
+                for dst_node in _definition_nodes(call_graph, definition, include_callable_parent)
+            ):
+                confirmed.setdefault(edge, []).append(site)
+
+    restored = 0
+    for (src_name, dst_name), sites in confirmed.items():
+        try:
+            call_graph.add_edge(src_name, dst_name, call_sites=sites)
             restored += 1
         except ValueError:
             logger.debug("Failed to restore edge %s -> %s", src_name, dst_name, exc_info=True)
 
-    logger.info("Restored %d cached inbound edge(s) without a references query", restored)
+    logger.info("Restored %d of %d cached inbound edge(s) via definitions", restored, len(pending))
 
 
 def _edge_reference_call_sites(
