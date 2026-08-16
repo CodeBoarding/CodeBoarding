@@ -52,15 +52,54 @@ class TestRenderCallGraph(unittest.TestCase):
         for node in (node1, node2, node3):
             graph.add_node(node)
         graph.add_edge("module.func1", "module.func2")
+        graph.add_edge("module.func1", "module.func3")
         graph.add_edge("module.func2", "module.func3")
 
-        # func1 still lists func2 as a target (it lives in methods_called_by_me),
-        # but func2's own outgoing call is suppressed and it leaves the node count.
         result = render_call_graph(graph, skip_nodes=[node2])
 
+        # func1 survives on its remaining target; a skipped node leaves the count,
+        # loses its own outgoing call, and is dropped from every other node's targets.
         self.assertIn("module.func1", result)
-        self.assertIn("module.func2", result)
+        self.assertIn("module.func3", result)
+        self.assertNotIn("module.func2", result)
         self.assertIn("2 nodes", result)
+
+    def test_source_with_only_skipped_targets_is_omitted(self):
+        graph = CallGraph()
+        node1 = Node("module.func1", 12, "/file.py", 1, 10)
+        node2 = Node("module.func2", 12, "/file.py", 20, 30)
+        for node in (node1, node2):
+            graph.add_node(node)
+        graph.add_edge("module.func1", "module.func2")
+
+        result = render_call_graph(graph, skip_nodes=[node2])
+
+        self.assertNotIn("calls:", result)
+        self.assertNotIn("module.func2", result)
+
+    def test_unresolved_targets_survive_filtering(self):
+        """External calls have no node in the graph, so they are not 'skipped'."""
+        graph = CallGraph()
+        node1 = Node("module.func1", 12, "/file.py", 1, 10)
+        graph.add_node(node1)
+        node1.methods_called_by_me.add("thirdparty.helper")
+
+        result = render_call_graph(graph, skip_nodes=[])
+
+        self.assertIn("thirdparty.helper", result)
+
+    def test_skipped_targets_are_dropped_at_class_level(self):
+        graph = CallGraph()
+        keep = Node("pkg.ClassA.method1", NodeType.METHOD, "/a.py", 1, 10)
+        skipped = Node("pkg.ClassB.method2", NodeType.METHOD, "/b.py", 1, 10)
+        for node in (keep, skipped):
+            graph.add_node(node)
+        graph.add_edge("pkg.ClassA.method1", "pkg.ClassB.method2")
+
+        result = render_call_graph(graph, size_limit=0, skip_nodes=[skipped])
+
+        self.assertIn("class-level summary", result)
+        self.assertNotIn("pkg.ClassB", result)
 
 
 if __name__ == "__main__":
