@@ -41,13 +41,7 @@ class Candidate(NamedTuple):
         return "leiden" if self.level is Level.RAW else f"leiden_level_{self.level}"
 
 
-def cluster_graph(
-    nx_graph: nx.DiGraph,
-    *,
-    delimiter: str,
-    target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
-    min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
-) -> ClusterResult:
+def cluster_graph(nx_graph: nx.DiGraph, *, delimiter: str) -> ClusterResult:
     """Cluster ``nx_graph``, levelling up until the partition covers enough of it.
 
     Scores a Leiden partition at each abstraction level (raw, class, file) and stops
@@ -68,13 +62,13 @@ def cluster_graph(
             if work_graph.number_of_nodes() == 0:
                 continue
 
-        candidate = _leiden_candidate(work_graph, level, min_cluster_size, total_nodes)
+        candidate = _leiden_candidate(work_graph, level, total_nodes)
         if level:
-            candidate = _map_candidate_to_original(candidate, nx_graph, delimiter, min_cluster_size, total_nodes)
+            candidate = _map_candidate_to_original(candidate, nx_graph, delimiter, total_nodes)
 
         all_candidates.append(candidate)
 
-        coverage = _coverage(candidate.communities, min_cluster_size, total_nodes)
+        coverage = _coverage(candidate.communities, total_nodes)
         logger.info(
             f"Level {level or 'raw'}: best={candidate.strategy} score={candidate.score:.3f} coverage={coverage:.3f}"
         )
@@ -84,13 +78,13 @@ def cluster_graph(
     # Level.RAW never abstracts, so the loop always scores at least one candidate.
     best = max(all_candidates, key=lambda c: c.score)
     if best.score > 0.0:
-        return _build_result(best.communities, best.strategy, min_cluster_size, nx_graph)
+        return _build_result(best.communities, best.strategy, nx_graph)
 
     logger.warning("All clustering strategies scored 0, falling back to connected components")
-    # Every component is kept: truncating to target_clusters would drop its members from the
-    # partition entirely, and downstream snapshots could then not render those methods.
+    # Every component is kept: dropping any would remove its members from the partition
+    # entirely, and downstream snapshots could then not render those methods.
     components = list(nx.connected_components(nx_graph.to_undirected()))
-    return _build_result([set(c) for c in components], "connected_components", min_cluster_size, nx_graph)
+    return _build_result([set(c) for c in components], "connected_components", nx_graph)
 
 
 def _abstract_node_name(node_name: str, level: Level, delimiter: str) -> str:
@@ -103,12 +97,12 @@ def _abstract_node_name(node_name: str, level: Level, delimiter: str) -> str:
     return node_name
 
 
-def _score_clustering(communities: list[set[str]], min_cluster_size: int, total_nodes: int) -> float:
+def _score_clustering(communities: list[set[str]], total_nodes: int) -> float:
     """Score clustering from 0.0 to 1.0. Coverage is primary, cluster count is a penalty."""
     if not communities or total_nodes == 0:
         return 0.0
 
-    valid_clusters = [c for c in communities if len(c) >= min_cluster_size]
+    valid_clusters = [c for c in communities if len(c) >= ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE]
     if not valid_clusters:
         return 0.0
 
@@ -156,7 +150,7 @@ def _abstract_at_level(graph: nx.DiGraph, level: Level, delimiter: str) -> nx.Di
     return abstracted
 
 
-def _leiden_candidate(graph: nx.DiGraph, level: Level, min_cluster_size: int, total_nodes: int) -> Candidate:
+def _leiden_candidate(graph: nx.DiGraph, level: Level, total_nodes: int) -> Candidate:
     """Score one seeded-Leiden partition of ``graph``; a failure scores 0 and loses.
 
     Why seeded: Leiden is non-deterministic otherwise, and cluster IDs persisted in
@@ -167,7 +161,7 @@ def _leiden_candidate(graph: nx.DiGraph, level: Level, min_cluster_size: int, to
         communities = find_partition(graph, seed=ClusteringConfig.CLUSTERING_SEED)
     except Exception:
         logger.warning(f"Leiden failed at level {level or 'raw'}; scoring 0", exc_info=True)
-    score = _score_clustering(communities, min_cluster_size, total_nodes)
+    score = _score_clustering(communities, total_nodes)
     logger.debug(f"leiden: score={score:.3f}, clusters={len(communities)}")
     return Candidate(communities, level, score)
 
@@ -176,7 +170,6 @@ def _map_candidate_to_original(
     candidate: Candidate,
     original_graph: nx.DiGraph,
     delimiter: str,
-    min_cluster_size: int,
     total_nodes: int,
 ) -> Candidate:
     """Map an abstract-level community result back to original node names and re-score."""
@@ -191,25 +184,24 @@ def _map_candidate_to_original(
             orig.update(abstract_to_original[abstract_node])
         if orig:
             original_communities.append(orig)
-    score = _score_clustering(original_communities, min_cluster_size, total_nodes)
+    score = _score_clustering(original_communities, total_nodes)
     return Candidate(original_communities, candidate.level, score)
 
 
-def _coverage(communities: list[set[str]], min_cluster_size: int, total_nodes: int) -> float:
-    """Fraction of nodes landing in clusters that meet ``min_cluster_size``."""
+def _coverage(communities: list[set[str]], total_nodes: int) -> float:
+    """Fraction of nodes landing in clusters that meet the minimum size."""
     if total_nodes == 0:
         return 0.0
-    valid = [c for c in communities if len(c) >= min_cluster_size]
+    valid = [c for c in communities if len(c) >= ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE]
     return sum(len(c) for c in valid) / total_nodes
 
 
 def _build_result(
     communities: list[set[str]],
     strategy: str,
-    min_cluster_size: int,
     nx_graph: nx.DiGraph,
 ) -> ClusterResult:
-    valid_communities = [c for c in communities if len(c) >= min_cluster_size]
+    valid_communities = [c for c in communities if len(c) >= ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE]
     sorted_communities = sorted(valid_communities, key=len, reverse=True)
 
     clusters: dict[int, set[str]] = {}
