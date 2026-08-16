@@ -1,7 +1,7 @@
 import logging
 from collections import defaultdict
 from collections.abc import Callable, Collection, Hashable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
 
