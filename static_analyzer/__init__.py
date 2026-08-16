@@ -327,7 +327,7 @@ class StaticAnalyzer:
         """Gracefully shut down all engine LSP server processes. Idempotent.
 
         Persists the latest ``_cached_results`` to the pkl on the way down so
-        downstream mutations (``CallGraph._cluster_cache`` populated by the
+        downstream mutations (the language's ``ClusterCache``, populated by the
         abstraction agent) reach disk in one save instead of two. Save errors
         are logged but never block teardown.
         """
@@ -657,8 +657,9 @@ class StaticAnalyzer:
         ``update_cfg_for_changed_files`` along with the language's portion of the
         cached state, and put the merged result back into a fresh
         ``StaticAnalysisResults``. Merging (rather than a full re-LSP) is what
-        preserves the cached CFG's ``_cluster_cache``, so the next incremental
-        run still finds a cluster baseline.
+        preserves the language's ``ClusterCache`` (carried across by ``select``,
+        keeping only surviving nodes), so the next incremental run still finds a
+        cluster baseline.
 
         Changed-file source: ``self.changed_files`` when set at construction
         (git-free — e.g. the wrapper's fingerprint diff), else ``git diff`` via

@@ -15,13 +15,9 @@ class ClusteringService:
     keep a partition store it in the ``ClusterCache`` on their ``LanguageResults``.
     """
 
-    def __init__(
-        self,
-        target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
-        min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
-    ) -> None:
-        self.target_clusters = target_clusters
-        self.min_cluster_size = min_cluster_size
+    def __init__(self) -> None:
+        self.target_clusters = ClusteringConfig.DEFAULT_TARGET_CLUSTERS
+        self.min_cluster_size = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE
 
     def cluster(self, graph: CallGraph) -> ClusterResult:
         nx_graph = graph.clustering_networkx()
