@@ -471,3 +471,39 @@ class TestTreeCacheEviction:
         si = SourceInspector(tree_node_budget=1)
 
         assert len(si.find_call_sites(f)) == 200
+
+
+class TestMethodGroupValuePositions:
+    """A method named rather than called is control flow wherever it appears."""
+
+    def _positions_for(self, tmp_path: Path, body: str) -> set:
+        f = tmp_path / "test.cs"
+        f.write_text(body)
+        return _positions(SourceInspector().find_method_group_sites(f))
+
+    def test_event_subscription_is_a_site(self, tmp_path: Path):
+        positions = self._positions_for(tmp_path, "class A { void M(){ c.Received += OnMessage; } }\n")
+        assert (1, 35) in positions  # OnMessage
+
+    def test_event_unsubscription_is_a_site(self, tmp_path: Path):
+        positions = self._positions_for(tmp_path, "class A { void M(){ c.Received -= OnMessage; } }\n")
+        assert (1, 35) in positions
+
+    def test_assignment_to_a_delegate_is_a_site(self, tmp_path: Path):
+        positions = self._positions_for(tmp_path, "class A { void M(){ Action cb = HandleClick; } }\n")
+        assert (1, 33) in positions  # HandleClick
+
+    def test_returned_method_group_is_a_site(self, tmp_path: Path):
+        positions = self._positions_for(tmp_path, "class A { Action M(){ return HandleClick; } }\n")
+        assert (1, 30) in positions
+
+    def test_expression_body_method_group_is_a_site(self, tmp_path: Path):
+        positions = self._positions_for(tmp_path, "class A { Action P => HandleClick; }\n")
+        assert (1, 23) in positions
+
+    def test_ordinary_literal_assignment_is_not_queried(self, tmp_path: Path):
+        assert self._positions_for(tmp_path, 'class A { void M(){ int x = 5; string s = "a"; } }\n') == set()
+
+    def test_assignment_from_a_call_is_not_queried(self, tmp_path: Path):
+        """The invocation is already a call site; the assignment adds nothing."""
+        assert self._positions_for(tmp_path, "class A { void M(){ var y = Compute(); } }\n") == set()

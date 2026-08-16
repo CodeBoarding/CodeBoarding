@@ -79,6 +79,9 @@ _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
 _ARGUMENT_NODE_TYPES = frozenset({"argument"})
+_DECLARATOR_NODE_TYPES = frozenset({"variable_declarator"})
+_VALUE_BODY_NODE_TYPES = frozenset({"return_statement", "arrow_expression_clause"})
+_NAME_SHAPED_NODE_TYPES = frozenset({"identifier", "member_access_expression", "generic_name", "qualified_name"})
 _TYPE_DECLARATION_NODE_TYPES = frozenset(
     {"class_declaration", "interface_declaration", "record_declaration", "struct_declaration"}
 )
@@ -226,12 +229,14 @@ class SourceInspector:
         return sites
 
     def find_method_group_sites(self, file_path: Path) -> list[CallSite]:
-        """Positions of arguments passed by name instead of invoked (``MapGet("/i", Handler)``).
+        """Positions where naming a method passes it as a value rather than calling it.
 
-        Why separate from ``find_call_sites``: a handler passed as a value has no
-        invocation node, so the call-target walk cannot see it — but the same
-        position shape is also every ordinary argument, so the caller has to
-        discard whatever does not resolve to something callable.
+        Covers arguments (``MapGet("/i", Handler)``), event subscription
+        (``consumer.Received += OnMessage``), assignment, ``return`` and
+        expression bodies. Kept separate from ``find_call_sites`` because the
+        same shapes are also every ordinary argument and every ordinary
+        assignment, so the caller has to discard whatever does not resolve to
+        something callable.
         """
         parsed = self._parse(file_path)
         if parsed is None:
@@ -240,14 +245,7 @@ class SourceInspector:
         sites: list[CallSite] = []
         seen: set[tuple[int, int]] = set()
         for node in self._walk(parsed.tree.root_node):
-            if node.type not in _CALLABLE_USAGE_ANCESTORS or not self._parent_is_call_like(node):
-                continue
-            for child in node.named_children:
-                # Only the argument itself: a named argument (``f(handler: H)``)
-                # keeps its label as the first named child.
-                expression = (
-                    child.named_children[-1] if child.type in _ARGUMENT_NODE_TYPES and child.named_children else child
-                )
+            for expression in self._method_group_candidates(node):
                 target = self._select_query_node(expression)
                 if target is None:
                     continue
@@ -257,6 +255,28 @@ class SourceInspector:
                 seen.add(pos)
                 sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
+
+    def _method_group_candidates(self, node: TreeSitterNode) -> list[TreeSitterNode]:
+        """Expressions in a position where a bare name would be a method group."""
+        if node.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(node):
+            # Only the argument itself: a named argument (``f(handler: H)``)
+            # keeps its label as the first named child.
+            return [
+                child.named_children[-1] if child.type in _ARGUMENT_NODE_TYPES and child.named_children else child
+                for child in node.named_children
+            ]
+
+        # A value position accepts any expression, so unlike an argument it is
+        # only worth a query when it is already shaped like a name.
+        if node.type == "assignment_expression":
+            candidate = node.child_by_field_name("right")
+        elif node.type in _DECLARATOR_NODE_TYPES:
+            candidate = node.named_children[-1] if len(node.named_children) > 1 else None
+        elif node.type in _VALUE_BODY_NODE_TYPES:
+            candidate = node.named_children[0] if node.named_children else None
+        else:
+            return []
+        return [candidate] if candidate is not None and candidate.type in _NAME_SHAPED_NODE_TYPES else []
 
     @staticmethod
     def _read_file_bytes(file_path: Path) -> bytes | None:
