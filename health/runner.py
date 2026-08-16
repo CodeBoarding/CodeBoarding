@@ -100,12 +100,8 @@ def _collect_checks_for_language(
         summaries.append(check_circular_dependencies(package_deps, config))
         summaries.append(check_package_instability(package_deps, config))
 
-    # Component-cohesion check still not wired in here, but the side effect that
-    # justified skipping it is gone: ``ClusteringService`` returns a partition
-    # without touching any language's ``ClusterCache``, so it can no longer
-    # masquerade as a historical snapshot in the next incremental delta.
-    # Enabling ``health.checks.cohesion.check_component_cohesion`` is now only a
-    # question of what a clustering pass costs per health run.
+    # check_component_cohesion is not wired in: ClusteringService has no side effects
+    # now, so enabling it is only a cost question.
 
     # Run LSP-based unused code detection
     exclude_patterns = config.health_exclude_patterns

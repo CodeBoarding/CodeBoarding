@@ -326,10 +326,9 @@ class StaticAnalyzer:
     def stop_clients(self) -> None:
         """Gracefully shut down all engine LSP server processes. Idempotent.
 
-        Persists the latest ``_cached_results`` to the pkl on the way down so
-        downstream mutations (the language's ``ClusterCache``, populated by the
-        abstraction agent) reach disk in one save instead of two. Save errors
-        are logged but never block teardown.
+        Persists ``_cached_results`` on the way down so the abstraction agent's
+        ``ClusterCache`` writes reach disk in one save. Save errors are logged
+        but never block teardown.
         """
         if not self._clients_started:
             return
@@ -656,10 +655,8 @@ class StaticAnalyzer:
         Per language: determine the changed-file list, hand it to
         ``update_cfg_for_changed_files`` along with the language's portion of the
         cached state, and put the merged result back into a fresh
-        ``StaticAnalysisResults``. Merging (rather than a full re-LSP) is what
-        preserves the language's ``ClusterCache`` (carried across by ``select``,
-        keeping only surviving nodes), so the next incremental run still finds a
-        cluster baseline.
+        ``StaticAnalysisResults``. The cached ``ClusterCache`` is grafted on either
+        way, so a language that fell back to a full re-LSP still leaves a baseline.
 
         Changed-file source: ``self.changed_files`` when set at construction
         (git-free — e.g. the wrapper's fingerprint diff), else ``git diff`` via
@@ -685,9 +682,9 @@ class StaticAnalyzer:
                 )
 
             self._absorb_into_results(results, language, analysis)
-            # Carry the cached partition onto the merged graph — nodes the re-LSP dropped
-            # fall out of the pruned copy. Without this the warm start would hand the next
-            # incremental run an empty cluster baseline.
+            # Both branches, including the full re-LSP: the partition describes cached_sha,
+            # which stays a valid delta baseline however the graph was rebuilt. select()
+            # drops whatever the re-LSP no longer has.
             try:
                 surviving = results.get_cfg(language).nodes
             except ValueError:

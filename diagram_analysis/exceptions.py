@@ -8,19 +8,10 @@ from static_analyzer.analysis_cache import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_
 class IncrementalCacheMissingError(RuntimeError):
     """Raised when ``generate_analysis_incremental`` finds no usable warm cache.
 
-    The incremental path requires a populated ``ClusterCache`` on the cached
-    ``LanguageResults`` (sourced from the SHA-tagged ``static_analysis.pkl``).
-    When absent we
-    used to silently fall back to a full analysis, which discarded the
-    existing analysis.json's depth and component IDs. Callers must
-    explicitly opt into a full run instead.
-
-    The constructor inspects ``artifact_dir`` to produce a specific
-    diagnostic depending on which piece is missing — pkl absent, sha
-    absent (so the warm-start cannot SHA-gate), or pkl present but no
-    cluster baseline inside it. Without that distinction, every variant
-    of this failure surfaced as "no warm static_analysis.pkl", which
-    misled callers when the pkl was actually present.
+    Needs a populated ``ClusterCache`` on the cached ``LanguageResults``, from the
+    SHA-tagged ``static_analysis.pkl``. Why raise: falling back to a full analysis
+    discarded analysis.json's depth and component IDs. The message names which
+    piece is missing — pkl, sha, or cluster baseline.
     """
 
     def __init__(self, artifact_dir: Path):
