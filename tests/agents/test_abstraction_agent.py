@@ -184,9 +184,6 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         mock_invoke_repair_validate.return_value = mock_response
 
-        # Create mock cluster_results
-        from static_analyzer.clustering import ClusterResult
-
         mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
         cluster_results = {"python": mock_cluster_result}
 
