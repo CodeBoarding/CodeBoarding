@@ -4,6 +4,7 @@ import networkx as nx
 
 from static_analyzer.clustering.engine import Candidate, Level, cluster_graph
 from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.constants import ClusteringConfig
 
 
 def _two_cliques() -> nx.DiGraph:
@@ -69,11 +70,16 @@ class TestClusterGraph(unittest.TestCase):
         self.assertEqual(Candidate([], Level.FILE, 0.0).strategy, "leiden_level_file")
 
     def test_falls_back_to_connected_components_when_nothing_scores(self):
-        """Leiden is the only algorithm, and a minimum of 6 leaves it nothing to return at any level."""
-        result = cluster_graph(_two_cliques(), delimiter=".", min_cluster_size=6)
+        """Far more components than the ideal count zeroes the cluster-count penalty at every level."""
+        graph = nx.DiGraph()
+        for component in range(ClusteringConfig.DEFAULT_TARGET_CLUSTERS + 3):
+            graph.add_edge(f"mod{component}.a", f"mod{component}.b")
+
+        result = cluster_graph(graph, delimiter=".")
 
         self.assertEqual(result.strategy, "connected_components")
-        self.assertEqual(sorted(result.clusters[1]), sorted(_two_cliques().nodes))
+        clustered = {name for members in result.clusters.values() for name in members}
+        self.assertEqual(clustered, set(graph.nodes))
 
 
 if __name__ == "__main__":

@@ -254,7 +254,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         cg = self._cg()
         original_node_count = len(cg.nodes)
 
-        cg.filter(lambda n: n.file_path != "a.py", lambda _edge: None)
+        cg.filter(lambda n: n.file_path != "a.py")
 
         self.assertEqual(len(cg.nodes), original_node_count)
 
@@ -264,7 +264,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         cg.add_node(_node("b.bar", "b.py"))
         cg.add_edge("a.foo", "b.bar")
 
-        filtered = cg.filter(lambda n: n.file_path != "a.py", lambda _edge: None)
+        filtered = cg.filter(lambda n: n.file_path != "a.py")
 
         self.assertEqual(len(filtered.edges), 0)
         self.assertNotIn("a.foo", filtered.nodes)

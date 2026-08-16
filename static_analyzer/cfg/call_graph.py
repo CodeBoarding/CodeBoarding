@@ -1,12 +1,14 @@
 """The call graph: nodes, call edges, reference edges, and derivation of subgraphs."""
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable, Collection, Hashable, Mapping, Sequence
 from types import MappingProxyType
 
 import networkx as nx
 
-from static_analyzer.cfg.edge import DEFAULT_REFERENCE_KINDS, Edge, EdgeKind
+from static_analyzer.cfg.edge import DEFAULT_REFERENCE_KINDS, Edge, EdgeKind, ReferenceEdge
 from static_analyzer.cfg.location_key import LocationKey
 from static_analyzer.constants import ClusteringConfig
 from static_analyzer.node import Node
@@ -44,8 +46,7 @@ class CallGraph:
         # Non-call relationship edges (CONTAINS/INHERITS/TYPEREF/IMPORT), kept off
         # ``self.edges`` so relations and ``methods_called_by_me`` stay call-only.
         # ``to_networkx`` folds them into the export by default.
-        # Each entry: (src_qname, dst_qname, EdgeKind value).
-        self.reference_edges: list[tuple[str, str, str]] = []
+        self.reference_edges: list[ReferenceEdge] = []
 
     def add_node(self, node: Node) -> None:
         loc_key = LocationKey(node.file_path, node.line_start, node.line_end, node.type.value, node.col_start)
@@ -67,7 +68,6 @@ class CallGraph:
                 self._alias_to_canonical[existing_name] = canonical
                 for s, d in self._edge_by_key:
                     new_s = canonical if s == existing_name else s
-                    new_d = canonical if d == existing_name else d
                     # Update methods_called_by_me on source nodes
                     if d == existing_name and new_s in self.nodes:
                         src_node = self.nodes[new_s]
@@ -86,10 +86,6 @@ class CallGraph:
     def has_node(self, name: str) -> bool:
         """Check if a name (or any of its aliases) maps to a node in the graph."""
         return self._resolve_name(name) in self.nodes
-
-    def _resolve_name(self, name: str) -> str:
-        """Resolve a possibly-aliased name to the canonical name in the graph."""
-        return self._alias_to_canonical.get(name, name)
 
     def add_edge(self, src_name: str, dst_name: str, call_sites: Sequence[Mapping[str, Hashable]] = ()) -> None:
         src_name = self._resolve_name(src_name)
@@ -112,47 +108,21 @@ class CallGraph:
 
         self.nodes[src_name].added_method_called_by_me(self.nodes[dst_name])
 
-    def add_reference_edge(self, src_name: str, dst_name: str, kind: EdgeKind) -> None:
+    def add_reference_edge(self, ref: ReferenceEdge) -> None:
         """Record a non-call relationship edge (CONTAINS/INHERITS/TYPEREF/IMPORT).
 
-        Stored separately from call edges; used only to complete the graph for
-        clustering. Silently ignores endpoints that aren't nodes or self-loops.
+        Stored separately from call edges. Silently ignores endpoints that aren't
+        nodes or self-loops.
         """
-        src_name = self._resolve_name(src_name)
-        dst_name = self._resolve_name(dst_name)
-        if src_name in self.nodes and dst_name in self.nodes and src_name != dst_name:
-            self.reference_edges.append((src_name, dst_name, str(kind)))
+        src, dst = self._resolve_name(ref.src), self._resolve_name(ref.dst)
+        if src in self.nodes and dst in self.nodes and src != dst:
+            self.reference_edges.append(ReferenceEdge(src, dst, ref.kind))
 
-    def _carry_reference_edges(self, out: "CallGraph", *extra_sources: "CallGraph") -> None:
-        """Copy reference edges whose both endpoints survive into a derived graph.
+    def filter(self, keep_node: Callable[[Node], bool]) -> CallGraph:
+        """Return a new CallGraph of the nodes matching ``keep_node`` and the edges between them.
 
-        Includes ``self`` and any ``extra_sources`` (e.g. the ``other`` side of a union), so
-        reference edges freshly computed for changed/added files are not dropped when both
-        endpoints survive. Deduped, keeping only edges whose endpoints are both in ``out``.
-        """
-        seen: set[tuple[str, str, str]] = set()
-        carried: list[tuple[str, str, str]] = []
-        for source in (self, *extra_sources):
-            for s, d, k in source.reference_edges:
-                # Resolve through the SOURCE's alias map: an endpoint stored under a short
-                # alias must map to the canonical name ``out`` promoted it to, or a call edge
-                # (which add_edge resolves) survives while its reference edge is silently dropped.
-                rs, rd = source._resolve_name(s), source._resolve_name(d)
-                if rs in out.nodes and rd in out.nodes and rs != rd and (rs, rd, k) not in seen:
-                    seen.add((rs, rd, k))
-                    carried.append((rs, rd, k))
-        out.reference_edges = carried
-
-    def filter(
-        self,
-        keep_node: Callable[[Node], bool],
-        on_dropped_edge: Callable[[Edge], None],
-    ) -> "CallGraph":
-        """Return a new CallGraph keeping only nodes matching ``keep_node`` and connecting edges.
-
-        Edges whose endpoints both survive are re-added; edges with a dropped
-        endpoint are cascaded out and optionally collected. Any partition over
-        this graph lives in a ``ClusterCache`` and is pruned by its owner.
+        Edges with a dropped endpoint cascade out. Callers that need to know which
+        ones can derive them from their own ``keep_node`` over ``self.edges``.
         """
         out = CallGraph(language=self.language)
         for node in self.nodes.values():
@@ -160,17 +130,16 @@ class CallGraph:
                 out.add_node(node)
         for edge in self.edges:
             src, dst = edge.get_source(), edge.get_destination()
-            if out.has_node(src) and out.has_node(dst):
-                try:
-                    out.add_edge(src, dst, call_sites=edge.call_sites)
-                except ValueError as e:
-                    logger.warning(f"Failed to add edge {src} -> {dst} during filter: {e}")
-            else:
-                on_dropped_edge(edge)
+            if not (out.has_node(src) and out.has_node(dst)):
+                continue
+            try:
+                out.add_edge(src, dst, call_sites=edge.call_sites)
+            except ValueError as e:
+                logger.warning(f"Failed to add edge {src} -> {dst} during filter: {e}")
         self._carry_reference_edges(out)
         return out
 
-    def union(self, other: "CallGraph") -> "CallGraph":
+    def union(self, other: CallGraph) -> CallGraph:
         """Return a new CallGraph unioning ``self`` (cached) with ``other`` (fresh)."""
         out = CallGraph(language=self.language)
         for node in self.nodes.values():
@@ -191,6 +160,14 @@ class CallGraph:
         # changed/added files, which would otherwise be lost and revert those files to call-only.
         self._carry_reference_edges(out, other)
         return out
+
+    def filter_by_files(self, file_paths: set[str]) -> CallGraph:
+        """Subgraph of the nodes declared in ``file_paths``."""
+        return self.filter(lambda node: node.file_path in file_paths)
+
+    def filter_by_nodes(self, qualified_names: set[str]) -> CallGraph:
+        """Subgraph of the named nodes."""
+        return self.filter(lambda node: node.fully_qualified_name in qualified_names)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         for node in self.nodes.values():
@@ -215,79 +192,15 @@ class CallGraph:
         kinds = set(reference_kinds)
         if not kinds:
             return nx_graph
-        # Resolve endpoints through the alias map so an edge stored under a short alias
-        # still lands on the canonical node (matching how add_edge resolves call edges).
-        for src, dst, kind in self.reference_edges:
-            rsrc, rdst = self._resolve_name(src), self._resolve_name(dst)
-            if kind in kinds and rsrc in self.nodes and rdst in self.nodes:
-                nx_graph.add_edge(rsrc, rdst)
+        for ref in self.reference_edges:
+            if ref.kind not in kinds:
+                continue
+            # Resolve endpoints through the alias map so an edge stored under a short alias
+            # still lands on the canonical node (matching how add_edge resolves call edges).
+            src, dst = self._resolve_name(ref.src), self._resolve_name(ref.dst)
+            if src in self.nodes and dst in self.nodes:
+                nx_graph.add_edge(src, dst)
         return nx_graph
-
-    def filter_by_files(self, file_paths: set[str]) -> "CallGraph":
-        """
-        Create a new CallGraph containing only nodes from the specified files.
-        Only includes edges where both source and target nodes are in the specified files.
-        """
-        relevant_nodes = {node_id: node for node_id, node in self.nodes.items() if node.file_path in file_paths}
-
-        # Filter edges: both source and target must be in relevant_nodes
-        relevant_edges = []
-        for edge in self.edges:
-            source_name = edge.get_source()
-            target_name = edge.get_destination()
-
-            if self.nodes[source_name].file_path in file_paths and self.nodes[target_name].file_path in file_paths:
-                relevant_edges.append(edge)
-
-        filtered_edges = []
-        for edge in relevant_edges:
-            src = edge.get_source()
-            dst = edge.get_destination()
-            filtered_edges.append(Edge(self.nodes[src], self.nodes[dst], [dict(site) for site in edge.call_sites]))
-
-        # Create new graph, preserving the source language
-        sub_graph = CallGraph(nodes=relevant_nodes, edges=filtered_edges, language=self.language)
-        self._carry_reference_edges(sub_graph)
-
-        return sub_graph
-
-    def filter_by_nodes(self, qualified_names: set[str]) -> "CallGraph":
-        """Create a new CallGraph containing only the specified nodes (by qualified name).
-
-        Only includes edges where both source and target are in the allowed set.
-        """
-        relevant_nodes = {nid: node for nid, node in self.nodes.items() if nid in qualified_names}
-
-        filtered_edges = []
-        for edge in self.edges:
-            if edge.get_source() in relevant_nodes and edge.get_destination() in relevant_nodes:
-                filtered_edges.append(
-                    Edge(
-                        self.nodes[edge.get_source()],
-                        self.nodes[edge.get_destination()],
-                        [dict(site) for site in edge.call_sites],
-                    )
-                )
-
-        sub_graph = CallGraph(nodes=relevant_nodes, edges=filtered_edges, language=self.language)
-        self._carry_reference_edges(sub_graph)
-        return sub_graph
-
-    @staticmethod
-    def _common_dot_prefix(qualified_names: list[str]) -> str:
-        """Longest dotted-segment prefix shared by all qualified names, leaving at least one trailing segment each."""
-        if len(qualified_names) < 2:
-            return ""
-        parts_list = [n.split(".") for n in qualified_names]
-        min_len = min(len(p) for p in parts_list)
-        common: list[str] = []
-        for i in range(min_len - 1):
-            seg = parts_list[0][i]
-            if all(p[i] == seg for p in parts_list):
-                common.append(seg)
-            else:
-                break
-        return ".".join(common)
 
     def __str__(self) -> str:
         result = f"Control flow graph with {len(self.nodes)} nodes and {len(self.edges)} edges\n"
@@ -295,3 +208,25 @@ class CallGraph:
             if node.methods_called_by_me:
                 result += f"Method {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}\n"
         return result
+
+    def _resolve_name(self, name: str) -> str:
+        """Resolve a possibly-aliased name to the canonical name in the graph."""
+        return self._alias_to_canonical.get(name, name)
+
+    def _carry_reference_edges(self, out: CallGraph, *extra_sources: CallGraph) -> None:
+        """Copy reference edges whose both endpoints survive into a derived graph.
+
+        Includes ``self`` and any ``extra_sources`` (e.g. the ``other`` side of a union), so
+        reference edges freshly computed for changed/added files are not dropped when both
+        endpoints survive. Deduped, keeping only edges whose endpoints are both in ``out``.
+        """
+        carried: list[ReferenceEdge] = []
+        for source in (self, *extra_sources):
+            for ref in source.reference_edges:
+                # Resolve through the SOURCE's alias map: an endpoint stored under a short
+                # alias must map to the canonical name ``out`` promoted it to, or a call edge
+                # (which add_edge resolves) survives while its reference edge is silently dropped.
+                resolved = ReferenceEdge(source._resolve_name(ref.src), source._resolve_name(ref.dst), ref.kind)
+                if resolved.src in out.nodes and resolved.dst in out.nodes and resolved.src != resolved.dst:
+                    carried.append(resolved)
+        out.reference_edges = list(dict.fromkeys(carried))

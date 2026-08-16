@@ -1,7 +1,8 @@
-"""Renderers that turn static-analysis structures into the text an LLM sees.
+"""LLM-facing serializers for types that live below the agents layer.
 
-Kept in ``agents`` rather than ``static_analyzer``: prompt shape is an agent
-concern, and the graph should not know how it gets described.
+Kept here rather than as methods on the types themselves so the dependency
+direction stays ``static_analyzer -> clustering -> agents``: the renderer knows
+about the graph, the graph knows nothing about prompts.
 """
 
 from agents.llm_renderers.call_graph import render_call_graph

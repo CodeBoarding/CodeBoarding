@@ -12,7 +12,7 @@ from static_analyzer.constants import CLASS_TYPES, GRAPH_NODE_TYPES, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import LanguageAnalysisResult
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.cfg import CallGraph, EdgeKind
+from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -181,24 +181,24 @@ def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult) 
         for i in range(len(parts) - 1, 0, -1):
             parent = ".".join(parts[:i])
             if parent in class_qnames:
-                call_graph.add_reference_edge(qname, parent, EdgeKind.CONTAINS)
+                call_graph.add_reference_edge(ReferenceEdge(qname, parent, EdgeKind.CONTAINS))
                 break
 
     # INHERITS: child class -> each superclass (already computed by HierarchyBuilder).
     for child, info in (result.hierarchy or {}).items():
         for superclass in info.get("superclasses", []):
-            call_graph.add_reference_edge(child, superclass, EdgeKind.INHERITS)
+            call_graph.add_reference_edge(ReferenceEdge(child, superclass, EdgeKind.INHERITS))
 
     # TYPEREF / IMPORT: no engine populates these yet, so both loops are empty in
     # production. Kept so an engine that starts emitting them needs no converter change.
     for src, dst in result.type_references:
-        call_graph.add_reference_edge(src, dst, EdgeKind.TYPEREF)
+        call_graph.add_reference_edge(ReferenceEdge(src, dst, EdgeKind.TYPEREF))
     for src, dst in result.import_edges:
-        call_graph.add_reference_edge(src, dst, EdgeKind.IMPORT)
+        call_graph.add_reference_edge(ReferenceEdge(src, dst, EdgeKind.IMPORT))
 
 
-def _count_by_kind(reference_edges: list[tuple[str, str, str]]) -> Counter:
-    return Counter(kind for _, _, kind in reference_edges)
+def _count_by_kind(reference_edges: list[ReferenceEdge]) -> Counter:
+    return Counter(ref.kind for ref in reference_edges)
 
 
 def _map_symbol_kind(kind: int) -> NodeType:

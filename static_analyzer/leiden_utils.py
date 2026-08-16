@@ -1,8 +1,7 @@
 """NetworkX <-> igraph conversion + leidenalg seeded-Leiden helpers.
 
 Contains the ``igraph`` / ``leidenalg`` dependency surface so a future
-engine swap stays localized. Downstream callers go through
-the clustering engine and ``cluster_helpers``.
+engine swap stays localized.
 """
 
 from __future__ import annotations

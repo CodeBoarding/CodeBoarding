@@ -1,6 +1,6 @@
-"""Clustering of call graphs: the search, the result types, and where results are kept.
+"""Clustering of call graphs: the partition types, the search, and where results are kept.
 
-``service`` is the entry point; ``engine`` is the search over an exported
+``service`` is the entry point; ``engine`` is the Leiden search over an exported
 ``nx.DiGraph``; ``models`` holds the result types; ``cache`` holds the per-language
 state that ``LanguageResults`` owns.
 """

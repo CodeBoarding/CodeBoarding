@@ -41,8 +41,8 @@ from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,
-    ClusteringService,
     ClusterResult,
+    ClusteringService,
     MethodClusterPaths,
 )
 from static_analyzer.node import Node
@@ -404,7 +404,7 @@ class ClusterMethodsMixin:
             cfg = (
                 cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(Language(lang))
             )
-            graphs[lang] = cfg.to_networkx(DEFAULT_REFERENCE_KINDS).to_undirected()
+            graphs[lang] = cfg.to_networkx(reference_kinds=()).to_undirected()
         return graphs
 
     def _find_nearest_cluster(

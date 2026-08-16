@@ -21,9 +21,9 @@ import networkx as nx
 import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusteringService, ClusterResult
 from static_analyzer.constants import ClusteringConfig, Language
 from static_analyzer.leiden_utils import find_partition
-from static_analyzer.clustering import ClusterResult, ClusteringService
 
 logger = logging.getLogger(__name__)
 
