@@ -1,6 +1,3 @@
-"""Physical-location identity, used to dedup the several qualified names the LSP
-can emit for one symbol."""
-
 from dataclasses import dataclass
 
 

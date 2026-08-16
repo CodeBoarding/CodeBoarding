@@ -53,8 +53,8 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # Tag file format prefix; bump if the on-disk pickle layout changes.
 # v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
 # dataclass storage.
-# v3: MethodClusterPaths moved to static_analyzer.clustering. Older pickles are
-# treated as cache misses and re-run.
+# v3: MethodClusterPaths moved to static_analyzer.clustering, then CallGraph and the
+# edge types to static_analyzer.cfg. Older pickles are treated as cache misses and re-run.
 _TAG_VERSION = "v3"
 
 
