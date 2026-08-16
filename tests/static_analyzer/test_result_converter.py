@@ -8,6 +8,7 @@ parameters, and dual-registration aliases are correctly excluded from references
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
@@ -660,8 +661,8 @@ def test_to_networkx_folds_in_default_reference_kinds():
         )
     cg.add_reference_edge("mod.A", "mod.B", EdgeKind.CONTAINS)
 
-    # default kinds include contains -> edge present
-    assert cg.to_networkx().has_edge("mod.A", "mod.B")
+    # the default kinds include contains -> edge present
+    assert cg.to_networkx(DEFAULT_REFERENCE_KINDS).has_edge("mod.A", "mod.B")
     # restricting to a kind that isn't present -> edge absent (call graph had no edges)
     assert not cg.to_networkx(reference_kinds={"import"}).has_edge("mod.A", "mod.B")
     # opting out entirely -> call edges only

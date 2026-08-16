@@ -31,6 +31,7 @@ from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry
 from repo_utils.path_utils import normalize_repo_path
 from repo_utils.change_detector import ChangeSet
+from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.leiden_utils import find_partition_seeded
@@ -281,7 +282,7 @@ def compute_cluster_delta(
         cfg = new_static.get_cfg(language)
         # Cluster the same reference-augmented graph the full run uses; a call-only graph would
         # re-cluster type-coupled methods differently and drift from what a full analysis produces.
-        nx_graph = cfg.to_networkx()
+        nx_graph = cfg.to_networkx(DEFAULT_REFERENCE_KINDS)
         old_clusters = old_snapshot.get_language(language)
         language_delta = _delta_for_language(
             language,

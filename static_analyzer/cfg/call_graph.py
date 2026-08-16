@@ -133,7 +133,7 @@ class CallGraph:
         seen: set[tuple[str, str, str]] = set()
         carried: list[tuple[str, str, str]] = []
         for source in (self, *extra_sources):
-            for s, d, k in getattr(source, "reference_edges", ()):
+            for s, d, k in source.reference_edges:
                 # Resolve through the SOURCE's alias map: an endpoint stored under a short
                 # alias must map to the canonical name ``out`` promoted it to, or a call edge
                 # (which add_edge resolves) survives while its reference edge is silently dropped.
@@ -198,14 +198,8 @@ class CallGraph:
         for edge in self.edges:
             edge.visit_paths(fn)
 
-    def to_networkx(self, reference_kinds: Collection[str] = DEFAULT_REFERENCE_KINDS) -> nx.DiGraph:
-        """Export to networkx: always call edges, plus reference edges of the given kinds.
-
-        Why: folding in CONTAINS/INHERITS keeps constructors, dunders and interface
-        methods from being graph-isolated, which is what every structural consumer
-        wants. Pass ``()`` for call edges only — degree-counting metrics need that,
-        since a CONTAINS edge is not a call.
-        """
+    def to_networkx(self, reference_kinds: Collection[str]) -> nx.DiGraph:
+        """Export to networkx: call edges, plus reference edges of the given kinds."""
         nx_graph = nx.DiGraph()
         for node in self.nodes.values():
             nx_graph.add_node(

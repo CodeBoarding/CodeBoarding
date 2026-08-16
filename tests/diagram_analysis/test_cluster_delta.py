@@ -20,7 +20,7 @@ from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEn
 from repo_utils.change_detector import ChangeSet, FileChange
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
 
@@ -451,7 +451,7 @@ class TestDiffScoping(unittest.TestCase):
 class TestInternalHelpersSmoke(unittest.TestCase):
     def test_flavor_b_handles_empty_universe(self) -> None:
         graph = _build_graph([], [])
-        ld = _flavor_b_seeded("python", graph.to_networkx(), {}, set(), set())
+        ld = _flavor_b_seeded("python", graph.to_networkx(DEFAULT_REFERENCE_KINDS), {}, set(), set())
         self.assertFalse(ld.affected_cluster_ids)
 
 
@@ -558,7 +558,7 @@ class TestSeededLockGuarantee(unittest.TestCase):
             }
         )
         # Build the working subgraph the way _flavor_b_seeded does.
-        nx_g = graph.to_networkx()
+        nx_g = graph.to_networkx(DEFAULT_REFERENCE_KINDS)
         old_clusters = snap.by_language["python"]
         added_nodes = {"added.x"}
         removed_nodes: set[str] = set()

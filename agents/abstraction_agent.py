@@ -33,6 +33,7 @@ from agents.validation import (
 )
 from monitoring import trace
 from static_analyzer import StaticAnalysisFatalError
+from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
 from static_analyzer.constants import Language
@@ -89,7 +90,10 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         final-analysis step.
         """
         logger.info(f"[AbstractionAgent] Super-clustering leaf clusters for: {self.project_name}")
-        cfg_graphs = {lang: self.static_analysis.get_cfg(Language(lang)).to_networkx() for lang in cluster_results}
+        cfg_graphs = {
+            lang: self.static_analysis.get_cfg(Language(lang)).to_networkx(DEFAULT_REFERENCE_KINDS)
+            for lang in cluster_results
+        }
         return self.deterministic_cluster_grouping(cluster_results, cfg_graphs)
 
     @trace

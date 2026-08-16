@@ -6,7 +6,7 @@ import networkx as nx
 from static_analyzer.constants import NodeType
 from static_analyzer.leiden_utils import find_partition
 from static_analyzer.node import Node
-from static_analyzer.cfg import CallGraph, Edge
+from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS, Edge
 from static_analyzer.clustering import ClusterResult, ClusteringService
 
 
@@ -230,7 +230,7 @@ class TestCallGraph(unittest.TestCase):
         graph.add_node(node2)
         graph.add_edge("module.func1", "module.func2")
 
-        nx_graph = graph.to_networkx()
+        nx_graph = graph.to_networkx(DEFAULT_REFERENCE_KINDS)
 
         # Check it's a DiGraph
         self.assertIsInstance(nx_graph, nx.DiGraph)
@@ -470,7 +470,7 @@ class TestCallGraph(unittest.TestCase):
         self.assertNotIn("index.funcA", graph.nodes)
 
         # Edge objects must reflect the promoted name (in-place mutation)
-        nx_graph = graph.to_networkx()
+        nx_graph = graph.to_networkx(DEFAULT_REFERENCE_KINDS)
         self.assertEqual(nx_graph.number_of_edges(), 1)
 
         # filter_by_files must not KeyError on stale edge names

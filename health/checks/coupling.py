@@ -98,7 +98,8 @@ def check_fan_in(call_graph: CallGraph, config: HealthCheckConfig) -> StandardCh
     total_checked = 0
     threshold = config.fan_in_max
 
-    nx_graph = call_graph.to_networkx(reference_kinds=())  # call edges only; see collect_coupling_values
+    # Call edges only: a CONTAINS edge would give every method a phantom +1 fan-in from its class.
+    nx_graph = call_graph.to_networkx(reference_kinds=())
     for node_name in nx_graph.nodes:
         node = call_graph.nodes.get(node_name)
         if node and (node.is_class() or node.is_data()):
