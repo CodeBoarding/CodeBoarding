@@ -8,8 +8,9 @@ the cached analysis-dict up to date in memory before saving a new pkl.
 import unittest
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+from static_analyzer import EngineConfig, StaticAnalyzer
 from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, merge_results
 from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
@@ -331,6 +332,74 @@ class TestClusterCachePreservation(unittest.TestCase):
             loaded_partition = loaded.get_clusters(Language.PYTHON).result
             self.assertEqual(loaded_partition.cluster_to_files, {1: {expected_file}})
             self.assertEqual(loaded_partition.file_to_clusters, {expected_file: {1}})
+
+
+class TestUpdateCachedResultsCarriesPartition(unittest.TestCase):
+    """Binds the graft in ``_update_cached_results``; delete that line and these fail.
+
+    The classes above exercise ``ClusterCache.select`` directly, so they stay green
+    whether or not the warm start actually wires it up.
+    """
+
+    def _analyzer(self, project: Path, changed_files: set[Path] | None) -> StaticAnalyzer:
+        analyzer = object.__new__(StaticAnalyzer)
+        adapter = MagicMock()
+        adapter.language = "Python"
+        adapter.language_enum = Language.PYTHON
+        analyzer._engine_clients = [(EngineConfig(adapter=adapter, project_path=project), MagicMock())]
+        analyzer.collected_diagnostics = {}
+        analyzer.ignore_manager = MagicMock()
+        analyzer._loc_for_adapter = MagicMock(return_value=0)
+        analyzer.changed_files = changed_files
+        return analyzer
+
+    def _cached(self) -> StaticAnalysisResults:
+        cg = CallGraph(language="python")
+        cg.add_node(_node("a.foo", "a.py"))
+        cg.add_node(_node("b.qux", "b.py"))
+        cached = StaticAnalysisResults()
+        cached.add_cfg(Language.PYTHON, cg)
+        clusters = ClusterCache()
+        clusters.adopt(ClusterResult(clusters={1: {"a.foo"}, 2: {"b.qux"}}, strategy="leiden"))
+        cached.set_clusters(Language.PYTHON, clusters)
+        return cached
+
+    def _surviving_graph(self) -> CallGraph:
+        """What the re-LSP hands back: a.foo is gone, b.qux survives."""
+        cg = CallGraph(language="python")
+        cg.add_node(_node("b.qux", "b.py"))
+        return cg
+
+    def test_merge_branch_carries_the_partition_pruned_to_survivors(self) -> None:
+        project = Path("/proj").resolve()
+        analyzer = self._analyzer(project, changed_files={project / "a.py"})
+
+        with (
+            patch(
+                "static_analyzer.update_cfg_for_changed_files",
+                return_value={"call_graph": self._surviving_graph()},
+            ),
+            patch.object(analyzer, "_collect_diagnostics_for"),
+            patch("static_analyzer.track_lsp_result"),
+        ):
+            results = analyzer._update_cached_results(self._cached(), cached_sha="deadbeef")
+
+        self.assertEqual(results.get_clusters(Language.PYTHON).result.clusters, {2: {"b.qux"}})
+
+    def test_full_relsp_branch_also_carries_the_partition(self) -> None:
+        """Git detection failing is not a reason to hand the next run an empty baseline."""
+        project = Path("/proj").resolve()
+        analyzer = self._analyzer(project, changed_files=None)
+
+        with (
+            patch("static_analyzer.get_changed_files_since", side_effect=RuntimeError("not a git repo")),
+            patch.object(analyzer, "_run_full_analysis", return_value={"call_graph": self._surviving_graph()}),
+            patch.object(analyzer, "_collect_diagnostics_for"),
+            patch("static_analyzer.track_lsp_result"),
+        ):
+            results = analyzer._update_cached_results(self._cached(), cached_sha="deadbeef")
+
+        self.assertEqual(results.get_clusters(Language.PYTHON).result.clusters, {2: {"b.qux"}})
 
 
 class TestWarmStartDeletion(unittest.TestCase):

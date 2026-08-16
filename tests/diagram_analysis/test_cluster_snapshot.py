@@ -37,7 +37,7 @@ def _build_graph(node_specs: list[tuple[str, str]]) -> CallGraph:
     return graph
 
 
-def _build_static(graphs: dict[str, CallGraph], partitions: dict[str, ClusterResult] = {}) -> StaticAnalysisResults:
+def _build_static(graphs: dict[str, CallGraph], partitions: dict[str, ClusterResult]) -> StaticAnalysisResults:
     results = StaticAnalysisResults()
     for language, graph in graphs.items():
         results.add_cfg(Language(language), graph)
@@ -90,7 +90,7 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
         # snapshot here is the explicit "I have nothing to compare against"
         # signal, not an error.
         graph = _build_graph([("a.foo", "a.py")])  # no partition recorded
-        static = _build_static({"python": graph})
+        static = _build_static({"python": graph}, {})
 
         snap = snapshot_from_static_analysis(static)
 
