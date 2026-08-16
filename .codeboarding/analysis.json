@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-16T16:11:27.470616+00:00",
-    "source_tree_hash": "87ca87d6c140f09cf839abedfcc8caa1e836cad37025e386129c4c4d9b5bc6f7",
+    "generated_at": "2026-08-16T16:31:20.866127+00:00",
+    "source_tree_hash": "beb3926bf7941da69683c66bc8ff13bb025cef64794712c9c2dffb66a8a96f43",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -2022,18 +2022,19 @@
     "static_analyzer/clustering/engine.py": {
       "method_keys": [
         "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine.Level",
+        "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine.Candidate",
+        "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine.Candidate.strategy",
         "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine.cluster_graph",
         "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._abstract_node_name",
-        "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._cluster_with_algorithm",
         "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._score_clustering",
         "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._abstract_at_level",
-        "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._try_all_algorithms",
-        "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._map_candidates_to_original",
+        "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._leiden_candidate",
+        "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._map_candidate_to_original",
         "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._coverage",
         "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._build_result"
       ],
-      "content_hash": "86f479745d38f668",
-      "module_hash": "67ffc9552f72685c"
+      "content_hash": "6649b4b9a7c58687",
+      "module_hash": "0a2cbdfb5cee283b"
     },
     "static_analyzer/constants.py": {
       "method_keys": [
@@ -2660,7 +2661,7 @@
         "static_analyzer/graph.py|static_analyzer.graph.CallGraph._common_dot_prefix",
         "static_analyzer/graph.py|static_analyzer.graph.CallGraph.__str__"
       ],
-      "content_hash": "71d62dff67156d38",
+      "content_hash": "59df9edb4f56a969",
       "module_hash": "e8c261539b7bfacf"
     },
     "static_analyzer/language_results.py": {
@@ -13619,82 +13620,90 @@
     "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine.Level": {
       "file_path": "static_analyzer/clustering/engine.py",
       "qualified_name": "static_analyzer.clustering.engine.Level",
-      "start_line": 21,
-      "end_line": 26,
+      "start_line": 19,
+      "end_line": 24,
       "type": "CLASS",
       "content_hash": "48fde3e727c3c869"
+    },
+    "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine.Candidate": {
+      "file_path": "static_analyzer/clustering/engine.py",
+      "qualified_name": "static_analyzer.clustering.engine.Candidate",
+      "start_line": 27,
+      "end_line": 37,
+      "type": "CLASS",
+      "content_hash": "af4f2e18dd9f2ddf"
+    },
+    "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine.Candidate.strategy": {
+      "file_path": "static_analyzer/clustering/engine.py",
+      "qualified_name": "static_analyzer.clustering.engine.Candidate.strategy",
+      "start_line": 35,
+      "end_line": 37,
+      "type": "METHOD",
+      "content_hash": "9518397e7dc80c1a"
     },
     "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine.cluster_graph": {
       "file_path": "static_analyzer/clustering/engine.py",
       "qualified_name": "static_analyzer.clustering.engine.cluster_graph",
-      "start_line": 29,
-      "end_line": 83,
+      "start_line": 40,
+      "end_line": 89,
       "type": "FUNCTION",
-      "content_hash": "310c2ba10e547947"
+      "content_hash": "0fc1361ea9368468"
     },
     "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._abstract_node_name": {
       "file_path": "static_analyzer/clustering/engine.py",
       "qualified_name": "static_analyzer.clustering.engine._abstract_node_name",
-      "start_line": 86,
-      "end_line": 93,
+      "start_line": 92,
+      "end_line": 99,
       "type": "FUNCTION",
       "content_hash": "3ea641101727b16d"
-    },
-    "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._cluster_with_algorithm": {
-      "file_path": "static_analyzer/clustering/engine.py",
-      "qualified_name": "static_analyzer.clustering.engine._cluster_with_algorithm",
-      "start_line": 96,
-      "end_line": 106,
-      "type": "FUNCTION",
-      "content_hash": "b6f16c1c889d6def"
     },
     "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._score_clustering": {
       "file_path": "static_analyzer/clustering/engine.py",
       "qualified_name": "static_analyzer.clustering.engine._score_clustering",
-      "start_line": 109,
-      "end_line": 135,
+      "start_line": 102,
+      "end_line": 128,
       "type": "FUNCTION",
       "content_hash": "c9aaff90604b1bcf"
     },
     "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._abstract_at_level": {
       "file_path": "static_analyzer/clustering/engine.py",
       "qualified_name": "static_analyzer.clustering.engine._abstract_at_level",
-      "start_line": 138,
-      "end_line": 158,
+      "start_line": 131,
+      "end_line": 154,
       "type": "FUNCTION",
-      "content_hash": "43dda0caff4ea880"
+      "content_hash": "21f26f7fba901b2f"
     },
-    "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._try_all_algorithms": {
+    "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._leiden_candidate": {
       "file_path": "static_analyzer/clustering/engine.py",
-      "qualified_name": "static_analyzer.clustering.engine._try_all_algorithms",
-      "start_line": 161,
-      "end_line": 178,
+      "qualified_name": "static_analyzer.clustering.engine._leiden_candidate",
+      "start_line": 157,
+      "end_line": 172,
       "type": "FUNCTION",
-      "content_hash": "3d1ea14aafef8430"
+      "content_hash": "b15107186dd5d986"
     },
-    "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._map_candidates_to_original": {
+    "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._map_candidate_to_original": {
       "file_path": "static_analyzer/clustering/engine.py",
-      "qualified_name": "static_analyzer.clustering.engine._map_candidates_to_original",
-      "start_line": 181,
-      "end_line": 205,
+      "qualified_name": "static_analyzer.clustering.engine._map_candidate_to_original",
+      "start_line": 175,
+      "end_line": 195,
       "type": "FUNCTION",
-      "content_hash": "53423fff878aeb87"
+      "content_hash": "ee2b5de0683e6b5a"
     },
     "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._coverage": {
       "file_path": "static_analyzer/clustering/engine.py",
       "qualified_name": "static_analyzer.clustering.engine._coverage",
-      "start_line": 208,
-      "end_line": 213,
+      "start_line": 198,
+      "end_line": 203,
       "type": "FUNCTION",
-      "content_hash": "6fe03c0ba0b8d654"
+      "content_hash": "8622a11c3f32e9ba"
     },
     "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._build_result": {
       "file_path": "static_analyzer/clustering/engine.py",
       "qualified_name": "static_analyzer.clustering.engine._build_result",
-      "start_line": 216,
-      "end_line": 246,
+      "start_line": 206,
+      "end_line": 235,
       "type": "FUNCTION",
-      "content_hash": "500731ab9056ce90"
+      "content_hash": "91c1daed65584d63"
     },
     "static_analyzer/constants.py|static_analyzer.constants.Language": {
       "file_path": "static_analyzer/constants.py",
@@ -16148,9 +16157,9 @@
       "file_path": "static_analyzer/graph.py",
       "qualified_name": "static_analyzer.graph.CallGraph",
       "start_line": 93,
-      "end_line": 449,
+      "end_line": 452,
       "type": "CLASS",
-      "content_hash": "0c0989f0ea387835"
+      "content_hash": "cfb3cc447c0474d5"
     },
     "static_analyzer/graph.py|static_analyzer.graph.CallGraph.__init__": {
       "file_path": "static_analyzer/graph.py",
@@ -16284,39 +16293,39 @@
       "file_path": "static_analyzer/graph.py",
       "qualified_name": "static_analyzer.graph.CallGraph.cluster",
       "start_line": 363,
-      "end_line": 374,
+      "end_line": 377,
       "type": "METHOD",
-      "content_hash": "b1ed750e4e4b099d"
+      "content_hash": "ee2c5a26c47ea39d"
     },
     "static_analyzer/graph.py|static_analyzer.graph.CallGraph.filter_by_files": {
       "file_path": "static_analyzer/graph.py",
       "qualified_name": "static_analyzer.graph.CallGraph.filter_by_files",
-      "start_line": 376,
-      "end_line": 403,
+      "start_line": 379,
+      "end_line": 406,
       "type": "METHOD",
       "content_hash": "6c539dab3675f5ae"
     },
     "static_analyzer/graph.py|static_analyzer.graph.CallGraph.filter_by_nodes": {
       "file_path": "static_analyzer/graph.py",
       "qualified_name": "static_analyzer.graph.CallGraph.filter_by_nodes",
-      "start_line": 405,
-      "end_line": 426,
+      "start_line": 408,
+      "end_line": 429,
       "type": "METHOD",
       "content_hash": "af953a42e55cb430"
     },
     "static_analyzer/graph.py|static_analyzer.graph.CallGraph._common_dot_prefix": {
       "file_path": "static_analyzer/graph.py",
       "qualified_name": "static_analyzer.graph.CallGraph._common_dot_prefix",
-      "start_line": 429,
-      "end_line": 442,
+      "start_line": 432,
+      "end_line": 445,
       "type": "METHOD",
       "content_hash": "37515fa7d1eab39c"
     },
     "static_analyzer/graph.py|static_analyzer.graph.CallGraph.__str__": {
       "file_path": "static_analyzer/graph.py",
       "qualified_name": "static_analyzer.graph.CallGraph.__str__",
-      "start_line": 444,
-      "end_line": 449,
+      "start_line": 447,
+      "end_line": 452,
       "type": "METHOD",
       "content_hash": "a47e408b0d5b3608"
     },
@@ -26649,9 +26658,7 @@
         {
           "file_path": "static_analyzer/clustering/engine.py",
           "methods": [
-            "static_analyzer.clustering.engine._cluster_with_algorithm",
-            "static_analyzer.clustering.engine._score_clustering",
-            "static_analyzer.clustering.engine._try_all_algorithms"
+            "static_analyzer.clustering.engine._score_clustering"
           ]
         },
         {
@@ -26960,9 +26967,7 @@
             {
               "file_path": "static_analyzer/clustering/engine.py",
               "methods": [
-                "static_analyzer.clustering.engine._cluster_with_algorithm",
-                "static_analyzer.clustering.engine._score_clustering",
-                "static_analyzer.clustering.engine._try_all_algorithms"
+                "static_analyzer.clustering.engine._score_clustering"
               ]
             },
             {
@@ -27113,9 +27118,7 @@
                 {
                   "file_path": "static_analyzer/clustering/engine.py",
                   "methods": [
-                    "static_analyzer.clustering.engine._cluster_with_algorithm",
-                    "static_analyzer.clustering.engine._score_clustering",
-                    "static_analyzer.clustering.engine._try_all_algorithms"
+                    "static_analyzer.clustering.engine._score_clustering"
                   ]
                 },
                 {
@@ -27230,9 +27233,7 @@
                     {
                       "file_path": "static_analyzer/clustering/engine.py",
                       "methods": [
-                        "static_analyzer.clustering.engine._cluster_with_algorithm",
-                        "static_analyzer.clustering.engine._score_clustering",
-                        "static_analyzer.clustering.engine._try_all_algorithms"
+                        "static_analyzer.clustering.engine._score_clustering"
                       ]
                     },
                     {
@@ -34204,10 +34205,13 @@
           "file_path": "static_analyzer/clustering/engine.py",
           "methods": [
             "static_analyzer.clustering.engine.Level",
+            "static_analyzer.clustering.engine.Candidate",
+            "static_analyzer.clustering.engine.Candidate.strategy",
             "static_analyzer.clustering.engine.cluster_graph",
             "static_analyzer.clustering.engine._abstract_node_name",
             "static_analyzer.clustering.engine._abstract_at_level",
-            "static_analyzer.clustering.engine._map_candidates_to_original",
+            "static_analyzer.clustering.engine._leiden_candidate",
+            "static_analyzer.clustering.engine._map_candidate_to_original",
             "static_analyzer.clustering.engine._coverage",
             "static_analyzer.clustering.engine._build_result"
           ]
@@ -34281,7 +34285,6 @@
           "methods": [
             "static_analyzer.graph.EdgeKind",
             "static_analyzer.graph.LocationKey",
-            "static_analyzer.graph.CallGraph",
             "static_analyzer.graph.Edge",
             "static_analyzer.graph.Edge.__init__",
             "static_analyzer.graph.Edge.call_sites",
@@ -34291,6 +34294,7 @@
             "static_analyzer.graph.Edge.add_call_site",
             "static_analyzer.graph.Edge._normalize_call_site",
             "static_analyzer.graph.Edge.visit_paths",
+            "static_analyzer.graph.CallGraph",
             "static_analyzer.graph.CallGraph.__init__",
             "static_analyzer.graph.CallGraph.add_node",
             "static_analyzer.graph.CallGraph.has_node",
@@ -34302,12 +34306,12 @@
             "static_analyzer.graph.CallGraph.union",
             "static_analyzer.graph.CallGraph._prune_cluster_cache",
             "static_analyzer.graph.CallGraph._prune_method_cluster_paths",
-            "static_analyzer.graph.CallGraph.cluster",
             "static_analyzer.graph.CallGraph.visit_paths",
             "static_analyzer.graph.CallGraph.record_cluster_paths",
             "static_analyzer.graph.CallGraph.method_cluster_paths_snapshot",
             "static_analyzer.graph.CallGraph.to_networkx",
             "static_analyzer.graph.CallGraph.clustering_networkx",
+            "static_analyzer.graph.CallGraph.cluster",
             "static_analyzer.graph.CallGraph.filter_by_files",
             "static_analyzer.graph.CallGraph.filter_by_nodes",
             "static_analyzer.graph.CallGraph._common_dot_prefix",
@@ -34627,10 +34631,13 @@
               "file_path": "static_analyzer/clustering/engine.py",
               "methods": [
                 "static_analyzer.clustering.engine.Level",
+                "static_analyzer.clustering.engine.Candidate",
+                "static_analyzer.clustering.engine.Candidate.strategy",
                 "static_analyzer.clustering.engine.cluster_graph",
                 "static_analyzer.clustering.engine._abstract_node_name",
                 "static_analyzer.clustering.engine._abstract_at_level",
-                "static_analyzer.clustering.engine._map_candidates_to_original",
+                "static_analyzer.clustering.engine._leiden_candidate",
+                "static_analyzer.clustering.engine._map_candidate_to_original",
                 "static_analyzer.clustering.engine._coverage",
                 "static_analyzer.clustering.engine._build_result"
               ]
@@ -34682,7 +34689,6 @@
               "methods": [
                 "static_analyzer.graph.EdgeKind",
                 "static_analyzer.graph.LocationKey",
-                "static_analyzer.graph.CallGraph",
                 "static_analyzer.graph.Edge",
                 "static_analyzer.graph.Edge.__init__",
                 "static_analyzer.graph.Edge.call_sites",
@@ -34692,6 +34698,7 @@
                 "static_analyzer.graph.Edge.add_call_site",
                 "static_analyzer.graph.Edge._normalize_call_site",
                 "static_analyzer.graph.Edge.visit_paths",
+                "static_analyzer.graph.CallGraph",
                 "static_analyzer.graph.CallGraph.__init__",
                 "static_analyzer.graph.CallGraph.add_node",
                 "static_analyzer.graph.CallGraph.has_node",
@@ -34703,12 +34710,12 @@
                 "static_analyzer.graph.CallGraph.union",
                 "static_analyzer.graph.CallGraph._prune_cluster_cache",
                 "static_analyzer.graph.CallGraph._prune_method_cluster_paths",
-                "static_analyzer.graph.CallGraph.cluster",
                 "static_analyzer.graph.CallGraph.visit_paths",
                 "static_analyzer.graph.CallGraph.record_cluster_paths",
                 "static_analyzer.graph.CallGraph.method_cluster_paths_snapshot",
                 "static_analyzer.graph.CallGraph.to_networkx",
                 "static_analyzer.graph.CallGraph.clustering_networkx",
+                "static_analyzer.graph.CallGraph.cluster",
                 "static_analyzer.graph.CallGraph.filter_by_files",
                 "static_analyzer.graph.CallGraph.filter_by_nodes",
                 "static_analyzer.graph.CallGraph._common_dot_prefix",
@@ -34755,7 +34762,7 @@
                   "qualified_name": "static_analyzer.graph.CallGraph",
                   "reference_file": "static_analyzer/graph.py",
                   "reference_start_line": 93,
-                  "reference_end_line": 449
+                  "reference_end_line": 452
                 },
                 {
                   "qualified_name": "static_analyzer.analysis_cache._collect_invalidated_edge",
@@ -34827,7 +34834,6 @@
                   "methods": [
                     "static_analyzer.graph.EdgeKind",
                     "static_analyzer.graph.LocationKey",
-                    "static_analyzer.graph.CallGraph",
                     "static_analyzer.graph.Edge",
                     "static_analyzer.graph.Edge.__init__",
                     "static_analyzer.graph.Edge.call_sites",
@@ -34836,6 +34842,7 @@
                     "static_analyzer.graph.Edge.__repr__",
                     "static_analyzer.graph.Edge.add_call_site",
                     "static_analyzer.graph.Edge._normalize_call_site",
+                    "static_analyzer.graph.CallGraph",
                     "static_analyzer.graph.CallGraph.__init__",
                     "static_analyzer.graph.CallGraph.add_node",
                     "static_analyzer.graph.CallGraph.has_node",
@@ -34985,10 +34992,13 @@
                   "file_path": "static_analyzer/clustering/engine.py",
                   "methods": [
                     "static_analyzer.clustering.engine.Level",
+                    "static_analyzer.clustering.engine.Candidate",
+                    "static_analyzer.clustering.engine.Candidate.strategy",
                     "static_analyzer.clustering.engine.cluster_graph",
                     "static_analyzer.clustering.engine._abstract_node_name",
                     "static_analyzer.clustering.engine._abstract_at_level",
-                    "static_analyzer.clustering.engine._map_candidates_to_original",
+                    "static_analyzer.clustering.engine._leiden_candidate",
+                    "static_analyzer.clustering.engine._map_candidate_to_original",
                     "static_analyzer.clustering.engine._coverage",
                     "static_analyzer.clustering.engine._build_result"
                   ]
@@ -35014,11 +35024,11 @@
                   "file_path": "static_analyzer/graph.py",
                   "methods": [
                     "static_analyzer.graph.Edge.visit_paths",
-                    "static_analyzer.graph.CallGraph.cluster",
                     "static_analyzer.graph.CallGraph.visit_paths",
                     "static_analyzer.graph.CallGraph.record_cluster_paths",
                     "static_analyzer.graph.CallGraph.to_networkx",
-                    "static_analyzer.graph.CallGraph.clustering_networkx"
+                    "static_analyzer.graph.CallGraph.clustering_networkx",
+                    "static_analyzer.graph.CallGraph.cluster"
                   ]
                 },
                 {
@@ -35144,10 +35154,13 @@
                     {
                       "file_path": "static_analyzer/clustering/engine.py",
                       "methods": [
+                        "static_analyzer.clustering.engine.Candidate",
+                        "static_analyzer.clustering.engine.Candidate.strategy",
                         "static_analyzer.clustering.engine.cluster_graph",
                         "static_analyzer.clustering.engine._abstract_node_name",
                         "static_analyzer.clustering.engine._abstract_at_level",
-                        "static_analyzer.clustering.engine._map_candidates_to_original",
+                        "static_analyzer.clustering.engine._leiden_candidate",
+                        "static_analyzer.clustering.engine._map_candidate_to_original",
                         "static_analyzer.clustering.engine._coverage",
                         "static_analyzer.clustering.engine._build_result"
                       ]
@@ -35171,10 +35184,10 @@
                     {
                       "file_path": "static_analyzer/graph.py",
                       "methods": [
-                        "static_analyzer.graph.CallGraph.cluster",
                         "static_analyzer.graph.CallGraph.record_cluster_paths",
                         "static_analyzer.graph.CallGraph.to_networkx",
-                        "static_analyzer.graph.CallGraph.clustering_networkx"
+                        "static_analyzer.graph.CallGraph.clustering_networkx",
+                        "static_analyzer.graph.CallGraph.cluster"
                       ]
                     }
                   ],
@@ -35352,10 +35365,10 @@
                   ]
                 },
                 {
-                  "relation": "returns materialized cluster results and structural updates",
+                  "relation": "returns materialized structural updates",
                   "src_name": "Structural Reconciliation & Frontier Analyzer",
                   "dst_name": "Snapshot Manager & Delta Orchestrator",
-                  "evidence": "The Analyzer performs the low-level graph partitioning (seeded clustering) and returns 'ClusterResult' objects. These results are used by the Orchestrator to update the global architectural snapshot and finalize the 'ClusterDelta'.",
+                  "evidence": "The Analyzer performs low-level graph partitioning (Seeded Leiden) and returns ClusterResult and LanguageDelta objects, which the Orchestrator then aggregates into the final architectural delta.",
                   "key_edges": [],
                   "src_id": "5.1.2.2",
                   "dst_id": "5.1.2.1",
@@ -35892,10 +35905,10 @@
           ],
           "components_relations": [
             {
-              "relation": "Provides Pruned Snapshots for Delta Analysis",
+              "relation": "Invalidates cached cluster results",
               "src_name": "Structural Graph & Edge Validator",
               "dst_name": "Cluster Evolution & Delta Processor",
-              "evidence": "The CallGraph manages a _cluster_cache (ClusterResult) which is pruned during graph operations (filter/union). This pruned state is the primary input for incremental delta calculations.",
+              "evidence": "When the underlying graph structure changes (e.g., during incremental analysis), the validator triggers pruning of the cluster cache to ensure the evolution engine works with fresh data.",
               "key_edges": [],
               "src_id": "5.1.1",
               "dst_id": "5.1.2",
@@ -42368,10 +42381,10 @@
       ]
     },
     {
-      "relation": "Verifies LLM-proposed architectures against static CFG",
+      "relation": "Validates models against CFG",
       "src_name": "Cluster Synthesis & Summarization Engine",
       "dst_name": "Snapshot Manager & Delta Orchestrator",
-      "evidence": "The abstraction layer validates its proposed component boundaries and relationships by querying the static call graph to ensure architectural integrity.",
+      "evidence": "The modeling layer queries the static analysis engine to verify that LLM-proposed component boundaries and edges exist in the actual code.",
       "key_edges": [],
       "src_id": "3.1.1.1",
       "dst_id": "5.1.2.1",
@@ -47473,10 +47486,10 @@
       ]
     },
     {
-      "relation": "Provides Pruned Snapshots for Delta Analysis",
+      "relation": "Invalidates cached cluster results",
       "src_name": "Structural Graph & Edge Validator",
       "dst_name": "Snapshot Manager & Delta Orchestrator",
-      "evidence": "The CallGraph manages a _cluster_cache (ClusterResult) which is pruned during graph operations (filter/union). This pruned state is the primary input for incremental delta calculations.",
+      "evidence": "When the underlying graph structure changes (e.g., during incremental analysis), the validator triggers pruning of the cluster cache to ensure the evolution engine works with fresh data.",
       "key_edges": [],
       "src_id": "5.1.1",
       "dst_id": "5.1.2.1",
@@ -47544,23 +47557,34 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._map_candidates_to_original",
+          "source": "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._leiden_candidate",
           "target": "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._score_clustering",
           "call_sites": [
             {
-              "line": 203,
-              "column": 21
+              "line": 170,
+              "column": 13
             }
           ],
           "description": ""
         },
         {
-          "source": "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine.cluster_graph",
-          "target": "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._try_all_algorithms",
+          "source": "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._map_candidate_to_original",
+          "target": "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._score_clustering",
           "call_sites": [
             {
-              "line": 55,
-              "column": 22
+              "line": 194,
+              "column": 13
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/engine.py|static_analyzer.clustering.engine._leiden_candidate",
+          "target": "static_analyzer/leiden_utils.py|static_analyzer.leiden_utils.find_partition",
+          "call_sites": [
+            {
+              "line": 165,
+              "column": 23
             }
           ],
           "description": ""
@@ -47910,10 +47934,10 @@
       ]
     },
     {
-      "relation": "returns materialized cluster results and structural updates",
+      "relation": "returns materialized structural updates",
       "src_name": "Structural Reconciliation & Frontier Analyzer",
       "dst_name": "Snapshot Manager & Delta Orchestrator",
-      "evidence": "The Analyzer performs the low-level graph partitioning (seeded clustering) and returns 'ClusterResult' objects. These results are used by the Orchestrator to update the global architectural snapshot and finalize the 'ClusterDelta'.",
+      "evidence": "The Analyzer performs low-level graph partitioning (Seeded Leiden) and returns ClusterResult and LanguageDelta objects, which the Orchestrator then aggregates into the final architectural delta.",
       "key_edges": [],
       "src_id": "5.1.2.2",
       "dst_id": "5.1.2.1",
