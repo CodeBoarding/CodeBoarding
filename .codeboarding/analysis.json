@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-16T17:53:42.558217+00:00",
-    "source_tree_hash": "1cfb94748bba2b2c0ebacb6ea437b73ac1cb2c5edcc59efbbcf521c6bc9f2f76",
+    "generated_at": "2026-08-16T18:15:29.122524+00:00",
+    "source_tree_hash": "8ab01455194b1ee033c8980cb8cc8e9c1800e5e8ba38714ee7b8226a66c0de12",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -822,8 +822,8 @@
         "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_relation_analysis",
         "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.run"
       ],
-      "content_hash": "8fe80ccf713a0102",
-      "module_hash": "95a7d06ae80a31b9"
+      "content_hash": "34ee014c4931d77a",
+      "module_hash": "1e802b4e369872b7"
     },
     "agents/agent.py": {
       "method_keys": [
@@ -955,8 +955,8 @@
         "agents/details_agent.py|agents.details_agent.DetailsAgent.step_relation_analysis",
         "agents/details_agent.py|agents.details_agent.DetailsAgent.run"
       ],
-      "content_hash": "98e003dd69851389",
-      "module_hash": "3bbf518498d9e260"
+      "content_hash": "288b7c7c1cc476e5",
+      "module_hash": "30ba7bea348c7742"
     },
     "agents/incremental_agent.py": {
       "method_keys": [
@@ -1607,8 +1607,8 @@
         "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._prefix_local_cluster_ids",
         "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.build_scope_cfg_string"
       ],
-      "content_hash": "388636d78fb54c67",
-      "module_hash": "4f6acaa804e97a02"
+      "content_hash": "4482fbd7360fcaf2",
+      "module_hash": "b73f720017fc7a68"
     },
     "agents/content_hash.py": {
       "method_keys": [
@@ -1757,8 +1757,8 @@
         "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._files_for_members",
         "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._materialize_cluster_result"
       ],
-      "content_hash": "65d9216fbb110fc7",
-      "module_hash": "7bdc945da7cd72f1"
+      "content_hash": "88e1fc93d36133bf",
+      "module_hash": "4e31be0faaf9cbb2"
     },
     "diagram_analysis/diagram_generator.py": {
       "method_keys": [
@@ -1820,8 +1820,8 @@
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.scoped_snapshot_for_component",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses"
       ],
-      "content_hash": "b2aeedde178caec5",
-      "module_hash": "4787da2ec3e0aee0"
+      "content_hash": "16604e4beb174b58",
+      "module_hash": "63ff130f38e406e3"
     },
     "diagram_analysis/exceptions.py": {
       "method_keys": [
@@ -2046,7 +2046,7 @@
         "static_analyzer/constants.py|static_analyzer.constants.NodeType.label",
         "static_analyzer/constants.py|static_analyzer.constants.NodeType.from_name"
       ],
-      "content_hash": "f7520e7ca7052cdb",
+      "content_hash": "8c098a4c7ecc3847",
       "module_hash": "66ce2fbc10f67d27"
     },
     "static_analyzer/engine/result_converter.py": {
@@ -2490,7 +2490,7 @@
         "diagram_analysis/cluster_snapshot.py|diagram_analysis.cluster_snapshot._entries_from_partition",
         "diagram_analysis/cluster_snapshot.py|diagram_analysis.cluster_snapshot.snapshot_from_cluster_results"
       ],
-      "content_hash": "204ffab1ba045a3a",
+      "content_hash": "8862432a6808cb15",
       "module_hash": "e3b4fece349a3b47"
     },
     "health/checks/circular_deps.py": {
@@ -2513,7 +2513,7 @@
         "health/checks/coupling.py|health.checks.coupling.check_fan_out",
         "health/checks/coupling.py|health.checks.coupling.check_fan_in"
       ],
-      "content_hash": "40b576c6bc153de0",
+      "content_hash": "72cdae7f34b50f5e",
       "module_hash": "a0f8f58a299dcaa3"
     },
     "health/checks/function_size.py": {
@@ -2611,14 +2611,13 @@
         "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.union",
         "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.visit_paths",
         "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
-        "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.clustering_networkx",
         "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter_by_files",
         "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
         "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph._common_dot_prefix",
         "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.__str__"
       ],
-      "content_hash": "a7c1e6931966d6f7",
-      "module_hash": "b1cf740fad63619d"
+      "content_hash": "5b117b90f58df451",
+      "module_hash": "a8dcc7f4569a20e0"
     },
     "static_analyzer/cfg/edge.py": {
       "method_keys": [
@@ -2633,8 +2632,8 @@
         "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge._normalize_call_site",
         "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.visit_paths"
       ],
-      "content_hash": "b1b28edd07c4f391",
-      "module_hash": "bb76b2df4878086c"
+      "content_hash": "c325ca9dc41513cb",
+      "module_hash": "73341438fd0051f4"
     },
     "static_analyzer/cfg/location_key.py": {
       "method_keys": [
@@ -2691,8 +2690,8 @@
         "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.__init__",
         "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.cluster"
       ],
-      "content_hash": "8ff3c739d97f970b",
-      "module_hash": "bc0c18d9b668bf8a"
+      "content_hash": "4789edc1159aa9a4",
+      "module_hash": "34fa5290d79ee545"
     },
     "static_analyzer/language_results.py": {
       "method_keys": [
@@ -7210,56 +7209,56 @@
     "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent": {
       "file_path": "agents/abstraction_agent.py",
       "qualified_name": "agents.abstraction_agent.AbstractionAgent",
-      "start_line": 44,
-      "end_line": 230,
+      "start_line": 45,
+      "end_line": 232,
       "type": "CLASS",
-      "content_hash": "8647bc7850dfba2c"
+      "content_hash": "9bda7ed3942199c0"
     },
     "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.__init__": {
       "file_path": "agents/abstraction_agent.py",
       "qualified_name": "agents.abstraction_agent.AbstractionAgent.__init__",
-      "start_line": 45,
-      "end_line": 80,
+      "start_line": 46,
+      "end_line": 81,
       "type": "METHOD",
       "content_hash": "16691dc1112a79d4"
     },
     "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_clusters_grouping": {
       "file_path": "agents/abstraction_agent.py",
       "qualified_name": "agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
-      "start_line": 83,
-      "end_line": 95,
+      "start_line": 84,
+      "end_line": 97,
       "type": "METHOD",
-      "content_hash": "94f699665c069f43"
+      "content_hash": "591aa60a481c072b"
     },
     "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_final_analysis": {
       "file_path": "agents/abstraction_agent.py",
       "qualified_name": "agents.abstraction_agent.AbstractionAgent.step_final_analysis",
-      "start_line": 98,
-      "end_line": 144,
+      "start_line": 100,
+      "end_line": 146,
       "type": "METHOD",
       "content_hash": "e5b8740b0d64f9d9"
     },
     "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_api_surfaces": {
       "file_path": "agents/abstraction_agent.py",
       "qualified_name": "agents.abstraction_agent.AbstractionAgent.step_api_surfaces",
-      "start_line": 147,
-      "end_line": 154,
+      "start_line": 149,
+      "end_line": 156,
       "type": "METHOD",
       "content_hash": "2ca3d4f4a890eae0"
     },
     "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_relation_analysis": {
       "file_path": "agents/abstraction_agent.py",
       "qualified_name": "agents.abstraction_agent.AbstractionAgent.step_relation_analysis",
-      "start_line": 157,
-      "end_line": 191,
+      "start_line": 159,
+      "end_line": 193,
       "type": "METHOD",
       "content_hash": "aa1eabd1d655f748"
     },
     "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.run": {
       "file_path": "agents/abstraction_agent.py",
       "qualified_name": "agents.abstraction_agent.AbstractionAgent.run",
-      "start_line": 193,
-      "end_line": 230,
+      "start_line": 195,
+      "end_line": 232,
       "type": "METHOD",
       "content_hash": "6ff6df71596762ec"
     },
@@ -8085,7 +8084,7 @@
       "start_line": 46,
       "end_line": 301,
       "type": "CLASS",
-      "content_hash": "1e19e6fe77f8b203"
+      "content_hash": "ebd3c522d0af4ecc"
     },
     "agents/details_agent.py|agents.details_agent.DetailsAgent.__init__": {
       "file_path": "agents/details_agent.py",
@@ -8101,7 +8100,7 @@
       "start_line": 88,
       "end_line": 106,
       "type": "METHOD",
-      "content_hash": "409deadfab175ef2"
+      "content_hash": "972d162eb6a5e13f"
     },
     "agents/details_agent.py|agents.details_agent.DetailsAgent.step_final_analysis": {
       "file_path": "agents/details_agent.py",
@@ -11213,7 +11212,7 @@
       "start_line": 108,
       "end_line": 760,
       "type": "CLASS",
-      "content_hash": "50f7af84826c1481"
+      "content_hash": "9f9b6dbe1b99d573"
     },
     "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.deterministic_cluster_grouping": {
       "file_path": "agents/cluster_methods_mixin.py",
@@ -11261,7 +11260,7 @@
       "start_line": 317,
       "end_line": 365,
       "type": "METHOD",
-      "content_hash": "019ac8530aac9d4a"
+      "content_hash": "bcab78e0359385b5"
     },
     "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._collect_all_cfg_nodes": {
       "file_path": "agents/cluster_methods_mixin.py",
@@ -11277,7 +11276,7 @@
       "start_line": 388,
       "end_line": 408,
       "type": "METHOD",
-      "content_hash": "fe99a10acccfe0e2"
+      "content_hash": "20dd5aa7e2e7b946"
     },
     "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._find_nearest_cluster": {
       "file_path": "agents/cluster_methods_mixin.py",
@@ -11978,728 +11977,728 @@
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageDelta": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.LanguageDelta",
-      "start_line": 42,
-      "end_line": 51,
+      "start_line": 43,
+      "end_line": 52,
       "type": "CLASS",
       "content_hash": "3c775a69ac703c8f"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageDelta.affected_cluster_ids": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.LanguageDelta.affected_cluster_ids",
-      "start_line": 50,
-      "end_line": 51,
+      "start_line": 51,
+      "end_line": 52,
       "type": "METHOD",
       "content_hash": "6aff8a9ccd3d62ae"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.ClusterDelta": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.ClusterDelta",
-      "start_line": 55,
-      "end_line": 63,
+      "start_line": 56,
+      "end_line": 64,
       "type": "CLASS",
       "content_hash": "4cb14e29a6e15b84"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.ClusterDelta.has_changes": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.ClusterDelta.has_changes",
-      "start_line": 59,
-      "end_line": 60,
+      "start_line": 60,
+      "end_line": 61,
       "type": "METHOD",
       "content_hash": "b72a3d2f62e6c96f"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.ClusterDelta.cluster_results": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.ClusterDelta.cluster_results",
-      "start_line": 62,
-      "end_line": 63,
+      "start_line": 63,
+      "end_line": 64,
       "type": "METHOD",
       "content_hash": "e45d75a38d94277a"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.ClusterRef": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.ClusterRef",
-      "start_line": 67,
-      "end_line": 70,
+      "start_line": 68,
+      "end_line": 71,
       "type": "CLASS",
       "content_hash": "b3de30eda1fa437d"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.ClusterMemberDelta": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.ClusterMemberDelta",
-      "start_line": 74,
-      "end_line": 85,
+      "start_line": 75,
+      "end_line": 86,
       "type": "CLASS",
       "content_hash": "33929a84ecb0ac0f"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.ClusterReshape": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.ClusterReshape",
-      "start_line": 89,
-      "end_line": 94,
+      "start_line": 90,
+      "end_line": 95,
       "type": "CLASS",
       "content_hash": "47708e936c0b60e2"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageStructuralDiff": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.LanguageStructuralDiff",
-      "start_line": 98,
-      "end_line": 109,
+      "start_line": 99,
+      "end_line": 110,
       "type": "CLASS",
       "content_hash": "7b98f8080cdaeb62"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageStructuralDiff.has_changes": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.LanguageStructuralDiff.has_changes",
-      "start_line": 108,
-      "end_line": 109,
+      "start_line": 109,
+      "end_line": 110,
       "type": "METHOD",
       "content_hash": "e1c2b0732ded82ca"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.StructuralClusterDiff": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.StructuralClusterDiff",
-      "start_line": 113,
-      "end_line": 118,
+      "start_line": 114,
+      "end_line": 119,
       "type": "CLASS",
       "content_hash": "0c30f4331645c473"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.StructuralClusterDiff.has_changes": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.StructuralClusterDiff.has_changes",
-      "start_line": 117,
-      "end_line": 118,
+      "start_line": 118,
+      "end_line": 119,
       "type": "METHOD",
       "content_hash": "b1481efda48acb47"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.ChangedMembers": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.ChangedMembers",
-      "start_line": 122,
-      "end_line": 139,
+      "start_line": 123,
+      "end_line": 140,
       "type": "CLASS",
       "content_hash": "247842344993f6ac"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_changed_members": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.compute_changed_members",
-      "start_line": 142,
-      "end_line": 219,
+      "start_line": 143,
+      "end_line": 220,
       "type": "FUNCTION",
       "content_hash": "cd804dfe5eb690a9"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._live_member_hashes": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._live_member_hashes",
-      "start_line": 222,
-      "end_line": 252,
+      "start_line": 223,
+      "end_line": 253,
       "type": "FUNCTION",
       "content_hash": "11427795c1b54318"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.compute_cluster_delta",
-      "start_line": 255,
-      "end_line": 296,
+      "start_line": 256,
+      "end_line": 297,
       "type": "FUNCTION",
-      "content_hash": "966988c0df7e7580"
+      "content_hash": "3a4cac6f0ce1fa93"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.structural_diff_from_delta": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta.structural_diff_from_delta",
-      "start_line": 299,
-      "end_line": 332,
+      "start_line": 300,
+      "end_line": 333,
       "type": "FUNCTION",
       "content_hash": "ec8f59a1f131f9a2"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._changeset_to_path_set": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._changeset_to_path_set",
-      "start_line": 335,
-      "end_line": 342,
+      "start_line": 336,
+      "end_line": 343,
       "type": "FUNCTION",
       "content_hash": "5c48e971439ae5b6"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._structural_diff_for_language": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._structural_diff_for_language",
-      "start_line": 345,
-      "end_line": 454,
+      "start_line": 346,
+      "end_line": 455,
       "type": "FUNCTION",
       "content_hash": "d94bc79a59d85c1f"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._member_delta_has_change": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._member_delta_has_change",
-      "start_line": 457,
-      "end_line": 461,
+      "start_line": 458,
+      "end_line": 462,
       "type": "FUNCTION",
       "content_hash": "bd626e214c8f7d33"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._dirty_signal": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._dirty_signal",
-      "start_line": 464,
-      "end_line": 480,
+      "start_line": 465,
+      "end_line": 481,
       "type": "FUNCTION",
       "content_hash": "240846b65fd08afe"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._normalize_files": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._normalize_files",
-      "start_line": 483,
-      "end_line": 484,
+      "start_line": 484,
+      "end_line": 485,
       "type": "FUNCTION",
       "content_hash": "2b9a5555cd0d2e75"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._build_new_cluster_delta": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._build_new_cluster_delta",
-      "start_line": 487,
-      "end_line": 505,
+      "start_line": 488,
+      "end_line": 506,
       "type": "FUNCTION",
       "content_hash": "850cfa3bd0cec4b9"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._build_member_delta": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._build_member_delta",
-      "start_line": 508,
-      "end_line": 536,
+      "start_line": 509,
+      "end_line": 537,
       "type": "FUNCTION",
       "content_hash": "a0a6880f1d969ebe"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._build_reshape": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._build_reshape",
-      "start_line": 539,
-      "end_line": 578,
+      "start_line": 540,
+      "end_line": 579,
       "type": "FUNCTION",
       "content_hash": "05ff0342c57f67ba"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._delta_for_language",
-      "start_line": 581,
-      "end_line": 665,
+      "start_line": 582,
+      "end_line": 666,
       "type": "FUNCTION",
       "content_hash": "a147a70912876416"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language._fresh_file": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._delta_for_language._fresh_file",
-      "start_line": 605,
-      "end_line": 610,
+      "start_line": 606,
+      "end_line": 611,
       "type": "FUNCTION",
       "content_hash": "372fc016f897fdc4"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language._old_file": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._delta_for_language._old_file",
-      "start_line": 612,
-      "end_line": 617,
+      "start_line": 613,
+      "end_line": 618,
       "type": "FUNCTION",
       "content_hash": "b4cf2425f6822378"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._flavor_b_seeded": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._flavor_b_seeded",
-      "start_line": 671,
-      "end_line": 779,
+      "start_line": 672,
+      "end_line": 780,
       "type": "FUNCTION",
       "content_hash": "fbf818c8532aa90a"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._affected_frontier": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._affected_frontier",
-      "start_line": 782,
-      "end_line": 820,
+      "start_line": 783,
+      "end_line": 821,
       "type": "FUNCTION",
       "content_hash": "c620fc57f022a792"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._reconcile_seeded_partition": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._reconcile_seeded_partition",
-      "start_line": 823,
-      "end_line": 868,
+      "start_line": 824,
+      "end_line": 869,
       "type": "FUNCTION",
       "content_hash": "dbcf26091cfd88e6"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._absorb_new_file_overlap_clusters": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._absorb_new_file_overlap_clusters",
-      "start_line": 871,
-      "end_line": 902,
+      "start_line": 872,
+      "end_line": 903,
       "type": "FUNCTION",
       "content_hash": "25fdc4334ce30912"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._files_for_members": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._files_for_members",
-      "start_line": 905,
-      "end_line": 912,
+      "start_line": 906,
+      "end_line": 913,
       "type": "FUNCTION",
       "content_hash": "a2e44f7e43150faf"
     },
     "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._materialize_cluster_result": {
       "file_path": "diagram_analysis/cluster_delta.py",
       "qualified_name": "diagram_analysis.cluster_delta._materialize_cluster_result",
-      "start_line": 915,
-      "end_line": 940,
+      "start_line": 916,
+      "end_line": 941,
       "type": "FUNCTION",
       "content_hash": "499845e116e982ff"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._component_depth",
-      "start_line": 93,
-      "end_line": 97,
+      "start_line": 94,
+      "end_line": 98,
       "type": "FUNCTION",
       "content_hash": "0ea9d71686c23da1"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_expansion_seeds": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._component_expansion_seeds",
-      "start_line": 100,
-      "end_line": 106,
+      "start_line": 101,
+      "end_line": 107,
       "type": "FUNCTION",
       "content_hash": "0a5528dfa0af24e7"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._member_keys",
-      "start_line": 109,
-      "end_line": 113,
+      "start_line": 110,
+      "end_line": 114,
       "type": "FUNCTION",
       "content_hash": "d4fdba5da7f5a3d7"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._owned_method_keys": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._owned_method_keys",
-      "start_line": 116,
-      "end_line": 118,
+      "start_line": 117,
+      "end_line": 119,
       "type": "FUNCTION",
       "content_hash": "2adf4b2943e61f25"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._key_entity_is_owned": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._key_entity_is_owned",
-      "start_line": 121,
-      "end_line": 131,
+      "start_line": 122,
+      "end_line": 132,
       "type": "FUNCTION",
       "content_hash": "cefd816878df9699"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._reconcile_child_scope": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._reconcile_child_scope",
-      "start_line": 134,
-      "end_line": 188,
+      "start_line": 135,
+      "end_line": 189,
       "type": "FUNCTION",
       "content_hash": "5049182be6aa645c"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._graft_entered_methods": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._graft_entered_methods",
-      "start_line": 191,
-      "end_line": 212,
+      "start_line": 192,
+      "end_line": 213,
       "type": "FUNCTION",
       "content_hash": "289554826024fab3"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._append_method": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._append_method",
-      "start_line": 215,
-      "end_line": 221,
+      "start_line": 216,
+      "end_line": 222,
       "type": "FUNCTION",
       "content_hash": "79df3c2ea1739b83"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._ComponentBaseline": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._ComponentBaseline",
-      "start_line": 225,
-      "end_line": 234,
+      "start_line": 226,
+      "end_line": 235,
       "type": "CLASS",
       "content_hash": "659c3c590a4b5f6e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._MembershipBaseline": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._MembershipBaseline",
-      "start_line": 238,
-      "end_line": 249,
+      "start_line": 239,
+      "end_line": 250,
       "type": "CLASS",
       "content_hash": "65c1cfc81a46005d"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._iter_incremental_scopes": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._iter_incremental_scopes",
-      "start_line": 252,
-      "end_line": 259,
+      "start_line": 253,
+      "end_line": 260,
       "type": "FUNCTION",
       "content_hash": "0481810ea7bef063"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._capture_baseline_member_keys": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._capture_baseline_member_keys",
-      "start_line": 262,
-      "end_line": 279,
+      "start_line": 263,
+      "end_line": 280,
       "type": "FUNCTION",
       "content_hash": "a3c1ba9d830f7147"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._capture_membership_baseline": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._capture_membership_baseline",
-      "start_line": 282,
-      "end_line": 319,
+      "start_line": 283,
+      "end_line": 320,
       "type": "FUNCTION",
       "content_hash": "05882acafa415362"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_membership": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._restore_unchanged_membership",
-      "start_line": 322,
-      "end_line": 362,
+      "start_line": 323,
+      "end_line": 363,
       "type": "FUNCTION",
       "content_hash": "32b993264912b2db"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_metadata": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._restore_unchanged_metadata",
-      "start_line": 365,
-      "end_line": 417,
+      "start_line": 366,
+      "end_line": 418,
       "type": "FUNCTION",
       "content_hash": "93e3f7ec1c0c8b15"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._fully_unchanged_component_ids": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
-      "start_line": 420,
-      "end_line": 451,
+      "start_line": 421,
+      "end_line": 452,
       "type": "FUNCTION",
       "content_hash": "2679d66c8e4bf765"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_subtrees": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
-      "start_line": 454,
-      "end_line": 490,
+      "start_line": 455,
+      "end_line": 491,
       "type": "FUNCTION",
       "content_hash": "8d8ffec473b0cbf5"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._incremental_changed_component_ids": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-      "start_line": 493,
-      "end_line": 548,
+      "start_line": 494,
+      "end_line": 549,
       "type": "FUNCTION",
       "content_hash": "5d140468d6757065"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
-      "start_line": 551,
-      "end_line": 1611,
+      "start_line": 552,
+      "end_line": 1612,
       "type": "CLASS",
-      "content_hash": "561093aa1beb0cd5"
+      "content_hash": "8dd56c89c8a765bc"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.__init__": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
-      "start_line": 552,
-      "end_line": 625,
+      "start_line": 553,
+      "end_line": 626,
       "type": "METHOD",
       "content_hash": "0d1f9c9aa96cd021"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.process_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
-      "start_line": 628,
-      "end_line": 631,
+      "start_line": 629,
+      "end_line": 632,
       "type": "METHOD",
       "content_hash": "dc8a5a3bc49e165b"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
-      "start_line": 633,
-      "end_line": 671,
+      "start_line": 634,
+      "end_line": 672,
       "type": "METHOD",
-      "content_hash": "4f6dd39f069aa066"
+      "content_hash": "30852570568ef0cb"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
-      "start_line": 673,
-      "end_line": 720,
+      "start_line": 674,
+      "end_line": 721,
       "type": "METHOD",
       "content_hash": "80ad4ce8be904ed9"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.expandable_ids": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.expandable_ids",
-      "start_line": 697,
-      "end_line": 712,
+      "start_line": 698,
+      "end_line": 713,
       "type": "FUNCTION",
       "content_hash": "5e64947c2ac980f8"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._process_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._process_component",
-      "start_line": 722,
-      "end_line": 747,
+      "start_line": 723,
+      "end_line": 748,
       "type": "METHOD",
       "content_hash": "4045e6e410f5739a"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._run_health_report": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._run_health_report",
-      "start_line": 749,
-      "end_line": 767,
+      "start_line": 750,
+      "end_line": 768,
       "type": "METHOD",
       "content_hash": "31b5445440d49d51"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored",
-      "start_line": 769,
-      "end_line": 789,
+      "start_line": 770,
+      "end_line": 790,
       "type": "METHOD",
       "content_hash": "e757e14900d3523f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
-      "start_line": 791,
-      "end_line": 800,
+      "start_line": 792,
+      "end_line": 801,
       "type": "METHOD",
       "content_hash": "30bc4b6234e0956e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._write_file_coverage": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._write_file_coverage",
-      "start_line": 802,
-      "end_line": 818,
+      "start_line": 803,
+      "end_line": 819,
       "type": "METHOD",
       "content_hash": "2cceb77171d8f401"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._changed_files_for_static_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._changed_files_for_static_analysis",
-      "start_line": 820,
-      "end_line": 833,
+      "start_line": 821,
+      "end_line": 834,
       "type": "METHOD",
       "content_hash": "c7d9de90ea7b5c04"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_injected_analyzer": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_injected_analyzer",
-      "start_line": 835,
-      "end_line": 851,
+      "start_line": 836,
+      "end_line": 852,
       "type": "METHOD",
       "content_hash": "926f824e7f1b4706"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_new_analyzer": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_new_analyzer",
-      "start_line": 853,
-      "end_line": 867,
+      "start_line": 854,
+      "end_line": 868,
       "type": "METHOD",
       "content_hash": "96aeb631a3791346"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._seed_incremental_cluster_cache": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._seed_incremental_cluster_cache",
-      "start_line": 869,
-      "end_line": 882,
+      "start_line": 870,
+      "end_line": 883,
       "type": "METHOD",
       "content_hash": "14a08e83e9b2d9c8"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._persist_static_analysis_artifact": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._persist_static_analysis_artifact",
-      "start_line": 884,
-      "end_line": 891,
+      "start_line": 885,
+      "end_line": 892,
       "type": "METHOD",
       "content_hash": "66a34960bb61d2d7"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._source_tree_fingerprint_map": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._source_tree_fingerprint_map",
-      "start_line": 893,
-      "end_line": 897,
+      "start_line": 894,
+      "end_line": 898,
       "type": "METHOD",
       "content_hash": "a71512e78317c77e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._source_tree_hash": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._source_tree_hash",
-      "start_line": 899,
-      "end_line": 901,
+      "start_line": 900,
+      "end_line": 902,
       "type": "METHOD",
       "content_hash": "91a242ffeae08e87"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._initialize_meta_agent": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._initialize_meta_agent",
-      "start_line": 903,
-      "end_line": 912,
+      "start_line": 904,
+      "end_line": 913,
       "type": "METHOD",
       "content_hash": "74a4692733338d9c"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._initialize_agents": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._initialize_agents",
-      "start_line": 914,
-      "end_line": 954,
+      "start_line": 915,
+      "end_line": 955,
       "type": "METHOD",
       "content_hash": "c38c5ac3132fb721"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-      "start_line": 956,
-      "end_line": 1027,
+      "start_line": 957,
+      "end_line": 1028,
       "type": "METHOD",
       "content_hash": "60eac1ef5ef562d5"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
-      "start_line": 1029,
-      "end_line": 1121,
+      "start_line": 1030,
+      "end_line": 1122,
       "type": "METHOD",
       "content_hash": "ef7af7a0d88f7c9c"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
-      "start_line": 1053,
-      "end_line": 1057,
+      "start_line": 1054,
+      "end_line": 1058,
       "type": "FUNCTION",
       "content_hash": "caba3a0bd7ec7a98"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-      "start_line": 1124,
-      "end_line": 1152,
+      "start_line": 1125,
+      "end_line": 1153,
       "type": "METHOD",
       "content_hash": "d6c43405135a315d"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations",
-      "start_line": 1154,
-      "end_line": 1208,
+      "start_line": 1155,
+      "end_line": 1209,
       "type": "METHOD",
       "content_hash": "f715fe1f67af3153"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
-      "start_line": 1210,
-      "end_line": 1226,
+      "start_line": 1211,
+      "end_line": 1227,
       "type": "METHOD",
       "content_hash": "94b97e571539697f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-      "start_line": 1228,
-      "end_line": 1277,
+      "start_line": 1229,
+      "end_line": 1278,
       "type": "METHOD",
       "content_hash": "a596c4ced66fd93e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary",
-      "start_line": 1279,
-      "end_line": 1288,
+      "start_line": 1280,
+      "end_line": 1289,
       "type": "METHOD",
       "content_hash": "e6336d28882210dd"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
-      "start_line": 1290,
-      "end_line": 1324,
+      "start_line": 1291,
+      "end_line": 1325,
       "type": "METHOD",
       "content_hash": "f28becdbd82eaa36"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
-      "start_line": 1326,
-      "end_line": 1382,
+      "start_line": 1327,
+      "end_line": 1383,
       "type": "METHOD",
       "content_hash": "80554b8ba1a11a55"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-      "start_line": 1385,
-      "end_line": 1591,
+      "start_line": 1386,
+      "end_line": 1592,
       "type": "METHOD",
-      "content_hash": "36bb67cd2145a42f"
+      "content_hash": "38b4650a71706c95"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
-      "start_line": 1593,
-      "end_line": 1611,
+      "start_line": 1594,
+      "end_line": 1612,
       "type": "METHOD",
       "content_hash": "2f755384d04325e3"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.assert_scope_containment",
-      "start_line": 1614,
-      "end_line": 1638,
+      "start_line": 1615,
+      "end_line": 1639,
       "type": "FUNCTION",
       "content_hash": "92d86f22af91ea60"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._collect_components_by_id": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._collect_components_by_id",
-      "start_line": 1641,
-      "end_line": 1656,
+      "start_line": 1642,
+      "end_line": 1657,
       "type": "FUNCTION",
       "content_hash": "5ddebec0bc81a8ab"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-      "start_line": 1659,
-      "end_line": 1663,
+      "start_line": 1660,
+      "end_line": 1664,
       "type": "FUNCTION",
       "content_hash": "60bded4cd2d7778f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._child_scope_needs_recursive_update": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._child_scope_needs_recursive_update",
-      "start_line": 1666,
-      "end_line": 1692,
+      "start_line": 1667,
+      "end_line": 1693,
       "type": "FUNCTION",
       "content_hash": "d59e36dc9077fdad"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._build_scope_incremental_inputs": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._build_scope_incremental_inputs",
-      "start_line": 1695,
-      "end_line": 1725,
+      "start_line": 1696,
+      "end_line": 1730,
       "type": "FUNCTION",
-      "content_hash": "483f6f565de3fa36"
+      "content_hash": "d8a1a908b0a77e34"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.scoped_snapshot_for_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.scoped_snapshot_for_component",
-      "start_line": 1728,
-      "end_line": 1744,
+      "start_line": 1733,
+      "end_line": 1749,
       "type": "FUNCTION",
       "content_hash": "42d44063dd42cd1f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._merge_sub_analyses",
-      "start_line": 1747,
-      "end_line": 1777,
+      "start_line": 1752,
+      "end_line": 1782,
       "type": "FUNCTION",
       "content_hash": "f7f96f55d79e04cb"
     },
@@ -13763,31 +13762,31 @@
       "file_path": "static_analyzer/constants.py",
       "qualified_name": "static_analyzer.constants.ClusteringConfig",
       "start_line": 58,
-      "end_line": 92,
+      "end_line": 83,
       "type": "CLASS",
-      "content_hash": "b749258aa80608eb"
+      "content_hash": "1fde755ac2177226"
     },
     "static_analyzer/constants.py|static_analyzer.constants.NodeType": {
       "file_path": "static_analyzer/constants.py",
       "qualified_name": "static_analyzer.constants.NodeType",
-      "start_line": 95,
-      "end_line": 146,
+      "start_line": 86,
+      "end_line": 137,
       "type": "CLASS",
       "content_hash": "98264a2d293446c8"
     },
     "static_analyzer/constants.py|static_analyzer.constants.NodeType.label": {
       "file_path": "static_analyzer/constants.py",
       "qualified_name": "static_analyzer.constants.NodeType.label",
-      "start_line": 132,
-      "end_line": 134,
+      "start_line": 123,
+      "end_line": 125,
       "type": "METHOD",
       "content_hash": "b9f2e9a9c0644a31"
     },
     "static_analyzer/constants.py|static_analyzer.constants.NodeType.from_name": {
       "file_path": "static_analyzer/constants.py",
       "qualified_name": "static_analyzer.constants.NodeType.from_name",
-      "start_line": 137,
-      "end_line": 146,
+      "start_line": 128,
+      "end_line": 137,
       "type": "METHOD",
       "content_hash": "48161aa45a1a037d"
     },
@@ -15549,7 +15548,7 @@
       "start_line": 39,
       "end_line": 59,
       "type": "FUNCTION",
-      "content_hash": "2ac801065864914c"
+      "content_hash": "4210e5f8f1abbb50"
     },
     "diagram_analysis/cluster_snapshot.py|diagram_analysis.cluster_snapshot._entries_from_partition": {
       "file_path": "diagram_analysis/cluster_snapshot.py",
@@ -15587,25 +15586,25 @@
       "file_path": "health/checks/coupling.py",
       "qualified_name": "health.checks.coupling.collect_coupling_values",
       "start_line": 15,
-      "end_line": 32,
+      "end_line": 34,
       "type": "FUNCTION",
-      "content_hash": "affe82d1da65d908"
+      "content_hash": "7ca93b7ec21c7452"
     },
     "health/checks/coupling.py|health.checks.coupling.check_fan_out": {
       "file_path": "health/checks/coupling.py",
       "qualified_name": "health.checks.coupling.check_fan_out",
-      "start_line": 35,
-      "end_line": 85,
+      "start_line": 37,
+      "end_line": 87,
       "type": "FUNCTION",
       "content_hash": "9abeef9bd1ca3a48"
     },
     "health/checks/coupling.py|health.checks.coupling.check_fan_in": {
       "file_path": "health/checks/coupling.py",
       "qualified_name": "health.checks.coupling.check_fan_in",
-      "start_line": 88,
-      "end_line": 140,
+      "start_line": 90,
+      "end_line": 143,
       "type": "FUNCTION",
-      "content_hash": "d65c96bb92d658d0"
+      "content_hash": "c989a25811a620c9"
     },
     "health/checks/function_size.py|health.checks.function_size.collect_function_sizes": {
       "file_path": "health/checks/function_size.py",
@@ -15971,9 +15970,9 @@
       "file_path": "static_analyzer/cfg/call_graph.py",
       "qualified_name": "static_analyzer.cfg.call_graph.CallGraph",
       "start_line": 19,
-      "end_line": 306,
+      "end_line": 297,
       "type": "CLASS",
-      "content_hash": "1ec1dc0c98632fbd"
+      "content_hash": "f2e076e82737612b"
     },
     "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.__init__": {
       "file_path": "static_analyzer/cfg/call_graph.py",
@@ -15981,7 +15980,7 @@
       "start_line": 20,
       "end_line": 48,
       "type": "METHOD",
-      "content_hash": "645fcc10da6c4890"
+      "content_hash": "a2329a364a87782e"
     },
     "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_node": {
       "file_path": "static_analyzer/cfg/call_graph.py",
@@ -16029,7 +16028,7 @@
       "start_line": 126,
       "end_line": 144,
       "type": "METHOD",
-      "content_hash": "2212048cc5c3e050"
+      "content_hash": "a638255dcb9ac1a2"
     },
     "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter": {
       "file_path": "static_analyzer/cfg/call_graph.py",
@@ -16059,47 +16058,39 @@
       "file_path": "static_analyzer/cfg/call_graph.py",
       "qualified_name": "static_analyzer.cfg.call_graph.CallGraph.to_networkx",
       "start_line": 201,
-      "end_line": 213,
+      "end_line": 224,
       "type": "METHOD",
-      "content_hash": "ddcc0cd3b29af17f"
-    },
-    "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.clustering_networkx": {
-      "file_path": "static_analyzer/cfg/call_graph.py",
-      "qualified_name": "static_analyzer.cfg.call_graph.CallGraph.clustering_networkx",
-      "start_line": 215,
-      "end_line": 233,
-      "type": "METHOD",
-      "content_hash": "238f0fe4a60f399a"
+      "content_hash": "45331d36793a9f8f"
     },
     "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter_by_files": {
       "file_path": "static_analyzer/cfg/call_graph.py",
       "qualified_name": "static_analyzer.cfg.call_graph.CallGraph.filter_by_files",
-      "start_line": 235,
-      "end_line": 261,
+      "start_line": 226,
+      "end_line": 252,
       "type": "METHOD",
       "content_hash": "63385a8d85f576a0"
     },
     "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes": {
       "file_path": "static_analyzer/cfg/call_graph.py",
       "qualified_name": "static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
-      "start_line": 263,
-      "end_line": 283,
+      "start_line": 254,
+      "end_line": 274,
       "type": "METHOD",
       "content_hash": "fffb9c820ccbea62"
     },
     "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph._common_dot_prefix": {
       "file_path": "static_analyzer/cfg/call_graph.py",
       "qualified_name": "static_analyzer.cfg.call_graph.CallGraph._common_dot_prefix",
-      "start_line": 286,
-      "end_line": 299,
+      "start_line": 277,
+      "end_line": 290,
       "type": "METHOD",
       "content_hash": "37515fa7d1eab39c"
     },
     "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.__str__": {
       "file_path": "static_analyzer/cfg/call_graph.py",
       "qualified_name": "static_analyzer.cfg.call_graph.CallGraph.__str__",
-      "start_line": 301,
-      "end_line": 306,
+      "start_line": 292,
+      "end_line": 297,
       "type": "METHOD",
       "content_hash": "a47e408b0d5b3608"
     },
@@ -16114,72 +16105,72 @@
     "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge": {
       "file_path": "static_analyzer/cfg/edge.py",
       "qualified_name": "static_analyzer.cfg.edge.Edge",
-      "start_line": 28,
-      "end_line": 68,
+      "start_line": 36,
+      "end_line": 76,
       "type": "CLASS",
       "content_hash": "33c7e21224259a3d"
     },
     "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.__init__": {
       "file_path": "static_analyzer/cfg/edge.py",
       "qualified_name": "static_analyzer.cfg.edge.Edge.__init__",
-      "start_line": 29,
-      "end_line": 35,
+      "start_line": 37,
+      "end_line": 43,
       "type": "METHOD",
       "content_hash": "921f6e13c53931de"
     },
     "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites": {
       "file_path": "static_analyzer/cfg/edge.py",
       "qualified_name": "static_analyzer.cfg.edge.Edge.call_sites",
-      "start_line": 38,
-      "end_line": 39,
+      "start_line": 46,
+      "end_line": 47,
       "type": "METHOD",
       "content_hash": "45050944fa0bde94"
     },
     "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source": {
       "file_path": "static_analyzer/cfg/edge.py",
       "qualified_name": "static_analyzer.cfg.edge.Edge.get_source",
-      "start_line": 41,
-      "end_line": 42,
+      "start_line": 49,
+      "end_line": 50,
       "type": "METHOD",
       "content_hash": "9ff7b53d01d75956"
     },
     "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination": {
       "file_path": "static_analyzer/cfg/edge.py",
       "qualified_name": "static_analyzer.cfg.edge.Edge.get_destination",
-      "start_line": 44,
-      "end_line": 45,
+      "start_line": 52,
+      "end_line": 53,
       "type": "METHOD",
       "content_hash": "0ba3f47df357145c"
     },
     "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.__repr__": {
       "file_path": "static_analyzer/cfg/edge.py",
       "qualified_name": "static_analyzer.cfg.edge.Edge.__repr__",
-      "start_line": 47,
-      "end_line": 48,
+      "start_line": 55,
+      "end_line": 56,
       "type": "METHOD",
       "content_hash": "d66315bd21b50d5a"
     },
     "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.add_call_site": {
       "file_path": "static_analyzer/cfg/edge.py",
       "qualified_name": "static_analyzer.cfg.edge.Edge.add_call_site",
-      "start_line": 50,
-      "end_line": 55,
+      "start_line": 58,
+      "end_line": 63,
       "type": "METHOD",
       "content_hash": "863e8443dccbc5bf"
     },
     "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge._normalize_call_site": {
       "file_path": "static_analyzer/cfg/edge.py",
       "qualified_name": "static_analyzer.cfg.edge.Edge._normalize_call_site",
-      "start_line": 58,
-      "end_line": 62,
+      "start_line": 66,
+      "end_line": 70,
       "type": "METHOD",
       "content_hash": "e07bd8e5ffc4e847"
     },
     "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.visit_paths": {
       "file_path": "static_analyzer/cfg/edge.py",
       "qualified_name": "static_analyzer.cfg.edge.Edge.visit_paths",
-      "start_line": 64,
-      "end_line": 68,
+      "start_line": 72,
+      "end_line": 76,
       "type": "METHOD",
       "content_hash": "d01d84795d11a727"
     },
@@ -16389,7 +16380,7 @@
       "start_line": 11,
       "end_line": 29,
       "type": "CLASS",
-      "content_hash": "7e2e22cc6f9e883a"
+      "content_hash": "e0cc40b8db67c9c7"
     },
     "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.__init__": {
       "file_path": "static_analyzer/clustering/service.py",
@@ -16405,7 +16396,7 @@
       "start_line": 22,
       "end_line": 29,
       "type": "METHOD",
-      "content_hash": "6e22bbefe68ed745"
+      "content_hash": "7f1c869b8d1bde16"
     },
     "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph": {
       "file_path": "static_analyzer/language_results.py",
@@ -26253,8 +26244,8 @@
         {
           "qualified_name": "agents.abstraction_agent.AbstractionAgent",
           "reference_file": "agents/abstraction_agent.py",
-          "reference_start_line": 44,
-          "reference_end_line": 230
+          "reference_start_line": 45,
+          "reference_end_line": 232
         },
         {
           "qualified_name": "agents.agent_responses.ComponentArchitecture",
@@ -26785,8 +26776,8 @@
             {
               "qualified_name": "agents.abstraction_agent.AbstractionAgent",
               "reference_file": "agents/abstraction_agent.py",
-              "reference_start_line": 44,
-              "reference_end_line": 230
+              "reference_start_line": 45,
+              "reference_end_line": 232
             },
             {
               "qualified_name": "agents.agent_responses.ClusterAnalysis",
@@ -27591,24 +27582,13 @@
                   ]
                 },
                 {
-                  "relation": "triggers relationship analysis post-state-stabilization",
+                  "relation": "defines scope boundaries for rendering",
                   "src_name": "Topology Identity & Incremental State Manager",
                   "dst_name": "Project Relationship Renderer",
-                  "evidence": "Once the incremental state is updated and identities are stabilized, the orchestrator initiates the final rendering phase to build the static relationship graph.",
+                  "evidence": "The state manager's scope update decisions dictate which parts of the topology are active, providing the configuration context required for the renderer.",
                   "key_edges": [],
                   "src_id": "3.1.1.2",
                   "dst_id": "3.1.1.3",
-                  "is_static": false,
-                  "all_edges": []
-                },
-                {
-                  "relation": "resolves symbol-to-component mappings for visualization",
-                  "src_name": "Project Relationship Renderer",
-                  "dst_name": "Topology Identity & Incremental State Manager",
-                  "evidence": "The renderer maps static analysis nodes (functions/classes) to their parent architectural components by querying the state manager's mapping logic during diagram generation.",
-                  "key_edges": [],
-                  "src_id": "3.1.1.3",
-                  "dst_id": "3.1.1.2",
                   "is_static": false,
                   "all_edges": []
                 }
@@ -27621,8 +27601,8 @@
                 {
                   "qualified_name": "agents.abstraction_agent.AbstractionAgent",
                   "reference_file": "agents/abstraction_agent.py",
-                  "reference_start_line": 44,
-                  "reference_end_line": 230
+                  "reference_start_line": 45,
+                  "reference_end_line": 232
                 },
                 {
                   "qualified_name": "agents.repair.repair_component_group_names",
@@ -27749,8 +27729,8 @@
                     {
                       "qualified_name": "agents.abstraction_agent.AbstractionAgent",
                       "reference_file": "agents/abstraction_agent.py",
-                      "reference_start_line": 44,
-                      "reference_end_line": 230
+                      "reference_start_line": 45,
+                      "reference_end_line": 232
                     },
                     {
                       "qualified_name": "agents.details_agent.DetailsAgent",
@@ -27773,8 +27753,8 @@
                     {
                       "qualified_name": "agents.abstraction_agent.AbstractionAgent.step_api_surfaces",
                       "reference_file": "agents/abstraction_agent.py",
-                      "reference_start_line": 147,
-                      "reference_end_line": 154
+                      "reference_start_line": 149,
+                      "reference_end_line": 156
                     }
                   ],
                   "source_cluster_ids": [
@@ -28044,10 +28024,10 @@
                   ]
                 },
                 {
-                  "relation": "mutates and sanitizes component metadata",
+                  "relation": "enforces structural constraints on synthesized data",
                   "src_name": "Identity Repair & Integrity Validator",
                   "dst_name": "Component Synthesis & Relation Mapper",
-                  "evidence": "Data flow via mutation; the repair module performs fuzzy matching and identity correction on the component group names within the shared state/context objects used by the Synthesis agents.",
+                  "evidence": "The Validator acts as a feedback loop and data mutation layer. It consumes the 'ComponentArchitecture' objects produced by the Synthesis agents, performs fuzzy matching against the physical file system, and injects corrected metadata back into the synthesis pipeline.",
                   "key_edges": [],
                   "src_id": "3.1.2.2",
                   "dst_id": "3.1.2.1",
@@ -28210,6 +28190,17 @@
               "evidence": "The Abstraction agents consume deterministic cluster groupings and metadata to ground their LLM-based summaries in actual codebase symbols and graph structures.",
               "key_edges": [
                 {
+                  "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
+                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.deterministic_cluster_grouping",
+                  "call_sites": [
+                    {
+                      "line": 97,
+                      "column": 21
+                    }
+                  ],
+                  "description": "Triggers deterministic grouping of clusters."
+                },
+                {
                   "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.run",
                   "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._resolve_cluster_ids_from_groups",
                   "call_sites": [
@@ -28219,23 +28210,34 @@
                     }
                   ],
                   "description": ""
-                },
-                {
-                  "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
-                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.deterministic_cluster_grouping",
-                  "call_sites": [
-                    {
-                      "line": 95,
-                      "column": 21
-                    }
-                  ],
-                  "description": ""
                 }
               ],
               "src_id": "3.1.2",
               "dst_id": "3.1.1",
               "is_static": true,
               "all_edges": [
+                {
+                  "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
+                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.deterministic_cluster_grouping",
+                  "call_sites": [
+                    {
+                      "line": 97,
+                      "column": 21
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/details_agent.py|agents.details_agent.DetailsAgent.step_clusters_grouping",
+                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.deterministic_cluster_grouping",
+                  "call_sites": [
+                    {
+                      "line": 101,
+                      "column": 21
+                    }
+                  ],
+                  "description": ""
+                },
                 {
                   "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.run",
                   "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._resolve_cluster_ids_from_groups",
@@ -28254,17 +28256,6 @@
                     {
                       "line": 215,
                       "column": 14
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
-                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.deterministic_cluster_grouping",
-                  "call_sites": [
-                    {
-                      "line": 95,
-                      "column": 21
                     }
                   ],
                   "description": ""
@@ -28325,17 +28316,6 @@
                   "description": ""
                 },
                 {
-                  "source": "agents/details_agent.py|agents.details_agent.DetailsAgent.step_clusters_grouping",
-                  "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.deterministic_cluster_grouping",
-                  "call_sites": [
-                    {
-                      "line": 100,
-                      "column": 21
-                    }
-                  ],
-                  "description": ""
-                },
-                {
                   "source": "agents/details_agent.py|agents.details_agent.DetailsAgent.step_final_analysis",
                   "target": "agents/agent_responses.py|agents.agent_responses.ClusterAnalysis.llm_str",
                   "call_sites": [
@@ -28360,10 +28340,10 @@
               ]
             },
             {
-              "relation": "validates architectural relations against CFG state",
+              "relation": "Initializes stateful synthesis and validates semantic integrity",
               "src_name": "Architectural Abstraction & Identity Resolver",
               "dst_name": "Incremental Synthesis Orchestrator",
-              "evidence": "During the synthesis phase, the Resolver calls back to the Orchestrator to validate proposed architectural relations against the live Control Flow Graph (CFG) and to trace symbol-level dependencies.",
+              "evidence": "The Abstraction layer orchestrates the high-level flow by initializing the IncrementalAgent. It passes ValidationResult objects to the Orchestrator to ensure that the synthesized architectural changes maintain consistency with the existing model.",
               "key_edges": [],
               "src_id": "3.1.2",
               "dst_id": "3.1.3",
@@ -28386,17 +28366,6 @@
                   "call_sites": [
                     {
                       "line": 146,
-                      "column": 6
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
-                  "target": "monitoring/context.py|monitoring.context.trace",
-                  "call_sites": [
-                    {
-                      "line": 82,
                       "column": 6
                     }
                   ],
@@ -28441,17 +28410,6 @@
                   "call_sites": [
                     {
                       "line": 185,
-                      "column": 6
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/details_agent.py|agents.details_agent.DetailsAgent.step_clusters_grouping",
-                  "target": "monitoring/context.py|monitoring.context.trace",
-                  "call_sites": [
-                    {
-                      "line": 86,
                       "column": 6
                     }
                   ],
@@ -29137,7 +29095,7 @@
                 }
               ],
               "component_id": "3.2.2",
-              "can_expand": false,
+              "can_expand": true,
               "components": [],
               "components_relations": []
             },
@@ -29239,31 +29197,6 @@
           ],
           "components_relations": [
             {
-              "relation": "Defines the data contract for documentation output",
-              "src_name": "Component Schema & Structural Definitions",
-              "dst_name": "Architectural Surface & Visualization Generator",
-              "evidence": "Generators for HTML and Markdown directly consume the core schema models (Component, CFGAnalysisInsights) to populate templates and API surface descriptions.",
-              "key_edges": [
-                {
-                  "source": "output_generators/markdown.py|output_generators.markdown.generate_markdown",
-                  "target": "agents/agent_responses.py|agents.agent_responses.Component",
-                  "call_sites": [],
-                  "description": "The markdown generator iterates over Component models to produce documentation sections."
-                }
-              ],
-              "src_id": "3.2.1",
-              "dst_id": "3.2.2",
-              "is_static": false,
-              "all_edges": [
-                {
-                  "source": "output_generators/markdown.py|output_generators.markdown.generate_markdown",
-                  "target": "agents/agent_responses.py|agents.agent_responses.Component",
-                  "call_sites": [],
-                  "description": "The markdown generator iterates over Component models to produce documentation sections."
-                }
-              ]
-            },
-            {
               "relation": "Provides structural models for relationship mapping",
               "src_name": "Component Schema & Structural Definitions",
               "dst_name": "Relational Logic & Edge Reconciliation",
@@ -29285,6 +29218,28 @@
                   "description": ""
                 }
               ]
+            },
+            {
+              "relation": "Reflects source metadata for interactive links",
+              "src_name": "Architectural Surface & Visualization Generator",
+              "dst_name": "Component Schema & Structural Definitions",
+              "evidence": "The generator uses the FileRef and line number metadata embedded within the Schema's Pydantic models to create interactive source code links in the HTML/Markdown output.",
+              "key_edges": [],
+              "src_id": "3.2.2",
+              "dst_id": "3.2.1",
+              "is_static": false,
+              "all_edges": []
+            },
+            {
+              "relation": "Supplies reconciled graph data for rendering",
+              "src_name": "Relational Logic & Edge Reconciliation",
+              "dst_name": "Architectural Surface & Visualization Generator",
+              "evidence": "The Visualization Generator consumes the enriched Relation objects (which contain key_edges and evidence strings reconciled from static analysis) to generate the interactive Cytoscape.js graph and Markdown tables.",
+              "key_edges": [],
+              "src_id": "3.2.3",
+              "dst_id": "3.2.2",
+              "is_static": false,
+              "all_edges": []
             }
           ]
         },
@@ -29545,8 +29500,8 @@
                 {
                   "qualified_name": "diagram_analysis.cluster_delta.compute_changed_members",
                   "reference_file": "diagram_analysis/cluster_delta.py",
-                  "reference_start_line": 142,
-                  "reference_end_line": 219
+                  "reference_start_line": 143,
+                  "reference_end_line": 220
                 },
                 {
                   "qualified_name": "agents.content_hash.MethodSpan",
@@ -29641,8 +29596,8 @@
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._reconcile_child_scope",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 134,
-                  "reference_end_line": 188
+                  "reference_start_line": 135,
+                  "reference_end_line": 189
                 },
                 {
                   "qualified_name": "agents.file_index_models.FileMethodGroup",
@@ -29653,8 +29608,8 @@
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._graft_entered_methods",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 191,
-                  "reference_end_line": 212
+                  "reference_start_line": 192,
+                  "reference_end_line": 213
                 }
               ],
               "source_cluster_ids": [
@@ -30687,8 +30642,8 @@
             "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
             "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
             "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-            "diagram_analysis.diagram_generator.DiagramGenerator",
             "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
+            "diagram_analysis.diagram_generator.DiagramGenerator",
             "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
             "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
             "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
@@ -32673,8 +32628,8 @@
                 "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
                 "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
                 "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-                "diagram_analysis.diagram_generator.DiagramGenerator",
                 "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
+                "diagram_analysis.diagram_generator.DiagramGenerator",
                 "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
                 "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
                 "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
@@ -32765,8 +32720,8 @@
                 {
                   "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 551,
-                  "reference_end_line": 1611
+                  "reference_start_line": 552,
+                  "reference_end_line": 1612
                 }
               ],
               "source_cluster_ids": [
@@ -32802,8 +32757,8 @@
                 {
                   "file_path": "diagram_analysis/diagram_generator.py",
                   "methods": [
-                    "diagram_analysis.diagram_generator.DiagramGenerator",
                     "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
+                    "diagram_analysis.diagram_generator.DiagramGenerator",
                     "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
                     "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
                     "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
@@ -32862,20 +32817,20 @@
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._capture_membership_baseline",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 282,
-                  "reference_end_line": 319
+                  "reference_start_line": 283,
+                  "reference_end_line": 320
                 },
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 1659,
-                  "reference_end_line": 1663
+                  "reference_start_line": 1660,
+                  "reference_end_line": 1664
                 },
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 420,
-                  "reference_end_line": 451
+                  "reference_start_line": 421,
+                  "reference_end_line": 452
                 }
               ],
               "source_cluster_ids": [
@@ -32947,20 +32902,20 @@
                 {
                   "qualified_name": "diagram_analysis.cluster_delta.LanguageStructuralDiff",
                   "reference_file": "diagram_analysis/cluster_delta.py",
-                  "reference_start_line": 98,
-                  "reference_end_line": 109
+                  "reference_start_line": 99,
+                  "reference_end_line": 110
                 },
                 {
                   "qualified_name": "diagram_analysis.cluster_delta.ClusterReshape",
                   "reference_file": "diagram_analysis/cluster_delta.py",
-                  "reference_start_line": 89,
-                  "reference_end_line": 94
+                  "reference_start_line": 90,
+                  "reference_end_line": 95
                 },
                 {
                   "qualified_name": "diagram_analysis.cluster_delta._dirty_signal",
                   "reference_file": "diagram_analysis/cluster_delta.py",
-                  "reference_start_line": 464,
-                  "reference_end_line": 480
+                  "reference_start_line": 465,
+                  "reference_end_line": 481
                 },
                 {
                   "qualified_name": "agents.incremental_results.RecursiveScopeUpdateResult",
@@ -33019,23 +32974,22 @@
               "src_name": "Source Integrity & Expansion Planner",
               "dst_name": "State Reconciliation & Baseline Manager",
               "evidence": "The Planner evaluates if a component is \"separable\" (expandable) by checking its membership keys against the current baseline. Once the expansion strategy is executed, it triggers the finalization and persistence of the new state.",
-              "key_edges": [
+              "key_edges": [],
+              "src_id": "4.2.1",
+              "dst_id": "4.2.2",
+              "is_static": true,
+              "all_edges": [
                 {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys",
                   "call_sites": [
                     {
-                      "line": 632,
+                      "line": 655,
                       "column": 15
                     }
                   ],
                   "description": ""
-                }
-              ],
-              "src_id": "4.2.1",
-              "dst_id": "4.2.2",
-              "is_static": true,
-              "all_edges": [
+                },
                 {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
@@ -33047,17 +33001,6 @@
                     {
                       "line": 1226,
                       "column": 9
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys",
-                  "call_sites": [
-                    {
-                      "line": 632,
-                      "column": 15
                     }
                   ],
                   "description": ""
@@ -33110,26 +33053,11 @@
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
                   "call_sites": [
                     {
-                      "line": 1564,
+                      "line": 1563,
                       "column": 43
                     }
                   ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-                  "call_sites": [
-                    {
-                      "line": 1492,
-                      "column": 29
-                    },
-                    {
-                      "line": 1585,
-                      "column": 34
-                    }
-                  ],
-                  "description": ""
+                  "description": "Baseline manager coordinates flow by calling the planner's subcomponent generation."
                 }
               ],
               "src_id": "4.2.2",
@@ -33141,7 +33069,7 @@
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
                   "call_sites": [
                     {
-                      "line": 1564,
+                      "line": 1563,
                       "column": 43
                     }
                   ],
@@ -33152,11 +33080,11 @@
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
                   "call_sites": [
                     {
-                      "line": 1492,
+                      "line": 1491,
                       "column": 29
                     },
                     {
-                      "line": 1585,
+                      "line": 1584,
                       "column": 34
                     }
                   ],
@@ -33167,7 +33095,7 @@
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
                   "call_sites": [
                     {
-                      "line": 1399,
+                      "line": 1398,
                       "column": 18
                     }
                   ],
@@ -33180,19 +33108,7 @@
               "src_name": "State Reconciliation & Baseline Manager",
               "dst_name": "Structural Delta & Change Analyzer",
               "evidence": "During incremental reconciliation, the Manager calculates component depth and applies recursive scope updates to identify which parts of the tree are \"dirty\" and require structural diffing.",
-              "key_edges": [
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
-                  "call_sites": [
-                    {
-                      "line": 1502,
-                      "column": 33
-                    }
-                  ],
-                  "description": ""
-                }
-              ],
+              "key_edges": [],
               "src_id": "4.2.2",
               "dst_id": "4.2.3",
               "is_static": true,
@@ -33202,7 +33118,7 @@
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
                   "call_sites": [
                     {
-                      "line": 1502,
+                      "line": 1501,
                       "column": 33
                     }
                   ],
@@ -33213,7 +33129,7 @@
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth",
                   "call_sites": [
                     {
-                      "line": 1561,
+                      "line": 1560,
                       "column": 20
                     }
                   ],
@@ -33832,7 +33748,7 @@
               "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
               "call_sites": [
                 {
-                  "line": 1544,
+                  "line": 1543,
                   "column": 27
                 }
               ],
@@ -33907,17 +33823,6 @@
           ]
         },
         {
-          "relation": "Feeds file-level metadata for state updates",
-          "src_name": "Change Detection & Validation Engine",
-          "dst_name": "Incremental State & Structural Planner",
-          "evidence": "Data flow relation where ChangeSet and FileCoverage objects are consumed by the planner to update the incremental analysis state.",
-          "key_edges": [],
-          "src_id": "4.3",
-          "dst_id": "4.2",
-          "is_static": false,
-          "all_edges": []
-        },
-        {
           "relation": "Dispatches structural expansion and state persistence tasks",
           "src_name": "Workflow Orchestrator & Pruning Controller",
           "dst_name": "Incremental State & Structural Planner",
@@ -33972,8 +33877,8 @@
         {
           "qualified_name": "diagram_analysis.cluster_delta.StructuralClusterDiff",
           "reference_file": "diagram_analysis/cluster_delta.py",
-          "reference_start_line": 113,
-          "reference_end_line": 118
+          "reference_start_line": 114,
+          "reference_end_line": 119
         },
         {
           "qualified_name": "agents.incremental_agent._cfg_graphs_for_cluster_results",
@@ -34306,7 +34211,6 @@
             "static_analyzer.cfg.call_graph.CallGraph.union",
             "static_analyzer.cfg.call_graph.CallGraph.visit_paths",
             "static_analyzer.cfg.call_graph.CallGraph.to_networkx",
-            "static_analyzer.cfg.call_graph.CallGraph.clustering_networkx",
             "static_analyzer.cfg.call_graph.CallGraph.filter_by_files",
             "static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
             "static_analyzer.cfg.call_graph.CallGraph._common_dot_prefix",
@@ -34547,14 +34451,14 @@
             {
               "qualified_name": "diagram_analysis.cluster_delta.StructuralClusterDiff",
               "reference_file": "diagram_analysis/cluster_delta.py",
-              "reference_start_line": 113,
-              "reference_end_line": 118
+              "reference_start_line": 114,
+              "reference_end_line": 119
             },
             {
               "qualified_name": "diagram_analysis.cluster_delta.ClusterDelta",
               "reference_file": "diagram_analysis/cluster_delta.py",
-              "reference_start_line": 55,
-              "reference_end_line": 63
+              "reference_start_line": 56,
+              "reference_end_line": 64
             },
             {
               "qualified_name": "agents.cluster_methods_mixin.scoped_snapshot_from_lineage",
@@ -34755,7 +34659,6 @@
                 "static_analyzer.cfg.call_graph.CallGraph.union",
                 "static_analyzer.cfg.call_graph.CallGraph.visit_paths",
                 "static_analyzer.cfg.call_graph.CallGraph.to_networkx",
-                "static_analyzer.cfg.call_graph.CallGraph.clustering_networkx",
                 "static_analyzer.cfg.call_graph.CallGraph.filter_by_files",
                 "static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
                 "static_analyzer.cfg.call_graph.CallGraph._common_dot_prefix",
@@ -34956,8 +34859,6 @@
                     "static_analyzer.cfg.call_graph.CallGraph.filter",
                     "static_analyzer.cfg.call_graph.CallGraph.union",
                     "static_analyzer.cfg.call_graph.CallGraph.visit_paths",
-                    "static_analyzer.cfg.call_graph.CallGraph.to_networkx",
-                    "static_analyzer.cfg.call_graph.CallGraph.clustering_networkx",
                     "static_analyzer.cfg.call_graph.CallGraph.filter_by_files",
                     "static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
                     "static_analyzer.cfg.call_graph.CallGraph._common_dot_prefix",
@@ -35039,14 +34940,14 @@
                 {
                   "qualified_name": "diagram_analysis.cluster_delta.StructuralClusterDiff",
                   "reference_file": "diagram_analysis/cluster_delta.py",
-                  "reference_start_line": 113,
-                  "reference_end_line": 118
+                  "reference_start_line": 114,
+                  "reference_end_line": 119
                 },
                 {
                   "qualified_name": "diagram_analysis.cluster_delta.ClusterDelta",
                   "reference_file": "diagram_analysis/cluster_delta.py",
-                  "reference_start_line": 55,
-                  "reference_end_line": 63
+                  "reference_start_line": 56,
+                  "reference_end_line": 64
                 },
                 {
                   "qualified_name": "agents.cluster_methods_mixin.scoped_snapshot_from_lineage",
@@ -35057,8 +34958,8 @@
                 {
                   "qualified_name": "diagram_analysis.cluster_delta._affected_frontier",
                   "reference_file": "diagram_analysis/cluster_delta.py",
-                  "reference_start_line": 782,
-                  "reference_end_line": 820
+                  "reference_start_line": 783,
+                  "reference_end_line": 821
                 }
               ],
               "source_cluster_ids": [
@@ -35126,6 +35027,12 @@
                   "methods": [
                     "static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
                     "static_analyzer.analysis_result.StaticAnalysisResults.get_clusters"
+                  ]
+                },
+                {
+                  "file_path": "static_analyzer/cfg/call_graph.py",
+                  "methods": [
+                    "static_analyzer.cfg.call_graph.CallGraph.to_networkx"
                   ]
                 },
                 {
@@ -35223,14 +35130,14 @@
                     {
                       "qualified_name": "diagram_analysis.cluster_delta.StructuralClusterDiff",
                       "reference_file": "diagram_analysis/cluster_delta.py",
-                      "reference_start_line": 113,
-                      "reference_end_line": 118
+                      "reference_start_line": 114,
+                      "reference_end_line": 119
                     },
                     {
                       "qualified_name": "diagram_analysis.cluster_delta.ClusterDelta",
                       "reference_file": "diagram_analysis/cluster_delta.py",
-                      "reference_start_line": 55,
-                      "reference_end_line": 63
+                      "reference_start_line": 56,
+                      "reference_end_line": 64
                     },
                     {
                       "qualified_name": "agents.cluster_methods_mixin.scoped_snapshot_from_lineage",
@@ -35305,6 +35212,12 @@
                       ]
                     },
                     {
+                      "file_path": "static_analyzer/cfg/call_graph.py",
+                      "methods": [
+                        "static_analyzer.cfg.call_graph.CallGraph.to_networkx"
+                      ]
+                    },
+                    {
                       "file_path": "static_analyzer/cluster_helpers.py",
                       "methods": [
                         "static_analyzer.cluster_helpers.build_all_cluster_results",
@@ -35361,14 +35274,14 @@
                     {
                       "qualified_name": "diagram_analysis.cluster_delta._affected_frontier",
                       "reference_file": "diagram_analysis/cluster_delta.py",
-                      "reference_start_line": 782,
-                      "reference_end_line": 820
+                      "reference_start_line": 783,
+                      "reference_end_line": 821
                     },
                     {
                       "qualified_name": "diagram_analysis.cluster_delta.LanguageDelta",
                       "reference_file": "diagram_analysis/cluster_delta.py",
-                      "reference_start_line": 42,
-                      "reference_end_line": 51
+                      "reference_start_line": 43,
+                      "reference_end_line": 52
                     },
                     {
                       "qualified_name": "static_analyzer.leiden_utils.find_partition_seeded",
@@ -35379,14 +35292,14 @@
                     {
                       "qualified_name": "diagram_analysis.cluster_delta._reconcile_seeded_partition",
                       "reference_file": "diagram_analysis/cluster_delta.py",
-                      "reference_start_line": 823,
-                      "reference_end_line": 868
+                      "reference_start_line": 824,
+                      "reference_end_line": 869
                     },
                     {
                       "qualified_name": "diagram_analysis.cluster_delta._materialize_cluster_result",
                       "reference_file": "diagram_analysis/cluster_delta.py",
-                      "reference_start_line": 915,
-                      "reference_end_line": 940
+                      "reference_start_line": 916,
+                      "reference_end_line": 941
                     }
                   ],
                   "source_cluster_ids": [
@@ -35476,11 +35389,11 @@
                       "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language",
                       "call_sites": [
                         {
-                          "line": 286,
+                          "line": 287,
                           "column": 26
                         }
                       ],
-                      "description": ""
+                      "description": "Orchestrator invokes language-specific delta computation."
                     }
                   ],
                   "src_id": "5.1.2.1",
@@ -35494,6 +35407,39 @@
                         {
                           "line": 357,
                           "column": 42
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
+                      "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language",
+                      "call_sites": [
+                        {
+                          "line": 351,
+                          "column": 38
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
+                      "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language",
+                      "call_sites": [
+                        {
+                          "line": 287,
+                          "column": 26
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._build_scope_incremental_inputs",
+                      "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageDelta",
+                      "call_sites": [
+                        {
+                          "line": 1714,
+                          "column": 23
                         }
                       ],
                       "description": ""
@@ -35530,39 +35476,6 @@
                         }
                       ],
                       "description": ""
-                    },
-                    {
-                      "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
-                      "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language",
-                      "call_sites": [
-                        {
-                          "line": 351,
-                          "column": 38
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
-                      "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language",
-                      "call_sites": [
-                        {
-                          "line": 286,
-                          "column": 26
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._build_scope_incremental_inputs",
-                      "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageDelta",
-                      "call_sites": [
-                        {
-                          "line": 1643,
-                          "column": 23
-                        }
-                      ],
-                      "description": ""
                     }
                   ]
                 }
@@ -35593,8 +35506,8 @@
                 {
                   "qualified_name": "health.checks.coupling.check_fan_out",
                   "reference_file": "health/checks/coupling.py",
-                  "reference_start_line": 35,
-                  "reference_end_line": 85
+                  "reference_start_line": 37,
+                  "reference_end_line": 87
                 }
               ],
               "source_cluster_ids": [
@@ -35721,8 +35634,8 @@
                     {
                       "qualified_name": "health.checks.coupling.check_fan_out",
                       "reference_file": "health/checks/coupling.py",
-                      "reference_start_line": 35,
-                      "reference_end_line": 85
+                      "reference_start_line": 37,
+                      "reference_end_line": 87
                     },
                     {
                       "qualified_name": "health.checks.circular_deps.check_circular_dependencies",
@@ -35888,41 +35801,6 @@
                 }
               ],
               "components_relations": [
-                {
-                  "relation": "provides schema for health reporting",
-                  "src_name": "Structural & Complexity Metrics Engine",
-                  "dst_name": "Diagnostic Orchestrator & External Sensor Integrator",
-                  "evidence": "The Metrics Engine defines the 'BaseCheckSummary' and 'FindingEntity' structures which dictate the data contract for the Orchestrator's aggregation and path-relativization logic.",
-                  "key_edges": [
-                    {
-                      "source": "health/checks/coupling.py|health.checks.coupling.check_fan_out",
-                      "target": "health/models.py|health.models.StandardCheckSummary",
-                      "call_sites": [
-                        {
-                          "line": 77,
-                          "column": 12
-                        }
-                      ],
-                      "description": ""
-                    }
-                  ],
-                  "src_id": "5.1.3.1",
-                  "dst_id": "5.1.3.2",
-                  "is_static": false,
-                  "all_edges": [
-                    {
-                      "source": "health/checks/coupling.py|health.checks.coupling.check_fan_out",
-                      "target": "health/models.py|health.models.StandardCheckSummary",
-                      "call_sites": [
-                        {
-                          "line": 77,
-                          "column": 12
-                        }
-                      ],
-                      "description": ""
-                    }
-                  ]
-                },
                 {
                   "relation": "Orchestrates execution and aggregates metric summaries",
                   "src_name": "Diagnostic Orchestrator & External Sensor Integrator",
@@ -36095,15 +35973,63 @@
           ],
           "components_relations": [
             {
-              "relation": "Materializes snapshots and persists structural records",
+              "relation": "projects structural snapshots onto graph primitives",
               "src_name": "Cluster Evolution & Delta Processor",
               "dst_name": "Structural Graph & Edge Validator",
-              "evidence": "The Evolution engine acts as the primary writer and refiner for the CallGraph. It uses 'snapshot' and 'filter_by_nodes' to create immutable architectural states and 'record' to ingest new structural findings during analysis.",
+              "evidence": "The Evolution engine uses the Static Analyzer to materialize scoped snapshots and filter the global CallGraph into component-specific subgraphs for delta calculation.",
               "key_edges": [],
               "src_id": "5.1.2",
               "dst_id": "5.1.1",
               "is_static": true,
               "all_edges": [
+                {
+                  "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
+                  "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
+                  "call_sites": [
+                    {
+                      "line": 342,
+                      "column": 58
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+                  "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph._resolve_name",
+                  "call_sites": [
+                    {
+                      "line": 221,
+                      "column": 31
+                    },
+                    {
+                      "line": 221,
+                      "column": 56
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+                  "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+                  "call_sites": [
+                    {
+                      "line": 213,
+                      "column": 55
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+                  "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
+                  "call_sites": [
+                    {
+                      "line": 213,
+                      "column": 36
+                    }
+                  ],
+                  "description": ""
+                },
                 {
                   "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.scoped_snapshot_from_lineage",
                   "target": "static_analyzer/clustering/method_cluster_paths.py|static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.snapshot",
@@ -36140,26 +36066,48 @@
               ]
             },
             {
-              "relation": "queries graph topology for metric calculation",
+              "relation": "queries raw call graph for dependency analysis",
               "src_name": "Architectural Health & Metric Evaluator",
               "dst_name": "Structural Graph & Edge Validator",
-              "evidence": "The Health Evaluator performs graph-theoretic analysis (centrality, connectivity) by converting the internal analysis results into NetworkX objects. This allows the evaluator to calculate fan-in/fan-out and detect circular dependencies using standard graph algorithms.",
+              "evidence": "Metric checks directly access the CallGraph nodes and edges to perform graph-theoretic calculations like circular dependency detection and fan-out analysis.",
               "key_edges": [],
               "src_id": "5.1.3",
               "dst_id": "5.1.1",
-              "is_static": true,
+              "is_static": false,
               "all_edges": []
             },
             {
-              "relation": "Evaluates quality of logical architectural clusters",
+              "relation": "evaluates quality of evolved cluster results",
               "src_name": "Architectural Health & Metric Evaluator",
               "dst_name": "Cluster Evolution & Delta Processor",
-              "evidence": "The Health Evaluator operates on the abstractions provided by the ClusteringService. It maps physical files to logical clusters and converts cluster data into NetworkX graphs to perform graph-theory based metric calculations (cohesion, coupling).",
+              "evidence": "The Health Evaluator consumes the output of the Delta Processor (ClusterResult) to map structural findings back to source files and calculate cohesion/coupling metrics.",
               "key_edges": [],
               "src_id": "5.1.3",
               "dst_id": "5.1.2",
               "is_static": true,
               "all_edges": [
+                {
+                  "source": "health/checks/coupling.py|health.checks.coupling.check_fan_in",
+                  "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+                  "call_sites": [
+                    {
+                      "line": 102,
+                      "column": 27
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "health/checks/coupling.py|health.checks.coupling.collect_coupling_values",
+                  "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+                  "call_sites": [
+                    {
+                      "line": 23,
+                      "column": 27
+                    }
+                  ],
+                  "description": ""
+                },
                 {
                   "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
                   "target": "static_analyzer/clustering/models.py|static_analyzer.clustering.models.ClusterResult.get_files_for_cluster",
@@ -37309,19 +37257,7 @@
           "src_name": "Delta Calculation & Cluster Evolution Engine",
           "dst_name": "Semantic Reference & Edge Resolver",
           "evidence": "When calculating structural differences between versions (deltas), the Engine queries the Resolver for language-specific hierarchies and package dependencies to determine if a change is purely internal or affects the architectural interface.",
-          "key_edges": [
-            {
-              "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 280,
-                  "column": 39
-                }
-              ],
-              "description": ""
-            }
-          ],
+          "key_edges": [],
           "src_id": "5.1",
           "dst_id": "5.3",
           "is_static": true,
@@ -37344,6 +37280,17 @@
                 {
                   "line": 50,
                   "column": 37
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 281,
+                  "column": 39
                 }
               ],
               "description": ""
@@ -37388,17 +37335,6 @@
                 {
                   "line": 58,
                   "column": 33
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 280,
-                  "column": 39
                 }
               ],
               "description": ""
@@ -42835,11 +42771,11 @@
           "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.deterministic_cluster_grouping",
           "call_sites": [
             {
-              "line": 95,
+              "line": 97,
               "column": 21
             }
           ],
-          "description": ""
+          "description": "Triggers deterministic grouping of clusters."
         }
       ],
       "src_id": "3.1.2.1",
@@ -42851,7 +42787,7 @@
           "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.deterministic_cluster_grouping",
           "call_sites": [
             {
-              "line": 95,
+              "line": 97,
               "column": 21
             }
           ],
@@ -42862,7 +42798,7 @@
           "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin.deterministic_cluster_grouping",
           "call_sites": [
             {
-              "line": 100,
+              "line": 101,
               "column": 21
             }
           ],
@@ -43062,10 +42998,10 @@
       ]
     },
     {
-      "relation": "validates architectural relations against CFG state",
+      "relation": "Initializes stateful synthesis and validates semantic integrity",
       "src_name": "Component Synthesis & Relation Mapper",
       "dst_name": "Incremental Synthesis Orchestrator",
-      "evidence": "During the synthesis phase, the Resolver calls back to the Orchestrator to validate proposed architectural relations against the live Control Flow Graph (CFG) and to trace symbol-level dependencies.",
+      "evidence": "The Abstraction layer orchestrates the high-level flow by initializing the IncrementalAgent. It passes ValidationResult objects to the Orchestrator to ensure that the synthesized architectural changes maintain consistency with the existing model.",
       "key_edges": [],
       "src_id": "3.1.2.1",
       "dst_id": "3.1.3",
@@ -43088,17 +43024,6 @@
           "call_sites": [
             {
               "line": 146,
-              "column": 6
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
-          "target": "monitoring/context.py|monitoring.context.trace",
-          "call_sites": [
-            {
-              "line": 82,
               "column": 6
             }
           ],
@@ -43132,17 +43057,6 @@
           "call_sites": [
             {
               "line": 185,
-              "column": 6
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/details_agent.py|agents.details_agent.DetailsAgent.step_clusters_grouping",
-          "target": "monitoring/context.py|monitoring.context.trace",
-          "call_sites": [
-            {
-              "line": 86,
               "column": 6
             }
           ],
@@ -43291,10 +43205,10 @@
       ]
     },
     {
-      "relation": "Validates clusters against static CFG",
+      "relation": "Validates architectural claims against CFG",
       "src_name": "Component Synthesis & Relation Mapper",
       "dst_name": "Structural Graph & Edge Validator",
-      "evidence": "The modeling layer verifies LLM-proposed components by querying the static call graph to ensure proposed boundaries align with actual code references.",
+      "evidence": "The modeling layer submits proposed component relations to the validation layer to ensure that LLM-inferred connections are backed by actual static call graph evidence.",
       "key_edges": [],
       "src_id": "3.1.2.1",
       "dst_id": "5.1.1",
@@ -43302,33 +43216,22 @@
       "all_edges": []
     },
     {
-      "relation": "Validates clusters against static CFG",
+      "relation": "Validates architectural claims against CFG",
       "src_name": "Component Synthesis & Relation Mapper",
       "dst_name": "Snapshot Manager & Delta Orchestrator",
-      "evidence": "The modeling layer verifies LLM-proposed components by querying the static call graph to ensure proposed boundaries align with actual code references.",
+      "evidence": "The modeling layer submits proposed component relations to the validation layer to ensure that LLM-inferred connections are backed by actual static call graph evidence.",
       "key_edges": [],
       "src_id": "3.1.2.1",
       "dst_id": "5.1.2.1",
       "is_static": true,
       "all_edges": [
         {
-          "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.run",
-          "target": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.build_all_cluster_results",
-          "call_sites": [
-            {
-              "line": 195,
-              "column": 27
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+          "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
           "call_sites": [
             {
-              "line": 93,
-              "column": 40
+              "line": 94,
+              "column": 64
             }
           ],
           "description": ""
@@ -43338,8 +43241,41 @@
           "target": "static_analyzer/constants.py|static_analyzer.constants.Language",
           "call_sites": [
             {
-              "line": 93,
+              "line": 94,
               "column": 48
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/details_agent.py|agents.details_agent.DetailsAgent.step_clusters_grouping",
+          "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+          "call_sites": [
+            {
+              "line": 103,
+              "column": 24
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+          "call_sites": [
+            {
+              "line": 94,
+              "column": 40
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent.run",
+          "target": "static_analyzer/cluster_helpers.py|static_analyzer.cluster_helpers.build_all_cluster_results",
+          "call_sites": [
+            {
+              "line": 195,
+              "column": 27
             }
           ],
           "description": ""
@@ -44406,6 +44342,17 @@
           "description": ""
         }
       ]
+    },
+    {
+      "relation": "Supplies reconciled graph data for rendering",
+      "src_name": "Relational Logic & Edge Reconciliation",
+      "dst_name": "Architectural Surface & Visualization Generator",
+      "evidence": "The Visualization Generator consumes the enriched Relation objects (which contain key_edges and evidence strings reconciled from static analysis) to generate the interactive Cytoscape.js graph and Markdown tables.",
+      "key_edges": [],
+      "src_id": "3.2.3",
+      "dst_id": "3.2.2",
+      "is_static": false,
+      "all_edges": []
     },
     {
       "relation": "calls",
@@ -46109,6 +46056,17 @@
       "is_static": true,
       "all_edges": [
         {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys",
+          "call_sites": [
+            {
+              "line": 655,
+              "column": 15
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
           "call_sites": [
@@ -46119,17 +46077,6 @@
             {
               "line": 1226,
               "column": 9
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys",
-          "call_sites": [
-            {
-              "line": 574,
-              "column": 15
             }
           ],
           "description": ""
@@ -46340,23 +46287,34 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_clusters",
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
+          "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
           "call_sites": [
             {
-              "line": 1221,
-              "column": 35
+              "line": 659,
+              "column": 65
             }
           ],
           "description": ""
         },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
-          "target": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
+          "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
           "call_sites": [
             {
-              "line": 578,
-              "column": 65
+              "line": 669,
+              "column": 37
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_clusters",
+          "call_sites": [
+            {
+              "line": 1221,
+              "column": 35
             }
           ],
           "description": ""
@@ -46589,7 +46547,7 @@
           "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.detail_new_components",
           "call_sites": [
             {
-              "line": 1556,
+              "line": 1555,
               "column": 40
             }
           ],
@@ -46612,7 +46570,7 @@
           "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_all_scope_relations",
           "call_sites": [
             {
-              "line": 1573,
+              "line": 1572,
               "column": 40
             }
           ],
@@ -46635,11 +46593,11 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
           "call_sites": [
             {
-              "line": 1491,
+              "line": 1490,
               "column": 22
             },
             {
-              "line": 1583,
+              "line": 1582,
               "column": 18
             }
           ],
@@ -46662,7 +46620,7 @@
           "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_changed_members",
           "call_sites": [
             {
-              "line": 1446,
+              "line": 1445,
               "column": 17
             }
           ],
@@ -46673,7 +46631,7 @@
           "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
           "call_sites": [
             {
-              "line": 1437,
+              "line": 1436,
               "column": 40
             }
           ],
@@ -46726,26 +46684,11 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
           "call_sites": [
             {
-              "line": 1564,
+              "line": 1563,
               "column": 43
             }
           ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-          "call_sites": [
-            {
-              "line": 1492,
-              "column": 29
-            },
-            {
-              "line": 1585,
-              "column": 34
-            }
-          ],
-          "description": ""
+          "description": "Baseline manager coordinates flow by calling the planner's subcomponent generation."
         }
       ],
       "src_id": "4.2.2",
@@ -46757,7 +46700,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
           "call_sites": [
             {
-              "line": 1564,
+              "line": 1563,
               "column": 43
             }
           ],
@@ -46768,11 +46711,11 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
           "call_sites": [
             {
-              "line": 1492,
+              "line": 1491,
               "column": 29
             },
             {
-              "line": 1585,
+              "line": 1584,
               "column": 34
             }
           ],
@@ -46783,7 +46726,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
           "call_sites": [
             {
-              "line": 1399,
+              "line": 1398,
               "column": 18
             }
           ],
@@ -46796,19 +46739,7 @@
       "src_name": "State Reconciliation & Baseline Manager",
       "dst_name": "Structural Delta & Change Analyzer",
       "evidence": "The Manager uses the Analyzer to propagate \"dirty\" signals down the component tree, determining the exact scope of re-analysis required.",
-      "key_edges": [
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
-          "call_sites": [
-            {
-              "line": 1502,
-              "column": 33
-            }
-          ],
-          "description": ""
-        }
-      ],
+      "key_edges": [],
       "src_id": "4.2.2",
       "dst_id": "4.2.3",
       "is_static": true,
@@ -46818,7 +46749,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively",
           "call_sites": [
             {
-              "line": 1502,
+              "line": 1501,
               "column": 33
             }
           ],
@@ -46829,7 +46760,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth",
           "call_sites": [
             {
-              "line": 1561,
+              "line": 1560,
               "column": 20
             }
           ],
@@ -46852,7 +46783,7 @@
           "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
           "call_sites": [
             {
-              "line": 1544,
+              "line": 1543,
               "column": 27
             }
           ],
@@ -46875,7 +46806,7 @@
           "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.ClusterDelta.has_changes",
           "call_sites": [
             {
-              "line": 1483,
+              "line": 1482,
               "column": 26
             }
           ],
@@ -46886,7 +46817,7 @@
           "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
           "call_sites": [
             {
-              "line": 1477,
+              "line": 1476,
               "column": 21
             }
           ],
@@ -46897,7 +46828,7 @@
           "target": "diagram_analysis/cluster_snapshot.py|diagram_analysis.cluster_snapshot.ClusterSnapshot.all_cluster_ids",
           "call_sites": [
             {
-              "line": 1464,
+              "line": 1463,
               "column": 33
             }
           ],
@@ -46908,7 +46839,7 @@
           "target": "diagram_analysis/cluster_snapshot.py|diagram_analysis.cluster_snapshot.snapshot_from_static_analysis",
           "call_sites": [
             {
-              "line": 1463,
+              "line": 1462,
               "column": 28
             }
           ],
@@ -46916,15 +46847,11 @@
         },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+          "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
           "call_sites": [
             {
-              "line": 1432,
-              "column": 48
-            },
-            {
-              "line": 1499,
-              "column": 48
+              "line": 1498,
+              "column": 76
             }
           ],
           "description": ""
@@ -46934,8 +46861,23 @@
           "target": "static_analyzer/constants.py|static_analyzer.constants.Language",
           "call_sites": [
             {
-              "line": 1499,
+              "line": 1498,
               "column": 56
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+          "call_sites": [
+            {
+              "line": 1431,
+              "column": 48
+            },
+            {
+              "line": 1498,
+              "column": 48
             }
           ],
           "description": ""
@@ -46957,7 +46899,7 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
           "call_sites": [
             {
-              "line": 1430,
+              "line": 1429,
               "column": 50
             }
           ],
@@ -47067,17 +47009,6 @@
           "description": ""
         }
       ]
-    },
-    {
-      "relation": "Feeds file-level metadata for state updates",
-      "src_name": "Change Detection & Validation Engine",
-      "dst_name": "Incremental State & Structural Planner",
-      "evidence": "Data flow relation where ChangeSet and FileCoverage objects are consumed by the planner to update the incremental analysis state.",
-      "key_edges": [],
-      "src_id": "4.3",
-      "dst_id": "4.2",
-      "is_static": false,
-      "all_edges": []
     },
     {
       "relation": "Triggers high-level model generation",
@@ -47523,15 +47454,63 @@
       ]
     },
     {
-      "relation": "Materializes snapshots and persists structural records",
+      "relation": "projects structural snapshots onto graph primitives",
       "src_name": "Snapshot Manager & Delta Orchestrator",
       "dst_name": "Structural Graph & Edge Validator",
-      "evidence": "The Evolution engine acts as the primary writer and refiner for the CallGraph. It uses 'snapshot' and 'filter_by_nodes' to create immutable architectural states and 'record' to ingest new structural findings during analysis.",
+      "evidence": "The Evolution engine uses the Static Analyzer to materialize scoped snapshots and filter the global CallGraph into component-specific subgraphs for delta calculation.",
       "key_edges": [],
       "src_id": "5.1.2.1",
       "dst_id": "5.1.1",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
+          "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
+          "call_sites": [
+            {
+              "line": 342,
+              "column": 58
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+          "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph._resolve_name",
+          "call_sites": [
+            {
+              "line": 221,
+              "column": 31
+            },
+            {
+              "line": 221,
+              "column": 56
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+          "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+          "call_sites": [
+            {
+              "line": 213,
+              "column": 55
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+          "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
+          "call_sites": [
+            {
+              "line": 213,
+              "column": 36
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.scoped_snapshot_from_lineage",
           "target": "static_analyzer/clustering/method_cluster_paths.py|static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.snapshot",
@@ -47556,11 +47535,11 @@
           "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language",
           "call_sites": [
             {
-              "line": 286,
+              "line": 287,
               "column": 26
             }
           ],
-          "description": ""
+          "description": "Orchestrator invokes language-specific delta computation."
         }
       ],
       "src_id": "5.1.2.1",
@@ -47574,6 +47553,39 @@
             {
               "line": 357,
               "column": 42
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
+          "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language",
+          "call_sites": [
+            {
+              "line": 351,
+              "column": 38
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
+          "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language",
+          "call_sites": [
+            {
+              "line": 287,
+              "column": 26
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._build_scope_incremental_inputs",
+          "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageDelta",
+          "call_sites": [
+            {
+              "line": 1714,
+              "column": 23
             }
           ],
           "description": ""
@@ -47610,39 +47622,6 @@
             }
           ],
           "description": ""
-        },
-        {
-          "source": "agents/cluster_methods_mixin.py|agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
-          "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language",
-          "call_sites": [
-            {
-              "line": 351,
-              "column": 38
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
-          "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta._delta_for_language",
-          "call_sites": [
-            {
-              "line": 286,
-              "column": 26
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._build_scope_incremental_inputs",
-          "target": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.LanguageDelta",
-          "call_sites": [
-            {
-              "line": 1643,
-              "column": 23
-            }
-          ],
-          "description": ""
         }
       ]
     },
@@ -47674,19 +47653,7 @@
       "src_name": "Snapshot Manager & Delta Orchestrator",
       "dst_name": "Structural Analysis & Topology Engine",
       "evidence": "When calculating structural differences between versions (deltas), the Engine queries the Resolver for language-specific hierarchies and package dependencies to determine if a change is purely internal or affects the architectural interface.",
-      "key_edges": [
-        {
-          "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-          "call_sites": [
-            {
-              "line": 280,
-              "column": 39
-            }
-          ],
-          "description": ""
-        }
-      ],
+      "key_edges": [],
       "src_id": "5.1.2.1",
       "dst_id": "5.3.2.1",
       "is_static": true,
@@ -47714,6 +47681,17 @@
           "description": ""
         },
         {
+          "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+          "call_sites": [
+            {
+              "line": 281,
+              "column": 39
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.scoped_snapshot_for_component",
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
           "call_sites": [
@@ -47731,17 +47709,6 @@
             {
               "line": 58,
               "column": 33
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/cluster_delta.py|diagram_analysis.cluster_delta.compute_cluster_delta",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-          "call_sites": [
-            {
-              "line": 280,
-              "column": 39
             }
           ],
           "description": ""
@@ -47828,26 +47795,48 @@
       ]
     },
     {
-      "relation": "queries graph topology for metric calculation",
-      "src_name": "Structural & Complexity Metrics Engine",
+      "relation": "queries raw call graph for dependency analysis",
+      "src_name": "Architectural Health & Metric Evaluator",
       "dst_name": "Structural Graph & Edge Validator",
-      "evidence": "The Health Evaluator performs graph-theoretic analysis (centrality, connectivity) by converting the internal analysis results into NetworkX objects. This allows the evaluator to calculate fan-in/fan-out and detect circular dependencies using standard graph algorithms.",
+      "evidence": "Metric checks directly access the CallGraph nodes and edges to perform graph-theoretic calculations like circular dependency detection and fan-out analysis.",
       "key_edges": [],
-      "src_id": "5.1.3.1",
+      "src_id": "5.1.3",
       "dst_id": "5.1.1",
-      "is_static": true,
+      "is_static": false,
       "all_edges": []
     },
     {
-      "relation": "Evaluates quality of logical architectural clusters",
+      "relation": "evaluates quality of evolved cluster results",
       "src_name": "Structural & Complexity Metrics Engine",
       "dst_name": "Snapshot Manager & Delta Orchestrator",
-      "evidence": "The Health Evaluator operates on the abstractions provided by the ClusteringService. It maps physical files to logical clusters and converts cluster data into NetworkX graphs to perform graph-theory based metric calculations (cohesion, coupling).",
+      "evidence": "The Health Evaluator consumes the output of the Delta Processor (ClusterResult) to map structural findings back to source files and calculate cohesion/coupling metrics.",
       "key_edges": [],
       "src_id": "5.1.3.1",
       "dst_id": "5.1.2.1",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "health/checks/coupling.py|health.checks.coupling.check_fan_in",
+          "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+          "call_sites": [
+            {
+              "line": 102,
+              "column": 27
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "health/checks/coupling.py|health.checks.coupling.collect_coupling_values",
+          "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+          "call_sites": [
+            {
+              "line": 23,
+              "column": 27
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
           "target": "static_analyzer/clustering/models.py|static_analyzer.clustering.models.ClusterResult.get_files_for_cluster",
