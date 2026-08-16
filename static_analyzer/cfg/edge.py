@@ -69,15 +69,15 @@ class Edge:
             self._call_site_keys.add(call_site_key)
             self._call_sites.append(call_site)
 
+    def visit_paths(self, fn: Callable[[str], str]) -> None:
+        for site in self._call_sites:
+            if "file" in site:
+                site["file"] = fn(str(site["file"]))
+        self._call_site_keys = {tuple(sorted(site.items())) for site in self._call_sites}
+
     @staticmethod
     def _normalize_call_site(call_site: Mapping[str, Hashable]) -> dict[str, Hashable]:
         normalized = dict(call_site)
         if "file" not in normalized and "file_path" in normalized:
             normalized["file"] = normalized.pop("file_path")
         return normalized
-
-    def visit_paths(self, fn: Callable[[str], str]) -> None:
-        for site in self._call_sites:
-            if "file" in site:
-                site["file"] = fn(str(site["file"]))
-        self._call_site_keys = {tuple(sorted(site.items())) for site in self._call_sites}

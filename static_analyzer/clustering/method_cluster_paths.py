@@ -63,10 +63,6 @@ class MethodClusterPaths:
                         kept.add(cluster_id)
                 self._paths[qname] = kept
 
-    @staticmethod
-    def _scope_belongs_to(scope_id: str, root: str) -> bool:
-        return scope_id == root or scope_id.startswith(f"{root}.")
-
     def snapshot(self) -> list[tuple[str, set[str]]]:
         with self._lock:
             return [(qname, set(cluster_ids)) for qname, cluster_ids in self._paths.items()]
@@ -74,6 +70,10 @@ class MethodClusterPaths:
     def snapshot_dict(self) -> dict[str, set[str]]:
         with self._lock:
             return {qname: set(cluster_ids) for qname, cluster_ids in self._paths.items()}
+
+    @staticmethod
+    def _scope_belongs_to(scope_id: str, root: str) -> bool:
+        return scope_id == root or scope_id.startswith(f"{root}.")
 
     def _cluster_id_belongs_to_scope(self, cluster_id: str, scope_id: str) -> bool:
         if not scope_id:
