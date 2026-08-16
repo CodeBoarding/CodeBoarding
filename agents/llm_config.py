@@ -189,7 +189,7 @@ LLM_PROVIDERS = {
         selection_envs=["GOOGLE_API_KEY"],
         api_key_env="GOOGLE_API_KEY",
         agent_model="gemini-3.7-flash",
-        parsing_model="gemini-3.1-flash-lite",
+        parsing_model="gemini-3.5-flash-lite",
         llm_type=LLMType.GEMINI_FLASH,
         extra_args={
             "max_tokens": None,
