@@ -1779,14 +1779,16 @@ class TestDiagramGenerator(unittest.TestCase):
                 line_end=1,
             )
         )
-        cfg._cluster_cache = ClusterResult(
-            clusters={1: {"test.fn"}},
-            cluster_to_files={1: {str(self.repo_location / "test.py")}},
-            file_to_clusters={str(self.repo_location / "test.py"): {1}},
-            strategy="test",
-        )
         results = StaticAnalysisResults()
         results.add_cfg(Language.PYTHON, cfg)
+        results.get_clusters(Language.PYTHON).adopt(
+            ClusterResult(
+                clusters={1: {"test.fn"}},
+                cluster_to_files={1: {str(self.repo_location / "test.py")}},
+                file_to_clusters={str(self.repo_location / "test.py"): {1}},
+                strategy="test",
+            )
+        )
         gen.static_analysis = results
 
         gen._persist_static_analysis_artifact()
@@ -1797,7 +1799,7 @@ class TestDiagramGenerator(unittest.TestCase):
             return
         loaded_results, cached_sha = loaded
         self.assertEqual(cached_sha, "sha-current")
-        self.assertIsNotNone(loaded_results.get_cfg(Language.PYTHON)._cluster_cache)
+        self.assertTrue(loaded_results.get_clusters(Language.PYTHON).result.clusters)
 
     def _finalize_gen(self):
         gen = DiagramGenerator(

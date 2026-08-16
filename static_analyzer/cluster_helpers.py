@@ -23,7 +23,7 @@ import networkx.algorithms.community as nx_comm
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig, Language
 from static_analyzer.leiden_utils import find_partition
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, ClusteringService
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +52,11 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     Downstream code maps ``cluster_id -> component`` in a single dict, so IDs must
     not collide across languages.
     """
+    cluster_service = ClusteringService()
     cluster_results: dict[str, ClusterResult] = {}
     offset = 0
     for lang in static_analysis.get_languages():
-        result = static_analysis.get_cfg(lang).cluster()
+        result = cluster_service.cluster(static_analysis.get_cfg(lang))
         if offset:
             result = reindex_cluster_result(result, offset)
             logger.info(f"[Cluster] {lang}: offset IDs by +{offset} ({len(result.clusters)} clusters)")
@@ -67,14 +68,12 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
 
 
 def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]) -> None:
-    """Keep each CFG cache aligned with returned cluster IDs."""
+    """Store each language's partition (with its final, offset IDs) on its cluster cache."""
     for lang, result in cluster_results.items():
         try:
-            cfg = static_analysis.get_cfg(Language(lang))
-            cfg._cluster_cache = result
-            cfg.record_cluster_paths(result)
+            static_analysis.get_clusters(Language(lang)).adopt(result)
         except ValueError:
-            logger.warning("Could not sync cluster cache for missing language %s", lang)
+            logger.warning("Could not sync cluster cache for unknown language %s", lang)
 
 
 def reindex_across_languages(cluster_results: dict[str, ClusterResult]) -> None:

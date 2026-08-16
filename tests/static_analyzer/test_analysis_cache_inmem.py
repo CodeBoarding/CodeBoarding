@@ -8,13 +8,14 @@ the cached analysis-dict up to date in memory before saving a new pkl.
 import unittest
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+from static_analyzer import EngineConfig, StaticAnalyzer
 from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, merge_results
 from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph, Edge
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.graph import CallGraph
+from static_analyzer.clustering import ClusterCache, ClusterResult
 from static_analyzer.node import Node
 from static_analyzer.incremental_orchestrator import (
     _definition_nodes,
@@ -187,32 +188,34 @@ class TestMergeResults(unittest.TestCase):
 
 
 class TestClusterCachePreservation(unittest.TestCase):
-    """``_cluster_cache`` must survive warm-start invalidation/merge.
+    """The partition must survive warm-start invalidation/merge, pruned to the survivors."""
 
-    Regression: dropping it caused ``IncrementalCacheMissingError`` even
-    when the pkl on disk had a populated cache.
-    """
-
-    def _cg_with_cluster_cache(self) -> CallGraph:
+    def _cg(self) -> CallGraph:
         cg = CallGraph(language="python")
         cg.add_node(_node("a.foo", "a.py", line_start=1))
         cg.add_node(_node("a.bar", "a.py", line_start=10))
         cg.add_node(_node("b.qux", "b.py", line_start=1))
-        cg._cluster_cache = ClusterResult(
-            clusters={1: {"a.foo", "a.bar"}, 2: {"b.qux"}},
-            cluster_to_files={1: {"a.py"}, 2: {"b.py"}},
-            file_to_clusters={"a.py": {1}, "b.py": {2}},
-            strategy="leiden",
-        )
         return cg
 
-    def test_invalidate_files_preserves_cluster_cache_for_kept_files(self) -> None:
-        cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
+    def _cache(self) -> ClusterCache:
+        cache = ClusterCache()
+        cache.adopt(
+            ClusterResult(
+                clusters={1: {"a.foo", "a.bar"}, 2: {"b.qux"}},
+                cluster_to_files={1: {"a.py"}, 2: {"b.py"}},
+                file_to_clusters={"a.py": {1}, "b.py": {2}},
+                strategy="leiden",
+            )
+        )
+        return cache
+
+    def test_invalidate_files_then_prune_keeps_surviving_clusters(self) -> None:
+        cached = _result(self._cg(), source_files=["a.py", "b.py"])
 
         updated = invalidate_files(cached, {Path("a.py")}).analysis
+        kept = self._cache().select(updated.call_graph.nodes)
 
-        cc = updated.call_graph._cluster_cache
-        assert cc is not None
+        cc = kept.result
         # Cluster 1 had only a.py members -> dropped entirely.
         # Cluster 2 keeps b.qux from b.py.
         self.assertNotIn(1, cc.clusters)
@@ -221,68 +224,59 @@ class TestClusterCachePreservation(unittest.TestCase):
         self.assertEqual(cc.file_to_clusters, {"b.py": {2}})
         self.assertEqual(cc.strategy, "leiden")
 
-    def test_invalidate_files_preserves_partial_cluster(self) -> None:
-        cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
+    def test_invalidate_files_then_prune_keeps_whole_untouched_cluster(self) -> None:
+        cached = _result(self._cg(), source_files=["a.py", "b.py"])
         # Only invalidate b.py; cluster 1 (members in a.py) survives whole;
         # cluster 2 (b.qux only) drops.
         updated = invalidate_files(cached, {Path("b.py")}).analysis
 
-        cc = updated.call_graph._cluster_cache
-        assert cc is not None
+        cc = self._cache().select(updated.call_graph.nodes).result
+
         self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
         self.assertNotIn(2, cc.clusters)
 
-    def test_merge_results_preserves_cached_cluster_cache(self) -> None:
-        cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
+    def test_merge_results_then_prune_keeps_cached_clusters(self) -> None:
+        cached = _result(self._cg(), source_files=["a.py", "b.py"])
         new_cg = CallGraph(language="python")
         new_cg.add_node(_node("c.new", "c.py"))
         new = _result(new_cg, source_files=["c.py"])
 
         merged = merge_results(_analysis_data(cached), new)
+        cc = self._cache().select(merged.call_graph.nodes).result
 
-        cc = merged.call_graph._cluster_cache
-        assert cc is not None
         # Cached clusters survive; new node 'c.new' is unclustered (intentional —
         # cluster_delta will pick it up as drift on the next run).
         self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
         self.assertEqual(cc.clusters[2], {"b.qux"})
+        self.assertNotIn("c.new", {m for members in cc.clusters.values() for m in members})
 
     def test_filter_returns_independent_call_graph(self) -> None:
-        # Ensure CallGraph.filter does not mutate the source.
-        cg = self._cg_with_cluster_cache()
+        cg = self._cg()
         original_node_count = len(cg.nodes)
-        assert cg._cluster_cache is not None
-        original_cluster_ids = set(cg._cluster_cache.clusters.keys())
 
-        cg.filter(lambda n: n.file_path != "a.py", on_dropped_edge=lambda _edge: None)
+        cg.filter(lambda n: n.file_path != "a.py", lambda _edge: None)
 
         self.assertEqual(len(cg.nodes), original_node_count)
-        assert cg._cluster_cache is not None
-        self.assertEqual(set(cg._cluster_cache.clusters.keys()), original_cluster_ids)
 
     def test_filter_drops_edges_with_dropped_endpoint(self) -> None:
         cg = CallGraph(language="python")
         cg.add_node(_node("a.foo", "a.py"))
         cg.add_node(_node("b.bar", "b.py"))
         cg.add_edge("a.foo", "b.bar")
-        dropped_edges: list[Edge] = []
 
-        filtered = cg.filter(lambda n: n.file_path != "a.py", on_dropped_edge=dropped_edges.append)
+        filtered = cg.filter(lambda n: n.file_path != "a.py", lambda _edge: None)
 
         self.assertEqual(len(filtered.edges), 0)
         self.assertNotIn("a.foo", filtered.nodes)
         self.assertIn("b.bar", filtered.nodes)
-        self.assertEqual([(edge.get_source(), edge.get_destination()) for edge in dropped_edges], [("a.foo", "b.bar")])
 
-    def test_union_preserves_cached_side_cluster_cache(self) -> None:
-        cached = self._cg_with_cluster_cache()
+    def test_union_then_prune_leaves_new_nodes_unclustered(self) -> None:
         new = CallGraph(language="python")
         new.add_node(_node("c.new", "c.py"))
 
-        unioned = cached.union(new)
+        unioned = self._cg().union(new)
+        cc = self._cache().select(unioned.nodes).result
 
-        cc = unioned._cluster_cache
-        assert cc is not None
         self.assertEqual(cc.clusters, {1: {"a.foo", "a.bar"}, 2: {"b.qux"}})
         # New node from `other` participates in the graph but not yet in any cluster.
         self.assertIn("c.new", unioned.nodes)
@@ -292,7 +286,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             result = StaticAnalysisResults()
-            result.add_cfg(Language.PYTHON, self._cg_with_cluster_cache())
+            result.add_cfg(Language.PYTHON, self._cg())
             base_results = StaticAnalysisResults()
             result.incremental_base_results = base_results
 
@@ -304,7 +298,7 @@ class TestClusterCachePreservation(unittest.TestCase):
             self.assertIsNone(loaded.incremental_base_results)
             self.assertIs(result.incremental_base_results, base_results)
 
-    def test_static_analysis_cache_round_trips_cluster_cache_paths_between_repo_roots(self) -> None:
+    def test_static_analysis_cache_round_trips_cluster_paths_between_repo_roots(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             repo_a = temp_path / "repo-a"
@@ -316,25 +310,96 @@ class TestClusterCachePreservation(unittest.TestCase):
             source_file = repo_a / "pkg" / "a.py"
             cg = CallGraph(language="python")
             cg.add_node(_node("pkg.a.foo", str(source_file)))
-            cg._cluster_cache = ClusterResult(
-                clusters={1: {"pkg.a.foo"}},
-                cluster_to_files={1: {str(source_file)}},
-                file_to_clusters={str(source_file): {1}},
-                strategy="leiden",
+            clusters = ClusterCache()
+            clusters.adopt(
+                ClusterResult(
+                    clusters={1: {"pkg.a.foo"}},
+                    cluster_to_files={1: {str(source_file)}},
+                    file_to_clusters={str(source_file): {1}},
+                    strategy="leiden",
+                )
             )
             result = StaticAnalysisResults()
             result.add_cfg(Language.PYTHON, cg)
+            result.set_clusters(Language.PYTHON, clusters)
 
             StaticAnalysisCache(artifact_dir, repo_a).save(result, source_sha="sha")
             loaded = StaticAnalysisCache(artifact_dir, repo_b).get(expected_sha="sha")
 
             assert loaded is not None
-            loaded_cfg = loaded.get_cfg(Language.PYTHON)
             expected_file = str(repo_b.resolve() / "pkg" / "a.py")
-            self.assertEqual(loaded_cfg.nodes["pkg.a.foo"].file_path, expected_file)
-            assert loaded_cfg._cluster_cache is not None
-            self.assertEqual(loaded_cfg._cluster_cache.cluster_to_files, {1: {expected_file}})
-            self.assertEqual(loaded_cfg._cluster_cache.file_to_clusters, {expected_file: {1}})
+            self.assertEqual(loaded.get_cfg(Language.PYTHON).nodes["pkg.a.foo"].file_path, expected_file)
+            loaded_partition = loaded.get_clusters(Language.PYTHON).result
+            self.assertEqual(loaded_partition.cluster_to_files, {1: {expected_file}})
+            self.assertEqual(loaded_partition.file_to_clusters, {expected_file: {1}})
+
+
+class TestUpdateCachedResultsCarriesPartition(unittest.TestCase):
+    """Binds the graft in ``_update_cached_results``; delete that line and these fail.
+
+    The classes above exercise ``ClusterCache.select`` directly, so they stay green
+    whether or not the warm start actually wires it up.
+    """
+
+    def _analyzer(self, project: Path, changed_files: set[Path] | None) -> StaticAnalyzer:
+        analyzer = object.__new__(StaticAnalyzer)
+        adapter = MagicMock()
+        adapter.language = "Python"
+        adapter.language_enum = Language.PYTHON
+        analyzer._engine_clients = [(EngineConfig(adapter=adapter, project_path=project), MagicMock())]
+        analyzer.collected_diagnostics = {}
+        analyzer.ignore_manager = MagicMock()
+        analyzer._loc_for_adapter = MagicMock(return_value=0)
+        analyzer.changed_files = changed_files
+        return analyzer
+
+    def _cached(self) -> StaticAnalysisResults:
+        cg = CallGraph(language="python")
+        cg.add_node(_node("a.foo", "a.py"))
+        cg.add_node(_node("b.qux", "b.py"))
+        cached = StaticAnalysisResults()
+        cached.add_cfg(Language.PYTHON, cg)
+        clusters = ClusterCache()
+        clusters.adopt(ClusterResult(clusters={1: {"a.foo"}, 2: {"b.qux"}}, strategy="leiden"))
+        cached.set_clusters(Language.PYTHON, clusters)
+        return cached
+
+    def _surviving_graph(self) -> CallGraph:
+        """What the re-LSP hands back: a.foo is gone, b.qux survives."""
+        cg = CallGraph(language="python")
+        cg.add_node(_node("b.qux", "b.py"))
+        return cg
+
+    def test_merge_branch_carries_the_partition_pruned_to_survivors(self) -> None:
+        project = Path("/proj").resolve()
+        analyzer = self._analyzer(project, changed_files={project / "a.py"})
+
+        with (
+            patch(
+                "static_analyzer.update_cfg_for_changed_files",
+                return_value={"call_graph": self._surviving_graph()},
+            ),
+            patch.object(analyzer, "_collect_diagnostics_for"),
+            patch("static_analyzer.track_lsp_result"),
+        ):
+            results = analyzer._update_cached_results(self._cached(), cached_sha="deadbeef")
+
+        self.assertEqual(results.get_clusters(Language.PYTHON).result.clusters, {2: {"b.qux"}})
+
+    def test_full_relsp_branch_also_carries_the_partition(self) -> None:
+        """Git detection failing is not a reason to hand the next run an empty baseline."""
+        project = Path("/proj").resolve()
+        analyzer = self._analyzer(project, changed_files=None)
+
+        with (
+            patch("static_analyzer.get_changed_files_since", side_effect=RuntimeError("not a git repo")),
+            patch.object(analyzer, "_run_full_analysis", return_value={"call_graph": self._surviving_graph()}),
+            patch.object(analyzer, "_collect_diagnostics_for"),
+            patch("static_analyzer.track_lsp_result"),
+        ):
+            results = analyzer._update_cached_results(self._cached(), cached_sha="deadbeef")
+
+        self.assertEqual(results.get_clusters(Language.PYTHON).result.clusters, {2: {"b.qux"}})
 
 
 class TestWarmStartDeletion(unittest.TestCase):

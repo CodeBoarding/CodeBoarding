@@ -1,10 +1,9 @@
 """In-memory cluster snapshot of the prior clustering, used by ``cluster_delta``.
 
-The partition is sourced exclusively from each per-language CFG's
-``CallGraph._cluster_cache``, populated by the previous run's
-``DiagramGenerator._persist_pkl_with_cluster_cache`` and round-tripped
-through the SHA-tagged pkl. When the cache is absent (legacy pkl, first run
-on a fresh repo) ``snapshot_from_static_analysis`` returns an empty snapshot;
+The partition is sourced exclusively from each language's ``ClusterCache``,
+populated by the previous run and round-tripped through the SHA-tagged pkl.
+When the cache is absent (first run on a fresh repo)
+``snapshot_from_static_analysis`` returns an empty snapshot;
 ``DiagramGenerator.generate_analysis_incremental`` then falls back to a
 full run, which warms the pkl for every subsequent incremental.
 """
@@ -38,10 +37,10 @@ class ClusterSnapshot:
 
 
 def snapshot_from_static_analysis(static_analysis: StaticAnalysisResults) -> ClusterSnapshot:
-    """Reconstruct a ``ClusterSnapshot`` from each per-language CFG's ``_cluster_cache``.
+    """Reconstruct a ``ClusterSnapshot`` from each language's ``ClusterCache``.
 
-    Languages whose CFG carries no ``_cluster_cache`` (legacy pkl or first-ever
-    run on a fresh repo) contribute nothing; the resulting snapshot's
+    Languages whose cache holds an empty partition (first-ever run on a fresh repo)
+    contribute nothing; the resulting snapshot's
     ``all_cluster_ids()`` will be empty for those languages, which causes
     ``DiagramGenerator.generate_analysis_incremental`` to fall back to a full
     run. After that full run the pkl is re-saved with a populated cache and
@@ -53,23 +52,24 @@ def snapshot_from_static_analysis(static_analysis: StaticAnalysisResults) -> Clu
             cfg = static_analysis.get_cfg(language)
         except ValueError:
             continue
-        if cfg._cluster_cache is None:
+        partition = static_analysis.get_clusters(language).result
+        if not partition.clusters:
             continue
-        by_language[language] = _entries_from_cfg_cache(cfg._cluster_cache, cfg.to_networkx())
+        by_language[language] = _entries_from_partition(partition, cfg.to_networkx())
     return ClusterSnapshot(by_language=by_language)
 
 
-def _entries_from_cfg_cache(
-    cluster_cache: ClusterResult,
+def _entries_from_partition(
+    partition: ClusterResult,
     nx_graph,
 ) -> dict[int, ClusterSnapshotEntry]:
-    """Build ``{cluster_id -> ClusterSnapshotEntry}`` from a CFG's ``_cluster_cache``.
+    """Build ``{cluster_id -> ClusterSnapshotEntry}`` from a language's partition.
 
     File paths come straight off the CFG node attributes — authoritative for
     every qname Leiden actually placed into a cluster.
     """
     entries: dict[int, ClusterSnapshotEntry] = {}
-    for cid, members in cluster_cache.clusters.items():
+    for cid, members in partition.clusters.items():
         entry = ClusterSnapshotEntry(members=set(members))
         for qname in members:
             attrs = nx_graph.nodes.get(qname)
