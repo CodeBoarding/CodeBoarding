@@ -50,7 +50,7 @@ class TestClusteringService(unittest.TestCase):
                 graph.add_node(Node(f"mod{component}.func{i}", 12, f"/file{component}.py", i * 10, i * 10 + 5))
             graph.add_edge(f"mod{component}.func0", f"mod{component}.func1")
 
-        result = ClusteringService(min_cluster_size=1).cluster(graph)
+        result = ClusteringService().cluster(graph)
 
         self.assertEqual(result.strategy, "connected_components")
         clustered = {qname for members in result.clusters.values() for qname in members}
