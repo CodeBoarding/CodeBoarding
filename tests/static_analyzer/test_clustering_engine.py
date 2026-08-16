@@ -2,7 +2,7 @@ import unittest
 
 import networkx as nx
 
-from static_analyzer.clustering.engine import cluster_graph
+from static_analyzer.clustering.engine import Candidate, Level, cluster_graph
 from static_analyzer.clustering.models import ClusterResult
 
 
@@ -61,6 +61,12 @@ class TestClusterGraph(unittest.TestCase):
 
         self.assertNotEqual(result.strategy, "empty")
         self.assertTrue(result.clusters)
+
+    def test_strategy_name_is_derived_from_the_level(self):
+        """Strategy strings are persisted in analysis.json, so the naming must not drift."""
+        self.assertEqual(Candidate([], Level.RAW, 0.0).strategy, "leiden")
+        self.assertEqual(Candidate([], Level.CLASS, 0.0).strategy, "leiden_level_class")
+        self.assertEqual(Candidate([], Level.FILE, 0.0).strategy, "leiden_level_file")
 
     def test_falls_back_to_connected_components_when_nothing_scores(self):
         """Leiden is the only algorithm, and a minimum of 6 leaves it nothing to return at any level."""

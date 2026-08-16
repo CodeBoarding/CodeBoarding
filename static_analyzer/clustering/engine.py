@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from enum import StrEnum
+from typing import NamedTuple
 
 import networkx as nx
 
@@ -13,9 +14,6 @@ from static_analyzer.constants import ClusteringConfig
 from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
-
-# (communities, strategy name, score)
-Candidate = tuple[list[set[str]], str, float]
 
 
 class Level(StrEnum):
@@ -26,10 +24,23 @@ class Level(StrEnum):
     FILE = "file"
 
 
+class Candidate(NamedTuple):
+    """One scored Leiden partition, tagged with the level it was found at."""
+
+    communities: list[set[str]]
+    level: Level
+    score: float
+
+    @property
+    def strategy(self) -> str:
+        """Name recorded on the ``ClusterResult`` and persisted in analysis.json."""
+        return "leiden" if self.level is Level.RAW else f"leiden_level_{self.level}"
+
+
 def cluster_graph(
     nx_graph: nx.DiGraph,
     *,
-    delimiter: str = ClusteringConfig.QUALIFIED_NAME_DELIMITER,
+    delimiter: str,
     target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
     min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
 ) -> ClusterResult:
@@ -53,22 +64,23 @@ def cluster_graph(
             if work_graph.number_of_nodes() == 0:
                 continue
 
-        candidate = _leiden_candidate(work_graph, min_cluster_size, total_nodes)
+        candidate = _leiden_candidate(work_graph, level, min_cluster_size, total_nodes)
         if level:
-            candidate = _map_candidate_to_original(candidate, nx_graph, level, delimiter, min_cluster_size, total_nodes)
+            candidate = _map_candidate_to_original(candidate, nx_graph, delimiter, min_cluster_size, total_nodes)
 
         all_candidates.append(candidate)
 
-        communities, strategy, score = candidate
-        coverage = _coverage(communities, min_cluster_size, total_nodes)
-        logger.info(f"Level {level or 'raw'}: best={strategy} score={score:.3f} coverage={coverage:.3f}")
+        coverage = _coverage(candidate.communities, min_cluster_size, total_nodes)
+        logger.info(
+            f"Level {level or 'raw'}: best={candidate.strategy} score={candidate.score:.3f} coverage={coverage:.3f}"
+        )
         if coverage >= ClusteringConfig.MIN_COVERAGE_RATIO:
             break
 
-    if all_candidates:
-        best_communities, best_strategy, best_score = max(all_candidates, key=lambda c: c[2])
-        if best_score > 0.0:
-            return _build_result(best_communities, best_strategy, min_cluster_size, nx_graph)
+    # Level.RAW never abstracts, so the loop always scores at least one candidate.
+    best = max(all_candidates, key=lambda c: c.score)
+    if best.score > 0.0:
+        return _build_result(best.communities, best.strategy, min_cluster_size, nx_graph)
 
     logger.warning("All clustering strategies scored 0, falling back to connected components")
     components = list(nx.connected_components(nx_graph.to_undirected()))
@@ -127,6 +139,9 @@ def _abstract_at_level(graph: nx.DiGraph, level: Level, delimiter: str) -> nx.Di
         if abstract_name not in abstracted:
             abstracted.add_node(abstract_name)
 
+    # These weights are recorded but never read: _leiden_candidate calls find_partition
+    # without ``weight=``, so class and file levels cluster unweighted. Passing them would
+    # change every existing partition, so it needs its own change.
     edge_weights: dict[tuple[str, str], int] = defaultdict(int)
     for src, dst in graph.edges():
         a_src, a_dst = node_map[src], node_map[dst]
@@ -139,7 +154,7 @@ def _abstract_at_level(graph: nx.DiGraph, level: Level, delimiter: str) -> nx.Di
     return abstracted
 
 
-def _leiden_candidate(graph: nx.DiGraph, min_cluster_size: int, total_nodes: int) -> Candidate:
+def _leiden_candidate(graph: nx.DiGraph, level: Level, min_cluster_size: int, total_nodes: int) -> Candidate:
     """Score one seeded-Leiden partition of ``graph``; a failure scores 0 and loses.
 
     Why seeded: Leiden is non-deterministic otherwise, and cluster IDs persisted in
@@ -148,17 +163,18 @@ def _leiden_candidate(graph: nx.DiGraph, min_cluster_size: int, total_nodes: int
     communities: list[set[str]] = []
     try:
         communities = find_partition(graph, seed=ClusteringConfig.CLUSTERING_SEED)
-    except Exception as e:
-        logger.debug(f"Leiden failed: {e}")
+    except Exception:
+        # Warn, not debug: if every level throws we ship connected components, which
+        # looks like an ordinary result with nothing explaining it.
+        logger.warning(f"Leiden failed at level {level or 'raw'}; scoring 0", exc_info=True)
     score = _score_clustering(communities, min_cluster_size, total_nodes)
     logger.debug(f"leiden: score={score:.3f}, clusters={len(communities)}")
-    return communities, "leiden", score
+    return Candidate(communities, level, score)
 
 
 def _map_candidate_to_original(
     candidate: Candidate,
     original_graph: nx.DiGraph,
-    level: Level,
     delimiter: str,
     min_cluster_size: int,
     total_nodes: int,
@@ -166,18 +182,17 @@ def _map_candidate_to_original(
     """Map an abstract-level community result back to original node names and re-score."""
     abstract_to_original: dict[str, list[str]] = defaultdict(list)
     for node in original_graph.nodes():
-        abstract_to_original[_abstract_node_name(node, level, delimiter)].append(node)
+        abstract_to_original[_abstract_node_name(node, candidate.level, delimiter)].append(node)
 
-    communities, algo, _ = candidate
     original_communities: list[set[str]] = []
-    for community in communities:
+    for community in candidate.communities:
         orig: set[str] = set()
         for abstract_node in community:
             orig.update(abstract_to_original[abstract_node])
         if orig:
             original_communities.append(orig)
     score = _score_clustering(original_communities, min_cluster_size, total_nodes)
-    return original_communities, f"{algo}_level_{level}", score
+    return Candidate(original_communities, candidate.level, score)
 
 
 def _coverage(communities: list[set[str]], min_cluster_size: int, total_nodes: int) -> float:
