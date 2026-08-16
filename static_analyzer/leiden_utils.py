@@ -43,9 +43,8 @@ def find_partition[T](
 ) -> list[set[T]]:
     """Run Leiden on the graph from singletons; return list of community sets.
 
-    This is the public entry point
-    forwards here. Uses ``RBConfigurationVertexPartition`` when a resolution
-    is supplied, otherwise ``ModularityVertexPartition``.
+    Uses ``RBConfigurationVertexPartition`` when a resolution is supplied,
+    otherwise ``ModularityVertexPartition``.
     """
     if graph.number_of_nodes() == 0:
         return []

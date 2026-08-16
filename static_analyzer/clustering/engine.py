@@ -6,6 +6,7 @@ be exercised on any graph. The caller does the export.
 
 import logging
 from collections import defaultdict
+from enum import StrEnum
 
 import networkx as nx
 import networkx.algorithms.community as nx_comm
@@ -17,6 +18,14 @@ from static_analyzer.leiden_utils import find_partition
 logger = logging.getLogger(__name__)
 
 
+class Level(StrEnum):
+    """Abstraction levels the search tries, in order. ``RAW`` is the un-abstracted graph."""
+
+    RAW = ""
+    CLASS = "class"
+    FILE = "file"
+
+
 def cluster_graph(
     nx_graph: nx.DiGraph,
     delimiter: str,
@@ -25,7 +34,7 @@ def cluster_graph(
 ) -> ClusterResult:
     """Cluster the graph using a try-all-then-level-up approach.
 
-    Flow: try all algorithms at each abstraction level (None, class, file).
+    Flow: try all algorithms at each abstraction level (raw, class, file).
     If coverage >= 50% at any level, stop and return the best result.
     Falls back to connected components if everything fails.
     """
@@ -35,19 +44,17 @@ def cluster_graph(
 
     total_nodes = nx_graph.number_of_nodes()
     all_candidates: list[tuple[list[set[str]], str, float]] = []
-    levels: list[str | None] = [None, "class", "file"]
 
-    for level in levels:
-        if level is None:
-            work_graph = nx_graph
-        else:
+    for level in Level:
+        work_graph = nx_graph
+        if level:
             work_graph = _abstract_at_level(nx_graph, level, delimiter)
             if work_graph.number_of_nodes() == 0:
                 continue
 
         candidates = _try_all_algorithms(work_graph, min_cluster_size, total_nodes)
 
-        if level is not None:
+        if level:
             candidates = _map_candidates_to_original(
                 candidates, nx_graph, level, delimiter, min_cluster_size, total_nodes
             )
@@ -76,17 +83,14 @@ def cluster_graph(
     )
 
 
-def _abstract_node_name(node_name: str, level: str, delimiter: str) -> str:
+def _abstract_node_name(node_name: str, level: Level, delimiter: str) -> str:
     parts = node_name.split(delimiter)
 
-    if level == "class" and len(parts) > 1:
+    if level is Level.CLASS and len(parts) > 1:
         return delimiter.join(parts[:-1])
-    elif level == "file" and len(parts) > 2:
+    if level is Level.FILE and len(parts) > 2:
         return delimiter.join(parts[:-2])
-    elif level == "package" and len(parts) > 3:
-        return parts[0]
-    else:
-        return node_name
+    return node_name
 
 
 def _cluster_with_algorithm(graph: nx.DiGraph, algorithm: str) -> list[set[str]]:
@@ -131,7 +135,7 @@ def _score_clustering(communities: list[set[str]], min_cluster_size: int, total_
     return coverage_score * cluster_count_penalty
 
 
-def _abstract_at_level(graph: nx.DiGraph, level: str, delimiter: str) -> nx.DiGraph:
+def _abstract_at_level(graph: nx.DiGraph, level: Level, delimiter: str) -> nx.DiGraph:
     """Create abstracted graph by grouping nodes at the given level."""
     abstracted = nx.DiGraph()
     node_map: dict[str, str] = {}
@@ -177,7 +181,7 @@ def _try_all_algorithms(
 def _map_candidates_to_original(
     candidates: list[tuple[list[set[str]], str, float]],
     original_graph: nx.DiGraph,
-    level: str,
+    level: Level,
     delimiter: str,
     min_cluster_size: int,
     total_nodes: int,
