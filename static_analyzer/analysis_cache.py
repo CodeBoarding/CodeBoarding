@@ -32,7 +32,7 @@ from filelock import FileLock
 from constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
 from repo_utils.path_utils import to_absolute_path, to_relative_path
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge
-from static_analyzer.graph import CallGraph, Edge, EdgeKind
+from static_analyzer.cfg import CallGraph, Edge, EdgeKind
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
 
@@ -53,8 +53,8 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # Tag file format prefix; bump if the on-disk pickle layout changes.
 # v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
 # dataclass storage.
-# v3: MethodClusterPaths moved to static_analyzer.clustering. Older pickles are
-# treated as cache misses and re-run.
+# v3: MethodClusterPaths moved to static_analyzer.clustering, then CallGraph and the
+# edge types to static_analyzer.cfg. Older pickles are treated as cache misses and re-run.
 _TAG_VERSION = "v3"
 
 

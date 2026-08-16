@@ -600,7 +600,7 @@ class TestOutputStructure:
 def test_add_reference_edges_contains_and_inherits():
     """CONTAINS from the qualified-name hierarchy; INHERITS from the class hierarchy."""
     from static_analyzer.engine.result_converter import _add_reference_edges
-    from static_analyzer.graph import CallGraph, EdgeKind
+    from static_analyzer.cfg import CallGraph, EdgeKind
     from static_analyzer.node import Node
 
     cg = CallGraph(language="python")
@@ -644,7 +644,7 @@ def test_add_reference_edges_contains_and_inherits():
 
 
 def test_clustering_networkx_includes_configured_reference_kinds():
-    from static_analyzer.graph import CallGraph, EdgeKind
+    from static_analyzer.cfg import CallGraph, EdgeKind
     from static_analyzer.node import Node
 
     cg = CallGraph(language="python")

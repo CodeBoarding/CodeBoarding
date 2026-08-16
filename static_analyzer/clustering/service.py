@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering.engine import cluster_graph
 from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.constants import ClusteringConfig

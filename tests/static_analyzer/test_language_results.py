@@ -8,7 +8,7 @@ import multiprocessing
 import unittest
 
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, EdgeKind
+from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.language_results import ControlFlowGraph
 from static_analyzer.node import Node
 

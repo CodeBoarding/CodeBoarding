@@ -8,7 +8,7 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 
 logger = logging.getLogger(__name__)
 

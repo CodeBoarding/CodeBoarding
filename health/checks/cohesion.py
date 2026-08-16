@@ -1,7 +1,7 @@
 import logging
 
 from health.models import FindingEntity, FindingGroup, HealthCheckConfig, Severity, StandardCheckSummary
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusteringService
 
 logger = logging.getLogger(__name__)

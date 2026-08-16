@@ -7,7 +7,7 @@ from typing import Any
 
 from static_analyzer.clustering import ClusterCache
 from static_analyzer.constants import Language
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node

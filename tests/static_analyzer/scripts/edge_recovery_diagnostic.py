@@ -7,7 +7,7 @@ from pathlib import Path
 dropped_edges: list[tuple[str, str, bool, bool]] = []
 all_node_names: set[str] = set()
 
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 
 original_add_edge = CallGraph.add_edge
 original_add_node = CallGraph.add_node
