@@ -369,7 +369,10 @@ class CallGraph:
         if self._cluster_cache is not None:
             return self._cluster_cache
         self._cluster_cache = cluster_graph(
-            self.clustering_networkx(), self.delimiter, target_clusters, min_cluster_size
+            self.clustering_networkx(),
+            delimiter=self.delimiter,
+            target_clusters=target_clusters,
+            min_cluster_size=min_cluster_size,
         )
         return self._cluster_cache
 
