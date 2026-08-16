@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-16T18:15:29.122524+00:00",
-    "source_tree_hash": "8ab01455194b1ee033c8980cb8cc8e9c1800e5e8ba38714ee7b8226a66c0de12",
+    "generated_at": "2026-08-16T18:45:24.700497+00:00",
+    "source_tree_hash": "73fe068e92768573a6b0e9ab275ca28187f6c6a855e0a2ee208be4cf82261987",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -2463,11 +2463,12 @@
     "agents/llm_renderers/call_graph.py": {
       "method_keys": [
         "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph.render_call_graph",
+        "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._visible_targets",
         "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
         "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_class_level"
       ],
-      "content_hash": "44c95e4db8a93fe5",
-      "module_hash": "1ac31fac1c437dcd"
+      "content_hash": "6243b17c457545c5",
+      "module_hash": "aa1743d59b8ae42f"
     },
     "agents/tools/component_bridge_edges.py": {
       "method_keys": [
@@ -15454,21 +15455,29 @@
       "type": "FUNCTION",
       "content_hash": "9a27246a5203092d"
     },
+    "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._visible_targets": {
+      "file_path": "agents/llm_renderers/call_graph.py",
+      "qualified_name": "agents.llm_renderers.call_graph._visible_targets",
+      "start_line": 33,
+      "end_line": 41,
+      "type": "FUNCTION",
+      "content_hash": "af8263e8f838f320"
+    },
     "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed": {
       "file_path": "agents/llm_renderers/call_graph.py",
       "qualified_name": "agents.llm_renderers.call_graph._render_detailed",
-      "start_line": 33,
-      "end_line": 57,
+      "start_line": 44,
+      "end_line": 68,
       "type": "FUNCTION",
-      "content_hash": "949cf723a01895d4"
+      "content_hash": "6ba195d9ff6cedee"
     },
     "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_class_level": {
       "file_path": "agents/llm_renderers/call_graph.py",
       "qualified_name": "agents.llm_renderers.call_graph._render_class_level",
-      "start_line": 60,
-      "end_line": 104,
+      "start_line": 71,
+      "end_line": 117,
       "type": "FUNCTION",
-      "content_hash": "0e15e0f2f6a561f9"
+      "content_hash": "c5f9f06827ee8d0d"
     },
     "agents/tools/component_bridge_edges.py|agents.tools.component_bridge_edges.ComponentBridgeEdgesInput": {
       "file_path": "agents/tools/component_bridge_edges.py",
@@ -30642,8 +30651,8 @@
             "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
             "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
             "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-            "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
             "diagram_analysis.diagram_generator.DiagramGenerator",
+            "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
             "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
             "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
             "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
@@ -32628,8 +32637,8 @@
                 "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
                 "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
                 "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-                "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                 "diagram_analysis.diagram_generator.DiagramGenerator",
+                "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                 "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
                 "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
                 "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
@@ -32757,8 +32766,8 @@
                 {
                   "file_path": "diagram_analysis/diagram_generator.py",
                   "methods": [
-                    "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                     "diagram_analysis.diagram_generator.DiagramGenerator",
+                    "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                     "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
                     "diagram_analysis.diagram_generator.DiagramGenerator._component_separable",
                     "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
@@ -33921,6 +33930,7 @@
           "file_path": "agents/llm_renderers/call_graph.py",
           "methods": [
             "agents.llm_renderers.call_graph.render_call_graph",
+            "agents.llm_renderers.call_graph._visible_targets",
             "agents.llm_renderers.call_graph._render_detailed",
             "agents.llm_renderers.call_graph._render_class_level"
           ]
@@ -34492,7 +34502,9 @@
             {
               "file_path": "agents/llm_renderers/call_graph.py",
               "methods": [
-                "agents.llm_renderers.call_graph._render_detailed"
+                "agents.llm_renderers.call_graph._visible_targets",
+                "agents.llm_renderers.call_graph._render_detailed",
+                "agents.llm_renderers.call_graph._render_class_level"
               ]
             },
             {
@@ -34828,7 +34840,9 @@
                 {
                   "file_path": "agents/llm_renderers/call_graph.py",
                   "methods": [
-                    "agents.llm_renderers.call_graph._render_detailed"
+                    "agents.llm_renderers.call_graph._visible_targets",
+                    "agents.llm_renderers.call_graph._render_detailed",
+                    "agents.llm_renderers.call_graph._render_class_level"
                   ]
                 },
                 {
@@ -36066,10 +36080,10 @@
               ]
             },
             {
-              "relation": "queries raw call graph for dependency analysis",
+              "relation": "performs graph-theoretic debt analysis",
               "src_name": "Architectural Health & Metric Evaluator",
               "dst_name": "Structural Graph & Edge Validator",
-              "evidence": "Metric checks directly access the CallGraph nodes and edges to perform graph-theoretic calculations like circular dependency detection and fan-out analysis.",
+              "evidence": "Directly utilizes the low-level CFG and NetworkX representations to detect circular dependencies and calculate fan-out metrics across the entire codebase or specific subgraphs.",
               "key_edges": [],
               "src_id": "5.1.3",
               "dst_id": "5.1.1",
@@ -36365,8 +36379,7 @@
             {
               "file_path": "agents/llm_renderers/call_graph.py",
               "methods": [
-                "agents.llm_renderers.call_graph.render_call_graph",
-                "agents.llm_renderers.call_graph._render_class_level"
+                "agents.llm_renderers.call_graph.render_call_graph"
               ]
             },
             {
@@ -36647,8 +36660,7 @@
                 {
                   "file_path": "agents/llm_renderers/call_graph.py",
                   "methods": [
-                    "agents.llm_renderers.call_graph.render_call_graph",
-                    "agents.llm_renderers.call_graph._render_class_level"
+                    "agents.llm_renderers.call_graph.render_call_graph"
                   ]
                 },
                 {
@@ -36773,8 +36785,7 @@
                     {
                       "file_path": "agents/llm_renderers/call_graph.py",
                       "methods": [
-                        "agents.llm_renderers.call_graph.render_call_graph",
-                        "agents.llm_renderers.call_graph._render_class_level"
+                        "agents.llm_renderers.call_graph.render_call_graph"
                       ]
                     },
                     {
@@ -43205,10 +43216,10 @@
       ]
     },
     {
-      "relation": "Validates architectural claims against CFG",
+      "relation": "Validates proposed architectures against static truth",
       "src_name": "Component Synthesis & Relation Mapper",
       "dst_name": "Structural Graph & Edge Validator",
-      "evidence": "The modeling layer submits proposed component relations to the validation layer to ensure that LLM-inferred connections are backed by actual static call graph evidence.",
+      "evidence": "Cross-references LLM-generated clusters and edges against the actual CFG and structural deltas.",
       "key_edges": [],
       "src_id": "3.1.2.1",
       "dst_id": "5.1.1",
@@ -47795,10 +47806,10 @@
       ]
     },
     {
-      "relation": "queries raw call graph for dependency analysis",
+      "relation": "performs graph-theoretic debt analysis",
       "src_name": "Architectural Health & Metric Evaluator",
       "dst_name": "Structural Graph & Edge Validator",
-      "evidence": "Metric checks directly access the CallGraph nodes and edges to perform graph-theoretic calculations like circular dependency detection and fan-out analysis.",
+      "evidence": "Directly utilizes the low-level CFG and NetworkX representations to detect circular dependencies and calculate fan-out metrics across the entire codebase or specific subgraphs.",
       "key_edges": [],
       "src_id": "5.1.3",
       "dst_id": "5.1.1",

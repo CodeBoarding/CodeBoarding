@@ -69,7 +69,7 @@
     "agents/prompts/abstract_prompt_factory.py": "a9732ab8a1198daa",
     "agents/prompts/prompt_factory.py": "8b4874646fb58ad1",
     "agents/llm_renderers/__init__.py": "4b635ef0a2d65a79",
-    "agents/llm_renderers/call_graph.py": "44c95e4db8a93fe5",
+    "agents/llm_renderers/call_graph.py": "6243b17c457545c5",
     "output_generators/__init__.py": "e965c82538441254",
     "output_generators/mdx.py": "b0d1f3eb3bb6130f",
     "output_generators/sphinx.py": "4ba8d040c935bdeb",
