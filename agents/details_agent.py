@@ -37,7 +37,8 @@ from agents.validation import (
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph
+from static_analyzer.clustering import ClusterResult
 
 logger = logging.getLogger(__name__)
 

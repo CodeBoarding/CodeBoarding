@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass, field
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 
 logger = logging.getLogger(__name__)
 

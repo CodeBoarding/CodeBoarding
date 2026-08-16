@@ -32,7 +32,7 @@ from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEn
 from repo_utils.path_utils import normalize_repo_path
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.leiden_utils import find_partition_seeded
 
 logger = logging.getLogger(__name__)

@@ -52,8 +52,10 @@ _LEGACY_PKL_NAME = "static_analysis_results.pkl"
 _LEGACY_CACHE_SUBDIR = "cache"
 # Tag file format prefix; bump if the on-disk pickle layout changes.
 # v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
-# dataclass storage. v1 pickles will be treated as cache misses and re-run.
-_TAG_VERSION = "v2"
+# dataclass storage.
+# v3: MethodClusterPaths moved to static_analyzer.clustering. Older pickles are
+# treated as cache misses and re-run.
+_TAG_VERSION = "v3"
 
 
 class StaticAnalysisCache:

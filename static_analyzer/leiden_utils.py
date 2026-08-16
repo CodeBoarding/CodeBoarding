@@ -2,7 +2,7 @@
 
 Contains the ``igraph`` / ``leidenalg`` dependency surface so a future
 engine swap stays localized. Downstream callers go through
-``detect_communities`` in ``static_analyzer.graph``.
+the clustering engine and ``cluster_helpers``.
 """
 
 from __future__ import annotations
@@ -43,9 +43,8 @@ def find_partition[T](
 ) -> list[set[T]]:
     """Run Leiden on the graph from singletons; return list of community sets.
 
-    The ``static_analyzer.graph.detect_communities`` public entry point
-    forwards here. Uses ``RBConfigurationVertexPartition`` when a resolution
-    is supplied, otherwise ``ModularityVertexPartition``.
+    Uses ``RBConfigurationVertexPartition`` when a resolution is supplied,
+    otherwise ``ModularityVertexPartition``.
     """
     if graph.number_of_nodes() == 0:
         return []

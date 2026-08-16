@@ -18,7 +18,7 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from static_analyzer.graph import METHOD_LEVEL_STRATEGY, ClusterResult
+from static_analyzer.clustering import ClusterResult, METHOD_LEVEL_STRATEGY
 
 
 class TestShouldExpandComponent(unittest.TestCase):

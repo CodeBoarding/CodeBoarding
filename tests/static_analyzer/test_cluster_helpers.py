@@ -13,7 +13,7 @@ from static_analyzer.cluster_helpers import (
     supercluster_by_modularity_peak,
     supercluster_leaf_ids,
 )
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 
 
 def _make_cluster_result(prefix: str, count: int) -> ClusterResult:
