@@ -139,9 +139,7 @@ def _abstract_at_level(graph: nx.DiGraph, level: Level, delimiter: str) -> nx.Di
         if abstract_name not in abstracted:
             abstracted.add_node(abstract_name)
 
-    # These weights are recorded but never read: _leiden_candidate calls find_partition
-    # without ``weight=``, so class and file levels cluster unweighted. Passing them would
-    # change every existing partition, so it needs its own change.
+    # Never read: find_partition is called without ``weight=``. Passing it moves every partition.
     edge_weights: dict[tuple[str, str], int] = defaultdict(int)
     for src, dst in graph.edges():
         a_src, a_dst = node_map[src], node_map[dst]
@@ -164,8 +162,6 @@ def _leiden_candidate(graph: nx.DiGraph, level: Level, min_cluster_size: int, to
     try:
         communities = find_partition(graph, seed=ClusteringConfig.CLUSTERING_SEED)
     except Exception:
-        # Warn, not debug: if every level throws we ship connected components, which
-        # looks like an ordinary result with nothing explaining it.
         logger.warning(f"Leiden failed at level {level or 'raw'}; scoring 0", exc_info=True)
     score = _score_clustering(communities, min_cluster_size, total_nodes)
     logger.debug(f"leiden: score={score:.3f}, clusters={len(communities)}")
