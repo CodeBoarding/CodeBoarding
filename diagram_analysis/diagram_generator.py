@@ -72,6 +72,7 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
+from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -665,7 +666,7 @@ class DiagramGenerator:
             # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
             # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
             # must not be judged cohesive on a call-only graph.
-            cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
+            cfg_graphs = {lang: cfg.to_networkx(DEFAULT_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()}
             separable = component_is_separable(cluster_results, cfg_graphs, load)
         self._separable_cache[key] = separable
         return separable
@@ -1494,7 +1495,7 @@ class DiagramGenerator:
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
             root_cluster_results = delta.cluster_results()
             root_cfgs = {
-                language: self.static_analysis.get_cfg(Language(language)).clustering_networkx()
+                language: self.static_analysis.get_cfg(Language(language)).to_networkx(DEFAULT_REFERENCE_KINDS)
                 for language in root_cluster_results
             }
             apply_result = self._apply_incremental_scope_recursively(
@@ -1722,7 +1723,11 @@ def _build_scope_incremental_inputs(
         scope_id=scope_id,
         changed=changed_members,
     )
-    return cluster_results, {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}, structural_diff
+    return (
+        cluster_results,
+        {lang: cfg.to_networkx(DEFAULT_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()},
+        structural_diff,
+    )
 
 
 def scoped_snapshot_for_component(

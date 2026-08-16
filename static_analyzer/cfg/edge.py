@@ -25,6 +25,14 @@ class EdgeKind(StrEnum):
     IMPORT = "import"
 
 
+# What structural consumers fold into ``to_networkx`` on top of call edges. The call graph
+# leaves ~a fifth of symbols isolated (constructors, dunders, DI/interface methods), so
+# completing it with these avoids grab-bag components. TYPEREF and IMPORT are plumbed through
+# ``LanguageAnalysisResult`` but no engine emits them yet, and IMPORT is expected to over-merge
+# (coarse, dense, file-level) when one does.
+DEFAULT_REFERENCE_KINDS: tuple[EdgeKind, ...] = (EdgeKind.CONTAINS, EdgeKind.INHERITS)
+
+
 class Edge:
     def __init__(self, src_node: Node, dst_node: Node, call_sites: Sequence[Mapping[str, Hashable]] = ()) -> None:
         self.src_node = src_node

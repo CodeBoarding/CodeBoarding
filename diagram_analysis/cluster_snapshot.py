@@ -55,7 +55,7 @@ def snapshot_from_static_analysis(static_analysis: StaticAnalysisResults) -> Clu
         partition = static_analysis.get_clusters(language).result
         if not partition.clusters:
             continue
-        by_language[language] = _entries_from_partition(partition, cfg.to_networkx())
+        by_language[language] = _entries_from_partition(partition, cfg.to_networkx(reference_kinds=()))
     return ClusterSnapshot(by_language=by_language)
 
 

@@ -38,7 +38,7 @@ from static_analyzer.cluster_relations import (
     merge_relations,
 )
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
-from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,
     ClusteringService,
@@ -349,7 +349,7 @@ class ClusterMethodsMixin:
             )
             if seeded_snapshot:
                 sub_cluster_result = _delta_for_language(
-                    str(lang), sub_cfg.clustering_networkx(), seeded_snapshot
+                    str(lang), sub_cfg.to_networkx(DEFAULT_REFERENCE_KINDS), seeded_snapshot
                 ).cluster_results
             else:
                 sub_cluster_result = ClusteringService().cluster(sub_cfg)
@@ -404,7 +404,7 @@ class ClusterMethodsMixin:
             cfg = (
                 cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(Language(lang))
             )
-            graphs[lang] = cfg.to_networkx().to_undirected()
+            graphs[lang] = cfg.to_networkx(DEFAULT_REFERENCE_KINDS).to_undirected()
         return graphs
 
     def _find_nearest_cluster(

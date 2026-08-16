@@ -6,7 +6,7 @@ from types import MappingProxyType
 
 import networkx as nx
 
-from static_analyzer.cfg.edge import Edge, EdgeKind
+from static_analyzer.cfg.edge import DEFAULT_REFERENCE_KINDS, Edge, EdgeKind
 from static_analyzer.cfg.location_key import LocationKey
 from static_analyzer.constants import ClusteringConfig
 from static_analyzer.node import Node
@@ -43,7 +43,7 @@ class CallGraph:
         self._alias_to_canonical: dict[str, str] = {}
         # Non-call relationship edges (CONTAINS/INHERITS/TYPEREF/IMPORT), kept off
         # ``self.edges`` so relations and ``methods_called_by_me`` stay call-only.
-        # Merged into the graph only for clustering (``clustering_networkx``).
+        # ``to_networkx`` folds them into the export by default.
         # Each entry: (src_qname, dst_qname, EdgeKind value).
         self.reference_edges: list[tuple[str, str, str]] = []
 
@@ -133,7 +133,7 @@ class CallGraph:
         seen: set[tuple[str, str, str]] = set()
         carried: list[tuple[str, str, str]] = []
         for source in (self, *extra_sources):
-            for s, d, k in getattr(source, "reference_edges", ()):
+            for s, d, k in source.reference_edges:
                 # Resolve through the SOURCE's alias map: an endpoint stored under a short
                 # alias must map to the canonical name ``out`` promoted it to, or a call edge
                 # (which add_edge resolves) survives while its reference edge is silently dropped.
@@ -198,7 +198,8 @@ class CallGraph:
         for edge in self.edges:
             edge.visit_paths(fn)
 
-    def to_networkx(self) -> nx.DiGraph:
+    def to_networkx(self, reference_kinds: Collection[str]) -> nx.DiGraph:
+        """Export to networkx: call edges, plus reference edges of the given kinds."""
         nx_graph = nx.DiGraph()
         for node in self.nodes.values():
             nx_graph.add_node(
@@ -210,23 +211,13 @@ class CallGraph:
             )
         for edge in self.edges:
             nx_graph.add_edge(edge.get_source(), edge.get_destination())
-        return nx_graph
 
-    def clustering_networkx(self, reference_kinds: Collection[str] | None = None) -> nx.DiGraph:
-        """Graph used for clustering: call edges plus configured reference-edge kinds.
-
-        Reference edges (CONTAINS/INHERITS/TYPEREF/IMPORT) complete the graph so
-        constructors, dunders, DI/reflection-invoked, and interface methods aren't
-        graph-isolated. ``reference_kinds`` defaults to
-        ``ClusteringConfig.CLUSTERING_EDGE_KINDS``; pass an explicit set to analyze
-        a different subset. Call edges are always included.
-        """
-        kinds = set(ClusteringConfig.CLUSTERING_EDGE_KINDS if reference_kinds is None else reference_kinds)
-        nx_graph = self.to_networkx()
-        # getattr: baselines pickled before reference edges existed lack the attribute.
-        # Resolve endpoints through the alias map so an edge stored under a short alias still
-        # lands on the canonical node (matching how add_edge resolves call edges).
-        for src, dst, kind in getattr(self, "reference_edges", ()):
+        kinds = set(reference_kinds)
+        if not kinds:
+            return nx_graph
+        # Resolve endpoints through the alias map so an edge stored under a short alias
+        # still lands on the canonical node (matching how add_edge resolves call edges).
+        for src, dst, kind in self.reference_edges:
             rsrc, rdst = self._resolve_name(src), self._resolve_name(dst)
             if kind in kinds and rsrc in self.nodes and rdst in self.nodes:
                 nx_graph.add_edge(rsrc, rdst)
