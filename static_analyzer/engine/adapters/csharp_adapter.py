@@ -284,6 +284,14 @@ class CSharpAdapter(LanguageAdapter):
         return True
 
     @property
+    def emits_type_references(self) -> bool:
+        """C# architecture is expressed as types: DI registrations name their
+        implementation in a type argument, ABP's module graph is
+        ``[DependsOn(typeof(X))]``, and collaborators arrive as constructor
+        parameters. None of it is a call."""
+        return True
+
+    @property
     def resolves_collection_initializers(self) -> bool:
         """C# collection-initializer braces desugar to Add calls."""
         return True

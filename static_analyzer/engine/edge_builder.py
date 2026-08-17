@@ -387,6 +387,82 @@ def _resolve_iterated_types(
     return resolved
 
 
+def resolve_type_references(
+    adapter: EdgeBuildAdapter,
+    ctx: EdgeBuildContext,
+    source_files: list[Path],
+) -> list[tuple[str, str]]:
+    """Dependencies expressed as a type rather than a call, as TYPEREF pairs.
+
+    ``AddScoped<IFoo, Foo>()`` is the only line tying an interface to its
+    implementation; ``[DependsOn(typeof(X))]`` is a module graph; a constructor
+    parameter is how a collaborator arrives. None of them call anything, so
+    none can be a call edge -- but a change to the named type reaches the
+    naming code, which is what blast radius has to show.
+    """
+    if not adapter.emits_type_references:
+        return []
+
+    st = ctx.symbol_table
+    pos_to_sym, line_to_syms = _build_definition_lookups(st)
+    batch_size = 50
+    pairs: set[tuple[str, str]] = set()
+    queried = 0
+
+    for file_path in source_files:
+        sites = ctx.source_inspector.find_type_reference_sites(file_path)
+        if not sites:
+            continue
+        for start in range(0, len(sites), batch_size):
+            batch = sites[start : start + batch_size]
+            queries = [(file_path, site.lsp_line, site.lsp_column) for site in batch]
+            queried += len(batch)
+            try:
+                results, _ = ctx.lsp.send_definition_batch(queries)
+            except Exception as e:
+                logger.warning("Type-reference batch failed for %s (%d sites): %s", file_path.name, len(batch), e)
+                continue
+
+            for index, site in enumerate(batch):
+                source = st.find_containing_symbol(file_path, site.lsp_line, site.lsp_column)
+                source = _attributed_declaration(source, st, file_path, site.lsp_line)
+                if source is None:
+                    continue
+                for result in results[index] if index < len(results) else []:
+                    target = _resolve_definition_to_symbol(result, pos_to_sym, line_to_syms)
+                    if target is None or not adapter.is_class_like(target.kind):
+                        continue
+                    if is_self_or_container_edge(source.qualified_name, target.qualified_name):
+                        continue
+                    pairs.add((source.qualified_name, target.qualified_name))
+
+    logger.info("Phase 2c (type references): %d positions queried, %d TYPEREF edges", queried, len(pairs))
+    return sorted(pairs)
+
+
+def _attributed_declaration(
+    source: SymbolInfo | None,
+    st: SymbolTable,
+    file_path: Path,
+    line: int,
+) -> SymbolInfo | None:
+    """Re-home a type reference that landed on a namespace onto what it decorates.
+
+    A symbol's range starts at its name, so ``[DependsOn(typeof(X))]`` written
+    above a class sits outside that class and inside only the namespace. The
+    dependency belongs to the class the attribute is attached to, which is the
+    next declaration below the attribute.
+    """
+    if source is None or source.kind != NodeType.NAMESPACE:
+        return source
+    following = [
+        sym
+        for sym in st.primary_file_symbols.get(str(file_path), [])
+        if sym.start_line > line and sym.kind != NodeType.NAMESPACE
+    ]
+    return min(following, key=lambda s: s.start_line) if following else source
+
+
 def _build_definition_lookups(
     st: SymbolTable,
 ) -> tuple[dict[tuple[str, int, int], SymbolInfo], dict[tuple[str, int], list[SymbolInfo]]]:

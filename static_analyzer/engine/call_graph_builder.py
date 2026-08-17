@@ -7,7 +7,12 @@ import time
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_definitions, build_edges_via_references
+from static_analyzer.engine.edge_builder import (
+    EdgeMap,
+    build_edges_via_definitions,
+    build_edges_via_references,
+    resolve_type_references,
+)
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
@@ -66,6 +71,7 @@ class CallGraphBuilder:
         )
         edge_set = self._build_edges(ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
+        type_references = resolve_type_references(self._adapter, ctx, source_files)
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
 
@@ -119,6 +125,7 @@ class CallGraphBuilder:
             cfg=cfg,
             package_dependencies=package_deps,
             source_files=abs_files,
+            type_references=type_references,
         )
 
     def _build_recycler(self, source_files: list[Path]) -> LSPRecycler | None:

@@ -348,6 +348,13 @@ class LanguageAdapter(ABC):
         return False
 
     @property
+    def emits_type_references(self) -> bool:
+        """Whether type positions (generic arguments, ``typeof``, declaration
+        sites) should become TYPEREF reference edges. These are dependencies
+        with no call, so they never become call edges."""
+        return False
+
+    @property
     def extra_client_capabilities(self) -> dict:
         """Vendor-specific keys to shallow-merge into the LSP ``initialize``
         capabilities (e.g. ``{"experimental": {...}}``). Default ``{}`` keeps
