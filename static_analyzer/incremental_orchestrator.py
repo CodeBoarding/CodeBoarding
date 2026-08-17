@@ -26,7 +26,7 @@ from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location, uri_to_path
-from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name
 from static_analyzer.node import Node
 
@@ -127,8 +127,7 @@ def _rebuild_changed_file_edges(
         changed_source_files,
         engine_client,
         source_inspector,
-        include_callable_parent=adapter.edge_strategy == EdgeStrategy.DEFINITIONS,
-        include_method_groups=adapter.resolves_method_groups,
+        adapter,
     )
 
 
@@ -299,29 +298,70 @@ def _edge_reference_call_sites(
     return call_sites
 
 
+def _members_named(call_graph: CallGraph, owner: Node, name: str) -> list[Node]:
+    """Nodes for ``owner``'s members called *name*, by qualified-name prefix.
+
+    The full rebuild reads these off the symbol table; incrementally only the
+    merged graph is available, so the owning type's members are found by name.
+    """
+    prefix = f"{owner.fully_qualified_name}.{name}"
+    return [node for qname, node in call_graph.nodes.items() if qname == prefix or qname.startswith(f"{prefix}(")]
+
+
+def _override_nodes(call_graph: CallGraph, target: Node) -> list[Node]:
+    """Same-named members on types that inherit the target's owner.
+
+    A call through a base-typed reference resolves to the base declaration, so
+    without this the incremental graph stops where the full rebuild continues.
+    The full rebuild builds a subclass index from source; here the INHERITS
+    edges already in the merged graph carry the same relation.
+    """
+    if not target.is_callable():
+        return []
+    owner_qname = parent_qualified_name(target.fully_qualified_name)
+    owner = call_graph.nodes.get(owner_qname)
+    if owner is None:
+        return []
+    member = target.fully_qualified_name[len(owner_qname) + 1 :].split("(")[0]
+    overrides: list[Node] = []
+    for ref in call_graph.reference_edges:
+        if ref.kind is EdgeKind.INHERITS and ref.dst == owner_qname:
+            derived = call_graph.nodes.get(ref.src)
+            if derived is not None:
+                overrides.extend(_members_named(call_graph, derived, member))
+    return overrides
+
+
 def _add_outbound_edges_from_changed_files(
     call_graph: CallGraph,
     changed_source_files: list[Path],
     engine_client: LSPClient,
     source_inspector: SourceInspector,
-    include_callable_parent: bool = False,
-    include_method_groups: bool = False,
+    adapter: LanguageAdapter,
 ) -> None:
     if not changed_source_files:
         return
 
+    include_callable_parent = adapter.edge_strategy == EdgeStrategy.DEFINITIONS
     added = 0
 
     for file_path in changed_source_files:
         call_sites = source_inspector.find_call_sites(file_path)
         method_group_positions: set[tuple[int, int]] = set()
-        if include_method_groups:
+        if adapter.resolves_method_groups:
             known = {(site.lsp_line, site.lsp_column) for site in call_sites}
             for site in source_inspector.find_method_group_sites(file_path):
                 if (site.lsp_line, site.lsp_column) in known:
                     continue
                 method_group_positions.add((site.lsp_line, site.lsp_column))
                 call_sites.append(site)
+        collection_positions: set[tuple[int, int]] = set()
+        if adapter.resolves_collection_initializers:
+            collection_positions = {
+                (site.lsp_line, site.lsp_column)
+                for site in source_inspector.find_collection_initializer_sites(file_path)
+            }
+        added += _add_iterated_type_edges(call_graph, file_path, engine_client, source_inspector, adapter)
         if not call_sites:
             continue
         queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
@@ -339,11 +379,76 @@ def _add_outbound_edges_from_changed_files(
                 continue
             is_method_group = (line, char) in method_group_positions
             for definition in definitions:
-                for dst_node in _definition_nodes(call_graph, definition, include_callable_parent):
+                for resolved in _definition_nodes(call_graph, definition, include_callable_parent):
                     # Same rule as the full rebuild: an argument position is a
                     # method group only when it resolves to something callable.
-                    if is_method_group and not (dst_node.is_callable() or dst_node.is_class()):
+                    if is_method_group and not (resolved.is_callable() or resolved.is_class()):
                         continue
+                    targets = [resolved]
+                    if adapter.expands_virtual_dispatch:
+                        targets += _override_nodes(call_graph, resolved)
+                    if (line, char) in collection_positions:
+                        targets += _members_named(call_graph, resolved, "Add")
+                    for dst_node in targets:
+                        if is_self_or_container_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name):
+                            continue
+                        try:
+                            before = len(call_graph.edges)
+                            call_graph.add_edge(
+                                src_node.fully_qualified_name,
+                                dst_node.fully_qualified_name,
+                                call_sites=[{"file": site.file, "line": site.line, "column": site.column}],
+                            )
+                            if len(call_graph.edges) > before:
+                                added += 1
+                        except ValueError:
+                            logger.debug(
+                                "Failed to add outbound edge %s -> %s",
+                                src_node.fully_qualified_name,
+                                dst_node.fully_qualified_name,
+                                exc_info=True,
+                            )
+
+    if added:
+        logger.info("Added %d new outbound edge(s) from changed files", added)
+
+
+def _add_iterated_type_edges(
+    call_graph: CallGraph,
+    file_path: Path,
+    engine_client: LSPClient,
+    source_inspector: SourceInspector,
+    adapter: LanguageAdapter,
+) -> int:
+    """``foreach (var x in bag)`` calls ``bag.GetEnumerator()`` with no call written.
+
+    A definition query at that position returns the variable, so the full
+    rebuild asks for the type instead. Without the same pass here, every
+    enumerator edge in a changed file disappears until a full rebuild.
+    """
+    if not adapter.resolves_iterated_types:
+        return 0
+    sites = source_inspector.find_iterated_expression_sites(file_path)
+    if not sites:
+        return 0
+    try:
+        results, _ = engine_client.send_type_definition_batch(
+            [(file_path, site.lsp_line, site.lsp_column) for site in sites]
+        )
+    except Exception:
+        logger.warning("Failed to resolve iterated types for %s", file_path, exc_info=True)
+        return 0
+
+    added = 0
+    for site, definitions in zip(sites, results):
+        src_node = _most_specific_node_at_position(
+            call_graph, file_path, site.lsp_line, site.lsp_column, callable_only=True
+        )
+        if src_node is None:
+            continue
+        for definition in definitions:
+            for type_node in _definition_nodes(call_graph, definition, include_callable_parent=False):
+                for dst_node in [type_node] + _members_named(call_graph, type_node, "GetEnumerator"):
                     if is_self_or_container_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name):
                         continue
                     try:
@@ -356,15 +461,8 @@ def _add_outbound_edges_from_changed_files(
                         if len(call_graph.edges) > before:
                             added += 1
                     except ValueError:
-                        logger.debug(
-                            "Failed to add outbound edge %s -> %s",
-                            src_node.fully_qualified_name,
-                            dst_node.fully_qualified_name,
-                            exc_info=True,
-                        )
-
-    if added:
-        logger.info("Added %d new outbound edge(s) from changed files", added)
+                        logger.debug("Failed to add iterated-type edge", exc_info=True)
+    return added
 
 
 def _most_specific_node_at_position(
