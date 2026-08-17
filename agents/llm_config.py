@@ -376,8 +376,6 @@ def _initialize_llm(
     if _model_accepts_temperature(model_name):
         kwargs["temperature"] = getattr(config, temperature_attr)
     kwargs.update(config.get_resolved_extra_args())
-    if LLMType.from_model_name(model_name) == LLMType.KIMI:
-        kwargs["streaming"] = True
 
     # ChatBedrockConverse and ChatOllama take no api_key kwarg; their SDKs read
     # AWS_BEARER_TOKEN_BEDROCK / OLLAMA_API_KEY from the environment directly.
