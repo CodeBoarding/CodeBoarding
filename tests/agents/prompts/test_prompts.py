@@ -30,6 +30,9 @@ class TestAbstractPromptFactory(unittest.TestCase):
             "get_validation_feedback_message",
             "get_system_details_message",
             "get_details_message",
+            "get_scope_relations_message",
+            "get_api_surfaces_message",
+            "get_relation_analysis_message",
         ]
 
         for method_name in expected_methods:
@@ -141,6 +144,48 @@ class TestMetaPromptToolConsistency(unittest.TestCase):
         self.assertNotIn("getPackageDependencies", combined_prompt)
 
 
+class TestBoundedToolUsePrompts(unittest.TestCase):
+    def test_deepseek_and_kimi_use_bounded_evidence_first_tool_policies(self):
+        for llm_type in (LLMType.DEEPSEEK, LLMType.KIMI):
+            factory = PromptFactory(llm_type)._prompt_factory
+            bounded_prompts = [
+                factory.get_system_message(),
+                factory.get_system_details_message(),
+                factory.get_api_surfaces_message(),
+                factory.get_relation_analysis_message(),
+            ]
+
+            for prompt in bounded_prompts:
+                self.assertIn("at most 3 targeted calls", prompt)
+                self.assertIn("Do not inventory", prompt)
+                self.assertIn("Never repeat", prompt)
+
+            self.assertIn("do not call tools", factory.get_final_analysis_message())
+            self.assertIn("do not call tools", factory.get_details_message())
+            self.assertIn("do not call tools", factory.get_scope_relations_message())
+
+    def test_kimi_does_not_request_visible_reasoning_or_proactive_tool_use(self):
+        factory = PromptFactory(LLMType.KIMI)._prompt_factory
+        prompts = [
+            factory.get_system_message(),
+            factory.get_final_analysis_message(),
+            factory.get_planner_system_message(),
+            factory.get_expansion_prompt(),
+            factory.get_system_meta_analysis_message(),
+            factory.get_meta_information_prompt(),
+            factory.get_system_details_message(),
+            factory.get_details_message(),
+            factory.get_api_surfaces_message(),
+            factory.get_relation_analysis_message(),
+        ]
+        combined = "\n".join(prompts)
+
+        self.assertNotIn("Think aloud", combined)
+        self.assertNotIn("Reason step-by-step", combined)
+        self.assertNotIn("Use tools proactively", combined)
+        self.assertNotIn("Decompose tasks into parallel subtasks", combined)
+
+
 class TestGlobalFactory(unittest.TestCase):
     def setUp(self):
         # Reset global factory before each test
@@ -205,6 +250,9 @@ class TestConvenienceFunctions(unittest.TestCase):
             "get_validation_feedback_message",
             "get_system_details_message",
             "get_details_message",
+            "get_scope_relations_message",
+            "get_api_surfaces_message",
+            "get_relation_analysis_message",
         ]
 
         for func_name in convenience_functions:
