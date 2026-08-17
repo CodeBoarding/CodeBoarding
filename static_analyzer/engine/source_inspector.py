@@ -63,6 +63,8 @@ _CALL_NODE_TYPES = frozenset(
     }
 )
 _CONSTRUCTOR_NODE_TYPES = frozenset({"object_creation_expression", "new_expression"})
+# C# target-typed ``new(...)``: no type name at the call site.
+_IMPLICIT_CONSTRUCTOR_NODE_TYPES = frozenset({"implicit_object_creation_expression"})
 _METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference"})
 _CALLABLE_USAGE_ANCESTORS = frozenset({"argument_list", "arguments"})
 _NAME_NODE_TYPES = frozenset(
@@ -412,6 +414,11 @@ class SourceInspector:
                 if target is not None:
                     return target
             return self._first_named_child_of_type(node, _NAME_NODE_TYPES)
+        if node.type in _IMPLICIT_CONSTRUCTOR_NODE_TYPES:
+            # Target-typed ``new(...)``: the type lives on the assignment target,
+            # so the only thing to query is the keyword itself. The server knows
+            # what it infers to and answers with the constructor.
+            return next((child for child in node.children if child.type == "new"), None)
         if node.type in _METHOD_REFERENCE_NODE_TYPES:
             return self._last_named_child_of_type(node, _NAME_NODE_TYPES)
         return None

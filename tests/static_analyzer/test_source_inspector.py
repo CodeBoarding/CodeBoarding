@@ -553,3 +553,27 @@ class TestConditionalCompilationBodies:
         positions = _positions(si.find_call_sites(f))
         assert (3, 5) in positions
         assert not any(p[0] == 1 for p in positions)
+
+
+class TestTargetTypedNew:
+    """C# 9 ``new(...)`` puts the type on the assignment target, not the call site.
+
+    Serilog uses it throughout its wiring, so without it the constructor call
+    from one class to another is invisible.
+    """
+
+    def test_target_typed_new_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "Holder.cs"
+        f.write_text(
+            "namespace N;\nclass Cache { public Cache(int x) {} }\nclass Holder { readonly Cache _c = new(1); }\n"
+        )
+        si = SourceInspector()
+        assert (3, 36) in _positions(si.find_call_sites(f))  # the `new` keyword
+
+    def test_explicit_new_still_targets_the_type_name(self, tmp_path: Path):
+        f = tmp_path / "Holder.cs"
+        f.write_text(
+            "namespace N;\nclass Cache { public Cache(int x) {} }\nclass Holder { readonly Cache _c = new Cache(1); }\n"
+        )
+        si = SourceInspector()
+        assert (3, 40) in _positions(si.find_call_sites(f))  # `Cache`, not `new`
