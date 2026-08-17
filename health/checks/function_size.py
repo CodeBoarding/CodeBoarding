@@ -9,7 +9,7 @@ from health.models import (
     StandardCheckSummary,
 )
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 
 logger = logging.getLogger(__name__)
 

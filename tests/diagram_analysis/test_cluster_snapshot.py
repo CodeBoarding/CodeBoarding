@@ -1,10 +1,9 @@
 """Tests for ``diagram_analysis.cluster_snapshot``.
 
-The snapshot is sourced exclusively from each per-language CFG's
-``CallGraph._cluster_cache`` (the partition is round-tripped through the
-SHA-tagged pkl). Languages without a populated cache contribute nothing,
-which is what triggers the full-analysis fallback in
-``DiagramGenerator.generate_analysis_incremental``.
+The snapshot is sourced exclusively from each language's ``ClusterCache``
+(the partition is round-tripped through the SHA-tagged pkl). Languages
+without a populated cache contribute nothing, which is what triggers the
+full-analysis fallback in ``DiagramGenerator.generate_analysis_incremental``.
 """
 
 import unittest
@@ -17,7 +16,8 @@ from diagram_analysis.cluster_snapshot import (
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.cfg import CallGraph
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
 
 
@@ -37,22 +37,24 @@ def _build_graph(node_specs: list[tuple[str, str]]) -> CallGraph:
     return graph
 
 
-def _build_static(graphs: dict[str, CallGraph]) -> StaticAnalysisResults:
+def _build_static(graphs: dict[str, CallGraph], partitions: dict[str, ClusterResult]) -> StaticAnalysisResults:
     results = StaticAnalysisResults()
     for language, graph in graphs.items():
         results.add_cfg(Language(language), graph)
+        if language in partitions:
+            results.get_clusters(Language(language)).adopt(partitions[language])
     return results
 
 
 class TestSnapshotFromStaticAnalysis(unittest.TestCase):
-    def test_partition_read_from_cfg_cache(self) -> None:
+    def test_partition_read_from_cluster_cache(self) -> None:
         graph = _build_graph([("a.foo", "a.py"), ("a.bar", "a.py"), ("b.baz", "b.py")])
-        graph._cluster_cache = ClusterResult(
+        partition = ClusterResult(
             clusters={5: {"a.foo", "a.bar"}, 6: {"b.baz"}},
             cluster_to_files={5: {"a.py"}, 6: {"b.py"}},
             file_to_clusters={"a.py": {5}, "b.py": {6}},
         )
-        static = _build_static({"python": graph})
+        static = _build_static({"python": graph}, {"python": partition})
 
         snap = snapshot_from_static_analysis(static)
 
@@ -65,10 +67,14 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
 
     def test_partitions_each_language_independently(self) -> None:
         py_graph = _build_graph([("a.foo", "a.py"), ("b.baz", "b.py")])
-        py_graph._cluster_cache = ClusterResult(clusters={1: {"a.foo"}, 2: {"b.baz"}})
         go_graph = _build_graph([("c.qux", "c.go")])
-        go_graph._cluster_cache = ClusterResult(clusters={3: {"c.qux"}})
-        static = _build_static({"python": py_graph, "go": go_graph})
+        static = _build_static(
+            {"python": py_graph, "go": go_graph},
+            {
+                "python": ClusterResult(clusters={1: {"a.foo"}, 2: {"b.baz"}}),
+                "go": ClusterResult(clusters={3: {"c.qux"}}),
+            },
+        )
 
         snap = snapshot_from_static_analysis(static)
 
@@ -78,26 +84,25 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
         self.assertEqual(snap.by_language["go"][3].members, {"c.qux"})
 
     def test_language_without_cluster_cache_is_skipped(self) -> None:
-        # Why: legacy pkl / first-ever run leaves ``_cluster_cache`` as None.
+        # Why: a first-ever run leaves the ``ClusterCache`` partition as None.
         # ``generate_analysis_incremental`` checks ``all_cluster_ids()`` and
         # falls back to a full run, which then warms the pkl. The empty
         # snapshot here is the explicit "I have nothing to compare against"
         # signal, not an error.
-        graph = _build_graph([("a.foo", "a.py")])  # _cluster_cache is None
-        static = _build_static({"python": graph})
+        graph = _build_graph([("a.foo", "a.py")])  # no partition recorded
+        static = _build_static({"python": graph}, {})
 
         snap = snapshot_from_static_analysis(static)
 
         self.assertEqual(snap.all_cluster_ids(), set())
 
     def test_qnames_outside_cfg_are_dropped_from_member_files(self) -> None:
-        # A qname can appear in the cluster cache without a corresponding CFG
+        # A qname can appear in the partition without a corresponding CFG
         # node when the cache was saved before a node-level mutation. Such
         # qnames have no authoritative file_path, so they're absorbed into
         # ``members`` but contribute nothing to ``files`` / ``member_files``.
         graph = _build_graph([("a.foo", "a.py")])
-        graph._cluster_cache = ClusterResult(clusters={1: {"a.foo", "ghost.fn"}})
-        static = _build_static({"python": graph})
+        static = _build_static({"python": graph}, {"python": ClusterResult(clusters={1: {"a.foo", "ghost.fn"}})})
 
         snap = snapshot_from_static_analysis(static)
 

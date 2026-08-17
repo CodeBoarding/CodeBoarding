@@ -4,7 +4,7 @@ import logging
 from collections.abc import Sequence
 
 from agents.agent_responses import AnalysisInsights, Relation
-from static_analyzer.graph import CallGraph
+from static_analyzer.clustering import ClusterCache
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +14,12 @@ ROOT_SCOPE = ""
 def absorb_single_child_components(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
-    cfgs: Sequence[CallGraph] = (),
+    cluster_caches: Sequence[ClusterCache] = (),
 ) -> list[str]:
     """Collapse all single-child scopes to a fixpoint."""
     absorbed: list[str] = []
     while scopes := single_child_scopes(root_analysis, sub_analyses):
-        absorbed.append(_absorb(scopes[0], root_analysis, sub_analyses, cfgs))
+        absorbed.append(_absorb(scopes[0], root_analysis, sub_analyses, cluster_caches))
     return absorbed
 
 
@@ -45,7 +45,7 @@ def _absorb(
     parent_id: str,
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
-    cfgs: Sequence[CallGraph] = (),
+    cluster_caches: Sequence[ClusterCache] = (),
 ) -> str:
     scope = root_analysis if parent_id == ROOT_SCOPE else sub_analyses[parent_id]
     child = scope.components[0]
@@ -60,8 +60,8 @@ def _absorb(
             scope.components_relations = grandchildren.components_relations
     sub_analyses.pop(child_id, None)
     _reroot_tree(root_analysis, sub_analyses, child_id, parent_id)
-    for cfg in cfgs:
-        cfg.method_cluster_paths.reroot_scope(child_id, parent_id)
+    for cache in cluster_caches:
+        cache.method_paths.reroot_scope(child_id, parent_id)
     logger.info(f"[TreeShape] Absorbed '{child.name}' ({child_id}) into {parent_id or 'the root'}")
     return child_id
 

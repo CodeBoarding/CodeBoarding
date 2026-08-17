@@ -72,6 +72,7 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
+from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -83,7 +84,7 @@ from static_analyzer.cluster_relations import (
     prune_ungrounded_edges,
 )
 from static_analyzer.constants import Language
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
@@ -665,7 +666,7 @@ class DiagramGenerator:
             # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
             # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
             # must not be judged cohesive on a call-only graph.
-            cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
+            cfg_graphs = {lang: cfg.to_networkx(DEFAULT_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()}
             separable = component_is_separable(cluster_results, cfg_graphs, load)
         self._separable_cache[key] = separable
         return separable
@@ -867,7 +868,7 @@ class DiagramGenerator:
         )
 
     def _seed_incremental_cluster_cache(self, cluster_results: dict[str, ClusterResult]) -> None:
-        """Write post-delta ``cluster_results`` into each language CFG's ``_cluster_cache``.
+        """Write post-delta ``cluster_results`` into each language's ``ClusterCache``.
 
         On the incremental path the abstraction agent doesn't run, so the live
         partition has to be plumbed in explicitly before ``stop_clients`` saves
@@ -877,11 +878,9 @@ class DiagramGenerator:
             return
         for language, cr in cluster_results.items():
             try:
-                cfg = self.static_analysis.get_cfg(Language(language))
+                self.static_analysis.get_clusters(Language(language)).adopt(cr)
             except (ValueError, KeyError):
                 continue
-            cfg._cluster_cache = cr
-            cfg.record_cluster_paths(cr)
 
     def _persist_static_analysis_artifact(self) -> None:
         """Persist the post-clustering static-analysis artifact."""
@@ -1219,12 +1218,12 @@ class DiagramGenerator:
         # Absorption must not erase the evidence of an invalid parent-child boundary.
         assert_scope_containment(root_analysis, sub_analyses)
         self.rebuild_global_relations(root_analysis, sub_analyses)
-        cfgs = (
-            [self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()]
+        cluster_caches = (
+            [self.static_analysis.get_clusters(lang) for lang in self.static_analysis.get_languages()]
             if self.static_analysis
             else []
         )
-        absorb_single_child_components(root_analysis, sub_analyses, cfgs)
+        absorb_single_child_components(root_analysis, sub_analyses, cluster_caches)
         assert_scope_containment(root_analysis, sub_analyses)
 
     def finalize_and_save(
@@ -1496,7 +1495,7 @@ class DiagramGenerator:
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
             root_cluster_results = delta.cluster_results()
             root_cfgs = {
-                language: self.static_analysis.get_cfg(Language(language)).clustering_networkx()
+                language: self.static_analysis.get_cfg(Language(language)).to_networkx(DEFAULT_REFERENCE_KINDS)
                 for language in root_cluster_results
             }
             apply_result = self._apply_incremental_scope_recursively(
@@ -1724,7 +1723,11 @@ def _build_scope_incremental_inputs(
         scope_id=scope_id,
         changed=changed_members,
     )
-    return cluster_results, {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}, structural_diff
+    return (
+        cluster_results,
+        {lang: cfg.to_networkx(DEFAULT_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()},
+        structural_diff,
+    )
 
 
 def scoped_snapshot_for_component(
@@ -1740,7 +1743,8 @@ def scoped_snapshot_for_component(
         cfg = incremental_agent.static_analysis.get_cfg(language)
         sub_cfg = cfg.filter_by_nodes(assigned_qnames)
         if sub_cfg.nodes:
-            by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, scope_id)
+            method_paths = incremental_agent.static_analysis.get_clusters(language).method_paths
+            by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, method_paths, scope_id)
     return ClusterSnapshot(by_language=by_language)
 
 

@@ -26,7 +26,7 @@ from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location, uri_to_path
-from static_analyzer.graph import CallGraph
+from static_analyzer.cfg import CallGraph
 from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name
 from static_analyzer.node import Node
 
@@ -474,10 +474,7 @@ def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
     merged_analysis.source_files = list(all_existing)
     merged_analysis.references = [ref for ref in merged_analysis.references if ref.file_path in existing_file_strs]
 
-    merged_analysis.call_graph = merged_analysis.call_graph.filter(
-        lambda node: node.file_path in existing_file_strs,
-        on_dropped_edge=lambda _edge: None,
-    )
+    merged_analysis.call_graph = merged_analysis.call_graph.filter(lambda node: node.file_path in existing_file_strs)
 
     # Hierarchy entries are keyed by class qname and carry no file_path, so filter by whether the
     # class still exists as a live call-graph node (already filtered above) — the old

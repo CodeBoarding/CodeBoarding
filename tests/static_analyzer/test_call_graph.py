@@ -1,11 +1,12 @@
 import unittest
-from unittest.mock import patch, Mock
 
 import networkx as nx
 
 from static_analyzer.constants import NodeType
+from static_analyzer.leiden_utils import find_partition
 from static_analyzer.node import Node
-from static_analyzer.graph import Edge, CallGraph, ClusterResult
+from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS, Edge
+from static_analyzer.clustering import ClusterResult, ClusteringService
 
 
 class TestNode(unittest.TestCase):
@@ -228,7 +229,7 @@ class TestCallGraph(unittest.TestCase):
         graph.add_node(node2)
         graph.add_edge("module.func1", "module.func2")
 
-        nx_graph = graph.to_networkx()
+        nx_graph = graph.to_networkx(DEFAULT_REFERENCE_KINDS)
 
         # Check it's a DiGraph
         self.assertIsInstance(nx_graph, nx.DiGraph)
@@ -269,261 +270,43 @@ class TestCallGraph(unittest.TestCase):
         self.assertIn("module.src", str_repr)
         self.assertIn("module.dst", str_repr)
 
-    def test_llm_str_small_graph(self):
-        # Test LLM string for small graph (within size limit)
-        graph = CallGraph()
-        src = Node("module.src", 12, "/file.py", 1, 10)
-        dst = Node("module.dst", 12, "/file.py", 20, 30)
-
-        graph.add_node(src)
-        graph.add_node(dst)
-        graph.add_edge("module.src", "module.dst")
-
-        result = graph.llm_str(size_limit=10000)
-
-        # Should use detailed representation (level 1)
-        self.assertIn("module.src", result)
-        self.assertIn("module.dst", result)
-        self.assertIn("calls:", result)
-        self.assertNotIn("class-level summary", result)
-
-    def test_llm_str_large_graph(self):
-        # Test LLM string for large graph (exceeds size limit)
-        graph = CallGraph()
-
-        # Create many method nodes (type "6")
-        for i in range(50):
-            node = Node(f"class{i % 5}.ClassA.method{i}", NodeType.METHOD, "/file.py", i * 10, i * 10 + 5)
-            graph.add_node(node)
-
-        # Add edges to create relationships
-        for i in range(49):
-            graph.add_edge(f"class{i % 5}.ClassA.method{i}", f"class{(i+1) % 5}.ClassA.method{i+1}")
-
-        # Use very small size limit to trigger class-level summary
-        result = graph.llm_str(size_limit=100)
-
-        # Should use class-level summary
-        self.assertIn("class-level summary", result)
-        self.assertIn("Class", result)
-
-    def test_llm_str_with_functions(self):
-        # Test LLM string with function nodes (not methods)
-        graph = CallGraph()
-        func1 = Node("module.function1", 12, "/file.py", 1, 10)
-        func2 = Node("module.function2", 12, "/file.py", 20, 30)
-
-        graph.add_node(func1)
-        graph.add_node(func2)
-        graph.add_edge("module.function1", "module.function2")
-
-        # Use small size limit to trigger grouping
-        result = graph.llm_str(size_limit=100)
-
-        # Functions (not methods) should remain in detailed format
-        self.assertIn("Function", result)
-
-    def test_llm_str_with_skip_nodes(self):
-        # Test LLM string with nodes to skip
-        graph = CallGraph()
-        node1 = Node("module.func1", 12, "/file.py", 1, 10)
-        node2 = Node("module.func2", 12, "/file.py", 20, 30)
-        node3 = Node("module.func3", 12, "/file.py", 30, 40)
-
-        graph.add_node(node1)
-        graph.add_node(node2)
-        graph.add_node(node3)
-
-        graph.add_edge("module.func1", "module.func2")
-        graph.add_edge("module.func2", "module.func3")
-
-        # Skip node2 — func1 still shows its call to func2 (stored in methods_called_by_me),
-        # but func2's own outgoing call to func3 is suppressed
-        result = graph.llm_str(skip_nodes=[node2])
-
-        self.assertIn("module.func1", result)
-        # func1 still lists func2 as a call target (it's in func1.methods_called_by_me)
-        self.assertIn("module.func2", result)
-        # The header should reflect 2 active nodes (func1 + func3), not 3
-        self.assertIn("2 nodes", result)
-
-    def test_common_dot_prefix(self):
-        self.assertEqual(CallGraph._common_dot_prefix([]), "")
-        self.assertEqual(CallGraph._common_dot_prefix(["a.b.c"]), "")
-        self.assertEqual(CallGraph._common_dot_prefix(["a.b.c", "a.b.d"]), "a.b")
-        self.assertEqual(CallGraph._common_dot_prefix(["a.b.c", "x.y.z"]), "")
-        # Prevents collapsing identical names to empty short form
-        self.assertEqual(CallGraph._common_dot_prefix(["a.b", "a.b"]), "a")
-
-    def test_cluster_returns_cluster_result(self):
-        """Test that cluster() returns a ClusterResult."""
-        graph = CallGraph()
-
-        for i in range(10):
-            node = Node(f"module.func{i}", 12, f"/file{i % 3}.py", i * 10, i * 10 + 5)
-            graph.add_node(node)
-
-        for i in range(9):
-            graph.add_edge(f"module.func{i}", f"module.func{i+1}")
-
-        result = graph.cluster()
-
-        self.assertIsInstance(result, ClusterResult)
-        self.assertIsInstance(result.clusters, dict)
-        self.assertIsInstance(result.file_to_clusters, dict)
-        self.assertIsInstance(result.cluster_to_files, dict)
-        self.assertIsInstance(result.strategy, str)
-
-    def test_cluster_is_cached(self):
-        """Test that cluster() results are cached."""
-        graph = CallGraph()
-
-        for i in range(5):
-            node = Node(f"module.func{i}", 12, "/file.py", i * 10, i * 10 + 5)
-            graph.add_node(node)
-
-        result1 = graph.cluster()
-        result2 = graph.cluster()
-
-        # Should be the same object (cached)
-        self.assertIs(result1, result2)
-
-    def test_cluster_empty_graph(self):
-        """Test cluster() on empty graph."""
-        graph = CallGraph()
-        result = graph.cluster()
-
-        self.assertEqual(result.clusters, {})
-        self.assertEqual(result.strategy, "empty")
-
-    def test_cluster_file_mappings(self):
-        """Test that cluster() builds correct file <-> cluster mappings."""
-        graph = CallGraph()
-
-        # Create nodes with distinct file paths
-        node1 = Node("module.func1", 12, "/path/a.py", 1, 10)
-        node2 = Node("module.func2", 12, "/path/a.py", 20, 30)
-        node3 = Node("module.func3", 12, "/path/b.py", 1, 10)
-        node4 = Node("module.func4", 12, "/path/b.py", 20, 30)
-
-        graph.add_node(node1)
-        graph.add_node(node2)
-        graph.add_node(node3)
-        graph.add_node(node4)
-
-        graph.add_edge("module.func1", "module.func2")
-        graph.add_edge("module.func3", "module.func4")
-
-        result = graph.cluster()
-
-        # Check that file_to_clusters and cluster_to_files are populated
-        self.assertTrue(len(result.file_to_clusters) > 0 or result.strategy in ("empty", "none"))
-
     def test_filter_by_files_creates_new_callgraph(self):
-        """Test that filter_by_files() creates a new CallGraph instance."""
         graph = CallGraph()
-
         for i in range(10):
-            node = Node(f"module.func{i}", 12, f"/file{i % 2}.py", i * 10, i * 10 + 5)
-            graph.add_node(node)
-
+            graph.add_node(Node(f"module.func{i}", 12, f"/file{i % 2}.py", i * 10, i * 10 + 5))
         for i in range(9):
             graph.add_edge(f"module.func{i}", f"module.func{i+1}")
 
-        cluster_result = graph.cluster()
-        if cluster_result.clusters:
-            first_cluster_id = next(iter(cluster_result.clusters.keys()))
-            file_paths = cluster_result.cluster_to_files.get(first_cluster_id, set())
-            sub_graph = graph.filter_by_files(file_paths)
+        sub_graph = graph.filter_by_files({"/file0.py"})
 
-            self.assertIsInstance(sub_graph, CallGraph)
-            self.assertIsNot(sub_graph, graph)
-            # Subgraph should have fewer or equal nodes
-            self.assertLessEqual(len(sub_graph.nodes), len(graph.nodes))
+        self.assertIsInstance(sub_graph, CallGraph)
+        self.assertIsNot(sub_graph, graph)
+        self.assertLess(len(sub_graph.nodes), len(graph.nodes))
+        self.assertTrue(all(n.file_path == "/file0.py" for n in sub_graph.nodes.values()))
 
-    def test_filter_by_files_empty_cluster_ids(self):
-        """Test filter_by_files() with empty cluster IDs returns empty graph."""
+    def test_filter_by_files_empty_set(self):
         graph = CallGraph()
-        node = Node("module.func", 12, "/file.py", 1, 10)
-        graph.add_node(node)
+        graph.add_node(Node("module.func", 12, "/file.py", 1, 10))
 
         sub_graph = graph.filter_by_files(set())
 
         self.assertEqual(len(sub_graph.nodes), 0)
         self.assertEqual(len(sub_graph.edges), 0)
 
-    def test_filter_by_files_preserves_edges(self):
-        """Test that filter_by_files() preserves edges between included nodes."""
+    def test_filter_by_files_keeps_only_internal_edges(self):
         graph = CallGraph()
-
-        node1 = Node("module.func1", 12, "/file.py", 1, 10)
-        node2 = Node("module.func2", 12, "/file.py", 20, 30)
-        node3 = Node("module.func3", 12, "/other.py", 1, 10)
-
-        graph.add_node(node1)
-        graph.add_node(node2)
-        graph.add_node(node3)
-
+        graph.add_node(Node("module.func1", 12, "/file.py", 1, 10))
+        graph.add_node(Node("module.func2", 12, "/file.py", 20, 30))
+        graph.add_node(Node("module.func3", 12, "/other.py", 1, 10))
         graph.add_edge("module.func1", "module.func2")
         graph.add_edge("module.func2", "module.func3")
 
-        cluster_result = graph.cluster()
-        if cluster_result.clusters:
-            # Get a cluster and create filter_by_files
-            first_cluster_id = next(iter(cluster_result.clusters.keys()))
-            file_paths = cluster_result.cluster_to_files.get(first_cluster_id, set())
-            sub_graph = graph.filter_by_files(file_paths)
+        sub_graph = graph.filter_by_files({"/file.py"})
 
-            # All edges in filter_by_files should connect nodes that exist in filter_by_files
-            for edge in sub_graph.edges:
-                self.assertIn(edge.get_source(), sub_graph.nodes)
-                self.assertIn(edge.get_destination(), sub_graph.nodes)
-
-    def test_filter_by_files_can_be_clustered(self):
-        """Test that filter_by_files can itself be clustered."""
-        graph = CallGraph()
-
-        for i in range(20):
-            node = Node(f"module.func{i}", 12, f"/file{i % 4}.py", i * 10, i * 10 + 5)
-            graph.add_node(node)
-
-        for i in range(19):
-            graph.add_edge(f"module.func{i}", f"module.func{i+1}")
-
-        cluster_result = graph.cluster()
-        if cluster_result.clusters:
-            first_cluster_id = next(iter(cluster_result.clusters.keys()))
-            file_paths = cluster_result.cluster_to_files.get(first_cluster_id, set())
-            sub_graph = graph.filter_by_files(file_paths)
-
-            # Subgraph should be clusterable
-            sub_result = sub_graph.cluster()
-            self.assertIsInstance(sub_result, ClusterResult)
-
-            # Should only include the specified cluster
-
-    def test_cluster_determinism(self):
-        """Test that clustering is deterministic (same seed = same result)."""
-
-        def create_graph():
-            g = CallGraph()
-            for i in range(15):
-                node = Node(f"module.func{i}", 12, f"/file{i % 3}.py", i * 10, i * 10 + 5)
-                g.add_node(node)
-            for i in range(14):
-                g.add_edge(f"module.func{i}", f"module.func{i+1}")
-            return g
-
-        graph1 = create_graph()
-        graph2 = create_graph()
-
-        result1 = graph1.cluster()
-        result2 = graph2.cluster()
-
-        # Cluster IDs and contents should be identical
-        self.assertEqual(result1.clusters.keys(), result2.clusters.keys())
-        for cid in result1.clusters:
-            self.assertEqual(result1.clusters[cid], result2.clusters[cid])
+        self.assertEqual(len(sub_graph.edges), 1)
+        for edge in sub_graph.edges:
+            self.assertIn(edge.get_source(), sub_graph.nodes)
+            self.assertIn(edge.get_destination(), sub_graph.nodes)
 
     def test_node_promotion_with_existing_edges(self):
         """Promoting a node (longer name replaces shorter) after edges exist must not break the graph.
@@ -546,7 +329,7 @@ class TestCallGraph(unittest.TestCase):
         self.assertNotIn("index.funcA", graph.nodes)
 
         # Edge objects must reflect the promoted name (in-place mutation)
-        nx_graph = graph.to_networkx()
+        nx_graph = graph.to_networkx(DEFAULT_REFERENCE_KINDS)
         self.assertEqual(nx_graph.number_of_edges(), 1)
 
         # filter_by_files must not KeyError on stale edge names
@@ -605,27 +388,3 @@ class TestCallGraph(unittest.TestCase):
         self.assertEqual(len(graph2.nodes), 1)
         self.assertIn("pkg.mod.bar", graph2.nodes)
         self.assertTrue(graph2.has_node("bar"))
-
-
-class TestDetectCommunitiesDeterminism(unittest.TestCase):
-    """Property test: same input + same seed -> byte-equal output.
-
-    Why: ``detect_communities`` is the entry point for both incremental and
-    full clustering. Determinism is the contract every downstream piece
-    relies on (cluster IDs persisted in analysis.json must reproduce on
-    subsequent runs of the same code).
-    """
-
-    def test_detect_communities_is_deterministic(self):
-        from static_analyzer.graph import detect_communities
-
-        g = nx.karate_club_graph()
-        a: list[set[int]] = detect_communities(g, seed=42)
-        b: list[set[int]] = detect_communities(g, seed=42)
-        canon_a = sorted(sorted(c) for c in a)
-        canon_b = sorted(sorted(c) for c in b)
-        self.assertEqual(canon_a, canon_b)
-
-
-if __name__ == "__main__":
-    unittest.main()

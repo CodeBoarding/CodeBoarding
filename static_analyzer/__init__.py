@@ -7,6 +7,7 @@ from repo_utils.git_ops import get_changed_files_since
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cfg import CallGraph
 from static_analyzer.constants import Language
 from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
@@ -16,7 +17,6 @@ from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.graph import CallGraph
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -326,10 +326,9 @@ class StaticAnalyzer:
     def stop_clients(self) -> None:
         """Gracefully shut down all engine LSP server processes. Idempotent.
 
-        Persists the latest ``_cached_results`` to the pkl on the way down so
-        downstream mutations (``CallGraph._cluster_cache`` populated by the
-        abstraction agent) reach disk in one save instead of two. Save errors
-        are logged but never block teardown.
+        Persists ``_cached_results`` on the way down so the abstraction agent's
+        ``ClusterCache`` writes reach disk in one save. Save errors are logged
+        but never block teardown.
         """
         if not self._clients_started:
             return
@@ -656,9 +655,8 @@ class StaticAnalyzer:
         Per language: determine the changed-file list, hand it to
         ``update_cfg_for_changed_files`` along with the language's portion of the
         cached state, and put the merged result back into a fresh
-        ``StaticAnalysisResults``. Merging (rather than a full re-LSP) is what
-        preserves the cached CFG's ``_cluster_cache``, so the next incremental
-        run still finds a cluster baseline.
+        ``StaticAnalysisResults``. The cached ``ClusterCache`` is grafted on either
+        way, so a language that fell back to a full re-LSP still leaves a baseline.
 
         Changed-file source: ``self.changed_files`` when set at construction
         (git-free — e.g. the wrapper's fingerprint diff), else ``git diff`` via
@@ -684,6 +682,14 @@ class StaticAnalyzer:
                 )
 
             self._absorb_into_results(results, language, analysis)
+            # Both branches, including the full re-LSP: the partition describes cached_sha,
+            # which stays a valid delta baseline however the graph was rebuilt. select()
+            # drops whatever the re-LSP no longer has.
+            try:
+                surviving = results.get_cfg(language).nodes
+            except ValueError:
+                surviving = {}
+            results.set_clusters(language, cached_results.get_clusters(language).select(surviving))
             self._collect_diagnostics_for(adapter, engine_client, analysis)
             track_lsp_result(
                 language=adapter.language_enum.value,

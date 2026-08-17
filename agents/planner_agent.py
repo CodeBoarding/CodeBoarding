@@ -19,7 +19,7 @@ import networkx as nx
 
 from agents.agent_responses import AnalysisInsights, Component
 from static_analyzer.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN, supercluster_leaf_ids
-from static_analyzer.graph import METHOD_LEVEL_STRATEGY, ClusterResult
+from static_analyzer.clustering import ClusterResult, METHOD_LEVEL_STRATEGY
 
 logger = logging.getLogger(__name__)
 

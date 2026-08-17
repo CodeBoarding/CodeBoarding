@@ -15,7 +15,7 @@ from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
 from diagram_analysis.scope_plan import plan_scope_update, previous_ownership
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 
 FILE = "pkg/mod.py"
 DELETE = ScopeOperationAction.DELETE_COMPONENT
