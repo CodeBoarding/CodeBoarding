@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-16T22:19:06.297546+00:00",
-    "source_tree_hash": "19563fa39f0829943119bb5b0bdd3e9ade5b2ac29036f7104ffc3d6dd21b0dbc",
+    "generated_at": "2026-08-17T00:13:42.660471+00:00",
+    "source_tree_hash": "5d53ecf03f14f20bb079e90e0ff2f50e6af85bce01303e079b4c53e6c2769c69",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -781,8 +781,8 @@
         "user_config.py|user_config.ensure_config_template",
         "user_config.py|user_config._append_commented_key"
       ],
-      "content_hash": "d937ce473ae0b1ed",
-      "module_hash": "9b6bc7e6335d61c9"
+      "content_hash": "cf12d3c5e4fa8b4c",
+      "module_hash": "a7d579a6791cb6c0"
     },
     "utils.py": {
       "method_keys": [
@@ -1027,8 +1027,8 @@
         "agents/llm_config.py|agents.llm_config.initialize_llms",
         "agents/llm_config.py|agents.llm_config.supports_prompt_caching"
       ],
-      "content_hash": "e52b1a8b07e0fa64",
-      "module_hash": "4729f5d3ab09a948"
+      "content_hash": "fef77eaf3646c31e",
+      "module_hash": "71712c8a7f3e5d03"
     },
     "agents/llm_errors.py": {
       "method_keys": [
@@ -34210,17 +34210,17 @@
             "static_analyzer.cfg.call_graph.CallGraph.__init__",
             "static_analyzer.cfg.call_graph.CallGraph.add_node",
             "static_analyzer.cfg.call_graph.CallGraph.has_node",
-            "static_analyzer.cfg.call_graph.CallGraph._resolve_name",
             "static_analyzer.cfg.call_graph.CallGraph.add_edge",
             "static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
             "static_analyzer.cfg.call_graph.CallGraph.filter",
             "static_analyzer.cfg.call_graph.CallGraph.union",
             "static_analyzer.cfg.call_graph.CallGraph.filter_by_files",
             "static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
-            "static_analyzer.cfg.call_graph.CallGraph.to_networkx",
             "static_analyzer.cfg.call_graph.CallGraph.visit_paths",
-            "static_analyzer.cfg.call_graph.CallGraph._carry_reference_edges",
-            "static_analyzer.cfg.call_graph.CallGraph.__str__"
+            "static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+            "static_analyzer.cfg.call_graph.CallGraph.__str__",
+            "static_analyzer.cfg.call_graph.CallGraph._resolve_name",
+            "static_analyzer.cfg.call_graph.CallGraph._carry_reference_edges"
           ]
         },
         {
@@ -34228,15 +34228,15 @@
           "methods": [
             "static_analyzer.cfg.edge.EdgeKind",
             "static_analyzer.cfg.edge.ReferenceEdge",
-            "static_analyzer.cfg.edge.Edge.__init__",
             "static_analyzer.cfg.edge.Edge",
+            "static_analyzer.cfg.edge.Edge.__init__",
             "static_analyzer.cfg.edge.Edge.call_sites",
             "static_analyzer.cfg.edge.Edge.get_source",
             "static_analyzer.cfg.edge.Edge.get_destination",
             "static_analyzer.cfg.edge.Edge.__repr__",
             "static_analyzer.cfg.edge.Edge.add_call_site",
-            "static_analyzer.cfg.edge.Edge._normalize_call_site",
-            "static_analyzer.cfg.edge.Edge.visit_paths"
+            "static_analyzer.cfg.edge.Edge.visit_paths",
+            "static_analyzer.cfg.edge.Edge._normalize_call_site"
           ]
         },
         {
@@ -34276,17 +34276,17 @@
         {
           "file_path": "static_analyzer/clustering/method_cluster_paths.py",
           "methods": [
-            "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__getstate__",
             "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths",
             "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__init__",
+            "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__getstate__",
             "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__setstate__",
             "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.merge",
             "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.select",
             "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.record",
             "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.reroot_scope",
-            "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
             "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.snapshot",
             "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.snapshot_dict",
+            "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
             "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope"
           ]
         },
@@ -34656,17 +34656,17 @@
                 "static_analyzer.cfg.call_graph.CallGraph.__init__",
                 "static_analyzer.cfg.call_graph.CallGraph.add_node",
                 "static_analyzer.cfg.call_graph.CallGraph.has_node",
-                "static_analyzer.cfg.call_graph.CallGraph._resolve_name",
                 "static_analyzer.cfg.call_graph.CallGraph.add_edge",
                 "static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
                 "static_analyzer.cfg.call_graph.CallGraph.filter",
                 "static_analyzer.cfg.call_graph.CallGraph.union",
                 "static_analyzer.cfg.call_graph.CallGraph.filter_by_files",
                 "static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
-                "static_analyzer.cfg.call_graph.CallGraph.to_networkx",
                 "static_analyzer.cfg.call_graph.CallGraph.visit_paths",
-                "static_analyzer.cfg.call_graph.CallGraph._carry_reference_edges",
-                "static_analyzer.cfg.call_graph.CallGraph.__str__"
+                "static_analyzer.cfg.call_graph.CallGraph.to_networkx",
+                "static_analyzer.cfg.call_graph.CallGraph.__str__",
+                "static_analyzer.cfg.call_graph.CallGraph._resolve_name",
+                "static_analyzer.cfg.call_graph.CallGraph._carry_reference_edges"
               ]
             },
             {
@@ -34674,15 +34674,15 @@
               "methods": [
                 "static_analyzer.cfg.edge.EdgeKind",
                 "static_analyzer.cfg.edge.ReferenceEdge",
-                "static_analyzer.cfg.edge.Edge.__init__",
                 "static_analyzer.cfg.edge.Edge",
+                "static_analyzer.cfg.edge.Edge.__init__",
                 "static_analyzer.cfg.edge.Edge.call_sites",
                 "static_analyzer.cfg.edge.Edge.get_source",
                 "static_analyzer.cfg.edge.Edge.get_destination",
                 "static_analyzer.cfg.edge.Edge.__repr__",
                 "static_analyzer.cfg.edge.Edge.add_call_site",
-                "static_analyzer.cfg.edge.Edge._normalize_call_site",
-                "static_analyzer.cfg.edge.Edge.visit_paths"
+                "static_analyzer.cfg.edge.Edge.visit_paths",
+                "static_analyzer.cfg.edge.Edge._normalize_call_site"
               ]
             },
             {
@@ -34722,17 +34722,17 @@
             {
               "file_path": "static_analyzer/clustering/method_cluster_paths.py",
               "methods": [
-                "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__getstate__",
                 "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths",
                 "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__init__",
+                "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__getstate__",
                 "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__setstate__",
                 "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.merge",
                 "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.select",
                 "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.record",
                 "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.reroot_scope",
-                "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
                 "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.snapshot",
                 "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.snapshot_dict",
+                "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
                 "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope"
               ]
             },
@@ -34849,15 +34849,15 @@
                     "static_analyzer.cfg.call_graph.CallGraph.__init__",
                     "static_analyzer.cfg.call_graph.CallGraph.add_node",
                     "static_analyzer.cfg.call_graph.CallGraph.has_node",
-                    "static_analyzer.cfg.call_graph.CallGraph._resolve_name",
                     "static_analyzer.cfg.call_graph.CallGraph.add_edge",
                     "static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
                     "static_analyzer.cfg.call_graph.CallGraph.filter",
                     "static_analyzer.cfg.call_graph.CallGraph.union",
                     "static_analyzer.cfg.call_graph.CallGraph.filter_by_files",
                     "static_analyzer.cfg.call_graph.CallGraph.visit_paths",
-                    "static_analyzer.cfg.call_graph.CallGraph._carry_reference_edges",
-                    "static_analyzer.cfg.call_graph.CallGraph.__str__"
+                    "static_analyzer.cfg.call_graph.CallGraph.__str__",
+                    "static_analyzer.cfg.call_graph.CallGraph._resolve_name",
+                    "static_analyzer.cfg.call_graph.CallGraph._carry_reference_edges"
                   ]
                 },
                 {
@@ -34865,15 +34865,15 @@
                   "methods": [
                     "static_analyzer.cfg.edge.EdgeKind",
                     "static_analyzer.cfg.edge.ReferenceEdge",
-                    "static_analyzer.cfg.edge.Edge.__init__",
                     "static_analyzer.cfg.edge.Edge",
+                    "static_analyzer.cfg.edge.Edge.__init__",
                     "static_analyzer.cfg.edge.Edge.call_sites",
                     "static_analyzer.cfg.edge.Edge.get_source",
                     "static_analyzer.cfg.edge.Edge.get_destination",
                     "static_analyzer.cfg.edge.Edge.__repr__",
                     "static_analyzer.cfg.edge.Edge.add_call_site",
-                    "static_analyzer.cfg.edge.Edge._normalize_call_site",
-                    "static_analyzer.cfg.edge.Edge.visit_paths"
+                    "static_analyzer.cfg.edge.Edge.visit_paths",
+                    "static_analyzer.cfg.edge.Edge._normalize_call_site"
                   ]
                 },
                 {
@@ -34885,17 +34885,17 @@
                 {
                   "file_path": "static_analyzer/clustering/method_cluster_paths.py",
                   "methods": [
-                    "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__getstate__",
                     "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths",
                     "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__init__",
+                    "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__getstate__",
                     "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.__setstate__",
                     "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.merge",
                     "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.select",
                     "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.record",
                     "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.reroot_scope",
-                    "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
                     "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.snapshot",
                     "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths.snapshot_dict",
+                    "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths._scope_belongs_to",
                     "static_analyzer.clustering.method_cluster_paths.MethodClusterPaths._cluster_id_belongs_to_scope"
                   ]
                 },
