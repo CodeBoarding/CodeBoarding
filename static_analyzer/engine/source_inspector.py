@@ -65,6 +65,14 @@ _CALL_NODE_TYPES = frozenset(
 _CONSTRUCTOR_NODE_TYPES = frozenset({"object_creation_expression", "new_expression"})
 # C# target-typed ``new(...)``: no type name at the call site.
 _IMPLICIT_CONSTRUCTOR_NODE_TYPES = frozenset({"implicit_object_creation_expression"})
+# C# ``: this(...)`` / ``: base(...)`` constructor delegation.
+_CONSTRUCTOR_INITIALIZER_NODE_TYPES = frozenset({"constructor_initializer"})
+# Applying an attribute runs its constructor.
+_ATTRIBUTE_NODE_TYPES = frozenset({"attribute"})
+# Braces holding ``Prop = value`` are an object initializer, not a collection one.
+_OBJECT_INITIALIZER_NODE_TYPES = frozenset({"assignment_expression"})
+# Loops whose ``right`` field is a value whose type gets enumerated.
+_ITERATION_NODE_TYPES = frozenset({"foreach_statement", "for_each_statement", "enhanced_for_statement"})
 _METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference"})
 _CALLABLE_USAGE_ANCESTORS = frozenset({"argument_list", "arguments"})
 _NAME_NODE_TYPES = frozenset(
@@ -246,6 +254,63 @@ class SourceInspector:
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
 
+    def find_collection_initializer_sites(self, file_path: Path) -> list[CallSite]:
+        """Creations whose braces hold elements rather than property assignments.
+
+        ``new Bag { 1, 2 }`` calls ``Bag.Add`` once per element; the position is
+        the creation's own, so the caller can hang the extra edges off whatever
+        that resolves to.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        sites: list[CallSite] = []
+        seen: set[tuple[int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _CONSTRUCTOR_NODE_TYPES | _IMPLICIT_CONSTRUCTOR_NODE_TYPES:
+                continue
+            initializer = node.child_by_field_name("initializer")
+            if initializer is None or not any(
+                child.type not in _OBJECT_INITIALIZER_NODE_TYPES for child in initializer.named_children
+            ):
+                continue
+            target = self._call_target_node(node)
+            if target is None:
+                continue
+            position = (target.start_point.row, target.start_point.column)
+            if position in seen:
+                continue
+            seen.add(position)
+            sites.append(CallSite.from_lsp_position(file=str(file_path), line=position[0], column=position[1]))
+        return sites
+
+    def find_iterated_expression_sites(self, file_path: Path) -> list[CallSite]:
+        """Positions of expressions being iterated over.
+
+        Iterating a value calls ``GetEnumerator`` on its type, but the type is
+        nowhere in the syntax — only the value is — so these positions are meant
+        for a type query rather than the definition query the other sites use.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        sites: list[CallSite] = []
+        seen: set[tuple[int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _ITERATION_NODE_TYPES:
+                continue
+            iterated = self._select_query_node(node.child_by_field_name("right"))
+            if iterated is None:
+                continue
+            position = (iterated.start_point.row, iterated.start_point.column)
+            if position in seen:
+                continue
+            seen.add(position)
+            sites.append(CallSite.from_lsp_position(file=str(file_path), line=position[0], column=position[1]))
+        return sites
+
     def find_method_group_sites(self, file_path: Path) -> list[CallSite]:
         """Positions where naming a method passes it as a value rather than calling it.
 
@@ -414,6 +479,14 @@ class SourceInspector:
                 if target is not None:
                     return target
             return self._first_named_child_of_type(node, _NAME_NODE_TYPES)
+        if node.type in _ATTRIBUTE_NODE_TYPES:
+            # Applying an attribute constructs it, and the annotated member
+            # genuinely depends on that type.
+            return self._select_query_node(node.child_by_field_name("name"))
+        if node.type in _CONSTRUCTOR_INITIALIZER_NODE_TYPES:
+            # ``: this(...)`` / ``: base(...)`` — the keyword is what the server
+            # resolves to the delegated constructor.
+            return next((child for child in node.children if child.type in ("this", "base")), None)
         if node.type in _IMPLICIT_CONSTRUCTOR_NODE_TYPES:
             # Target-typed ``new(...)``: the type lives on the assignment target,
             # so the only thing to query is the keyword itself. The server knows

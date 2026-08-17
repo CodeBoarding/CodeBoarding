@@ -280,6 +280,17 @@ class CSharpAdapter(LanguageAdapter):
         otherwise stop at the abstract declaration."""
         return True
 
+    @property
+    def resolves_collection_initializers(self) -> bool:
+        """C# collection-initializer braces desugar to Add calls."""
+        return True
+
+    @property
+    def resolves_iterated_types(self) -> bool:
+        """csharp-ls answers typeDefinition, so a ``foreach`` over a repo
+        collection can name the type it enumerates."""
+        return True
+
     def get_lsp_default_timeout(self) -> int:
         """csharp-ls needs extra time to load Roslyn workspace for large solutions."""
         return 120

@@ -577,3 +577,58 @@ class TestTargetTypedNew:
         )
         si = SourceInspector()
         assert (3, 40) in _positions(si.find_call_sites(f))  # `Cache`, not `new`
+
+
+class TestConstructorDelegation:
+    """``: this(...)`` and ``: base(...)`` are calls, and the server resolves
+    them from the keyword rather than from any type name."""
+
+    def test_this_initializer_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "S.cs"
+        f.write_text("class S {\n    public S() : this(10) { }\n    public S(int x) { }\n}\n")
+        si = SourceInspector()
+        assert (2, 18) in _positions(si.find_call_sites(f))  # the `this` keyword
+
+    def test_base_initializer_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "D.cs"
+        f.write_text("class S { public S(int x) { } }\nclass D : S {\n    public D(int x) : base(x) { }\n}\n")
+        si = SourceInspector()
+        assert (3, 23) in _positions(si.find_call_sites(f))  # the `base` keyword
+
+
+class TestCollectionInitializer:
+    """``new Bag { 1, 2 }`` calls ``Bag.Add`` per element; ``new T { P = 1 }``
+    assigns a property and calls nothing."""
+
+    def test_collection_initializer_is_reported(self, tmp_path: Path):
+        f = tmp_path / "C.cs"
+        f.write_text("class C { void M() { var a = new Bag { 1, 2 }; } }\n")
+        si = SourceInspector()
+        assert (1, 34) in _positions(si.find_collection_initializer_sites(f))
+
+    def test_object_initializer_is_not(self, tmp_path: Path):
+        f = tmp_path / "C.cs"
+        f.write_text("class C { void M() { var a = new Thing { Prop = 1 }; } }\n")
+        si = SourceInspector()
+        assert si.find_collection_initializer_sites(f) == []
+
+    def test_plain_construction_is_not(self, tmp_path: Path):
+        f = tmp_path / "C.cs"
+        f.write_text("class C { void M() { var a = new Bag(); } }\n")
+        si = SourceInspector()
+        assert si.find_collection_initializer_sites(f) == []
+
+
+class TestIteratedExpression:
+    def test_foreach_collection_is_reported(self, tmp_path: Path):
+        f = tmp_path / "C.cs"
+        f.write_text("class C { void M(Bag bag) { foreach (int v in bag) { } } }\n")
+        si = SourceInspector()
+        assert (1, 47) in _positions(si.find_iterated_expression_sites(f))
+
+    def test_member_access_collection_points_at_the_last_name(self, tmp_path: Path):
+        f = tmp_path / "C.cs"
+        f.write_text("class C { void M() { foreach (var x in Other.Items) { } } }\n")
+        si = SourceInspector()
+        positions = _positions(si.find_iterated_expression_sites(f))
+        assert (1, 46) in positions  # `Items`, whose type is what gets enumerated

@@ -322,14 +322,69 @@ def build_edges_via_definitions(
         ctx, resolution.edge_set, resolution.impl_queries_pending, pos_to_sym, line_to_syms
     )
 
+    total_iterated = 0
+    if adapter.resolves_iterated_types:
+        total_iterated = _resolve_iterated_types(ctx, resolution.edge_set, source_files, pos_to_sym, line_to_syms)
+
     logger.info(
-        "Phase 2 summary: %d call sites, %d def resolved, %d impl resolved, %d raw edges",
+        "Phase 2 summary: %d call sites, %d def resolved, %d impl resolved, %d iterated, %d raw edges",
         resolution.total_sites,
         resolution.total_resolved,
         total_impl_resolved,
+        total_iterated,
         len(resolution.edge_set),
     )
     return resolution.edge_set
+
+
+def _resolve_iterated_types(
+    ctx: EdgeBuildContext,
+    edge_set: EdgeMap,
+    source_files: list[Path],
+    pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
+    line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
+) -> int:
+    """Edge from a loop to the type it enumerates.
+
+    ``foreach (var x in bag)`` calls ``GetEnumerator`` on whatever ``bag`` is,
+    but the syntax names only the value. A type query is the one request that
+    names the type, so this is the only route to the edge.
+    """
+    st = ctx.symbol_table
+    batch_size = 50
+    resolved = 0
+
+    for file_path in source_files:
+        sites = ctx.source_inspector.find_iterated_expression_sites(file_path)
+        if not sites:
+            continue
+        for start in range(0, len(sites), batch_size):
+            batch = sites[start : start + batch_size]
+            queries = [(file_path, site.lsp_line, site.lsp_column) for site in batch]
+            try:
+                results, _ = ctx.lsp.send_type_definition_batch(queries)
+            except Exception as e:
+                logger.debug("Type-definition batch failed for %s: %s", file_path.name, e)
+                continue
+
+            for index, site in enumerate(batch):
+                caller = st.find_containing_symbol(file_path, site.lsp_line, site.lsp_column)
+                if caller:
+                    caller = st.lift_to_callable(caller)
+                if not caller:
+                    continue
+                for result in results[index] if index < len(results) else []:
+                    target = _resolve_definition_to_symbol(result, pos_to_sym, line_to_syms)
+                    if target is None or not _is_valid_edge(caller, target):
+                        continue
+                    resolved += 1
+                    _add_edge_call_site(edge_set, caller.qualified_name, target.qualified_name, site)
+                    # The loop calls the enumerator, so name it too when the
+                    # type declares one rather than inheriting it.
+                    for enumerator in _members_named(target, st, "GetEnumerator"):
+                        if _is_valid_edge(caller, enumerator):
+                            _add_edge_call_site(edge_set, caller.qualified_name, enumerator.qualified_name, site)
+    return resolved
 
 
 def _build_definition_lookups(
@@ -382,6 +437,12 @@ def _resolve_definitions(
                     continue
                 method_group_positions.add((site.lsp_line, site.lsp_column))
                 call_sites.append(site)
+        collection_positions: set[tuple[int, int]] = set()
+        if adapter.resolves_collection_initializers:
+            collection_positions = {
+                (site.lsp_line, site.lsp_column)
+                for site in ctx.source_inspector.find_collection_initializer_sites(file_path)
+            }
         if not call_sites:
             pbar.update(1)
             continue
@@ -431,6 +492,11 @@ def _resolve_definitions(
                     for override in _override_targets(target, st, dispatch):
                         if _is_valid_edge(caller, override):
                             _add_edge_call_site(edge_set, caller.qualified_name, override.qualified_name, call_site)
+
+                    if (call_site.lsp_line, call_site.lsp_column) in collection_positions:
+                        for adder in _members_named(target, st, "Add"):
+                            if _is_valid_edge(caller, adder):
+                                _add_edge_call_site(edge_set, caller.qualified_name, adder.qualified_name, call_site)
 
                     # If target is a callable with a class-like parent, also add edge to the parent class
                     if adapter.is_callable(target.kind) and target.parent_chain:
@@ -585,6 +651,37 @@ def _build_dispatch_index(
     if ambiguous:
         logger.info("Skipped %d ambiguous base type name(s) for virtual dispatch", len(ambiguous))
     return DispatchIndex(subclasses=subclasses, modifiers=modifiers, ambiguous=ambiguous)
+
+
+def _members_named(target: SymbolInfo, st: SymbolTable, name: str) -> list[SymbolInfo]:
+    """Overloads of *name* declared on *target*."""
+    found: list[SymbolInfo] = []
+    for owner in _member_owner_prefixes(target):
+        prefix = f"{owner}.{name}"
+        for qualified_name, symbol in st.symbols.items():
+            if not qualified_name.startswith(prefix):
+                continue
+            # Only that member, not a longer name starting with it.
+            if qualified_name[len(prefix) :].startswith(("(", "<")):
+                found.append(symbol)
+        if found:
+            break
+    return found
+
+
+def _member_owner_prefixes(target: SymbolInfo) -> list[str]:
+    """Qualified-name prefixes a member of *target* may be filed under.
+
+    A class whose name matches its file collapses into the file's segment, so
+    ``InlineValidator<T>`` in ``InlineValidator.cs`` owns ``...InlineValidator.Add``
+    rather than ``...InlineValidator.InlineValidator<T>.Add``.
+    """
+    prefixes = [target.qualified_name]
+    parent = parent_qualified_name(target.qualified_name)
+    simple = target.qualified_name[len(parent) + 1 :].split("<", 1)[0] if parent else ""
+    if parent and simple and parent.split(".")[-1] == simple:
+        prefixes.append(parent)
+    return prefixes
 
 
 def _override_targets(

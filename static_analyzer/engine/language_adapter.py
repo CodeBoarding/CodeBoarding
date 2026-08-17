@@ -335,6 +335,19 @@ class LanguageAdapter(ABC):
         return False
 
     @property
+    def resolves_iterated_types(self) -> bool:
+        """Whether to resolve the type of an iterated expression, for servers
+        that answer ``textDocument/typeDefinition``. Iterating a value calls
+        ``GetEnumerator`` on its type, which no other request names."""
+        return False
+
+    @property
+    def resolves_collection_initializers(self) -> bool:
+        """Whether ``new Bag { a, b }`` should count as calling ``Bag.Add``
+        once per element, rather than only constructing the type."""
+        return False
+
+    @property
     def extra_client_capabilities(self) -> dict:
         """Vendor-specific keys to shallow-merge into the LSP ``initialize``
         capabilities (e.g. ``{"experimental": {...}}``). Default ``{}`` keeps
