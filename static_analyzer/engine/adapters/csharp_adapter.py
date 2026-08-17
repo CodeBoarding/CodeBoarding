@@ -275,9 +275,9 @@ class CSharpAdapter(LanguageAdapter):
 
     @property
     def expands_virtual_dispatch(self) -> bool:
-        """csharp-ls returns an empty result for both ``textDocument/implementation``
-        and ``typeHierarchy``, so a call through a base-typed reference would
-        otherwise stop at the abstract declaration."""
+        """csharp-ls answers ``textDocument/implementation`` for interface members
+        but returns nothing for abstract or virtual *class* members, so a call
+        through a base-typed reference stops at the abstract declaration."""
         return True
 
     @property

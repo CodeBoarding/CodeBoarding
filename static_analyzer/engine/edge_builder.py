@@ -364,7 +364,7 @@ def _resolve_iterated_types(
             try:
                 results, _ = ctx.lsp.send_type_definition_batch(queries)
             except Exception as e:
-                logger.debug("Type-definition batch failed for %s: %s", file_path.name, e)
+                logger.warning("Type-definition batch failed for %s (%d sites): %s", file_path.name, len(batch), e)
                 continue
 
             for index, site in enumerate(batch):
