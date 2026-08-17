@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -92,6 +93,10 @@ _BASE_GROUP_NODE_TYPES = frozenset({"type_list"})
 _MEMBER_DECLARATION_NODE_TYPES = frozenset(
     {"method_declaration", "property_declaration", "indexer_declaration", "event_declaration"}
 )
+# Conditional-compilation lines, blanked (not removed) so byte offsets survive.
+# Restricted to languages where ``#`` opens a directive rather than a comment.
+_DIRECTIVE_LINE = re.compile(rb"(?m)^[ \t]*#[^\n]*")
+_PREPROCESSOR_SUFFIXES = frozenset({".cs"})
 _DECLARATION_BLOCK_NODE_TYPES = frozenset({"block", "compound_statement", "statement_block"})
 _EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
 
@@ -101,6 +106,17 @@ _EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
 # which is cached separately and outlives the tree. Measured: going from
 # unbounded to 500k costs no wall-clock, because nothing re-reads a tree.
 TREE_NODE_BUDGET = 500_000
+
+
+def _error_node_count(tree: Tree) -> int:
+    count = 0
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        if node.type == "ERROR" or node.is_missing:
+            count += 1
+        stack.extend(node.children)
+    return count
 
 
 @dataclass(frozen=True)
@@ -303,11 +319,36 @@ class SourceInspector:
         if parser is None:
             return None
 
-        parsed = ParsedSource(content=content, tree=parser.parse(content))
+        parsed = ParsedSource(content=content, tree=self._parse_tree(parser, content, file_path.suffix.lower()))
         self._parsed_cache[file_key] = parsed
         self._parsed_nodes += parsed.tree.root_node.descendant_count
         self._evict_trees()
         return parsed
+
+    @staticmethod
+    def _parse_tree(parser: Parser, content: bytes, suffix: str) -> Tree:
+        """Parse *content*, retrying with conditional-compilation lines blanked.
+
+        Why: a member body split across a ``#if`` — C#'s default-interface
+        idiom, ``void Error<T>(...)`` then ``#if X`` then ``=> Write(...)`` —
+        does not parse, and the call comes out as a constructor declaration
+        inside an ERROR subtree, so the call-site walk cannot see it. Serilog's
+        ILogger alone hides 55 calls that way. Blanking the directive lines
+        keeps every other byte at its original offset, so positions still line
+        up with what the language server was told about.
+        """
+        tree = parser.parse(content)
+        if not tree.root_node.has_error or suffix not in _PREPROCESSOR_SUFFIXES:
+            return tree
+        blanked = _DIRECTIVE_LINE.sub(lambda m: b" " * len(m.group(0)), content)
+        if blanked == content:
+            return tree
+        retried = parser.parse(blanked)
+        # Fewer errors wins rather than zero errors: blanking leaves both arms of
+        # an ``#if``/``#else`` in place, so a file can improve enormously and
+        # still not parse cleanly. Serilog's ILogger goes from 310 error nodes
+        # and 18 invocations to 2 and 96.
+        return retried if _error_node_count(retried) < _error_node_count(tree) else tree
 
     def _evict_trees(self) -> None:
         """Drop least-recently-parsed trees until the node budget is met."""

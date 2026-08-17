@@ -507,3 +507,49 @@ class TestMethodGroupValuePositions:
     def test_assignment_from_a_call_is_not_queried(self, tmp_path: Path):
         """The invocation is already a call site; the assignment adds nothing."""
         assert self._positions_for(tmp_path, "class A { void M(){ var y = Compute(); } }\n") == set()
+
+
+class TestConditionalCompilationBodies:
+    """C#'s default-interface idiom splits a member body across a ``#if``.
+
+    tree-sitter cannot parse that shape: the subtree becomes ERROR and the call
+    is emitted as a constructor declaration, so the call-site walk misses it.
+    Serilog's ILogger hides 55 calls this way.
+    """
+
+    SPLIT_BODY = (
+        "namespace N;\n"
+        "public interface ILogger\n"
+        "{\n"
+        "    void Error<T>(string t, T v)\n"
+        "#if FEATURE_DEFAULT_INTERFACE\n"
+        "        => Write(1, t, v)\n"
+        "#endif\n"
+        "    ;\n"
+        "    void Write(int l, string t, object v);\n"
+        "}\n"
+    )
+
+    def test_call_inside_a_guarded_body_is_found(self, tmp_path: Path):
+        f = tmp_path / "ILogger.cs"
+        f.write_text(self.SPLIT_BODY)
+        si = SourceInspector()
+        assert (6, 12) in _positions(si.find_call_sites(f))  # Write(1, t, v)
+
+    def test_positions_still_match_the_original_bytes(self, tmp_path: Path):
+        f = tmp_path / "ILogger.cs"
+        f.write_text(self.SPLIT_BODY)
+        si = SourceInspector()
+        line = self.SPLIT_BODY.splitlines()[5]
+        for site in si.find_call_sites(f):
+            if site.line == 6:
+                assert line[site.column - 1 :].startswith("Write")
+
+    def test_a_hash_comment_language_is_left_alone(self, tmp_path: Path):
+        # ``#`` opens a comment in Python; blanking those lines would be wrong.
+        f = tmp_path / "mod.py"
+        f.write_text("# call_me()\ndef f():\n    real()\n")
+        si = SourceInspector()
+        positions = _positions(si.find_call_sites(f))
+        assert (3, 5) in positions
+        assert not any(p[0] == 1 for p in positions)
