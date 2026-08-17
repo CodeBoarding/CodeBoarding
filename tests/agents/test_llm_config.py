@@ -88,6 +88,22 @@ class TestProviderSelection:
         assert kimi.agent_model == "kimi-k2.6"
         assert kimi.parsing_model == "kimi-k2.6"
 
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_kimi_streams_through_openai_compatible_providers(self, mock_monitoring_callback, mock_init_factory):
+        env = {
+            "OPENAI_API_KEY": "sk-test",
+            "OPENAI_BASE_URL": "https://example.com/v1",
+            "AGENT_MODEL": "Kimi-K2.6",
+            "PARSING_MODEL": "Kimi-K2.6",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            openai = LLM_PROVIDERS["openai"]
+            with patch.object(openai, "chat_class", return_value=MagicMock()) as mock_chat_class:
+                initialize_llms()
+
+        assert all(call.kwargs["streaming"] is True for call in mock_chat_class.call_args_list)
+
     def test_ollama_activates_via_ollama_host(self):
         ollama = LLM_PROVIDERS["ollama"]
         with patch.dict(os.environ, {"OLLAMA_HOST": "127.0.0.1:11434"}, clear=True):
