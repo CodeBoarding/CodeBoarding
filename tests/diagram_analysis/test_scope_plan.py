@@ -7,6 +7,7 @@ These tests pin the planner to the anchor that does survive: the methods themsel
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import networkx as nx
 
@@ -14,8 +15,8 @@ from agents.agent_responses import AnalysisInsights, Component, ScopeOperationAc
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
-from diagram_analysis.scope_plan import plan_scope_update, previous_ownership
-from static_analyzer.clustering import ClusterResult
+from diagram_analysis.scope_plan import plan_scope_result_update, plan_scope_update, previous_ownership
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 
 FILE = "pkg/mod.py"
 DELETE = ScopeOperationAction.DELETE_COMPONENT
@@ -174,6 +175,30 @@ class TestPreviousOwnership(unittest.TestCase):
 
 
 class TestPlanScopeUpdate(unittest.TestCase):
+    def test_precomputed_scope_result_is_planned_without_regrouping(self):
+        clusters = {1: {"a.one"}, 2: {"b.one"}}
+        scope = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.one"], ["1"]), component("2", ["b.one"], ["2"])],
+            components_relations=[],
+        )
+        result = ClusterScopeResult(
+            scope_id=ROOT_SCOPE_ID,
+            partitions={"python": clustering(clusters)},
+            groups=[
+                ClusterGroup(group_id="1", cluster_ids=[1], previous_component_id="1"),
+                ClusterGroup(group_id="2", cluster_ids=[2], previous_component_id="2"),
+            ],
+        )
+
+        with patch(
+            "diagram_analysis.scope_plan.anchored_grouping",
+            side_effect=AssertionError("precomputed results must not be regrouped"),
+        ):
+            decision = plan_scope_result_update(scope, result, {"b.one"})
+
+        self.assertEqual(actions(decision), {"2": ScopeOperationAction.UPDATE_COMPONENT})
+
     def test_renumbered_clusters_still_carry_every_component_forward(self):
         # The failure this anchor exists to prevent: a sub-scope is re-clustered from
         # scratch, its ids come back different, and every component looks brand new.

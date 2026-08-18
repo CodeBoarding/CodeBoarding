@@ -93,6 +93,7 @@ class ClusterScopeInput:
 
     partitions: Mapping[str, ClusterResult] = field(default_factory=dict)
     previous_owner: Mapping[int, str] = field(default_factory=dict)
+    reserved_group_ids: frozenset[str] = frozenset()
 
 
 @dataclass

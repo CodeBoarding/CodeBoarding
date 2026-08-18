@@ -11,6 +11,7 @@ from static_analyzer.clustering import (
     ClusteringService,
 )
 from static_analyzer.clustering.orchestration import build_clustering_hierarchy
+from static_analyzer.clustering.grouping import AnchoredGrouping
 from static_analyzer.constants import Language, NodeType
 from static_analyzer.node import Node
 
@@ -48,6 +49,26 @@ def split_partition(graph: CallGraph, count: int = 5) -> ClusterResult:
 
 
 class TestClusteringHierarchy(unittest.TestCase):
+    @patch("static_analyzer.clustering.service.anchored_grouping")
+    def test_new_group_ids_do_not_reuse_persisted_sibling_ids(self, anchored_grouping):
+        graph = graph_for(["old", "fresh"])
+        partition = partition_for(graph, {1: {"old"}, 2: {"fresh"}})
+        anchored_grouping.return_value = AnchoredGrouping(
+            groups=[{1}, {2}],
+            owners=["1", ""],
+            regrouped=False,
+            fresh_modularity=0.0,
+        )
+
+        result = ClusteringService().cluster_scope(
+            {"python": graph},
+            partitions={"python": partition},
+            previous_owner={1: "1"},
+            reserved_group_ids={"1", "3"},
+        )
+
+        self.assertEqual([group.group_id for group in result.groups], ["1", "4"])
+
     def test_each_child_uses_its_exact_induced_graph(self):
         members_a = {f"a{index}" for index in range(13)}
         members_b = {"b1", "b2"}
