@@ -18,6 +18,7 @@ from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
+from telemetry import degradations
 from telemetry.schemas import (
     AnalysisCompleted,
     AnalysisStarted,
@@ -237,6 +238,22 @@ def already_captured(exc: BaseException) -> bool:
     the first reporter marks it and later ones defer.
     """
     return getattr(exc, _CAPTURED_FLAG, False)
+
+
+def flush_degradations(command: str) -> dict:
+    """Emit the run's absorbed failures as one event, then reset.
+
+    Separate from ``capture_error``: those are failures that stopped something,
+    these are losses the run carried on through. Sending them individually would
+    scale with the repository rather than with the number of distinct problems.
+    """
+    payload = degradations.summary()
+    degradations.reset()
+    if not payload:
+        return {}
+    telemetry.capture("analysis_degraded", {"command": command, "version": _app_version(), **payload})
+    telemetry.flush()
+    return payload
 
 
 def capture_error(command: str, exc: BaseException, *, extra: dict | None = None) -> None:

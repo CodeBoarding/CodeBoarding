@@ -13,6 +13,7 @@ from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.exceptions import EdgeResolutionError
+from telemetry.degradations import record as record_degradation
 from telemetry.events import capture_error
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.constants import NodeType
@@ -140,7 +141,7 @@ def build_edges_via_references(
                 # Every position in this batch loses its edges. The references path
                 # is what Python/TS/Go/PHP run, so this is not a C#-only blind spot.
                 logger.warning("Batch references failed (%d positions): %s", len(queries), e)
-                capture_error("static_analysis.references_batch", e, extra={"positions": len(queries)})
+                record_degradation("references_batch", f"{type(e).__name__}: {e}", items=len(queries))
                 result_list = [[] for _ in queries]
                 error_indices = set()
 
@@ -594,7 +595,7 @@ def _resolve_implementations(
             # Costs the polymorphic edges for this batch: calls resolve to the
             # declaration and never reach the implementations that run.
             logger.warning("Implementation batch failed (%d targets): %s", len(batch_keys), e)
-            capture_error("static_analysis.implementation_batch", e, extra={"targets": len(batch_keys)})
+            record_degradation("implementation_batch", f"{type(e).__name__}: {e}", items=len(batch_keys))
             pbar.update(len(batch_keys))
             continue
 

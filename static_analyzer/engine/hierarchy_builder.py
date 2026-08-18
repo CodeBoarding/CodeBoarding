@@ -12,7 +12,7 @@ from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.engine.utils import uri_to_path
-from telemetry.events import capture_error
+from telemetry.degradations import record as record_degradation
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +79,8 @@ class HierarchyBuilder:
                 except Exception as e:
                     # Each loss is an INHERITS edge, and those carry the graph for
                     # types whose relationships are declared rather than called.
-                    logger.warning("Failed to get supertypes for %s: %s", sym.qualified_name, e)
-                    capture_error("static_analysis.type_hierarchy", e, extra={"symbol": sym.qualified_name})
+                    logger.debug("Failed to get supertypes for %s: %s", sym.qualified_name, e)
+                    record_degradation("type_hierarchy_supertypes", f"{sym.qualified_name}: {e}")
 
                 try:
                     subtypes = self._lsp.type_hierarchy_subtypes(item)
@@ -94,8 +94,8 @@ class HierarchyBuilder:
                 except MethodNotFoundError:
                     pass
                 except Exception as e:
-                    logger.warning("Failed to get subtypes for %s: %s", sym.qualified_name, e)
-                    capture_error("static_analysis.type_hierarchy", e, extra={"symbol": sym.qualified_name})
+                    logger.debug("Failed to get subtypes for %s: %s", sym.qualified_name, e)
+                    record_degradation("type_hierarchy_subtypes", f"{sym.qualified_name}: {e}")
             except MethodNotFoundError:
                 logger.info("Type hierarchy not supported by server, skipping remaining classes")
                 break
