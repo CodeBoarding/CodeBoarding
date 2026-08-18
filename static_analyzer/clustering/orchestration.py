@@ -36,6 +36,7 @@ def build_clustering_hierarchy(
         return ClusterScopeInput(
             leaf_clusters_by_language=root_results,
             previous_owner=provided.previous_owner,
+            previous_member_owner=provided.previous_member_owner,
             reserved_group_ids=provided.reserved_group_ids,
         )
 

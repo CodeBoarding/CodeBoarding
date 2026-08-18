@@ -75,14 +75,16 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner = previous_ownership(scope, {"python": clustering({7: {"a.one", "a.two", "b.one"}})}, ROOT_SCOPE_ID, REPO)
+        owner, _member_owner = previous_ownership(
+            scope, {"python": clustering({7: {"a.one", "a.two", "b.one"}})}, ROOT_SCOPE_ID, REPO
+        )
 
         self.assertEqual(owner, {7: "1"})
 
     def test_a_cluster_of_entirely_new_methods_has_no_owner(self):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
-        owner = previous_ownership(
+        owner, _member_owner = previous_ownership(
             scope, {"python": clustering({1: {"a.one"}, 2: {"fresh.thing"}})}, ROOT_SCOPE_ID, REPO
         )
 
@@ -97,7 +99,9 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner = previous_ownership(scope, {"python": clustering({5: {"a.one", "b.one"}})}, ROOT_SCOPE_ID, REPO)
+        owner, _member_owner = previous_ownership(
+            scope, {"python": clustering({5: {"a.one", "b.one"}})}, ROOT_SCOPE_ID, REPO
+        )
 
         self.assertEqual(owner, {5: "1"})
 
@@ -139,9 +143,10 @@ class TestPreviousOwnership(unittest.TestCase):
             ),
         }
 
-        owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
+        owner, member_owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
 
         self.assertEqual(owner, {1: "1", 30: "2"})
+        self.assertEqual(member_owner, {"python": {"src.index.run": "1"}, "typescript": {"src.index.run": "2"}})
 
     def test_anchors_by_method_when_cfg_paths_are_absolute(self):
         # The real production mismatch: cluster_to_files carries the CFG's absolute paths
@@ -167,7 +172,7 @@ class TestPreviousOwnership(unittest.TestCase):
             )
         }
 
-        owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
+        owner, _member_owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
 
         # Method-anchored: renumbered cluster 99 still resolves to component 1. The id
         # fallback would leave it unowned, so an empty result means anchoring broke.
@@ -186,8 +191,18 @@ class TestPlanScopeUpdate(unittest.TestCase):
             scope_id=ROOT_SCOPE_ID,
             leaf_clusters_by_language={"python": clustering(clusters)},
             groups=[
-                ClusterGroup(group_id="1", cluster_ids=[1], previous_component_id="1"),
-                ClusterGroup(group_id="2", cluster_ids=[2], previous_component_id="2"),
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {"a.one"}},
+                    previous_component_id="1",
+                ),
+                ClusterGroup(
+                    group_id="2",
+                    cluster_ids=[2],
+                    symbol_members_by_language={"python": {"b.one"}},
+                    previous_component_id="2",
+                ),
             ],
         )
 
@@ -270,6 +285,35 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         self.assertEqual(actions(decision), {"2": ScopeOperationAction.UPDATE_COMPONENT})
+
+    def test_repaired_membership_does_not_refresh_unchanged_components(self):
+        scope = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.one"], ["1"]), component("2", ["b.one"], ["2"])],
+            components_relations=[],
+        )
+        result = ClusterScopeResult(
+            scope_id=ROOT_SCOPE_ID,
+            leaf_clusters_by_language={"python": clustering({1: {"b.one"}, 2: {"a.one"}})},
+            groups=[
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {"a.one"}},
+                    previous_component_id="1",
+                ),
+                ClusterGroup(
+                    group_id="2",
+                    cluster_ids=[2],
+                    symbol_members_by_language={"python": {"b.one"}},
+                    previous_component_id="2",
+                ),
+            ],
+        )
+
+        decision = plan_scope_result_update(scope, result, set())
+
+        self.assertEqual(decision.operations, [])
 
     def test_a_component_whose_methods_all_vanished_is_deleted(self):
         clusters = {1: {"a.one"}, 2: {"b.one"}, 3: {"c.one"}}

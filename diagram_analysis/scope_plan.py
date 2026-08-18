@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 
 def previous_ownership(
     scope: AnalysisInsights, cluster_results: dict[str, ClusterResult], scope_id: str, repo_dir: Path
-) -> dict[int, str]:
-    """Leaf cluster id -> the component that previously owned most of its methods.
+) -> tuple[dict[int, str], dict[str, dict[str, str]]]:
+    """Return previous component ownership by leaf cluster and language member.
 
     Anchoring on methods rather than on the stored ``source_cluster_ids``: a scope's
     leaf clusters are re-derived from its subgraph on every run, so their integer ids
@@ -66,7 +66,8 @@ def previous_ownership(
         for cluster_id in component.source_cluster_ids
     }
     owner: dict[int, str] = {}
-    for cluster_result in cluster_results.values():
+    member_owner: dict[str, dict[str, str]] = {}
+    for language, cluster_result in cluster_results.items():
         language_files = {
             normalize_repo_path(path, repo_dir) for files in cluster_result.cluster_to_files.values() for path in files
         }
@@ -81,6 +82,7 @@ def previous_ownership(
             if not language_files or normalize_repo_path(group.file_path, repo_dir) in language_files
             for method in group.methods
         }
+        member_owner[language] = owner_of_method
         for cluster_id, members in cluster_result.clusters.items():
             tally = Counter(owner_of_method[member] for member in members if member in owner_of_method)
             if tally:
@@ -92,7 +94,7 @@ def previous_ownership(
             )
             if qualified in claimed_ids:
                 owner[cluster_id] = claimed_ids[qualified]
-    return owner
+    return owner, member_owner
 
 
 def plan_scope_update(
@@ -120,7 +122,7 @@ def plan_scope_update(
     groups: list[ClusterGroup] = []
     regrouped = False
     if combined.clusters:
-        previous = previous_ownership(scope, cluster_results, scope_id, repo_dir)
+        previous, _member_owner = previous_ownership(scope, cluster_results, scope_id, repo_dir)
         grouping = GroupingService().anchored_group(
             cluster_results,
             cfg_graphs,
@@ -131,6 +133,14 @@ def plan_scope_update(
             ClusterGroup(
                 group_id=owner,
                 cluster_ids=sorted(cluster_ids),
+                symbol_members_by_language={
+                    language: {
+                        qualified_name
+                        for cluster_id in cluster_ids
+                        for qualified_name in result.clusters.get(cluster_id, set())
+                    }
+                    for language, result in cluster_results.items()
+                },
                 previous_component_id=owner,
             )
             for cluster_ids, owner in zip(grouping.groups, grouping.owners, strict=True)
@@ -228,7 +238,7 @@ def _plan_scope_operations(
             # cluster, leaving the id set identical, and it is absent from the component's
             # pre-update file_methods so ``edited`` cannot see it either. Skipping then
             # would drop the addition from the analysis entirely.
-            group_methods = {qname for cluster_id in group for qname in combined.clusters.get(cluster_id, ())}
+            group_methods = cluster_group.qualified_names
             if (
                 qualified == held_clusters.get(owner)
                 and group_methods == held_methods.get(owner)

@@ -53,7 +53,8 @@ from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, ClusterScopeResult
+from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +106,10 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope_id: str,
         scope: AnalysisInsights,
         decision: ScopeUpdateDecision,
-        cluster_results: dict[str, ClusterResult],
+        clustering: ClusterScopeResult,
     ) -> ScopeUpdateResult:
         """Apply a planning decision to one scope and refresh its derived fields."""
+        cluster_results = clustering.leaf_clusters_by_language
         components_by_id = {
             component.component_id: component for component in scope.components if component.component_id
         }
@@ -163,8 +165,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         touched_ids = refresh_ids | new_component_ids
         if touched_ids:
-            cfg_graphs = _cfg_graphs_for_cluster_results(self.static_analysis, cluster_results)
-            self._patch_scope_file_methods(scope, cluster_results, cfg_graphs, touched_ids, scope_id)
+            self._patch_scope_file_methods(scope, clustering, touched_ids)
             self.reference_resolver.fix_key_entities_refs(scope, touched_ids)
 
         _log_duplicate_cluster_ownership(scope_id, scope.components)
@@ -288,31 +289,19 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
     def _patch_scope_file_methods(
         self,
         scope: AnalysisInsights,
-        cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph],
+        clustering: ClusterScopeResult,
         touched_ids: set[str],
-        scope_id: str,
     ) -> None:
-        all_nodes = self._collect_all_cfg_nodes(cluster_results, cfg_graphs)
-        cluster_to_component = self._build_cluster_to_component_map(scope)
-        cluster_id_prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
-        node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results, cluster_id_prefix)
-        self._validate_cluster_coverage(cluster_to_component, all_cluster_ids)
-
-        component_nodes = self._assign_nodes_to_components(
-            all_nodes,
-            node_to_cluster,
-            cluster_to_component,
-            cluster_results,
-            scope.components[0],
-            cfg_graphs,
-            cluster_id_prefix,
-        )
         source_cache: SourceCache = {}
-        patched_groups = {
-            component_id: self._build_file_methods_from_nodes(nodes, source_cache)
-            for component_id, nodes in component_nodes.items()
-        }
+        patched_groups: dict[str, list[FileMethodGroup]] = {}
+        for group in clustering.groups:
+            if group.group_id not in touched_ids:
+                continue
+            nodes: list[Node] = []
+            for language, members in group.symbol_members_by_language.items():
+                cfg = self.static_analysis.get_cfg(Language(language))
+                nodes.extend(cfg.nodes[qualified_name] for qualified_name in members if qualified_name in cfg.nodes)
+            patched_groups[group.group_id] = self._build_file_methods_from_nodes(nodes, source_cache)
         _patch_file_methods(scope, patched_groups, touched_ids, _live_cfg_qnames(self.static_analysis))
         scope.files = build_files_index(scope, self.repo_dir, source_cache)
 
@@ -823,16 +812,6 @@ def _cfg_graphs_for_scope_methods(
             cfg_graphs[str(language)] = static_analysis.get_cfg(language).filter_by_nodes(scope_qnames)
         except (KeyError, ValueError):
             continue
-    return cfg_graphs
-
-
-def _cfg_graphs_for_cluster_results(
-    static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]
-) -> dict[str, CallGraph]:
-    cfg_graphs: dict[str, CallGraph] = {}
-    for language, cluster_result in cluster_results.items():
-        members = {qname for cluster_members in cluster_result.clusters.values() for qname in cluster_members}
-        cfg_graphs[language] = static_analysis.get_cfg(Language(language)).filter_by_nodes(members)
     return cfg_graphs
 
 

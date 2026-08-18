@@ -29,10 +29,12 @@ from static_analyzer.clustering.models import (
     ClusterScopeResult,
     GroupConnection,
 )
+from static_analyzer.clustering.repair import repair_member_ownership
 
 _ROOT_SCOPE_ID: ScopeId = "root"
 _EMPTY_LEAF_CLUSTERS: Mapping[str, ClusterResult] = MappingProxyType({})
 _EMPTY_OWNERS: Mapping[ClusterId, ComponentId] = MappingProxyType({})
+_EMPTY_MEMBER_OWNERS: Mapping[str, Mapping[str, ComponentId]] = MappingProxyType({})
 
 
 class LeafClustersUnavailableError(RuntimeError):
@@ -103,6 +105,7 @@ class ClusteringService:
         scope_id: ScopeId = _ROOT_SCOPE_ID,
         leaf_clusters_by_language: Mapping[str, ClusterResult] = _EMPTY_LEAF_CLUSTERS,
         previous_owner: Mapping[ClusterId, ComponentId] = _EMPTY_OWNERS,
+        previous_member_owner: Mapping[str, Mapping[str, ComponentId]] = _EMPTY_MEMBER_OWNERS,
         reserved_group_ids: Collection[GroupId] = (),
         method_level_fallback: bool = False,
     ) -> ClusterScopeResult:
@@ -180,6 +183,7 @@ class ClusteringService:
             for group_id, cluster_ids, owner in zip(group_ids, raw_groups, owners, strict=True)
         ]
         self._assign_symbol_members(graphs, scope_leaf_clusters, groups)
+        repair_member_ownership(groups, previous_member_owner)
         connections = self._build_connections(graphs, groups)
         return ClusterScopeResult(
             scope_id=scope_id,
@@ -208,6 +212,7 @@ class ClusteringService:
             scope_id=root_scope_id,
             leaf_clusters_by_language=root_input.leaf_clusters_by_language,
             previous_owner=root_input.previous_owner,
+            previous_member_owner=root_input.previous_member_owner,
             reserved_group_ids=root_input.reserved_group_ids,
             method_level_fallback=root_scope_id != _ROOT_SCOPE_ID,
         )
@@ -247,6 +252,7 @@ class ClusteringService:
                 scope_id=group.group_id,
                 leaf_clusters_by_language=child_input.leaf_clusters_by_language,
                 previous_owner=child_input.previous_owner,
+                previous_member_owner=child_input.previous_member_owner,
                 reserved_group_ids=child_input.reserved_group_ids,
                 method_level_fallback=True,
             )

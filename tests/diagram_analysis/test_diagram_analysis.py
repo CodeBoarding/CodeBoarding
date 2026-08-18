@@ -1783,7 +1783,10 @@ class TestDiagramGenerator(unittest.TestCase):
         child_partition = ClusterResult(clusters={2: {"child.member"}})
         child_graphs = {"python": CallGraph(language="python")}
         child_partitions.return_value = {"python": child_partition}
-        previous_owner.side_effect = [{1: "1"}, {2: "1.1"}]
+        previous_owner.side_effect = [
+            ({1: "1"}, {"python": {"root.member": "1"}}),
+            ({2: "1.1"}, {"python": {"child.member": "1.1"}}),
+        ]
         expected = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
         build_hierarchy.return_value = expected
 
@@ -1795,8 +1798,10 @@ class TestDiagramGenerator(unittest.TestCase):
         child_input = scope_input("1", child_graphs)
         self.assertIsInstance(root_input, ClusterScopeInput)
         self.assertEqual(root_input.previous_owner, {1: "1"})
+        self.assertEqual(root_input.previous_member_owner, {"python": {"root.member": "1"}})
         self.assertEqual(root_input.reserved_group_ids, frozenset({"1"}))
         self.assertEqual(child_input.previous_owner, {2: "1.1"})
+        self.assertEqual(child_input.previous_member_owner, {"python": {"child.member": "1.1"}})
         self.assertEqual(child_input.reserved_group_ids, frozenset({"1.1"}))
         child_partitions.assert_called_once_with(gen.static_analysis, "1", child_graphs)
 

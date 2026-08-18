@@ -104,6 +104,7 @@ class ClusterScopeInput:
 
     leaf_clusters_by_language: Mapping[str, ClusterResult] = field(default_factory=dict)
     previous_owner: Mapping[ClusterId, ComponentId] = field(default_factory=dict)
+    previous_member_owner: Mapping[str, Mapping[str, ComponentId]] = field(default_factory=dict)
     reserved_group_ids: frozenset[GroupId] = frozenset()
 
 

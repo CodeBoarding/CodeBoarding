@@ -28,7 +28,7 @@ from agents.incremental_results import ScopeRelationContext
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import NodeType
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 from static_analyzer.node import Node
 
 
@@ -54,6 +54,10 @@ def _component_with_method(name: str, component_id: str) -> Component:
         )
     ]
     return component
+
+
+def _clustering(leaf_clusters: dict[str, ClusterResult] | None = None) -> ClusterScopeResult:
+    return ClusterScopeResult(scope_id="root", leaf_clusters_by_language=leaf_clusters or {})
 
 
 class TestPruneEmptyComponents(unittest.TestCase):
@@ -150,7 +154,7 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis.get_cfg.return_value.filter_by_nodes.return_value = "cfg"
         agent.reference_resolver = MagicMock()
 
-        def populate(scope, _cluster_results, _cfg_graphs, _touched_ids, source_cluster_id_prefix=""):
+        def populate(scope, _clustering, _touched_ids):
             for component in scope.components:
                 if component.source_cluster_ids:
                     component.file_methods = [
@@ -193,7 +197,7 @@ class TestUpdateScope(unittest.TestCase):
         agent = self._agent()
         reference_resolver = MagicMock()
         agent.reference_resolver = reference_resolver
-        result = agent.update_scope("root", scope, decision, {"python": ClusterResult()})
+        result = agent.update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(component.description, "New")
         self.assertEqual(component.source_cluster_ids, ["1", "2"])
@@ -229,7 +233,7 @@ class TestUpdateScope(unittest.TestCase):
 
         reference_resolver.fix_key_entities_refs.side_effect = resolve_selected_key_entity
 
-        agent.update_scope("root", scope, decision, {"python": ClusterResult()})
+        agent.update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(component.key_entities, [expected])
 
@@ -253,11 +257,74 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("1", scope, decision, {"python": ClusterResult()})
+        result = self._agent().update_scope("1", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(first.source_cluster_ids, ["1.1"])
         self.assertEqual(second.source_cluster_ids, ["1.2", "1.3"])
         self.assertEqual(result.refresh_ids, {"1.1", "1.2"})
+
+    def test_update_materializes_repaired_group_membership(self) -> None:
+        first = _component_with_method("First", "1")
+        first.file_methods[0].methods[0].qualified_name = "a.one"
+        second = _component_with_method("Second", "2")
+        second.file_methods[0].methods[0].qualified_name = "b.one"
+        scope = AnalysisInsights(description="root", components=[first, second], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.UPDATE_COMPONENT,
+                    component_id=component_id,
+                    cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=cluster_id)],
+                    rationale="The leaf clusters changed membership.",
+                )
+                for component_id, cluster_id in (("1", 1), ("2", 2))
+            ]
+        )
+        cfg = CallGraph(language="python")
+        cfg.add_node(Node("a.one", NodeType.FUNCTION, "a.py", 1, 2))
+        cfg.add_node(Node("b.one", NodeType.FUNCTION, "b.py", 1, 2))
+        clustering = ClusterScopeResult(
+            scope_id="root",
+            leaf_clusters_by_language={"python": ClusterResult(clusters={1: {"b.one"}, 2: {"a.one"}})},
+            groups=[
+                ClusterGroup(group_id="1", cluster_ids=[1], symbol_members_by_language={"python": {"a.one"}}),
+                ClusterGroup(group_id="2", cluster_ids=[2], symbol_members_by_language={"python": {"b.one"}}),
+            ],
+        )
+        agent = self._agent()
+        agent._patch_scope_file_methods = IncrementalAgent._patch_scope_file_methods.__get__(agent)
+        agent.repo_dir = Path(".")
+        agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
+        agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
+
+        def file_methods(nodes: list[Node], _source_cache) -> list[FileMethodGroup]:
+            return [
+                FileMethodGroup(
+                    file_path=node.file_path,
+                    methods=[
+                        MethodEntry(
+                            qualified_name=node.fully_qualified_name,
+                            start_line=node.line_start,
+                            end_line=node.line_end,
+                            node_type=node.type.name,
+                        )
+                    ],
+                )
+                for node in nodes
+            ]
+
+        agent._build_file_methods_from_nodes = MagicMock(side_effect=file_methods)
+
+        with patch("agents.incremental_agent.build_files_index", return_value={}):
+            agent.update_scope("root", scope, decision, clustering)
+
+        members_by_component = {
+            component.component_id: {
+                method.qualified_name for group in component.file_methods for method in group.methods
+            }
+            for component in scope.components
+        }
+        self.assertEqual(members_by_component, {"1": {"a.one"}, "2": {"b.one"}})
 
     def test_update_drops_a_cluster_the_component_no_longer_owns(self) -> None:
         # A shrunk component: cluster 2 was deleted from the code, so the planner's UPDATE
@@ -275,7 +342,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+        self._agent().update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(component.source_cluster_ids, ["1"])
 
@@ -296,7 +363,7 @@ class TestUpdateScope(unittest.TestCase):
         )
 
         agent = self._agent()
-        result = agent.update_scope("root", scope, decision, {"python": ClusterResult()})
+        result = agent.update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(component.name, "API")
         self.assertEqual(component.description, "API description")
@@ -324,7 +391,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+        result = self._agent().update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         created = scope.components[1]
         self.assertEqual(created.component_id, "2")
@@ -349,7 +416,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+        result = self._agent().update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(scope.components, [])
         self.assertEqual(result.new_component_ids, set())
@@ -370,7 +437,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("root", scope, decision, {})
+        result = self._agent().update_scope("root", scope, decision, _clustering())
 
         self.assertEqual([component.component_id for component in scope.components], ["2"])
         self.assertEqual(scope.components_relations, [])
@@ -396,7 +463,7 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
         agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
 
-        result = agent.update_scope("root", scope, decision, {})
+        result = agent.update_scope("root", scope, decision, _clustering())
 
         self.assertEqual([component.component_id for component in scope.components], ["1", "2"])
         self.assertEqual(result.removed_ids, set())
@@ -423,7 +490,7 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
         agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
 
-        result = agent.update_scope("root", scope, decision, {})
+        result = agent.update_scope("root", scope, decision, _clustering())
 
         self.assertEqual([component.component_id for component in scope.components], ["1", "2"])
         self.assertEqual(result.removed_ids, set())

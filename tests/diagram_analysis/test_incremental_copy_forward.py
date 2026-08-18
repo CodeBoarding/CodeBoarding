@@ -13,7 +13,6 @@ from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge, SourceCodeReference
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from agents.scope_ids import ROOT_SCOPE_ID
 from agents.incremental_agent import prune_empty_components, remove_deleted_files
 from diagram_analysis.diagram_generator import (
     DiagramGenerator,
@@ -24,7 +23,6 @@ from diagram_analysis.diagram_generator import (
     _incremental_changed_component_ids,
     _member_keys,
     preserve_unchanged_relations,
-    _restore_unchanged_membership,
     _restore_unchanged_metadata,
     _restore_unchanged_subtrees,
 )
@@ -65,51 +63,6 @@ class TestMemberKeys(unittest.TestCase):
 
         self.assertEqual(keys["1"], frozenset({("a.py", "a.one")}))
         self.assertEqual(keys["1.1"], frozenset({("a.py", "a.one")}))
-
-
-class TestRestoreUnchangedMembership(unittest.TestCase):
-    def _baseline_and_live(self):
-        """Baseline owns a.one under component 1; the re-partition moved it to component 2."""
-        baseline_root = analysis(
-            component("1", "A", {"a.py": ["a.one"]}),
-            component("2", "B", {"b.py": ["b.one"]}),
-        )
-        baseline = _capture_membership_baseline(baseline_root, {})
-        live_root = analysis(
-            component("1", "A", {}),
-            component("2", "B", {"b.py": ["b.one"], "a.py": ["a.one"]}),
-        )
-        return baseline, live_root
-
-    def _owner_of(self, root: AnalysisInsights, qname: str) -> str:
-        return next(
-            comp.component_id
-            for comp in root.components
-            for group in comp.file_methods
-            for entry in group.methods
-            if entry.qualified_name == qname
-        )
-
-    def test_unchanged_method_returns_to_its_baseline_owner(self):
-        baseline, live_root = self._baseline_and_live()
-
-        _restore_unchanged_membership(live_root, {}, baseline, changed_members=set(), protected_ids=set())
-
-        self.assertEqual(self._owner_of(live_root, "a.one"), "1")
-
-    def test_body_changed_method_keeps_the_new_placement(self):
-        baseline, live_root = self._baseline_and_live()
-
-        _restore_unchanged_membership(live_root, {}, baseline, changed_members={"a.one"}, protected_ids=set())
-
-        self.assertEqual(self._owner_of(live_root, "a.one"), "2")
-
-    def test_freshly_created_component_keeps_everything_it_was_given(self):
-        baseline, live_root = self._baseline_and_live()
-
-        _restore_unchanged_membership(live_root, {}, baseline, changed_members=set(), protected_ids={"2"})
-
-        self.assertEqual(self._owner_of(live_root, "a.one"), "2")
 
 
 class TestRestoreUnchangedMetadata(unittest.TestCase):
@@ -617,7 +570,6 @@ class TestScopeIdContract(unittest.TestCase):
         root = analysis(component("1", "A", {"a.py": ["a.one"]}))
         baseline = _capture_membership_baseline(root, {})
 
-        self.assertIn(ROOT_SCOPE_ID, baseline.owner_by_scope)
         self.assertEqual(baseline.scope_by_id, {})
 
 

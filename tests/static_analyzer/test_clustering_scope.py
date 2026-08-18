@@ -1,9 +1,11 @@
 import unittest
+from unittest.mock import patch
 
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import NodeType
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,
+    AnchoredGrouping,
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
@@ -148,7 +150,7 @@ class TestClusteringScope(unittest.TestCase):
         self.assertFalse(result.regrouped)
 
     def test_new_group_ids_follow_the_highest_surviving_sibling(self):
-        group_ids = ClusteringService._allocate_group_ids("root", ["2", ""])
+        group_ids = ClusteringService._allocate_group_ids("root", ["2", ""], ())
 
         self.assertEqual(group_ids, ["2", "3"])
 
@@ -170,6 +172,84 @@ class TestClusteringScope(unittest.TestCase):
                     "typescript": ClusterResult(),
                 },
             )
+
+    def test_repair_keeps_surviving_members_with_their_previous_groups(self):
+        graph = graph_for(
+            "python",
+            ["a.changed", "a.stable", "b.one", "b.two"],
+            [("a.changed", "b.one"), ("a.stable", "b.two")],
+        )
+        cluster_result = cluster_result_for(
+            graph,
+            {
+                1: {"a.changed", "b.one", "b.two"},
+                2: {"a.stable"},
+            },
+        )
+
+        result = ClusteringService().cluster_scope(
+            {"python": graph},
+            leaf_clusters_by_language={"python": cluster_result},
+            previous_owner={1: "2", 2: "1"},
+            previous_member_owner={
+                "python": {
+                    "a.changed": "1",
+                    "a.stable": "1",
+                    "b.one": "2",
+                    "b.two": "2",
+                }
+            },
+            reserved_group_ids={"1", "2"},
+        )
+
+        members_by_group = {group.group_id: group.qualified_names for group in result.groups}
+        self.assertEqual(members_by_group["1"], {"a.changed", "a.stable"})
+        self.assertEqual(members_by_group["2"], {"b.one", "b.two"})
+        self.assertEqual(len(result.connections), 1)
+        self.assertEqual(result.connections[0].source_group_id, "1")
+        self.assertEqual(result.connections[0].target_group_id, "2")
+        self.assertEqual(
+            {(edge.source_qualified_name, edge.target_qualified_name) for edge in result.connections[0].edges},
+            {("a.changed", "b.one"), ("a.stable", "b.two")},
+        )
+
+    @patch.object(GroupingService, "anchored_group")
+    def test_repair_moves_only_members_whose_previous_group_survives(self, anchored_group):
+        graph = graph_for("python", ["a.one", "b.one", "b.moved", "deleted.moved", "fresh"])
+        cluster_result = cluster_result_for(
+            graph,
+            {
+                1: {"a.one"},
+                2: {"b.one"},
+                3: {"b.moved", "deleted.moved", "fresh"},
+            },
+        )
+        anchored_group.return_value = AnchoredGrouping(
+            groups=[{1}, {2}, {3}],
+            owners=["1", "2", ""],
+            regrouped=True,
+            unanchored_modularity=0.0,
+        )
+
+        result = ClusteringService().cluster_scope(
+            {"python": graph},
+            leaf_clusters_by_language={"python": cluster_result},
+            previous_owner={1: "1", 2: "2", 3: "2"},
+            previous_member_owner={
+                "python": {
+                    "a.one": "1",
+                    "b.one": "2",
+                    "b.moved": "2",
+                    "deleted.moved": "9",
+                }
+            },
+            reserved_group_ids={"1", "2", "9"},
+        )
+
+        members_by_group = {group.group_id: group.qualified_names for group in result.groups}
+        self.assertEqual(members_by_group["1"], {"a.one"})
+        self.assertEqual(members_by_group["2"], {"b.one", "b.moved"})
+        self.assertEqual(members_by_group["10"], {"deleted.moved", "fresh"})
 
     def test_method_level_fallback_is_available_for_child_scopes(self):
         graph = graph_for("python", ["a", "b", "c", "d", "e"])
