@@ -17,7 +17,7 @@ from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.lsp_recycler import default_memory_budget
+from static_analyzer.engine.lsp_recycler import default_memory_budget, per_engine_memory_budget
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
@@ -309,9 +309,15 @@ class StaticAnalyzer:
                 failed_languages.append(adapter.language)
                 failed_details.append(f"{adapter.language}: {exc}")
 
-        if attempted and max_concurrent_engines():
+        if not attempted:
+            logger.info(f"No source files for any detected language in {self.repository_path}; no LSP clients started.")
+            self._engine_clients = []
+            self._clients_started = True
+            return
+
+        if max_concurrent_engines():
             logger.info(
-                "Deferring %d engine LSP client(s); the full pass keeps at most %d resident.",
+                "%d engine LSP client(s) will start during analysis, at most %d running at a time.",
                 len(attempted),
                 max_concurrent_engines(),
             )
@@ -324,12 +330,6 @@ class StaticAnalyzer:
                     self._prepare_project_once(engine_config)
                 except Exception:
                     logger.exception(f"Failed to prepare {engine_config.project_path}; the full pass will report it")
-            self._engine_clients = []
-            self._clients_started = True
-            return
-
-        if not attempted:
-            logger.info(f"No source files for any detected language in {self.repository_path}; no LSP clients started.")
             self._engine_clients = []
             self._clients_started = True
             return
@@ -725,8 +725,13 @@ class StaticAnalyzer:
         absorb_lock = threading.Lock()
         spawned: list[str] = []
         spawn_failures: list[str] = []
+        # Keyed by position in the engine list so results merge in configuration
+        # order. The merges replace on key collision, and overlapping configs
+        # (nested solution roots) do collide, so completion order would let two
+        # identical runs keep different nodes and produce different component IDs.
+        completed: dict[int, tuple[Language, dict]] = {}
 
-        def run_one(engine_config: EngineConfig, engine_client: LSPClient | None) -> None:
+        def run_one(engine_config: EngineConfig, engine_client: LSPClient | None, order: int = 0) -> None:
             """Analyze one engine. Owns the client's lifetime when given none."""
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.language_enum
@@ -748,7 +753,7 @@ class StaticAnalyzer:
                 duration_ms = round((time.monotonic() - t_lang_start) * 1000)
                 logger.info(f"Engine analysis for {adapter.language} completed in {duration_ms / 1000:.1f}s")
                 with absorb_lock:
-                    self._absorb_into_results(results, language, analysis)
+                    completed[order] = (language, analysis)
                     self._collect_diagnostics_for(adapter, engine_client, analysis)
                     track_lsp_result(
                         language=adapter.language_enum.value,
@@ -782,8 +787,8 @@ class StaticAnalyzer:
 
         cap = max_concurrent_engines()
         if not cap:
-            for engine_config, engine_client in self._engine_clients:
-                run_one(engine_config, engine_client)
+            for order, (engine_config, engine_client) in enumerate(self._engine_clients):
+                run_one(engine_config, engine_client, order)
         else:
             pending = [cfg for cfg in self._engine_configs if cfg.source_files]
             logger.info("Running %d engine(s) with at most %d resident at a time", len(pending), cap)
@@ -793,7 +798,8 @@ class StaticAnalyzer:
             # wait so each in-flight ``run_one`` still shuts its own client down.
             pool = ThreadPoolExecutor(max_workers=cap)
             try:
-                for future in as_completed([pool.submit(run_one, cfg, None) for cfg in pending]):
+                futures = [pool.submit(run_one, cfg, None, order) for order, cfg in enumerate(pending)]
+                for future in as_completed(futures):
                     future.result()
             finally:
                 pool.shutdown(wait=True, cancel_futures=True)
@@ -803,6 +809,10 @@ class StaticAnalyzer:
                     "Failed to start any engine LSP client "
                     f"(attempted: {', '.join(cfg.adapter.language for cfg in pending)}){details}"
                 )
+
+        for order in sorted(completed):
+            language, analysis = completed[order]
+            self._absorb_into_results(results, language, analysis)
 
         summaries = []
         for language in results.get_languages():
@@ -954,7 +964,10 @@ class StaticAnalyzer:
                 f"Diagnostics for {adapter.language}: {len(merged_diags)} files, {total} items "
                 f"(cache={len(cache_diags)}, live={len(live_diags)})"
             )
-        self.collected_diagnostics[adapter.language_enum] = merged_diags
+        # Merge, not replace: a monorepo yields several configs per language, and
+        # replacing kept only whichever finished last -- which under the concurrency
+        # bound is a different one run to run.
+        self.collected_diagnostics.setdefault(adapter.language_enum, {}).update(merged_diags)
 
     def _loc_for_adapter(self, adapter: LanguageAdapter) -> int:
         """Return scanner LOC that should have been covered by this adapter."""
@@ -994,7 +1007,12 @@ class StaticAnalyzer:
         logger.info(f"Analyzing {len(source_files)} {adapter.language} files")
 
         t_build_start = time.monotonic()
-        builder = CallGraphBuilder(engine_client, adapter, project_path)
+        builder = CallGraphBuilder(
+            engine_client,
+            adapter,
+            project_path,
+            memory_budget_bytes=per_engine_memory_budget(max(max_concurrent_engines(), 1)),
+        )
         engine_result = builder.build(source_files)
         logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")
         if adapter.fail_on_empty_symbols is True and not builder.symbol_table.symbols:
