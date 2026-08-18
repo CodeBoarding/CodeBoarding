@@ -76,6 +76,8 @@ class HierarchyBuilder:
                 except MethodNotFoundError:
                     pass
                 except Exception as e:
+                    # Each loss is an INHERITS edge, and those carry the graph for
+                    # types whose relationships are declared rather than called.
                     logger.debug("Failed to get supertypes for %s: %s", sym.qualified_name, e)
 
                 try:
@@ -91,6 +93,7 @@ class HierarchyBuilder:
                     pass
                 except Exception as e:
                     logger.debug("Failed to get subtypes for %s: %s", sym.qualified_name, e)
+
             except MethodNotFoundError:
                 logger.info("Type hierarchy not supported by server, skipping remaining classes")
                 break

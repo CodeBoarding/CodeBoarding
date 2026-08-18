@@ -355,7 +355,7 @@ def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) 
     # Edges spanning the change boundary: exactly one endpoint moved, so the filter below
     # drops them and they need LSP re-validation before they can be restored.
     invalidated_edges: list[InvalidatedEdge] = [
-        (edge.get_source(), edge.get_destination(), edge.src_node, edge.dst_node)
+        (edge.get_source(), edge.get_destination(), edge.src_node, edge.dst_node, edge.call_sites)
         for edge in call_graph.edges
         if (edge.src_node.file_path in changed_file_strs) != (edge.dst_node.file_path in changed_file_strs)
     ]

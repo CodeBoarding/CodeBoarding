@@ -1,0 +1,1128 @@
+JetBrains.Annotations
+Serilog
+Serilog.Capturing
+Serilog.Capturing.DepthLimiter.PropertyValueConverter
+Serilog.Capturing.DepthLimiter.PropertyValueConverter.DepthLimiter
+Serilog.Capturing.DepthLimiter.PropertyValueConverter.DepthLimiter.CreatePropertyValue(object value, Destructuring destructuring)
+Serilog.Capturing.DepthLimiter.PropertyValueConverter.DepthLimiter.DefaultIfMaximumDepth(int depth)
+Serilog.Capturing.DepthLimiter.PropertyValueConverter.DepthLimiter.DepthLimiter(int maximumDepth, PropertyValueConverter propertyValueConverter)
+Serilog.Capturing.DepthLimiter.PropertyValueConverter.DepthLimiter.ILogEventPropertyValueFactory.CreatePropertyValue(object value, bool destructureObjects)
+Serilog.Capturing.DepthLimiter.PropertyValueConverter.DepthLimiter.SetCurrentDepth(int depth)
+Serilog.Capturing.DepthLimiter.PropertyValueConverter.DepthLimiter._currentDepth
+Serilog.Capturing.DepthLimiter.PropertyValueConverter.DepthLimiter._maximumDestructuringDepth
+Serilog.Capturing.DepthLimiter.PropertyValueConverter.DepthLimiter._propertyValueConverter
+Serilog.Capturing.MessageTemplateProcessor
+Serilog.Capturing.MessageTemplateProcessor.CreateProperty(string name, object value, bool destructureObjects = false)
+Serilog.Capturing.MessageTemplateProcessor.CreatePropertyValue(object value, bool destructureObjects = false)
+Serilog.Capturing.MessageTemplateProcessor.MessageTemplateProcessor(PropertyValueConverter propertyValueConverter)
+Serilog.Capturing.MessageTemplateProcessor.Process(string messageTemplate, ReadOnlySpan<object> messageTemplateParameters, out MessageTemplate parsedTemplate, out EventProperty[] properties)
+Serilog.Capturing.MessageTemplateProcessor._parser
+Serilog.Capturing.MessageTemplateProcessor._propertyBinder
+Serilog.Capturing.MessageTemplateProcessor._propertyValueConverter
+Serilog.Capturing.PropertyBinder
+Serilog.Capturing.PropertyBinder.ConstructNamedProperties(MessageTemplate template, ReadOnlySpan<object> messageTemplateParameters)
+Serilog.Capturing.PropertyBinder.ConstructPositionalProperties(MessageTemplate template, ReadOnlySpan<object> messageTemplateParameters, PropertyToken[] positionalProperties)
+Serilog.Capturing.PropertyBinder.ConstructProperties(MessageTemplate messageTemplate, ReadOnlySpan<object> messageTemplateParameters)
+Serilog.Capturing.PropertyBinder.ConstructProperty(PropertyToken propertyToken, object value)
+Serilog.Capturing.PropertyBinder.NoProperties
+Serilog.Capturing.PropertyBinder.PropertyBinder(PropertyValueConverter valueConverter)
+Serilog.Capturing.PropertyBinder._valueConverter
+Serilog.Capturing.PropertyValueConverter
+Serilog.Capturing.PropertyValueConverter.BuildArrayValue(Array array, int[] indices, int dimension, Destructuring destructuring)
+Serilog.Capturing.PropertyValueConverter.BuiltInScalarTypes
+Serilog.Capturing.PropertyValueConverter.CreateProperty(string name, object value, bool destructureObjects = false)
+Serilog.Capturing.PropertyValueConverter.CreatePropertyValue(object value, Destructuring destructuring)
+Serilog.Capturing.PropertyValueConverter.CreatePropertyValue(object value, Destructuring destructuring, int depth)
+Serilog.Capturing.PropertyValueConverter.CreatePropertyValue(object value, bool destructureObjects = false)
+Serilog.Capturing.PropertyValueConverter.CreatePropertyValue(object value, bool destructureObjects, int depth)
+Serilog.Capturing.PropertyValueConverter.CreateStructureValue(object value, Type type, bool isCompilerGeneratedType)
+Serilog.Capturing.PropertyValueConverter.IsCompilerGeneratedType(Type type)
+Serilog.Capturing.PropertyValueConverter.IsValidDictionaryKeyType(Type valueType)
+Serilog.Capturing.PropertyValueConverter.PropertyValueConverter(int maximumDestructuringDepth, int maximumStringLength, int maximumCollectionCount, IEnumerable<Type> additionalScalarTypes, IEnumerable<Type> additionalDictionaryTypes, IEnumerable<IDestructuringPolicy> additionalDestructuringPolicies, bool propagateExceptions)
+Serilog.Capturing.PropertyValueConverter.Stringify(object value)
+Serilog.Capturing.PropertyValueConverter.TruncateIfNecessary(string text)
+Serilog.Capturing.PropertyValueConverter.TryConvertEnumerable(object value, Type type, Destructuring destructuring, out LogEventPropertyValue result)
+Serilog.Capturing.PropertyValueConverter.TryConvertStructure(object value, Type type, Destructuring destructuring, out StructureValue result)
+Serilog.Capturing.PropertyValueConverter.TryConvertValueTuple(object value, Type type, Destructuring destructuring, out LogEventPropertyValue result)
+Serilog.Capturing.PropertyValueConverter.TryGetDictionary(object value, Type valueType, out IDictionary dictionary)
+Serilog.Capturing.PropertyValueConverter._depthLimiter
+Serilog.Capturing.PropertyValueConverter._destructuringPolicies
+Serilog.Capturing.PropertyValueConverter._dictionaryTypes
+Serilog.Capturing.PropertyValueConverter._lastSeenNames
+Serilog.Capturing.PropertyValueConverter._maximumCollectionCount
+Serilog.Capturing.PropertyValueConverter._maximumStringLength
+Serilog.Capturing.PropertyValueConverter._propagateExceptions
+Serilog.Capturing.PropertyValueConverter._scalarConversionPolicies
+Serilog.Capturing.TrimConfiguration
+Serilog.Capturing.TrimConfiguration.IsCompilerGeneratedCodeSupported
+Serilog.Configuration
+Serilog.Configuration.BatchingOptions
+Serilog.Configuration.BatchingOptions.BatchSizeLimit
+Serilog.Configuration.BatchingOptions.BufferingTimeLimit
+Serilog.Configuration.BatchingOptions.EagerlyEmitFirstEvent
+Serilog.Configuration.BatchingOptions.QueueLimit
+Serilog.Configuration.BatchingOptions.RetryTimeLimit
+Serilog.Configuration.ILoggerSettings
+Serilog.Configuration.ILoggerSettings.Configure(LoggerConfiguration loggerConfiguration)
+Serilog.Configuration.LoggerAuditSinkConfiguration
+Serilog.Configuration.LoggerAuditSinkConfiguration.Logger(Action<LoggerConfiguration> configureLogger, LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Configuration.LoggerAuditSinkConfiguration.Logger(ILogger logger, LogEventLevel restrictedToMinimumLevel = Verbose)
+Serilog.Configuration.LoggerAuditSinkConfiguration.LoggerAuditSinkConfiguration(LoggerConfiguration loggerConfiguration, Action<ILogEventSink> addSink)
+Serilog.Configuration.LoggerAuditSinkConfiguration.Sink(ILogEventSink logEventSink, LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Configuration.LoggerAuditSinkConfiguration.Sink<TSink>(LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Configuration.LoggerAuditSinkConfiguration._sinkConfiguration
+Serilog.Configuration.LoggerDestructuringConfiguration
+Serilog.Configuration.LoggerDestructuringConfiguration.AsDictionary<T>()
+Serilog.Configuration.LoggerDestructuringConfiguration.AsScalar(Type scalarType)
+Serilog.Configuration.LoggerDestructuringConfiguration.AsScalar<TScalar>()
+Serilog.Configuration.LoggerDestructuringConfiguration.ByTransforming<TValue>(Func<TValue, object> transformation)
+Serilog.Configuration.LoggerDestructuringConfiguration.ByTransformingWhere<TValue>(Func<Type, bool> predicate, Func<TValue, object> transformation)
+Serilog.Configuration.LoggerDestructuringConfiguration.LoggerDestructuringConfiguration(LoggerConfiguration loggerConfiguration, Action<Type> addScalar, Action<Type> addDictionaryType, Action<IDestructuringPolicy> addPolicy, Action<int> setMaximumDepth, Action<int> setMaximumStringLength, Action<int> setMaximumCollectionCount)
+Serilog.Configuration.LoggerDestructuringConfiguration.ToMaximumCollectionCount(int maximumCollectionCount)
+Serilog.Configuration.LoggerDestructuringConfiguration.ToMaximumDepth(int maximumDestructuringDepth)
+Serilog.Configuration.LoggerDestructuringConfiguration.ToMaximumStringLength(int maximumStringLength)
+Serilog.Configuration.LoggerDestructuringConfiguration.With(params IDestructuringPolicy[] destructuringPolicies)
+Serilog.Configuration.LoggerDestructuringConfiguration.With<TDestructuringPolicy>()
+Serilog.Configuration.LoggerDestructuringConfiguration._addDictionaryType
+Serilog.Configuration.LoggerDestructuringConfiguration._addPolicy
+Serilog.Configuration.LoggerDestructuringConfiguration._addScalar
+Serilog.Configuration.LoggerDestructuringConfiguration._loggerConfiguration
+Serilog.Configuration.LoggerDestructuringConfiguration._setMaximumCollectionCount
+Serilog.Configuration.LoggerDestructuringConfiguration._setMaximumDepth
+Serilog.Configuration.LoggerDestructuringConfiguration._setMaximumStringLength
+Serilog.Configuration.LoggerEnrichmentConfiguration
+Serilog.Configuration.LoggerEnrichmentConfiguration.AtLevel(LogEventLevel enrichFromLevel, Action<LoggerEnrichmentConfiguration> configureEnricher)
+Serilog.Configuration.LoggerEnrichmentConfiguration.AtLevel(LoggingLevelSwitch levelSwitch, Action<LoggerEnrichmentConfiguration> configureEnricher)
+Serilog.Configuration.LoggerEnrichmentConfiguration.FromLogContext()
+Serilog.Configuration.LoggerEnrichmentConfiguration.LoggerEnrichmentConfiguration(LoggerConfiguration loggerConfiguration, Action<ILogEventEnricher> addEnricher)
+Serilog.Configuration.LoggerEnrichmentConfiguration.When(Func<LogEvent, bool> condition, Action<LoggerEnrichmentConfiguration> configureEnricher)
+Serilog.Configuration.LoggerEnrichmentConfiguration.With(params ILogEventEnricher[] enrichers)
+Serilog.Configuration.LoggerEnrichmentConfiguration.With<TEnricher>()
+Serilog.Configuration.LoggerEnrichmentConfiguration.WithProperty(string name, object value, bool destructureObjects = false)
+Serilog.Configuration.LoggerEnrichmentConfiguration.Wrap(LoggerEnrichmentConfiguration loggerEnrichmentConfiguration, Func<ILogEventEnricher, ILogEventEnricher> wrapEnricher, Action<LoggerEnrichmentConfiguration> configureWrappedEnricher)
+Serilog.Configuration.LoggerEnrichmentConfiguration._addEnricher
+Serilog.Configuration.LoggerEnrichmentConfiguration._loggerConfiguration
+Serilog.Configuration.LoggerFilterConfiguration
+Serilog.Configuration.LoggerFilterConfiguration.ByExcluding(Func<LogEvent, bool> exclusionPredicate)
+Serilog.Configuration.LoggerFilterConfiguration.ByIncludingOnly(Func<LogEvent, bool> inclusionPredicate)
+Serilog.Configuration.LoggerFilterConfiguration.LoggerFilterConfiguration(LoggerConfiguration loggerConfiguration, Action<ILogEventFilter> addFilter)
+Serilog.Configuration.LoggerFilterConfiguration.With(params ILogEventFilter[] filters)
+Serilog.Configuration.LoggerFilterConfiguration.With<TFilter>()
+Serilog.Configuration.LoggerFilterConfiguration._addFilter
+Serilog.Configuration.LoggerFilterConfiguration._loggerConfiguration
+Serilog.Configuration.LoggerMinimumLevelConfiguration
+Serilog.Configuration.LoggerMinimumLevelConfiguration.ControlledBy(LoggingLevelSwitch levelSwitch)
+Serilog.Configuration.LoggerMinimumLevelConfiguration.Debug()
+Serilog.Configuration.LoggerMinimumLevelConfiguration.Error()
+Serilog.Configuration.LoggerMinimumLevelConfiguration.Fatal()
+Serilog.Configuration.LoggerMinimumLevelConfiguration.Information()
+Serilog.Configuration.LoggerMinimumLevelConfiguration.Is(LogEventLevel minimumLevel)
+Serilog.Configuration.LoggerMinimumLevelConfiguration.LoggerMinimumLevelConfiguration(LoggerConfiguration loggerConfiguration, Action<LogEventLevel> setMinimum, Action<LoggingLevelSwitch> setLevelSwitch, Action<string, LoggingLevelSwitch> addOverride)
+Serilog.Configuration.LoggerMinimumLevelConfiguration.Override(string source, LogEventLevel minimumLevel)
+Serilog.Configuration.LoggerMinimumLevelConfiguration.Override(string source, LoggingLevelSwitch levelSwitch)
+Serilog.Configuration.LoggerMinimumLevelConfiguration.Verbose()
+Serilog.Configuration.LoggerMinimumLevelConfiguration.Warning()
+Serilog.Configuration.LoggerMinimumLevelConfiguration._addOverride
+Serilog.Configuration.LoggerMinimumLevelConfiguration._loggerConfiguration
+Serilog.Configuration.LoggerMinimumLevelConfiguration._setLevelSwitch
+Serilog.Configuration.LoggerMinimumLevelConfiguration._setMinimum
+Serilog.Configuration.LoggerSettingsConfiguration
+Serilog.Configuration.LoggerSettingsConfiguration.KeyValuePairs(IEnumerable<KeyValuePair<string, string>> settings)
+Serilog.Configuration.LoggerSettingsConfiguration.KeyValuePairs(IReadOnlyDictionary<string, string> settings)
+Serilog.Configuration.LoggerSettingsConfiguration.LoggerSettingsConfiguration(LoggerConfiguration loggerConfiguration)
+Serilog.Configuration.LoggerSettingsConfiguration.Settings(ILoggerSettings settings)
+Serilog.Configuration.LoggerSettingsConfiguration._loggerConfiguration
+Serilog.Configuration.LoggerSinkConfiguration
+Serilog.Configuration.LoggerSinkConfiguration.Conditional(Func<LogEvent, bool> condition, Action<LoggerSinkConfiguration> configureSink)
+Serilog.Configuration.LoggerSinkConfiguration.CreateSink(Action<LoggerSinkConfiguration> configure)
+Serilog.Configuration.LoggerSinkConfiguration.FallbackChain(Action<LoggerSinkConfiguration> configureSink, Action<LoggerSinkConfiguration> configureFallback, params Action<LoggerSinkConfiguration>[] configureSubsequentFallbacks)
+Serilog.Configuration.LoggerSinkConfiguration.Fallible(Action<LoggerSinkConfiguration> configureSink, ILoggingFailureListener failureListener)
+Serilog.Configuration.LoggerSinkConfiguration.Logger(Action<LoggerConfiguration> configureLogger, LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Configuration.LoggerSinkConfiguration.Logger(ILogger logger, LogEventLevel restrictedToMinimumLevel)
+Serilog.Configuration.LoggerSinkConfiguration.Logger(ILogger logger, bool attemptDispose = false, LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Configuration.LoggerSinkConfiguration.LoggerSinkConfiguration(LoggerConfiguration loggerConfiguration, Action<ILogEventSink> addSink)
+Serilog.Configuration.LoggerSinkConfiguration.Sink(IBatchedLogEventSink batchedLogEventSink, BatchingOptions batchingOptions, LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Configuration.LoggerSinkConfiguration.Sink(ILogEventSink logEventSink, LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Configuration.LoggerSinkConfiguration.Sink(ILogEventSink logEventSink, LogEventLevel restrictedToMinimumLevel)
+Serilog.Configuration.LoggerSinkConfiguration.Sink<TSink>(BatchingOptions batchingOptions, LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Configuration.LoggerSinkConfiguration.Sink<TSink>(LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Configuration.LoggerSinkConfiguration.Wrap(Func<ILogEventSink, ILogEventSink> wrapSink, Action<LoggerSinkConfiguration> configureWrappedSink)
+Serilog.Configuration.LoggerSinkConfiguration.Wrap(LoggerSinkConfiguration loggerSinkConfiguration, Func<ILogEventSink, ILogEventSink> wrapSink, Action<LoggerSinkConfiguration> configureWrappedSink, LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Configuration.LoggerSinkConfiguration._addSink
+Serilog.Configuration.LoggerSinkConfiguration._loggerConfiguration
+Serilog.Context
+Serilog.Context.EnricherStack
+Serilog.Context.EnricherStack.Count
+Serilog.Context.EnricherStack.Empty
+Serilog.Context.EnricherStack.EnricherStack()
+Serilog.Context.EnricherStack.EnricherStack(EnricherStack under, ILogEventEnricher top)
+Serilog.Context.EnricherStack.Enumerator
+Serilog.Context.EnricherStack.Enumerator.Current
+Serilog.Context.EnricherStack.Enumerator.Dispose()
+Serilog.Context.EnricherStack.Enumerator.Enumerator(EnricherStack stack)
+Serilog.Context.EnricherStack.Enumerator.IEnumerator.Current
+Serilog.Context.EnricherStack.Enumerator.MoveNext()
+Serilog.Context.EnricherStack.Enumerator.Reset()
+Serilog.Context.EnricherStack.Enumerator._current
+Serilog.Context.EnricherStack.Enumerator._stack
+Serilog.Context.EnricherStack.Enumerator._top
+Serilog.Context.EnricherStack.GetEnumerator()
+Serilog.Context.EnricherStack.IEnumerable.GetEnumerator()
+Serilog.Context.EnricherStack.IEnumerable<ILogEventEnricher>.GetEnumerator()
+Serilog.Context.EnricherStack.IsEmpty
+Serilog.Context.EnricherStack.Push(ILogEventEnricher t)
+Serilog.Context.EnricherStack.Top
+Serilog.Context.EnricherStack._top
+Serilog.Context.EnricherStack._under
+Serilog.Context.LogContext
+Serilog.Context.LogContext.Clone()
+Serilog.Context.LogContext.ContextStackBookmark
+Serilog.Context.LogContext.ContextStackBookmark.ContextStackBookmark(EnricherStack bookmark)
+Serilog.Context.LogContext.ContextStackBookmark.Dispose()
+Serilog.Context.LogContext.ContextStackBookmark._bookmark
+Serilog.Context.LogContext.Data
+Serilog.Context.LogContext.Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+Serilog.Context.LogContext.Enrichers
+Serilog.Context.LogContext.GetOrCreateEnricherStack()
+Serilog.Context.LogContext.Push(ILogEventEnricher enricher)
+Serilog.Context.LogContext.Push(params ILogEventEnricher[] enrichers)
+Serilog.Context.LogContext.PushProperty(string name, object value, bool destructureObjects = false)
+Serilog.Context.LogContext.Reset()
+Serilog.Context.LogContext.Suspend()
+Serilog.Context.LogContextEnricher
+Serilog.Context.LogContextEnricher.Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+Serilog.Core
+Serilog.Core.Constants
+Serilog.Core.Constants.SourceContextPropertyName
+Serilog.Core.CustomDefaultMethodImplementationAttribute
+Serilog.Core.Enrichers
+Serilog.Core.Enrichers.ConditionalEnricher
+Serilog.Core.Enrichers.ConditionalEnricher.ConditionalEnricher(ILogEventEnricher wrapped, Func<LogEvent, bool> condition)
+Serilog.Core.Enrichers.ConditionalEnricher.Dispose()
+Serilog.Core.Enrichers.ConditionalEnricher.Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+Serilog.Core.Enrichers.ConditionalEnricher._condition
+Serilog.Core.Enrichers.ConditionalEnricher._wrapped
+Serilog.Core.Enrichers.EmptyEnricher
+Serilog.Core.Enrichers.EmptyEnricher.Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+Serilog.Core.Enrichers.FixedPropertyEnricher
+Serilog.Core.Enrichers.FixedPropertyEnricher.Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+Serilog.Core.Enrichers.FixedPropertyEnricher.FixedPropertyEnricher(in EventProperty eventProperty)
+Serilog.Core.Enrichers.FixedPropertyEnricher._eventProperty
+Serilog.Core.Enrichers.PropertyEnricher
+Serilog.Core.Enrichers.PropertyEnricher.Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+Serilog.Core.Enrichers.PropertyEnricher.PropertyEnricher(string name, object value, bool destructureObjects = false)
+Serilog.Core.Enrichers.PropertyEnricher._destructureObjects
+Serilog.Core.Enrichers.PropertyEnricher._name
+Serilog.Core.Enrichers.PropertyEnricher._value
+Serilog.Core.Enrichers.SafeAggregateEnricher
+Serilog.Core.Enrichers.SafeAggregateEnricher.Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+Serilog.Core.Enrichers.SafeAggregateEnricher.SafeAggregateEnricher(IEnumerable<ILogEventEnricher> enrichers)
+Serilog.Core.Enrichers.SafeAggregateEnricher._enrichers
+Serilog.Core.Filters
+Serilog.Core.Filters.DelegateFilter
+Serilog.Core.Filters.DelegateFilter.DelegateFilter(Func<LogEvent, bool> isEnabled)
+Serilog.Core.Filters.DelegateFilter.IsEnabled(LogEvent logEvent)
+Serilog.Core.Filters.DelegateFilter._isEnabled
+Serilog.Core.IBatchedLogEventSink
+Serilog.Core.IBatchedLogEventSink.EmitBatchAsync(IReadOnlyCollection<LogEvent> batch)
+Serilog.Core.IBatchedLogEventSink.OnEmptyBatchAsync()
+Serilog.Core.IDestructuringPolicy
+Serilog.Core.IDestructuringPolicy.TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, out LogEventPropertyValue result)
+Serilog.Core.ILogEventEnricher
+Serilog.Core.ILogEventEnricher.Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+Serilog.Core.ILogEventFilter
+Serilog.Core.ILogEventFilter.IsEnabled(LogEvent logEvent)
+Serilog.Core.ILogEventPropertyFactory
+Serilog.Core.ILogEventPropertyFactory.CreateProperty(string name, object value, bool destructureObjects = false)
+Serilog.Core.ILogEventPropertyValueFactory
+Serilog.Core.ILogEventPropertyValueFactory.CreatePropertyValue(object value, bool destructureObjects = false)
+Serilog.Core.ILogEventSink
+Serilog.Core.ILogEventSink.Emit(LogEvent logEvent)
+Serilog.Core.ILoggingFailureListener
+Serilog.Core.ILoggingFailureListener.OnLoggingFailed(object sender, LoggingFailureKind kind, string message, IReadOnlyCollection<LogEvent> events, Exception exception)
+Serilog.Core.IMessageTemplateParser
+Serilog.Core.IMessageTemplateParser.Parse(string messageTemplate)
+Serilog.Core.IScalarConversionPolicy
+Serilog.Core.IScalarConversionPolicy.TryConvertToScalar(object value, out ScalarValue result)
+Serilog.Core.ISetLoggingFailureListener
+Serilog.Core.ISetLoggingFailureListener.SetFailureListener(ILoggingFailureListener failureListener)
+Serilog.Core.LevelOverrideMap
+Serilog.Core.LevelOverrideMap.GetEffectiveLevel(ReadOnlySpan<char> context, out LogEventLevel minimumLevel, out LoggingLevelSwitch levelSwitch)
+Serilog.Core.LevelOverrideMap.LevelOverride
+Serilog.Core.LevelOverrideMap.LevelOverride.Context
+Serilog.Core.LevelOverrideMap.LevelOverride.LevelOverride(string context, LoggingLevelSwitch levelSwitch)
+Serilog.Core.LevelOverrideMap.LevelOverride.LevelSwitch
+Serilog.Core.LevelOverrideMap.LevelOverrideMap(IDictionary<string, LoggingLevelSwitch> overrides, LogEventLevel defaultMinimumLevel, LoggingLevelSwitch defaultLevelSwitch)
+Serilog.Core.LevelOverrideMap._defaultLevelSwitch
+Serilog.Core.LevelOverrideMap._defaultMinimumLevel
+Serilog.Core.LevelOverrideMap._overrides
+Serilog.Core.Logger
+Serilog.Core.Logger.BindMessageTemplate(string messageTemplate, object[] propertyValues, out MessageTemplate parsedTemplate, out IEnumerable<LogEventProperty> boundProperties)
+Serilog.Core.Logger.BindProperty(string propertyName, object value, bool destructureObjects, out LogEventProperty property)
+Serilog.Core.Logger.Debug(Exception exception, string messageTemplate)
+Serilog.Core.Logger.Debug(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Debug(string messageTemplate)
+Serilog.Core.Logger.Debug(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Debug<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Debug<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Debug<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Debug<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Debug<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Debug<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Dispatch(LogEvent logEvent)
+Serilog.Core.Logger.Dispose()
+Serilog.Core.Logger.DisposeAsync()
+Serilog.Core.Logger.Error(Exception exception, string messageTemplate)
+Serilog.Core.Logger.Error(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Error(string messageTemplate)
+Serilog.Core.Logger.Error(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Error<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Error<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Error<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Error<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Error<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Error<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Fatal(Exception exception, string messageTemplate)
+Serilog.Core.Logger.Fatal(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Fatal(string messageTemplate)
+Serilog.Core.Logger.Fatal(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Fatal<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Fatal<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Fatal<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Fatal<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Fatal<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Fatal<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Logger.ForContext(IEnumerable<ILogEventEnricher> enrichers)
+Serilog.Core.Logger.ForContext(ILogEventEnricher enricher)
+Serilog.Core.Logger.ForContext(Type source)
+Serilog.Core.Logger.ForContext(string propertyName, object value, bool destructureObjects = false)
+Serilog.Core.Logger.ForContext<TSource>()
+Serilog.Core.Logger.HasOverrideMap
+Serilog.Core.Logger.ILogEventSink.Emit(LogEvent logEvent)
+Serilog.Core.Logger.Information(Exception exception, string messageTemplate)
+Serilog.Core.Logger.Information(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Information(string messageTemplate)
+Serilog.Core.Logger.Information(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Information<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Information<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Information<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Information<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Information<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Information<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Logger.IsEnabled(LogEventLevel level)
+Serilog.Core.Logger.Logger(MessageTemplateProcessor messageTemplateProcessor, LogEventLevel minimumLevel, LoggingLevelSwitch levelSwitch, ILogEventSink sink, ILogEventEnricher enricher, Action dispose, Func<ValueTask> disposeAsync, LevelOverrideMap overrideMap)
+Serilog.Core.Logger.NoProperties
+Serilog.Core.Logger.NoPropertyValues
+Serilog.Core.Logger.None
+Serilog.Core.Logger.Verbose(Exception exception, string messageTemplate)
+Serilog.Core.Logger.Verbose(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Verbose(string messageTemplate)
+Serilog.Core.Logger.Verbose(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Verbose<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Verbose<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Verbose<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Verbose<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Verbose<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Verbose<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Warning(Exception exception, string messageTemplate)
+Serilog.Core.Logger.Warning(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Warning(string messageTemplate)
+Serilog.Core.Logger.Warning(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Warning<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Warning<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Warning<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Warning<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Warning<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Warning<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Write(LogEvent logEvent)
+Serilog.Core.Logger.Write(LogEventLevel level, Exception exception, string messageTemplate)
+Serilog.Core.Logger.Write(LogEventLevel level, Exception exception, string messageTemplate, ReadOnlySpan<object> propertyValues)
+Serilog.Core.Logger.Write(LogEventLevel level, Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Write(LogEventLevel level, string messageTemplate)
+Serilog.Core.Logger.Write(LogEventLevel level, string messageTemplate, ReadOnlySpan<object> propertyValues)
+Serilog.Core.Logger.Write(LogEventLevel level, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Logger.Write<T0, T1, T2>(LogEventLevel level, Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Write<T0, T1, T2>(LogEventLevel level, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Logger.Write<T0, T1>(LogEventLevel level, Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Write<T0, T1>(LogEventLevel level, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Logger.Write<T>(LogEventLevel level, Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Logger.Write<T>(LogEventLevel level, string messageTemplate, T propertyValue)
+Serilog.Core.Logger._dispose
+Serilog.Core.Logger._disposeAsync
+Serilog.Core.Logger._enricher
+Serilog.Core.Logger._levelSwitch
+Serilog.Core.Logger._messageTemplateProcessor
+Serilog.Core.Logger._minimumLevel
+Serilog.Core.Logger._overrideMap
+Serilog.Core.Logger._sink
+Serilog.Core.LoggingFailureKind
+Serilog.Core.LoggingFailureKind.Final
+Serilog.Core.LoggingFailureKind.Permanent
+Serilog.Core.LoggingFailureKind.Temporary
+Serilog.Core.LoggingLevelSwitch
+Serilog.Core.LoggingLevelSwitch.LoggingLevelSwitch(LogEventLevel initialMinimumLevel = Information)
+Serilog.Core.LoggingLevelSwitch.MinimumLevel
+Serilog.Core.LoggingLevelSwitch._levelUpdateLock
+Serilog.Core.LoggingLevelSwitch._minimumLevel
+Serilog.Core.LoggingLevelSwitchChangedEventArgs
+Serilog.Core.LoggingLevelSwitchChangedEventArgs.LoggingLevelSwitchChangedEventArgs(LogEventLevel oldLevel, LogEventLevel newLevel)
+Serilog.Core.LoggingLevelSwitchChangedEventArgs.NewLevel
+Serilog.Core.LoggingLevelSwitchChangedEventArgs.OldLevel
+Serilog.Core.MessageTemplateFormatMethodAttribute
+Serilog.Core.MessageTemplateFormatMethodAttribute.MessageTemplateFormatMethodAttribute(string messageTemplateParameterName)
+Serilog.Core.MessageTemplateFormatMethodAttribute.MessageTemplateParameterName
+Serilog.Core.Pipeline
+Serilog.Core.Pipeline.ByReferenceStringComparer
+Serilog.Core.Pipeline.ByReferenceStringComparer.ByReferenceStringComparer()
+Serilog.Core.Pipeline.ByReferenceStringComparer.Equals(object x, object y)
+Serilog.Core.Pipeline.ByReferenceStringComparer.Equals(string x, string y)
+Serilog.Core.Pipeline.ByReferenceStringComparer.GetHashCode(object obj)
+Serilog.Core.Pipeline.ByReferenceStringComparer.GetHashCode(string obj)
+Serilog.Core.Pipeline.ByReferenceStringComparer.Instance
+Serilog.Core.Pipeline.MessageTemplateCache
+Serilog.Core.Pipeline.MessageTemplateCache.MaxCacheItems
+Serilog.Core.Pipeline.MessageTemplateCache.MaxCachedTemplateLength
+Serilog.Core.Pipeline.MessageTemplateCache.MessageTemplateCache(IMessageTemplateParser innerParser)
+Serilog.Core.Pipeline.MessageTemplateCache.Parse(string messageTemplate)
+Serilog.Core.Pipeline.MessageTemplateCache._innerParser
+Serilog.Core.Pipeline.MessageTemplateCache._templates
+Serilog.Core.Pipeline.MessageTemplateCache._templatesLock
+Serilog.Core.Pipeline.SilentLogger
+Serilog.Core.Pipeline.SilentLogger.BindMessageTemplate(string messageTemplate, object[] propertyValues, out MessageTemplate parsedTemplate, out IEnumerable<LogEventProperty> boundProperties)
+Serilog.Core.Pipeline.SilentLogger.BindProperty(string propertyName, object value, bool destructureObjects, out LogEventProperty property)
+Serilog.Core.Pipeline.SilentLogger.Debug(Exception exception, string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Debug(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Debug(string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Debug(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Debug<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Debug<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Debug<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Debug<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Debug<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Debug<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Error(Exception exception, string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Error(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Error(string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Error(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Error<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Error<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Error<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Error<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Error<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Error<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Fatal(Exception exception, string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Fatal(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Fatal(string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Fatal(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Fatal<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Fatal<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Fatal<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Fatal<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Fatal<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Fatal<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.ForContext(IEnumerable<ILogEventEnricher> enrichers)
+Serilog.Core.Pipeline.SilentLogger.ForContext(ILogEventEnricher enricher)
+Serilog.Core.Pipeline.SilentLogger.ForContext(Type source)
+Serilog.Core.Pipeline.SilentLogger.ForContext(string propertyName, object value, bool destructureObjects = false)
+Serilog.Core.Pipeline.SilentLogger.ForContext<TSource>()
+Serilog.Core.Pipeline.SilentLogger.Information(Exception exception, string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Information(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Information(string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Information(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Information<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Information<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Information<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Information<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Information<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Information<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.IsEnabled(LogEventLevel level)
+Serilog.Core.Pipeline.SilentLogger.Verbose(Exception exception, string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Verbose(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Verbose(string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Verbose(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Verbose<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Verbose<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Verbose<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Verbose<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Verbose<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Verbose<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Warning(Exception exception, string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Warning(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Warning(string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Warning(string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Warning<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Warning<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Warning<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Warning<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Warning<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Warning<T>(string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Write(LogEvent logEvent)
+Serilog.Core.Pipeline.SilentLogger.Write(LogEventLevel level, Exception exception, string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Write(LogEventLevel level, Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Write(LogEventLevel level, string messageTemplate)
+Serilog.Core.Pipeline.SilentLogger.Write(LogEventLevel level, string messageTemplate, params object[] propertyValues)
+Serilog.Core.Pipeline.SilentLogger.Write<T0, T1, T2>(LogEventLevel level, Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Write<T0, T1, T2>(LogEventLevel level, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Core.Pipeline.SilentLogger.Write<T0, T1>(LogEventLevel level, Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Write<T0, T1>(LogEventLevel level, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Core.Pipeline.SilentLogger.Write<T>(LogEventLevel level, Exception exception, string messageTemplate, T propertyValue)
+Serilog.Core.Pipeline.SilentLogger.Write<T>(LogEventLevel level, string messageTemplate, T propertyValue)
+Serilog.Core.PropertiesInlineArray
+Serilog.Core.PropertiesInlineArray.AsSpan(int count)
+Serilog.Core.PropertiesInlineArray.Object1
+Serilog.Core.PropertiesInlineArray.Object2
+Serilog.Core.PropertiesInlineArray.Object3
+Serilog.Core.PropertiesInlineArray.ThrowArgumentOutOfRangeException(string param)
+Serilog.Core.Sinks
+Serilog.Core.Sinks.AggregateSink
+Serilog.Core.Sinks.AggregateSink.AggregateSink(IEnumerable<ILogEventSink> sinks)
+Serilog.Core.Sinks.AggregateSink.Emit(LogEvent logEvent)
+Serilog.Core.Sinks.AggregateSink._sinks
+Serilog.Core.Sinks.Batching
+Serilog.Core.Sinks.Batching.BatchingSink
+Serilog.Core.Sinks.Batching.BatchingSink.BatchingSink(IBatchedLogEventSink batchedSink, BatchingOptions options)
+Serilog.Core.Sinks.Batching.BatchingSink.Dispose()
+Serilog.Core.Sinks.Batching.BatchingSink.DisposeAsync()
+Serilog.Core.Sinks.Batching.BatchingSink.DrainOnFailure(LoggingFailureKind kind, string message, Exception exception, bool ignoreShutdownSignal = false)
+Serilog.Core.Sinks.Batching.BatchingSink.Emit(LogEvent logEvent)
+Serilog.Core.Sinks.Batching.BatchingSink.LoopAsync()
+Serilog.Core.Sinks.Batching.BatchingSink.SetFailureListener(ILoggingFailureListener failureListener)
+Serilog.Core.Sinks.Batching.BatchingSink.SignalShutdown()
+Serilog.Core.Sinks.Batching.BatchingSink.TryWaitToReadAsync(ChannelReader<LogEvent> reader, Task timeout, CancellationToken cancellationToken)
+Serilog.Core.Sinks.Batching.BatchingSink._batchScheduler
+Serilog.Core.Sinks.Batching.BatchingSink._batchSizeLimit
+Serilog.Core.Sinks.Batching.BatchingSink._cachedWaitToRead
+Serilog.Core.Sinks.Batching.BatchingSink._currentBatch
+Serilog.Core.Sinks.Batching.BatchingSink._eagerlyEmitFirstEvent
+Serilog.Core.Sinks.Batching.BatchingSink._failureListener
+Serilog.Core.Sinks.Batching.BatchingSink._queue
+Serilog.Core.Sinks.Batching.BatchingSink._runLoop
+Serilog.Core.Sinks.Batching.BatchingSink._shutdownSignal
+Serilog.Core.Sinks.Batching.BatchingSink._stateLock
+Serilog.Core.Sinks.Batching.BatchingSink._targetSink
+Serilog.Core.Sinks.Batching.BatchingSink._waitForShutdownSignal
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler.DroppedBatchesBeforeDroppingQueue
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler.FailureAwareBatchScheduler(TimeSpan bufferingTimeLimit, TimeSpan retryTimeLimit)
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler.FailureAwareBatchScheduler(TimeSpan bufferingTimeLimit, TimeSpan retryTimeLimit, TimeProvider timeProvider)
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler.MarkFailure(out bool shouldDropBatch, out bool shouldDropQueue)
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler.MarkSuccess()
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler.MaximumBackoffInterval
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler.MinimumBackoffPeriod
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler.NextInterval
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler._bufferingTimeLimit
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler._consecutiveDroppedBatches
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler._failuresSinceSuccessfulBatch
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler._firstFailureTimestamp
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler._retryTimeLimit
+Serilog.Core.Sinks.Batching.FailureAwareBatchScheduler._timeProvider
+Serilog.Core.Sinks.ConditionalSink
+Serilog.Core.Sinks.ConditionalSink.ConditionalSink(ILogEventSink wrapped, Func<LogEvent, bool> condition)
+Serilog.Core.Sinks.ConditionalSink.Dispose()
+Serilog.Core.Sinks.ConditionalSink.DisposeAsync()
+Serilog.Core.Sinks.ConditionalSink.Emit(LogEvent logEvent)
+Serilog.Core.Sinks.ConditionalSink._condition
+Serilog.Core.Sinks.ConditionalSink._wrapped
+Serilog.Core.Sinks.DisposingAggregateSink
+Serilog.Core.Sinks.DisposingAggregateSink.Dispose()
+Serilog.Core.Sinks.DisposingAggregateSink.DisposeAsync()
+Serilog.Core.Sinks.DisposingAggregateSink.DisposingAggregateSink(IEnumerable<ILogEventSink> sinks)
+Serilog.Core.Sinks.DisposingAggregateSink.Emit(LogEvent logEvent)
+Serilog.Core.Sinks.DisposingAggregateSink.ReportDisposingException(ILogEventSink sink, Exception ex)
+Serilog.Core.Sinks.DisposingAggregateSink._sinks
+Serilog.Core.Sinks.Fallback.DelegatingLoggingFailureListener
+Serilog.Core.Sinks.Fallback.DelegatingLoggingFailureListener.OnLoggingFailed(object sender, LoggingFailureKind kind, string message, IReadOnlyCollection<LogEvent> events, Exception exception)
+Serilog.Core.Sinks.Fallback.FailureListenerSink
+Serilog.Core.Sinks.Fallback.FailureListenerSink.Emit(LogEvent logEvent)
+Serilog.Core.Sinks.Fallback.FailureListenerSink.FailureListenerSink(ILogEventSink inner, ILoggingFailureListener listener)
+Serilog.Core.Sinks.Fallback.FailureListenerSink._inner
+Serilog.Core.Sinks.Fallback.FailureListenerSink._listener
+Serilog.Core.Sinks.FilteringSink
+Serilog.Core.Sinks.FilteringSink.Emit(LogEvent logEvent)
+Serilog.Core.Sinks.FilteringSink.FilteringSink(ILogEventSink sink, IEnumerable<ILogEventFilter> filters, bool propagateExceptions)
+Serilog.Core.Sinks.FilteringSink._filters
+Serilog.Core.Sinks.FilteringSink._propagateExceptions
+Serilog.Core.Sinks.FilteringSink._sink
+Serilog.Core.Sinks.OptionalInterfaceForwardingSink
+Serilog.Core.Sinks.OptionalInterfaceForwardingSink.Dispose()
+Serilog.Core.Sinks.OptionalInterfaceForwardingSink.DisposeAsync()
+Serilog.Core.Sinks.OptionalInterfaceForwardingSink.Emit(LogEvent logEvent)
+Serilog.Core.Sinks.OptionalInterfaceForwardingSink.OptionalInterfaceForwardingSink(ILogEventSink sink, ILogEventSink receiver)
+Serilog.Core.Sinks.OptionalInterfaceForwardingSink.SetFailureListener(ILoggingFailureListener listener)
+Serilog.Core.Sinks.OptionalInterfaceForwardingSink.SupportsAll(ILogEventSink possibleReceiver)
+Serilog.Core.Sinks.OptionalInterfaceForwardingSink.SupportsAny(ILogEventSink possibleReceiver)
+Serilog.Core.Sinks.OptionalInterfaceForwardingSink._receiver
+Serilog.Core.Sinks.OptionalInterfaceForwardingSink._sink
+Serilog.Core.Sinks.RestrictedSink
+Serilog.Core.Sinks.RestrictedSink.Dispose()
+Serilog.Core.Sinks.RestrictedSink.DisposeAsync()
+Serilog.Core.Sinks.RestrictedSink.Emit(LogEvent logEvent)
+Serilog.Core.Sinks.RestrictedSink.RestrictedSink(ILogEventSink sink, LoggingLevelSwitch levelSwitch)
+Serilog.Core.Sinks.RestrictedSink._levelSwitch
+Serilog.Core.Sinks.RestrictedSink._sink
+Serilog.Core.Sinks.SafeAggregateSink
+Serilog.Core.Sinks.SafeAggregateSink.Emit(LogEvent logEvent)
+Serilog.Core.Sinks.SafeAggregateSink.SafeAggregateSink(IEnumerable<ILogEventSink> sinks)
+Serilog.Core.Sinks.SafeAggregateSink._sinks
+Serilog.Core.Sinks.SecondaryLoggerSink
+Serilog.Core.Sinks.SecondaryLoggerSink.Dispose()
+Serilog.Core.Sinks.SecondaryLoggerSink.DisposeAsync()
+Serilog.Core.Sinks.SecondaryLoggerSink.Emit(LogEvent logEvent)
+Serilog.Core.Sinks.SecondaryLoggerSink.SecondaryLoggerSink(ILogger logger, bool attemptDispose = false)
+Serilog.Core.Sinks.SecondaryLoggerSink._attemptDispose
+Serilog.Core.Sinks.SecondaryLoggerSink._logger
+Serilog.Data
+Serilog.Data.LogEventPropertyValueRewriter.LogEventPropertyValueRewriter<TState>
+Serilog.Data.LogEventPropertyValueRewriter.LogEventPropertyValueRewriter<TState>.VisitDictionaryValue(TState state, DictionaryValue dictionary)
+Serilog.Data.LogEventPropertyValueRewriter.LogEventPropertyValueRewriter<TState>.VisitScalarValue(TState state, ScalarValue scalar)
+Serilog.Data.LogEventPropertyValueRewriter.LogEventPropertyValueRewriter<TState>.VisitSequenceValue(TState state, SequenceValue sequence)
+Serilog.Data.LogEventPropertyValueRewriter.LogEventPropertyValueRewriter<TState>.VisitStructureValue(TState state, StructureValue structure)
+Serilog.Data.LogEventPropertyValueRewriter.LogEventPropertyValueRewriter<TState>.VisitUnsupportedValue(TState state, LogEventPropertyValue value)
+Serilog.Data.LogEventPropertyValueVisitor.LogEventPropertyValueVisitor<TState, TResult>
+Serilog.Data.LogEventPropertyValueVisitor.LogEventPropertyValueVisitor<TState, TResult>.Visit(TState state, LogEventPropertyValue value)
+Serilog.Data.LogEventPropertyValueVisitor.LogEventPropertyValueVisitor<TState, TResult>.VisitDictionaryValue(TState state, DictionaryValue dictionary)
+Serilog.Data.LogEventPropertyValueVisitor.LogEventPropertyValueVisitor<TState, TResult>.VisitScalarValue(TState state, ScalarValue scalar)
+Serilog.Data.LogEventPropertyValueVisitor.LogEventPropertyValueVisitor<TState, TResult>.VisitSequenceValue(TState state, SequenceValue sequence)
+Serilog.Data.LogEventPropertyValueVisitor.LogEventPropertyValueVisitor<TState, TResult>.VisitStructureValue(TState state, StructureValue structure)
+Serilog.Data.LogEventPropertyValueVisitor.LogEventPropertyValueVisitor<TState, TResult>.VisitUnsupportedValue(TState state, LogEventPropertyValue value)
+Serilog.Debugging
+Serilog.Debugging.LoggingFailedException
+Serilog.Debugging.LoggingFailedException.LoggingFailedException(string message)
+Serilog.Debugging.SelfLog
+Serilog.Debugging.SelfLog.Disable()
+Serilog.Debugging.SelfLog.Enable(Action<string> output)
+Serilog.Debugging.SelfLog.Enable(TextWriter output)
+Serilog.Debugging.SelfLog.FailureListener
+Serilog.Debugging.SelfLog.SelfLogFailureListener
+Serilog.Debugging.SelfLog.SelfLogFailureListener.OnLoggingFailed(object sender, LoggingFailureKind kind, string message, IReadOnlyCollection<LogEvent> events, Exception exception)
+Serilog.Debugging.SelfLog.WriteLine(string format, object arg0 = null, object arg1 = null, object arg2 = null)
+Serilog.Debugging.SelfLog._output
+Serilog.Events
+Serilog.Events.DictionaryValue
+Serilog.Events.DictionaryValue.DictionaryValue(IEnumerable<KeyValuePair<ScalarValue, LogEventPropertyValue>> elements)
+Serilog.Events.DictionaryValue.Elements
+Serilog.Events.DictionaryValue.Render(TextWriter output, string format = null, IFormatProvider formatProvider = null)
+Serilog.Events.EventProperty
+Serilog.Events.EventProperty.Deconstruct(out string name, out LogEventPropertyValue value)
+Serilog.Events.EventProperty.Equals(EventProperty other)
+Serilog.Events.EventProperty.Equals(object obj)
+Serilog.Events.EventProperty.EventProperty(string name, LogEventPropertyValue value)
+Serilog.Events.EventProperty.GetHashCode()
+Serilog.Events.EventProperty.Name
+Serilog.Events.EventProperty.None
+Serilog.Events.EventProperty.Value
+Serilog.Events.LevelAlias
+Serilog.Events.LevelAlias.Maximum
+Serilog.Events.LevelAlias.Minimum
+Serilog.Events.LevelAlias.Off
+Serilog.Events.LogEvent
+Serilog.Events.LogEvent.AddOrUpdateProperty(LogEventProperty property)
+Serilog.Events.LogEvent.AddOrUpdateProperty(in EventProperty property)
+Serilog.Events.LogEvent.AddPropertyIfAbsent(ILogEventPropertyFactory factory, string name, object value, bool destructureObjects = false)
+Serilog.Events.LogEvent.AddPropertyIfAbsent(LogEventProperty property)
+Serilog.Events.LogEvent.AddPropertyIfAbsent(in EventProperty property)
+Serilog.Events.LogEvent.Copy()
+Serilog.Events.LogEvent.Exception
+Serilog.Events.LogEvent.Level
+Serilog.Events.LogEvent.LogEvent(DateTimeOffset timestamp, LogEventLevel level, Exception exception, MessageTemplate messageTemplate, Dictionary<string, LogEventPropertyValue> properties, ActivityTraceId traceId, ActivitySpanId spanId)
+Serilog.Events.LogEvent.LogEvent(DateTimeOffset timestamp, LogEventLevel level, Exception exception, MessageTemplate messageTemplate, EventProperty[] properties, ActivityTraceId traceId, ActivitySpanId spanId)
+Serilog.Events.LogEvent.LogEvent(DateTimeOffset timestamp, LogEventLevel level, Exception exception, MessageTemplate messageTemplate, IEnumerable<LogEventProperty> properties)
+Serilog.Events.LogEvent.LogEvent(DateTimeOffset timestamp, LogEventLevel level, Exception exception, MessageTemplate messageTemplate, IEnumerable<LogEventProperty> properties, ActivityTraceId traceId, ActivitySpanId spanId)
+Serilog.Events.LogEvent.MessageTemplate
+Serilog.Events.LogEvent.Properties
+Serilog.Events.LogEvent.RemovePropertyIfPresent(string propertyName)
+Serilog.Events.LogEvent.RenderMessage(IFormatProvider formatProvider = null)
+Serilog.Events.LogEvent.RenderMessage(TextWriter output, IFormatProvider formatProvider = null)
+Serilog.Events.LogEvent.SpanId
+Serilog.Events.LogEvent.Timestamp
+Serilog.Events.LogEvent.TraceId
+Serilog.Events.LogEvent.UnstableAssembleFromParts(DateTimeOffset timestamp, LogEventLevel level, Exception exception, MessageTemplate messageTemplate, Dictionary<string, LogEventPropertyValue> properties, ActivityTraceId traceId, ActivitySpanId spanId)
+Serilog.Events.LogEvent._properties
+Serilog.Events.LogEvent._spanId
+Serilog.Events.LogEvent._traceId
+Serilog.Events.LogEventLevel
+Serilog.Events.LogEventLevel.Debug
+Serilog.Events.LogEventLevel.Error
+Serilog.Events.LogEventLevel.Fatal
+Serilog.Events.LogEventLevel.Information
+Serilog.Events.LogEventLevel.Verbose
+Serilog.Events.LogEventLevel.Warning
+Serilog.Events.LogEventProperty
+Serilog.Events.LogEventProperty.EnsureValidName(string name)
+Serilog.Events.LogEventProperty.IsValidName(string name)
+Serilog.Events.LogEventProperty.LogEventProperty(EventProperty property)
+Serilog.Events.LogEventProperty.LogEventProperty(string name, LogEventPropertyValue value)
+Serilog.Events.LogEventProperty.Name
+Serilog.Events.LogEventProperty.Value
+Serilog.Events.LogEventPropertyValue
+Serilog.Events.LogEventPropertyValue.Render(TextWriter output, string format = null, IFormatProvider formatProvider = null)
+Serilog.Events.LogEventPropertyValue.ToString()
+Serilog.Events.LogEventPropertyValue.ToString(string format, IFormatProvider formatProvider)
+Serilog.Events.MessageTemplate
+Serilog.Events.MessageTemplate.Empty
+Serilog.Events.MessageTemplate.GetElementsOfTypeToArray<TResult>(MessageTemplateToken[] tokens)
+Serilog.Events.MessageTemplate.MessageTemplate(IEnumerable<MessageTemplateToken> tokens)
+Serilog.Events.MessageTemplate.MessageTemplate(string text, IEnumerable<MessageTemplateToken> tokens)
+Serilog.Events.MessageTemplate.NamedProperties
+Serilog.Events.MessageTemplate.PositionalProperties
+Serilog.Events.MessageTemplate.Render(IReadOnlyDictionary<string, LogEventPropertyValue> properties, IFormatProvider formatProvider = null)
+Serilog.Events.MessageTemplate.Render(IReadOnlyDictionary<string, LogEventPropertyValue> properties, TextWriter output, IFormatProvider formatProvider = null)
+Serilog.Events.MessageTemplate.Text
+Serilog.Events.MessageTemplate.ToString()
+Serilog.Events.MessageTemplate.TokenArray
+Serilog.Events.MessageTemplate.Tokens
+Serilog.Events.ScalarValue
+Serilog.Events.ScalarValue.Equals(object obj)
+Serilog.Events.ScalarValue.GetHashCode()
+Serilog.Events.ScalarValue.Null
+Serilog.Events.ScalarValue.Render(TextWriter output, string format = null, IFormatProvider formatProvider = null)
+Serilog.Events.ScalarValue.Render(object value, TextWriter output, string format = null, IFormatProvider formatProvider = null)
+Serilog.Events.ScalarValue.Render<T>(T value, TextWriter output, string format = null, IFormatProvider formatProvider = null)
+Serilog.Events.ScalarValue.ScalarValue(object value)
+Serilog.Events.ScalarValue.TryWriteSpanFormattable<T>(T value, TextWriter output, string format, IFormatProvider formatProvider)
+Serilog.Events.ScalarValue.Value
+Serilog.Events.ScalarValue.WriteWithCustomFormatter<T>(T value, TextWriter output, string format, IFormatProvider formatProvider, ICustomFormatter custom)
+Serilog.Events.SequenceValue
+Serilog.Events.SequenceValue.Elements
+Serilog.Events.SequenceValue.Empty
+Serilog.Events.SequenceValue.Render(TextWriter output, string format = null, IFormatProvider formatProvider = null)
+Serilog.Events.SequenceValue.SequenceValue(IEnumerable<LogEventPropertyValue> elements)
+Serilog.Events.SequenceValue.SequenceValue(LogEventPropertyValue[] elements)
+Serilog.Events.SequenceValue._elements
+Serilog.Events.StructureValue
+Serilog.Events.StructureValue.Properties
+Serilog.Events.StructureValue.Render(TextWriter output, LogEventProperty property, IFormatProvider formatProvider = null)
+Serilog.Events.StructureValue.Render(TextWriter output, string format = null, IFormatProvider formatProvider = null)
+Serilog.Events.StructureValue.StructureValue(IEnumerable<LogEventProperty> properties, string typeTag = null)
+Serilog.Events.StructureValue.StructureValue(LogEventProperty[] properties, string typeTag)
+Serilog.Events.StructureValue.TypeTag
+Serilog.Events.StructureValue._properties
+Serilog.Filters
+Serilog.Filters.Matching
+Serilog.Filters.Matching.FromSource(string source)
+Serilog.Filters.Matching.FromSource<TSource>()
+Serilog.Filters.Matching.WithProperty(string propertyName)
+Serilog.Filters.Matching.WithProperty(string propertyName, object scalarValue)
+Serilog.Filters.Matching.WithProperty<TScalar>(string propertyName, Func<TScalar, bool> predicate)
+Serilog.Formatting
+Serilog.Formatting.Display
+Serilog.Formatting.Display.LevelOutputFormat
+Serilog.Formatting.Display.LevelOutputFormat.GetLevelMoniker(LogEventLevel value, string format = null)
+Serilog.Formatting.Display.LevelOutputFormat.GetLevelMoniker(string[][] caseLevelMap, LogEventLevel level)
+Serilog.Formatting.Display.LevelOutputFormat.GetLevelMoniker(string[][] caseLevelMap, LogEventLevel level, int width)
+Serilog.Formatting.Display.LevelOutputFormat._lowerCaseLevelMap
+Serilog.Formatting.Display.LevelOutputFormat._titleCaseLevelMap
+Serilog.Formatting.Display.LevelOutputFormat._upperCaseLevelMap
+Serilog.Formatting.Display.MessageTemplateTextFormatter
+Serilog.Formatting.Display.MessageTemplateTextFormatter.Format(LogEvent logEvent, TextWriter output)
+Serilog.Formatting.Display.MessageTemplateTextFormatter.MessageTemplateTextFormatter(string outputTemplate, IFormatProvider formatProvider = null)
+Serilog.Formatting.Display.MessageTemplateTextFormatter._formatProvider
+Serilog.Formatting.Display.MessageTemplateTextFormatter._outputTemplate
+Serilog.Formatting.Display.OutputProperties
+Serilog.Formatting.Display.OutputProperties.ExceptionPropertyName
+Serilog.Formatting.Display.OutputProperties.LevelPropertyName
+Serilog.Formatting.Display.OutputProperties.MessagePropertyName
+Serilog.Formatting.Display.OutputProperties.NewLinePropertyName
+Serilog.Formatting.Display.OutputProperties.PropertiesPropertyName
+Serilog.Formatting.Display.OutputProperties.SpanIdPropertyName
+Serilog.Formatting.Display.OutputProperties.TimestampPropertyName
+Serilog.Formatting.Display.OutputProperties.TraceIdPropertyName
+Serilog.Formatting.Display.OutputProperties.UtcTimestampPropertyName
+Serilog.Formatting.Display.PropertiesOutputFormat
+Serilog.Formatting.Display.PropertiesOutputFormat.JsonValueFormatter
+Serilog.Formatting.Display.PropertiesOutputFormat.Render(MessageTemplate template, IReadOnlyDictionary<string, LogEventPropertyValue> properties, MessageTemplate outputTemplate, TextWriter output, string format, IFormatProvider formatProvider = null)
+Serilog.Formatting.Display.PropertiesOutputFormat.TemplateContainsPropertyName(MessageTemplate template, string propertyName)
+Serilog.Formatting.ITextFormatter
+Serilog.Formatting.ITextFormatter.Format(LogEvent logEvent, TextWriter output)
+Serilog.Formatting.Json
+Serilog.Formatting.Json.JsonFormatter
+Serilog.Formatting.Json.JsonFormatter.Format(LogEvent logEvent, TextWriter output)
+Serilog.Formatting.Json.JsonFormatter.JsonFormatter(string closingDelimiter = null, bool renderMessage = false, IFormatProvider formatProvider = null)
+Serilog.Formatting.Json.JsonFormatter.WriteRenderingsValues(IEnumerable<IGrouping<string, PropertyToken>> tokensWithFormat, IReadOnlyDictionary<string, LogEventPropertyValue> properties, TextWriter output)
+Serilog.Formatting.Json.JsonFormatter._closingDelimiter
+Serilog.Formatting.Json.JsonFormatter._formatProvider
+Serilog.Formatting.Json.JsonFormatter._jsonValueFormatter
+Serilog.Formatting.Json.JsonFormatter._renderMessage
+Serilog.Formatting.Json.JsonValueFormatter
+Serilog.Formatting.Json.JsonValueFormatter.DefaultTypeTagName
+Serilog.Formatting.Json.JsonValueFormatter.Format(LogEventPropertyValue value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatBooleanValue(bool value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatDateOnlyValue(DateOnly value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatDateTimeOffsetValue(DateTimeOffset value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatDateTimeValue(DateTime value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatDoubleValue(double value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatExactNumericValue(byte value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatExactNumericValue(decimal value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatExactNumericValue(int value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatExactNumericValue(long value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatExactNumericValue(sbyte value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatExactNumericValue(short value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatExactNumericValue(uint value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatExactNumericValue(ulong value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatExactNumericValue(ushort value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatFloatValue(float value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatLiteralObjectValue(object value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatLiteralValue(object value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatNullValue(TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatStringValue(string str, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatTimeOnlyValue(TimeOnly value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.FormatTimeSpanValue(TimeSpan value, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter.JsonValueFormatter(string typeTagName = "_typeTag")
+Serilog.Formatting.Json.JsonValueFormatter.VisitDictionaryValue(TextWriter state, DictionaryValue dictionary)
+Serilog.Formatting.Json.JsonValueFormatter.VisitScalarValue(TextWriter state, ScalarValue scalar)
+Serilog.Formatting.Json.JsonValueFormatter.VisitSequenceValue(TextWriter state, SequenceValue sequence)
+Serilog.Formatting.Json.JsonValueFormatter.VisitStructureValue(TextWriter state, StructureValue structure)
+Serilog.Formatting.Json.JsonValueFormatter.WriteQuotedJsonString(string str, TextWriter output)
+Serilog.Formatting.Json.JsonValueFormatter._typeTagName
+Serilog.Guard
+Serilog.Guard.AgainstNull<T>(T argument, string paramName = null)
+Serilog.Guard.NoEnumerationAttribute
+Serilog.ILogger
+Serilog.ILogger.BindMessageTemplate(string messageTemplate, object[] propertyValues, out MessageTemplate parsedTemplate, out IEnumerable<LogEventProperty> boundProperties)
+Serilog.ILogger.BindProperty(string propertyName, object value, bool destructureObjects, out LogEventProperty property)
+Serilog.ILogger.Debug(Exception exception, string messageTemplate)
+Serilog.ILogger.Debug(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Debug(string messageTemplate)
+Serilog.ILogger.Debug(string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Debug<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Debug<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Debug<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Debug<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Debug<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.ILogger.Debug<T>(string messageTemplate, T propertyValue)
+Serilog.ILogger.DefaultLoggerImpl
+Serilog.ILogger.Error(Exception exception, string messageTemplate)
+Serilog.ILogger.Error(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Error(string messageTemplate)
+Serilog.ILogger.Error(string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Error<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Error<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Error<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Error<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Error<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.ILogger.Error<T>(string messageTemplate, T propertyValue)
+Serilog.ILogger.Fatal(Exception exception, string messageTemplate)
+Serilog.ILogger.Fatal(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Fatal(string messageTemplate)
+Serilog.ILogger.Fatal(string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Fatal<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Fatal<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Fatal<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Fatal<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Fatal<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.ILogger.Fatal<T>(string messageTemplate, T propertyValue)
+Serilog.ILogger.ForContext(IEnumerable<ILogEventEnricher> enrichers)
+Serilog.ILogger.ForContext(ILogEventEnricher enricher)
+Serilog.ILogger.ForContext(Type source)
+Serilog.ILogger.ForContext(string propertyName, object value, bool destructureObjects = false)
+Serilog.ILogger.ForContext<TSource>()
+Serilog.ILogger.Information(Exception exception, string messageTemplate)
+Serilog.ILogger.Information(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Information(string messageTemplate)
+Serilog.ILogger.Information(string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Information<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Information<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Information<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Information<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Information<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.ILogger.Information<T>(string messageTemplate, T propertyValue)
+Serilog.ILogger.IsEnabled(LogEventLevel level)
+Serilog.ILogger.NoPropertyValues
+Serilog.ILogger.Verbose(Exception exception, string messageTemplate)
+Serilog.ILogger.Verbose(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Verbose(string messageTemplate)
+Serilog.ILogger.Verbose(string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Verbose<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Verbose<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Verbose<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Verbose<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Verbose<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.ILogger.Verbose<T>(string messageTemplate, T propertyValue)
+Serilog.ILogger.Warning(Exception exception, string messageTemplate)
+Serilog.ILogger.Warning(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Warning(string messageTemplate)
+Serilog.ILogger.Warning(string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Warning<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Warning<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Warning<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Warning<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Warning<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.ILogger.Warning<T>(string messageTemplate, T propertyValue)
+Serilog.ILogger.Write(LogEvent logEvent)
+Serilog.ILogger.Write(LogEventLevel level, Exception exception, string messageTemplate)
+Serilog.ILogger.Write(LogEventLevel level, Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Write(LogEventLevel level, string messageTemplate)
+Serilog.ILogger.Write(LogEventLevel level, string messageTemplate, params object[] propertyValues)
+Serilog.ILogger.Write<T0, T1, T2>(LogEventLevel level, Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Write<T0, T1, T2>(LogEventLevel level, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.ILogger.Write<T0, T1>(LogEventLevel level, Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Write<T0, T1>(LogEventLevel level, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.ILogger.Write<T>(LogEventLevel level, Exception exception, string messageTemplate, T propertyValue)
+Serilog.ILogger.Write<T>(LogEventLevel level, string messageTemplate, T propertyValue)
+Serilog.Log
+Serilog.Log.BindMessageTemplate(string messageTemplate, object[] propertyValues, out MessageTemplate parsedTemplate, out IEnumerable<LogEventProperty> boundProperties)
+Serilog.Log.BindProperty(string propertyName, object value, bool destructureObjects, out LogEventProperty property)
+Serilog.Log.CloseAndFlush()
+Serilog.Log.CloseAndFlushAsync()
+Serilog.Log.Debug(Exception exception, string messageTemplate)
+Serilog.Log.Debug(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Log.Debug(string messageTemplate)
+Serilog.Log.Debug(string messageTemplate, params object[] propertyValues)
+Serilog.Log.Debug<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Debug<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Debug<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Debug<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Debug<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Log.Debug<T>(string messageTemplate, T propertyValue)
+Serilog.Log.Error(Exception exception, string messageTemplate)
+Serilog.Log.Error(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Log.Error(string messageTemplate)
+Serilog.Log.Error(string messageTemplate, params object[] propertyValues)
+Serilog.Log.Error<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Error<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Error<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Error<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Error<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Log.Error<T>(string messageTemplate, T propertyValue)
+Serilog.Log.Fatal(Exception exception, string messageTemplate)
+Serilog.Log.Fatal(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Log.Fatal(string messageTemplate)
+Serilog.Log.Fatal(string messageTemplate, params object[] propertyValues)
+Serilog.Log.Fatal<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Fatal<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Fatal<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Fatal<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Fatal<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Log.Fatal<T>(string messageTemplate, T propertyValue)
+Serilog.Log.ForContext(ILogEventEnricher enricher)
+Serilog.Log.ForContext(ILogEventEnricher[] enrichers)
+Serilog.Log.ForContext(Type source)
+Serilog.Log.ForContext(string propertyName, object value, bool destructureObjects = false)
+Serilog.Log.ForContext<TSource>()
+Serilog.Log.Information(Exception exception, string messageTemplate)
+Serilog.Log.Information(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Log.Information(string messageTemplate)
+Serilog.Log.Information(string messageTemplate, params object[] propertyValues)
+Serilog.Log.Information<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Information<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Information<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Information<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Information<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Log.Information<T>(string messageTemplate, T propertyValue)
+Serilog.Log.IsEnabled(LogEventLevel level)
+Serilog.Log.Logger
+Serilog.Log.Verbose(Exception exception, string messageTemplate)
+Serilog.Log.Verbose(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Log.Verbose(string messageTemplate)
+Serilog.Log.Verbose(string messageTemplate, params object[] propertyValues)
+Serilog.Log.Verbose<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Verbose<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Verbose<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Verbose<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Verbose<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Log.Verbose<T>(string messageTemplate, T propertyValue)
+Serilog.Log.Warning(Exception exception, string messageTemplate)
+Serilog.Log.Warning(Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Log.Warning(string messageTemplate)
+Serilog.Log.Warning(string messageTemplate, params object[] propertyValues)
+Serilog.Log.Warning<T0, T1, T2>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Warning<T0, T1, T2>(string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Warning<T0, T1>(Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Warning<T0, T1>(string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Warning<T>(Exception exception, string messageTemplate, T propertyValue)
+Serilog.Log.Warning<T>(string messageTemplate, T propertyValue)
+Serilog.Log.Write(LogEvent logEvent)
+Serilog.Log.Write(LogEventLevel level, Exception exception, string messageTemplate)
+Serilog.Log.Write(LogEventLevel level, Exception exception, string messageTemplate, params object[] propertyValues)
+Serilog.Log.Write(LogEventLevel level, string messageTemplate)
+Serilog.Log.Write(LogEventLevel level, string messageTemplate, params object[] propertyValues)
+Serilog.Log.Write<T0, T1, T2>(LogEventLevel level, Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Write<T0, T1, T2>(LogEventLevel level, string messageTemplate, T0 propertyValue0, T1 propertyValue1, T2 propertyValue2)
+Serilog.Log.Write<T0, T1>(LogEventLevel level, Exception exception, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Write<T0, T1>(LogEventLevel level, string messageTemplate, T0 propertyValue0, T1 propertyValue1)
+Serilog.Log.Write<T>(LogEventLevel level, Exception exception, string messageTemplate, T propertyValue)
+Serilog.Log.Write<T>(LogEventLevel level, string messageTemplate, T propertyValue)
+Serilog.Log._logger
+Serilog.LoggerConfiguration
+Serilog.LoggerConfiguration.AuditTo
+Serilog.LoggerConfiguration.CreateLogger()
+Serilog.LoggerConfiguration.Destructure
+Serilog.LoggerConfiguration.Enrich
+Serilog.LoggerConfiguration.Filter
+Serilog.LoggerConfiguration.LoggerConfiguration()
+Serilog.LoggerConfiguration.MinimumLevel
+Serilog.LoggerConfiguration.ReadFrom
+Serilog.LoggerConfiguration.WriteTo
+Serilog.LoggerConfiguration._additionalDestructuringPolicies
+Serilog.LoggerConfiguration._additionalDictionaryTypes
+Serilog.LoggerConfiguration._additionalScalarTypes
+Serilog.LoggerConfiguration._auditSinks
+Serilog.LoggerConfiguration._enrichers
+Serilog.LoggerConfiguration._filters
+Serilog.LoggerConfiguration._levelSwitch
+Serilog.LoggerConfiguration._logEventSinks
+Serilog.LoggerConfiguration._loggerCreated
+Serilog.LoggerConfiguration._maximumCollectionCount
+Serilog.LoggerConfiguration._maximumDestructuringDepth
+Serilog.LoggerConfiguration._maximumStringLength
+Serilog.LoggerConfiguration._minimumLevel
+Serilog.LoggerConfiguration._overrides
+Serilog.LoggerExtensions
+Serilog.LoggerExtensions.ForContext<TValue>(this ILogger logger, LogEventLevel level, string propertyName, TValue value, bool destructureObjects = false)
+Serilog.Parsing
+Serilog.Parsing.Alignment
+Serilog.Parsing.Alignment.Alignment(AlignmentDirection direction, int width)
+Serilog.Parsing.Alignment.Direction
+Serilog.Parsing.Alignment.Width
+Serilog.Parsing.AlignmentDirection
+Serilog.Parsing.AlignmentDirection.Left
+Serilog.Parsing.AlignmentDirection.Right
+Serilog.Parsing.Destructuring
+Serilog.Parsing.Destructuring.Default
+Serilog.Parsing.Destructuring.Destructure
+Serilog.Parsing.Destructuring.Stringify
+Serilog.Parsing.MessageTemplateParser
+Serilog.Parsing.MessageTemplateParser.EmptyTextToken
+Serilog.Parsing.MessageTemplateParser.IsValidInFormat(char c)
+Serilog.Parsing.MessageTemplateParser.MessageTemplateParser()
+Serilog.Parsing.MessageTemplateParser.Parse(string messageTemplate)
+Serilog.Parsing.MessageTemplateParser.ParsePropertyToken(int startAt, string messageTemplate, out int next)
+Serilog.Parsing.MessageTemplateParser.ParseTextToken(int startAt, string messageTemplate, out int next)
+Serilog.Parsing.MessageTemplateParser.Tokenize(string messageTemplate)
+Serilog.Parsing.MessageTemplateParser.TryContinuePropertyName(char c, ref bool beginIdent)
+Serilog.Parsing.MessageTemplateParser.TryGetDestructuringHint(char c, out Destructuring destructuring)
+Serilog.Parsing.MessageTemplateParser.TrySplitTagContent(string tagContent, out string propertyNameAndDestructuring, out string format, out string alignment)
+Serilog.Parsing.MessageTemplateToken
+Serilog.Parsing.MessageTemplateToken.Length
+Serilog.Parsing.MessageTemplateToken.Render(IReadOnlyDictionary<string, LogEventPropertyValue> properties, TextWriter output, IFormatProvider formatProvider = null)
+Serilog.Parsing.PropertyToken
+Serilog.Parsing.PropertyToken.Alignment
+Serilog.Parsing.PropertyToken.Destructuring
+Serilog.Parsing.PropertyToken.Equals(object obj)
+Serilog.Parsing.PropertyToken.Format
+Serilog.Parsing.PropertyToken.GetHashCode()
+Serilog.Parsing.PropertyToken.IsPositional
+Serilog.Parsing.PropertyToken.Length
+Serilog.Parsing.PropertyToken.PropertyName
+Serilog.Parsing.PropertyToken.PropertyToken(string propertyName, string rawText, string format = null, in Alignment? alignment = null, Destructuring destructuring = Default)
+Serilog.Parsing.PropertyToken.RawText
+Serilog.Parsing.PropertyToken.Render(IReadOnlyDictionary<string, LogEventPropertyValue> properties, TextWriter output, IFormatProvider formatProvider = null)
+Serilog.Parsing.PropertyToken.ToString()
+Serilog.Parsing.PropertyToken.TryGetPositionalValue(out int position)
+Serilog.Parsing.PropertyToken._position
+Serilog.Parsing.TextToken
+Serilog.Parsing.TextToken.Equals(object obj)
+Serilog.Parsing.TextToken.GetHashCode()
+Serilog.Parsing.TextToken.Length
+Serilog.Parsing.TextToken.Render(IReadOnlyDictionary<string, LogEventPropertyValue> properties, TextWriter output, IFormatProvider formatProvider = null)
+Serilog.Parsing.TextToken.Text
+Serilog.Parsing.TextToken.TextToken(string text)
+Serilog.Parsing.TextToken.ToString()
+Serilog.Policies
+Serilog.Policies.ByteArrayScalarConversionPolicy
+Serilog.Policies.ByteArrayScalarConversionPolicy.MaximumByteArrayLength
+Serilog.Policies.ByteArrayScalarConversionPolicy.TryConvertToScalar(object value, out ScalarValue result)
+Serilog.Policies.ByteMemoryScalarConversionPolicy
+Serilog.Policies.ByteMemoryScalarConversionPolicy.ConvertToHexString(ReadOnlyMemory<byte> bytes)
+Serilog.Policies.ByteMemoryScalarConversionPolicy.ConvertToHexString(ReadOnlyMemory<byte> src, string tail)
+Serilog.Policies.ByteMemoryScalarConversionPolicy.MaxTake
+Serilog.Policies.ByteMemoryScalarConversionPolicy.MaximumByteArrayLength
+Serilog.Policies.ByteMemoryScalarConversionPolicy.TryConvertToScalar(object value, out ScalarValue result)
+Serilog.Policies.DelegateDestructuringPolicy
+Serilog.Policies.DelegateDestructuringPolicy.TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, out LogEventPropertyValue result)
+Serilog.Policies.EnumScalarConversionPolicy
+Serilog.Policies.EnumScalarConversionPolicy.TryConvertToScalar(object value, out ScalarValue result)
+Serilog.Policies.PrimitiveScalarConversionPolicy
+Serilog.Policies.PrimitiveScalarConversionPolicy.TryConvertToScalar(object value, out ScalarValue result)
+Serilog.Policies.ProjectedDestructuringPolicy
+Serilog.Policies.ProjectedDestructuringPolicy.ProjectedDestructuringPolicy(Func<Type, bool> canApply, Func<object, object> projection)
+Serilog.Policies.ProjectedDestructuringPolicy.TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, out LogEventPropertyValue result)
+Serilog.Policies.ProjectedDestructuringPolicy._canApply
+Serilog.Policies.ProjectedDestructuringPolicy._projection
+Serilog.Policies.ReflectionTypesScalarDestructuringPolicy
+Serilog.Policies.ReflectionTypesScalarDestructuringPolicy.TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, out LogEventPropertyValue result)
+Serilog.Policies.SimpleScalarConversionPolicy
+Serilog.Policies.SimpleScalarConversionPolicy.SimpleScalarConversionPolicy(IEnumerable<Type> scalarTypes)
+Serilog.Policies.SimpleScalarConversionPolicy.TryConvertToScalar(object value, out ScalarValue result)
+Serilog.Policies.SimpleScalarConversionPolicy._scalarTypes
+Serilog.Rendering
+Serilog.Rendering.Casing
+Serilog.Rendering.Casing.Format(string value, string format = null)
+Serilog.Rendering.MessageTemplateRenderer
+Serilog.Rendering.MessageTemplateRenderer.JsonValueFormatter
+Serilog.Rendering.MessageTemplateRenderer.Render(MessageTemplate messageTemplate, IReadOnlyDictionary<string, LogEventPropertyValue> properties, TextWriter output, string format = null, IFormatProvider formatProvider = null)
+Serilog.Rendering.MessageTemplateRenderer.RenderPropertyToken(PropertyToken pt, IReadOnlyDictionary<string, LogEventPropertyValue> properties, TextWriter output, IFormatProvider formatProvider, bool isLiteral, bool isJson)
+Serilog.Rendering.MessageTemplateRenderer.RenderTextToken(TextToken tt, TextWriter output)
+Serilog.Rendering.MessageTemplateRenderer.RenderValue(LogEventPropertyValue propertyValue, bool literal, bool json, TextWriter output, string format, IFormatProvider formatProvider)
+Serilog.Rendering.Padding
+Serilog.Rendering.Padding.Apply(TextWriter output, StringBuilder value, in Alignment? alignment)
+Serilog.Rendering.Padding.Apply(TextWriter output, string value, in Alignment? alignment)
+Serilog.Rendering.Padding.PaddingChars
+Serilog.Rendering.ReusableStringWriter
+Serilog.Rendering.ReusableStringWriter.Dispose(bool disposing)
+Serilog.Rendering.ReusableStringWriter.GetOrCreate(IFormatProvider formatProvider = null)
+Serilog.Rendering.ReusableStringWriter.ReusableStringWriter(IFormatProvider formatProvider)
+Serilog.Rendering.ReusableStringWriter.StringBuilderCapacityThreshold
+Serilog.Rendering.ReusableStringWriter.Write(ReadOnlySpan<char> buffer)
+Serilog.Rendering.ReusableStringWriter.WriteLine(ReadOnlySpan<char> buffer)
+Serilog.Rendering.ReusableStringWriter._pooledWriter
+Serilog.Settings.KeyValuePairs
+Serilog.Settings.KeyValuePairs.CallableConfigurationMethodFinder
+Serilog.Settings.KeyValuePairs.CallableConfigurationMethodFinder.FindConfigurationMethods(IEnumerable<Assembly> configurationAssemblies, Type configType)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.ApplyDirectives(List<IGrouping<string, ConfigurationMethodCall>> directives, IList<MethodInfo> configurationMethods, object loggerConfigMethod, IReadOnlyDictionary<string, LoggingLevelSwitch> declaredSwitches)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.AuditToDirective
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.CallableDirectiveReceiverTypes
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.CallableDirectiveReceivers
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.CallableDirectiveRegex
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.ConfigurationMethodCall
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.ConfigurationMethodCall.ArgumentName
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.ConfigurationMethodCall.ConfigurationMethodCall(string methodName, string argumentName, string value)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.ConfigurationMethodCall.MethodName
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.ConfigurationMethodCall.Value
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.Configure(LoggerConfiguration loggerConfiguration)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.ConvertOrLookupByName(string valueOrSwitchName, Type type, IReadOnlyDictionary<string, LoggingLevelSwitch> declaredSwitches)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.DestructureDirective
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.EnrichWithDirective
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.EnrichWithPropertyDirective
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.EnrichWithPropertyDirectivePrefix
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.FilterDirective
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.IsValidSwitchName(string input)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.KeyValuePairSettings(IReadOnlyDictionary<string, string> settings)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.LevelSwitchDeclarationDirectiveRegex
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.LevelSwitchDirective
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.LevelSwitchNameRegex
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.LoadConfigurationAssemblies(IReadOnlyDictionary<string, string> directives)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.LookUpSwitchByName(string switchName, IReadOnlyDictionary<string, LoggingLevelSwitch> declaredLevelSwitches)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.MinimumLevelControlledByDirective
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.MinimumLevelDirective
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.MinimumLevelOverrideDirectivePrefix
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.ParseNamedLevelSwitchDeclarationDirectives(IReadOnlyDictionary<string, string> directives)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.SelectConfigurationMethod(IEnumerable<MethodInfo> candidateMethods, string name, IEnumerable<ConfigurationMethodCall> suppliedArgumentValues)
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.UsingDirective
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.UsingDirectiveFullFormPrefix
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings.WriteToDirective
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings._settings
+Serilog.Settings.KeyValuePairs.KeyValuePairSettings._supportedDirectives
+Serilog.Settings.KeyValuePairs.SettingValueConversions
+Serilog.Settings.KeyValuePairs.SettingValueConversions.ConvertToType(string value, Type toType)
+Serilog.Settings.KeyValuePairs.SettingValueConversions.ExtendedTypeConversions
+Serilog.Settings.KeyValuePairs.SettingValueConversions.StaticMemberAccessorRegex
+Serilog.Settings.KeyValuePairs.SettingValueConversions.TryParseStaticMemberAccessor(string input, out string accessorTypeName, out string memberName)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.AsScalar(LoggerDestructuringConfiguration loggerDestructuringConfiguration, Type scalarType)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.AuditTo
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.Destructure
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.Enrich
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.Filter
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.FromLogContext(LoggerEnrichmentConfiguration loggerEnrichmentConfiguration)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.Sink(LoggerAuditSinkConfiguration auditSinkConfiguration, ILogEventSink sink, LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.Sink(LoggerSinkConfiguration loggerSinkConfiguration, ILogEventSink sink, LogEventLevel restrictedToMinimumLevel = Verbose, LoggingLevelSwitch levelSwitch = null)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.SurrogateMethodCandidates
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.ToMaximumCollectionCount(LoggerDestructuringConfiguration loggerDestructuringConfiguration, int maximumCollectionCount)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.ToMaximumDepth(LoggerDestructuringConfiguration loggerDestructuringConfiguration, int maximumDestructuringDepth)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.ToMaximumStringLength(LoggerDestructuringConfiguration loggerDestructuringConfiguration, int maximumStringLength)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.With(LoggerDestructuringConfiguration loggerDestructuringConfiguration, IDestructuringPolicy policy)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.With(LoggerEnrichmentConfiguration loggerEnrichmentConfiguration, ILogEventEnricher enricher)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.With(LoggerFilterConfiguration loggerFilterConfiguration, ILogEventFilter filter)
+Serilog.Settings.KeyValuePairs.SurrogateConfigurationMethods.WriteTo
