@@ -14,6 +14,7 @@ from static_analyzer.constants import Language, NodeType
 from static_analyzer.dotnet_sdk import DotnetSdkError, resolve_dotnet_sdk, system_dotnet_env
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_constants import EdgeStrategy
 from tool_registry import (
     TOOL_REGISTRY,
     ToolKind,
@@ -260,6 +261,37 @@ class CSharpAdapter(LanguageAdapter):
     @property
     def workspace_owns_documents(self) -> bool:
         """csharp-ls answers position queries from the loaded solution, opened or not."""
+        return True
+
+    @property
+    def edge_strategy(self) -> EdgeStrategy:
+        """Definition-based edges: on a 3.5k-file workspace ~5% of csharp-ls
+        references queries take 60-100s (some never return), so a
+        references-based phase 2 never finishes."""
+        return EdgeStrategy.DEFINITIONS
+
+    @property
+    def resolves_method_groups(self) -> bool:
+        """Minimal-API routing (``app.MapGet("/items", GetAllItems)``) passes
+        handlers as values, so the invocation walk alone would miss them."""
+        return True
+
+    @property
+    def expands_virtual_dispatch(self) -> bool:
+        """csharp-ls answers ``textDocument/implementation`` for interface members
+        but returns nothing for abstract or virtual *class* members, so a call
+        through a base-typed reference stops at the abstract declaration."""
+        return True
+
+    @property
+    def resolves_collection_initializers(self) -> bool:
+        """C# collection-initializer braces desugar to Add calls."""
+        return True
+
+    @property
+    def resolves_iterated_types(self) -> bool:
+        """csharp-ls answers typeDefinition, so a ``foreach`` over a repo
+        collection can name the type it enumerates."""
         return True
 
     def get_lsp_default_timeout(self) -> int:

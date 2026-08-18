@@ -319,6 +319,108 @@ class TestFindCallSites:
         assert (1, 1) in _positions(si.find_call_sites(f))
 
 
+class TestFindTypeBases:
+    def test_csharp_base_class(self, tmp_path: Path):
+        f = tmp_path / "Animal.cs"
+        f.write_text("abstract class Animal {}\nclass Dog : Animal {}\nclass Cat : Animal {}\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("Dog", ["Animal"]), ("Cat", ["Animal"])]
+
+    def test_csharp_generic_interface_reduces_to_its_name(self, tmp_path: Path):
+        f = tmp_path / "Repo.cs"
+        f.write_text("class Repo : Base, IRepo<Task> {}\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("Repo", ["Base", "IRepo"])]
+
+    def test_type_without_bases_is_omitted(self, tmp_path: Path):
+        f = tmp_path / "Plain.cs"
+        f.write_text("class Plain { void M(){} }\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == []
+
+    def test_positional_record_base_is_the_type_not_its_constructor_argument(self, tmp_path: Path):
+        f = tmp_path / "Item.cs"
+        f.write_text("record Item(int Id) : Entity(Id), IItem { }\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("Item", ["Entity", "IItem"])]
+
+    def test_java_keeps_every_implemented_interface(self, tmp_path: Path):
+        f = tmp_path / "Dog.java"
+        f.write_text("public class Dog extends Animal implements Walker, Runner {}\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("Dog", ["Animal", "Walker", "Runner"])]
+
+    def test_java_interface_extends_list(self, tmp_path: Path):
+        f = tmp_path / "Cat.java"
+        f.write_text("interface Cat extends Pet, Feline {}\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("Cat", ["Pet", "Feline"])]
+
+
+class TestFindMethodGroupSites:
+    def test_handler_passed_as_an_argument_is_a_site(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text('class A { void M(){ app.MapGet("/items", GetAllItems); } }\n')
+        si = SourceInspector()
+
+        assert (1, 42) not in _positions(si.find_call_sites(f))
+        assert (1, 42) in _positions(si.find_method_group_sites(f))
+
+    def test_dotted_handler_resolves_to_the_member(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text('class A { void M(){ app.MapGet("/i", Handlers.Create); } }\n')
+        si = SourceInspector()
+        positions = _positions(si.find_method_group_sites(f))
+
+        assert (1, 47) in positions  # Create
+        assert (1, 38) not in positions  # Handlers, the type it hangs off
+
+    def test_named_argument_skips_the_label(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text("class A { void M(){ Map(handler: GetAllItems); } }\n")
+        si = SourceInspector()
+        positions = _positions(si.find_method_group_sites(f))
+
+        assert (1, 34) in positions  # GetAllItems
+        assert (1, 25) not in positions  # handler:, the parameter name
+
+    def test_type_mentioned_deeper_in_an_argument_is_not_a_site(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text('class A { void M(){ Log("{K}", OrderKind.Retail); Run(x.Where(o => o.T > Limits.Max)); } }\n')
+        si = SourceInspector()
+        positions = _positions(si.find_method_group_sites(f))
+
+        assert (1, 32) not in positions  # OrderKind
+        assert (1, 74) not in positions  # Limits
+
+    def test_leaves_the_invocation_itself_to_find_call_sites(self, tmp_path: Path):
+        f = tmp_path / "test.cs"
+        f.write_text('class A { void M(){ app.MapGet("/items", GetAllItems); } }\n')
+        si = SourceInspector()
+
+        assert (1, 25) in _positions(si.find_call_sites(f))  # MapGet
+
+
+class TestFindMemberModifiers:
+    def test_reports_modifiers_per_declaring_type(self, tmp_path: Path):
+        f = tmp_path / "Types.cs"
+        f.write_text(
+            "class Base { public virtual void V() {} }\n"
+            "class Derived : Base {\n"
+            "  public override void V() {}\n"
+            "  public new void Plain() {}\n"
+            "  void IThing.Run() {}\n"
+            "}\n"
+        )
+        si = SourceInspector()
+        modifiers = si.find_member_modifiers(f)
+
+        assert modifiers[("Base", "V")] == frozenset({"public", "virtual"})
+        assert modifiers[("Derived", "V")] == frozenset({"public", "override"})
+        assert modifiers[("Derived", "Plain")] == frozenset({"public", "new"})
+        assert modifiers[("Derived", "Run")] == frozenset({"explicit"})
+
+
 class TestTreeCacheEviction:
     def _write_project(self, tmp_path: Path, count: int) -> list[Path]:
         files = []
@@ -369,3 +471,164 @@ class TestTreeCacheEviction:
         si = SourceInspector(tree_node_budget=1)
 
         assert len(si.find_call_sites(f)) == 200
+
+
+class TestMethodGroupValuePositions:
+    """A method named rather than called is control flow wherever it appears."""
+
+    def _positions_for(self, tmp_path: Path, body: str) -> set:
+        f = tmp_path / "test.cs"
+        f.write_text(body)
+        return _positions(SourceInspector().find_method_group_sites(f))
+
+    def test_event_subscription_is_a_site(self, tmp_path: Path):
+        positions = self._positions_for(tmp_path, "class A { void M(){ c.Received += OnMessage; } }\n")
+        assert (1, 35) in positions  # OnMessage
+
+    def test_event_unsubscription_is_a_site(self, tmp_path: Path):
+        positions = self._positions_for(tmp_path, "class A { void M(){ c.Received -= OnMessage; } }\n")
+        assert (1, 35) in positions
+
+    def test_assignment_to_a_delegate_is_a_site(self, tmp_path: Path):
+        positions = self._positions_for(tmp_path, "class A { void M(){ Action cb = HandleClick; } }\n")
+        assert (1, 33) in positions  # HandleClick
+
+    def test_returned_method_group_is_a_site(self, tmp_path: Path):
+        positions = self._positions_for(tmp_path, "class A { Action M(){ return HandleClick; } }\n")
+        assert (1, 30) in positions
+
+    def test_expression_body_method_group_is_a_site(self, tmp_path: Path):
+        positions = self._positions_for(tmp_path, "class A { Action P => HandleClick; }\n")
+        assert (1, 23) in positions
+
+    def test_ordinary_literal_assignment_is_not_queried(self, tmp_path: Path):
+        assert self._positions_for(tmp_path, 'class A { void M(){ int x = 5; string s = "a"; } }\n') == set()
+
+    def test_assignment_from_a_call_is_not_queried(self, tmp_path: Path):
+        """The invocation is already a call site; the assignment adds nothing."""
+        assert self._positions_for(tmp_path, "class A { void M(){ var y = Compute(); } }\n") == set()
+
+
+class TestConditionalCompilationBodies:
+    """C#'s default-interface idiom splits a member body across a ``#if``.
+
+    tree-sitter cannot parse that shape: the subtree becomes ERROR and the call
+    is emitted as a constructor declaration, so the call-site walk misses it.
+    Serilog's ILogger hides 55 calls this way.
+    """
+
+    SPLIT_BODY = (
+        "namespace N;\n"
+        "public interface ILogger\n"
+        "{\n"
+        "    void Error<T>(string t, T v)\n"
+        "#if FEATURE_DEFAULT_INTERFACE\n"
+        "        => Write(1, t, v)\n"
+        "#endif\n"
+        "    ;\n"
+        "    void Write(int l, string t, object v);\n"
+        "}\n"
+    )
+
+    def test_call_inside_a_guarded_body_is_found(self, tmp_path: Path):
+        f = tmp_path / "ILogger.cs"
+        f.write_text(self.SPLIT_BODY)
+        si = SourceInspector()
+        assert (6, 12) in _positions(si.find_call_sites(f))  # Write(1, t, v)
+
+    def test_positions_still_match_the_original_bytes(self, tmp_path: Path):
+        f = tmp_path / "ILogger.cs"
+        f.write_text(self.SPLIT_BODY)
+        si = SourceInspector()
+        line = self.SPLIT_BODY.splitlines()[5]
+        for site in si.find_call_sites(f):
+            if site.line == 6:
+                assert line[site.column - 1 :].startswith("Write")
+
+    def test_a_hash_comment_language_is_left_alone(self, tmp_path: Path):
+        # ``#`` opens a comment in Python; blanking those lines would be wrong.
+        f = tmp_path / "mod.py"
+        f.write_text("# call_me()\ndef f():\n    real()\n")
+        si = SourceInspector()
+        positions = _positions(si.find_call_sites(f))
+        assert (3, 5) in positions
+        assert not any(p[0] == 1 for p in positions)
+
+
+class TestTargetTypedNew:
+    """C# 9 ``new(...)`` puts the type on the assignment target, not the call site.
+
+    Serilog uses it throughout its wiring, so without it the constructor call
+    from one class to another is invisible.
+    """
+
+    def test_target_typed_new_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "Holder.cs"
+        f.write_text(
+            "namespace N;\nclass Cache { public Cache(int x) {} }\nclass Holder { readonly Cache _c = new(1); }\n"
+        )
+        si = SourceInspector()
+        assert (3, 36) in _positions(si.find_call_sites(f))  # the `new` keyword
+
+    def test_explicit_new_still_targets_the_type_name(self, tmp_path: Path):
+        f = tmp_path / "Holder.cs"
+        f.write_text(
+            "namespace N;\nclass Cache { public Cache(int x) {} }\nclass Holder { readonly Cache _c = new Cache(1); }\n"
+        )
+        si = SourceInspector()
+        assert (3, 40) in _positions(si.find_call_sites(f))  # `Cache`, not `new`
+
+
+class TestConstructorDelegation:
+    """``: this(...)`` and ``: base(...)`` are calls, and the server resolves
+    them from the keyword rather than from any type name."""
+
+    def test_this_initializer_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "S.cs"
+        f.write_text("class S {\n    public S() : this(10) { }\n    public S(int x) { }\n}\n")
+        si = SourceInspector()
+        assert (2, 18) in _positions(si.find_call_sites(f))  # the `this` keyword
+
+    def test_base_initializer_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "D.cs"
+        f.write_text("class S { public S(int x) { } }\nclass D : S {\n    public D(int x) : base(x) { }\n}\n")
+        si = SourceInspector()
+        assert (3, 23) in _positions(si.find_call_sites(f))  # the `base` keyword
+
+
+class TestCollectionInitializer:
+    """``new Bag { 1, 2 }`` calls ``Bag.Add`` per element; ``new T { P = 1 }``
+    assigns a property and calls nothing."""
+
+    def test_collection_initializer_is_reported(self, tmp_path: Path):
+        f = tmp_path / "C.cs"
+        f.write_text("class C { void M() { var a = new Bag { 1, 2 }; } }\n")
+        si = SourceInspector()
+        assert (1, 34) in _positions(si.find_collection_initializer_sites(f))
+
+    def test_object_initializer_is_not(self, tmp_path: Path):
+        f = tmp_path / "C.cs"
+        f.write_text("class C { void M() { var a = new Thing { Prop = 1 }; } }\n")
+        si = SourceInspector()
+        assert si.find_collection_initializer_sites(f) == []
+
+    def test_plain_construction_is_not(self, tmp_path: Path):
+        f = tmp_path / "C.cs"
+        f.write_text("class C { void M() { var a = new Bag(); } }\n")
+        si = SourceInspector()
+        assert si.find_collection_initializer_sites(f) == []
+
+
+class TestIteratedExpression:
+    def test_foreach_collection_is_reported(self, tmp_path: Path):
+        f = tmp_path / "C.cs"
+        f.write_text("class C { void M(Bag bag) { foreach (int v in bag) { } } }\n")
+        si = SourceInspector()
+        assert (1, 47) in _positions(si.find_iterated_expression_sites(f))
+
+    def test_member_access_collection_points_at_the_last_name(self, tmp_path: Path):
+        f = tmp_path / "C.cs"
+        f.write_text("class C { void M() { foreach (var x in Other.Items) { } } }\n")
+        si = SourceInspector()
+        positions = _positions(si.find_iterated_expression_sites(f))
+        assert (1, 46) in positions  # `Items`, whose type is what gets enumerated

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -62,6 +63,16 @@ _CALL_NODE_TYPES = frozenset(
     }
 )
 _CONSTRUCTOR_NODE_TYPES = frozenset({"object_creation_expression", "new_expression"})
+# C# target-typed ``new(...)``: no type name at the call site.
+_IMPLICIT_CONSTRUCTOR_NODE_TYPES = frozenset({"implicit_object_creation_expression"})
+# C# ``: this(...)`` / ``: base(...)`` constructor delegation.
+_CONSTRUCTOR_INITIALIZER_NODE_TYPES = frozenset({"constructor_initializer"})
+# Applying an attribute runs its constructor.
+_ATTRIBUTE_NODE_TYPES = frozenset({"attribute"})
+# Braces holding ``Prop = value`` are an object initializer, not a collection one.
+_OBJECT_INITIALIZER_NODE_TYPES = frozenset({"assignment_expression"})
+# Loops whose ``right`` field is a value whose type gets enumerated.
+_ITERATION_NODE_TYPES = frozenset({"foreach_statement", "for_each_statement", "enhanced_for_statement"})
 _METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference"})
 _CALLABLE_USAGE_ANCESTORS = frozenset({"argument_list", "arguments"})
 _NAME_NODE_TYPES = frozenset(
@@ -78,6 +89,24 @@ _NAME_NODE_TYPES = frozenset(
 _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
+_ARGUMENT_NODE_TYPES = frozenset({"argument"})
+_DECLARATOR_NODE_TYPES = frozenset({"variable_declarator"})
+_VALUE_BODY_NODE_TYPES = frozenset({"return_statement", "arrow_expression_clause"})
+_NAME_SHAPED_NODE_TYPES = frozenset({"identifier", "member_access_expression", "generic_name", "qualified_name"})
+_TYPE_DECLARATION_NODE_TYPES = frozenset(
+    {"class_declaration", "interface_declaration", "record_declaration", "struct_declaration"}
+)
+_BASE_LIST_NODE_TYPES = frozenset({"base_list", "superclass", "super_interfaces", "extends_interfaces"})
+# Java groups several bases under one node; C# wraps a record's base in its
+# primary-constructor call, whose ``type`` field is the base itself.
+_BASE_GROUP_NODE_TYPES = frozenset({"type_list"})
+_MEMBER_DECLARATION_NODE_TYPES = frozenset(
+    {"method_declaration", "property_declaration", "indexer_declaration", "event_declaration"}
+)
+# Conditional-compilation lines, blanked (not removed) so byte offsets survive.
+# Restricted to languages where ``#`` opens a directive rather than a comment.
+_DIRECTIVE_LINE = re.compile(rb"(?m)^[ \t]*#[^\n]*")
+_PREPROCESSOR_SUFFIXES = frozenset({".cs"})
 _DECLARATION_BLOCK_NODE_TYPES = frozenset({"block", "compound_statement", "statement_block"})
 _EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
 
@@ -87,6 +116,17 @@ _EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
 # which is cached separately and outlives the tree. Measured: going from
 # unbounded to 500k costs no wall-clock, because nothing re-reads a tree.
 TREE_NODE_BUDGET = 500_000
+
+
+def _error_node_count(tree: Tree) -> int:
+    count = 0
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        if node.type == "ERROR" or node.is_missing:
+            count += 1
+        stack.extend(node.children)
+    return count
 
 
 @dataclass(frozen=True)
@@ -214,6 +254,113 @@ class SourceInspector:
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
 
+    def find_collection_initializer_sites(self, file_path: Path) -> list[CallSite]:
+        """Creations whose braces hold elements rather than property assignments.
+
+        ``new Bag { 1, 2 }`` calls ``Bag.Add`` once per element; the position is
+        the creation's own, so the caller can hang the extra edges off whatever
+        that resolves to.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        sites: list[CallSite] = []
+        seen: set[tuple[int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _CONSTRUCTOR_NODE_TYPES | _IMPLICIT_CONSTRUCTOR_NODE_TYPES:
+                continue
+            initializer = node.child_by_field_name("initializer")
+            if initializer is None or not any(
+                child.type not in _OBJECT_INITIALIZER_NODE_TYPES for child in initializer.named_children
+            ):
+                continue
+            target = self._call_target_node(node)
+            if target is None:
+                continue
+            position = (target.start_point.row, target.start_point.column)
+            if position in seen:
+                continue
+            seen.add(position)
+            sites.append(CallSite.from_lsp_position(file=str(file_path), line=position[0], column=position[1]))
+        return sites
+
+    def find_iterated_expression_sites(self, file_path: Path) -> list[CallSite]:
+        """Positions of expressions being iterated over.
+
+        Iterating a value calls ``GetEnumerator`` on its type, but the type is
+        nowhere in the syntax — only the value is — so these positions are meant
+        for a type query rather than the definition query the other sites use.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        sites: list[CallSite] = []
+        seen: set[tuple[int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _ITERATION_NODE_TYPES:
+                continue
+            iterated = self._select_query_node(node.child_by_field_name("right"))
+            if iterated is None:
+                continue
+            position = (iterated.start_point.row, iterated.start_point.column)
+            if position in seen:
+                continue
+            seen.add(position)
+            sites.append(CallSite.from_lsp_position(file=str(file_path), line=position[0], column=position[1]))
+        return sites
+
+    def find_method_group_sites(self, file_path: Path) -> list[CallSite]:
+        """Positions where naming a method passes it as a value rather than calling it.
+
+        Covers arguments (``MapGet("/i", Handler)``), event subscription
+        (``consumer.Received += OnMessage``), assignment, ``return`` and
+        expression bodies. Kept separate from ``find_call_sites`` because the
+        same shapes are also every ordinary argument and every ordinary
+        assignment, so the caller has to discard whatever does not resolve to
+        something callable.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        sites: list[CallSite] = []
+        seen: set[tuple[int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            for expression in self._method_group_candidates(node):
+                target = self._select_query_node(expression)
+                if target is None:
+                    continue
+                pos = (target.start_point.row, target.start_point.column)
+                if pos in seen:
+                    continue
+                seen.add(pos)
+                sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
+        return sites
+
+    def _method_group_candidates(self, node: TreeSitterNode) -> list[TreeSitterNode]:
+        """Expressions in a position where a bare name would be a method group."""
+        if node.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(node):
+            # Only the argument itself: a named argument (``f(handler: H)``)
+            # keeps its label as the first named child.
+            return [
+                child.named_children[-1] if child.type in _ARGUMENT_NODE_TYPES and child.named_children else child
+                for child in node.named_children
+            ]
+
+        # A value position accepts any expression, so unlike an argument it is
+        # only worth a query when it is already shaped like a name.
+        if node.type == "assignment_expression":
+            candidate = node.child_by_field_name("right")
+        elif node.type in _DECLARATOR_NODE_TYPES:
+            candidate = node.named_children[-1] if len(node.named_children) > 1 else None
+        elif node.type in _VALUE_BODY_NODE_TYPES:
+            candidate = node.named_children[0] if node.named_children else None
+        else:
+            return []
+        return [candidate] if candidate is not None and candidate.type in _NAME_SHAPED_NODE_TYPES else []
+
     @staticmethod
     def _read_file_bytes(file_path: Path) -> bytes | None:
         """Read a file's bytes. Deliberately uncached — both consumers (the
@@ -239,11 +386,36 @@ class SourceInspector:
         if parser is None:
             return None
 
-        parsed = ParsedSource(content=content, tree=parser.parse(content))
+        parsed = ParsedSource(content=content, tree=self._parse_tree(parser, content, file_path.suffix.lower()))
         self._parsed_cache[file_key] = parsed
         self._parsed_nodes += parsed.tree.root_node.descendant_count
         self._evict_trees()
         return parsed
+
+    @staticmethod
+    def _parse_tree(parser: Parser, content: bytes, suffix: str) -> Tree:
+        """Parse *content*, retrying with conditional-compilation lines blanked.
+
+        Why: a member body split across a ``#if`` — C#'s default-interface
+        idiom, ``void Error<T>(...)`` then ``#if X`` then ``=> Write(...)`` —
+        does not parse, and the call comes out as a constructor declaration
+        inside an ERROR subtree, so the call-site walk cannot see it. Serilog's
+        ILogger alone hides 55 calls that way. Blanking the directive lines
+        keeps every other byte at its original offset, so positions still line
+        up with what the language server was told about.
+        """
+        tree = parser.parse(content)
+        if not tree.root_node.has_error or suffix not in _PREPROCESSOR_SUFFIXES:
+            return tree
+        blanked = _DIRECTIVE_LINE.sub(lambda m: b" " * len(m.group(0)), content)
+        if blanked == content:
+            return tree
+        retried = parser.parse(blanked)
+        # Fewer errors wins rather than zero errors: blanking leaves both arms of
+        # an ``#if``/``#else`` in place, so a file can improve enormously and
+        # still not parse cleanly. Serilog's ILogger goes from 310 error nodes
+        # and 18 invocations to 2 and 96.
+        return retried if _error_node_count(retried) < _error_node_count(tree) else tree
 
     def _evict_trees(self) -> None:
         """Drop least-recently-parsed trees until the node budget is met."""
@@ -307,6 +479,19 @@ class SourceInspector:
                 if target is not None:
                     return target
             return self._first_named_child_of_type(node, _NAME_NODE_TYPES)
+        if node.type in _ATTRIBUTE_NODE_TYPES:
+            # Applying an attribute constructs it, and the annotated member
+            # genuinely depends on that type.
+            return self._select_query_node(node.child_by_field_name("name"))
+        if node.type in _CONSTRUCTOR_INITIALIZER_NODE_TYPES:
+            # ``: this(...)`` / ``: base(...)`` — the keyword is what the server
+            # resolves to the delegated constructor.
+            return next((child for child in node.children if child.type in ("this", "base")), None)
+        if node.type in _IMPLICIT_CONSTRUCTOR_NODE_TYPES:
+            # Target-typed ``new(...)``: the type lives on the assignment target,
+            # so the only thing to query is the keyword itself. The server knows
+            # what it infers to and answers with the constructor.
+            return next((child for child in node.children if child.type == "new"), None)
         if node.type in _METHOD_REFERENCE_NODE_TYPES:
             return self._last_named_child_of_type(node, _NAME_NODE_TYPES)
         return None
@@ -333,6 +518,83 @@ class SourceInspector:
                 return True
             node = parent
         return False
+
+    def find_type_bases(self, file_path: Path) -> list[tuple[str, list[str]]]:
+        """Return ``(declared type name, base type names)`` for each type in the file.
+
+        Why: csharp-ls answers neither ``textDocument/implementation`` nor
+        ``typeHierarchy``, so the parse tree is the only place the inheritance
+        needed to expand a virtual call into its overrides survives.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        declarations: list[tuple[str, list[str]]] = []
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _TYPE_DECLARATION_NODE_TYPES:
+                continue
+            name_node = node.child_by_field_name("name")
+            if name_node is None:
+                continue
+            bases = [
+                text(self._select_query_node(base) or base)
+                for child in node.children
+                if child.type in _BASE_LIST_NODE_TYPES
+                for base in self._base_type_nodes(child)
+            ]
+            if bases:
+                declarations.append((text(name_node), bases))
+        return declarations
+
+    @staticmethod
+    def _base_type_nodes(base_list: TreeSitterNode) -> list[TreeSitterNode]:
+        """The individual base types in a base list, past the wrappers grammars add."""
+        nodes: list[TreeSitterNode] = []
+        for base in base_list.named_children:
+            if base.type in _BASE_GROUP_NODE_TYPES:
+                nodes.extend(base.named_children)
+                continue
+            nodes.append(base.child_by_field_name("type") or base)
+        return nodes
+
+    def find_member_modifiers(self, file_path: Path) -> dict[tuple[str, str], frozenset[str]]:
+        """C# modifiers on each ``(declaring type, member)`` the file declares.
+
+        Why: whether a call can dispatch to a same-named member of a derived type
+        is a modifier question — ``new``, ``static`` and plain redeclarations bind
+        to the base — and no LSP request this engine makes carries modifiers.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return {}
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        modifiers: dict[tuple[str, str], frozenset[str]] = {}
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _TYPE_DECLARATION_NODE_TYPES:
+                continue
+            type_name_node = node.child_by_field_name("name")
+            body = node.child_by_field_name("body")
+            if type_name_node is None or body is None:
+                continue
+            type_name = text(type_name_node)
+            for member in body.named_children:
+                if member.type not in _MEMBER_DECLARATION_NODE_TYPES:
+                    continue
+                member_name_node = member.child_by_field_name("name")
+                if member_name_node is None:
+                    continue
+                found = {text(child) for child in member.children if child.type == "modifier"}
+                if any(child.type == "explicit_interface_specifier" for child in member.children):
+                    found.add("explicit")
+                modifiers[(type_name, text(member_name_node))] = frozenset(found)
+        return modifiers
 
     @staticmethod
     def _node_is_return_value(target: TreeSitterNode) -> bool:

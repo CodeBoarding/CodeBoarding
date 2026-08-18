@@ -396,6 +396,16 @@ class LSPClient:
         """
         return self._send_batch("textDocument/definition", queries, self._position_params, timeout=timeout)
 
+    def send_type_definition_batch(
+        self, queries: list[tuple[Path, int, int]], timeout: int | None = None
+    ) -> tuple[list[list[dict]], set[int]]:
+        """Resolve each position to the *type* of the expression there.
+
+        Distinct from ``definition``, which lands on the declaration: iterating
+        a value is a call on its type, and only this request names that type.
+        """
+        return self._send_batch("textDocument/typeDefinition", queries, self._position_params, timeout=timeout)
+
     def implementation(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
         """Find implementations of the symbol at the given position."""
         result = self._send_request(
