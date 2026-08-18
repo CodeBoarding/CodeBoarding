@@ -75,6 +75,21 @@ _OBJECT_INITIALIZER_NODE_TYPES = frozenset({"assignment_expression"})
 _ITERATION_NODE_TYPES = frozenset({"foreach_statement", "for_each_statement", "enhanced_for_statement"})
 _METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference"})
 _CALLABLE_USAGE_ANCESTORS = frozenset({"argument_list", "arguments"})
+# Positions that name a type without calling anything. Each is a dependency the
+# call walk cannot see, because no call is written: `AddScoped<IFoo, Foo>()` names
+# two types in a type-argument list, `[DependsOn(typeof(X))]` names one inside an
+# attribute, and a constructor parameter names one in its declaration.
+_TYPE_ARGUMENT_NODE_TYPES = frozenset({"type_argument_list", "type_arguments"})
+_TYPEOF_NODE_TYPES = frozenset({"typeof_expression"})
+_DECLARATION_TYPE_HOLDERS = frozenset(
+    {
+        "parameter",
+        "field_declaration",
+        "property_declaration",
+        "method_declaration",
+        "variable_declaration",
+    }
+)
 _NAME_NODE_TYPES = frozenset(
     {
         "identifier",
@@ -518,6 +533,60 @@ class SourceInspector:
                 return True
             node = parent
         return False
+
+    def find_type_reference_sites(self, file_path: Path) -> list[CallSite]:
+        """Positions that name a type without calling it.
+
+        Three shapes, all invisible to the call walk because no call is written:
+        generic arguments (``AddScoped<IFoo, Foo>()``), ``typeof(...)`` operands
+        wherever they appear including attribute arguments, and declaration-site
+        types (constructor parameters, fields, properties, return types). The
+        caller resolves each with a definition query and, when it lands on a
+        repo symbol, records a TYPEREF rather than a call.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        sites: list[CallSite] = []
+        seen: set[tuple[int, int]] = set()
+
+        def add(node: TreeSitterNode | None) -> None:
+            target = self._select_query_node(node)
+            if target is None:
+                return
+            position = (target.start_point[0], target.start_point[1])
+            if position in seen:
+                return
+            seen.add(position)
+            sites.append(CallSite.from_lsp_position(str(file_path), *position))
+
+        for node in self._walk(parsed.tree.root_node):
+            if node.type in _TYPE_ARGUMENT_NODE_TYPES:
+                for child in node.named_children:
+                    add(child)
+                    # A closed generic names two types: List<Order> depends on both.
+                    for inner in child.named_children:
+                        if inner.type in _TYPE_ARGUMENT_NODE_TYPES:
+                            for nested in inner.named_children:
+                                add(nested)
+            elif node.type in _TYPEOF_NODE_TYPES:
+                add(self._typeof_operand(node))
+            elif node.type in _DECLARATION_TYPE_HOLDERS:
+                add(node.child_by_field_name("type"))
+        return sites
+
+    def _typeof_operand(self, node: TreeSitterNode) -> TreeSitterNode | None:
+        """The type inside ``typeof(...)``, keeping the outer name of a closed generic.
+
+        ``_select_query_node`` alone falls through to the *last* name, so
+        ``typeof(RoleManager<IdentityRole>)`` would resolve to IdentityRole.
+        """
+        for child in node.named_children:
+            if child.type in _GENERIC_TYPE_NODE_TYPES:
+                return self._first_named_child_of_type(child, _NAME_NODE_TYPES)
+            return child
+        return None
 
     def find_type_bases(self, file_path: Path) -> list[tuple[str, list[str]]]:
         """Return ``(declared type name, base type names)`` for each type in the file.
