@@ -20,6 +20,11 @@ from static_analyzer import (
     max_concurrent_engines,
     recommended_engine_concurrency,
 )
+from static_analyzer.engine.lsp_constants import MIN_ENGINE_MEMORY_BUDGET
+from static_analyzer.engine.lsp_recycler import (
+    default_memory_budget,
+    per_engine_memory_budget,
+)
 
 
 class TestMaxConcurrentEngines:
@@ -211,3 +216,23 @@ class TestBoundedFullPass:
                 analyzer._run_full_lsp_pass()
 
         assert len(analyzed) < 12
+
+
+class TestPerEngineMemoryBudget:
+    """The bound must contain peak memory, not multiply it."""
+
+    def test_single_engine_gets_the_whole_allowance(self):
+        assert per_engine_memory_budget(1) == default_memory_budget()
+        assert per_engine_memory_budget(0) == default_memory_budget()
+
+    def test_concurrent_engines_share_one_allowance(self):
+        total = default_memory_budget()
+        for resident in (2, 3, 4):
+            share = per_engine_memory_budget(resident)
+            assert share * resident <= max(total, MIN_ENGINE_MEMORY_BUDGET * resident)
+            assert share <= total
+
+    def test_share_never_falls_below_a_usable_floor(self):
+        # Below the floor a server recycles faster than it can index, so the
+        # split stops rather than shrinking without limit.
+        assert per_engine_memory_budget(1000) == MIN_ENGINE_MEMORY_BUDGET

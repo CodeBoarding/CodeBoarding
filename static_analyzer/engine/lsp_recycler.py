@@ -28,6 +28,7 @@ from static_analyzer.engine.lsp_constants import (
     MIN_MEMORY_BUDGET,
     PRESSURE_FRACTION,
     PRESSURED_BATCH_DIVISOR,
+    MIN_ENGINE_MEMORY_BUDGET,
 )
 from static_analyzer.engine.process_memory import format_bytes, physical_memory_bytes, process_tree_rss
 
@@ -46,6 +47,21 @@ def default_memory_budget() -> int:
     if not physical:
         return MIN_MEMORY_BUDGET
     return int(min(max(physical * MEMORY_BUDGET_FRACTION, MIN_MEMORY_BUDGET), MAX_MEMORY_BUDGET))
+
+
+def per_engine_memory_budget(resident_engines: int) -> int:
+    """Split the allowance across servers that may be resident at the same time.
+
+    ``default_memory_budget`` is what *one* server may reach. Running several
+    concurrently without dividing it lets N servers each grow to the whole
+    allowance, so the concurrency bound would multiply peak memory rather than
+    contain it -- the opposite of its purpose. The floor keeps a share large
+    enough to be worth recycling against; below it a server would thrash.
+    """
+    total = default_memory_budget()
+    if resident_engines <= 1:
+        return total
+    return max(MIN_ENGINE_MEMORY_BUDGET, total // resident_engines)
 
 
 class LSPRecycler:

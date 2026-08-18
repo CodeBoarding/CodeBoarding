@@ -29,10 +29,13 @@ class CallGraphBuilder:
         lsp_client: LSPClient,
         adapter: LanguageAdapter,
         project_root: Path,
+        memory_budget_bytes: int = 0,
     ) -> None:
         self._lsp = lsp_client
         self._adapter = adapter
         self._root = project_root.resolve()
+        # 0 means "one server at a time", so the recycler uses the whole allowance.
+        self._memory_budget_bytes = memory_budget_bytes
 
         self._symbol_table = SymbolTable(adapter)
         self._source_inspector = SourceInspector()
@@ -125,7 +128,12 @@ class CallGraphBuilder:
         """A recycler for servers whose memory the references phase would otherwise grow without bound."""
         if not self._adapter.workspace_owns_documents or not source_files:
             return None
-        return LSPRecycler(self._lsp, source_files[0], self._probe_timeout(len(source_files)))
+        return LSPRecycler(
+            self._lsp,
+            source_files[0],
+            self._probe_timeout(len(source_files)),
+            budget_bytes=self._memory_budget_bytes,
+        )
 
     def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> EdgeMap:
         """Dispatch to the edge-building strategy specified by the adapter."""
