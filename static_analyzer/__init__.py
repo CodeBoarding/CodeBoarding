@@ -1,5 +1,8 @@
 import logging
+import os
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,6 +17,7 @@ from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_recycler import default_memory_budget, per_engine_memory_budget
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
@@ -46,6 +50,50 @@ class EngineConfig:
 
 class StaticAnalysisFatalError(RuntimeError):
     """Raised when continuing would produce misleading cached analysis."""
+
+
+MAX_CONCURRENT_ENGINES_ENV_VAR = "CODEBOARDING_MAX_CONCURRENT_ENGINES"
+
+
+# An engine costs ~3 cores: the server's own peak (~1.9, measured on csharp-ls),
+# its dotnet children, and the tree-sitter parsing the same pass runs in Python.
+CORES_PER_ENGINE = 3
+
+# Peak RSS per engine, measured on abp at cap=4 (7.09GB across four servers).
+ENGINE_MEMORY_FOOTPRINT_BYTES = 2 * 1024**3
+
+
+def max_concurrent_engines() -> int:
+    """How many engine LSP servers may be resident at once. 0 disables the bound.
+
+    Why off by default: the bound hands each client's lifetime to the full pass,
+    so warm-start and the editor-facing file queries have no live client to use.
+    They refuse to run rather than answer emptily — see ``_live_clients``.
+    """
+    raw = os.environ.get(MAX_CONCURRENT_ENGINES_ENV_VAR, "").strip()
+    if not raw:
+        return 0
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning("Ignoring non-integer %s=%r; the bound stays off", MAX_CONCURRENT_ENGINES_ENV_VAR, raw)
+        return 0
+    if value < 0:
+        logger.warning("Ignoring negative %s=%r; the bound stays off", MAX_CONCURRENT_ENGINES_ENV_VAR, raw)
+        return 0
+    return value
+
+
+def recommended_engine_concurrency(engine_count: int) -> int:
+    """Engine concurrency bounded by available work, cores, and memory.
+
+    Why the memory term: ``default_memory_budget()`` is what one server may grow
+    to before the recycler restarts it, so ``cap`` servers are expected to hold
+    about that much between them. It binds well before CPU on a large host.
+    """
+    cpu_bound = (os.cpu_count() or CORES_PER_ENGINE) // CORES_PER_ENGINE
+    memory_bound = default_memory_budget() // ENGINE_MEMORY_FOOTPRINT_BYTES
+    return max(1, min(engine_count, cpu_bound, memory_bound))
 
 
 def _create_engine_configs(
@@ -175,6 +223,9 @@ class StaticAnalyzer:
         self.programming_langs = ProjectScanner(self.repository_path).scan()
         self._engine_configs = _create_engine_configs(self.programming_langs, self.repository_path, self.ignore_manager)
         self._engine_clients: list[tuple[EngineConfig, LSPClient]] = []
+        # (language, project) -> the failure preparation raised, or None.
+        self._prepared_projects: dict[tuple[str, Path], Exception | None] = {}
+        self._prepared_lock = threading.Lock()
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
         self._cached_results: StaticAnalysisResults | None = None
@@ -244,47 +295,12 @@ class StaticAnalyzer:
                 continue
 
             attempted.append(adapter.language)
-            engine_client: LSPClient | None = None
+            if max_concurrent_engines():
+                # Deferred: the full pass owns the lifetime so only a bounded
+                # number of servers are resident at once.
+                continue
             try:
-                logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
-                t_start = time.monotonic()
-                # Allow adapters to prepare the project before LSP startup
-                # (e.g. ``dotnet restore`` so csharp-ls sees framework refs).
-                adapter.prepare_project(project_path)
-                command = adapter.get_lsp_command(project_path)
-                init_options = adapter.get_lsp_init_options(self.ignore_manager)
-                extra_env = adapter.get_lsp_env(project_path)
-                # Node-based LSPs spawn child ``node`` processes by name; on
-                # a Node-less host the embedded runtime's dir must be on PATH.
-                ensure_node_on_path(command, extra_env)
-                workspace_settings = adapter.get_workspace_settings()
-                extra_capabilities = getattr(adapter, "extra_client_capabilities", {}) or {}
-                engine_client = LSPClient(
-                    command=command,
-                    project_root=project_path,
-                    init_options=init_options,
-                    default_timeout=adapter.get_lsp_default_timeout(),
-                    collect_diagnostics=True,
-                    extra_env=extra_env,
-                    workspace_settings=workspace_settings,
-                    extra_client_capabilities=extra_capabilities,
-                )
-                engine_client.start()
-                t_lsp_started = time.monotonic()
-                logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
-
-                # Some LSP servers (JDTLS, rust-analyzer) load
-                # workspace metadata asynchronously and only respond to
-                # cross-file queries once that's complete. Adapters opt in
-                # via ``wait_for_workspace_ready`` so the language-name
-                # check doesn't keep growing.
-                if adapter.wait_for_workspace_ready:
-                    engine_client.wait_for_server_ready()
-                    adapter.validate_workspace_ready(engine_client)
-                    logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
-
-                started.append((engine_config, engine_client))
-
+                started.append((engine_config, self._spawn_engine_client(engine_config)))
             except Exception as exc:
                 logger.exception(
                     f"Failed to start engine LSP client for {adapter.language}; "
@@ -292,16 +308,28 @@ class StaticAnalyzer:
                 )
                 failed_languages.append(adapter.language)
                 failed_details.append(f"{adapter.language}: {exc}")
-                if engine_client is not None:
-                    try:
-                        engine_client.shutdown()
-                    except Exception:
-                        logger.exception(
-                            f"Error shutting down partially-started {adapter.language} client during cleanup"
-                        )
 
         if not attempted:
             logger.info(f"No source files for any detected language in {self.repository_path}; no LSP clients started.")
+            self._engine_clients = []
+            self._clients_started = True
+            return
+
+        if max_concurrent_engines():
+            logger.info(
+                "%d engine LSP client(s) will start during analysis, at most %d running at a time.",
+                len(attempted),
+                max_concurrent_engines(),
+            )
+            # Prepare everything now, while nothing is resident: a project must
+            # not be analyzed before its siblings are restored.
+            for engine_config in self._engine_configs:
+                if not engine_config.source_files:
+                    continue
+                try:
+                    self._prepare_project_once(engine_config)
+                except Exception:
+                    logger.exception(f"Failed to prepare {engine_config.project_path}; the full pass will report it")
             self._engine_clients = []
             self._clients_started = True
             return
@@ -322,6 +350,79 @@ class StaticAnalyzer:
 
         self._engine_clients = started
         self._clients_started = True
+
+    def _prepare_project_once(self, engine_config: EngineConfig) -> None:
+        """Let the adapter prepare a project exactly once (e.g. ``dotnet restore``).
+
+        Why once, and why up front under a concurrency cap: restore writes the
+        ``obj/`` artifacts a sibling project's compilation resolves against, so
+        an engine that runs before its siblings are restored loses cross-project
+        edges. Preparing every project before the first server starts keeps the
+        bounded pass resolving exactly what the unbounded one does.
+
+        A failure is remembered and re-raised rather than retried: preparation
+        installs SDKs into a shared directory, so several engines retrying it
+        concurrently is worse than one engine reporting it.
+        """
+        key = (engine_config.adapter.language, engine_config.project_path)
+        with self._prepared_lock:
+            if key in self._prepared_projects:
+                failure = self._prepared_projects[key]
+                if failure is not None:
+                    raise failure
+                return
+        outcome: Exception | None = None
+        try:
+            engine_config.adapter.prepare_project(engine_config.project_path)
+        except Exception as exc:
+            outcome = exc
+            raise
+        finally:
+            with self._prepared_lock:
+                self._prepared_projects[key] = outcome
+
+    def _spawn_engine_client(self, engine_config: EngineConfig) -> LSPClient:
+        """Start one engine's LSP server and return it ready for queries."""
+        adapter, project_path = engine_config.adapter, engine_config.project_path
+        logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
+        t_start = time.monotonic()
+        self._prepare_project_once(engine_config)
+        command = adapter.get_lsp_command(project_path)
+        init_options = adapter.get_lsp_init_options(self.ignore_manager)
+        extra_env = adapter.get_lsp_env(project_path)
+        # Node-based LSPs spawn child ``node`` processes by name; on
+        # a Node-less host the embedded runtime's dir must be on PATH.
+        ensure_node_on_path(command, extra_env)
+        engine_client = LSPClient(
+            command=command,
+            project_root=project_path,
+            init_options=init_options,
+            default_timeout=adapter.get_lsp_default_timeout(),
+            collect_diagnostics=True,
+            extra_env=extra_env,
+            workspace_settings=adapter.get_workspace_settings(),
+            extra_client_capabilities=getattr(adapter, "extra_client_capabilities", {}) or {},
+        )
+        try:
+            engine_client.start()
+            t_lsp_started = time.monotonic()
+            logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
+
+            # Some LSP servers (JDTLS, rust-analyzer) load workspace metadata
+            # asynchronously and only respond to cross-file queries once that's
+            # complete. Adapters opt in via ``wait_for_workspace_ready`` so the
+            # language-name check doesn't keep growing.
+            if adapter.wait_for_workspace_ready:
+                engine_client.wait_for_server_ready()
+                adapter.validate_workspace_ready(engine_client)
+                logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
+        except Exception:
+            try:
+                engine_client.shutdown()
+            except Exception:
+                logger.exception(f"Error shutting down partially-started {adapter.language} client during cleanup")
+            raise
+        return engine_client
 
     def stop_clients(self) -> None:
         """Gracefully shut down all engine LSP server processes. Idempotent.
@@ -366,6 +467,23 @@ class StaticAnalyzer:
         except Exception:
             logger.exception("Failed to persist static analysis pkl during stop_clients; continuing teardown")
 
+    def _live_clients(self, operation: str) -> list[tuple[EngineConfig, LSPClient]]:
+        """The started engine clients, refusing callers the concurrency bound cannot serve.
+
+        Why: under ``CODEBOARDING_MAX_CONCURRENT_ENGINES`` the full pass owns
+        each client's lifetime, so nothing is resident outside it. Every caller
+        below iterates the client list, and an empty one reads as a successful
+        empty answer — for warm-start that answer is then persisted over a good
+        cache, so a loud refusal is the only safe reading of this state.
+        """
+        if self._engine_clients or not any(config.source_files for config in self._engine_configs):
+            return self._engine_clients
+        raise StaticAnalysisFatalError(
+            f"{operation} needs live LSP clients, but {MAX_CONCURRENT_ENGINES_ENV_VAR}="
+            f"{max_concurrent_engines()} defers them to the full pass. Unset it, or run a full "
+            "analysis (skip_cache=True) so the pass owns the servers."
+        )
+
     def collect_fresh_diagnostics(self) -> dict[Language, FileDiagnosticsMap]:
         """Read current diagnostics from all running LSP clients without re-analyzing.
 
@@ -374,7 +492,7 @@ class StaticAnalyzer:
         diagnostics without triggering any new analysis work.
         """
         result: dict[Language, FileDiagnosticsMap] = {}
-        for engine_config, client in self._engine_clients:
+        for engine_config, client in self._live_clients("collect_fresh_diagnostics"):
             diags = client.get_collected_diagnostics()
             if diags:
                 result[engine_config.adapter.language_enum] = diags
@@ -382,7 +500,9 @@ class StaticAnalyzer:
 
     def get_diagnostics_generation(self) -> int:
         """Return the sum of diagnostics generation counters across all LSP clients."""
-        return sum(client.get_diagnostics_generation() for _, client in self._engine_clients)
+        return sum(
+            client.get_diagnostics_generation() for _, client in self._live_clients("get_diagnostics_generation")
+        )
 
     def load_cached_analysis(
         self,
@@ -433,7 +553,7 @@ class StaticAnalyzer:
             content:   Full current text content of the file.
         """
         suffix = file_path.suffix
-        for engine_config, client in self._engine_clients:
+        for engine_config, client in self._live_clients("notify_file_changed"):
             adapter = engine_config.adapter
             if suffix in adapter.file_extensions:
                 # Open + change to ensure the server has the latest content
@@ -455,7 +575,7 @@ class StaticAnalyzer:
             Returns an empty list if no matching client is found.
         """
         suffix = file_path.suffix
-        for engine_config, client in self._engine_clients:
+        for engine_config, client in self._live_clients("get_file_symbols"):
             if suffix in engine_config.adapter.file_extensions:
                 try:
                     symbols = client.document_symbol(file_path)
@@ -469,7 +589,7 @@ class StaticAnalyzer:
     def get_adapter_for_file(self, file_path: Path) -> tuple[LanguageAdapter, Path] | None:
         """Return the (adapter, project_root) pair that handles a given file extension."""
         suffix = file_path.suffix
-        for engine_config, _ in self._engine_clients:
+        for engine_config, _ in self._live_clients("get_adapter_for_file"):
             if suffix in engine_config.adapter.file_extensions:
                 return engine_config.adapter, engine_config.project_path
         return None
@@ -492,7 +612,12 @@ class StaticAnalyzer:
         """
         suffix = file_path.suffix
         client = next(
-            (c for engine_config, c in self._engine_clients if suffix in engine_config.adapter.file_extensions), None
+            (
+                c
+                for engine_config, c in self._live_clients("discover_file_dependencies")
+                if suffix in engine_config.adapter.file_extensions
+            ),
+            None,
         )
         if client is None:
             return []
@@ -597,37 +722,98 @@ class StaticAnalyzer:
         explicitly requested ``skip_cache=True``.
         """
         results = StaticAnalysisResults()
-        for engine_config, engine_client in self._engine_clients:
+        absorb_lock = threading.Lock()
+        spawned: list[str] = []
+        spawn_failures: list[str] = []
+        # Keyed by position in the engine list so results merge in configuration
+        # order. The merges replace on key collision, and overlapping configs
+        # (nested solution roots) do collide, so completion order would let two
+        # identical runs keep different nodes and produce different component IDs.
+        completed: dict[int, tuple[Language, dict]] = {}
+
+        def run_one(engine_config: EngineConfig, engine_client: LSPClient | None, order: int = 0) -> None:
+            """Analyze one engine. Owns the client's lifetime when given none."""
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.language_enum
             t_lang_start = time.monotonic()
+            owned_client: LSPClient | None = None
             try:
+                if engine_client is None:
+                    try:
+                        owned_client = self._spawn_engine_client(engine_config)
+                    except Exception as exc:
+                        with absorb_lock:
+                            spawn_failures.append(f"{adapter.language}: {exc}")
+                        raise
+                    with absorb_lock:
+                        spawned.append(adapter.language)
+                    engine_client = owned_client
                 logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
                 analysis = self._run_full_analysis(engine_config, engine_client)
-                self._absorb_into_results(results, language, analysis)
                 duration_ms = round((time.monotonic() - t_lang_start) * 1000)
                 logger.info(f"Engine analysis for {adapter.language} completed in {duration_ms / 1000:.1f}s")
-                self._collect_diagnostics_for(adapter, engine_client, analysis)
-                track_lsp_result(
-                    language=adapter.language_enum.value,
-                    loc=self._loc_for_adapter(adapter),
-                    status="success",
-                    duration_ms=duration_ms,
-                    analysis=analysis,
-                    diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
-                )
+                with absorb_lock:
+                    completed[order] = (language, analysis)
+                    self._collect_diagnostics_for(adapter, engine_client, analysis)
+                    track_lsp_result(
+                        language=adapter.language_enum.value,
+                        loc=self._loc_for_adapter(adapter),
+                        status="success",
+                        duration_ms=duration_ms,
+                        analysis=analysis,
+                        diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
+                    )
             except StaticAnalysisFatalError:
                 raise
             except Exception as e:
                 logger.error(f"Error during engine analysis for {adapter.language}: {e}")
-                track_lsp_result(
-                    language=adapter.language_enum.value,
-                    loc=self._loc_for_adapter(adapter),
-                    status="error",
-                    duration_ms=round((time.monotonic() - t_lang_start) * 1000),
-                    analysis={},
-                    diagnostics={},
+                with absorb_lock:
+                    track_lsp_result(
+                        language=adapter.language_enum.value,
+                        loc=self._loc_for_adapter(adapter),
+                        status="error",
+                        duration_ms=round((time.monotonic() - t_lang_start) * 1000),
+                        analysis={},
+                        diagnostics={},
+                    )
+            finally:
+                # Only shut down what this call started; eagerly-started clients
+                # stay up for the incremental and file-query paths.
+                if owned_client is not None:
+                    try:
+                        owned_client.shutdown()
+                    except Exception:
+                        logger.exception(f"Error shutting down {adapter.language} client for {project_path}")
+
+        cap = max_concurrent_engines()
+        if not cap:
+            for order, (engine_config, engine_client) in enumerate(self._engine_clients):
+                run_one(engine_config, engine_client, order)
+        else:
+            pending = [cfg for cfg in self._engine_configs if cfg.source_files]
+            logger.info("Running %d engine(s) with at most %d resident at a time", len(pending), cap)
+            # Not ``with``: its ``__exit__`` waits without cancelling, so one
+            # engine's fatal error would still drain every queued engine — a full
+            # pass over a monorepo — before propagating. Cancel the queue, then
+            # wait so each in-flight ``run_one`` still shuts its own client down.
+            pool = ThreadPoolExecutor(max_workers=cap)
+            try:
+                futures = [pool.submit(run_one, cfg, None, order) for order, cfg in enumerate(pending)]
+                for future in as_completed(futures):
+                    future.result()
+            finally:
+                pool.shutdown(wait=True, cancel_futures=True)
+            if pending and not spawned:
+                details = f"; failures: {'; '.join(spawn_failures)}" if spawn_failures else ""
+                raise RuntimeError(
+                    "Failed to start any engine LSP client "
+                    f"(attempted: {', '.join(cfg.adapter.language for cfg in pending)}){details}"
                 )
+
+        for order in sorted(completed):
+            language, analysis = completed[order]
+            self._absorb_into_results(results, language, analysis)
+
         summaries = []
         for language in results.get_languages():
             try:
@@ -666,7 +852,7 @@ class StaticAnalyzer:
         output.
         """
         results = StaticAnalysisResults()
-        for engine_config, engine_client in self._engine_clients:
+        for engine_config, engine_client in self._live_clients("warm-start"):
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.language_enum
             cached_lang_dict = self._extract_language_dict(cached_results, language)
@@ -778,7 +964,10 @@ class StaticAnalyzer:
                 f"Diagnostics for {adapter.language}: {len(merged_diags)} files, {total} items "
                 f"(cache={len(cache_diags)}, live={len(live_diags)})"
             )
-        self.collected_diagnostics[adapter.language_enum] = merged_diags
+        # Merge, not replace: a monorepo yields several configs per language, and
+        # replacing kept only whichever finished last -- which under the concurrency
+        # bound is a different one run to run.
+        self.collected_diagnostics.setdefault(adapter.language_enum, {}).update(merged_diags)
 
     def _loc_for_adapter(self, adapter: LanguageAdapter) -> int:
         """Return scanner LOC that should have been covered by this adapter."""
@@ -818,7 +1007,12 @@ class StaticAnalyzer:
         logger.info(f"Analyzing {len(source_files)} {adapter.language} files")
 
         t_build_start = time.monotonic()
-        builder = CallGraphBuilder(engine_client, adapter, project_path)
+        builder = CallGraphBuilder(
+            engine_client,
+            adapter,
+            project_path,
+            memory_budget_bytes=per_engine_memory_budget(max(max_concurrent_engines(), 1)),
+        )
         engine_result = builder.build(source_files)
         logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")
         if adapter.fail_on_empty_symbols is True and not builder.symbol_table.symbols:
@@ -835,7 +1029,9 @@ class StaticAnalyzer:
 
     def _validate_analysis_results(self, results: StaticAnalysisResults) -> None:
         """Reject non-empty language buckets that would otherwise cache zero-symbol output."""
-        for engine_config, _ in self._engine_clients:
+        # Configs, not clients: under a concurrency cap the full pass owns each
+        # client's lifetime, so none are live by the time this runs.
+        for engine_config in self._engine_configs:
             adapter = engine_config.adapter
             if adapter.fail_on_empty_symbols is not True:
                 continue

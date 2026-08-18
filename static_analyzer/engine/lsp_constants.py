@@ -30,6 +30,9 @@ DID_OPEN_BATCH_SIZE = 50
 MEMORY_BUDGET_FRACTION = 0.4
 MIN_MEMORY_BUDGET = 2 * 1024**3
 MAX_MEMORY_BUDGET = 12 * 1024**3
+# Smallest useful share when several servers are resident: below this a server
+# recycles faster than it can index.
+MIN_ENGINE_MEMORY_BUDGET = 1024**3
 
 # Reduce reference-query concurrency before reaching the recycle threshold.
 PRESSURE_FRACTION = 0.5

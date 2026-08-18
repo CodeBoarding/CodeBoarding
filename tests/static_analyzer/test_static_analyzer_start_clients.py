@@ -147,7 +147,7 @@ class TestStartClientsGracefulDegradation:
 
     def test_validate_rejects_empty_symbol_csharp_result(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         cs_adapter = _make_adapter("CSharp", language_enum=Language.CSHARP, fail_on_empty_symbols=True)
-        analyzer._engine_clients = [(EngineConfig(cs_adapter, tmp_path), MagicMock())]
+        analyzer._engine_configs = [EngineConfig(cs_adapter, tmp_path)]
 
         results = StaticAnalysisResults()
         results.add_source_files(Language.CSHARP, [str(tmp_path / "Program.cs")])
@@ -157,7 +157,7 @@ class TestStartClientsGracefulDegradation:
 
     def test_validate_ignores_empty_non_opted_language(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python", language_enum=Language.PYTHON, fail_on_empty_symbols=False)
-        analyzer._engine_clients = [(EngineConfig(py_adapter, tmp_path), MagicMock())]
+        analyzer._engine_configs = [EngineConfig(py_adapter, tmp_path)]
 
         results = StaticAnalysisResults()
         results.add_source_files(Language.PYTHON, [str(tmp_path / "app.py")])
