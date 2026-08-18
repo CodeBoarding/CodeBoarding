@@ -33,10 +33,7 @@ from agents.validation import (
 )
 from monitoring import trace
 from static_analyzer import StaticAnalysisFatalError
-from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_helpers import build_all_cluster_results
-from static_analyzer.constants import Language
 from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 
 logger = logging.getLogger(__name__)
@@ -79,22 +76,6 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 ],
             ),
         }
-
-    @trace
-    def step_clusters_grouping(self, cluster_results: dict[str, ClusterResult]) -> ClusterAnalysis:
-        """Deterministically partition leaf clusters into the top-level component groups.
-
-        Resolution-tuned Leiden picks both the count (modularity peak over
-        ``[5, 8]``) and the membership, so the top-level structure is stable across
-        re-runs — the LLM no longer decides it; it only names them in the
-        final-analysis step.
-        """
-        logger.info(f"[AbstractionAgent] Super-clustering leaf clusters for: {self.project_name}")
-        cfg_graphs = {
-            lang: self.static_analysis.get_cfg(Language(lang)).to_networkx(DEFAULT_REFERENCE_KINDS)
-            for lang in cluster_results
-        }
-        return self.deterministic_cluster_grouping(cluster_results, cfg_graphs)
 
     @trace
     def step_final_analysis(
@@ -195,11 +176,6 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
     def run_scope(self, scope: ClusterScopeResult) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
         """Name and analyze a precomputed root clustering scope."""
         return self._run_clustered(self.cluster_analysis_from_scope(scope), scope.partitions)
-
-    def run(self) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
-        """Cluster and analyze the root scope directly."""
-        cluster_results = build_all_cluster_results(self.static_analysis)
-        return self._run_clustered(self.step_clusters_grouping(cluster_results), cluster_results)
 
     def _run_clustered(
         self,

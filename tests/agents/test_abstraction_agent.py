@@ -3,8 +3,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import networkx as nx
-
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import (
     AnalysisInsights,
@@ -80,82 +78,6 @@ class TestAbstractionAgent(unittest.TestCase):
             agent_llm=MagicMock(),
             parsing_llm=MagicMock(),
         )
-
-    @staticmethod
-    def _clustered_graph(cluster_ids):
-        """A ClusterResult + matching nx graph: one chained pair of nodes per cluster id."""
-        clusters, cluster_to_files, file_to_clusters = {}, {}, {}
-        graph = nx.DiGraph()
-        for cid in cluster_ids:
-            nodes = [f"pkg.mod{cid}.a", f"pkg.mod{cid}.b"]
-            clusters[cid] = set(nodes)
-            path = f"/repo/mod{cid}.py"
-            cluster_to_files[cid] = {path}
-            file_to_clusters[path] = {cid}
-            for node in nodes:
-                graph.add_node(node, file_path=path)
-            graph.add_edge(nodes[0], nodes[1])
-        # Chain consecutive clusters so the meta-graph is connected.
-        ids = list(cluster_ids)
-        for prev, cur in zip(ids, ids[1:]):
-            graph.add_edge(f"pkg.mod{prev}.b", f"pkg.mod{cur}.a")
-        cr = ClusterResult(
-            clusters=clusters, cluster_to_files=cluster_to_files, file_to_clusters=file_to_clusters, strategy="test"
-        )
-        return cr, graph
-
-    def _assert_partition(self, result, expected_ids):
-        self.assertIsInstance(result, ClusterAnalysis)
-        self.assertGreaterEqual(len(result.cluster_components), 1)
-        # Names are the deterministic Group-1..N labels.
-        self.assertEqual(
-            [cc.name for cc in result.cluster_components],
-            [f"Group {i}" for i in range(1, len(result.cluster_components) + 1)],
-        )
-        # Every leaf cluster is owned by exactly one group (a true partition).
-        assigned = [cid for cc in result.cluster_components for cid in cc.cluster_ids]
-        self.assertEqual(sorted(assigned), sorted(expected_ids))
-        self.assertEqual(len(assigned), len(set(assigned)))
-
-    def test_step_clusters_grouping_single_language(self):
-        agent = self._make_agent()
-        cr, graph = self._clustered_graph(range(1, 13))
-        self.mock_static_analysis.get_cfg.return_value.to_networkx.return_value = graph
-        cluster_results = {"python": cr}
-
-        result = agent.step_clusters_grouping(cluster_results)
-        result_again = agent.step_clusters_grouping(cluster_results)
-
-        self._assert_partition(result, list(range(1, 13)))
-        # Deterministic: same membership on a re-run.
-        self.assertEqual(
-            [sorted(cc.cluster_ids) for cc in result.cluster_components],
-            [sorted(cc.cluster_ids) for cc in result_again.cluster_components],
-        )
-
-    def test_step_clusters_grouping_multiple_languages(self):
-        self.mock_static_analysis.get_languages.return_value = ["python", "javascript"]
-        agent = self._make_agent()
-        # Globally-unique cluster ids across languages, sharing one combined graph.
-        _, graph = self._clustered_graph(range(1, 13))
-        py_cr, _ = self._clustered_graph(range(1, 7))
-        js_cr, _ = self._clustered_graph(range(7, 13))
-        self.mock_static_analysis.get_cfg.return_value.to_networkx.return_value = graph
-        cluster_results = {"python": py_cr, "javascript": js_cr}
-
-        result = agent.step_clusters_grouping(cluster_results)
-
-        self._assert_partition(result, list(range(1, 13)))
-        self.mock_static_analysis.get_cfg.assert_called()
-
-    def test_step_clusters_grouping_no_languages(self):
-        self.mock_static_analysis.get_languages.return_value = []
-        agent = self._make_agent()
-
-        result = agent.step_clusters_grouping({})
-
-        self.assertIsInstance(result, ClusterAnalysis)
-        self.assertEqual(result.cluster_components, [])
 
     def test_run_scope_uses_the_precomputed_groups(self):
         agent = self._make_agent()

@@ -9,8 +9,6 @@ import logging
 from collections import Counter
 from pathlib import Path
 
-import networkx as nx
-
 from agents.agent_responses import (
     AnalysisInsights,
     ScopeOperation,
@@ -19,15 +17,9 @@ from agents.agent_responses import (
     ScopeUpdateDecision,
 )
 from agents.cluster_ids import CodeBoardingClusterIds
-from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cluster_helpers import (
-    SUBCOMPONENTS_MAX,
-    SUBCOMPONENTS_MIN,
-    TOP_LEVEL_COMPONENTS_MAX,
-    TOP_LEVEL_COMPONENTS_MIN,
-    anchored_grouping,
     combine_cluster_results,
     group_symbols,
 )
@@ -97,54 +89,6 @@ def previous_ownership(
             if qualified in claimed_ids:
                 owner[cluster_id] = claimed_ids[qualified]
     return owner
-
-
-def plan_scope_update(
-    scope_id: str,
-    scope: AnalysisInsights,
-    cluster_results: dict[str, ClusterResult],
-    cfg_graphs: dict[str, nx.DiGraph],
-    changed_members: set[str],
-    repo_dir: Path,
-) -> ScopeUpdateDecision:
-    """The operations that carry this scope's components onto the new clustering.
-
-    ``UPDATE_COMPONENT`` for a component whose cluster set moved or whose code was edited;
-    ``CREATE_COMPONENT`` only for a group with no predecessor; ``DELETE_COMPONENT`` only
-    for a component left with nothing. Names and descriptions are deliberately absent —
-    ``update_scope`` leaves the existing wording alone.
-
-    A component that comes out of the grouping holding exactly what it already held gets
-    **no operation at all**. An operation is not free: ``update_scope`` puts its target in
-    ``refresh_ids``, which reruns the LLM relation analysis for the whole scope, and
-    ``_remove_reassigned_clusters`` strips and restores the referenced clusters. Emitting
-    one per survivor therefore relabels every relation in the tree on a one-line diff.
-    """
-    combined = combine_cluster_results(cluster_results)
-    combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
-
-    is_root = scope_id == ROOT_SCOPE_ID
-    low = TOP_LEVEL_COMPONENTS_MIN if is_root else SUBCOMPONENTS_MIN
-    high = TOP_LEVEL_COMPONENTS_MAX if is_root else SUBCOMPONENTS_MAX
-
-    previous = previous_ownership(scope, cluster_results, scope_id, repo_dir)
-    grouping = anchored_grouping(combined, combined_cfg, previous, low, high)
-    groups = [
-        ClusterGroup(
-            group_id=owner,
-            cluster_ids=sorted(cluster_ids),
-            previous_component_id=owner,
-        )
-        for cluster_ids, owner in zip(grouping.groups, grouping.owners, strict=True)
-    ]
-    return _plan_scope_operations(
-        scope_id,
-        scope,
-        cluster_results,
-        groups,
-        changed_members,
-        grouping.regrouped,
-    )
 
 
 def plan_scope_result_update(

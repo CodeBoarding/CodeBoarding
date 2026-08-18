@@ -247,7 +247,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
 
     def run(self, component: Component) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
-        """Cluster and analyze one component scope directly."""
+        """Recluster one component for the partial-analysis workflow."""
         logger.info(f"[DetailsAgent] Processing component: {component.name}")
         subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(
             component, source_cluster_id_prefix=component.component_id

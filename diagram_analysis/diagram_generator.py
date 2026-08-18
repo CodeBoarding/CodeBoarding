@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import networkx as nx
 from langchain_core.language_models import BaseChatModel
 
 from agents.abstraction_agent import AbstractionAgent
@@ -45,25 +44,17 @@ from diagram_analysis.analysis_json import (
     NotAnalyzedFile,
 )
 from diagram_analysis.cluster_delta import (
-    ChangedMembers,
-    ClusterDelta,
-    LanguageDelta,
-    StructuralClusterDiff,
     _delta_for_language,
     compute_changed_members,
     compute_cluster_delta,
-    structural_diff_from_delta,
 )
-from diagram_analysis.cluster_snapshot import (
-    ClusterSnapshot,
-    snapshot_from_static_analysis,
-)
+from diagram_analysis.cluster_snapshot import snapshot_from_static_analysis
 from diagram_analysis.exceptions import IncrementalCacheMissingError, ScopeContainmentError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from repo_utils.path_utils import normalize_repo_path
-from diagram_analysis.scope_plan import plan_scope_result_update, plan_scope_update, previous_ownership
+from diagram_analysis.scope_plan import plan_scope_result_update, previous_ownership
 from diagram_analysis.tree_shape import absorb_single_child_components
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -664,7 +655,21 @@ class DiagramGenerator:
     def process_component(
         self, component: Component
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
-        return self._process_component(component)
+        """Recluster one component for partial analysis."""
+        try:
+            assert self.details_agent is not None
+            analysis, _ = self.details_agent.run(component)
+            new_components = get_expandable_components(
+                analysis,
+                parent_had_clusters=bool(component.source_cluster_ids),
+                separable=self._component_separable,
+            )
+            return component.component_id, analysis, new_components
+        except LLMAuthError:
+            raise
+        except Exception as e:
+            logging.error(f"Error processing component {component.name}: {e}")
+            return None, None, []
 
     def _index_clustering_hierarchy(
         self,
@@ -848,23 +853,15 @@ class DiagramGenerator:
     def _process_component(
         self, component: Component
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
-        """Process a single component and return its name, sub-analysis, and new components to analyze."""
+        """Analyze a component from its precomputed hierarchy scope."""
         try:
             assert self.details_agent is not None
-
             preclustered = self._preclustered_scopes.get(component.component_id)
-            if preclustered is not None:
-                scope, cfgs = preclustered
-                analysis, _ = self.details_agent.run_scope(component, scope, cfgs)
-                new_components = [
-                    child for child in analysis.components if child.component_id in self._preclustered_scopes
-                ]
-            else:
-                analysis, _ = self.details_agent.run(component)
-                parent_had_clusters = bool(component.source_cluster_ids)
-                new_components = get_expandable_components(
-                    analysis, parent_had_clusters=parent_had_clusters, separable=self._component_separable
-                )
+            if preclustered is None:
+                raise ValueError(f"No precomputed clustering scope for component {component.component_id}")
+            scope, cfgs = preclustered
+            analysis, _ = self.details_agent.run_scope(component, scope, cfgs)
+            new_components = [child for child in analysis.components if child.component_id in self._preclustered_scopes]
 
             return component.component_id, analysis, new_components
         except LLMAuthError:
@@ -1267,18 +1264,13 @@ class DiagramGenerator:
 
             assert self.abstraction_agent is not None
 
-            if self.static_analysis is not None:
-                hierarchy = build_clustering_hierarchy(self.static_analysis, self.depth_level)
-                self._index_clustering_hierarchy(hierarchy, self.static_analysis.available_cfgs())
-                analysis, _cluster_results = self.abstraction_agent.run_scope(hierarchy)
-                root_components = [
-                    component
-                    for component in analysis.components
-                    if component.component_id in self._preclustered_scopes
-                ]
-            else:
-                analysis, _cluster_results = self.abstraction_agent.run()
-                root_components = get_expandable_components(analysis, separable=self._component_separable)
+            assert self.static_analysis is not None
+            hierarchy = build_clustering_hierarchy(self.static_analysis, self.depth_level)
+            self._index_clustering_hierarchy(hierarchy, self.static_analysis.available_cfgs())
+            analysis, _cluster_results = self.abstraction_agent.run_scope(hierarchy)
+            root_components = [
+                component for component in analysis.components if component.component_id in self._preclustered_scopes
+            ]
             logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
             # Process components using a frontier queue: submit children as soon as parent finishes.
@@ -1460,64 +1452,6 @@ class DiagramGenerator:
             if parent_keys != child_keys:
                 _reconcile_child_scope(component, child_scope, parent_keys, child_keys, self.repo_location)
             self._rescope_child_analyses(child_scope, sub_analyses, preserved_ids)
-
-    def _apply_incremental_scope_recursively(
-        self,
-        scope_id: str,
-        scope: AnalysisInsights,
-        cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, nx.DiGraph],
-        sub_analyses: dict[str, AnalysisInsights],
-        changed_members: ChangedMembers | None,
-    ) -> RecursiveScopeUpdateResult:
-        assert self.incremental_agent is not None
-        # Structure is derived, not asked for — see diagram_analysis/scope_plan.py.
-        decision = plan_scope_update(
-            scope_id, scope, cluster_results, cfg_graphs, self._changed_members, self.repo_location
-        )
-        apply_result = self.incremental_agent.update_scope(scope_id, scope, decision, cluster_results)
-        result = RecursiveScopeUpdateResult(
-            refresh_ids=set(apply_result.refresh_ids),
-            new_component_ids=set(apply_result.new_component_ids),
-            removed_ids=set(apply_result.removed_ids),
-        )
-        if apply_result.refresh_ids or apply_result.removed_ids:
-            result.relation_contexts[scope_id] = apply_result.relation_context
-
-        components_by_id = {
-            component.component_id: component for component in scope.components if component.component_id
-        }
-        existing_refresh_ids = apply_result.refresh_ids - apply_result.new_component_ids
-        for component_id in sorted(existing_refresh_ids):
-            child_scope = sub_analyses.get(component_id)
-            child_component = components_by_id.get(component_id)
-            if child_scope is None or child_component is None or _component_depth(component_id) >= self.depth_level:
-                continue
-            child_cluster_results, child_cfgs, child_diff = _build_scope_incremental_inputs(
-                child_component,
-                component_id,
-                self.incremental_agent,
-                self.changes,
-                self.repo_location,
-                changed_members,
-            )
-            if not child_diff.has_changes:
-                continue
-            if not _child_scope_needs_recursive_update(child_scope, child_diff):
-                continue
-            child_result = self._apply_incremental_scope_recursively(
-                component_id,
-                child_scope,
-                child_cluster_results,
-                child_cfgs,
-                sub_analyses,
-                changed_members,
-            )
-            result.refresh_ids |= child_result.refresh_ids
-            result.new_component_ids |= child_result.new_component_ids
-            result.removed_ids |= child_result.removed_ids
-            result.relation_contexts.update(child_result.relation_contexts)
-        return result
 
     def _apply_incremental_hierarchy(
         self,
@@ -1827,90 +1761,6 @@ def _drop_removed_subtree_analyses(sub_analyses: dict[str, AnalysisInsights], re
         for scope_id in list(sub_analyses):
             if is_self_or_descendant(scope_id, removed_id):
                 del sub_analyses[scope_id]
-
-
-def _child_scope_needs_recursive_update(
-    child_scope: AnalysisInsights,
-    structural_diff: StructuralClusterDiff,
-) -> bool:
-    owned_qnames = {
-        method.qualified_name
-        for component in child_scope.components
-        for group in component.file_methods
-        for method in group.methods
-        if method.qualified_name
-    }
-    # A module-level edit no member represents surfaces only as dirty_files, so match on the
-    # child's owned files too — otherwise a pure import/constant edit in a file this expanded
-    # child owns refreshes the parent but leaves the child's descriptions/relations stale.
-    owned_files = {
-        normalize_repo_path(group.file_path)
-        for component in child_scope.components
-        for group in component.file_methods
-        if group.file_path
-    }
-    changed_qnames: set[str] = set()
-    dirty_files: set[str] = set()
-    for diff in structural_diff.by_language.values():
-        for member_delta in [*diff.modified, *diff.new_details]:
-            changed_qnames.update(member_delta.removed_methods, member_delta.added_methods, member_delta.dirty_members)
-            dirty_files.update(normalize_repo_path(path) for path in member_delta.dirty_files)
-    return bool(changed_qnames & owned_qnames) or bool(dirty_files & owned_files)
-
-
-def _build_scope_incremental_inputs(
-    component: Component,
-    scope_id: str,
-    incremental_agent: IncrementalAgent,
-    changes: ChangeSet | None,
-    repo_dir: Path,
-    changed_members: ChangedMembers | None,
-) -> tuple[dict[str, ClusterResult], dict[str, nx.DiGraph], StructuralClusterDiff]:
-    old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
-    if not old_snapshot.all_cluster_ids():
-        return {}, {}, StructuralClusterDiff()
-
-    cluster_results, subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
-        component,
-        source_cluster_id_prefix=scope_id,
-    )
-    delta = ClusterDelta(
-        by_language={
-            language: LanguageDelta(language=language, cluster_results=cluster_result)
-            for language, cluster_result in cluster_results.items()
-        }
-    )
-    structural_diff = structural_diff_from_delta(
-        old_snapshot,
-        delta,
-        changes=changes,
-        repo_dir=repo_dir,
-        scope_id=scope_id,
-        changed=changed_members,
-    )
-    return (
-        cluster_results,
-        {lang: cfg.to_networkx(DEFAULT_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()},
-        structural_diff,
-    )
-
-
-def scoped_snapshot_for_component(
-    component: Component,
-    scope_id: str,
-    incremental_agent: IncrementalAgent,
-) -> ClusterSnapshot:
-    assigned_qnames = {
-        method.qualified_name for group in component.file_methods for method in group.methods if method.qualified_name
-    }
-    by_language = {}
-    for language in incremental_agent.static_analysis.get_languages():
-        cfg = incremental_agent.static_analysis.get_cfg(language)
-        sub_cfg = cfg.filter_by_nodes(assigned_qnames)
-        if sub_cfg.nodes:
-            method_paths = incremental_agent.static_analysis.get_clusters(language).method_paths
-            by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, method_paths, scope_id)
-    return ClusterSnapshot(by_language=by_language)
 
 
 def _merge_sub_analyses(
