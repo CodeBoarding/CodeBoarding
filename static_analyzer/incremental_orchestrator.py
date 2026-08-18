@@ -355,6 +355,7 @@ def _add_outbound_edges_from_changed_files(
 
     include_callable_parent = adapter.edge_strategy == EdgeStrategy.DEFINITIONS
     added = 0
+    changed_file_strs = {str(file_path) for file_path in changed_source_files}
 
     for file_path in changed_source_files:
         call_sites = source_inspector.find_call_sites(file_path)
@@ -372,7 +373,14 @@ def _add_outbound_edges_from_changed_files(
                 (site.lsp_line, site.lsp_column)
                 for site in source_inspector.find_collection_initializer_sites(file_path)
             }
-        added += _add_iterated_type_edges(call_graph, file_path, engine_client, source_inspector, adapter)
+        added += _add_iterated_type_edges(
+            call_graph,
+            file_path,
+            engine_client,
+            source_inspector,
+            adapter,
+            changed_file_strs,
+        )
         if not call_sites:
             continue
         queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
@@ -401,6 +409,9 @@ def _add_outbound_edges_from_changed_files(
                     if (line, char) in collection_positions:
                         targets += _members_named(call_graph, resolved, "Add")
                     for dst_node in targets:
+                        # The fresh partial analysis already owns changed-to-changed edges.
+                        if dst_node.file_path in changed_file_strs:
+                            continue
                         if is_self_or_container_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name):
                             continue
                         try:
@@ -430,6 +441,7 @@ def _add_iterated_type_edges(
     engine_client: LSPClient,
     source_inspector: SourceInspector,
     adapter: LanguageAdapter,
+    changed_file_strs: set[str],
 ) -> int:
     """``foreach (var x in bag)`` calls ``bag.GetEnumerator()`` with no call written.
 
@@ -458,6 +470,8 @@ def _add_iterated_type_edges(
         for definition in definitions:
             for type_node in _definition_nodes(call_graph, definition, include_callable_parent=False):
                 for dst_node in [type_node] + _members_named(call_graph, type_node, "GetEnumerator"):
+                    if dst_node.file_path in changed_file_strs:
+                        continue
                     if is_self_or_container_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name):
                         continue
                     try:
@@ -526,6 +540,9 @@ def _definition_nodes(
         return []
     file_path, line, character = location
     target = _most_specific_node_at_position(call_graph, file_path, line, character)
+    # A definition must name a graph declaration, not merely fall inside its body.
+    if target is not None and target.line_start != line + 1:
+        target = None
     if target is None:
         same_line = [
             node

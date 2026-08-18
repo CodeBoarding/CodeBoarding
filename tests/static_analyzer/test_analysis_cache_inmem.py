@@ -18,6 +18,7 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterCache, ClusterResult
 from static_analyzer.node import Node
 from static_analyzer.incremental_orchestrator import (
+    _add_outbound_edges_from_changed_files,
     _definition_nodes,
     _restore_cross_boundary_edges,
     update_cfg_for_changed_files,
@@ -442,6 +443,54 @@ class TestWarmStartDeletion(unittest.TestCase):
 
 
 class TestWarmStartOutboundEdges(unittest.TestCase):
+    def test_definition_repair_only_restores_boundary_edges(self) -> None:
+        cases: tuple[tuple[bool, list[tuple[str, str]]], ...] = (
+            (False, [("caller.caller", "target.target")]),
+            (True, []),
+        )
+        for target_changed, expected in cases:
+            with self.subTest(target_changed=target_changed), tempfile.TemporaryDirectory() as temp_dir:
+                caller_file = Path(temp_dir) / "caller.py"
+                target_file = Path(temp_dir) / "target.py"
+                caller_file.write_text("def caller():\n    target()\n", encoding="utf-8")
+                target_file.write_text("def target():\n    pass\n", encoding="utf-8")
+                call_graph = CallGraph(language="python")
+                call_graph.add_node(_node("caller.caller", str(caller_file)))
+                call_graph.add_node(_node("target.target", str(target_file)))
+                engine_client = MagicMock()
+                engine_client.send_definition_batch.return_value = (
+                    [
+                        [
+                            {
+                                "uri": target_file.as_uri(),
+                                "range": {
+                                    "start": {"line": 0, "character": 4},
+                                    "end": {"line": 0, "character": 10},
+                                },
+                            }
+                        ]
+                    ],
+                    set(),
+                )
+                changed_files = [caller_file, target_file] if target_changed else [caller_file]
+                adapter = MagicMock()
+                adapter.edge_strategy = None
+                adapter.resolves_method_groups = False
+                adapter.resolves_collection_initializers = False
+                adapter.resolves_iterated_types = False
+                adapter.expands_virtual_dispatch = False
+
+                _add_outbound_edges_from_changed_files(
+                    call_graph,
+                    changed_files,
+                    engine_client,
+                    SourceInspector(),
+                    adapter,
+                )
+
+                actual = [(edge.get_source(), edge.get_destination()) for edge in call_graph.edges]
+                self.assertEqual(actual, expected)
+
     def test_definition_resolution_accepts_declaration_range_before_symbol_name(self) -> None:
         file_path = Path("/repo/unchanged.php")
         call_graph = CallGraph(language="php")
@@ -463,6 +512,54 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
         matches = _definition_nodes(call_graph, definition)
 
         self.assertEqual([node.fully_qualified_name for node in matches], ["unchanged.unchanged_target"])
+
+    def test_definition_resolution_ignores_nested_non_graph_definitions(self) -> None:
+        file_path = Path("/repo/pkg/context.py")
+        call_graph = CallGraph(language="python")
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.context.Context",
+                node_type=NodeType.CLASS,
+                file_path=str(file_path),
+                line_start=1,
+                line_end=20,
+            )
+        )
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.context.Context.__init__",
+                node_type=NodeType.CONSTRUCTOR,
+                file_path=str(file_path),
+                line_start=2,
+                line_end=4,
+                col_start=8,
+            )
+        )
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.context.Context.lookup_default",
+                node_type=NodeType.METHOD,
+                file_path=str(file_path),
+                line_start=10,
+                line_end=12,
+                col_start=8,
+            )
+        )
+        definitions = {
+            "instance field": (2, 13, 33),
+            "overload": (5, 8, 22),
+        }
+        for definition_kind, (line, start, end) in definitions.items():
+            with self.subTest(definition_kind=definition_kind):
+                definition = {
+                    "uri": file_path.as_uri(),
+                    "range": {
+                        "start": {"line": line, "character": start},
+                        "end": {"line": line, "character": end},
+                    },
+                }
+
+                self.assertEqual(_definition_nodes(call_graph, definition), [])
 
     def test_definition_resolution_includes_the_most_specific_node_and_its_class(self) -> None:
         file_path = Path("/repo/pkg/converter.py")
