@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from types import MappingProxyType
 
 import networkx as nx
@@ -60,6 +60,42 @@ class ClusteringService:
     def cluster(self, graph: CallGraph) -> ClusterResult:
         return cluster_graph(graph.to_networkx(DEFAULT_REFERENCE_KINDS), delimiter=graph.delimiter)
 
+    @staticmethod
+    def expand_to_method_level(graph: CallGraph, partition: ClusterResult) -> ClusterResult:
+        """Replace a coarse partition with one callable per cluster when needed."""
+        if len(partition.clusters) >= MIN_CLUSTERS_THRESHOLD:
+            return partition
+
+        clusters: dict[int, set[str]] = {}
+        cluster_to_files: dict[int, set[str]] = {}
+        file_to_clusters: dict[str, set[int]] = defaultdict(set)
+        included: set[str] = set()
+
+        for qualified_name, node in sorted(graph.nodes.items()):
+            if node.type not in CALLABLE_TYPES:
+                continue
+            cluster_id = len(clusters)
+            clusters[cluster_id] = {qualified_name}
+            cluster_to_files[cluster_id] = {node.file_path}
+            file_to_clusters[node.file_path].add(cluster_id)
+            included.add(qualified_name)
+
+        if len(clusters) < MIN_CLUSTERS_THRESHOLD:
+            for qualified_name, node in sorted(graph.nodes.items()):
+                if node.type not in CLASS_TYPES or qualified_name in included:
+                    continue
+                cluster_id = len(clusters)
+                clusters[cluster_id] = {qualified_name}
+                cluster_to_files[cluster_id] = {node.file_path}
+                file_to_clusters[node.file_path].add(cluster_id)
+
+        return ClusterResult(
+            clusters=clusters,
+            cluster_to_files=cluster_to_files,
+            file_to_clusters=dict(file_to_clusters),
+            strategy=METHOD_LEVEL_STRATEGY,
+        )
+
     def cluster_scope(
         self,
         graphs: Mapping[str, CallGraph],
@@ -67,6 +103,7 @@ class ClusteringService:
         scope_id: ScopeId = _ROOT_SCOPE_ID,
         leaf_clusters_by_language: Mapping[str, ClusterResult] = _EMPTY_LEAF_CLUSTERS,
         previous_owner: Mapping[ClusterId, ComponentId] = _EMPTY_OWNERS,
+        reserved_group_ids: Collection[GroupId] = (),
         method_level_fallback: bool = False,
     ) -> ClusterScopeResult:
         """Cluster and group one exact graph scope, retaining sibling communication."""
@@ -86,7 +123,7 @@ class ClusteringService:
         }
         if method_level_fallback:
             scope_leaf_clusters = {
-                language: self._expand_to_method_level(graphs[language], cluster_result)
+                language: self.expand_to_method_level(graphs[language], cluster_result)
                 for language, cluster_result in scope_leaf_clusters.items()
             }
         for language, graph in graphs.items():
@@ -133,7 +170,7 @@ class ClusteringService:
             unanchored_modularity = modularity
             regrouped = False
 
-        group_ids = self._allocate_group_ids(scope_id, owners)
+        group_ids = self._allocate_group_ids(scope_id, owners, reserved_group_ids)
         groups = [
             ClusterGroup(
                 group_id=group_id,
@@ -171,6 +208,7 @@ class ClusteringService:
             scope_id=root_scope_id,
             leaf_clusters_by_language=root_input.leaf_clusters_by_language,
             previous_owner=root_input.previous_owner,
+            reserved_group_ids=root_input.reserved_group_ids,
             method_level_fallback=root_scope_id != _ROOT_SCOPE_ID,
         )
         self._cluster_children(root, graphs, 1, max_depth, scope_input)
@@ -209,6 +247,7 @@ class ClusteringService:
                 scope_id=group.group_id,
                 leaf_clusters_by_language=child_input.leaf_clusters_by_language,
                 previous_owner=child_input.previous_owner,
+                reserved_group_ids=child_input.reserved_group_ids,
                 method_level_fallback=True,
             )
             if sum(bool(child_group.qualified_names) for child_group in child.groups) < 2:
@@ -239,14 +278,19 @@ class ClusteringService:
         return method_count, len(files)
 
     @staticmethod
-    def _allocate_group_ids(scope_id: ScopeId, owners: list[ComponentId]) -> list[GroupId]:
-        allocated = set(owners) - {""}
-        used_indices = {
-            int(group_id.rsplit(".", maxsplit=1)[-1])
-            for group_id in allocated
-            if group_id.rsplit(".", maxsplit=1)[-1].isdigit()
-        }
+    def _allocate_group_ids(
+        scope_id: ScopeId,
+        owners: list[ComponentId],
+        reserved_group_ids: Collection[GroupId],
+    ) -> list[GroupId]:
+        allocated = (set(owners) | set(reserved_group_ids)) - {""}
         result: list[GroupId] = []
+        prefix = "" if scope_id == _ROOT_SCOPE_ID else f"{scope_id}."
+        used_indices = [
+            int(group_id.removeprefix(prefix))
+            for group_id in allocated
+            if group_id.startswith(prefix) and group_id.removeprefix(prefix).isdigit()
+        ]
         next_index = max(used_indices, default=0) + 1
         for owner in owners:
             if owner:
@@ -260,41 +304,6 @@ class ClusteringService:
                     result.append(candidate)
                     break
         return result
-
-    @staticmethod
-    def _expand_to_method_level(graph: CallGraph, cluster_result: ClusterResult) -> ClusterResult:
-        if len(cluster_result.clusters) >= MIN_CLUSTERS_THRESHOLD:
-            return cluster_result
-
-        clusters: dict[ClusterId, set[str]] = {}
-        cluster_to_files: dict[ClusterId, set[str]] = {}
-        file_to_clusters: dict[str, set[ClusterId]] = defaultdict(set)
-        included: set[str] = set()
-
-        for qualified_name, node in sorted(graph.nodes.items()):
-            if node.type not in CALLABLE_TYPES:
-                continue
-            cluster_id = len(clusters)
-            clusters[cluster_id] = {qualified_name}
-            cluster_to_files[cluster_id] = {node.file_path}
-            file_to_clusters[node.file_path].add(cluster_id)
-            included.add(qualified_name)
-
-        if len(clusters) < MIN_CLUSTERS_THRESHOLD:
-            for qualified_name, node in sorted(graph.nodes.items()):
-                if node.type not in CLASS_TYPES or qualified_name in included:
-                    continue
-                cluster_id = len(clusters)
-                clusters[cluster_id] = {qualified_name}
-                cluster_to_files[cluster_id] = {node.file_path}
-                file_to_clusters[node.file_path].add(cluster_id)
-
-        return ClusterResult(
-            clusters=clusters,
-            cluster_to_files=cluster_to_files,
-            file_to_clusters=dict(file_to_clusters),
-            strategy=METHOD_LEVEL_STRATEGY,
-        )
 
     def _assign_symbol_members(
         self,

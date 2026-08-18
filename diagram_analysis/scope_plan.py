@@ -1,13 +1,8 @@
-"""Derive one scope's incremental update from the clustering, without asking an LLM.
+"""Translate deterministic clustering scopes into incremental component operations.
 
-Full analysis already fixes component count and membership deterministically
-(``GroupingService.group`` + ``assemble_one_component_per_group``), leaving the LLM only
-the naming. ``plan_scope_update`` gives the incremental path the same treatment: every
-surviving component keeps what it owned, genuinely new clusters are absorbed, and only a
-component left holding nothing is deleted. Structure is derived; wording stays the LLM's.
-
-The anchor is the previous run's *methods*, not its cluster ids — see
-``previous_ownership``.
+Every surviving component keeps what it owned, genuinely new groups are created, and only
+a component left holding nothing is deleted. The hierarchy builder anchors each scope on
+the previous run's methods rather than its unstable local cluster IDs.
 """
 
 import logging
@@ -31,7 +26,7 @@ from static_analyzer.cluster_helpers import (
     combine_cluster_results,
     group_symbols,
 )
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 from static_analyzer.clustering.grouping import GroupingService
 
 logger = logging.getLogger(__name__)
@@ -122,9 +117,61 @@ def plan_scope_update(
     one per survivor therefore relabels every relation in the tree on a one-line diff.
     """
     combined = combine_cluster_results(cluster_results)
+    groups: list[ClusterGroup] = []
+    regrouped = False
+    if combined.clusters:
+        previous = previous_ownership(scope, cluster_results, scope_id, repo_dir)
+        grouping = GroupingService().anchored_group(
+            cluster_results,
+            cfg_graphs,
+            previous,
+            subcomponents=scope_id != ROOT_SCOPE_ID,
+        )
+        groups = [
+            ClusterGroup(
+                group_id=owner,
+                cluster_ids=sorted(cluster_ids),
+                previous_component_id=owner,
+            )
+            for cluster_ids, owner in zip(grouping.groups, grouping.owners, strict=True)
+        ]
+        regrouped = grouping.regrouped
+    return _plan_scope_operations(
+        scope_id,
+        scope,
+        cluster_results,
+        groups,
+        changed_members,
+        regrouped,
+    )
+
+
+def plan_scope_result_update(
+    scope: AnalysisInsights,
+    clustering: ClusterScopeResult,
+    changed_members: set[str],
+) -> ScopeUpdateDecision:
+    """Carry a persisted scope onto one precomputed structural result."""
+    return _plan_scope_operations(
+        clustering.scope_id,
+        scope,
+        clustering.leaf_clusters_by_language,
+        clustering.groups,
+        changed_members,
+        clustering.regrouped,
+    )
+
+
+def _plan_scope_operations(
+    scope_id: str,
+    scope: AnalysisInsights,
+    cluster_results: dict[str, ClusterResult],
+    groups: list[ClusterGroup],
+    changed_members: set[str],
+    regrouped: bool,
+) -> ScopeUpdateDecision:
+    combined = combine_cluster_results(cluster_results)
     if not combined.clusters:
-        # Every cluster is gone. Empty components are deleted; populated ones mean the
-        # clustering failed to represent live code and must fail loudly.
         still_populated = [
             component.component_id
             for component in scope.components
@@ -144,15 +191,6 @@ def plan_scope_update(
                 if component.component_id
             ]
         )
-    is_root = scope_id == ROOT_SCOPE_ID
-    previous = previous_ownership(scope, cluster_results, scope_id, repo_dir)
-    grouping = GroupingService().anchored_group(
-        cluster_results,
-        cfg_graphs,
-        previous,
-        subcomponents=not is_root,
-    )
-
     language_of: dict[int, str] = {
         cluster_id: language for language, result in cluster_results.items() for cluster_id in result.clusters
     }
@@ -173,7 +211,9 @@ def plan_scope_update(
     operations: list[ScopeOperation] = []
     kept: set[str] = set()
     untouched = 0
-    for group, owner in zip(grouping.groups, grouping.owners, strict=True):
+    for cluster_group in groups:
+        group = set(cluster_group.cluster_ids)
+        owner = cluster_group.previous_component_id
         refs = [
             ScopedClusterRef(scope_id=scope_id, language=language_of.get(cluster_id, ""), cluster_id=cluster_id)
             for cluster_id in sorted(group)
@@ -227,8 +267,8 @@ def plan_scope_update(
             )
 
     logger.info(
-        f"[ScopePlan] {scope_id}: {len(grouping.groups)} groups, {untouched} unchanged (no operation), "
-        f"{len(operations)} operation(s)" + (" (structure re-derived: drift past budget)" if grouping.regrouped else "")
+        f"[ScopePlan] {scope_id}: {len(groups)} groups, {untouched} unchanged (no operation), "
+        f"{len(operations)} operation(s)" + (" (structure re-derived: drift past budget)" if regrouped else "")
     )
     return ScopeUpdateDecision(operations=operations)
 

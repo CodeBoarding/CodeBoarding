@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
@@ -49,6 +49,7 @@ from diagram_analysis.cluster_delta import (
     ClusterDelta,
     LanguageDelta,
     StructuralClusterDiff,
+    _delta_for_language,
     compute_changed_members,
     compute_cluster_delta,
     structural_diff_from_delta,
@@ -62,7 +63,7 @@ from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from repo_utils.path_utils import normalize_repo_path
-from diagram_analysis.scope_plan import plan_scope_update
+from diagram_analysis.scope_plan import plan_scope_result_update, plan_scope_update, previous_ownership
 from diagram_analysis.tree_shape import absorb_single_child_components
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -84,7 +85,13 @@ from static_analyzer.cluster_relations import (
     prune_ungrounded_edges,
 )
 from static_analyzer.config import Language
-from static_analyzer.clustering import ClusterResult, ClusterScopeResult, ClusteringService
+from static_analyzer.clustering import (
+    ClusterResult,
+    ClusterScopeInput,
+    ClusterScopeResult,
+    ClusteringService,
+)
+from static_analyzer.clustering.grouping import reindex_across_languages
 from static_analyzer.clustering.orchestration import build_clustering_hierarchy
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
@@ -550,6 +557,30 @@ def _incremental_changed_component_ids(
     return changed
 
 
+def _incremental_scope_partitions(
+    static_analysis: StaticAnalysisResults,
+    scope_id: str,
+    graphs: Mapping[str, CallGraph],
+) -> dict[str, ClusterResult]:
+    """Seed each exact child graph from its persisted scope-local cluster lineage."""
+    partitions: dict[str, ClusterResult] = {}
+    clustering_service = ClusteringService()
+    for language, graph in graphs.items():
+        method_paths = static_analysis.get_clusters(Language(language)).method_paths
+        snapshot = scoped_snapshot_from_lineage(graph, method_paths, scope_id)
+        if snapshot:
+            partition = _delta_for_language(
+                language,
+                graph.to_networkx(DEFAULT_REFERENCE_KINDS),
+                snapshot,
+            ).cluster_results
+        else:
+            partition = clustering_service.cluster(graph)
+        partitions[language] = clustering_service.expand_to_method_level(graph, partition)
+    reindex_across_languages(partitions)
+    return partitions
+
+
 class DiagramGenerator:
     def __init__(
         self,
@@ -731,6 +762,41 @@ class DiagramGenerator:
             require_incremental_baseline=require_incremental_baseline,
         )
         self.agent_init()
+
+    def _build_incremental_clustering_hierarchy(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+        root_leaf_clusters: dict[str, ClusterResult],
+    ) -> ClusterScopeResult:
+        """Build one anchored hierarchy from the live graphs and persisted scope ownership."""
+        assert self.static_analysis is not None
+        static_analysis = self.static_analysis
+        persisted_scopes = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
+
+        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            leaf_clusters = (
+                root_leaf_clusters
+                if scope_id == ROOT_SCOPE_ID
+                else _incremental_scope_partitions(static_analysis, scope_id, graphs)
+            )
+            persisted = persisted_scopes.get(scope_id)
+            if persisted is None:
+                return ClusterScopeInput(leaf_clusters_by_language=leaf_clusters)
+            return ClusterScopeInput(
+                leaf_clusters_by_language=leaf_clusters,
+                previous_owner=previous_ownership(persisted, leaf_clusters, scope_id, self.repo_location),
+                reserved_group_ids=frozenset(
+                    component.component_id for component in persisted.components if component.component_id
+                ),
+            )
+
+        return build_clustering_hierarchy(
+            static_analysis,
+            self.depth_level,
+            root_leaf_clusters=root_leaf_clusters,
+            scope_input=scope_input,
+        )
 
     def _component_separable(self, component: Component) -> bool:
         """Deterministic gate: should this component be split into sub-components?
@@ -1465,18 +1531,50 @@ class DiagramGenerator:
             result.relation_contexts.update(child_result.relation_contexts)
         return result
 
+    def _apply_incremental_hierarchy(
+        self,
+        clustering: ClusterScopeResult,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+    ) -> RecursiveScopeUpdateResult:
+        """Apply persisted-scope updates by traversing one precomputed hierarchy."""
+        assert self.incremental_agent is not None
+        scope = root_analysis if clustering.scope_id == ROOT_SCOPE_ID else sub_analyses.get(clustering.scope_id)
+        if scope is None:
+            return RecursiveScopeUpdateResult()
+
+        decision = plan_scope_result_update(scope, clustering, self._changed_members)
+        applied = self.incremental_agent.update_scope(
+            clustering.scope_id,
+            scope,
+            decision,
+            clustering.leaf_clusters_by_language,
+        )
+        result = RecursiveScopeUpdateResult(
+            refresh_ids=set(applied.refresh_ids),
+            new_component_ids=set(applied.new_component_ids),
+            removed_ids=set(applied.removed_ids),
+        )
+        if applied.refresh_ids or applied.removed_ids:
+            result.relation_contexts[clustering.scope_id] = applied.relation_context
+
+        for group in clustering.groups:
+            if group.children is None or group.group_id not in sub_analyses:
+                continue
+            child_result = self._apply_incremental_hierarchy(group.children, root_analysis, sub_analyses)
+            result.refresh_ids |= child_result.refresh_ids
+            result.new_component_ids |= child_result.new_component_ids
+            result.removed_ids |= child_result.removed_ids
+            result.relation_contexts.update(child_result.relation_contexts)
+        return result
+
     @track_analysis
     def generate_analysis_incremental(
         self,
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
     ) -> Path:
-        """Cluster-driven incremental update of an existing ``analysis.json``.
-
-        Deterministic cluster delta, one LLM call to route delta clusters,
-        then ``_generate_subcomponents`` seeded with the changed components.
-        Raises when no trustworthy baseline or scoped update plan is available.
-        """
+        """Update an existing analysis from one upfront, recursively anchored hierarchy."""
         if self.details_agent is None or self.incremental_agent is None:
             self.prepare_analysis(require_incremental_baseline=True)
         assert self.static_analysis is not None
@@ -1581,18 +1679,13 @@ class DiagramGenerator:
             # scrub so a deleted method is never re-injected from the baseline into a live scope.
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
             root_cluster_results = delta.cluster_results()
-            root_cfgs = {
-                language: self.static_analysis.get_cfg(Language(language)).to_networkx(DEFAULT_REFERENCE_KINDS)
-                for language in root_cluster_results
-            }
-            apply_result = self._apply_incremental_scope_recursively(
-                ROOT_SCOPE_ID,
+            hierarchy = self._build_incremental_clustering_hierarchy(
                 root_analysis,
-                root_cluster_results,
-                root_cfgs,
                 sub_analyses,
-                changed_members,
+                root_cluster_results,
             )
+            self.clustering_hierarchy = hierarchy
+            apply_result = self._apply_incremental_hierarchy(hierarchy, root_analysis, sub_analyses)
             # Pin unchanged methods back to their baseline owner so the re-partition only
             # moves what genuinely changed, then freeze the whole subtree of any component
             # with no changed member so its sub-component boundaries can't drift, and finally
@@ -1644,11 +1737,10 @@ class DiagramGenerator:
             new_components = [
                 component
                 for component in created_components
-                if _component_depth(component.component_id) < self.depth_level
+                if component.component_id in hierarchy.preclustered_scopes
+                and _component_depth(component.component_id) < self.depth_level
             ]
             if new_components:
-                for component in new_components:
-                    self._register_component_scope(component, self.depth_level)
                 _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components, sub_analyses)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 

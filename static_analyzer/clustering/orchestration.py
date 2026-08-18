@@ -1,7 +1,7 @@
 """Root-scope clustering orchestration and cache synchronization."""
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
@@ -13,19 +13,36 @@ from static_analyzer.config import Language
 logger = logging.getLogger(__name__)
 
 
-def build_clustering_hierarchy(static_analysis: StaticAnalysisResults, max_depth: int) -> ClusterScopeResult:
-    """Build and cache the complete deterministic hierarchy for a full analysis."""
-    root_partitions = build_all_cluster_results(static_analysis)
+def _unseeded_scope(_scope_id: str, _graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+    return ClusterScopeInput()
 
-    def scope_input(scope_id: str, _graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
-        if scope_id == "root":
-            return ClusterScopeInput(leaf_clusters_by_language=root_partitions)
-        return ClusterScopeInput()
+
+def build_clustering_hierarchy(
+    static_analysis: StaticAnalysisResults,
+    max_depth: int,
+    *,
+    root_leaf_clusters: Mapping[str, ClusterResult] | None = None,
+    scope_input: Callable[[str, Mapping[str, CallGraph]], ClusterScopeInput] = _unseeded_scope,
+) -> ClusterScopeResult:
+    """Build and cache the complete deterministic hierarchy from full or seeded leaf clusters."""
+    root_results = (
+        build_all_cluster_results(static_analysis) if root_leaf_clusters is None else dict(root_leaf_clusters)
+    )
+
+    def hierarchy_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+        provided = scope_input(scope_id, graphs)
+        if scope_id != "root":
+            return provided
+        return ClusterScopeInput(
+            leaf_clusters_by_language=root_results,
+            previous_owner=provided.previous_owner,
+            reserved_group_ids=provided.reserved_group_ids,
+        )
 
     hierarchy = ClusteringService().cluster_hierarchy(
         static_analysis.available_cfgs(),
         max_depth,
-        scope_input,
+        hierarchy_input,
     )
     _record_child_scopes(static_analysis, hierarchy)
     return hierarchy
