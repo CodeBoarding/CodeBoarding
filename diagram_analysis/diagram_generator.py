@@ -72,7 +72,7 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
-from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS
+from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -84,7 +84,8 @@ from static_analyzer.cluster_relations import (
     prune_ungrounded_edges,
 )
 from static_analyzer.constants import Language
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult, ClusteringService
+from static_analyzer.clustering.orchestration import build_clustering_hierarchy
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
@@ -624,12 +625,49 @@ class DiagramGenerator:
         # plus Leiden sweep behind each answer is the expensive part of the
         # deterministic pipeline. Keyed by membership, so a changed component re-runs.
         self._separable_cache: dict[frozenset[tuple[str, str]], bool] = {}
+        self._clustering_groups: dict[str, ClusterGroup] = {}
+        self._preclustered_scopes: dict[str, tuple[ClusterScopeResult, dict[str, CallGraph]]] = {}
 
     @track_analysis
     def process_component(
         self, component: Component
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
         return self._process_component(component)
+
+    def _index_clustering_hierarchy(
+        self,
+        hierarchy: ClusterScopeResult,
+        root_graphs: dict[str, CallGraph],
+    ) -> None:
+        """Index precomputed child scopes by the component IDs agents will assign."""
+        self._clustering_groups.clear()
+        self._preclustered_scopes.clear()
+
+        def visit(scope: ClusterScopeResult, graphs: dict[str, CallGraph]) -> None:
+            for group in scope.groups:
+                self._clustering_groups[group.group_id] = group
+                if group.children is None:
+                    continue
+                child_graphs = ClusteringService.induced_graphs(group, graphs)
+                self._preclustered_scopes[group.group_id] = (group.children, child_graphs)
+                visit(group.children, child_graphs)
+
+        visit(hierarchy, root_graphs)
+
+    def _reroot_clustering_groups(self, absorbed_ids: list[str]) -> None:
+        """Keep precomputed expansion flags aligned with absorbed component IDs."""
+        for child_id in absorbed_ids:
+            parent_id = child_id.rpartition(".")[0]
+            prefix = f"{child_id}."
+            rerooted: dict[str, ClusterGroup] = {}
+            for group_id, group in self._clustering_groups.items():
+                if group_id == child_id:
+                    continue
+                if group_id.startswith(prefix):
+                    tail = group_id.removeprefix(prefix)
+                    group_id = f"{parent_id}.{tail}" if parent_id else tail
+                rerooted[group_id] = group
+            self._clustering_groups = rerooted
 
     def _component_separable(self, component: Component) -> bool:
         """Deterministic gate: should this component be split into sub-components?
@@ -695,6 +733,21 @@ class DiagramGenerator:
         if self.details_agent is None:
             return None, None
 
+        if self._clustering_groups:
+
+            def precomputed_ids(scope: AnalysisInsights) -> list[str]:
+                return [
+                    component.component_id
+                    for component in scope.components
+                    if component.component_id
+                    and (group := self._clustering_groups.get(component.component_id)) is not None
+                    and group.expandable
+                ]
+
+            return precomputed_ids(root_analysis), {
+                scope_id: precomputed_ids(scope) for scope_id, scope in sub_analyses.items()
+            }
+
         def expandable_ids(scope: AnalysisInsights, parent_had_clusters: bool = True) -> list[str]:
             ids = [
                 component.component_id
@@ -727,16 +780,19 @@ class DiagramGenerator:
         try:
             assert self.details_agent is not None
 
-            analysis, _ = self.details_agent.run(component)
-
-            # Track whether parent had clusters for expansion decision
-            parent_had_clusters = bool(component.source_cluster_ids)
-
-            # Get new components to analyze (deterministic, no LLM). The separability
-            # gate keeps cohesive sub-components as leaves rather than splitting them.
-            new_components = get_expandable_components(
-                analysis, parent_had_clusters=parent_had_clusters, separable=self._component_separable
-            )
+            preclustered = self._preclustered_scopes.get(component.component_id)
+            if preclustered is not None:
+                scope, cfgs = preclustered
+                analysis, _ = self.details_agent.run_scope(component, scope, cfgs)
+                new_components = [
+                    child for child in analysis.components if child.component_id in self._preclustered_scopes
+                ]
+            else:
+                analysis, _ = self.details_agent.run(component)
+                parent_had_clusters = bool(component.source_cluster_ids)
+                new_components = get_expandable_components(
+                    analysis, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+                )
 
             return component.component_id, analysis, new_components
         except LLMAuthError:
@@ -1139,14 +1195,22 @@ class DiagramGenerator:
 
             assert self.abstraction_agent is not None
 
-            analysis, cluster_results = self.abstraction_agent.run()
-            # Get the initial components to analyze (deterministic, no LLM). The
-            # separability gate keeps cohesive top-level components as leaves.
-            root_components = get_expandable_components(analysis, separable=self._component_separable)
+            if self.static_analysis is not None:
+                hierarchy = build_clustering_hierarchy(self.static_analysis, self.depth_level)
+                self._index_clustering_hierarchy(hierarchy, self.static_analysis.available_cfgs())
+                analysis, _cluster_results = self.abstraction_agent.run_scope(hierarchy)
+                root_components = [
+                    component
+                    for component in analysis.components
+                    if component.component_id in self._preclustered_scopes
+                ]
+            else:
+                analysis, _cluster_results = self.abstraction_agent.run()
+                root_components = get_expandable_components(analysis, separable=self._component_separable)
             logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
             # Process components using a frontier queue: submit children as soon as parent finishes.
-            expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
+            _expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
 
             analysis_path = self.finalize_and_save(analysis, sub_analyses)
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
@@ -1223,7 +1287,8 @@ class DiagramGenerator:
             if self.static_analysis
             else []
         )
-        absorb_single_child_components(root_analysis, sub_analyses, cluster_caches)
+        absorbed_ids = absorb_single_child_components(root_analysis, sub_analyses, cluster_caches)
+        self._reroot_clustering_groups(absorbed_ids)
         assert_scope_containment(root_analysis, sub_analyses)
 
     def finalize_and_save(

@@ -37,7 +37,7 @@ from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
 from static_analyzer.constants import Language
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 
 logger = logging.getLogger(__name__)
 
@@ -192,12 +192,20 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         assign_relation_ids(analysis)
         self.build_static_relations(analysis)
 
-    def run(self):
-        # Build full cluster results dict for all languages ONCE
-        cluster_results = build_all_cluster_results(self.static_analysis)
+    def run_scope(self, scope: ClusterScopeResult) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
+        """Name and analyze a precomputed root clustering scope."""
+        return self._run_clustered(self.cluster_analysis_from_scope(scope), scope.partitions)
 
-        # Step 1: Deterministically partition leaf clusters into the top-level groups (Leiden, modularity-peak N)
-        cluster_analysis = self.step_clusters_grouping(cluster_results)
+    def run(self) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
+        """Cluster and analyze the root scope directly."""
+        cluster_results = build_all_cluster_results(self.static_analysis)
+        return self._run_clustered(self.step_clusters_grouping(cluster_results), cluster_results)
+
+    def _run_clustered(
+        self,
+        cluster_analysis: ClusterAnalysis,
+        cluster_results: dict[str, ClusterResult],
+    ) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
         if not cluster_analysis.cluster_components:
             # No leaf clusters means the repo has no callable structure to abstract
             # (unsupported/empty/no-code). Fail loudly instead of emptying the
@@ -207,26 +215,20 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 "no callable structure to build an architecture from."
             )
 
-        # Step 2: Name and describe each fixed group into a component (LLM, one component per group)
+        # Name and describe each fixed group into a component (LLM, one component per group)
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
-        # Step 3: Assign hierarchical component IDs ("1", "2", "3", ...)
+        # Assign hierarchical component IDs ("1", "2", "3", ...)
         assign_component_ids(analysis)
-        # Step 4: Resolve cluster IDs deterministically from group names
+        # Resolve cluster IDs deterministically from group names
         self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
-        # Step 5: Populate file_methods deterministically from cluster results + orphan assignment
+        # Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, cluster_results)
 
-        # Step 6: Analyze component API surfaces
         api_surfaces = self.step_api_surfaces(analysis)
-
-        # Step 7: Discover relations from API surfaces and attach deterministic all_edges
         self.step_relation_analysis(analysis, api_surfaces, cluster_analysis, cluster_results)
 
-        # Step 8: Fix source code reference lines (resolves reference_file paths for key_entities and key_edges)
         analysis = self.reference_resolver.fix_source_code_reference_lines(analysis)
-        # Step 9: Index relation endpoints after reference resolution
         index_relation_endpoints(analysis, self.repo_dir)
-        # Step 10: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
 
         return analysis, cluster_results

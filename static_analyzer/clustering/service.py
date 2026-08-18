@@ -130,6 +130,19 @@ class ClusteringService:
         self._cluster_children(root, graphs, 1, max_depth, scope_input)
         return root
 
+    @staticmethod
+    def induced_graphs(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> dict[str, CallGraph]:
+        """Return the exact per-language subgraphs owned by ``group``."""
+        child_graphs: dict[str, CallGraph] = {}
+        for language, graph in graphs.items():
+            members = group.members.get(language, set())
+            if not members:
+                continue
+            child = graph.filter_by_nodes(members)
+            if child.nodes:
+                child_graphs[language] = child
+        return child_graphs
+
     def _cluster_children(
         self,
         scope: ClusterScopeResult,
@@ -138,10 +151,8 @@ class ClusteringService:
         max_depth: int,
         scope_input: Callable[[str, Mapping[str, CallGraph]], ClusterScopeInput],
     ) -> None:
-        if depth >= max_depth:
-            return
         for group in scope.groups:
-            child_graphs = self._induced_graphs(group, graphs)
+            child_graphs = self.induced_graphs(group, graphs)
             method_count, file_count = self._group_size(group, graphs)
             if not child_graphs or not file_count:
                 continue
@@ -158,20 +169,11 @@ class ClusteringService:
             load = scope_load(method_count, file_count)
             if load < 1.0 and not scope_is_separable(child.partitions, child.fresh_modularity, load):
                 continue
+            group.expandable = True
+            if depth >= max_depth:
+                continue
             group.children = child
             self._cluster_children(child, child_graphs, depth + 1, max_depth, scope_input)
-
-    @staticmethod
-    def _induced_graphs(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> dict[str, CallGraph]:
-        child_graphs: dict[str, CallGraph] = {}
-        for language, graph in graphs.items():
-            members = group.members.get(language, set())
-            if not members:
-                continue
-            child = graph.filter_by_nodes(members)
-            if child.nodes:
-                child_graphs[language] = child
-        return child_graphs
 
     @staticmethod
     def _group_size(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> tuple[int, int]:

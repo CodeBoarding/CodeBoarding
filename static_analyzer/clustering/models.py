@@ -103,6 +103,7 @@ class ClusterGroup:
     cluster_ids: list[int]
     members: dict[str, set[str]] = field(default_factory=dict)
     previous_component_id: str = ""
+    expandable: bool = False
     children: ClusterScopeResult | None = None
 
     @property

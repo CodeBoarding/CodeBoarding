@@ -1,9 +1,17 @@
 import unittest
 from collections.abc import Mapping
+from unittest.mock import MagicMock, call, patch
 
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult, ClusterScopeInput, ClusteringService
-from static_analyzer.constants import NodeType
+from static_analyzer.clustering import (
+    ClusterGroup,
+    ClusterResult,
+    ClusterScopeInput,
+    ClusterScopeResult,
+    ClusteringService,
+)
+from static_analyzer.clustering.orchestration import build_clustering_hierarchy
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.node import Node
 
 
@@ -65,6 +73,8 @@ class TestClusteringHierarchy(unittest.TestCase):
         self.assertEqual(seen_nodes[group_b.group_id], members_b)
         self.assertEqual(seen_edges[group_a.group_id], set())
         self.assertEqual(seen_edges[group_b.group_id], set())
+        self.assertTrue(group_a.expandable)
+        self.assertFalse(group_b.expandable)
         self.assertIsNotNone(group_a.children)
         self.assertIsNone(group_b.children)
 
@@ -104,11 +114,57 @@ class TestClusteringHierarchy(unittest.TestCase):
 
         result = ClusteringService().cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
 
+        self.assertFalse(result.groups[0].expandable)
         self.assertIsNone(result.groups[0].children)
 
     def test_rejects_a_depth_below_the_root_level(self):
         with self.assertRaisesRegex(ValueError, "max_depth must be at least 1"):
             ClusteringService().cluster_hierarchy({}, max_depth=0)
+
+    @patch("static_analyzer.clustering.orchestration.build_all_cluster_results")
+    @patch.object(ClusteringService, "cluster_hierarchy")
+    def test_full_orchestration_reuses_root_partitions_and_records_child_lineage(
+        self,
+        cluster_hierarchy,
+        build_root,
+    ):
+        root_partition = ClusterResult(clusters={1: {"root"}})
+        child_partition = ClusterResult(clusters={2: {"child"}})
+        grandchild_partition = ClusterResult(clusters={3: {"grandchild"}})
+        grandchild_scope = ClusterScopeResult(scope_id="1.1", partitions={"python": grandchild_partition})
+        child_scope = ClusterScopeResult(
+            scope_id="1",
+            partitions={"python": child_partition},
+            groups=[ClusterGroup(group_id="1.1", cluster_ids=[2], children=grandchild_scope)],
+        )
+        hierarchy = ClusterScopeResult(
+            scope_id="root",
+            partitions={"python": root_partition},
+            groups=[ClusterGroup(group_id="1", cluster_ids=[1], children=child_scope)],
+        )
+        static_analysis = MagicMock()
+        static_analysis.available_cfgs.return_value = {"python": CallGraph(language="python")}
+        cache = MagicMock()
+        static_analysis.get_clusters.return_value = cache
+        build_root.return_value = {"python": root_partition}
+        cluster_hierarchy.return_value = hierarchy
+
+        result = build_clustering_hierarchy(static_analysis, max_depth=3)
+
+        self.assertIs(result, hierarchy)
+        graphs, depth, scope_input = cluster_hierarchy.call_args.args
+        self.assertEqual(graphs, static_analysis.available_cfgs.return_value)
+        self.assertEqual(depth, 3)
+        self.assertIs(scope_input("root", graphs).partitions["python"], root_partition)
+        self.assertEqual(scope_input("1", graphs).partitions, {})
+        self.assertEqual(
+            cache.record_scope.call_args_list,
+            [
+                call(child_partition, "1"),
+                call(grandchild_partition, "1.1"),
+            ],
+        )
+        static_analysis.get_clusters.assert_called_with(Language.PYTHON)
 
 
 if __name__ == "__main__":
