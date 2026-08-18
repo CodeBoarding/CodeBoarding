@@ -3,9 +3,8 @@
 from pathlib import Path
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from static_analyzer.exceptions import EdgeResolutionError
 from static_analyzer.engine.edge_builder import (
     EdgeMap,
     _best_candidate,
@@ -475,12 +474,14 @@ class TestBuildEdgesViaDefinitions:
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert len(edges) == 0
 
-    def test_definition_batch_failure_is_raised(self, tmp_path: Path):
-        """A failed batch must not pass for an empty result.
+    def test_definition_batch_failure_is_reported_not_hidden(self, tmp_path: Path):
+        """A full run survives a failed batch, but must say what it lost.
 
-        Returning zero edges here is indistinguishable from a file that genuinely
-        calls nothing, so the run would persist a graph missing every edge the
-        batch covered with nothing recording which.
+        Aborting a monorepo analysis over one language-server hiccup gives the user
+        nothing to act on, so this degrades. What it must not do is degrade
+        silently: zero edges from a crashed batch is otherwise indistinguishable
+        from a file that genuinely calls nothing. The incremental path raises
+        instead, because there a dropped batch deletes cached edges and persists.
         """
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
@@ -497,8 +498,12 @@ class TestBuildEdgesViaDefinitions:
 
         lsp.send_definition_batch.side_effect = Exception("LSP crash")
 
-        with pytest.raises(EdgeResolutionError, match="app.py"):
-            build_edges_via_definitions(adapter, ctx, [src])
+        with patch("static_analyzer.engine.edge_builder.capture_error") as tracked:
+            edges = build_edges_via_definitions(adapter, ctx, [src])
+
+        assert len(edges) == 0
+        assert tracked.called, "a swallowed batch failure must still reach error tracking"
+        assert tracked.call_args.kwargs["extra"]["file"] == "app.py"
 
     def test_constructor_adds_parent_class_edge(self, tmp_path: Path):
         """When definition resolves to a constructor, also adds edge to parent class."""

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.exceptions import EdgeResolutionError
+from telemetry.events import capture_error
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.lsp_constants import (
@@ -365,11 +365,13 @@ def _resolve_iterated_types(
             try:
                 results, _ = ctx.lsp.send_type_definition_batch(queries)
             except Exception as e:
-                # Same reasoning as the definition batch: skipping leaves the run
-                # missing every enumeration edge in this file with nothing saying so.
-                raise EdgeResolutionError(
-                    f"Type-definition batch failed for {file_path.name} ({len(batch)} foreach sites): {e}"
-                ) from e
+                logger.warning(
+                    "Type-definition batch failed for %s (%d foreach sites): %s", file_path.name, len(batch), e
+                )
+                capture_error(
+                    "static_analysis.type_definition_batch", e, extra={"file": file_path.name, "sites": len(batch)}
+                )
+                continue
 
             for index, site in enumerate(batch):
                 caller = st.find_containing_symbol(file_path, site.lsp_line, site.lsp_column)
@@ -431,6 +433,9 @@ def _resolve_definitions(
     dispatch = _build_dispatch_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else None
 
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
+    # A failed batch loses its edges; count them so the summary can say so.
+    unresolved_sites = 0
+    unresolved_files: set[str] = set()
     for file_path in source_files:
         call_sites = ctx.source_inspector.find_call_sites(file_path)
         method_group_positions: set[tuple[int, int]] = set()
@@ -460,11 +465,23 @@ def _resolve_definitions(
             try:
                 results, _ = ctx.lsp.send_definition_batch(queries)
             except Exception as e:
-                # Continuing persists a graph missing every edge in this batch, with
-                # nothing to tell the user which ones. Fail the run instead.
-                raise EdgeResolutionError(
-                    f"Definition batch failed for {file_path.name} ({len(batch)} call sites): {e}"
-                ) from e
+                # A full run still yields a useful graph without this batch, and
+                # aborting a monorepo analysis over one language-server hiccup gives
+                # the user nothing to act on. Degrade -- but count the loss so it is
+                # reported rather than silent, and record it for error tracking.
+                unresolved_sites += len(batch)
+                unresolved_files.add(file_path.name)
+                logger.warning(
+                    "Definition batch failed for %s (%d call sites, unresolved so far: %d): %s",
+                    file_path.name,
+                    len(batch),
+                    unresolved_sites,
+                    e,
+                )
+                capture_error(
+                    "static_analysis.definition_batch", e, extra={"file": file_path.name, "sites": len(batch)}
+                )
+                continue
 
             for i, call_site in enumerate(batch):
                 defs = results[i] if i < len(results) else []
@@ -530,6 +547,13 @@ def _resolve_definitions(
         pbar.update(1)
     pbar.finish()
 
+    if unresolved_sites:
+        logger.warning(
+            "Phase 2: %d call site(s) across %d file(s) went unresolved after language-server failures; "
+            "those edges are missing from this run",
+            unresolved_sites,
+            len(unresolved_files),
+        )
     return DefinitionResolution(
         edge_set=edge_set,
         impl_queries_pending=impl_queries_pending,
