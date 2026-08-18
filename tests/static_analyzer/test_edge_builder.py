@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from unittest.mock import MagicMock, patch
 
+from static_analyzer.exceptions import EdgeResolutionError
 from static_analyzer.engine.edge_builder import (
     EdgeMap,
     _best_candidate,
@@ -474,11 +475,12 @@ class TestBuildEdgesViaDefinitions:
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert len(edges) == 0
 
-    def test_definition_batch_failure_does_not_crash(self, tmp_path: Path):
-        """A failed batch loses its edges without stopping the run.
+    def test_definition_batch_failure_stops_the_run(self, tmp_path: Path):
+        """A failed batch must not pass for a file that calls nothing.
 
-        Whether that is the right trade is decided on the fail-fast branch; here
-        the point is only that the run survives it.
+        Zero edges from a crashed batch is indistinguishable from a file with no
+        calls, so continuing persists a graph missing every edge the batch
+        covered with nothing recording which.
         """
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
@@ -495,7 +497,8 @@ class TestBuildEdgesViaDefinitions:
 
         lsp.send_definition_batch.side_effect = Exception("LSP crash")
 
-        assert len(build_edges_via_definitions(adapter, ctx, [src])) == 0
+        with pytest.raises(EdgeResolutionError, match="app.py"):
+            build_edges_via_definitions(adapter, ctx, [src])
 
     def test_constructor_adds_parent_class_edge(self, tmp_path: Path):
         """When definition resolves to a constructor, also adds edge to parent class."""

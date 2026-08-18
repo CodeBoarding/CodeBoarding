@@ -19,6 +19,7 @@ from static_analyzer.analysis_cache import (
     merge_results,
 )
 from static_analyzer.constants import NodeType
+from static_analyzer.exceptions import IncrementalAnalysisError
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
@@ -249,9 +250,12 @@ def _restore_inbound_edges_via_definitions(
         batch = lookup[start : start + _DEFINITION_BATCH_SIZE]
         try:
             definition_results, _ = engine_client.send_definition_batch(queries[start : start + _DEFINITION_BATCH_SIZE])
-        except Exception:
-            logger.debug("Definition batch failed while restoring cached edges", exc_info=True)
-            continue
+        except Exception as exc:
+            # Skipping deletes every cached edge this batch covers while still
+            # reporting success, which AGENTS.md rules out for a persisted result.
+            raise IncrementalAnalysisError(
+                f"Could not validate {len(batch)} cached edge(s) against the language server; run a full analysis"
+            ) from exc
         for (edge, site), definitions in zip(batch, definition_results):
             # A polymorphic call resolves to the interface or base declaration, never
             # to the implementation the cached edge names, so exact equality alone
@@ -378,9 +382,10 @@ def _add_outbound_edges_from_changed_files(
         queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
         try:
             definition_results, _ = engine_client.send_definition_batch(queries)
-        except Exception:
-            logger.debug("Failed to resolve outbound definitions for %s", file_path, exc_info=True)
-            continue
+        except Exception as exc:
+            raise IncrementalAnalysisError(
+                f"Could not resolve call sites in {file_path.name} against the language server; run a full analysis"
+            ) from exc
 
         for site, definitions in zip(call_sites, definition_results):
             line = site.lsp_line
