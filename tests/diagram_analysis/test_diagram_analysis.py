@@ -1047,7 +1047,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(new_components, [])
 
     @patch("diagram_analysis.diagram_generator.get_expandable_components")
-    def test_process_component_traverses_the_preclustered_scope(self, mock_get_expandable_components):
+    def test_hierarchy_component_traverses_the_preclustered_scope(self, mock_get_expandable_components):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -1072,7 +1072,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.details_agent.run.return_value = (child_analysis, scope.leaf_clusters_by_language)
 
-        component_id, result, new_components = gen.process_component(component)
+        component_id, result, new_components = gen._process_component(component)
 
         self.assertEqual(component_id, "1")
         self.assertIs(result, child_analysis)
@@ -1234,7 +1234,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.clustering_hierarchy = hierarchy
         gen.details_agent = Mock()
         gen.abstraction_agent = Mock()
-        gen.abstraction_agent.run.return_value = (analysis, {})
+        gen.abstraction_agent.run.return_value = analysis
         gen._generate_subcomponents = Mock(return_value=([], {}))
         expected_path = self.output_dir / "analysis.json"
         gen.finalize_and_save = Mock(return_value=expected_path)
@@ -1382,7 +1382,7 @@ class TestDiagramGenerator(unittest.TestCase):
             ],
         )
         gen.clustering_hierarchy = hierarchy
-        gen.abstraction_agent.run.return_value = (analysis, {})
+        gen.abstraction_agent.run.return_value = analysis
         captured: dict[str, list[Component]] = {}
 
         def _capture_build(
@@ -1468,7 +1468,7 @@ class TestDiagramGenerator(unittest.TestCase):
             ],
         )
         gen.clustering_hierarchy = hierarchy
-        gen.abstraction_agent.run.return_value = (analysis, {})
+        gen.abstraction_agent.run.return_value = analysis
 
         gen.generate_analysis()
 

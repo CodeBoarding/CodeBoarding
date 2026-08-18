@@ -816,7 +816,7 @@ class DiagramGenerator:
     def _process_component(
         self, component: Component
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
-        """Process a single component and return its name, sub-analysis, and new components to analyze."""
+        """Analyze a component from its precomputed hierarchy scope."""
         try:
             assert self.details_agent is not None
 
