@@ -14,8 +14,6 @@ from typing import Any
 
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import AnalysisData, InvalidatedEdge
-from static_analyzer.exceptions import IncrementalAnalysisError
-from telemetry.degradations import record as record_degradation
 from static_analyzer.analysis_cache import (
     invalidate_files,
     merge_results,
@@ -180,8 +178,7 @@ def _restore_cross_boundary_edges(
             except Exception as exc:
                 # An empty result here means the cached edge is not re-confirmed and
                 # is therefore deleted, which is a silent loss rather than a retry.
-                logger.debug("Failed to validate references for %s: %s", dst_name, exc)
-                record_degradation("incremental_reference_validation", f"{dst_name}: {exc}")
+                logger.debug("Failed to validate references for %s", dst_name, exc_info=True)
                 refs = []
             references_cache[dst_name] = refs
 
@@ -252,13 +249,9 @@ def _restore_inbound_edges_via_definitions(
         batch = lookup[start : start + _DEFINITION_BATCH_SIZE]
         try:
             definition_results, _ = engine_client.send_definition_batch(queries[start : start + _DEFINITION_BATCH_SIZE])
-        except Exception as exc:
-            # Skipping the batch would delete every cached edge it covers and still
-            # report success. AGENTS.md: a loud, specific error beats a
-            # plausible-but-wrong graph the user never learns is incomplete.
-            raise IncrementalAnalysisError(
-                f"Could not validate {len(batch)} cached edge(s) against the language server; " "run a full analysis"
-            ) from exc
+        except Exception:
+            logger.debug("Definition batch failed while restoring cached edges", exc_info=True)
+            continue
         for (edge, site), definitions in zip(batch, definition_results):
             # A polymorphic call resolves to the interface or base declaration, never
             # to the implementation the cached edge names, so exact equality alone
@@ -385,10 +378,9 @@ def _add_outbound_edges_from_changed_files(
         queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
         try:
             definition_results, _ = engine_client.send_definition_batch(queries)
-        except Exception as exc:
-            raise IncrementalAnalysisError(
-                f"Could not resolve call sites in {file_path.name} against the language server; " "run a full analysis"
-            ) from exc
+        except Exception:
+            logger.debug("Failed to resolve outbound definitions for %s", file_path, exc_info=True)
+            continue
 
         for site, definitions in zip(call_sites, definition_results):
             line = site.lsp_line

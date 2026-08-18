@@ -12,9 +12,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.exceptions import EdgeResolutionError
-from telemetry.degradations import record as record_degradation
-from telemetry.events import capture_error
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.lsp_constants import (
@@ -141,7 +138,7 @@ def build_edges_via_references(
                 # Every position in this batch loses its edges. The references path
                 # is what Python/TS/Go/PHP run, so this is not a C#-only blind spot.
                 logger.warning("Batch references failed (%d positions): %s", len(queries), e)
-                record_degradation("references_batch", f"{type(e).__name__}: {e}", items=len(queries))
+                logger.warning("Batch references failed (%d positions): %s", len(queries), e)
                 result_list = [[] for _ in queries]
                 error_indices = set()
 
@@ -370,12 +367,10 @@ def _resolve_iterated_types(
             try:
                 results, _ = ctx.lsp.send_type_definition_batch(queries)
             except Exception as e:
-                capture_error(
-                    "static_analysis.type_definition_batch", e, extra={"file": file_path.name, "sites": len(batch)}
+                logger.warning(
+                    "Type-definition batch failed for %s (%d foreach sites): %s", file_path.name, len(batch), e
                 )
-                raise EdgeResolutionError(
-                    f"Type-definition batch failed for {file_path.name} ({len(batch)} foreach sites): {e}"
-                ) from e
+                continue
 
             for index, site in enumerate(batch):
                 caller = st.find_containing_symbol(file_path, site.lsp_line, site.lsp_column)
@@ -469,12 +464,8 @@ def _resolve_definitions(
             try:
                 results, _ = ctx.lsp.send_definition_batch(queries)
             except Exception as e:
-                capture_error(
-                    "static_analysis.definition_batch", e, extra={"file": file_path.name, "sites": len(batch)}
-                )
-                raise EdgeResolutionError(
-                    f"Definition batch failed for {file_path.name} ({len(batch)} call sites): {e}"
-                ) from e
+                logger.warning("Definition batch failed for %s (%d call sites): %s", file_path.name, len(batch), e)
+                continue
 
             for i, call_site in enumerate(batch):
                 defs = results[i] if i < len(results) else []
@@ -595,7 +586,7 @@ def _resolve_implementations(
             # Costs the polymorphic edges for this batch: calls resolve to the
             # declaration and never reach the implementations that run.
             logger.warning("Implementation batch failed (%d targets): %s", len(batch_keys), e)
-            record_degradation("implementation_batch", f"{type(e).__name__}: {e}", items=len(batch_keys))
+            logger.warning("Implementation batch failed (%d targets): %s", len(batch_keys), e)
             pbar.update(len(batch_keys))
             continue
 

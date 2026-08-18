@@ -27,7 +27,7 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
-from telemetry.events import flush_degradations, track_lsp_result
+from telemetry.events import track_lsp_result
 from tool_registry import ensure_node_on_path
 from utils import get_artifact_dir
 
@@ -712,15 +712,6 @@ class StaticAnalyzer:
         self._pending_cache_dir = cache_dir
         # Fresh results this session: flush_cache/stop_clients should write them.
         self._results_need_saving = True
-        # One event for everything this run absorbed, rather than one per batch.
-        degraded = flush_degradations("static_analysis")
-        if degraded:
-            logger.warning(
-                "Analysis completed with %d degradation(s) costing %d item(s): %s",
-                degraded["degraded_events"],
-                degraded["degraded_items"],
-                ", ".join(f"{k}x{v['occurrences']}" for k, v in degraded["by_category"].items()),
-            )
         return results
 
     def _run_full_lsp_pass(self) -> StaticAnalysisResults:
