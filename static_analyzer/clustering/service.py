@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from types import MappingProxyType
 
 import networkx as nx
@@ -11,7 +11,10 @@ import networkx as nx
 from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering.engine import cluster_graph
+from static_analyzer.clustering.expansion import scope_is_separable, scope_load
 from static_analyzer.clustering.grouping import (
+    SUBCOMPONENTS_MAX,
+    SUBCOMPONENTS_MIN,
     TOP_LEVEL_COMPONENTS_MAX,
     TOP_LEVEL_COMPONENTS_MIN,
     anchored_grouping,
@@ -26,6 +29,7 @@ from static_analyzer.clustering.models import (
     ClusterConnectionEdge,
     ClusterGroup,
     ClusterResult,
+    ClusterScopeInput,
     ClusterScopeResult,
 )
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES
@@ -33,6 +37,10 @@ from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES
 _ROOT_SCOPE_ID = "root"
 _EMPTY_PARTITIONS: Mapping[str, ClusterResult] = MappingProxyType({})
 _EMPTY_OWNERS: Mapping[int, str] = MappingProxyType({})
+
+
+def _unseeded_scope(_scope_id: str, _graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+    return ClusterScopeInput()
 
 
 class ClusteringService:
@@ -75,10 +83,12 @@ class ClusteringService:
             raw_groups = grouping.groups
             owners = grouping.owners
             modularity = score_grouping(combined, combined_cfg, raw_groups)
+            fresh_modularity = grouping.fresh_modularity
             regrouped = grouping.regrouped
         else:
             raw_groups, modularity = supercluster_leaf_ids(scope_partitions, nx_graphs, low, high)
             owners = [""] * len(raw_groups)
+            fresh_modularity = modularity
             regrouped = False
 
         group_ids = self._allocate_group_ids(scope_id, owners)
@@ -98,8 +108,82 @@ class ClusteringService:
             groups=groups,
             connections=connections,
             modularity=modularity,
+            fresh_modularity=fresh_modularity,
             regrouped=regrouped,
         )
+
+    def cluster_hierarchy(
+        self,
+        graphs: Mapping[str, CallGraph],
+        max_depth: int,
+        scope_input: Callable[[str, Mapping[str, CallGraph]], ClusterScopeInput] = _unseeded_scope,
+    ) -> ClusterScopeResult:
+        """Recursively cluster every expandable exact subgraph up to ``max_depth``."""
+        if max_depth < 1:
+            raise ValueError("max_depth must be at least 1")
+        root_input = scope_input(_ROOT_SCOPE_ID, graphs)
+        root = self.cluster_scope(
+            graphs,
+            partitions=root_input.partitions,
+            previous_owner=root_input.previous_owner,
+        )
+        self._cluster_children(root, graphs, 1, max_depth, scope_input)
+        return root
+
+    def _cluster_children(
+        self,
+        scope: ClusterScopeResult,
+        graphs: Mapping[str, CallGraph],
+        depth: int,
+        max_depth: int,
+        scope_input: Callable[[str, Mapping[str, CallGraph]], ClusterScopeInput],
+    ) -> None:
+        if depth >= max_depth:
+            return
+        for group in scope.groups:
+            child_graphs = self._induced_graphs(group, graphs)
+            method_count, file_count = self._group_size(group, graphs)
+            if not child_graphs or not file_count:
+                continue
+            child_input = scope_input(group.group_id, child_graphs)
+            child = self.cluster_scope(
+                child_graphs,
+                scope_id=group.group_id,
+                partitions=child_input.partitions,
+                previous_owner=child_input.previous_owner,
+                low=SUBCOMPONENTS_MIN,
+                high=SUBCOMPONENTS_MAX,
+                method_level_fallback=True,
+            )
+            load = scope_load(method_count, file_count)
+            if load < 1.0 and not scope_is_separable(child.partitions, child.fresh_modularity, load):
+                continue
+            group.children = child
+            self._cluster_children(child, child_graphs, depth + 1, max_depth, scope_input)
+
+    @staticmethod
+    def _induced_graphs(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> dict[str, CallGraph]:
+        child_graphs: dict[str, CallGraph] = {}
+        for language, graph in graphs.items():
+            members = group.members.get(language, set())
+            if not members:
+                continue
+            child = graph.filter_by_nodes(members)
+            if child.nodes:
+                child_graphs[language] = child
+        return child_graphs
+
+    @staticmethod
+    def _group_size(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> tuple[int, int]:
+        files: set[str] = set()
+        method_count = 0
+        for language, members in group.members.items():
+            graph = graphs[language]
+            for qualified_name in members:
+                node = graph.nodes[qualified_name]
+                files.add(node.file_path)
+                method_count += 1
+        return method_count, len(files)
 
     @staticmethod
     def _allocate_group_ids(scope_id: str, owners: list[str]) -> list[str]:

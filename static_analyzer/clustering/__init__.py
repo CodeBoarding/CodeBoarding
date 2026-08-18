@@ -13,6 +13,7 @@ from static_analyzer.clustering.models import (
     ClusterConnectionEdge,
     ClusterGroup,
     ClusterResult,
+    ClusterScopeInput,
     ClusterScopeResult,
 )
 from static_analyzer.clustering.service import ClusteringService
@@ -24,6 +25,7 @@ __all__ = [
     "ClusterConnectionEdge",
     "ClusterGroup",
     "ClusterResult",
+    "ClusterScopeInput",
     "ClusterScopeResult",
     "ClusteringService",
     "MethodClusterPaths",

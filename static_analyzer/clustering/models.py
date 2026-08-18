@@ -88,6 +88,14 @@ class ClusterConnection:
 
 
 @dataclass
+class ClusterScopeInput:
+    """Optional precomputed partition and ownership anchors for one scope."""
+
+    partitions: Mapping[str, ClusterResult] = field(default_factory=dict)
+    previous_owner: Mapping[int, str] = field(default_factory=dict)
+
+
+@dataclass
 class ClusterGroup:
     """One deterministic architectural group inside a clustered scope."""
 
@@ -111,4 +119,5 @@ class ClusterScopeResult:
     groups: list[ClusterGroup] = field(default_factory=list)
     connections: list[ClusterConnection] = field(default_factory=list)
     modularity: float = 0.0
+    fresh_modularity: float = 0.0
     regrouped: bool = False

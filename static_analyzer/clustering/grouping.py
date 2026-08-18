@@ -471,6 +471,8 @@ class AnchoredGrouping:
     owners: list[str]
     #: True when drift forced a from-scratch re-derivation rather than a carry-forward.
     regrouped: bool
+    #: Modularity of the freshly optimized grouping, used by the expansion gate.
+    fresh_modularity: float
 
 
 def anchored_grouping(
@@ -502,7 +504,7 @@ def anchored_grouping(
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
     live = set(meta_graph.nodes)
     if not live:
-        return AnchoredGrouping([], [], False)
+        return AnchoredGrouping([], [], False, 0.0)
     method_count = _method_counts(cluster_result)
 
     # Carry forward: one group per surviving component, in a stable id order.
@@ -513,8 +515,8 @@ def anchored_grouping(
             carried[owner].add(cid)
     if not carried:
         # Nothing to anchor to — a first run, or a baseline that shares no cluster.
-        fresh, _ = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
-        return AnchoredGrouping(fresh, [""] * len(fresh), True)
+        fresh, fresh_modularity = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
+        return AnchoredGrouping(fresh, [""] * len(fresh), True, fresh_modularity)
 
     owners = sorted(carried)
     groups = [carried[owner] for owner in owners]
@@ -539,11 +541,16 @@ def anchored_grouping(
             f"[Anchored] carried grouping scores {modularity:.4f} vs {fresh_modularity:.4f} fresh "
             f"(> {drift_budget} budget); re-deriving structure from scratch"
         )
-        return AnchoredGrouping(fresh_groups, _inherit_ids(fresh_groups, previous_owner, method_count), True)
+        return AnchoredGrouping(
+            fresh_groups,
+            _inherit_ids(fresh_groups, previous_owner, method_count),
+            True,
+            fresh_modularity,
+        )
 
     logger.info(
         f"[Anchored] {len(live)} leaf clusters -> {len(groups)} components carried forward "
         f"({len(new_subsystems)} new component(s), {len(absorbed)} clusters absorbed, "
         f"modularity={modularity:.4f} vs {fresh_modularity:.4f} fresh)"
     )
-    return AnchoredGrouping(groups, owners, False)
+    return AnchoredGrouping(groups, owners, False, fresh_modularity)

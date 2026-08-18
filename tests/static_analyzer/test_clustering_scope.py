@@ -91,6 +91,9 @@ class TestClusteringScope(unittest.TestCase):
     def test_previous_owners_become_stable_group_ids(self):
         graph = graph_for("python", ["a", "b", "c"])
         partition = partition_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}})
+        _groups, expected_fresh_modularity = supercluster_leaf_ids(
+            {"python": partition}, {"python": graph.to_networkx(reference_kinds=())}
+        )
 
         result = ClusteringService().cluster_scope(
             {"python": graph},
@@ -99,6 +102,7 @@ class TestClusteringScope(unittest.TestCase):
         )
 
         self.assertEqual([group.group_id for group in result.groups], ["2", "4", "7"])
+        self.assertEqual(result.fresh_modularity, expected_fresh_modularity)
         self.assertFalse(result.regrouped)
 
     def test_method_level_fallback_is_available_for_child_scopes(self):
