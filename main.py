@@ -1,4 +1,6 @@
 import argparse
+
+from telemetry.events import already_captured, capture_error
 import os
 import sys
 from pathlib import Path
@@ -122,7 +124,14 @@ def main(argv: list[str] | None = None) -> None:
     argv = _inject_default_subcommand(list(argv))
     parser = build_parser()
     args = parser.parse_args(argv)
-    _dispatch(args, parser)
+    try:
+        _dispatch(args, parser)
+    except BaseException as exc:
+        # Last frame before the user sees this. Anything reported deeper is
+        # already marked, so this only catches what nothing else did.
+        if not already_captured(exc):
+            capture_error(f"cli.{getattr(args, 'command', 'unknown')}", exc)
+        raise
 
 
 if __name__ == "__main__":
