@@ -47,7 +47,7 @@ from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 from static_analyzer.node import Node
 
 
@@ -983,6 +983,127 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNone(result_name)
         self.assertIsNone(result_analysis)
         self.assertEqual(new_components, [])
+
+    @patch("diagram_analysis.diagram_generator.get_expandable_components")
+    def test_process_component_traverses_the_preclustered_scope(self, mock_get_expandable_components):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=3,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        component = Component(name="Root", description="", key_entities=[], component_id="1")
+        child = Component(name="Child", description="", key_entities=[], component_id="1.1")
+        child_analysis = AnalysisInsights(description="child", components=[child], components_relations=[])
+        scope = ClusterScopeResult(scope_id="1")
+        grandchild_scope = ClusterScopeResult(scope_id="1.1")
+        gen.details_agent = Mock()
+        gen.details_agent.run_scope.return_value = (child_analysis, scope.leaf_clusters_by_language)
+        gen._preclustered_scopes = {
+            "1": (scope, {}),
+            "1.1": (grandchild_scope, {}),
+        }
+
+        component_id, result, new_components = gen.process_component(component)
+
+        self.assertEqual(component_id, "1")
+        self.assertIs(result, child_analysis)
+        self.assertEqual(new_components, [child])
+        gen.details_agent.run_scope.assert_called_once_with(component, scope, {})
+        gen.details_agent.run.assert_not_called()
+        mock_get_expandable_components.assert_not_called()
+
+    @patch("diagram_analysis.diagram_generator.get_expandable_components")
+    def test_preclustered_expansion_flags_are_reused_when_saving(self, mock_get_expandable_components):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        expandable = Component(name="A", description="", key_entities=[], component_id="1")
+        leaf = Component(name="B", description="", key_entities=[], component_id="2")
+        analysis = AnalysisInsights(description="root", components=[expandable, leaf], components_relations=[])
+        gen.details_agent = Mock()
+        gen._clustering_groups = {
+            "1": ClusterGroup(group_id="1", cluster_ids=[1], expandable=True),
+            "2": ClusterGroup(group_id="2", cluster_ids=[2], expandable=False),
+        }
+
+        root_ids, sub_ids = gen._expandable_ids_for_tree(analysis, {})
+
+        self.assertEqual(root_ids, ["1"])
+        self.assertEqual(sub_ids, {})
+        mock_get_expandable_components.assert_not_called()
+
+    def test_absorbed_ids_reroot_preclustered_expansion_flags(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=3,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen._clustering_groups = {
+            "1": ClusterGroup(group_id="1", cluster_ids=[1]),
+            "1.1": ClusterGroup(group_id="1.1", cluster_ids=[2]),
+            "1.1.2": ClusterGroup(group_id="1.1.2", cluster_ids=[3], expandable=True),
+        }
+
+        gen._reroot_clustering_groups(["1.1"])
+
+        self.assertEqual(set(gen._clustering_groups), {"1", "1.2"})
+        self.assertTrue(gen._clustering_groups["1.2"].expandable)
+
+    @patch("diagram_analysis.diagram_generator.get_expandable_components")
+    @patch("diagram_analysis.diagram_generator.build_clustering_hierarchy")
+    def test_full_analysis_builds_the_hierarchy_before_running_agents(
+        self,
+        mock_build_hierarchy,
+        mock_get_expandable_components,
+    ):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        child_scope = ClusterScopeResult(scope_id="1")
+        hierarchy = ClusterScopeResult(
+            scope_id="root",
+            groups=[ClusterGroup(group_id="1", cluster_ids=[1], expandable=True, children=child_scope)],
+        )
+        component = Component(name="Root", description="", key_entities=[], component_id="1")
+        analysis = AnalysisInsights(description="root", components=[component], components_relations=[])
+        gen.static_analysis = MagicMock(spec=StaticAnalysisResults)
+        gen.static_analysis.available_cfgs.return_value = {}
+        gen.details_agent = Mock()
+        gen.abstraction_agent = Mock()
+        gen.abstraction_agent.run_scope.return_value = (analysis, {})
+        gen._generate_subcomponents = Mock(return_value=([], {}))
+        expected_path = self.output_dir / "analysis.json"
+        gen.finalize_and_save = Mock(return_value=expected_path)
+        mock_build_hierarchy.return_value = hierarchy
+
+        result = gen.generate_analysis()
+
+        self.assertEqual(result, expected_path)
+        mock_build_hierarchy.assert_called_once_with(gen.static_analysis, 2)
+        gen.abstraction_agent.run_scope.assert_called_once_with(hierarchy)
+        gen.abstraction_agent.run.assert_not_called()
+        gen._generate_subcomponents.assert_called_once_with(analysis, [component])
+        mock_get_expandable_components.assert_not_called()
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.get_expandable_components")

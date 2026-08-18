@@ -35,7 +35,7 @@ from agents.validation import (
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 
 logger = logging.getLogger(__name__)
 
@@ -214,55 +214,44 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         assign_relation_ids(analysis)
         self.build_static_relations(analysis, cfg_graphs, source_cluster_id_prefix=source_cluster_id_prefix)
 
-    def run(self, component: Component):
-        """
-        Analyze a component in detail by creating a subgraph and analyzing its structure.
+    def run_scope(
+        self,
+        component: Component,
+        scope: ClusterScopeResult,
+        subgraph_cfgs: dict[str, CallGraph],
+    ) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
+        """Name and analyze one precomputed component scope."""
+        logger.info(f"[DetailsAgent] Processing precomputed component: {component.name}")
+        return self._run_clustered(
+            component,
+            self.cluster_analysis_from_scope(scope),
+            scope.leaf_clusters_by_language,
+            subgraph_cfgs,
+        )
 
-        This follows the same pattern as AbstractionAgent but operates on a component-level
-        subgraph instead of the full codebase.
-
-        Pipeline:
-        1. Create subgraph from component's assigned files (with method-level expansion if < 5 clusters)
-        2. LLM groups clusters into logical sub-components
-        3. LLM creates components from groups (validated: key_entities must be in cluster scope)
-        4. Deterministically assign methods via cluster -> component mapping
-
-        Args:
-            component: Component to analyze in detail
-
-        Returns:
-            Tuple of (AnalysisInsights, cluster_results dict) with detailed component information
-        """
+    def run(self, component: Component) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
+        """Cluster and analyze one component scope directly."""
         logger.info(f"[DetailsAgent] Processing component: {component.name}")
-
-        # Step 1: Create subgraph from component's assigned files using strict filtering
-        # If subgraph has < MIN_CLUSTERS_THRESHOLD clusters, auto-expands to method-level
         subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(
             component, source_cluster_id_prefix=component.component_id
         )
-
-        # Step 2: Group clusters within the subgraph
         cluster_analysis = self.step_clusters_grouping(component, subgraph_cluster_results, subgraph_cfgs)
+        return self._run_clustered(component, cluster_analysis, subgraph_cluster_results, subgraph_cfgs)
 
-        # Step 3: Generate detailed analysis from grouped clusters
-        # Validation ensures key_entities are within cluster scope (no rescue needed)
+    def _run_clustered(
+        self,
+        component: Component,
+        cluster_analysis: ClusterAnalysis,
+        subgraph_cluster_results: dict[str, ClusterResult],
+        subgraph_cfgs: dict[str, CallGraph],
+    ) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
         analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results, subgraph_cfgs)
 
-        # Step 4: Assign hierarchical component IDs (e.g., "1.1", "1.2" under parent "1")
         assign_component_ids(analysis, parent_id=component.component_id)
-
-        # Step 5: Resolve cluster IDs deterministically from group names
         self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
-
-        # Step 6: Populate file_methods deterministically from cluster results + orphan assignment
-        # Pass subgraph_cfgs to scope node collection to the component's filtered graph
-        # With method-level expansion, each method has its own cluster -> deterministic assignment
         self.populate_file_methods(analysis, subgraph_cluster_results, subgraph_cfgs)
 
-        # Step 7: Analyze component API surfaces
         api_surfaces = self.step_api_surfaces(analysis)
-
-        # Step 8: Discover relations from API surfaces and attach deterministic all_edges
         self.step_relation_analysis(
             analysis,
             api_surfaces,
@@ -272,13 +261,8 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             component.component_id,
         )
 
-        # Step 9: Fix source code reference lines (resolves reference_file paths)
         analysis = self.reference_resolver.fix_source_code_reference_lines(analysis)
-
-        # Step 10: Index relation endpoints after reference resolution
         index_relation_endpoints(analysis, self.repo_dir)
-
-        # Step 11: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
 
         return analysis, subgraph_cluster_results

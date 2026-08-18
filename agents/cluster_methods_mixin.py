@@ -40,6 +40,7 @@ from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,
     ClusterResult,
+    ClusterScopeResult,
     ClusteringService,
     MethodClusterPaths,
 )
@@ -116,6 +117,25 @@ class ClusterMethodsMixin:
     # These attributes must be provided by the class using this mixin
     repo_dir: Path
     static_analysis: StaticAnalysisResults
+
+    @staticmethod
+    def cluster_analysis_from_scope(scope: ClusterScopeResult) -> ClusterAnalysis:
+        """Adapt a precomputed structural scope to the agents' naming prompt."""
+        combined = combine_cluster_results(scope.leaf_clusters_by_language)
+        return ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name=f"Group {index}",
+                    cluster_ids=group.cluster_ids,
+                    description=_summarize_group(
+                        set(group.cluster_ids),
+                        combined.clusters,
+                        combined.cluster_to_files,
+                    ),
+                )
+                for index, group in enumerate(scope.groups, start=1)
+            ]
+        )
 
     def deterministic_cluster_grouping(
         self,

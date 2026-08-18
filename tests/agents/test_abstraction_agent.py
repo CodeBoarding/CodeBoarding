@@ -15,7 +15,7 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 
 
 class TestAbstractionAgent(unittest.TestCase):
@@ -156,6 +156,28 @@ class TestAbstractionAgent(unittest.TestCase):
 
         self.assertIsInstance(result, ClusterAnalysis)
         self.assertEqual(result.cluster_components, [])
+
+    def test_run_scope_uses_the_precomputed_groups(self):
+        agent = self._make_agent()
+        partition = ClusterResult(clusters={1: {"a"}, 2: {"b"}}, strategy="test")
+        scope = ClusterScopeResult(
+            scope_id="root",
+            leaf_clusters_by_language={"python": partition},
+            groups=[ClusterGroup(group_id="1", cluster_ids=[1, 2])],
+        )
+        expected = (
+            AnalysisInsights(description="done", components=[], components_relations=[]),
+            scope.leaf_clusters_by_language,
+        )
+
+        with patch.object(agent, "_run_clustered", return_value=expected) as run_clustered:
+            result = agent.run_scope(scope)
+
+        cluster_analysis, partitions = run_clustered.call_args.args
+        self.assertEqual(result, expected)
+        self.assertIs(partitions, scope.leaf_clusters_by_language)
+        self.assertEqual(len(cluster_analysis.cluster_components), 1)
+        self.assertEqual(cluster_analysis.cluster_components[0].cluster_ids, [1, 2])
 
     @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
     def test_step_final_analysis(self, mock_invoke_repair_validate):

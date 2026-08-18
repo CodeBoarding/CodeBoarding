@@ -22,7 +22,13 @@ from diagram_analysis.file_index import build_files_index
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import NodeType
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterCache, ClusterResult, ClusteringService
+from static_analyzer.clustering import (
+    ClusterCache,
+    ClusterGroup,
+    ClusterResult,
+    ClusterScopeResult,
+    ClusteringService,
+)
 from static_analyzer.node import Node
 
 
@@ -212,6 +218,31 @@ class TestDetailsAgent(unittest.TestCase):
             [sorted(cc.cluster_ids) for cc in result.cluster_components],
             [sorted(cc.cluster_ids) for cc in result_again.cluster_components],
         )
+
+    def test_run_scope_skips_local_reclustering(self):
+        agent = self._make_agent()
+        partition = ClusterResult(clusters={1: {"test.func"}}, strategy="test")
+        scope = ClusterScopeResult(
+            scope_id="1",
+            leaf_clusters_by_language={"python": partition},
+            groups=[ClusterGroup(group_id="1.1", cluster_ids=[1])],
+        )
+        cfgs = {"python": CallGraph(language="python")}
+        expected = (
+            AnalysisInsights(description="done", components=[], components_relations=[]),
+            scope.leaf_clusters_by_language,
+        )
+
+        with (
+            patch.object(agent, "_run_clustered", return_value=expected) as run_clustered,
+            patch.object(agent, "step_clusters_grouping") as regroup,
+        ):
+            result = agent.run_scope(self.test_component, scope, cfgs)
+
+        self.assertEqual(result, expected)
+        regroup.assert_not_called()
+        self.assertIs(run_clustered.call_args.args[2], scope.leaf_clusters_by_language)
+        self.assertIs(run_clustered.call_args.args[3], cfgs)
 
     @patch("agents.details_agent.DetailsAgent._invoke_repair_validate")
     def test_step_final_analysis(self, mock_invoke_repair_validate):

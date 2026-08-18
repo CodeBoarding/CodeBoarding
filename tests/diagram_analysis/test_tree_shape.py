@@ -300,6 +300,7 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
         generator.static_analysis = None
         generator.repo_location = Path(".")
         generator._baseline_global_relations = None
+        generator._clustering_groups = {}
         root = analysis(
             component("1", "Kept", {"a.py": ["a.one"]}),
             component("2", "Degenerate", {"b.py": ["b.one"]}),
@@ -317,6 +318,7 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
         generator = DiagramGenerator.__new__(DiagramGenerator)
         generator.static_analysis = None
         generator.repo_location = Path(".")
+        generator._clustering_groups = {}
         root = analysis(component("1", "Kept", {"a.py": ["a.one"]}), component("2", "Parent", {}))
         subs = {"2": analysis(component("2.1", "Child", {}))}
 
