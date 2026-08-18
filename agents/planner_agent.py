@@ -19,6 +19,14 @@ import networkx as nx
 
 from agents.agent_responses import AnalysisInsights, Component
 from static_analyzer.clustering import METHOD_LEVEL_STRATEGY, ClusterResult
+from static_analyzer.clustering.expansion import (
+    EXPAND_MODULARITY_THRESHOLD,
+    MAX_LEAF_FILES,
+    MAX_LEAF_METHODS,
+    MIN_METHODS_TO_EXPAND,
+    scope_is_separable,
+    scope_load,
+)
 from static_analyzer.clustering.grouping import GroupingService
 
 logger = logging.getLogger(__name__)
@@ -26,27 +34,11 @@ logger = logging.getLogger(__name__)
 # Default thresholds
 DEFAULT_MIN_FILES = 1  # Need at least 1 file to have content
 
-# Below this a component holds too little to be worth sub-dividing at all.
-MIN_METHODS_TO_EXPAND = 30
-
-# The size at which a component stops being readable as one box and must be split
-# whatever its call structure says. Measured across the eval corpus: at 12 files /
-# 120 methods every repo's tree comes out with no oversized leaf, while small repos
-# are untouched (they stop at the modularity gate long before this).
-MAX_LEAF_FILES = 12
-MAX_LEAF_METHODS = 120
-
-# Modularity a *small* component's split must reach to be worth making. The bar
-# ramps linearly to zero as the component approaches the leaf ceiling: a large
-# component gets split on weaker structural evidence, because leaving it whole
-# costs the reader more than an imperfect boundary does.
-EXPAND_MODULARITY_THRESHOLD = 0.15
-
 
 def leaf_load(component: Component) -> float:
     """How full a component is against the leaf ceiling; >= 1.0 means too big to leave whole."""
     methods = sum(len(group.methods) for group in component.file_methods)
-    return max(methods / MAX_LEAF_METHODS, len(component.file_methods) / MAX_LEAF_FILES)
+    return scope_load(methods, len(component.file_methods))
 
 
 def component_is_separable(
@@ -74,7 +66,7 @@ def component_is_separable(
         return False
     _groups, modularity = GroupingService().group(cluster_results, cfg_graphs, subcomponents=True)
     required = EXPAND_MODULARITY_THRESHOLD * max(0.0, 1.0 - load)
-    separable = modularity >= required
+    separable = scope_is_separable(cluster_results, modularity, load, min_methods)
     logger.debug(
         f"[Planner] subgraph modularity={modularity:.4f} (load={load:.2f}, required {required:.4f}) "
         f"-> separable={separable}"

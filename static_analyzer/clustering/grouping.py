@@ -373,7 +373,7 @@ def _anchored_group(
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
     live = set(meta_graph.nodes)
     if not live:
-        return AnchoredGrouping([], [], False)
+        return AnchoredGrouping([], [], False, 0.0)
     method_count = _method_counts(cluster_result)
 
     # Keep one stable group per surviving component.
@@ -384,13 +384,13 @@ def _anchored_group(
             carried[owner].add(cid)
     if not carried:
         # A first run or unrelated baseline has no ownership to preserve.
-        fresh, _ = _optimize_grouping(
+        fresh, fresh_modularity = _optimize_grouping(
             meta_graph,
             cluster_result,
             method_count,
             config,
         )
-        return AnchoredGrouping(fresh, [""] * len(fresh), True)
+        return AnchoredGrouping(fresh, [""] * len(fresh), True, fresh_modularity)
 
     owners = sorted(carried)
     groups = [carried[owner] for owner in owners]
@@ -417,11 +417,16 @@ def _anchored_group(
             f"[Anchored] carried grouping scores {modularity:.4f} vs {fresh_modularity:.4f} fresh "
             f"(> {config.drift_budget} budget); re-deriving structure from scratch"
         )
-        return AnchoredGrouping(fresh_groups, _inherit_ids(fresh_groups, previous_owner, method_count), True)
+        return AnchoredGrouping(
+            fresh_groups,
+            _inherit_ids(fresh_groups, previous_owner, method_count),
+            True,
+            fresh_modularity,
+        )
 
     logger.info(
         f"[Anchored] {len(live)} leaf clusters -> {len(groups)} components carried forward "
         f"({len(new_subsystems)} new component(s), {len(absorbed)} clusters absorbed, "
         f"modularity={modularity:.4f} vs {fresh_modularity:.4f} fresh)"
     )
-    return AnchoredGrouping(groups, owners, False)
+    return AnchoredGrouping(groups, owners, False, fresh_modularity)

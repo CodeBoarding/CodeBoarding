@@ -77,6 +77,7 @@ class AnchoredGrouping:
     groups: list[set[ClusterId]]
     owners: list[ComponentId]
     regrouped: bool
+    fresh_modularity: float
 
 
 @dataclass
@@ -94,6 +95,14 @@ class GroupConnection:
     source_group_id: GroupId
     target_group_id: GroupId
     edges: list[ClusterConnectionEdge] = field(default_factory=list)
+
+
+@dataclass
+class ClusterScopeInput:
+    """Optional precomputed leaf clusters and ownership anchors for one scope."""
+
+    leaf_clusters_by_language: Mapping[str, ClusterResult] = field(default_factory=dict)
+    previous_owner: Mapping[ClusterId, ComponentId] = field(default_factory=dict)
 
 
 @dataclass
@@ -124,4 +133,5 @@ class ClusterScopeResult:
     groups: list[ClusterGroup] = field(default_factory=list)
     connections: list[GroupConnection] = field(default_factory=list)
     modularity: float = 0.0
+    fresh_modularity: float = 0.0
     regrouped: bool = False

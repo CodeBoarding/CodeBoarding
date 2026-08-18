@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from types import MappingProxyType
 
 import networkx as nx
@@ -13,6 +13,7 @@ from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
 from static_analyzer.clustering.engine import cluster_graph
+from static_analyzer.clustering.expansion import scope_is_separable, scope_load
 from static_analyzer.clustering.grouping import (
     GroupingService,
     combine_cluster_results,
@@ -24,6 +25,7 @@ from static_analyzer.clustering.models import (
     ClusterConnectionEdge,
     ClusterGroup,
     ClusterResult,
+    ClusterScopeInput,
     ClusterScopeResult,
     GroupConnection,
 )
@@ -42,6 +44,10 @@ class LeafClustersUnavailableError(RuntimeError):
             "enable method-level fallback or provide a usable cluster result."
         )
         self.language = language
+
+
+def _unseeded_scope(_scope_id: ScopeId, _graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+    return ClusterScopeInput()
 
 
 class ClusteringService:
@@ -83,17 +89,29 @@ class ClusteringService:
 
         nx_graphs = {language: graph.to_networkx(DEFAULT_REFERENCE_KINDS) for language, graph in graphs.items()}
         grouping_service = GroupingService()
+        subcomponents = scope_id != _ROOT_SCOPE_ID
         if previous_owner:
-            grouping = grouping_service.anchored_group(scope_leaf_clusters, nx_graphs, dict(previous_owner))
+            grouping = grouping_service.anchored_group(
+                scope_leaf_clusters,
+                nx_graphs,
+                dict(previous_owner),
+                subcomponents=subcomponents,
+            )
             raw_groups = grouping.groups
             owners = grouping.owners
             combined = combine_cluster_results(scope_leaf_clusters)
             combined_cfg = nx.compose_all(list(nx_graphs.values())) if nx_graphs else nx.DiGraph()
             modularity = score_grouping(combined, combined_cfg, raw_groups)
+            fresh_modularity = grouping.fresh_modularity
             regrouped = grouping.regrouped
         else:
-            raw_groups, modularity = grouping_service.group(scope_leaf_clusters, nx_graphs)
+            raw_groups, modularity = grouping_service.group(
+                scope_leaf_clusters,
+                nx_graphs,
+                subcomponents=subcomponents,
+            )
             owners = [""] * len(raw_groups)
+            fresh_modularity = modularity
             regrouped = False
 
         group_ids = self._allocate_group_ids(scope_id, owners)
@@ -113,8 +131,84 @@ class ClusteringService:
             groups=groups,
             connections=connections,
             modularity=modularity,
+            fresh_modularity=fresh_modularity,
             regrouped=regrouped,
         )
+
+    def cluster_hierarchy(
+        self,
+        graphs: Mapping[str, CallGraph],
+        max_depth: int,
+        scope_input: Callable[[ScopeId, Mapping[str, CallGraph]], ClusterScopeInput] = _unseeded_scope,
+    ) -> ClusterScopeResult:
+        """Recursively cluster every expandable exact subgraph up to ``max_depth``."""
+        if max_depth < 1:
+            raise ValueError("max_depth must be at least 1")
+        root_input = scope_input(_ROOT_SCOPE_ID, graphs)
+        root = self.cluster_scope(
+            graphs,
+            leaf_clusters_by_language=root_input.leaf_clusters_by_language,
+            previous_owner=root_input.previous_owner,
+        )
+        self._cluster_children(root, graphs, 1, max_depth, scope_input)
+        return root
+
+    def _cluster_children(
+        self,
+        scope: ClusterScopeResult,
+        graphs: Mapping[str, CallGraph],
+        depth: int,
+        max_depth: int,
+        scope_input: Callable[[ScopeId, Mapping[str, CallGraph]], ClusterScopeInput],
+    ) -> None:
+        if depth >= max_depth:
+            return
+        for group in scope.groups:
+            child_graphs = self._induced_graphs(group, graphs)
+            method_count, file_count = self._group_size(group, graphs)
+            if not child_graphs or not file_count:
+                continue
+            child_input = scope_input(group.group_id, child_graphs)
+            child = self.cluster_scope(
+                child_graphs,
+                scope_id=group.group_id,
+                leaf_clusters_by_language=child_input.leaf_clusters_by_language,
+                previous_owner=child_input.previous_owner,
+                method_level_fallback=True,
+            )
+            load = scope_load(method_count, file_count)
+            if load < 1.0 and not scope_is_separable(
+                child.leaf_clusters_by_language,
+                child.fresh_modularity,
+                load,
+            ):
+                continue
+            group.children = child
+            self._cluster_children(child, child_graphs, depth + 1, max_depth, scope_input)
+
+    @staticmethod
+    def _induced_graphs(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> dict[str, CallGraph]:
+        child_graphs: dict[str, CallGraph] = {}
+        for language, graph in graphs.items():
+            members = group.symbol_members_by_language.get(language, set())
+            if not members:
+                continue
+            child = graph.filter_by_nodes(members)
+            if child.nodes:
+                child_graphs[language] = child
+        return child_graphs
+
+    @staticmethod
+    def _group_size(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> tuple[int, int]:
+        files: set[str] = set()
+        method_count = 0
+        for language, members in group.symbol_members_by_language.items():
+            graph = graphs[language]
+            for qualified_name in members:
+                node = graph.nodes[qualified_name]
+                files.add(node.file_path)
+                method_count += 1
+        return method_count, len(files)
 
     @staticmethod
     def _allocate_group_ids(scope_id: ScopeId, owners: list[ComponentId]) -> list[GroupId]:
