@@ -13,6 +13,7 @@ from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.exceptions import EdgeResolutionError
+from telemetry.degradations import record as record_degradation
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.lsp_constants import (
@@ -136,7 +137,8 @@ def build_edges_via_references(
             try:
                 result_list, error_indices = ctx.lsp.send_references_batch(queries, per_query_timeout=per_query_timeout)
             except Exception as e:
-                logger.warning("Batch references failed: %s", e)
+                logger.warning("Batch references failed (%d positions): %s", len(queries), e)
+                record_degradation("references_batch", f"{type(e).__name__}: {e}", items=len(queries))
                 result_list = [[] for _ in queries]
                 error_indices = set()
 
@@ -581,7 +583,8 @@ def _resolve_implementations(
         try:
             impl_results, _ = ctx.lsp.send_implementation_batch(queries)
         except Exception as e:
-            logger.warning("Implementation batch failed: %s", e)
+            logger.warning("Implementation batch failed (%d targets): %s", len(batch_keys), e)
+            record_degradation("implementation_batch", f"{type(e).__name__}: {e}", items=len(batch_keys))
             pbar.update(len(batch_keys))
             continue
 

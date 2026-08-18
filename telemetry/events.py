@@ -18,6 +18,7 @@ from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
+from telemetry import degradations
 from telemetry.schemas import (
     AnalysisCompleted,
     AnalysisStarted,
@@ -211,15 +212,48 @@ def track_analysis(func):
                     depth_level=depth_level,
                 ).model_dump(exclude_none=True),
             )
-            if exc is not None:
+            if exc is not None and not already_captured(exc):
                 exc_props: dict = {"command": command, "version": _app_version()}
                 if run_id:
                     exc_props["run_id"] = run_id
                 exc_props.update(_exception_properties(exc))
                 telemetry.capture_exception(exc, properties=exc_props)
+                try:
+                    setattr(exc, _CAPTURED_FLAG, True)
+                except AttributeError:
+                    pass
             telemetry.flush()
 
     return wrapper
+
+
+_CAPTURED_FLAG = "__codeboarding_captured__"
+
+
+def already_captured(exc: BaseException) -> bool:
+    """Whether this exception has been reported once already.
+
+    An exception raised deep in the engine passes several frames that could each
+    report it. One user-visible failure should be one ``$exception`` event, so
+    the first reporter marks it and later ones defer.
+    """
+    return getattr(exc, _CAPTURED_FLAG, False)
+
+
+def flush_degradations(command: str) -> dict:
+    """Emit the run's absorbed failures as one event, then reset.
+
+    Separate from ``capture_error``: those are failures that stopped something,
+    these are losses the run carried on through. Sending them individually would
+    scale with the repository rather than with the number of distinct problems.
+    """
+    payload = degradations.summary()
+    degradations.reset()
+    if not payload:
+        return {}
+    telemetry.capture("analysis_degraded", {"command": command, "version": _app_version(), **payload})
+    telemetry.flush()
+    return payload
 
 
 def capture_error(command: str, exc: BaseException, *, extra: dict | None = None) -> None:
@@ -237,6 +271,10 @@ def capture_error(command: str, exc: BaseException, *, extra: dict | None = None
     if extra:
         properties.update(extra)
     telemetry.capture_exception(exc, properties=properties)
+    try:
+        setattr(exc, _CAPTURED_FLAG, True)
+    except AttributeError:
+        pass  # builtins with __slots__ cannot carry the mark; a duplicate event is the lesser cost
     telemetry.flush()
 
 
