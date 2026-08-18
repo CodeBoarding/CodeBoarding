@@ -1,13 +1,17 @@
 """Tests for static_analyzer.engine.edge_builder — both strategies and helpers."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
+
+import pytest
+from unittest.mock import MagicMock, patch
 
 from static_analyzer.engine.edge_builder import (
     EdgeMap,
     _best_candidate,
     _is_valid_edge,
     _process_references_for_position,
+    _build_dispatch_index,
+    _override_targets,
     _resolve_definition_to_symbol,
     build_edges_via_definitions,
     build_edges_via_references,
@@ -470,8 +474,12 @@ class TestBuildEdgesViaDefinitions:
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert len(edges) == 0
 
-    def test_handles_definition_batch_failure(self, tmp_path: Path):
-        """Definition batch failure doesn't crash."""
+    def test_definition_batch_failure_does_not_crash(self, tmp_path: Path):
+        """A failed batch loses its edges without stopping the run.
+
+        Whether that is the right trade is decided on the fail-fast branch; here
+        the point is only that the run survives it.
+        """
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
         st = ctx.symbol_table
@@ -487,8 +495,7 @@ class TestBuildEdgesViaDefinitions:
 
         lsp.send_definition_batch.side_effect = Exception("LSP crash")
 
-        edges = build_edges_via_definitions(adapter, ctx, [src])
-        assert len(edges) == 0
+        assert len(build_edges_via_definitions(adapter, ctx, [src])) == 0
 
     def test_constructor_adds_parent_class_edge(self, tmp_path: Path):
         """When definition resolves to a constructor, also adds edge to parent class."""
@@ -743,3 +750,176 @@ class TestBuildEdgesViaReferencesExtra:
         good_queries = [f for f in all_queried_files if "good.py" in f]
         assert len(good_queries) == 1
         assert len(edges) == 0
+
+
+class _CSharpishAdapter(_TestAdapter):
+    """Stands in for the C# adapter: the only one on both dispatch capabilities."""
+
+    @property
+    def resolves_method_groups(self) -> bool:
+        return True
+
+    @property
+    def expands_virtual_dispatch(self) -> bool:
+        return True
+
+
+def _csharp_ctx() -> tuple[EdgeBuildContext, _CSharpishAdapter, MagicMock]:
+    adapter = _CSharpishAdapter()
+    lsp = _make_lsp()
+    return EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector()), adapter, lsp
+
+
+class TestMethodGroupArguments:
+    def _definitions_at(self, src: Path, hits: dict[tuple[int, int], tuple[int, int]]):
+        def def_batch(queries: list) -> tuple[list, set[int]]:
+            return [
+                (
+                    [
+                        {
+                            "uri": src.as_uri(),
+                            "range": {"start": {"line": hits[(line, col)][0], "character": hits[(line, col)][1]}},
+                        }
+                    ]
+                    if (line, col) in hits
+                    else []
+                )
+                for _, line, col in queries
+            ], set()
+
+        return def_batch
+
+    def test_handler_passed_as_an_argument_becomes_an_edge(self, tmp_path: Path):
+        ctx, adapter, lsp = _csharp_ctx()
+        st = ctx.symbol_table
+        src = tmp_path / "Program.cs"
+        src.write_text('class P {\n  void Main(){ Map("/i", Handle); }\n  void Handle(){}\n}\n')
+
+        caller = _sym("Main", "P.Main", NodeType.METHOD, str(src), 1, 7, 1)
+        handler = _sym("Handle", "P.Handle", NodeType.METHOD, str(src), 2, 7, 2)
+        st._symbols.update({"P.Main": caller, "P.Handle": handler})
+        st._file_symbols[str(src)] = [caller, handler]
+        st._primary_file_symbols[str(src)] = [caller, handler]
+        st.build_indices()
+
+        lsp.send_definition_batch.side_effect = self._definitions_at(src, {(1, 25): (2, 7)})
+
+        assert ("P.Main", "P.Handle") in build_edges_via_definitions(adapter, ctx, [src])
+
+    def test_ordinary_argument_resolving_to_a_local_is_not_an_edge(self, tmp_path: Path):
+        ctx, adapter, lsp = _csharp_ctx()
+        st = ctx.symbol_table
+        src = tmp_path / "Program.cs"
+        src.write_text("class P {\n  void Main(){ int total = 1; Send(total); }\n  int total;\n}\n")
+
+        caller = _sym("Main", "P.Main", NodeType.METHOD, str(src), 1, 7, 1)
+        field = _sym("total", "P.total", NodeType.FIELD, str(src), 2, 6, 2)
+        st._symbols.update({"P.Main": caller, "P.total": field})
+        st._file_symbols[str(src)] = [caller, field]
+        st._primary_file_symbols[str(src)] = [caller, field]
+        st.build_indices()
+
+        lsp.send_definition_batch.side_effect = self._definitions_at(src, {(1, 34): (2, 6)})
+
+        assert ("P.Main", "P.total") not in build_edges_via_definitions(adapter, ctx, [src])
+
+    def test_invoked_delegate_field_is_still_an_edge(self, tmp_path: Path):
+        """The method-group filter must not reach real invocation sites."""
+        ctx, adapter, lsp = _csharp_ctx()
+        st = ctx.symbol_table
+        src = tmp_path / "Middleware.cs"
+        src.write_text("class M {\n  void Invoke(){ _next(); }\n  RequestDelegate _next;\n}\n")
+
+        caller = _sym("Invoke", "M.Invoke", NodeType.METHOD, str(src), 1, 7, 1)
+        field = _sym("_next", "M._next", NodeType.FIELD, str(src), 2, 18, 2)
+        st._symbols.update({"M.Invoke": caller, "M._next": field})
+        st._file_symbols[str(src)] = [caller, field]
+        st._primary_file_symbols[str(src)] = [caller, field]
+        st.build_indices()
+
+        lsp.send_definition_batch.side_effect = self._definitions_at(src, {(1, 17): (2, 18)})
+
+        assert ("M.Invoke", "M._next") in build_edges_via_definitions(adapter, ctx, [src])
+
+
+class TestOverrideTargets:
+    def _index(self, tmp_path: Path, files: dict[str, str], classes: dict[str, str]):
+        adapter = _CSharpishAdapter()
+        ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
+        paths = []
+        for name, text in files.items():
+            path = tmp_path / name
+            path.write_text(text)
+            paths.append(path)
+        for qname, file_name in classes.items():
+            simple = qname.rsplit(".", 1)[-1]
+            ctx.symbol_table._symbols[qname] = _sym(simple, qname, NodeType.CLASS, str(tmp_path / file_name), 0)
+        return _build_dispatch_index(adapter, ctx, paths), ctx.symbol_table
+
+    def test_expands_to_an_override(self, tmp_path: Path):
+        dispatch, st = self._index(
+            tmp_path,
+            {
+                "Animal.cs": "abstract class Animal { public abstract void Speak(); }\n",
+                "Dog.cs": "class Dog : Animal { public override void Speak() {} }\n",
+            },
+            {"Animal": "Animal.cs", "Dog": "Dog.cs"},
+        )
+        st._symbols["Animal.Speak"] = _sym("Speak", "Animal.Speak", NodeType.METHOD, str(tmp_path / "Animal.cs"), 0)
+        st._symbols["Dog.Speak"] = _sym("Speak", "Dog.Speak", NodeType.METHOD, str(tmp_path / "Dog.cs"), 0)
+
+        targets = _override_targets(st._symbols["Animal.Speak"], st, dispatch)
+        assert [t.qualified_name for t in targets] == ["Dog.Speak"]
+
+    def test_skips_a_hidden_member(self, tmp_path: Path):
+        dispatch, st = self._index(
+            tmp_path,
+            {
+                "Base.cs": "class Base { public void Plain() {} }\n",
+                "Derived.cs": "class Derived : Base { public new void Plain() {} }\n",
+            },
+            {"Base": "Base.cs", "Derived": "Derived.cs"},
+        )
+        st._symbols["Base.Plain"] = _sym("Plain", "Base.Plain", NodeType.METHOD, str(tmp_path / "Base.cs"), 0)
+        st._symbols["Derived.Plain"] = _sym("Plain", "Derived.Plain", NodeType.METHOD, str(tmp_path / "Derived.cs"), 0)
+
+        assert _override_targets(st._symbols["Base.Plain"], st, dispatch) == []
+
+    def test_interface_member_reaches_an_implicit_implementation(self, tmp_path: Path):
+        dispatch, st = self._index(
+            tmp_path,
+            {
+                "IThing.cs": "interface IThing { void Run(); }\n",
+                "Impl.cs": "class Impl : IThing { public void Run() {} }\n",
+            },
+            {"IThing": "IThing.cs", "Impl": "Impl.cs"},
+        )
+        st._symbols["IThing"] = _sym("IThing", "IThing", NodeType.INTERFACE, str(tmp_path / "IThing.cs"), 0)
+        st._symbols["IThing.Run"] = _sym("Run", "IThing.Run", NodeType.METHOD, str(tmp_path / "IThing.cs"), 0)
+        st._symbols["Impl.Run"] = _sym("Run", "Impl.Run", NodeType.METHOD, str(tmp_path / "Impl.cs"), 0)
+
+        targets = _override_targets(st._symbols["IThing.Run"], st, dispatch)
+        assert [t.qualified_name for t in targets] == ["Impl.Run"]
+
+    def test_base_name_declared_twice_is_not_expanded(self, tmp_path: Path):
+        """`Alpha.Base` and `Beta.Base` are both just `Base` in source."""
+        dispatch, st = self._index(
+            tmp_path,
+            {
+                "AlphaBase.cs": "namespace Alpha { abstract class Base { public abstract void Run(); } }\n",
+                "BetaBase.cs": "namespace Beta { abstract class Base { public abstract void Run(); } }\n",
+                "Other.cs": "namespace Beta { class Other : Base { public override void Run() {} } }\n",
+            },
+            {
+                "Alpha.Base": "AlphaBase.cs",
+                "Beta.Base": "BetaBase.cs",
+                "Beta.Other": "Other.cs",
+            },
+        )
+        st._symbols["Alpha.Base.Run"] = _sym(
+            "Run", "Alpha.Base.Run", NodeType.METHOD, str(tmp_path / "AlphaBase.cs"), 0
+        )
+        st._symbols["Beta.Other.Run"] = _sym("Run", "Beta.Other.Run", NodeType.METHOD, str(tmp_path / "Other.cs"), 0)
+
+        assert "Base" in dispatch.ambiguous
+        assert _override_targets(st._symbols["Alpha.Base.Run"], st, dispatch) == []

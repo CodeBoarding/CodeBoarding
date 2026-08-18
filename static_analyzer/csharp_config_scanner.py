@@ -65,6 +65,19 @@ class CSharpConfigScanner:
                 continue
             configs.append(CSharpProjectConfig(root, "project"))
 
+        # A solution or project that ships no source still costs a dotnet restore
+        # and a full csharp-ls workspace load to produce nothing. abp has 19 of
+        # them out of 47 -- packaging templates under studio/source-codes that
+        # carry .csproj files and no .cs.
+        sourceless = [c for c in configs if not self._has_cs_files(c.root)]
+        if sourceless:
+            configs = [c for c in configs if c not in sourceless]
+            logger.info(
+                "Skipping %d C# project root(s) with no .cs files: %s",
+                len(sourceless),
+                ", ".join(str(c.root.name) for c in sourceless[:5]) + ("..." if len(sourceless) > 5 else ""),
+            )
+
         # 3. Fallback: .cs files exist but no project infrastructure
         if not configs and self._has_cs_files(self.repo_path):
             logger.warning(
@@ -86,12 +99,12 @@ class CSharpConfigScanner:
         return sorted({p.parent for p in self.repo_path.rglob("*.csproj") if p.is_file()})
 
     def _has_cs_files(self, directory: Path) -> bool:
-        """Check if directory contains any .cs files."""
-        try:
-            next(directory.rglob("*.cs"))
-            return True
-        except StopIteration:
-            return False
+        """Whether the directory holds any .cs file the analysis would read.
+
+        Ignored paths do not count: a repo whose only C# lives under
+        ``node_modules/`` would otherwise fall back to analyzing the whole root.
+        """
+        return any(not self.ignore_manager.should_ignore(path) for path in directory.rglob("*.cs"))
 
     @staticmethod
     def _is_subpath(path: Path, parent: Path) -> bool:

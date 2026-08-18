@@ -29,6 +29,19 @@ def parent_qualified_name(qualified_name: str) -> str:
     return parent.split("(", 1)[0]
 
 
+def is_self_or_container_edge(caller_qualified_name: str, target_qualified_name: str) -> bool:
+    """Whether an edge between these two names is a symbol pointing at itself or
+    at something it already contains (a method and its own class, either way round).
+
+    Shared so the full-rebuild and incremental edge paths cannot disagree.
+    """
+    return (
+        caller_qualified_name == target_qualified_name
+        or target_qualified_name.startswith(caller_qualified_name + ".")
+        or caller_qualified_name.startswith(target_qualified_name + ".")
+    )
+
+
 _SYMBOL_PARTS_CACHE: dict[int, tuple[ReferenceType, set[str], set[str]]] = {}
 
 

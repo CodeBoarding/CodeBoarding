@@ -93,7 +93,7 @@ class TestInvalidateFiles(unittest.TestCase):
 
         self.assertEqual(updated.invalidated_files, {"a.py"})
         self.assertEqual(
-            [(src, dst) for src, dst, _src_node, _dst_node in updated.invalidated_edges],
+            [(src, dst) for src, dst, *_ in updated.invalidated_edges],
             [("a.foo", "b.bar")],
         )
 
@@ -607,7 +607,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
 
             _restore_cross_boundary_edges(
                 call_graph,
-                [(source.fully_qualified_name, target.fully_qualified_name, source, target)],
+                [(source.fully_qualified_name, target.fully_qualified_name, source, target, [])],
                 {str(changed_file)},
                 adapter,
                 engine_client,
