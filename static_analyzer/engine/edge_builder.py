@@ -365,8 +365,11 @@ def _resolve_iterated_types(
             try:
                 results, _ = ctx.lsp.send_type_definition_batch(queries)
             except Exception as e:
-                logger.warning("Type-definition batch failed for %s (%d sites): %s", file_path.name, len(batch), e)
-                continue
+                # Same reasoning as the definition batch: skipping leaves the run
+                # missing every enumeration edge in this file with nothing saying so.
+                raise EdgeResolutionError(
+                    f"Type-definition batch failed for {file_path.name} ({len(batch)} foreach sites): {e}"
+                ) from e
 
             for index, site in enumerate(batch):
                 caller = st.find_containing_symbol(file_path, site.lsp_line, site.lsp_column)
