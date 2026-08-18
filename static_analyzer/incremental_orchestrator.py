@@ -389,7 +389,7 @@ def _add_outbound_edges_from_changed_files(
         for site, definitions in zip(call_sites, definition_results):
             line = site.lsp_line
             char = site.lsp_column
-            src_node = _most_specific_node_at_position(call_graph, file_path, line, char, callable_only=True)
+            src_node = _containing_source_node(call_graph, file_path, line, char)
             if src_node is None:
                 continue
             is_method_group = (line, char) in method_group_positions
@@ -456,9 +456,7 @@ def _add_iterated_type_edges(
 
     added = 0
     for site, definitions in zip(sites, results):
-        src_node = _most_specific_node_at_position(
-            call_graph, file_path, site.lsp_line, site.lsp_column, callable_only=True
-        )
+        src_node = _containing_source_node(call_graph, file_path, site.lsp_line, site.lsp_column)
         if src_node is None:
             continue
         for definition in definitions:
@@ -478,6 +476,21 @@ def _add_iterated_type_edges(
                     except ValueError:
                         logger.debug("Failed to add iterated-type edge", exc_info=True)
     return added
+
+
+def _containing_source_node(call_graph: CallGraph, file_path: Path, line: int, char: int) -> Node | None:
+    """The node an edge from this position belongs to, callable or otherwise.
+
+    A field initializer -- ``private readonly Store _store = new Store();`` -- calls
+    a constructor from outside any method, so a callable-only lookup finds nothing
+    and the edge is dropped. The full rebuild attributes it to the enclosing class,
+    and an incremental run has to agree or it loses the edge on every edit to that
+    file, including edits that change nothing.
+    """
+    callable_node = _most_specific_node_at_position(call_graph, file_path, line, char, callable_only=True)
+    if callable_node is not None:
+        return callable_node
+    return _most_specific_node_at_position(call_graph, file_path, line, char)
 
 
 def _most_specific_node_at_position(
