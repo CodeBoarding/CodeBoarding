@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-18T08:30:25.575854+00:00",
-    "source_tree_hash": "5331d85c43ea08e92494b4b9b1480341dd3f0137d314634605b12f6ea35c7d50",
+    "generated_at": "2026-08-18T14:02:19.183595+00:00",
+    "source_tree_hash": "3fdb6f8c76730ec06ec4d92624599a3f91bb3298635d47365bf1da21d58986a5",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -1034,8 +1034,8 @@
         "agents/llm_config.py|agents.llm_config.initialize_llms",
         "agents/llm_config.py|agents.llm_config.supports_prompt_caching"
       ],
-      "content_hash": "fef77eaf3646c31e",
-      "module_hash": "71712c8a7f3e5d03"
+      "content_hash": "efd8de4f533d60fc",
+      "module_hash": "240c78aab725cb33"
     },
     "agents/llm_errors.py": {
       "method_keys": [
@@ -1102,8 +1102,8 @@
         "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_api_surfaces_message",
         "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_relation_analysis_message"
       ],
-      "content_hash": "a9732ab8a1198daa",
-      "module_hash": "1079d358db7753a5"
+      "content_hash": "b4c9c77c9e3ff9ab",
+      "module_hash": "088112e055c6c08e"
     },
     "agents/prompts/claude_prompts.py": {
       "method_keys": [
@@ -1118,10 +1118,12 @@
         "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message",
         "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message",
         "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message"
+        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message",
+        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_api_surfaces_message",
+        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_relation_analysis_message"
       ],
-      "content_hash": "56afc0bc5442c2ff",
-      "module_hash": "1684deeb6a455b40"
+      "content_hash": "4c1e34e66f510fd4",
+      "module_hash": "235b56d118c58198"
     },
     "agents/prompts/deepseek_prompts.py": {
       "method_keys": [
@@ -1136,10 +1138,12 @@
         "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message",
         "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message",
         "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message"
+        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message",
+        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_api_surfaces_message",
+        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relation_analysis_message"
       ],
-      "content_hash": "a88286b3b27dd31b",
-      "module_hash": "46cb4bf16cee101d"
+      "content_hash": "178b5290874f70b8",
+      "module_hash": "ed83c8e4b57ae246"
     },
     "agents/prompts/gemini_flash_prompts.py": {
       "method_keys": [
@@ -1154,10 +1158,12 @@
         "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message",
         "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message",
         "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message"
+        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message",
+        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_api_surfaces_message",
+        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relation_analysis_message"
       ],
-      "content_hash": "c3d35102bf3edb30",
-      "module_hash": "cdb6c0b7b742f4d8"
+      "content_hash": "a4bf504a929a6623",
+      "module_hash": "e5ce2143cd60cb0c"
     },
     "agents/prompts/glm_prompts.py": {
       "method_keys": [
@@ -1172,10 +1178,12 @@
         "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message",
         "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message",
         "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_details_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message"
+        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message",
+        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_api_surfaces_message",
+        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_relation_analysis_message"
       ],
-      "content_hash": "a51a885004f07e66",
-      "module_hash": "9c7b57dcd442028d"
+      "content_hash": "f9e7440d36fcf1a8",
+      "module_hash": "2ff1523e5e317158"
     },
     "agents/prompts/gpt_prompts.py": {
       "method_keys": [
@@ -1190,10 +1198,12 @@
         "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message",
         "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message",
         "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message"
+        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message",
+        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_api_surfaces_message",
+        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_relation_analysis_message"
       ],
-      "content_hash": "9924fcfa65a0de3d",
-      "module_hash": "f3f0d88c4e966d3c"
+      "content_hash": "c0e9f5f083c8dc63",
+      "module_hash": "3af14e08f13f795e"
     },
     "agents/prompts/kimi_prompts.py": {
       "method_keys": [
@@ -1208,10 +1218,12 @@
         "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message",
         "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message",
         "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message"
+        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message",
+        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_api_surfaces_message",
+        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_relation_analysis_message"
       ],
-      "content_hash": "e108272b2c71fc5f",
-      "module_hash": "601ab6a383cced5f"
+      "content_hash": "f9304ec424f71051",
+      "module_hash": "5ef103ac33bbb227"
     },
     "agents/prompts/prompt_factory.py": {
       "method_keys": [
@@ -8872,9 +8884,9 @@
       "file_path": "agents/prompts/abstract_prompt_factory.py",
       "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
       "start_line": 10,
-      "end_line": 61,
+      "end_line": 63,
       "type": "CLASS",
-      "content_hash": "852015395a771c25"
+      "content_hash": "3c22b9fecc7a7546"
     },
     "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_message": {
       "file_path": "agents/prompts/abstract_prompt_factory.py",
@@ -8967,594 +8979,690 @@
     "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_api_surfaces_message": {
       "file_path": "agents/prompts/abstract_prompt_factory.py",
       "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_api_surfaces_message",
-      "start_line": 57,
-      "end_line": 58,
+      "start_line": 58,
+      "end_line": 59,
       "type": "METHOD",
-      "content_hash": "4e54f09c65fd7f86"
+      "content_hash": "2a5a4c89432153ad"
     },
     "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_relation_analysis_message": {
       "file_path": "agents/prompts/abstract_prompt_factory.py",
       "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_relation_analysis_message",
-      "start_line": 60,
-      "end_line": 61,
+      "start_line": 62,
+      "end_line": 63,
       "type": "METHOD",
-      "content_hash": "02b1cf99c7111c17"
+      "content_hash": "6f30a139b305c58b"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory",
-      "start_line": 232,
-      "end_line": 266,
+      "start_line": 269,
+      "end_line": 309,
       "type": "CLASS",
-      "content_hash": "a9cf4677c504d986"
+      "content_hash": "78db07895e08fab8"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_system_message": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_message",
-      "start_line": 235,
-      "end_line": 236,
+      "start_line": 272,
+      "end_line": 273,
       "type": "METHOD",
       "content_hash": "ae230eae71266ce3"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_final_analysis_message": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_final_analysis_message",
-      "start_line": 238,
-      "end_line": 239,
+      "start_line": 275,
+      "end_line": 276,
       "type": "METHOD",
       "content_hash": "bf2cb858f68028ad"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_planner_system_message": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_planner_system_message",
-      "start_line": 241,
-      "end_line": 242,
+      "start_line": 278,
+      "end_line": 279,
       "type": "METHOD",
       "content_hash": "56c76719a889f835"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_expansion_prompt": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_expansion_prompt",
-      "start_line": 244,
-      "end_line": 245,
+      "start_line": 281,
+      "end_line": 282,
       "type": "METHOD",
       "content_hash": "7924561cfe53a118"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_system_meta_analysis_message": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_meta_analysis_message",
-      "start_line": 247,
-      "end_line": 248,
+      "start_line": 284,
+      "end_line": 285,
       "type": "METHOD",
       "content_hash": "ddb397eb65377771"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_meta_information_prompt": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_meta_information_prompt",
-      "start_line": 250,
-      "end_line": 251,
+      "start_line": 287,
+      "end_line": 288,
       "type": "METHOD",
       "content_hash": "bb0d412d314f7c21"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_file_classification_message": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_file_classification_message",
-      "start_line": 253,
-      "end_line": 254,
+      "start_line": 290,
+      "end_line": 291,
       "type": "METHOD",
       "content_hash": "92574b7463f7f92a"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message",
-      "start_line": 256,
-      "end_line": 257,
+      "start_line": 293,
+      "end_line": 294,
       "type": "METHOD",
       "content_hash": "4d6d128c6e41117a"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message",
-      "start_line": 259,
-      "end_line": 260,
+      "start_line": 296,
+      "end_line": 297,
       "type": "METHOD",
       "content_hash": "1719db2bb89a5bd6"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message",
-      "start_line": 262,
-      "end_line": 263,
+      "start_line": 299,
+      "end_line": 300,
       "type": "METHOD",
       "content_hash": "0942f7cdc2889bad"
     },
     "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message": {
       "file_path": "agents/prompts/claude_prompts.py",
       "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message",
-      "start_line": 265,
-      "end_line": 266,
+      "start_line": 302,
+      "end_line": 303,
       "type": "METHOD",
       "content_hash": "1b7dc3c104f5d379"
+    },
+    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_api_surfaces_message": {
+      "file_path": "agents/prompts/claude_prompts.py",
+      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_api_surfaces_message",
+      "start_line": 305,
+      "end_line": 306,
+      "type": "METHOD",
+      "content_hash": "4e54f09c65fd7f86"
+    },
+    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_relation_analysis_message": {
+      "file_path": "agents/prompts/claude_prompts.py",
+      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_relation_analysis_message",
+      "start_line": 308,
+      "end_line": 309,
+      "type": "METHOD",
+      "content_hash": "02b1cf99c7111c17"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
-      "start_line": 241,
-      "end_line": 275,
+      "start_line": 315,
+      "end_line": 355,
       "type": "CLASS",
-      "content_hash": "d57b769c30a8cbfa"
+      "content_hash": "09344867808c39da"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_message": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_message",
-      "start_line": 244,
-      "end_line": 245,
+      "start_line": 318,
+      "end_line": 319,
       "type": "METHOD",
       "content_hash": "ae230eae71266ce3"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_final_analysis_message": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_final_analysis_message",
-      "start_line": 247,
-      "end_line": 248,
+      "start_line": 321,
+      "end_line": 322,
       "type": "METHOD",
       "content_hash": "bf2cb858f68028ad"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_planner_system_message": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_planner_system_message",
-      "start_line": 250,
-      "end_line": 251,
+      "start_line": 324,
+      "end_line": 325,
       "type": "METHOD",
       "content_hash": "56c76719a889f835"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_expansion_prompt": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_expansion_prompt",
-      "start_line": 253,
-      "end_line": 254,
+      "start_line": 327,
+      "end_line": 328,
       "type": "METHOD",
       "content_hash": "7924561cfe53a118"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_meta_analysis_message": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_meta_analysis_message",
-      "start_line": 256,
-      "end_line": 257,
+      "start_line": 330,
+      "end_line": 331,
       "type": "METHOD",
       "content_hash": "ddb397eb65377771"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_meta_information_prompt": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_meta_information_prompt",
-      "start_line": 259,
-      "end_line": 260,
+      "start_line": 333,
+      "end_line": 334,
       "type": "METHOD",
       "content_hash": "bb0d412d314f7c21"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_file_classification_message": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_file_classification_message",
-      "start_line": 262,
-      "end_line": 263,
+      "start_line": 336,
+      "end_line": 337,
       "type": "METHOD",
       "content_hash": "92574b7463f7f92a"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message",
-      "start_line": 265,
-      "end_line": 266,
+      "start_line": 339,
+      "end_line": 340,
       "type": "METHOD",
       "content_hash": "4d6d128c6e41117a"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message",
-      "start_line": 268,
-      "end_line": 269,
+      "start_line": 342,
+      "end_line": 343,
       "type": "METHOD",
       "content_hash": "1719db2bb89a5bd6"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message",
-      "start_line": 271,
-      "end_line": 272,
+      "start_line": 345,
+      "end_line": 346,
       "type": "METHOD",
       "content_hash": "1b7dc3c104f5d379"
     },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message",
-      "start_line": 274,
-      "end_line": 275,
+      "start_line": 348,
+      "end_line": 349,
       "type": "METHOD",
       "content_hash": "0942f7cdc2889bad"
+    },
+    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_api_surfaces_message": {
+      "file_path": "agents/prompts/deepseek_prompts.py",
+      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_api_surfaces_message",
+      "start_line": 351,
+      "end_line": 352,
+      "type": "METHOD",
+      "content_hash": "4e54f09c65fd7f86"
+    },
+    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relation_analysis_message": {
+      "file_path": "agents/prompts/deepseek_prompts.py",
+      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relation_analysis_message",
+      "start_line": 354,
+      "end_line": 355,
+      "type": "METHOD",
+      "content_hash": "02b1cf99c7111c17"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
-      "start_line": 214,
-      "end_line": 248,
+      "start_line": 251,
+      "end_line": 291,
       "type": "CLASS",
-      "content_hash": "d66a8c680aa7a5dd"
+      "content_hash": "df69efb139b2059f"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_message": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_message",
-      "start_line": 217,
-      "end_line": 218,
+      "start_line": 254,
+      "end_line": 255,
       "type": "METHOD",
       "content_hash": "ae230eae71266ce3"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_final_analysis_message": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_final_analysis_message",
-      "start_line": 220,
-      "end_line": 221,
+      "start_line": 257,
+      "end_line": 258,
       "type": "METHOD",
       "content_hash": "bf2cb858f68028ad"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_planner_system_message": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_planner_system_message",
-      "start_line": 223,
-      "end_line": 224,
+      "start_line": 260,
+      "end_line": 261,
       "type": "METHOD",
       "content_hash": "56c76719a889f835"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_expansion_prompt": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_expansion_prompt",
-      "start_line": 226,
-      "end_line": 227,
+      "start_line": 263,
+      "end_line": 264,
       "type": "METHOD",
       "content_hash": "7924561cfe53a118"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_meta_analysis_message": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_meta_analysis_message",
-      "start_line": 229,
-      "end_line": 230,
+      "start_line": 266,
+      "end_line": 267,
       "type": "METHOD",
       "content_hash": "ddb397eb65377771"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_meta_information_prompt": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_meta_information_prompt",
-      "start_line": 232,
-      "end_line": 233,
+      "start_line": 269,
+      "end_line": 270,
       "type": "METHOD",
       "content_hash": "bb0d412d314f7c21"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_file_classification_message": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_file_classification_message",
-      "start_line": 235,
-      "end_line": 236,
+      "start_line": 272,
+      "end_line": 273,
       "type": "METHOD",
       "content_hash": "92574b7463f7f92a"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message",
-      "start_line": 238,
-      "end_line": 239,
+      "start_line": 275,
+      "end_line": 276,
       "type": "METHOD",
       "content_hash": "4d6d128c6e41117a"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message",
-      "start_line": 241,
-      "end_line": 242,
+      "start_line": 278,
+      "end_line": 279,
       "type": "METHOD",
       "content_hash": "1719db2bb89a5bd6"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message",
-      "start_line": 244,
-      "end_line": 245,
+      "start_line": 281,
+      "end_line": 282,
       "type": "METHOD",
       "content_hash": "1b7dc3c104f5d379"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
       "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message",
-      "start_line": 247,
-      "end_line": 248,
+      "start_line": 284,
+      "end_line": 285,
       "type": "METHOD",
       "content_hash": "0942f7cdc2889bad"
+    },
+    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_api_surfaces_message": {
+      "file_path": "agents/prompts/gemini_flash_prompts.py",
+      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_api_surfaces_message",
+      "start_line": 287,
+      "end_line": 288,
+      "type": "METHOD",
+      "content_hash": "4e54f09c65fd7f86"
+    },
+    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relation_analysis_message": {
+      "file_path": "agents/prompts/gemini_flash_prompts.py",
+      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relation_analysis_message",
+      "start_line": 290,
+      "end_line": 291,
+      "type": "METHOD",
+      "content_hash": "02b1cf99c7111c17"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory",
-      "start_line": 258,
-      "end_line": 292,
+      "start_line": 295,
+      "end_line": 335,
       "type": "CLASS",
-      "content_hash": "79466c3352fde320"
+      "content_hash": "d564a240ef5aca20"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_system_message": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_system_message",
-      "start_line": 261,
-      "end_line": 262,
+      "start_line": 298,
+      "end_line": 299,
       "type": "METHOD",
       "content_hash": "ae230eae71266ce3"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_final_analysis_message": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_final_analysis_message",
-      "start_line": 264,
-      "end_line": 265,
+      "start_line": 301,
+      "end_line": 302,
       "type": "METHOD",
       "content_hash": "bf2cb858f68028ad"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_planner_system_message": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_planner_system_message",
-      "start_line": 267,
-      "end_line": 268,
+      "start_line": 304,
+      "end_line": 305,
       "type": "METHOD",
       "content_hash": "56c76719a889f835"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_expansion_prompt": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_expansion_prompt",
-      "start_line": 270,
-      "end_line": 271,
+      "start_line": 307,
+      "end_line": 308,
       "type": "METHOD",
       "content_hash": "7924561cfe53a118"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_system_meta_analysis_message": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_system_meta_analysis_message",
-      "start_line": 273,
-      "end_line": 274,
+      "start_line": 310,
+      "end_line": 311,
       "type": "METHOD",
       "content_hash": "ddb397eb65377771"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_meta_information_prompt": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_meta_information_prompt",
-      "start_line": 276,
-      "end_line": 277,
+      "start_line": 313,
+      "end_line": 314,
       "type": "METHOD",
       "content_hash": "bb0d412d314f7c21"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_file_classification_message": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_file_classification_message",
-      "start_line": 279,
-      "end_line": 280,
+      "start_line": 316,
+      "end_line": 317,
       "type": "METHOD",
       "content_hash": "92574b7463f7f92a"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message",
-      "start_line": 282,
-      "end_line": 283,
+      "start_line": 319,
+      "end_line": 320,
       "type": "METHOD",
       "content_hash": "4d6d128c6e41117a"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message",
-      "start_line": 285,
-      "end_line": 286,
+      "start_line": 322,
+      "end_line": 323,
       "type": "METHOD",
       "content_hash": "1719db2bb89a5bd6"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_details_message": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_details_message",
-      "start_line": 288,
-      "end_line": 289,
+      "start_line": 325,
+      "end_line": 326,
       "type": "METHOD",
       "content_hash": "1b7dc3c104f5d379"
     },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message",
-      "start_line": 291,
-      "end_line": 292,
+      "start_line": 328,
+      "end_line": 329,
       "type": "METHOD",
       "content_hash": "0942f7cdc2889bad"
+    },
+    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_api_surfaces_message": {
+      "file_path": "agents/prompts/glm_prompts.py",
+      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_api_surfaces_message",
+      "start_line": 331,
+      "end_line": 332,
+      "type": "METHOD",
+      "content_hash": "4e54f09c65fd7f86"
+    },
+    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_relation_analysis_message": {
+      "file_path": "agents/prompts/glm_prompts.py",
+      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_relation_analysis_message",
+      "start_line": 334,
+      "end_line": 335,
+      "type": "METHOD",
+      "content_hash": "02b1cf99c7111c17"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory",
-      "start_line": 276,
-      "end_line": 310,
+      "start_line": 313,
+      "end_line": 353,
       "type": "CLASS",
-      "content_hash": "4a3bacfbc38aac50"
+      "content_hash": "311f82d86cbda580"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_system_message": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_message",
-      "start_line": 279,
-      "end_line": 280,
+      "start_line": 316,
+      "end_line": 317,
       "type": "METHOD",
       "content_hash": "ae230eae71266ce3"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_final_analysis_message": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_final_analysis_message",
-      "start_line": 282,
-      "end_line": 283,
+      "start_line": 319,
+      "end_line": 320,
       "type": "METHOD",
       "content_hash": "bf2cb858f68028ad"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_planner_system_message": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_planner_system_message",
-      "start_line": 285,
-      "end_line": 286,
+      "start_line": 322,
+      "end_line": 323,
       "type": "METHOD",
       "content_hash": "56c76719a889f835"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_expansion_prompt": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_expansion_prompt",
-      "start_line": 288,
-      "end_line": 289,
+      "start_line": 325,
+      "end_line": 326,
       "type": "METHOD",
       "content_hash": "7924561cfe53a118"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_system_meta_analysis_message": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_meta_analysis_message",
-      "start_line": 291,
-      "end_line": 292,
+      "start_line": 328,
+      "end_line": 329,
       "type": "METHOD",
       "content_hash": "ddb397eb65377771"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_meta_information_prompt": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_meta_information_prompt",
-      "start_line": 294,
-      "end_line": 295,
+      "start_line": 331,
+      "end_line": 332,
       "type": "METHOD",
       "content_hash": "bb0d412d314f7c21"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_file_classification_message": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_file_classification_message",
-      "start_line": 297,
-      "end_line": 298,
+      "start_line": 334,
+      "end_line": 335,
       "type": "METHOD",
       "content_hash": "92574b7463f7f92a"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message",
-      "start_line": 300,
-      "end_line": 301,
+      "start_line": 337,
+      "end_line": 338,
       "type": "METHOD",
       "content_hash": "4d6d128c6e41117a"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message",
-      "start_line": 303,
-      "end_line": 304,
+      "start_line": 340,
+      "end_line": 341,
       "type": "METHOD",
       "content_hash": "1719db2bb89a5bd6"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message",
-      "start_line": 306,
-      "end_line": 307,
+      "start_line": 343,
+      "end_line": 344,
       "type": "METHOD",
       "content_hash": "1b7dc3c104f5d379"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message": {
       "file_path": "agents/prompts/gpt_prompts.py",
       "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message",
-      "start_line": 309,
-      "end_line": 310,
+      "start_line": 346,
+      "end_line": 347,
       "type": "METHOD",
       "content_hash": "0942f7cdc2889bad"
+    },
+    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_api_surfaces_message": {
+      "file_path": "agents/prompts/gpt_prompts.py",
+      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_api_surfaces_message",
+      "start_line": 349,
+      "end_line": 350,
+      "type": "METHOD",
+      "content_hash": "4e54f09c65fd7f86"
+    },
+    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_relation_analysis_message": {
+      "file_path": "agents/prompts/gpt_prompts.py",
+      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_relation_analysis_message",
+      "start_line": 352,
+      "end_line": 353,
+      "type": "METHOD",
+      "content_hash": "02b1cf99c7111c17"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory",
-      "start_line": 240,
-      "end_line": 274,
+      "start_line": 295,
+      "end_line": 335,
       "type": "CLASS",
-      "content_hash": "8c0a7c938cba5405"
+      "content_hash": "9982cb57efc4d432"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_system_message": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_message",
-      "start_line": 243,
-      "end_line": 244,
+      "start_line": 298,
+      "end_line": 299,
       "type": "METHOD",
       "content_hash": "ae230eae71266ce3"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_final_analysis_message": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_final_analysis_message",
-      "start_line": 246,
-      "end_line": 247,
+      "start_line": 301,
+      "end_line": 302,
       "type": "METHOD",
       "content_hash": "bf2cb858f68028ad"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_planner_system_message": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_planner_system_message",
-      "start_line": 249,
-      "end_line": 250,
+      "start_line": 304,
+      "end_line": 305,
       "type": "METHOD",
       "content_hash": "56c76719a889f835"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_expansion_prompt": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_expansion_prompt",
-      "start_line": 252,
-      "end_line": 253,
+      "start_line": 307,
+      "end_line": 308,
       "type": "METHOD",
       "content_hash": "7924561cfe53a118"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_system_meta_analysis_message": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_meta_analysis_message",
-      "start_line": 255,
-      "end_line": 256,
+      "start_line": 310,
+      "end_line": 311,
       "type": "METHOD",
       "content_hash": "ddb397eb65377771"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_meta_information_prompt": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_meta_information_prompt",
-      "start_line": 258,
-      "end_line": 259,
+      "start_line": 313,
+      "end_line": 314,
       "type": "METHOD",
       "content_hash": "bb0d412d314f7c21"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_file_classification_message": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_file_classification_message",
-      "start_line": 261,
-      "end_line": 262,
+      "start_line": 316,
+      "end_line": 317,
       "type": "METHOD",
       "content_hash": "92574b7463f7f92a"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message",
-      "start_line": 264,
-      "end_line": 265,
+      "start_line": 319,
+      "end_line": 320,
       "type": "METHOD",
       "content_hash": "4d6d128c6e41117a"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message",
-      "start_line": 267,
-      "end_line": 268,
+      "start_line": 322,
+      "end_line": 323,
       "type": "METHOD",
       "content_hash": "1719db2bb89a5bd6"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message",
-      "start_line": 270,
-      "end_line": 271,
+      "start_line": 325,
+      "end_line": 326,
       "type": "METHOD",
       "content_hash": "1b7dc3c104f5d379"
     },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message",
-      "start_line": 273,
-      "end_line": 274,
+      "start_line": 328,
+      "end_line": 329,
       "type": "METHOD",
       "content_hash": "0942f7cdc2889bad"
+    },
+    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_api_surfaces_message": {
+      "file_path": "agents/prompts/kimi_prompts.py",
+      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_api_surfaces_message",
+      "start_line": 331,
+      "end_line": 332,
+      "type": "METHOD",
+      "content_hash": "4e54f09c65fd7f86"
+    },
+    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_relation_analysis_message": {
+      "file_path": "agents/prompts/kimi_prompts.py",
+      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_relation_analysis_message",
+      "start_line": 334,
+      "end_line": 335,
+      "type": "METHOD",
+      "content_hash": "02b1cf99c7111c17"
     },
     "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.LLMType": {
       "file_path": "agents/prompts/prompt_factory.py",
@@ -23261,7 +23369,6 @@
         {
           "file_path": "agents/prompts/claude_prompts.py",
           "methods": [
-            "agents.prompts.claude_prompts.ClaudePromptFactory",
             "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_message",
             "agents.prompts.claude_prompts.ClaudePromptFactory.get_final_analysis_message",
             "agents.prompts.claude_prompts.ClaudePromptFactory.get_planner_system_message",
@@ -23272,13 +23379,15 @@
             "agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message",
             "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message",
             "agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message"
+            "agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message",
+            "agents.prompts.claude_prompts.ClaudePromptFactory",
+            "agents.prompts.claude_prompts.ClaudePromptFactory.get_api_surfaces_message",
+            "agents.prompts.claude_prompts.ClaudePromptFactory.get_relation_analysis_message"
           ]
         },
         {
           "file_path": "agents/prompts/deepseek_prompts.py",
           "methods": [
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
             "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_message",
             "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_final_analysis_message",
             "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_planner_system_message",
@@ -23289,13 +23398,15 @@
             "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message",
             "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message",
             "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message"
+            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message",
+            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
+            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_api_surfaces_message",
+            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relation_analysis_message"
           ]
         },
         {
           "file_path": "agents/prompts/gemini_flash_prompts.py",
           "methods": [
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
             "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_message",
             "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_final_analysis_message",
             "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_planner_system_message",
@@ -23306,13 +23417,15 @@
             "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message",
             "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message",
             "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message"
+            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message",
+            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
+            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_api_surfaces_message",
+            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relation_analysis_message"
           ]
         },
         {
           "file_path": "agents/prompts/glm_prompts.py",
           "methods": [
-            "agents.prompts.glm_prompts.GLMPromptFactory",
             "agents.prompts.glm_prompts.GLMPromptFactory.get_system_message",
             "agents.prompts.glm_prompts.GLMPromptFactory.get_final_analysis_message",
             "agents.prompts.glm_prompts.GLMPromptFactory.get_planner_system_message",
@@ -23323,13 +23436,15 @@
             "agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message",
             "agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message",
             "agents.prompts.glm_prompts.GLMPromptFactory.get_details_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message"
+            "agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message",
+            "agents.prompts.glm_prompts.GLMPromptFactory",
+            "agents.prompts.glm_prompts.GLMPromptFactory.get_api_surfaces_message",
+            "agents.prompts.glm_prompts.GLMPromptFactory.get_relation_analysis_message"
           ]
         },
         {
           "file_path": "agents/prompts/gpt_prompts.py",
           "methods": [
-            "agents.prompts.gpt_prompts.GPTPromptFactory",
             "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_message",
             "agents.prompts.gpt_prompts.GPTPromptFactory.get_final_analysis_message",
             "agents.prompts.gpt_prompts.GPTPromptFactory.get_planner_system_message",
@@ -23340,13 +23455,15 @@
             "agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message",
             "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message",
             "agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message"
+            "agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message",
+            "agents.prompts.gpt_prompts.GPTPromptFactory",
+            "agents.prompts.gpt_prompts.GPTPromptFactory.get_api_surfaces_message",
+            "agents.prompts.gpt_prompts.GPTPromptFactory.get_relation_analysis_message"
           ]
         },
         {
           "file_path": "agents/prompts/kimi_prompts.py",
           "methods": [
-            "agents.prompts.kimi_prompts.KimiPromptFactory",
             "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_message",
             "agents.prompts.kimi_prompts.KimiPromptFactory.get_final_analysis_message",
             "agents.prompts.kimi_prompts.KimiPromptFactory.get_planner_system_message",
@@ -23357,7 +23474,10 @@
             "agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message",
             "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message",
             "agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message"
+            "agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message",
+            "agents.prompts.kimi_prompts.KimiPromptFactory",
+            "agents.prompts.kimi_prompts.KimiPromptFactory.get_api_surfaces_message",
+            "agents.prompts.kimi_prompts.KimiPromptFactory.get_relation_analysis_message"
           ]
         },
         {
@@ -23671,7 +23791,7 @@
               "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
               "reference_file": "agents/prompts/abstract_prompt_factory.py",
               "reference_start_line": 10,
-              "reference_end_line": 61
+              "reference_end_line": 63
             }
           ],
           "source_cluster_ids": [
@@ -23730,7 +23850,6 @@
             {
               "file_path": "agents/prompts/claude_prompts.py",
               "methods": [
-                "agents.prompts.claude_prompts.ClaudePromptFactory",
                 "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_message",
                 "agents.prompts.claude_prompts.ClaudePromptFactory.get_final_analysis_message",
                 "agents.prompts.claude_prompts.ClaudePromptFactory.get_planner_system_message",
@@ -23741,13 +23860,15 @@
                 "agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message",
                 "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message",
                 "agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message"
+                "agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message",
+                "agents.prompts.claude_prompts.ClaudePromptFactory",
+                "agents.prompts.claude_prompts.ClaudePromptFactory.get_api_surfaces_message",
+                "agents.prompts.claude_prompts.ClaudePromptFactory.get_relation_analysis_message"
               ]
             },
             {
               "file_path": "agents/prompts/deepseek_prompts.py",
               "methods": [
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
                 "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_message",
                 "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_final_analysis_message",
                 "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_planner_system_message",
@@ -23758,13 +23879,15 @@
                 "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message",
                 "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message",
                 "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message"
+                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message",
+                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
+                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_api_surfaces_message",
+                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relation_analysis_message"
               ]
             },
             {
               "file_path": "agents/prompts/gemini_flash_prompts.py",
               "methods": [
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
                 "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_message",
                 "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_final_analysis_message",
                 "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_planner_system_message",
@@ -23775,13 +23898,15 @@
                 "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message",
                 "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message",
                 "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message"
+                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message",
+                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
+                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_api_surfaces_message",
+                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relation_analysis_message"
               ]
             },
             {
               "file_path": "agents/prompts/glm_prompts.py",
               "methods": [
-                "agents.prompts.glm_prompts.GLMPromptFactory",
                 "agents.prompts.glm_prompts.GLMPromptFactory.get_system_message",
                 "agents.prompts.glm_prompts.GLMPromptFactory.get_final_analysis_message",
                 "agents.prompts.glm_prompts.GLMPromptFactory.get_planner_system_message",
@@ -23792,13 +23917,15 @@
                 "agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message",
                 "agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message",
                 "agents.prompts.glm_prompts.GLMPromptFactory.get_details_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message"
+                "agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message",
+                "agents.prompts.glm_prompts.GLMPromptFactory",
+                "agents.prompts.glm_prompts.GLMPromptFactory.get_api_surfaces_message",
+                "agents.prompts.glm_prompts.GLMPromptFactory.get_relation_analysis_message"
               ]
             },
             {
               "file_path": "agents/prompts/gpt_prompts.py",
               "methods": [
-                "agents.prompts.gpt_prompts.GPTPromptFactory",
                 "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_message",
                 "agents.prompts.gpt_prompts.GPTPromptFactory.get_final_analysis_message",
                 "agents.prompts.gpt_prompts.GPTPromptFactory.get_planner_system_message",
@@ -23809,13 +23936,15 @@
                 "agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message",
                 "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message",
                 "agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message"
+                "agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message",
+                "agents.prompts.gpt_prompts.GPTPromptFactory",
+                "agents.prompts.gpt_prompts.GPTPromptFactory.get_api_surfaces_message",
+                "agents.prompts.gpt_prompts.GPTPromptFactory.get_relation_analysis_message"
               ]
             },
             {
               "file_path": "agents/prompts/kimi_prompts.py",
               "methods": [
-                "agents.prompts.kimi_prompts.KimiPromptFactory",
                 "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_message",
                 "agents.prompts.kimi_prompts.KimiPromptFactory.get_final_analysis_message",
                 "agents.prompts.kimi_prompts.KimiPromptFactory.get_planner_system_message",
@@ -23826,7 +23955,10 @@
                 "agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message",
                 "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message",
                 "agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message"
+                "agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message",
+                "agents.prompts.kimi_prompts.KimiPromptFactory",
+                "agents.prompts.kimi_prompts.KimiPromptFactory.get_api_surfaces_message",
+                "agents.prompts.kimi_prompts.KimiPromptFactory.get_relation_analysis_message"
               ]
             },
             {
@@ -23872,20 +24004,20 @@
                 {
                   "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory",
                   "reference_file": "agents/prompts/claude_prompts.py",
-                  "reference_start_line": 232,
-                  "reference_end_line": 266
+                  "reference_start_line": 269,
+                  "reference_end_line": 309
                 },
                 {
                   "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory",
                   "reference_file": "agents/prompts/gpt_prompts.py",
-                  "reference_start_line": 276,
-                  "reference_end_line": 310
+                  "reference_start_line": 313,
+                  "reference_end_line": 353
                 },
                 {
                   "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
                   "reference_file": "agents/prompts/gemini_flash_prompts.py",
-                  "reference_start_line": 214,
-                  "reference_end_line": 248
+                  "reference_start_line": 251,
+                  "reference_end_line": 291
                 },
                 {
                   "qualified_name": "agents.prompts.prompt_factory.initialize_global_factory",
@@ -23913,7 +24045,6 @@
                 {
                   "file_path": "agents/prompts/claude_prompts.py",
                   "methods": [
-                    "agents.prompts.claude_prompts.ClaudePromptFactory",
                     "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_message",
                     "agents.prompts.claude_prompts.ClaudePromptFactory.get_final_analysis_message",
                     "agents.prompts.claude_prompts.ClaudePromptFactory.get_planner_system_message",
@@ -23924,13 +24055,15 @@
                     "agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message",
                     "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message",
                     "agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message",
-                    "agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message"
+                    "agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message",
+                    "agents.prompts.claude_prompts.ClaudePromptFactory",
+                    "agents.prompts.claude_prompts.ClaudePromptFactory.get_api_surfaces_message",
+                    "agents.prompts.claude_prompts.ClaudePromptFactory.get_relation_analysis_message"
                   ]
                 },
                 {
                   "file_path": "agents/prompts/deepseek_prompts.py",
                   "methods": [
-                    "agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
                     "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_message",
                     "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_final_analysis_message",
                     "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_planner_system_message",
@@ -23941,13 +24074,15 @@
                     "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message",
                     "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message",
                     "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message",
-                    "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message"
+                    "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message",
+                    "agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
+                    "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_api_surfaces_message",
+                    "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relation_analysis_message"
                   ]
                 },
                 {
                   "file_path": "agents/prompts/gemini_flash_prompts.py",
                   "methods": [
-                    "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
                     "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_message",
                     "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_final_analysis_message",
                     "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_planner_system_message",
@@ -23958,13 +24093,15 @@
                     "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message",
                     "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message",
                     "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message",
-                    "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message"
+                    "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message",
+                    "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
+                    "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_api_surfaces_message",
+                    "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relation_analysis_message"
                   ]
                 },
                 {
                   "file_path": "agents/prompts/glm_prompts.py",
                   "methods": [
-                    "agents.prompts.glm_prompts.GLMPromptFactory",
                     "agents.prompts.glm_prompts.GLMPromptFactory.get_system_message",
                     "agents.prompts.glm_prompts.GLMPromptFactory.get_final_analysis_message",
                     "agents.prompts.glm_prompts.GLMPromptFactory.get_planner_system_message",
@@ -23975,13 +24112,15 @@
                     "agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message",
                     "agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message",
                     "agents.prompts.glm_prompts.GLMPromptFactory.get_details_message",
-                    "agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message"
+                    "agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message",
+                    "agents.prompts.glm_prompts.GLMPromptFactory",
+                    "agents.prompts.glm_prompts.GLMPromptFactory.get_api_surfaces_message",
+                    "agents.prompts.glm_prompts.GLMPromptFactory.get_relation_analysis_message"
                   ]
                 },
                 {
                   "file_path": "agents/prompts/gpt_prompts.py",
                   "methods": [
-                    "agents.prompts.gpt_prompts.GPTPromptFactory",
                     "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_message",
                     "agents.prompts.gpt_prompts.GPTPromptFactory.get_final_analysis_message",
                     "agents.prompts.gpt_prompts.GPTPromptFactory.get_planner_system_message",
@@ -23992,13 +24131,15 @@
                     "agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message",
                     "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message",
                     "agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message",
-                    "agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message"
+                    "agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message",
+                    "agents.prompts.gpt_prompts.GPTPromptFactory",
+                    "agents.prompts.gpt_prompts.GPTPromptFactory.get_api_surfaces_message",
+                    "agents.prompts.gpt_prompts.GPTPromptFactory.get_relation_analysis_message"
                   ]
                 },
                 {
                   "file_path": "agents/prompts/kimi_prompts.py",
                   "methods": [
-                    "agents.prompts.kimi_prompts.KimiPromptFactory",
                     "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_message",
                     "agents.prompts.kimi_prompts.KimiPromptFactory.get_final_analysis_message",
                     "agents.prompts.kimi_prompts.KimiPromptFactory.get_planner_system_message",
@@ -24009,7 +24150,10 @@
                     "agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message",
                     "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message",
                     "agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message",
-                    "agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message"
+                    "agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message",
+                    "agents.prompts.kimi_prompts.KimiPromptFactory",
+                    "agents.prompts.kimi_prompts.KimiPromptFactory.get_api_surfaces_message",
+                    "agents.prompts.kimi_prompts.KimiPromptFactory.get_relation_analysis_message"
                   ]
                 },
                 {
@@ -24037,7 +24181,7 @@
                   "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
                   "reference_file": "agents/prompts/abstract_prompt_factory.py",
                   "reference_start_line": 10,
-                  "reference_end_line": 61
+                  "reference_end_line": 63
                 },
                 {
                   "qualified_name": "agents.prompts.prompt_factory.format_project_system_message",
@@ -34071,27 +34215,27 @@
           "methods": [
             "static_analyzer.__init__.StaticAnalysisFatalError",
             "static_analyzer.__init__.max_concurrent_engines",
-            "static_analyzer.__init__.StaticAnalyzer.__exit__",
             "static_analyzer.__init__.StaticAnalyzer",
+            "static_analyzer.__init__.StaticAnalyzer.__exit__",
             "static_analyzer.__init__.StaticAnalyzer.start_clients",
             "static_analyzer.__init__.StaticAnalyzer.stop_clients",
             "static_analyzer.__init__.StaticAnalyzer.flush_cache",
-            "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
             "static_analyzer.__init__.StaticAnalyzer._live_clients",
             "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
             "static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation",
-            "static_analyzer.__init__.StaticAnalyzer.analyze",
+            "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
             "static_analyzer.__init__.StaticAnalyzer.notify_file_changed",
             "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
             "static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file",
-            "static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
+            "static_analyzer.__init__.StaticAnalyzer.analyze",
             "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
-            "static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
             "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass.run_one",
-            "static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-            "static_analyzer.__init__.StaticAnalyzer._loc_for_adapter",
             "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
+            "static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
+            "static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
+            "static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
             "static_analyzer.__init__.StaticAnalyzer._collect_diagnostics_for",
+            "static_analyzer.__init__.StaticAnalyzer._loc_for_adapter",
             "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
             "static_analyzer.__init__.StaticAnalyzer._validate_analysis_results"
           ]
@@ -36180,26 +36324,26 @@
               "methods": [
                 "static_analyzer.__init__.StaticAnalysisFatalError",
                 "static_analyzer.__init__.max_concurrent_engines",
-                "static_analyzer.__init__.StaticAnalyzer.__exit__",
                 "static_analyzer.__init__.StaticAnalyzer",
+                "static_analyzer.__init__.StaticAnalyzer.__exit__",
                 "static_analyzer.__init__.StaticAnalyzer.start_clients",
                 "static_analyzer.__init__.StaticAnalyzer.stop_clients",
                 "static_analyzer.__init__.StaticAnalyzer.flush_cache",
-                "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
                 "static_analyzer.__init__.StaticAnalyzer._live_clients",
                 "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
                 "static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation",
-                "static_analyzer.__init__.StaticAnalyzer.analyze",
+                "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
                 "static_analyzer.__init__.StaticAnalyzer.notify_file_changed",
                 "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
                 "static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file",
-                "static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
+                "static_analyzer.__init__.StaticAnalyzer.analyze",
                 "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
                 "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass.run_one",
-                "static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-                "static_analyzer.__init__.StaticAnalyzer._loc_for_adapter",
                 "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
+                "static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
+                "static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
                 "static_analyzer.__init__.StaticAnalyzer._collect_diagnostics_for",
+                "static_analyzer.__init__.StaticAnalyzer._loc_for_adapter",
                 "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
                 "static_analyzer.__init__.StaticAnalyzer._validate_analysis_results"
               ]
