@@ -4,6 +4,8 @@ import argparse
 import json
 import logging
 import sys
+
+from telemetry.events import already_captured, capture_error
 from pathlib import Path
 
 from logging_config import setup_logging
@@ -65,7 +67,12 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
 def main(argv: list[str] | None = None) -> None:
     """Run the standalone rendering CLI."""
     parser = build_parser()
-    run_from_args(parser.parse_args(sys.argv[1:] if argv is None else argv), parser)
+    try:
+        run_from_args(parser.parse_args(sys.argv[1:] if argv is None else argv), parser)
+    except BaseException as exc:
+        if not already_captured(exc):
+            capture_error("cli.render", exc)
+        raise
 
 
 if __name__ == "__main__":
