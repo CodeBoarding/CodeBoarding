@@ -271,8 +271,8 @@ LLM_PROVIDERS = {
         chat_class=ChatOpenAI,
         selection_envs=["KIMI_API_KEY", "KIMI_BASE_URL"],
         api_key_env="KIMI_API_KEY",
-        agent_model="kimi-k2.5",
-        parsing_model="kimi-k2.5",
+        agent_model="kimi-k2.6",
+        parsing_model="kimi-k2.6",
         llm_type=LLMType.KIMI,
         extra_args={
             "base_url": lambda: os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1"),

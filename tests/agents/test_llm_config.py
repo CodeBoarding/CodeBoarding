@@ -82,6 +82,12 @@ class TestValidateApiKeyProvided:
 
 
 class TestProviderSelection:
+    def test_kimi_defaults_to_k2_6(self):
+        kimi = LLM_PROVIDERS["kimi"]
+
+        assert kimi.agent_model == "kimi-k2.6"
+        assert kimi.parsing_model == "kimi-k2.6"
+
     def test_ollama_activates_via_ollama_host(self):
         ollama = LLM_PROVIDERS["ollama"]
         with patch.dict(os.environ, {"OLLAMA_HOST": "127.0.0.1:11434"}, clear=True):
