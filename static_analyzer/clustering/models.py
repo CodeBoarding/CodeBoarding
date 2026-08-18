@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Hashable, Mapping
 from dataclasses import dataclass, field
 
 from static_analyzer.node import Node
@@ -66,3 +66,49 @@ class ClusterResult:
             file_to_clusters=kept_file_to_clusters,
             strategy=self.strategy,
         )
+
+
+@dataclass
+class ClusterConnectionEdge:
+    """One concrete call crossing between two structural groups."""
+
+    language: str
+    source: str
+    target: str
+    call_sites: list[dict[str, Hashable]] = field(default_factory=list)
+
+
+@dataclass
+class ClusterConnection:
+    """All concrete calls from one sibling group to another."""
+
+    source_group_id: str
+    target_group_id: str
+    edges: list[ClusterConnectionEdge] = field(default_factory=list)
+
+
+@dataclass
+class ClusterGroup:
+    """One deterministic architectural group inside a clustered scope."""
+
+    group_id: str
+    cluster_ids: list[int]
+    members: dict[str, set[str]] = field(default_factory=dict)
+    previous_component_id: str = ""
+    children: ClusterScopeResult | None = None
+
+    @property
+    def qualified_names(self) -> set[str]:
+        return {qualified_name for language_members in self.members.values() for qualified_name in language_members}
+
+
+@dataclass
+class ClusterScopeResult:
+    """The complete partition, grouping, and communication for one graph scope."""
+
+    scope_id: str
+    partitions: dict[str, ClusterResult] = field(default_factory=dict)
+    groups: list[ClusterGroup] = field(default_factory=list)
+    connections: list[ClusterConnection] = field(default_factory=list)
+    modularity: float = 0.0
+    regrouped: bool = False

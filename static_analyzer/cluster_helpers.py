@@ -13,7 +13,6 @@ from static_analyzer.clustering.grouping import (
     _modularity,
     _seeds_from_partition,
     anchored_grouping,
-    build_all_cluster_results,
     combine_cluster_results,
     group_symbols,
     reindex_across_languages,
@@ -21,6 +20,7 @@ from static_analyzer.clustering.grouping import (
     supercluster_by_modularity_peak,
     supercluster_leaf_ids,
 )
+from static_analyzer.clustering.orchestration import build_all_cluster_results
 
 __all__ = [
     "REGROUP_DRIFT_BUDGET",

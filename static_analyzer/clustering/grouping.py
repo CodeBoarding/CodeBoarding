@@ -20,10 +20,8 @@ from dataclasses import dataclass
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
-from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering.models import ClusterResult
-from static_analyzer.clustering.service import ClusteringService
-from static_analyzer.constants import ClusteringConfig, Language
+from static_analyzer.constants import ClusteringConfig
 from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
@@ -45,36 +43,6 @@ SUBCOMPONENTS_MAX = 8
 # so a graph with a large connected core can still be over-segmented to any N in
 # the target range before absorbing leftovers back down.
 _RESOLUTION_LADDER = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0)
-
-
-def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
-    """Cluster every detected language and give the clusters a shared ID namespace.
-
-    Downstream code maps ``cluster_id -> component`` in a single dict, so IDs must
-    not collide across languages.
-    """
-    cluster_service = ClusteringService()
-    cluster_results: dict[str, ClusterResult] = {}
-    offset = 0
-    for lang in static_analysis.get_languages():
-        result = cluster_service.cluster(static_analysis.get_cfg(lang))
-        if offset:
-            result = reindex_cluster_result(result, offset)
-            logger.info(f"[Cluster] {lang}: offset IDs by +{offset} ({len(result.clusters)} clusters)")
-        cluster_results[str(lang)] = result
-        offset += max(result.clusters, default=0) + 1
-
-    _sync_cluster_cache(static_analysis, cluster_results)
-    return cluster_results
-
-
-def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]) -> None:
-    """Store each language's partition (with its final, offset IDs) on its cluster cache."""
-    for lang, result in cluster_results.items():
-        try:
-            static_analysis.get_clusters(Language(lang)).adopt(result)
-        except ValueError:
-            logger.warning("Could not sync cluster cache for unknown language %s", lang)
 
 
 def reindex_across_languages(cluster_results: dict[str, ClusterResult]) -> None:
@@ -368,6 +336,11 @@ def _method_counts(cluster_result: ClusterResult) -> dict[int, int]:
 def _modularity(meta_graph: nx.DiGraph, groups: list[set[int]]) -> float:
     """0.0 on an edgeless meta-graph — there is nothing to separate."""
     return nx_comm.modularity(meta_graph, groups, weight="weight") if meta_graph.number_of_edges() else 0.0
+
+
+def score_grouping(cluster_result: ClusterResult, cfg_graph: nx.DiGraph, groups: list[set[int]]) -> float:
+    """Score a concrete grouping against its inter-cluster meta-graph."""
+    return _modularity(_build_meta_graph(cluster_result, cfg_graph), groups)
 
 
 def _optimize_grouping(
