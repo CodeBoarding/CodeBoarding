@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
+from static_analyzer.exceptions import EdgeResolutionError
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.lsp_constants import (
@@ -456,8 +457,11 @@ def _resolve_definitions(
             try:
                 results, _ = ctx.lsp.send_definition_batch(queries)
             except Exception as e:
-                logger.warning("Definition batch failed for %s: %s", file_path.name, e)
-                continue
+                # Continuing persists a graph missing every edge in this batch, with
+                # nothing to tell the user which ones. Fail the run instead.
+                raise EdgeResolutionError(
+                    f"Definition batch failed for {file_path.name} ({len(batch)} call sites): {e}"
+                ) from e
 
             for i, call_site in enumerate(batch):
                 defs = results[i] if i < len(results) else []

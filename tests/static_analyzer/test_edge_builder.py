@@ -1,8 +1,11 @@
 """Tests for static_analyzer.engine.edge_builder — both strategies and helpers."""
 
 from pathlib import Path
+
+import pytest
 from unittest.mock import MagicMock
 
+from static_analyzer.exceptions import EdgeResolutionError
 from static_analyzer.engine.edge_builder import (
     EdgeMap,
     _best_candidate,
@@ -472,8 +475,13 @@ class TestBuildEdgesViaDefinitions:
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert len(edges) == 0
 
-    def test_handles_definition_batch_failure(self, tmp_path: Path):
-        """Definition batch failure doesn't crash."""
+    def test_definition_batch_failure_is_raised(self, tmp_path: Path):
+        """A failed batch must not pass for an empty result.
+
+        Returning zero edges here is indistinguishable from a file that genuinely
+        calls nothing, so the run would persist a graph missing every edge the
+        batch covered with nothing recording which.
+        """
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
         st = ctx.symbol_table
@@ -489,8 +497,8 @@ class TestBuildEdgesViaDefinitions:
 
         lsp.send_definition_batch.side_effect = Exception("LSP crash")
 
-        edges = build_edges_via_definitions(adapter, ctx, [src])
-        assert len(edges) == 0
+        with pytest.raises(EdgeResolutionError, match="app.py"):
+            build_edges_via_definitions(adapter, ctx, [src])
 
     def test_constructor_adds_parent_class_edge(self, tmp_path: Path):
         """When definition resolves to a constructor, also adds edge to parent class."""

@@ -14,6 +14,7 @@ from typing import Any
 
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import AnalysisData, InvalidatedEdge
+from static_analyzer.exceptions import IncrementalAnalysisError
 from static_analyzer.analysis_cache import (
     invalidate_files,
     merge_results,
@@ -247,15 +248,28 @@ def _restore_inbound_edges_via_definitions(
         batch = lookup[start : start + _DEFINITION_BATCH_SIZE]
         try:
             definition_results, _ = engine_client.send_definition_batch(queries[start : start + _DEFINITION_BATCH_SIZE])
-        except Exception:
-            logger.debug("Definition batch failed while restoring cached edges", exc_info=True)
-            continue
+        except Exception as exc:
+            # Skipping the batch would delete every cached edge it covers and still
+            # report success. AGENTS.md: a loud, specific error beats a
+            # plausible-but-wrong graph the user never learns is incomplete.
+            raise IncrementalAnalysisError(
+                f"Could not validate {len(batch)} cached edge(s) against the language server; " "run a full analysis"
+            ) from exc
         for (edge, site), definitions in zip(batch, definition_results):
-            if any(
-                dst_node.fully_qualified_name == edge[1]
+            # A polymorphic call resolves to the interface or base declaration, never
+            # to the implementation the cached edge names, so exact equality alone
+            # drops every caller-to-implementation edge whose implementation file
+            # changed -- silently, while the update reports success.
+            resolved = [
+                dst_node
                 for definition in definitions
                 for dst_node in _definition_nodes(call_graph, definition, include_callable_parent)
-            ):
+            ]
+            reachable = {node.fully_qualified_name for node in resolved}
+            if adapter.expands_virtual_dispatch:
+                for node in resolved:
+                    reachable.update(o.fully_qualified_name for o in _override_nodes(call_graph, node))
+            if edge[1] in reachable:
                 confirmed.setdefault(edge, []).append(site)
 
     restored = 0
@@ -367,9 +381,10 @@ def _add_outbound_edges_from_changed_files(
         queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
         try:
             definition_results, _ = engine_client.send_definition_batch(queries)
-        except Exception:
-            logger.debug("Failed to resolve outbound definitions for %s", file_path, exc_info=True)
-            continue
+        except Exception as exc:
+            raise IncrementalAnalysisError(
+                f"Could not resolve call sites in {file_path.name} against the language server; " "run a full analysis"
+            ) from exc
 
         for site, definitions in zip(call_sites, definition_results):
             line = site.lsp_line
