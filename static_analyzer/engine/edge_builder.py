@@ -137,7 +137,10 @@ def build_edges_via_references(
             try:
                 result_list, error_indices = ctx.lsp.send_references_batch(queries, per_query_timeout=per_query_timeout)
             except Exception as e:
-                logger.warning("Batch references failed: %s", e)
+                # Every position in this batch loses its edges. The references path
+                # is what Python/TS/Go/PHP run, so this is not a C#-only blind spot.
+                logger.warning("Batch references failed (%d positions): %s", len(queries), e)
+                capture_error("static_analysis.references_batch", e, extra={"positions": len(queries)})
                 result_list = [[] for _ in queries]
                 error_indices = set()
 
@@ -588,7 +591,10 @@ def _resolve_implementations(
         try:
             impl_results, _ = ctx.lsp.send_implementation_batch(queries)
         except Exception as e:
-            logger.warning("Implementation batch failed: %s", e)
+            # Costs the polymorphic edges for this batch: calls resolve to the
+            # declaration and never reach the implementations that run.
+            logger.warning("Implementation batch failed (%d targets): %s", len(batch_keys), e)
+            capture_error("static_analysis.implementation_batch", e, extra={"targets": len(batch_keys)})
             pbar.update(len(batch_keys))
             continue
 

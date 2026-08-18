@@ -15,6 +15,7 @@ from typing import Any
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import AnalysisData, InvalidatedEdge
 from static_analyzer.exceptions import IncrementalAnalysisError
+from telemetry.events import capture_error
 from static_analyzer.analysis_cache import (
     invalidate_files,
     merge_results,
@@ -176,8 +177,11 @@ def _restore_cross_boundary_edges(
             try:
                 engine_client.did_open(Path(dst_node.file_path), adapter.language_id)
                 refs = engine_client.references(Path(dst_node.file_path), dst_node.line_start - 1, dst_node.col_start)
-            except Exception:
-                logger.debug("Failed to validate references for %s", dst_name, exc_info=True)
+            except Exception as exc:
+                # An empty result here means the cached edge is not re-confirmed and
+                # is therefore deleted, which is a silent loss rather than a retry.
+                logger.warning("Failed to validate references for %s: %s", dst_name, exc)
+                capture_error("incremental.reference_validation", exc, extra={"target": dst_name})
                 refs = []
             references_cache[dst_name] = refs
 
