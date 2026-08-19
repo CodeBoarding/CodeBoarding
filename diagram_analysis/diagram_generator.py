@@ -663,8 +663,8 @@ class DiagramGenerator:
         if not cluster_results:
             separable = False
         else:
-            # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
-            # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
+            # Reference-augmented graph, matching the production split: a component
+            # separable only via CONTAINS/INHERITS edges
             # must not be judged cohesive on a call-only graph.
             cfg_graphs = {lang: cfg.to_networkx(DEFAULT_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()}
             separable = component_is_separable(cluster_results, cfg_graphs, load)

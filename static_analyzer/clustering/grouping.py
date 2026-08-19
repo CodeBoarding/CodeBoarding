@@ -3,27 +3,53 @@
 import logging
 import os
 from collections import Counter, defaultdict, deque
-from dataclasses import dataclass
 
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.clustering.config import (
+    DEFAULT_GROUPING_CONFIG,
+    SUBCOMPONENT_GROUPING_CONFIG,
+    GroupingConfig,
+)
+from static_analyzer.clustering.models import AnchoredGrouping, ClusterResult
 from static_analyzer.clustering.service import ClusteringService
-from static_analyzer.constants import ClusteringConfig, Language
+from static_analyzer.constants import Language
 from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
 
-# Component counts are selected by the modularity peak within these ranges.
-TOP_LEVEL_COMPONENTS_MIN = 5
-TOP_LEVEL_COMPONENTS_MAX = 8
-SUBCOMPONENTS_MIN = 3
-SUBCOMPONENTS_MAX = 8
 
-# Higher resolutions produce more, finer communities.
-_RESOLUTION_LADDER = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0)
+class GroupingService:
+    """Group leaf clusters without retaining graph or partition state."""
+
+    def group(
+        self,
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, nx.DiGraph],
+        *,
+        subcomponents: bool = False,
+    ) -> tuple[list[set[int]], float]:
+        """Group all languages' leaf clusters in one shared namespace."""
+        config = SUBCOMPONENT_GROUPING_CONFIG if subcomponents else DEFAULT_GROUPING_CONFIG
+        combined = combine_cluster_results(cluster_results)
+        combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
+        return _group_by_modularity_peak(combined, combined_cfg, config)
+
+    def anchored_group(
+        self,
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, nx.DiGraph],
+        previous_owner: dict[int, str],
+        *,
+        subcomponents: bool = False,
+    ) -> AnchoredGrouping:
+        """Carry previous ownership forward and regroup beyond the drift budget."""
+        config = SUBCOMPONENT_GROUPING_CONFIG if subcomponents else DEFAULT_GROUPING_CONFIG
+        combined = combine_cluster_results(cluster_results)
+        combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
+        return _anchored_group(combined, combined_cfg, previous_owner, config)
 
 
 def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
@@ -142,9 +168,7 @@ def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> Cluste
 
 def _pick_peak_partition(
     meta_graph: nx.DiGraph,
-    low: int,
-    high: int,
-    seed: int,
+    config: GroupingConfig,
 ) -> list[set[int]]:
     """Return the resolution-sweep partition with peak in-range modularity.
 
@@ -154,9 +178,14 @@ def _pick_peak_partition(
         return [{cid} for cid in meta_graph.nodes]
 
     candidates: list[tuple[int, float, list[set[int]]]] = []
-    for resolution in _RESOLUTION_LADDER:
+    for resolution in config.resolutions:
         try:
-            communities: list[set[int]] = find_partition(meta_graph, weight="weight", resolution=resolution, seed=seed)
+            communities: list[set[int]] = find_partition(
+                meta_graph,
+                weight="weight",
+                resolution=resolution,
+                seed=config.seed,
+            )
         except Exception as e:  # noqa: BLE001 - a bad resolution shouldn't abort the sweep
             logger.debug(f"[SuperCluster] resolution={resolution} failed: {e}")
             continue
@@ -168,25 +197,32 @@ def _pick_peak_partition(
     if not candidates:
         return [{cid} for cid in meta_graph.nodes]
 
-    in_range = [c for c in candidates if low <= c[0] <= high]
+    in_range = [c for c in candidates if config.min_components <= c[0] <= config.max_components]
     if in_range:
         n_real, modularity, communities = max(in_range, key=lambda c: c[1])
-        logger.info(f"[SuperCluster] modularity peak at N={n_real} (modularity={modularity:.4f}) over [{low},{high}]")
+        logger.info(
+            f"[SuperCluster] modularity peak at N={n_real} (modularity={modularity:.4f}) "
+            f"over [{config.min_components},{config.max_components}]"
+        )
         return communities
 
     def range_distance(n_real: int) -> int:
-        return 0 if low <= n_real <= high else min(abs(n_real - low), abs(n_real - high))
+        if config.min_components <= n_real <= config.max_components:
+            return 0
+        return min(abs(n_real - config.min_components), abs(n_real - config.max_components))
 
     n_real, _, communities = min(candidates, key=lambda c: (range_distance(c[0]), -c[1]))
-    logger.info(f"[SuperCluster] no partition with N in [{low},{high}]; using closest (N={n_real})")
+    logger.info(
+        f"[SuperCluster] no partition with N in [{config.min_components},{config.max_components}]; "
+        f"using closest (N={n_real})"
+    )
     return communities
 
 
 def _seeds_from_partition(
     communities: list[set[int]],
     method_count: dict[int, int],
-    low: int,
-    high: int,
+    config: GroupingConfig,
 ) -> tuple[list[set[int]], list[int]]:
     """Select seed communities and return the remaining leaf clusters."""
     reals = sorted(
@@ -196,15 +232,15 @@ def _seeds_from_partition(
     )
     leftovers = [cid for c in communities if len(c) == 1 for cid in c]
 
-    if len(reals) > high:
-        leftovers.extend(cid for community in reals[high:] for cid in community)
-        reals = reals[:high]
+    if len(reals) > config.max_components:
+        leftovers.extend(cid for community in reals[config.max_components :] for cid in community)
+        reals = reals[: config.max_components]
 
     # Stabilize absorption order while prioritizing the largest clusters.
     leftovers.sort(key=lambda cid: (-method_count.get(cid, 0), cid))
 
     seeds = reals
-    while len(seeds) < low and leftovers:
+    while len(seeds) < config.min_components and leftovers:
         seeds.append({leftovers.pop(0)})
 
     return seeds, leftovers
@@ -287,59 +323,42 @@ def _optimize_grouping(
     meta_graph: nx.DiGraph,
     cluster_result: ClusterResult,
     method_count: dict[int, int],
-    low: int,
-    high: int,
-    seed: int,
+    config: GroupingConfig,
 ) -> tuple[list[set[int]], float]:
     """The from-scratch partition of a prebuilt meta-graph, with every leftover absorbed."""
     n_leaf = meta_graph.number_of_nodes()
     if n_leaf == 0:
         return [], 0.0
-    if n_leaf <= low:
+    if n_leaf <= config.min_components:
         # Fewer leaf clusters than the floor — each is its own component.
         return [{cid} for cid in meta_graph.nodes], 0.0
 
-    high = min(high, n_leaf)
-    communities = _pick_peak_partition(meta_graph, low, high, seed)
-    seeds, leftovers = _seeds_from_partition(communities, method_count, low, high)
+    communities = _pick_peak_partition(meta_graph, config)
+    seeds, leftovers = _seeds_from_partition(communities, method_count, config)
     if seeds:
         _absorb_leftovers(seeds, leftovers, meta_graph, cluster_result, method_count)
     # Drift and expansion decisions require the score after absorption.
     return seeds, _modularity(meta_graph, seeds if seeds else communities)
 
 
-def supercluster_by_modularity_peak(
+def _group_by_modularity_peak(
     cluster_result: ClusterResult,
     cfg_graph: nx.DiGraph,
-    low: int = TOP_LEVEL_COMPONENTS_MIN,
-    high: int = TOP_LEVEL_COMPONENTS_MAX,
-    seed: int = ClusteringConfig.CLUSTERING_SEED,
+    config: GroupingConfig,
 ) -> tuple[list[set[int]], float]:
     """Group leaf clusters into components and return their modularity."""
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
-    groups, modularity = _optimize_grouping(meta_graph, cluster_result, _method_counts(cluster_result), low, high, seed)
+    groups, modularity = _optimize_grouping(
+        meta_graph,
+        cluster_result,
+        _method_counts(cluster_result),
+        config,
+    )
     logger.info(
         f"[SuperCluster] {meta_graph.number_of_nodes()} leaf clusters -> {len(groups)} components "
         f"(modularity={modularity:.4f}, sizes {sorted((len(g) for g in groups), reverse=True)})"
     )
     return groups, modularity
-
-
-def supercluster_leaf_ids(
-    cluster_results: dict[str, ClusterResult],
-    cfg_graphs: dict[str, nx.DiGraph],
-    low: int = TOP_LEVEL_COMPONENTS_MIN,
-    high: int = TOP_LEVEL_COMPONENTS_MAX,
-    seed: int = ClusteringConfig.CLUSTERING_SEED,
-) -> tuple[list[set[int]], float]:
-    """Group all languages' leaf clusters in one shared namespace."""
-    combined = combine_cluster_results(cluster_results)
-    combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
-    return supercluster_by_modularity_peak(combined, combined_cfg, low, high, seed)
-
-
-# Maximum modularity loss allowed before rebuilding the grouping.
-REGROUP_DRIFT_BUDGET = 0.10
 
 
 def _inherit_ids(
@@ -368,30 +387,13 @@ def _inherit_ids(
     return owners
 
 
-@dataclass(frozen=True)
-class AnchoredGrouping:
-    """A grouping carried forward from the previous run, plus what it cost."""
-
-    groups: list[set[int]]
-    #: index into ``groups`` -> the component id it inherited, or "" when new.
-    owners: list[str]
-    #: True when drift forced a from-scratch re-derivation rather than a carry-forward.
-    regrouped: bool
-
-
-def anchored_grouping(
+def _anchored_group(
     cluster_result: ClusterResult,
     cfg_graph: nx.DiGraph,
     previous_owner: dict[int, str],
-    low: int = TOP_LEVEL_COMPONENTS_MIN,
-    high: int = TOP_LEVEL_COMPONENTS_MAX,
-    seed: int = ClusteringConfig.CLUSTERING_SEED,
-    drift_budget: float = REGROUP_DRIFT_BUDGET,
+    config: GroupingConfig,
 ) -> AnchoredGrouping:
-    """Carry previous ownership forward and regroup beyond the drift budget.
-
-    Why: near-equal modularity optima can otherwise reshuffle untouched code.
-    """
+    """Carry previous ownership forward and regroup beyond the drift budget."""
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
     live = set(meta_graph.nodes)
     if not live:
@@ -406,12 +408,22 @@ def anchored_grouping(
             carried[owner].add(cid)
     if not carried:
         # A first run or unrelated baseline has no ownership to preserve.
-        fresh, _ = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
+        fresh, _ = _optimize_grouping(
+            meta_graph,
+            cluster_result,
+            method_count,
+            config,
+        )
         return AnchoredGrouping(fresh, [""] * len(fresh), True)
 
     owners = sorted(carried)
     groups = [carried[owner] for owner in owners]
-    fresh_groups, fresh_modularity = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
+    fresh_groups, fresh_modularity = _optimize_grouping(
+        meta_graph,
+        cluster_result,
+        method_count,
+        config,
+    )
     newcomers = set(live) - {cid for group in groups for cid in group}
 
     # Preserve new communities that have no previous owner as distinct subsystems.
@@ -424,10 +436,10 @@ def anchored_grouping(
         _absorb_leftovers(groups, absorbed, meta_graph, cluster_result, method_count)
 
     modularity = _modularity(meta_graph, groups)
-    if fresh_modularity - modularity > drift_budget:
+    if fresh_modularity - modularity > config.drift_budget:
         logger.info(
             f"[Anchored] carried grouping scores {modularity:.4f} vs {fresh_modularity:.4f} fresh "
-            f"(> {drift_budget} budget); re-deriving structure from scratch"
+            f"(> {config.drift_budget} budget); re-deriving structure from scratch"
         )
         return AnchoredGrouping(fresh_groups, _inherit_ids(fresh_groups, previous_owner, method_count), True)
 

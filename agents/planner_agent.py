@@ -18,8 +18,8 @@ from collections.abc import Callable
 import networkx as nx
 
 from agents.agent_responses import AnalysisInsights, Component
-from static_analyzer.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN, supercluster_leaf_ids
-from static_analyzer.clustering import ClusterResult, METHOD_LEVEL_STRATEGY
+from static_analyzer.clustering import METHOD_LEVEL_STRATEGY, ClusterResult
+from static_analyzer.clustering.grouping import GroupingService
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def component_is_separable(
         # threshold. Too few natural clusters to separate means there is nothing to split.
         logger.debug("[Planner] subgraph has no natural cluster structure; keeping as leaf")
         return False
-    _groups, modularity = supercluster_leaf_ids(cluster_results, cfg_graphs, SUBCOMPONENTS_MIN, SUBCOMPONENTS_MAX)
+    _groups, modularity = GroupingService().group(cluster_results, cfg_graphs, subcomponents=True)
     required = EXPAND_MODULARITY_THRESHOLD * max(0.0, 1.0 - load)
     separable = modularity >= required
     logger.debug(

@@ -5,15 +5,13 @@ import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
-    TOP_LEVEL_COMPONENTS_MAX,
-    TOP_LEVEL_COMPONENTS_MIN,
     build_all_cluster_results,
     reindex_across_languages,
     reindex_cluster_result,
-    supercluster_by_modularity_peak,
-    supercluster_leaf_ids,
 )
 from static_analyzer.clustering import ClusterCache, ClusterResult, ClusteringService
+from static_analyzer.clustering.config import DEFAULT_GROUPING_CONFIG
+from static_analyzer.clustering.grouping import GroupingService
 
 
 def _make_cluster_result(prefix: str, count: int) -> ClusterResult:
@@ -131,6 +129,8 @@ class TestClusterHelpers(unittest.TestCase):
 
 
 class TestSuperClusterModularityPeak(unittest.TestCase):
+    grouping_service = GroupingService()
+
     @staticmethod
     def _blocks(n_blocks: int, per_block: int, weak_bridges: bool = True):
         """A ClusterResult + meta-friendly cfg with ``n_blocks`` tight blocks of leaf clusters."""
@@ -165,9 +165,12 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         self.assertEqual(sorted(assigned), sorted(expected_ids))
         self.assertEqual(len(assigned), len(set(assigned)), "clusters must be partitioned, not shared")
 
+    def _group(self, cluster_result, graph):
+        return self.grouping_service.group({"test": cluster_result}, {"test": graph})
+
     def test_recovers_natural_block_count_within_range(self):
         cr, graph = self._blocks(n_blocks=6, per_block=5)
-        groups, modularity = supercluster_by_modularity_peak(cr, graph)
+        groups, modularity = self._group(cr, graph)
         self.assertEqual(len(groups), 6)
         self.assertGreater(modularity, 0.5)
         self._assert_partition(groups, range(1, 31))
@@ -175,20 +178,20 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
     def test_count_is_clamped_to_range(self):
         # 10 natural blocks, but the count must not exceed the max.
         cr, graph = self._blocks(n_blocks=10, per_block=4)
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
-        self.assertTrue(TOP_LEVEL_COMPONENTS_MIN <= len(groups) <= TOP_LEVEL_COMPONENTS_MAX)
+        groups, _modularity = self._group(cr, graph)
+        self.assertTrue(DEFAULT_GROUPING_CONFIG.min_components <= len(groups) <= DEFAULT_GROUPING_CONFIG.max_components)
         self._assert_partition(groups, range(1, 41))
 
     def test_deterministic_across_runs(self):
         cr, graph = self._blocks(n_blocks=7, per_block=4)
-        first, first_q = supercluster_by_modularity_peak(cr, graph)
-        second, second_q = supercluster_by_modularity_peak(cr, graph)
+        first, first_q = self._group(cr, graph)
+        second, second_q = self._group(cr, graph)
         self.assertEqual(sorted(map(sorted, first)), sorted(map(sorted, second)))
         self.assertEqual(first_q, second_q)
 
     def test_fewer_clusters_than_floor_returns_singletons(self):
         cr, graph = self._blocks(n_blocks=1, per_block=3, weak_bridges=False)
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
+        groups, _modularity = self._group(cr, graph)
         self.assertEqual(len(groups), 3)
         self._assert_partition(groups, range(1, 4))
 
@@ -210,9 +213,9 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         for cid in range(1, 41):
             graph.add_node(f"n{cid}", file_path=next(iter(cluster_to_files[cid])))
 
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
+        groups, _modularity = self._group(cr, graph)
 
-        self.assertEqual(len(groups), TOP_LEVEL_COMPONENTS_MIN)
+        self.assertEqual(len(groups), DEFAULT_GROUPING_CONFIG.min_components)
         self._assert_partition(groups, range(1, 41))
         biggest = max(len(group) for group in groups)
         self.assertLessEqual(biggest, 12, f"one seed absorbed {biggest}/40 clusters: {sorted(map(len, groups))}")
@@ -228,7 +231,7 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         cr.file_to_clusters["/repo/models/schema.py"] = {big_id}
         graph.add_node("models.Model0", file_path="/repo/models/schema.py")
 
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
+        groups, _modularity = self._group(cr, graph)
         owner = next(group for group in groups if big_id in group)
         # It seeded its own group rather than being absorbed into a larger one.
         self.assertEqual(owner, {big_id})
@@ -240,10 +243,10 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         js_clusters = {cid: cr_py.clusters[cid] for cid in range(16, 31)}
         py = ClusterResult(clusters=py_clusters, cluster_to_files=cr_py.cluster_to_files, strategy="t")
         js = ClusterResult(clusters=js_clusters, cluster_to_files=cr_py.cluster_to_files, strategy="t")
-        groups, _modularity = supercluster_leaf_ids(
+        groups, _modularity = self.grouping_service.group(
             {"python": py, "javascript": js}, {"python": graph, "javascript": graph}
         )
-        self.assertTrue(TOP_LEVEL_COMPONENTS_MIN <= len(groups) <= TOP_LEVEL_COMPONENTS_MAX)
+        self.assertTrue(DEFAULT_GROUPING_CONFIG.min_components <= len(groups) <= DEFAULT_GROUPING_CONFIG.max_components)
         self._assert_partition(groups, range(1, 31))
 
     def test_modularity_is_zero_without_inter_cluster_edges(self):
@@ -253,7 +256,7 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         for cid, members in cr.clusters.items():
             for member in members:
                 graph.add_node(member, file_path=next(iter(cr.cluster_to_files[cid])))
-        _groups, modularity = supercluster_by_modularity_peak(cr, graph)
+        _groups, modularity = self._group(cr, graph)
         self.assertEqual(modularity, 0.0)
 
 
