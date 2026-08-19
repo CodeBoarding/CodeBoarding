@@ -89,30 +89,6 @@ def reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> Cluste
     )
 
 
-def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.DiGraph:
-    """Build a weighted directed graph of calls between clusters."""
-    node_to_cluster: dict[str, int] = {}
-    for cluster_id, nodes in cluster_result.clusters.items():
-        for node in nodes:
-            node_to_cluster[node] = cluster_id
-
-    meta_graph = nx.DiGraph()
-    for cid in cluster_result.clusters:
-        meta_graph.add_node(cid)
-
-    edge_weights: dict[tuple[int, int], int] = defaultdict(int)
-    for src, dst in cfg_graph.edges():
-        src_cid = node_to_cluster.get(src)
-        dst_cid = node_to_cluster.get(dst)
-        if src_cid is not None and dst_cid is not None and src_cid != dst_cid:
-            edge_weights[(src_cid, dst_cid)] += 1
-
-    for (src_cid, dst_cid), weight in edge_weights.items():
-        meta_graph.add_edge(src_cid, dst_cid, weight=weight)
-
-    return meta_graph
-
-
 def group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> list[str]:
     """Qualified names in a group, most top-level first (fewest name segments)."""
     names = {qname for cid in cluster_ids for qname in node_lookup.get(cid, set())}
@@ -135,6 +111,35 @@ def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> Cluste
         file_to_clusters=dict(file_to_clusters),
         strategy="combined",
     )
+
+
+def score_grouping(cluster_result: ClusterResult, cfg_graph: nx.DiGraph, groups: list[set[int]]) -> float:
+    """Score a concrete grouping against its inter-cluster meta-graph."""
+    return _modularity(_build_meta_graph(cluster_result, cfg_graph), groups)
+
+
+def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.DiGraph:
+    """Build a weighted directed graph of calls between clusters."""
+    node_to_cluster: dict[str, int] = {}
+    for cluster_id, nodes in cluster_result.clusters.items():
+        for node in nodes:
+            node_to_cluster[node] = cluster_id
+
+    meta_graph = nx.DiGraph()
+    for cid in cluster_result.clusters:
+        meta_graph.add_node(cid)
+
+    edge_weights: dict[tuple[int, int], int] = defaultdict(int)
+    for src, dst in cfg_graph.edges():
+        src_cid = node_to_cluster.get(src)
+        dst_cid = node_to_cluster.get(dst)
+        if src_cid is not None and dst_cid is not None and src_cid != dst_cid:
+            edge_weights[(src_cid, dst_cid)] += 1
+
+    for (src_cid, dst_cid), weight in edge_weights.items():
+        meta_graph.add_edge(src_cid, dst_cid, weight=weight)
+
+    return meta_graph
 
 
 def _pick_peak_partition(
@@ -288,11 +293,6 @@ def _method_counts(cluster_result: ClusterResult) -> dict[int, int]:
 def _modularity(meta_graph: nx.DiGraph, groups: list[set[int]]) -> float:
     """0.0 on an edgeless meta-graph — there is nothing to separate."""
     return nx_comm.modularity(meta_graph, groups, weight="weight") if meta_graph.number_of_edges() else 0.0
-
-
-def score_grouping(cluster_result: ClusterResult, cfg_graph: nx.DiGraph, groups: list[set[int]]) -> float:
-    """Score a concrete grouping against its inter-cluster meta-graph."""
-    return _modularity(_build_meta_graph(cluster_result, cfg_graph), groups)
 
 
 def _optimize_grouping(
