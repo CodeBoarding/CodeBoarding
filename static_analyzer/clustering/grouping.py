@@ -1,16 +1,4 @@
-"""Group leaf clusters into deterministic architectural components.
-
-Two stages, both deterministic:
-
-1. **Partition** — resolution-tuned Leiden over a weighted meta-graph of
-   inter-cluster call edges picks both the component count (the modularity peak
-   over ``[low, high]``) and the membership. The LLM only names the result.
-2. **Absorption** — real call graphs carry a long tail of leaf clusters with no
-   inter-cluster edge at all, which Leiden leaves as singletons. Each is folded
-   into the nearest seed by call proximity, then by directory affinity, with the
-   smaller seed winning ties so the tail spreads instead of piling onto one
-   component.
-"""
+"""Group leaf clusters into deterministic architectural components."""
 
 import logging
 import os
@@ -28,31 +16,18 @@ from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
 
-# Range for the number of top-level architecture components. The exact count N
-# inside this range is chosen deterministically by the modularity peak of a
-# resolution-tuned Leiden partition (see ``supercluster_leaf_ids``), not by the
-# LLM — so the component structure is stable across re-runs.
+# Component counts are selected by the modularity peak within these ranges.
 TOP_LEVEL_COMPONENTS_MIN = 5
 TOP_LEVEL_COMPONENTS_MAX = 8
-
-# Same idea for a component's sub-components (one level down); a component is
-# usually smaller than the whole repo, so the floor is lower.
 SUBCOMPONENTS_MIN = 3
 SUBCOMPONENTS_MAX = 8
 
-# Resolution ladder swept to steer Leiden toward a target community count.
-# Ascending: higher resolution -> more, finer communities. Reaches well past 1.0
-# so a graph with a large connected core can still be over-segmented to any N in
-# the target range before absorbing leftovers back down.
+# Higher resolutions produce more, finer communities.
 _RESOLUTION_LADDER = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0)
 
 
 def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
-    """Cluster every detected language and give the clusters a shared ID namespace.
-
-    Downstream code maps ``cluster_id -> component`` in a single dict, so IDs must
-    not collide across languages.
-    """
+    """Cluster every detected language in one shared cluster-ID namespace."""
     cluster_service = ClusteringService()
     cluster_results: dict[str, ClusterResult] = {}
     offset = 0
@@ -62,7 +37,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
             result = reindex_cluster_result(result, offset)
             logger.info(f"[Cluster] {lang}: offset IDs by +{offset} ({len(result.clusters)} clusters)")
         cluster_results[str(lang)] = result
-        offset += max(result.clusters, default=0) + 1
+        offset = max(result.clusters, default=offset)
 
     _sync_cluster_cache(static_analysis, cluster_results)
     return cluster_results
@@ -78,19 +53,10 @@ def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results:
 
 
 def reindex_across_languages(cluster_results: dict[str, ClusterResult]) -> None:
-    """Give each language's clusters a disjoint ID range, in place.
-
-    Needed wherever per-language ``ClusterResult``s are built independently (the
-    per-component subgraphs) and then merged into one ``cluster_id -> component``
-    lookup.
-    """
+    """Give each language's clusters a disjoint ID range, in place."""
     if len(cluster_results) <= 1:
         return
-    # Already disjoint across languages — e.g. the seeded incremental path returned the
-    # previous run's scoped ids. Re-offsetting would drift a stable namespace every run,
-    # so a TypeScript sub-cluster saved as 2/3 would become 4/5 next time and the persisted
-    # lineage would never settle. Only the cold path (each language freshly clustered from 1)
-    # overlaps and needs reindexing.
+    # Preserve stable IDs from seeded incremental partitions that are already disjoint.
     ranges = sorted((min(r.clusters), max(r.clusters)) for r in cluster_results.values() if r.clusters)
     if all(ranges[i][0] > ranges[i - 1][1] for i in range(1, len(ranges))):
         return
@@ -100,7 +66,7 @@ def reindex_across_languages(cluster_results: dict[str, ClusterResult]) -> None:
         if offset:
             cluster_results[lang] = reindex_cluster_result(result, offset)
             logger.info(f"[ReIndex] {lang}: offset IDs by +{offset} (now {offset + 1}-{offset + len(result.clusters)})")
-        offset += max(result.clusters, default=0) + 1
+        offset += max(result.clusters, default=0)
 
 
 def reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> ClusterResult:
@@ -126,19 +92,8 @@ def reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> Cluste
     )
 
 
-# ---------------------------------------------------------------------------
-# Meta-graph construction
-# ---------------------------------------------------------------------------
-
-
 def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.DiGraph:
-    """Build a weighted directed meta-graph of inter-cluster connectivity.
-
-    Each node is a cluster ID. Each edge ``(src_cid, dst_cid)`` carries the
-    number of CFG calls from ``src_cid`` members into ``dst_cid`` members.
-    Mutual coupling A<->B becomes two separate edges, each contributing
-    independently to directed Leicht-Newman modularity.
-    """
+    """Build a weighted directed graph of calls between clusters."""
     node_to_cluster: dict[str, int] = {}
     for cluster_id, nodes in cluster_result.clusters.items():
         for node in nodes:
@@ -168,11 +123,7 @@ def group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> l
 
 
 def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> ClusterResult:
-    """Union per-language ClusterResults into one.
-
-    Cluster IDs are globally unique across languages, so a plain union is safe and
-    lets us group every language's leaf clusters against a single meta-graph.
-    """
+    """Union per-language cluster results with globally unique IDs."""
     clusters: dict[int, set[str]] = {}
     cluster_to_files: dict[int, set[str]] = {}
     file_to_clusters: dict[str, set[int]] = defaultdict(set)
@@ -189,26 +140,15 @@ def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> Cluste
     )
 
 
-# ---------------------------------------------------------------------------
-# Partitioning
-# ---------------------------------------------------------------------------
-
-
 def _pick_peak_partition(
     meta_graph: nx.DiGraph,
     low: int,
     high: int,
     seed: int,
 ) -> list[set[int]]:
-    """Sweep the resolution ladder and return the partition at the modularity peak in ``[low, high]``.
+    """Return the resolution-sweep partition with peak in-range modularity.
 
-    "N" counts *non-singleton* communities (size >= 2 leaf clusters) — the
-    connected structure Leiden actually resolves — because real call graphs
-    carry a long tail of isolated leaf clusters that would otherwise pin the raw
-    community count far above ``high`` at every resolution. Among partitions
-    whose non-singleton count lands in range, the highest-modularity one wins.
-    Falls back to the partition whose count is closest to the range when none
-    lands inside it (or to all-singletons on an edgeless graph).
+    Why: isolated clusters should not inflate the target community count.
     """
     if meta_graph.number_of_edges() == 0:
         return [{cid} for cid in meta_graph.nodes]
@@ -248,15 +188,7 @@ def _seeds_from_partition(
     low: int,
     high: int,
 ) -> tuple[list[set[int]], list[int]]:
-    """Split a partition into top-level *seed* communities and leftover leaf clusters.
-
-    Seeds are the non-singleton communities (ranked by total method count),
-    capped at ``high``. When there are fewer than ``low`` seeds, the largest
-    leftover leaf clusters are promoted to their own seed so a genuinely big but
-    call-isolated module (e.g. a data-model file nothing calls) still becomes a
-    component instead of being folded into another. Everything else is a
-    leftover to be absorbed.
-    """
+    """Select seed communities and return the remaining leaf clusters."""
     reals = sorted(
         (set(c) for c in communities if len(c) >= 2),
         key=lambda community: (sum(method_count.get(cid, 0) for cid in community), -min(community)),
@@ -268,8 +200,7 @@ def _seeds_from_partition(
         leftovers.extend(cid for community in reals[high:] for cid in community)
         reals = reals[:high]
 
-    # Biggest clusters first (they anchor packages), tie-broken by id, so the
-    # order absorption sees never depends on set iteration order.
+    # Stabilize absorption order while prioritizing the largest clusters.
     leftovers.sort(key=lambda cid: (-method_count.get(cid, 0), cid))
 
     seeds = reals
@@ -291,7 +222,7 @@ def _package_affinity(package: str, candidates: set[str]) -> int:
     for candidate in candidates:
         other = candidate.split(os.sep)
         shared = 0
-        for a, b in zip(own, other):
+        for a, b in zip(own, other, strict=False):
             if a != b:
                 break
             shared += 1
@@ -300,12 +231,7 @@ def _package_affinity(package: str, candidates: set[str]) -> int:
 
 
 def _seed_distances(meta_graph: nx.DiGraph, seeds: list[set[int]]) -> list[dict[int, int]]:
-    """Hop distance from each seed to every leaf cluster it can reach.
-
-    One multi-source BFS per seed on an undirected view — absorption is about
-    topological proximity, not directional reachability, and a tiny utility
-    cluster should be absorbable regardless of which way the calls flow.
-    """
+    """Measure undirected hop distance from each seed to reachable clusters."""
     undirected = meta_graph.to_undirected(as_view=True) if meta_graph.is_directed() else meta_graph
     distances: list[dict[int, int]] = []
     for seed in seeds:
@@ -328,15 +254,7 @@ def _absorb_leftovers(
     cluster_result: ClusterResult,
     method_count: dict[int, int],
 ) -> None:
-    """Fold every leftover leaf cluster into a seed, in place.
-
-    Preference order per leftover: fewest hops to a seed member, then deepest
-    shared directory prefix with the seed's *original* packages, then the
-    smallest seed. Ties always go to the smaller seed, and affinity is measured
-    against the seed's pre-absorption packages — otherwise a seed that absorbed
-    early keeps widening its package set and wins every later comparison, which
-    is what collapses a repo into one mega-component.
-    """
+    """Fold leftovers into seeds by distance, package affinity, then size."""
     distances = _seed_distances(meta_graph, seeds)
     seed_packages = [{pkg for cid in seed for pkg in _cluster_packages(cid, cluster_result)} for seed in seeds]
     sizes = [sum(method_count.get(cid, 0) for cid in seed) for seed in seeds]
@@ -354,11 +272,6 @@ def _absorb_leftovers(
         target = min(ranked)[2]
         seeds[target].add(cid)
         sizes[target] += method_count.get(cid, 0)
-
-
-# ---------------------------------------------------------------------------
-# Public entry points
-# ---------------------------------------------------------------------------
 
 
 def _method_counts(cluster_result: ClusterResult) -> dict[int, int]:
@@ -391,10 +304,7 @@ def _optimize_grouping(
     seeds, leftovers = _seeds_from_partition(communities, method_count, low, high)
     if seeds:
         _absorb_leftovers(seeds, leftovers, meta_graph, cluster_result, method_count)
-    # Score the grouping we actually return, not the pre-absorption communities: absorbing
-    # singletons into seeds changes the modularity, and callers compare this number against
-    # the carried grouping's own modularity (the drift gate) and against the expansion
-    # threshold. A stale pre-absorption score would misjudge both.
+    # Drift and expansion decisions require the score after absorption.
     return seeds, _modularity(meta_graph, seeds if seeds else communities)
 
 
@@ -405,18 +315,7 @@ def supercluster_by_modularity_peak(
     high: int = TOP_LEVEL_COMPONENTS_MAX,
     seed: int = ClusteringConfig.CLUSTERING_SEED,
 ) -> tuple[list[set[int]], float]:
-    """Group leaf clusters into N components; return the groups and the split's modularity.
-
-    Resolution tuning steers Leiden over the weighted inter-cluster meta-graph;
-    N (the number of components) is the modularity peak among partitions with
-    ``[low, high]`` non-singleton communities. Those communities become seeds and
-    every remaining leaf cluster is absorbed into the nearest one. The groups are
-    a complete, disjoint cover of the leaf clusters.
-
-    The returned modularity scores the partition the sweep chose, so a caller
-    deciding *whether* to split and a caller performing the split read the same
-    number.
-    """
+    """Group leaf clusters into components and return their modularity."""
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
     groups, modularity = _optimize_grouping(meta_graph, cluster_result, _method_counts(cluster_result), low, high, seed)
     logger.info(
@@ -433,26 +332,13 @@ def supercluster_leaf_ids(
     high: int = TOP_LEVEL_COMPONENTS_MAX,
     seed: int = ClusteringConfig.CLUSTERING_SEED,
 ) -> tuple[list[set[int]], float]:
-    """Partition all languages' leaf clusters into component groups, with the split's modularity.
-
-    Builds one combined meta-graph across languages (leaf-cluster IDs are already
-    globally unique) so the returned groups sum to a single top-level count in
-    ``[low, high]``. Each group is a set of leaf-cluster IDs; the LLM later only
-    names and describes these fixed groups.
-    """
+    """Group all languages' leaf clusters in one shared namespace."""
     combined = combine_cluster_results(cluster_results)
     combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
     return supercluster_by_modularity_peak(combined, combined_cfg, low, high, seed)
 
 
-# ---------------------------------------------------------------------------
-# Anchored regrouping (the incremental path)
-# ---------------------------------------------------------------------------
-
-# How far the carried-forward grouping may fall behind a freshly optimized one
-# before the structure is re-derived from scratch. Modularity difference, so it
-# is comparable across repos. Below it, identity is worth more than the last
-# few points of coupling; above it, the diagram no longer describes the code.
+# Maximum modularity loss allowed before rebuilding the grouping.
 REGROUP_DRIFT_BUDGET = 0.10
 
 
@@ -461,14 +347,7 @@ def _inherit_ids(
     previous_owner: dict[int, str],
     method_count: dict[int, int],
 ) -> list[str]:
-    """Give each group the id of the previous component whose code it mostly holds.
-
-    Used even when the structure is re-derived from scratch: a regrouping that renamed
-    every component would light up the whole diagram, when in truth most of the code
-    stayed where it was. Weighted by method count, biggest claim first, one id per
-    group, so the dominant successor of a component keeps its identity and only
-    genuinely new groups come out unnamed.
-    """
+    """Assign each group its dominant available previous component ID."""
     claims: list[tuple[int, Counter[str]]] = []
     for index, group in enumerate(groups):
         tally: Counter[str] = Counter()
@@ -509,22 +388,9 @@ def anchored_grouping(
     seed: int = ClusteringConfig.CLUSTERING_SEED,
     drift_budget: float = REGROUP_DRIFT_BUDGET,
 ) -> AnchoredGrouping:
-    """Repair the previous grouping against a new clustering instead of re-deriving one.
+    """Carry previous ownership forward and regroup beyond the drift budget.
 
-    ``supercluster_by_modularity_peak`` re-optimizes from scratch. Modularity has a
-    degenerate solution landscape — many partitions score within noise of each other —
-    so a two-line diff can select a different near-optimal partition and reshuffle which
-    component owns what. Deterministic, but not continuous, and the incremental path
-    needs continuity: a component's identity has to survive a change that did not touch it.
-
-    So each live leaf cluster simply keeps the component that owned it
-    (``previous_owner``, from the baseline's ``source_cluster_ids``); genuinely new
-    clusters are absorbed into the nearest existing group; and a component left holding
-    nothing is dropped. No re-partitioning at all in the steady state.
-
-    The escape hatch is ``drift_budget``: when the carried-forward grouping scores that
-    much worse than a fresh optimum, the code really has moved on, and the result is a
-    from-scratch regrouping with ``regrouped=True`` so the caller can say so out loud.
+    Why: near-equal modularity optima can otherwise reshuffle untouched code.
     """
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
     live = set(meta_graph.nodes)
@@ -532,14 +398,14 @@ def anchored_grouping(
         return AnchoredGrouping([], [], False)
     method_count = _method_counts(cluster_result)
 
-    # Carry forward: one group per surviving component, in a stable id order.
+    # Keep one stable group per surviving component.
     carried: dict[str, set[int]] = defaultdict(set)
     for cid in sorted(live):
         owner = previous_owner.get(cid)
         if owner:
             carried[owner].add(cid)
     if not carried:
-        # Nothing to anchor to — a first run, or a baseline that shares no cluster.
+        # A first run or unrelated baseline has no ownership to preserve.
         fresh, _ = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
         return AnchoredGrouping(fresh, [""] * len(fresh), True)
 
@@ -548,10 +414,7 @@ def anchored_grouping(
     fresh_groups, fresh_modularity = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
     newcomers = set(live) - {cid for group in groups for cid in group}
 
-    # A whole new subsystem arriving must become its own component, not be scattered into
-    # the existing ones by absorption. The from-scratch partition already isolates it: a
-    # fresh community made *entirely* of new clusters is a subsystem the carried grouping
-    # has no home for. Promote those as new (unowned) groups; absorb only the rest.
+    # Preserve new communities that have no previous owner as distinct subsystems.
     new_subsystems = [group for group in fresh_groups if len(group) >= 2 and group <= newcomers]
     for subsystem in new_subsystems:
         groups.append(set(subsystem))

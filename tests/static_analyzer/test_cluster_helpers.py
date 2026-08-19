@@ -31,19 +31,26 @@ def _make_cluster_result(prefix: str, count: int) -> ClusterResult:
 class TestClusterHelpers(unittest.TestCase):
     def test_multi_tech_stack_cluster_ids_are_reindexed_without_overlap(self):
         analysis = MagicMock(spec=StaticAnalysisResults)
-        analysis.get_languages.return_value = ["python", "typescript"]
+        analysis.get_languages.return_value = ["python", "typescript", "go"]
 
         python_cfg = MagicMock()
         typescript_cfg = MagicMock()
+        go_cfg = MagicMock()
         analysis.get_cfg.side_effect = lambda language: {
             "python": python_cfg,
             "typescript": typescript_cfg,
+            "go": go_cfg,
         }[language]
-        partitions = {python_cfg: _make_cluster_result("py", 40), typescript_cfg: _make_cluster_result("ts", 40)}
-        python_clusters, typescript_clusters = ClusterCache(), ClusterCache()
+        partitions = {
+            python_cfg: _make_cluster_result("py", 40),
+            typescript_cfg: _make_cluster_result("ts", 40),
+            go_cfg: _make_cluster_result("go", 40),
+        }
+        python_clusters, typescript_clusters, go_clusters = ClusterCache(), ClusterCache(), ClusterCache()
         analysis.get_clusters.side_effect = lambda language: {
             "python": python_clusters,
             "typescript": typescript_clusters,
+            "go": go_clusters,
         }[language]
 
         with patch.object(ClusteringService, "cluster", side_effect=lambda graph: partitions[graph]):
@@ -51,14 +58,16 @@ class TestClusterHelpers(unittest.TestCase):
 
         python_ids = set(result["python"].clusters.keys())
         typescript_ids = set(result["typescript"].clusters.keys())
+        go_ids = set(result["go"].clusters.keys())
         self.assertEqual(python_ids, set(range(1, 41)))
-        self.assertTrue(python_ids.isdisjoint(typescript_ids))
-        self.assertEqual(len(typescript_ids), 40)
+        self.assertEqual(typescript_ids, set(range(41, 81)))
+        self.assertEqual(go_ids, set(range(81, 121)))
 
         shifted_ts_ids = set().union(*result["typescript"].file_to_clusters.values())
         self.assertEqual(shifted_ts_ids, typescript_ids)
         self.assertIs(python_clusters.result, result["python"])
         self.assertIs(typescript_clusters.result, result["typescript"])
+        self.assertIs(go_clusters.result, result["go"])
 
     def test_all_clusters_survive_grouping(self):
         """Every leaf cluster keeps its members — nothing is merged away before grouping."""
@@ -90,8 +99,8 @@ class TestClusterHelpers(unittest.TestCase):
 
         js_ids = set(cluster_results["javascript"].clusters.keys())
         py_ids = set(cluster_results["python"].clusters.keys())
-        self.assertTrue(js_ids.isdisjoint(py_ids), f"Overlap detected: {js_ids & py_ids}")
-        self.assertEqual(len(js_ids) + len(py_ids), 20)
+        self.assertEqual(js_ids, set(range(1, 11)))
+        self.assertEqual(py_ids, set(range(11, 21)))
 
     def test_reindex_across_languages_leaves_already_disjoint_ids_alone(self):
         # The seeded incremental path returns the previous run's scoped ids, already

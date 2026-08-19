@@ -13,15 +13,17 @@ import networkx as nx
 from static_analyzer.cluster_helpers import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
+    anchored_grouping,
+    supercluster_by_modularity_peak,
+)
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering.grouping import (
     _absorb_leftovers,
     _build_meta_graph,
     _method_counts,
     _modularity,
     _seeds_from_partition,
-    anchored_grouping,
-    supercluster_by_modularity_peak,
 )
-from static_analyzer.clustering import ClusterResult
 
 
 def blocks(n_blocks: int, per_block: int, members_each: int = 3):
