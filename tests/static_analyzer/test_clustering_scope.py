@@ -2,7 +2,12 @@ import unittest
 
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import NodeType
-from static_analyzer.clustering import ClusterResult, ClusteringService, METHOD_LEVEL_STRATEGY
+from static_analyzer.clustering import (
+    METHOD_LEVEL_STRATEGY,
+    ClusterResult,
+    ClusteringService,
+    LeafClustersUnavailableError,
+)
 from static_analyzer.clustering.grouping import GroupingService
 from static_analyzer.node import Node
 
@@ -106,6 +111,30 @@ class TestClusteringScope(unittest.TestCase):
 
         self.assertEqual([group.group_id for group in result.groups], ["2", "4", "7"])
         self.assertFalse(result.regrouped)
+
+    def test_new_group_ids_follow_the_highest_surviving_sibling(self):
+        group_ids = ClusteringService._allocate_group_ids("root", ["2", ""])
+
+        self.assertEqual(group_ids, ["2", "3"])
+
+    def test_default_clustering_raises_when_nonempty_scope_has_no_leaf_clusters(self):
+        graph = graph_for("python", ["a", "b"])
+
+        with self.assertRaisesRegex(LeafClustersUnavailableError, "python"):
+            ClusteringService().cluster_scope({"python": graph})
+
+    def test_empty_leaf_clusters_for_a_nonempty_language_raise(self):
+        python = graph_for("python", ["py.a"])
+        typescript = graph_for("typescript", ["ts.a"])
+
+        with self.assertRaisesRegex(LeafClustersUnavailableError, "typescript"):
+            ClusteringService().cluster_scope(
+                {"python": python, "typescript": typescript},
+                leaf_clusters_by_language={
+                    "python": cluster_result_for(python, {1: {"py.a"}}),
+                    "typescript": ClusterResult(),
+                },
+            )
 
     def test_method_level_fallback_is_available_for_child_scopes(self):
         graph = graph_for("python", ["a", "b", "c", "d", "e"])

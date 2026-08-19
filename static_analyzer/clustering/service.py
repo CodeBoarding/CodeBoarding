@@ -8,7 +8,7 @@ from types import MappingProxyType
 
 import networkx as nx
 
-from clustering_ids import ComponentId, GraphClusterId
+from clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
 from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
@@ -28,9 +28,20 @@ from static_analyzer.clustering.models import (
     GroupConnection,
 )
 
-_ROOT_SCOPE_ID = "root"
+_ROOT_SCOPE_ID: ScopeId = "root"
 _EMPTY_LEAF_CLUSTERS: Mapping[str, ClusterResult] = MappingProxyType({})
-_EMPTY_OWNERS: Mapping[GraphClusterId, ComponentId] = MappingProxyType({})
+_EMPTY_OWNERS: Mapping[ClusterId, ComponentId] = MappingProxyType({})
+
+
+class LeafClustersUnavailableError(RuntimeError):
+    """Raised when a language has symbols but no leaf clusters to own them."""
+
+    def __init__(self, language: str):
+        super().__init__(
+            f"Language {language!r} has callable or class symbols but no leaf clusters; "
+            "enable method-level fallback or provide a usable cluster result."
+        )
+        self.language = language
 
 
 class ClusteringService:
@@ -47,9 +58,9 @@ class ClusteringService:
         self,
         graphs: Mapping[str, CallGraph],
         *,
-        scope_id: str = _ROOT_SCOPE_ID,
+        scope_id: ScopeId = _ROOT_SCOPE_ID,
         leaf_clusters_by_language: Mapping[str, ClusterResult] = _EMPTY_LEAF_CLUSTERS,
-        previous_owner: Mapping[GraphClusterId, ComponentId] = _EMPTY_OWNERS,
+        previous_owner: Mapping[ClusterId, ComponentId] = _EMPTY_OWNERS,
         method_level_fallback: bool = False,
     ) -> ClusterScopeResult:
         """Cluster and group one exact graph scope, retaining sibling communication."""
@@ -63,6 +74,11 @@ class ClusteringService:
                 language: self._expand_to_method_level(graphs[language], cluster_result)
                 for language, cluster_result in scope_leaf_clusters.items()
             }
+        for language, graph in graphs.items():
+            if not scope_leaf_clusters[language].clusters and any(
+                node.type in CALLABLE_TYPES | CLASS_TYPES for node in graph.nodes.values()
+            ):
+                raise LeafClustersUnavailableError(language)
         reindex_across_languages(scope_leaf_clusters)
 
         nx_graphs = {language: graph.to_networkx(DEFAULT_REFERENCE_KINDS) for language, graph in graphs.items()}
@@ -101,10 +117,15 @@ class ClusteringService:
         )
 
     @staticmethod
-    def _allocate_group_ids(scope_id: str, owners: list[ComponentId]) -> list[ComponentId]:
+    def _allocate_group_ids(scope_id: ScopeId, owners: list[ComponentId]) -> list[GroupId]:
         allocated = set(owners) - {""}
-        result: list[ComponentId] = []
-        next_index = 1
+        used_indices = {
+            int(group_id.rsplit(".", maxsplit=1)[-1])
+            for group_id in allocated
+            if group_id.rsplit(".", maxsplit=1)[-1].isdigit()
+        }
+        result: list[GroupId] = []
+        next_index = max(used_indices, default=0) + 1
         for owner in owners:
             if owner:
                 result.append(owner)
@@ -123,9 +144,9 @@ class ClusteringService:
         if len(cluster_result.clusters) >= MIN_CLUSTERS_THRESHOLD:
             return cluster_result
 
-        clusters: dict[GraphClusterId, set[str]] = {}
-        cluster_to_files: dict[GraphClusterId, set[str]] = {}
-        file_to_clusters: dict[str, set[GraphClusterId]] = defaultdict(set)
+        clusters: dict[ClusterId, set[str]] = {}
+        cluster_to_files: dict[ClusterId, set[str]] = {}
+        file_to_clusters: dict[str, set[ClusterId]] = defaultdict(set)
         included: set[str] = set()
 
         for qualified_name, node in sorted(graph.nodes.items()):
@@ -182,15 +203,15 @@ class ClusteringService:
                 group.symbol_members_by_language.setdefault(language, set()).add(qualified_name)
 
     @staticmethod
-    def _cluster_for_file(file_path: str, cluster_result: ClusterResult) -> GraphClusterId | None:
+    def _cluster_for_file(file_path: str, cluster_result: ClusterResult) -> ClusterId | None:
         return next(iter(cluster_result.get_clusters_for_file(file_path)), None)
 
     @staticmethod
-    def _nearest_cluster(qualified_name: str, cluster_result: ClusterResult, graph: nx.Graph) -> GraphClusterId | None:
+    def _nearest_cluster(qualified_name: str, cluster_result: ClusterResult, graph: nx.Graph) -> ClusterId | None:
         if qualified_name not in graph:
             return None
         distances = nx.single_source_shortest_path_length(graph, qualified_name)
-        nearest: GraphClusterId | None = None
+        nearest: ClusterId | None = None
         nearest_distance = float("inf")
         for cluster_id, members in cluster_result.clusters.items():
             for member in members:
@@ -208,7 +229,7 @@ class ClusteringService:
             for language, qualified_names in group.symbol_members_by_language.items()
             for qualified_name in qualified_names
         }
-        by_pair: dict[tuple[ComponentId, ComponentId], GroupConnection] = {}
+        by_pair: dict[tuple[GroupId, GroupId], GroupConnection] = {}
         for language, graph in graphs.items():
             for edge in graph.edges:
                 source = edge.get_source()

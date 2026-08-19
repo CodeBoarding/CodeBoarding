@@ -7,7 +7,7 @@ state that ``LanguageResults`` owns.
 
 from static_analyzer.clustering.cache import ClusterCache
 from static_analyzer.config import DEFAULT_GROUPING_CONFIG, SUBCOMPONENT_GROUPING_CONFIG, GroupingConfig
-from clustering_ids import ComponentId, GraphClusterId
+from clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
 from static_analyzer.clustering.method_cluster_paths import MethodClusterPaths
 from static_analyzer.clustering.models import (
     METHOD_LEVEL_STRATEGY,
@@ -18,7 +18,7 @@ from static_analyzer.clustering.models import (
     ClusterScopeResult,
     GroupConnection,
 )
-from static_analyzer.clustering.service import ClusteringService
+from static_analyzer.clustering.service import ClusteringService, LeafClustersUnavailableError
 
 __all__ = [
     "DEFAULT_GROUPING_CONFIG",
@@ -31,9 +31,12 @@ __all__ = [
     "ClusterResult",
     "ClusterScopeResult",
     "ClusteringService",
+    "ClusterId",
     "ComponentId",
-    "GraphClusterId",
+    "GroupId",
     "GroupConnection",
     "GroupingConfig",
+    "LeafClustersUnavailableError",
     "MethodClusterPaths",
+    "ScopeId",
 ]

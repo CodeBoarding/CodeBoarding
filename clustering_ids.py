@@ -1,5 +1,6 @@
 """Identifier types shared across clustering layers."""
 
-type GraphClusterId = int
-type CodeBoardingClusterId = str
+type ClusterId = int
+type ScopeId = str
+type GroupId = str
 type ComponentId = str
