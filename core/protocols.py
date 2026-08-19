@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 
 if TYPE_CHECKING:
     from agents.tools.base import BaseRepoTool, RepoContext

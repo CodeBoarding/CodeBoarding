@@ -3,7 +3,7 @@ from pathlib import Path
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
 from agents.file_index_models import FileEntry, MethodEntry
 from agents.relation_edges import _edge_touches_changed_method, index_relation_endpoints
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 
 
 def test_index_relation_endpoints_keeps_analyzed_kind_and_merges_endpoint_spans() -> None:

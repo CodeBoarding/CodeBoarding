@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_references
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.models import CallSite, SymbolInfo
@@ -23,7 +23,7 @@ class _TestAdapter(LanguageAdapter):
 
     @property
     def language_enum(self):
-        from static_analyzer.constants import Language
+        from static_analyzer.config import Language
 
         return Language.PYTHON
 

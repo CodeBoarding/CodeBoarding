@@ -37,7 +37,7 @@ from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from diagram_analysis.diagram_generator import DiagramGenerator, assert_scope_containment
 from diagram_analysis.exceptions import ScopeContainmentError
-from static_analyzer.constants import Language, NodeType
+from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node

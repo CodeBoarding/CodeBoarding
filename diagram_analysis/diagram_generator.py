@@ -83,7 +83,7 @@ from static_analyzer.cluster_relations import (
     is_self_or_descendant,
     prune_ungrounded_edges,
 )
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis

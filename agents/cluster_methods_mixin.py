@@ -34,7 +34,7 @@ from static_analyzer.cluster_relations import (
     build_node_to_component_map,
     merge_relations,
 )
-from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
+from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES, Language
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,

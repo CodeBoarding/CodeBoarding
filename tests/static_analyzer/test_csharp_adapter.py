@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer.constants import Language, NodeType
+from static_analyzer.config import Language, NodeType
 from static_analyzer.dotnet_sdk import DotnetSdkError, DotnetSdkResolution
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 

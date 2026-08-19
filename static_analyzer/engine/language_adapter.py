@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language, NodeType
+from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,

@@ -11,7 +11,7 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder

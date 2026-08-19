@@ -51,7 +51,7 @@ from diagram_analysis.file_index import build_files_index
 from monitoring import trace
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterResult
 

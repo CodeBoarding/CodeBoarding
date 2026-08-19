@@ -7,7 +7,7 @@ dies, so an inline test would hang the suite instead of reporting.
 import multiprocessing
 import unittest
 
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.language_results import ControlFlowGraph
 from static_analyzer.node import Node

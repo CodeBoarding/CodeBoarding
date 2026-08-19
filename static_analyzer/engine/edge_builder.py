@@ -13,7 +13,7 @@ from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.progress import ProgressLogger
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,

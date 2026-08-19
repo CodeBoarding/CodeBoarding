@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
+from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
 from tool_registry.paths import get_servers_dir, preferred_node_path
 
 logger = logging.getLogger(__name__)

@@ -10,14 +10,15 @@ from static_analyzer.cluster_helpers import (
     reindex_cluster_result,
 )
 from static_analyzer.clustering import ClusterCache, ClusterResult, ClusteringService
-from static_analyzer.clustering.config import DEFAULT_GROUPING_CONFIG
+from static_analyzer.config import DEFAULT_GROUPING_CONFIG
 from static_analyzer.clustering.grouping import GroupingService
 
 
-def _make_cluster_result(prefix: str, count: int) -> ClusterResult:
-    clusters = {cluster_id: {f"{prefix}.node_{cluster_id}"} for cluster_id in range(1, count + 1)}
-    cluster_to_files = {cluster_id: {f"/repo/{prefix}_{cluster_id}.py"} for cluster_id in range(1, count + 1)}
-    file_to_clusters = {f"/repo/{prefix}_{cluster_id}.py": {cluster_id} for cluster_id in range(1, count + 1)}
+def _make_cluster_result(prefix: str, count: int, start: int = 1) -> ClusterResult:
+    cluster_ids = range(start, start + count)
+    clusters = {cluster_id: {f"{prefix}.node_{cluster_id}"} for cluster_id in cluster_ids}
+    cluster_to_files = {cluster_id: {f"/repo/{prefix}_{cluster_id}.py"} for cluster_id in cluster_ids}
+    file_to_clusters = {f"/repo/{prefix}_{cluster_id}.py": {cluster_id} for cluster_id in cluster_ids}
     return ClusterResult(
         clusters=clusters,
         cluster_to_files=cluster_to_files,
@@ -58,8 +59,11 @@ class TestClusterHelpers(unittest.TestCase):
         typescript_ids = set(result["typescript"].clusters.keys())
         go_ids = set(result["go"].clusters.keys())
         self.assertEqual(python_ids, set(range(1, 41)))
-        self.assertEqual(typescript_ids, set(range(41, 81)))
-        self.assertEqual(go_ids, set(range(81, 121)))
+        self.assertEqual(typescript_ids, set(range(42, 82)))
+        self.assertEqual(go_ids, set(range(124, 164)))
+        self.assertTrue(python_ids.isdisjoint(typescript_ids))
+        self.assertTrue(python_ids.isdisjoint(go_ids))
+        self.assertTrue(typescript_ids.isdisjoint(go_ids))
 
         shifted_ts_ids = set().union(*result["typescript"].file_to_clusters.values())
         self.assertEqual(shifted_ts_ids, typescript_ids)
@@ -87,18 +91,21 @@ class TestClusterHelpers(unittest.TestCase):
         for file_ids in shifted.file_to_clusters.values():
             self.assertTrue(file_ids.issubset({11, 12, 13}))
 
-    def test_reindex_across_languages_makes_ids_disjoint(self):
+    def test_reindex_across_languages_makes_zero_based_ids_disjoint(self):
         cluster_results = {
-            "javascript": _make_cluster_result("js", 10),
-            "python": _make_cluster_result("py", 10),
+            "javascript": _make_cluster_result("js", 10, start=0),
+            "python": _make_cluster_result("py", 10, start=0),
         }
 
         reindex_across_languages(cluster_results)
 
         js_ids = set(cluster_results["javascript"].clusters.keys())
         py_ids = set(cluster_results["python"].clusters.keys())
-        self.assertEqual(js_ids, set(range(1, 11)))
-        self.assertEqual(py_ids, set(range(11, 21)))
+        self.assertEqual(js_ids, set(range(0, 10)))
+        self.assertEqual(py_ids, set(range(10, 20)))
+        self.assertTrue(js_ids.isdisjoint(py_ids))
+        self.assertEqual(set().union(*cluster_results["javascript"].file_to_clusters.values()), js_ids)
+        self.assertEqual(set().union(*cluster_results["python"].file_to_clusters.values()), py_ids)
 
     def test_reindex_across_languages_leaves_already_disjoint_ids_alone(self):
         # The seeded incremental path returns the previous run's scoped ids, already

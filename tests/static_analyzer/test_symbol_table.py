@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.symbol_table import SymbolTable
 

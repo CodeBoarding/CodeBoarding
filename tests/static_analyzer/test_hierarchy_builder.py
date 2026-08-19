@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.engine.lsp_client import MethodNotFoundError
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector

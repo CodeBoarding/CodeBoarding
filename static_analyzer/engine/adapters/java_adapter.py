@@ -8,7 +8,7 @@ import platform
 import tempfile
 from pathlib import Path
 
-from static_analyzer.constants import Language, NodeType
+from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,

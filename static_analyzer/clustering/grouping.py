@@ -8,14 +8,14 @@ import networkx as nx
 import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.clustering.config import (
+from static_analyzer.config import (
     DEFAULT_GROUPING_CONFIG,
     SUBCOMPONENT_GROUPING_CONFIG,
     GroupingConfig,
+    Language,
 )
 from static_analyzer.clustering.models import AnchoredGrouping, ClusterResult
 from static_analyzer.clustering.service import ClusteringService
-from static_analyzer.constants import Language
 from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
             result = reindex_cluster_result(result, offset)
             logger.info(f"[Cluster] {lang}: offset IDs by +{offset} ({len(result.clusters)} clusters)")
         cluster_results[str(lang)] = result
-        offset = max(result.clusters, default=offset)
+        offset += max(result.clusters, default=0) + 1
 
     _sync_cluster_cache(static_analysis, cluster_results)
     return cluster_results
@@ -92,7 +92,7 @@ def reindex_across_languages(cluster_results: dict[str, ClusterResult]) -> None:
         if offset:
             cluster_results[lang] = reindex_cluster_result(result, offset)
             logger.info(f"[ReIndex] {lang}: offset IDs by +{offset} (now {offset + 1}-{offset + len(result.clusters)})")
-        offset += max(result.clusters, default=0)
+        offset += max(result.clusters, default=0) + 1
 
 
 def reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> ClusterResult:

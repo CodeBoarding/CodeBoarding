@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.internal_references import looks_internal_reference, parent_qualified_name
 
 

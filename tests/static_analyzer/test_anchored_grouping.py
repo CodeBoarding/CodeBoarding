@@ -11,7 +11,7 @@ import unittest
 import networkx as nx
 
 from static_analyzer.clustering import ClusterResult
-from static_analyzer.clustering.config import DEFAULT_GROUPING_CONFIG
+from static_analyzer.config import DEFAULT_GROUPING_CONFIG
 from static_analyzer.clustering.grouping import (
     GroupingService,
     _absorb_leftovers,

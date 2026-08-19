@@ -6,7 +6,7 @@ from typing import Any
 
 from agents.agent_responses import AnalysisInsights, RelationCallSite, RelationEdge, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
+from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
 from static_analyzer.internal_references import looks_internal_reference, qualified_symbol_parts
 from static_analyzer.node import Node
 

@@ -7,7 +7,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 
 from static_analyzer.cfg.call_graph import CallGraph
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)

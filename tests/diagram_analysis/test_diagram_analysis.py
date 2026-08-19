@@ -45,7 +45,7 @@ from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language, NodeType
+from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
