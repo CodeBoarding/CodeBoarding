@@ -2,7 +2,7 @@ name: CodeBoarding review
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, closed]
+    types: [opened, reopened, ready_for_review, closed, synchronize]
   issue_comment:
     types: [created]
 
@@ -24,7 +24,9 @@ jobs:
       issues: write         # the /codeboarding issue_comment trigger + comment API
       id-token: write       # mint a GitHub OIDC token for the free hosted tier (write is the only level for id-token)
     if: >
-      (github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'pull_request' && github.event.action != 'closed' &&
+       github.event.pull_request.draft == false &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request != null &&
        startsWith(github.event.comment.body, '/codeboarding') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
