@@ -1,8 +1,5 @@
 from agents.scope_ids import ROOT_SCOPE_ID
-
-
-type GraphClusterId = int
-type CodeBoardingClusterId = str
+from clustering_ids import CodeBoardingClusterId, GraphClusterId
 
 
 class GraphClusterIds:

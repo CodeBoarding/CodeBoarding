@@ -7,15 +7,16 @@ state that ``LanguageResults`` owns.
 
 from static_analyzer.clustering.cache import ClusterCache
 from static_analyzer.config import DEFAULT_GROUPING_CONFIG, SUBCOMPONENT_GROUPING_CONFIG, GroupingConfig
+from clustering_ids import ComponentId, GraphClusterId
 from static_analyzer.clustering.method_cluster_paths import MethodClusterPaths
 from static_analyzer.clustering.models import (
     METHOD_LEVEL_STRATEGY,
     AnchoredGrouping,
-    ClusterConnection,
     ClusterConnectionEdge,
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
+    GroupConnection,
 )
 from static_analyzer.clustering.service import ClusteringService
 
@@ -25,12 +26,14 @@ __all__ = [
     "SUBCOMPONENT_GROUPING_CONFIG",
     "AnchoredGrouping",
     "ClusterCache",
-    "ClusterConnection",
     "ClusterConnectionEdge",
     "ClusterGroup",
     "ClusterResult",
     "ClusterScopeResult",
     "ClusteringService",
+    "ComponentId",
+    "GraphClusterId",
+    "GroupConnection",
     "GroupingConfig",
     "MethodClusterPaths",
 ]

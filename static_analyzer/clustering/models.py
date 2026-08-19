@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable, Hashable, Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
+from clustering_ids import ComponentId, GraphClusterId
+from static_analyzer.cfg.edge import CallSiteLocation
 from static_analyzer.node import Node
 
 # Marker on a ClusterResult whose clusters are synthetic one-method-per-cluster
@@ -16,37 +18,37 @@ METHOD_LEVEL_STRATEGY = "method_level_expansion"
 
 @dataclass
 class ClusterResult:
-    """A partition of a CallGraph. Provides deterministic cluster IDs and file mappings."""
+    """Leaf clusters from one language's call graph, with deterministic IDs and file mappings."""
 
-    clusters: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> node names
-    cluster_to_files: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> file_paths
-    file_to_clusters: dict[str, set[int]] = field(default_factory=dict)  # file_path -> cluster_ids
+    clusters: dict[GraphClusterId, set[str]] = field(default_factory=dict)  # cluster_id -> node names
+    cluster_to_files: dict[GraphClusterId, set[str]] = field(default_factory=dict)  # cluster_id -> file_paths
+    file_to_clusters: dict[str, set[GraphClusterId]] = field(default_factory=dict)  # file_path -> cluster_ids
     strategy: str = ""  # which algorithm was used
 
-    def get_cluster_ids(self) -> set[int]:
+    def get_cluster_ids(self) -> set[GraphClusterId]:
         return set(self.clusters.keys())
 
-    def get_files_for_cluster(self, cluster_id: int) -> set[str]:
+    def get_files_for_cluster(self, cluster_id: GraphClusterId) -> set[str]:
         return self.cluster_to_files.get(cluster_id, set())
 
-    def get_clusters_for_file(self, file_path: str) -> set[int]:
+    def get_clusters_for_file(self, file_path: str) -> set[GraphClusterId]:
         return self.file_to_clusters.get(file_path, set())
 
-    def get_nodes_for_cluster(self, cluster_id: int) -> set[str]:
+    def get_nodes_for_cluster(self, cluster_id: GraphClusterId) -> set[str]:
         return self.clusters.get(cluster_id, set())
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         self.cluster_to_files = {cid: {fn(path) for path in paths} for cid, paths in self.cluster_to_files.items()}
-        remapped_file_to_clusters: dict[str, set[int]] = defaultdict(set)
+        remapped_file_to_clusters: dict[str, set[GraphClusterId]] = defaultdict(set)
         for path, cluster_ids in self.file_to_clusters.items():
             remapped_file_to_clusters[fn(path)].update(cluster_ids)
         self.file_to_clusters = dict(remapped_file_to_clusters)
 
     def select(self, surviving_nodes: Mapping[str, Node]) -> ClusterResult:
         """Return a copy keeping only qnames in ``surviving_nodes``, with file mappings recomputed."""
-        kept_clusters: dict[int, set[str]] = {}
-        kept_cluster_to_files: dict[int, set[str]] = {}
-        kept_file_to_clusters: dict[str, set[int]] = {}
+        kept_clusters: dict[GraphClusterId, set[str]] = {}
+        kept_cluster_to_files: dict[GraphClusterId, set[str]] = {}
+        kept_file_to_clusters: dict[str, set[GraphClusterId]] = {}
         for cid, members in self.clusters.items():
             kept = {m for m in members if m in surviving_nodes}
             if not kept:
@@ -72,27 +74,25 @@ class ClusterResult:
 class AnchoredGrouping:
     """A grouping carried forward from the previous run."""
 
-    groups: list[set[int]]
-    owners: list[str]
+    groups: list[set[GraphClusterId]]
+    owners: list[ComponentId]
     regrouped: bool
 
 
 @dataclass
 class ClusterConnectionEdge:
-    """One concrete call crossing between two structural groups."""
-
     language: str
-    source: str
-    target: str
-    call_sites: list[dict[str, Hashable]] = field(default_factory=list)
+    source_qualified_name: str
+    target_qualified_name: str
+    call_sites: list[CallSiteLocation] = field(default_factory=list)
 
 
 @dataclass
-class ClusterConnection:
+class GroupConnection:
     """All concrete calls from one sibling group to another."""
 
-    source_group_id: str
-    target_group_id: str
+    source_group_id: ComponentId
+    target_group_id: ComponentId
     edges: list[ClusterConnectionEdge] = field(default_factory=list)
 
 
@@ -100,24 +100,28 @@ class ClusterConnection:
 class ClusterGroup:
     """One deterministic architectural group inside a clustered scope."""
 
-    group_id: str
-    cluster_ids: list[int]
-    members: dict[str, set[str]] = field(default_factory=dict)
-    previous_component_id: str = ""
+    group_id: ComponentId
+    cluster_ids: list[GraphClusterId]
+    symbol_members_by_language: dict[str, set[str]] = field(default_factory=dict)
+    previous_component_id: ComponentId = ""
     children: ClusterScopeResult | None = None
 
     @property
     def qualified_names(self) -> set[str]:
-        return {qualified_name for language_members in self.members.values() for qualified_name in language_members}
+        return {
+            qualified_name
+            for language_qualified_names in self.symbol_members_by_language.values()
+            for qualified_name in language_qualified_names
+        }
 
 
 @dataclass
 class ClusterScopeResult:
-    """The complete partition, grouping, and communication for one graph scope."""
+    """The leaf clusters, architectural groups, and communication for one graph scope."""
 
     scope_id: str
-    partitions: dict[str, ClusterResult] = field(default_factory=dict)
+    leaf_clusters_by_language: dict[str, ClusterResult] = field(default_factory=dict)
     groups: list[ClusterGroup] = field(default_factory=list)
-    connections: list[ClusterConnection] = field(default_factory=list)
+    connections: list[GroupConnection] = field(default_factory=list)
     modularity: float = 0.0
     regrouped: bool = False

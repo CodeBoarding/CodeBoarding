@@ -8,6 +8,7 @@ from types import MappingProxyType
 
 import networkx as nx
 
+from clustering_ids import ComponentId, GraphClusterId
 from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
@@ -20,23 +21,23 @@ from static_analyzer.clustering.grouping import (
 )
 from static_analyzer.clustering.models import (
     METHOD_LEVEL_STRATEGY,
-    ClusterConnection,
     ClusterConnectionEdge,
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
+    GroupConnection,
 )
 
 _ROOT_SCOPE_ID = "root"
-_EMPTY_PARTITIONS: Mapping[str, ClusterResult] = MappingProxyType({})
-_EMPTY_OWNERS: Mapping[int, str] = MappingProxyType({})
+_EMPTY_LEAF_CLUSTERS: Mapping[str, ClusterResult] = MappingProxyType({})
+_EMPTY_OWNERS: Mapping[GraphClusterId, ComponentId] = MappingProxyType({})
 
 
 class ClusteringService:
     """Clusters a ``CallGraph``.
 
     Pure: it neither mutates the graph nor caches anything. Callers that want to
-    keep a partition store it in the ``ClusterCache`` on their ``LanguageResults``.
+    keep a result store it in the ``ClusterCache`` on their ``LanguageResults``.
     """
 
     def cluster(self, graph: CallGraph) -> ClusterResult:
@@ -47,33 +48,35 @@ class ClusteringService:
         graphs: Mapping[str, CallGraph],
         *,
         scope_id: str = _ROOT_SCOPE_ID,
-        partitions: Mapping[str, ClusterResult] = _EMPTY_PARTITIONS,
-        previous_owner: Mapping[int, str] = _EMPTY_OWNERS,
+        leaf_clusters_by_language: Mapping[str, ClusterResult] = _EMPTY_LEAF_CLUSTERS,
+        previous_owner: Mapping[GraphClusterId, ComponentId] = _EMPTY_OWNERS,
         method_level_fallback: bool = False,
     ) -> ClusterScopeResult:
         """Cluster and group one exact graph scope, retaining sibling communication."""
-        scope_partitions: dict[str, ClusterResult] = {}
+        scope_leaf_clusters: dict[str, ClusterResult] = {}
         for language, graph in graphs.items():
-            scope_partitions[language] = partitions[language] if language in partitions else self.cluster(graph)
+            scope_leaf_clusters[language] = (
+                leaf_clusters_by_language[language] if language in leaf_clusters_by_language else self.cluster(graph)
+            )
         if method_level_fallback:
-            scope_partitions = {
-                language: self._expand_to_method_level(graphs[language], partition)
-                for language, partition in scope_partitions.items()
+            scope_leaf_clusters = {
+                language: self._expand_to_method_level(graphs[language], cluster_result)
+                for language, cluster_result in scope_leaf_clusters.items()
             }
-        reindex_across_languages(scope_partitions)
+        reindex_across_languages(scope_leaf_clusters)
 
         nx_graphs = {language: graph.to_networkx(DEFAULT_REFERENCE_KINDS) for language, graph in graphs.items()}
         grouping_service = GroupingService()
         if previous_owner:
-            grouping = grouping_service.anchored_group(scope_partitions, nx_graphs, dict(previous_owner))
+            grouping = grouping_service.anchored_group(scope_leaf_clusters, nx_graphs, dict(previous_owner))
             raw_groups = grouping.groups
             owners = grouping.owners
-            combined = combine_cluster_results(scope_partitions)
+            combined = combine_cluster_results(scope_leaf_clusters)
             combined_cfg = nx.compose_all(list(nx_graphs.values())) if nx_graphs else nx.DiGraph()
             modularity = score_grouping(combined, combined_cfg, raw_groups)
             regrouped = grouping.regrouped
         else:
-            raw_groups, modularity = grouping_service.group(scope_partitions, nx_graphs)
+            raw_groups, modularity = grouping_service.group(scope_leaf_clusters, nx_graphs)
             owners = [""] * len(raw_groups)
             regrouped = False
 
@@ -86,11 +89,11 @@ class ClusteringService:
             )
             for group_id, cluster_ids, owner in zip(group_ids, raw_groups, owners, strict=True)
         ]
-        self._assign_members(graphs, scope_partitions, groups)
+        self._assign_symbol_members(graphs, scope_leaf_clusters, groups)
         connections = self._build_connections(graphs, groups)
         return ClusterScopeResult(
             scope_id=scope_id,
-            partitions=scope_partitions,
+            leaf_clusters_by_language=scope_leaf_clusters,
             groups=groups,
             connections=connections,
             modularity=modularity,
@@ -98,9 +101,9 @@ class ClusteringService:
         )
 
     @staticmethod
-    def _allocate_group_ids(scope_id: str, owners: list[str]) -> list[str]:
+    def _allocate_group_ids(scope_id: str, owners: list[ComponentId]) -> list[ComponentId]:
         allocated = set(owners) - {""}
-        result: list[str] = []
+        result: list[ComponentId] = []
         next_index = 1
         for owner in owners:
             if owner:
@@ -116,13 +119,13 @@ class ClusteringService:
         return result
 
     @staticmethod
-    def _expand_to_method_level(graph: CallGraph, partition: ClusterResult) -> ClusterResult:
-        if len(partition.clusters) >= MIN_CLUSTERS_THRESHOLD:
-            return partition
+    def _expand_to_method_level(graph: CallGraph, cluster_result: ClusterResult) -> ClusterResult:
+        if len(cluster_result.clusters) >= MIN_CLUSTERS_THRESHOLD:
+            return cluster_result
 
-        clusters: dict[int, set[str]] = {}
-        cluster_to_files: dict[int, set[str]] = {}
-        file_to_clusters: dict[str, set[int]] = defaultdict(set)
+        clusters: dict[GraphClusterId, set[str]] = {}
+        cluster_to_files: dict[GraphClusterId, set[str]] = {}
+        file_to_clusters: dict[str, set[GraphClusterId]] = defaultdict(set)
         included: set[str] = set()
 
         for qualified_name, node in sorted(graph.nodes.items()):
@@ -150,46 +153,46 @@ class ClusteringService:
             strategy=METHOD_LEVEL_STRATEGY,
         )
 
-    def _assign_members(
+    def _assign_symbol_members(
         self,
         graphs: Mapping[str, CallGraph],
-        partitions: dict[str, ClusterResult],
+        leaf_clusters_by_language: dict[str, ClusterResult],
         groups: list[ClusterGroup],
     ) -> None:
         if not groups:
             return
         group_by_cluster = {cluster_id: group for group in groups for cluster_id in group.cluster_ids}
         for language, graph in graphs.items():
-            partition = partitions.get(language, ClusterResult())
-            cluster_by_member = {
+            cluster_result = leaf_clusters_by_language.get(language, ClusterResult())
+            cluster_by_qualified_name = {
                 qualified_name: cluster_id
-                for cluster_id, members in partition.clusters.items()
+                for cluster_id, members in cluster_result.clusters.items()
                 for qualified_name in members
             }
             undirected = graph.to_networkx(reference_kinds=()).to_undirected()
             for qualified_name, node in graph.nodes.items():
                 if node.type not in CALLABLE_TYPES | CLASS_TYPES:
                     continue
-                cluster_id = cluster_by_member.get(qualified_name)
+                cluster_id = cluster_by_qualified_name.get(qualified_name)
                 if cluster_id not in group_by_cluster:
-                    cluster_id = self._cluster_for_file(node.file_path, partition)
+                    cluster_id = self._cluster_for_file(node.file_path, cluster_result)
                 if cluster_id not in group_by_cluster:
-                    cluster_id = self._nearest_cluster(qualified_name, partition, undirected)
+                    cluster_id = self._nearest_cluster(qualified_name, cluster_result, undirected)
                 group = group_by_cluster[cluster_id] if cluster_id is not None else groups[0]
-                group.members.setdefault(language, set()).add(qualified_name)
+                group.symbol_members_by_language.setdefault(language, set()).add(qualified_name)
 
     @staticmethod
-    def _cluster_for_file(file_path: str, partition: ClusterResult) -> int | None:
-        return next(iter(partition.get_clusters_for_file(file_path)), None)
+    def _cluster_for_file(file_path: str, cluster_result: ClusterResult) -> GraphClusterId | None:
+        return next(iter(cluster_result.get_clusters_for_file(file_path)), None)
 
     @staticmethod
-    def _nearest_cluster(qualified_name: str, partition: ClusterResult, graph: nx.Graph) -> int | None:
+    def _nearest_cluster(qualified_name: str, cluster_result: ClusterResult, graph: nx.Graph) -> GraphClusterId | None:
         if qualified_name not in graph:
             return None
         distances = nx.single_source_shortest_path_length(graph, qualified_name)
-        nearest: int | None = None
+        nearest: GraphClusterId | None = None
         nearest_distance = float("inf")
-        for cluster_id, members in partition.clusters.items():
+        for cluster_id, members in cluster_result.clusters.items():
             for member in members:
                 distance = distances.get(member)
                 if distance is not None and distance < nearest_distance:
@@ -198,32 +201,32 @@ class ClusteringService:
         return nearest
 
     @staticmethod
-    def _build_connections(graphs: Mapping[str, CallGraph], groups: list[ClusterGroup]) -> list[ClusterConnection]:
-        group_by_member = {
+    def _build_connections(graphs: Mapping[str, CallGraph], groups: list[ClusterGroup]) -> list[GroupConnection]:
+        group_id_by_qualified_name = {
             (language, qualified_name): group.group_id
             for group in groups
-            for language, members in group.members.items()
-            for qualified_name in members
+            for language, qualified_names in group.symbol_members_by_language.items()
+            for qualified_name in qualified_names
         }
-        by_pair: dict[tuple[str, str], ClusterConnection] = {}
+        by_pair: dict[tuple[ComponentId, ComponentId], GroupConnection] = {}
         for language, graph in graphs.items():
             for edge in graph.edges:
                 source = edge.get_source()
                 target = edge.get_destination()
-                source_group = group_by_member.get((language, source), "")
-                target_group = group_by_member.get((language, target), "")
+                source_group = group_id_by_qualified_name.get((language, source), "")
+                target_group = group_id_by_qualified_name.get((language, target), "")
                 if not source_group or not target_group or source_group == target_group:
                     continue
                 pair = (source_group, target_group)
                 connection = by_pair.setdefault(
                     pair,
-                    ClusterConnection(source_group_id=source_group, target_group_id=target_group),
+                    GroupConnection(source_group_id=source_group, target_group_id=target_group),
                 )
                 connection.edges.append(
                     ClusterConnectionEdge(
                         language=language,
-                        source=source,
-                        target=target,
+                        source_qualified_name=source,
+                        target_qualified_name=target,
                         call_sites=edge.call_sites,
                     )
                 )
