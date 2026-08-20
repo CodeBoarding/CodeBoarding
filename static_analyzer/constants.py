@@ -41,6 +41,18 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
     Language.CPP: (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"),
 }
 
+
+def file_extensions_for(language: Language) -> tuple[str, ...]:
+    """Every extension whose symbols may be stored under *language*.
+
+    Why wider than ``LANGUAGE_EXTENSIONS`` for TypeScript: one server owns the whole TS/JS
+    family, so a ``.js`` file's symbols live in the TypeScript bucket.
+    """
+    if language is Language.TYPESCRIPT:
+        return LANGUAGE_EXTENSIONS[Language.TYPESCRIPT] + LANGUAGE_EXTENSIONS[Language.JAVASCRIPT]
+    return LANGUAGE_EXTENSIONS[language]
+
+
 # Import-time invariant: every language has an extension list. Cheap check that
 # catches drift when the enum grows without a matching ``LANGUAGE_EXTENSIONS`` entry.
 assert set(LANGUAGE_EXTENSIONS) == set(

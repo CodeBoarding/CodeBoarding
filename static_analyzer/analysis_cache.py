@@ -61,8 +61,10 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v4: .tsx/.jsx open with the JSX language id, so tsserver stops parsing JSX as type
 # assertions — every TypeScript graph built before this is flattened and carries symbols
 # registered at usage positions.
+# v5: one engine owns the TypeScript/JavaScript family, so a TS repo no longer carries a
+# second, degraded ``javascript`` bucket that was clustered as a separate codebase.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v4"
+_TAG_VERSION = "v5"
 
 
 class StaticAnalysisCache:
