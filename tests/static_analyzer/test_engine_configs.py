@@ -3,13 +3,20 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer import _adapter_names_for, _create_engine_configs
+from static_analyzer import (
+    StaticAnalysisFatalError,
+    StaticAnalyzer,
+    _adapter_names_for,
+    _create_engine_configs,
+)
 from static_analyzer.constants import Language
 from static_analyzer.engine.adapters.typescript_adapter import TypeScriptAdapter
 from static_analyzer.programming_language import ProgrammingLanguage
+from static_analyzer.scanner import ProjectScanner
 
 _SUFFIXES = {
     "TypeScript": [".ts"],
@@ -109,8 +116,6 @@ class TestIncrementalRefusesAnIncompatibleCache(unittest.TestCase):
     def test_an_artifact_from_another_engine_version_is_refused(self):
         # AGENTS.md: incremental never silently becomes full. A tag bump makes the artifact
         # unreadable, and running a full pass here would overwrite the one a later run needs.
-        from static_analyzer import StaticAnalysisFatalError, StaticAnalyzer
-
         tmp = Path(tempfile.mkdtemp()).resolve()
         (tmp / "a.py").write_text("def a():\n    pass\n")
         artifacts = tmp / ".codeboarding"
@@ -118,7 +123,9 @@ class TestIncrementalRefusesAnIncompatibleCache(unittest.TestCase):
         (artifacts / "static_analysis.pkl").write_bytes(b"not-a-real-pickle")
         (artifacts / "static_analysis.sha").write_text("v1\ndeadbeef\n")
 
-        analyzer = StaticAnalyzer(tmp, changed_files={tmp / "a.py"})
+        # The scanner shells out to tokei, which the analyzer only needs to pick engines.
+        with patch.object(ProjectScanner, "scan", return_value=[]):
+            analyzer = StaticAnalyzer(tmp, changed_files={tmp / "a.py"})
         analyzer._clients_started = True
 
         with self.assertRaises(StaticAnalysisFatalError) as caught:
