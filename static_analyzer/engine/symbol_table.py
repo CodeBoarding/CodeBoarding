@@ -270,16 +270,10 @@ class SymbolTable:
         return best or sym
 
     def attribution_symbol(self, sym: SymbolInfo) -> SymbolInfo:
-        """The innermost enclosing declaration a reader would name.
+        """The innermost enclosing declaration a reader would name, or ``sym`` itself.
 
-        An LSP server reports inline callbacks and anonymous functions as symbols, and a
-        ``const raw = await fn(...)`` wrapper is promoted to class-like during registration.
-        None of those are names anyone uses, so a call written inside one is credited to the
-        declaration enclosing it. Falls back to ``sym`` when nothing encloses it, which keeps
-        a module-level arrow const crediting itself.
-
-        Only the credit line moves: this is deliberately not used to decide which references
-        become edges, because the reference guards need the innermost container.
+        Why not reused as the container: the reference guards need the innermost symbol, and
+        widening it there drops grounded call sites.
         """
         if not self._is_unnameable(sym):
             return sym
@@ -291,15 +285,13 @@ class SymbolTable:
                 continue
             if not (self._naming.is_callable(other.kind) or self._naming.is_class_like(other.kind)):
                 continue
-            if other.start_line <= sym.start_line and other.end_line >= sym.end_line:
-                size = (other.end_line - other.start_line) * 10000 + (other.end_char - other.start_char)
-                if size < best_size:
-                    best = other
-                    best_size = size
+            if not self._encloses(other, sym):
+                continue
+            size = (other.end_line - other.start_line) * 10000 + (other.end_char - other.start_char)
+            if size < best_size:
+                best = other
+                best_size = size
         return best or sym
-
-    def _is_unnameable(self, sym: SymbolInfo) -> bool:
-        return sym.promoted_from_variable or any(marker in sym.name for marker in ANONYMOUS_SYMBOL_MARKERS)
 
     def get_equivalent_names(self, qualified_name: str) -> list[str]:
         """Get equivalent symbol names for edge expansion using pre-built index."""
@@ -363,3 +355,21 @@ class SymbolTable:
                 return True
 
         return False
+
+    def _is_unnameable(self, sym: SymbolInfo) -> bool:
+        return sym.promoted_from_variable or any(marker in sym.name for marker in ANONYMOUS_SYMBOL_MARKERS)
+
+    @staticmethod
+    def _encloses(outer: SymbolInfo, inner: SymbolInfo) -> bool:
+        """Whether *outer*'s range fully contains *inner*'s, character bounds included.
+
+        Why characters: several declarations can share a line, and comparing lines alone lets
+        an unrelated neighbour win.
+        """
+        if outer.start_line > inner.start_line or outer.end_line < inner.end_line:
+            return False
+        if outer.start_line == inner.start_line and outer.start_char > inner.start_char:
+            return False
+        if outer.end_line == inner.end_line and outer.end_char < inner.end_char:
+            return False
+        return True
