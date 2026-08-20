@@ -774,7 +774,7 @@ class ClusterMethodsMixin:
             for edge in ordered[:10]:
                 short_s = edge.source.qualified_name.split(".")[-1]
                 short_d = edge.target.qualified_name.split(".")[-1]
-                marker = "* " if edge in hot else "  "
+                marker = "* " if edge in hot else ""
                 lines.append(f"  {marker}{short_s} -> {short_d}")
             if edge_count > 10:
                 lines.append(f"  ... and {edge_count - 10} more")
