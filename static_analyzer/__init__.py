@@ -707,6 +707,15 @@ class StaticAnalyzer:
         else:
             warm_start = cache.load_with_sha()
             if warm_start is None:
+                # An artifact that is present but unreadable means an engine version whose
+                # graph this build would not reproduce. Refuse rather than quietly running a
+                # full pass: the caller asked for incremental, and the full result would
+                # overwrite the very artifact a later run could have reused.
+                if self.changed_files is not None and cache.pkl_path.exists() and cache.sha_path.exists():
+                    raise StaticAnalysisFatalError(
+                        f"{cache.pkl_path} was written by a different engine version and cannot be "
+                        "reused for an incremental run. Re-run a full analysis to rebuild it."
+                    )
                 logger.info("static_analysis_cache: outcome=miss_absent")
                 results = self._run_full_lsp_pass()
             else:
