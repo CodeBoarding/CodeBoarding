@@ -521,14 +521,18 @@ def _resolve_definitions(
                         if adapter.is_class_like(parent_kind):
                             parent_qname = parent_qualified_name(target.qualified_name)
                             parent_sym = st.symbols.get(parent_qname)
-                            if parent_sym is not None and _is_valid_edge(caller, parent_sym):
-                                _add_edge_call_site(edge_set, caller.qualified_name, parent_qname, call_site)
+                            if (
+                                parent_sym is not None
+                                and _is_valid_edge(caller, parent_sym)
+                                and _is_valid_edge(attributed, parent_sym)
+                            ):
+                                _add_edge_call_site(edge_set, attributed.qualified_name, parent_qname, call_site)
 
                     # Queue implementation query for polymorphic dispatch
                     if adapter.is_callable(target.kind):
                         impl_queries_pending.append(
                             ImplementationQuery(
-                                caller_qname=caller.qualified_name,
+                                caller_qname=attributed.qualified_name,
                                 target_file=target.file_path,
                                 target_line=target.start_line,
                                 target_char=target.start_char,
