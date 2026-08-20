@@ -112,6 +112,30 @@ def _edge_touches_changed_method(edge: RelationEdge, changed_members: set[str]) 
     return edge.source.qualified_name in changed_members
 
 
+def edge_touches_change(edge: RelationEdge, changed_members: set[str] | None) -> bool:
+    """Whether this edge is evidence the commit gives for re-describing its pair.
+
+    Symmetric, unlike ``_edge_touches_changed_method``: that one asks whether the commit
+    deleted a call, which only a changed *source* can do. Re-describing a connection is
+    warranted by either end moving.
+    """
+    if not changed_members:
+        return False
+    return edge.source.qualified_name in changed_members or edge.target.qualified_name in changed_members
+
+
+def pair_untouched_by_change(relation: Relation, changed_members: set[str] | None) -> bool:
+    """Whether the commit gives no reason to re-describe this pair.
+
+    The prompt renders such a pair as a bare count, so its wording has to come from the
+    baseline — a pair the model was never shown in detail must never take a model label.
+    """
+    if not changed_members:
+        return False
+    edges = relation.all_edges or relation.key_edges
+    return bool(edges) and not any(edge_touches_change(edge, changed_members) for edge in edges)
+
+
 def _restore_baseline_orientation(relation: Relation, baseline_by_pair: dict) -> Relation:
     """Put an ungrounded relation back the way round the reader last saw it.
 
@@ -275,10 +299,16 @@ def preserve_unchanged_relations(
         # 17 of the relations in `referenced-symbol-deleted` whose calls had not moved at all.
         # A pair with no supporting calls has nothing that could have moved, so its wording is
         # kept too — an edgeless runtime relation is prose, and re-rolling prose is the churn.
+        #
+        # The last disjunct pairs with the prompt: a pair carrying no edge the commit touched
+        # is rendered to the model as a bare count, so it cannot have been described afresh and
+        # must keep the baseline's wording. Without it, gating the prompt would trade edge
+        # churn for wording churn.
         if (
             not touches_change(*pair)
             or _relation_edges_unmoved(relation, previous)
             or (not _backing_edge_pairs(relation) and not relation.evidence.strip())
+            or pair_untouched_by_change(relation, changed_members)
         ):
             relation = relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence})
         kept.append(relation)

@@ -317,14 +317,16 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope.files = build_files_index(scope, self.repo_dir, source_cache)
 
     @trace
-    def step_api_surfaces(self, scope: AnalysisInsights, scope_name: str) -> ComponentApiSurfaces:
+    def step_api_surfaces(
+        self, scope: AnalysisInsights, scope_name: str, static_call_evidence: str
+    ) -> ComponentApiSurfaces:
         """Analyze API surfaces for one updated scope."""
         logger.info("[IncrementalAgent] Analyzing API surfaces for scope: %s", scope_name)
         prompt = self.prompts["api_surfaces"].format(
             component_summaries=ComponentArchitecture(
                 description=scope.description, components=scope.components
             ).llm_str(),
-            static_call_evidence=self.build_scope_cfg_string(scope),
+            static_call_evidence=static_call_evidence,
         )
         return self._parse_invoke(prompt, ComponentApiSurfaces)
 
@@ -337,6 +339,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         cluster_analysis: ClusterAnalysis,
         cluster_results: dict[str, ClusterResult],
         cfg_graphs: dict[str, CallGraph],
+        static_call_evidence: str = "",
     ) -> list[Relation]:
         """Discover evidence-backed relations and attach deterministic CFG edges."""
         logger.info("[IncrementalAgent] Discovering component relations for scope: %s", scope_name)
@@ -348,7 +351,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 description=scope.description, components=scope.components
             ).llm_str(),
             api_surfaces=api_surfaces.llm_str(),
-            static_call_evidence=self.build_scope_cfg_string(scope),
+            static_call_evidence=static_call_evidence,
         )
         relation_result: ComponentRelations = self._invoke_validate(
             prompt,
@@ -414,7 +417,9 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         if context.changed_ids:
             cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, context.cluster_results)
-            api_surfaces = self.step_api_surfaces(scope, scope_name)
+            # Rendered once and shared: both prompts must agree on what the commit touched.
+            static_call_evidence = self.build_scope_cfg_string(scope, changed_members)
+            api_surfaces = self.step_api_surfaces(scope, scope_name, static_call_evidence)
             rels = self.step_relation_analysis(
                 scope,
                 scope_name,
@@ -422,6 +427,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 cluster_analysis,
                 context.cluster_results,
                 context.cfg_graphs,
+                static_call_evidence,
             )
         else:
             # Nothing in this scope changed, so preserve_unchanged_relations below would discard any
