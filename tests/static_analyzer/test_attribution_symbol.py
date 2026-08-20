@@ -27,9 +27,6 @@ class TestAttributionSymbol(unittest.TestCase):
     def setUp(self):
         self.st = SymbolTable(TypeScriptAdapter())
 
-    def _load(self, symbols):
-        self.st.file_symbols["src/github.ts"] = symbols
-
     def test_a_named_symbol_credits_itself(self):
         named = sym("src.github.listReviewComments", 10, 30)
         self._load([named])
@@ -67,6 +64,9 @@ class TestAttributionSymbol(unittest.TestCase):
         lone = sym("src.github.<function>", 5, 9, name="<function>")
         self._load([lone])
         self.assertIs(self.st.attribution_symbol(lone), lone)
+
+    def _load(self, symbols):
+        self.st.file_symbols["src/github.ts"] = symbols
 
 
 if __name__ == "__main__":
