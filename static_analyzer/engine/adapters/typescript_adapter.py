@@ -4,11 +4,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from static_analyzer.config import Language
+from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
 class TypeScriptAdapter(LanguageAdapter):
+
+    @property
+    def file_extensions(self) -> tuple[str, ...]:
+        """Both families: one tsserver serves them, and ``allowJs`` puts .js in a TS project.
+
+        Why not just the TypeScript set: this adapter owns the whole family, so a narrower
+        tuple makes the incremental pass invalidate a changed ``.js`` and then filter it back
+        out — its nodes are dropped and never rebuilt.
+        """
+        return LANGUAGE_EXTENSIONS[Language.TYPESCRIPT] + LANGUAGE_EXTENSIONS[Language.JAVASCRIPT]
 
     @property
     def language(self) -> str:

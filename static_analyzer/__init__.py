@@ -96,6 +96,32 @@ def recommended_engine_concurrency(engine_count: int) -> int:
     return max(1, min(engine_count, cpu_bound, memory_bound))
 
 
+def _adapter_names_for(programming_languages: list[ProgrammingLanguage]) -> list[str]:
+    """Deduplicated engine-adapter names for the scanner's detected languages.
+
+    Why: the scanner reports TypeScript, TSX, JavaScript and JSX as separate languages that
+    all share one ``typescript-language-server``. One adapter has to own the whole family, or
+    the same files are indexed once per detected language into separate ``Language`` buckets
+    that are then clustered as if they were different codebases. TypeScript wins the family
+    whenever any TypeScript exists: opening a ``.ts`` under ``languageId: "javascript"`` drops
+    its declarations, while ``"typescript"`` reads a ``.js`` in full.
+    """
+    names: list[str] = []
+    for pl in programming_languages:
+        if not pl.is_supported_lang():
+            logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")
+            continue
+        adapter_name = _lang_to_adapter_name(pl.language)
+        if adapter_name is None:
+            logger.warning(f"No engine adapter for language: {pl.language}. Skipping.")
+            continue
+        if adapter_name not in names:
+            names.append(adapter_name)
+    if "TypeScript" in names and "JavaScript" in names:
+        names.remove("JavaScript")
+    return names
+
+
 def _create_engine_configs(
     programming_languages: list[ProgrammingLanguage],
     repository_path: Path,
@@ -108,19 +134,7 @@ def _create_engine_configs(
     """
     configs: list[EngineConfig] = []
 
-    for pl in programming_languages:
-        if not pl.is_supported_lang():
-            logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")
-            continue
-
-        lang_lower = pl.language.lower()
-
-        # Map CodeBoarding ProgrammingLanguage to engine adapter name
-        adapter_name = _lang_to_adapter_name(pl.language)
-        if adapter_name is None:
-            logger.warning(f"No engine adapter for language: {pl.language}. Skipping.")
-            continue
-
+    for adapter_name in _adapter_names_for(programming_languages):
         try:
             adapter = get_adapter(adapter_name)
         except ValueError:
@@ -128,7 +142,7 @@ def _create_engine_configs(
             continue
 
         try:
-            if lang_lower in (Language.TYPESCRIPT, Language.JAVASCRIPT):
+            if adapter_name in ("TypeScript", "JavaScript"):
                 ts_config_scanner = TypeScriptConfigScanner(repository_path, ignore_manager=ignore_manager)
                 typescript_projects = ts_config_scanner.find_typescript_projects()
 
@@ -159,7 +173,7 @@ def _create_engine_configs(
                     logger.info(f"No TypeScript config files found, using repository root for {adapter_name}")
                     configs.append(EngineConfig(adapter, repository_path))
 
-            elif lang_lower == Language.JAVA:
+            elif adapter_name == "Java":
                 java_config_scanner = JavaConfigScanner(repository_path, ignore_manager=ignore_manager)
                 java_projects = java_config_scanner.scan()
 
@@ -173,7 +187,7 @@ def _create_engine_configs(
                 else:
                     logger.info("No Java projects detected")
 
-            elif lang_lower in (Language.CSHARP, "c#"):
+            elif adapter_name == "CSharp":
                 csharp_scanner = CSharpConfigScanner(repository_path, ignore_manager=ignore_manager)
                 csharp_projects = csharp_scanner.scan()
 
@@ -191,7 +205,7 @@ def _create_engine_configs(
                 configs.append(EngineConfig(adapter, repository_path))
 
         except RuntimeError as e:
-            logger.error(f"Failed to create engine config for {pl.language}: {e}")
+            logger.error(f"Failed to create engine config for {adapter_name}: {e}")
 
     return configs
 
@@ -970,12 +984,22 @@ class StaticAnalyzer:
         self.collected_diagnostics.setdefault(adapter.language_enum, {}).update(merged_diags)
 
     def _loc_for_adapter(self, adapter: LanguageAdapter) -> int:
-        """Return scanner LOC that should have been covered by this adapter."""
+        """Return scanner LOC that should have been covered by this adapter.
+
+        Folds the family the way ``_adapter_names_for`` does, so the JavaScript LOC a
+        TypeScript engine actually reads is credited to it rather than to nobody.
+        """
+        configured = {name.lower() for name in _adapter_names_for(self.programming_langs)}
         adapter_name = adapter.language.lower()
         total = 0
         for pl in self.programming_langs:
             mapped = _lang_to_adapter_name(pl.language)
-            if mapped is not None and mapped.lower() == adapter_name:
+            if mapped is None:
+                continue
+            mapped = mapped.lower()
+            if mapped == "javascript" and "javascript" not in configured:
+                mapped = "typescript"
+            if mapped == adapter_name:
                 total += pl.size
         return total
 
