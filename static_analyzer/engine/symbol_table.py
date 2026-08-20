@@ -280,18 +280,27 @@ class SymbolTable:
 
         best: SymbolInfo | None = None
         best_size = float("inf")
+        # A promoted `const x = ...` wrapper is a name a reader recognises, unlike an anonymous
+        # callback, so it is a usable credit — but only when nothing named encloses it. Module
+        # level is exactly that case: there is no function above it to prefer.
+        fallback: SymbolInfo | None = None
+        fallback_size = float("inf")
         for other in self._file_symbols.get(str(sym.file_path), []):
-            if other.qualified_name == sym.qualified_name or self._is_unnameable(other):
+            if other.qualified_name == sym.qualified_name or self._is_anonymous(other):
                 continue
             if not (self._naming.is_callable(other.kind) or self._naming.is_class_like(other.kind)):
                 continue
             if not self._encloses(other, sym):
                 continue
             size = (other.end_line - other.start_line) * 10000 + (other.end_char - other.start_char)
-            if size < best_size:
+            if other.promoted_from_variable:
+                if size < fallback_size:
+                    fallback = other
+                    fallback_size = size
+            elif size < best_size:
                 best = other
                 best_size = size
-        return best or sym
+        return best or fallback or sym
 
     def get_equivalent_names(self, qualified_name: str) -> list[str]:
         """Get equivalent symbol names for edge expansion using pre-built index."""
@@ -357,7 +366,12 @@ class SymbolTable:
         return False
 
     def _is_unnameable(self, sym: SymbolInfo) -> bool:
-        return sym.promoted_from_variable or any(marker in sym.name for marker in ANONYMOUS_SYMBOL_MARKERS)
+        """Whether this symbol's own name is not one a reader would use as a caller."""
+        return sym.promoted_from_variable or self._is_anonymous(sym)
+
+    @staticmethod
+    def _is_anonymous(sym: SymbolInfo) -> bool:
+        return any(marker in sym.name for marker in ANONYMOUS_SYMBOL_MARKERS)
 
     @staticmethod
     def _encloses(outer: SymbolInfo, inner: SymbolInfo) -> bool:
