@@ -54,6 +54,40 @@ def index_relation_endpoints(analysis: AnalysisInsights, repo_dir: Path) -> None
             entry.merge_method_spans(spans)
 
 
+def edge_touches_change(source: str, target: str, changed_members: set[str] | None) -> bool:
+    """Whether this edge is evidence the commit gives for re-describing its pair.
+
+    Symmetric, unlike ``_edge_touches_changed_method``: that one asks whether the commit
+    deleted a call, which only a changed *source* can do. Re-describing a connection is
+    warranted by either end moving.
+    """
+    if not changed_members:
+        return False
+    return source in changed_members or target in changed_members
+
+
+def pair_untouched_by_change(
+    relation: Relation, changed_members: set[str] | None, previous: Relation | None = None
+) -> bool:
+    """Whether the commit gives no reason to re-describe this pair.
+
+    The prompt renders such a pair as a bare count, so its wording comes from the baseline
+    rather than the model. ``previous`` is read too: a call the commit deleted is absent from
+    the rebuilt edges, so judging on those alone would call the pair untouched and pin a label
+    that still describes the deleted interaction.
+    """
+    if not changed_members:
+        return False
+    edges = list(relation.all_edges or relation.key_edges)
+    if not edges:
+        return False
+    if previous is not None:
+        edges += list(previous.all_edges or previous.key_edges)
+    return not any(
+        edge_touches_change(edge.source.qualified_name, edge.target.qualified_name, changed_members) for edge in edges
+    )
+
+
 def _is_internal_self_relation(relation: Relation) -> bool:
     """A component related to itself by concrete intra-component calls.
 
@@ -255,32 +289,6 @@ def _edge_touches_changed_method(edge: RelationEdge, changed_members: set[str]) 
     return edge.source.qualified_name in changed_members
 
 
-def edge_touches_change(source: str, target: str, changed_members: set[str] | None) -> bool:
-    """Whether this edge is evidence the commit gives for re-describing its pair.
-
-    Symmetric, unlike ``_edge_touches_changed_method``: that one asks whether the commit
-    deleted a call, which only a changed *source* can do. Re-describing a connection is
-    warranted by either end moving.
-    """
-    if not changed_members:
-        return False
-    return source in changed_members or target in changed_members
-
-
-def pair_untouched_by_change(relation: Relation, changed_members: set[str] | None) -> bool:
-    """Whether the commit gives no reason to re-describe this pair.
-
-    The prompt renders such a pair as a bare count, so its wording has to come from the
-    baseline — a pair the model was never shown in detail must never take a model label.
-    """
-    if not changed_members:
-        return False
-    edges = relation.all_edges or relation.key_edges
-    return bool(edges) and not any(
-        edge_touches_change(edge.source.qualified_name, edge.target.qualified_name, changed_members) for edge in edges
-    )
-
-
 def _restore_baseline_orientation(relation: Relation, baseline_by_pair: dict) -> Relation:
     """Put an ungrounded relation back the way round the reader last saw it.
 
@@ -431,7 +439,7 @@ def preserve_unchanged_relations(
             not touches_change(*pair)
             or _relation_edges_unmoved(relation, previous)
             or (not _backing_edge_pairs(relation) and not relation.evidence.strip())
-            or pair_untouched_by_change(relation, changed_members)
+            or pair_untouched_by_change(relation, changed_members, previous)
         ):
             relation = _restore_baseline_wording(relation, previous)
         kept.append(relation)

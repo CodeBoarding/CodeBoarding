@@ -59,3 +59,17 @@ class TestPairUntouchedByChange(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDeletedCallEvidence(unittest.TestCase):
+    def test_a_call_the_commit_deleted_still_counts(self):
+        # The deleted edge is absent from the rebuild, so judging on the rebuild alone would
+        # pin a label that still describes the interaction the commit removed.
+        rebuilt = relation(edge("pkg.stable", "pkg.callee"))
+        previous = relation(edge("pkg.stable", "pkg.callee"), edge("pkg.gone", "pkg.callee"))
+        self.assertFalse(pair_untouched_by_change(rebuilt, {"pkg.gone"}, previous))
+
+    def test_an_untouched_pair_stays_untouched_with_a_baseline(self):
+        rebuilt = relation(edge("pkg.stable", "pkg.callee"))
+        previous = relation(edge("pkg.stable", "pkg.callee"))
+        self.assertTrue(pair_untouched_by_change(rebuilt, {"pkg.elsewhere"}, previous))

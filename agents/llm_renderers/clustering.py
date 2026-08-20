@@ -98,7 +98,7 @@ def render_scope_connections(
         for edge in ordered[:MAX_CONNECTION_EDGES]:
             short_source = edge.source_qualified_name.split(".")[-1]
             short_target = edge.target_qualified_name.split(".")[-1]
-            marker = "* " if edge in hot else "  "
+            marker = "* " if edge in hot else ""
             lines.append(f"  {marker}{short_source} -> {short_target}")
         if edge_count > MAX_CONNECTION_EDGES:
             lines.append(f"  ... and {edge_count - MAX_CONNECTION_EDGES} more")
