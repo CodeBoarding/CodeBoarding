@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
+from static_analyzer.config import Language, file_extensions_for
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
@@ -18,7 +18,7 @@ class TypeScriptAdapter(LanguageAdapter):
         tuple makes the incremental pass invalidate a changed ``.js`` and then filter it back
         out — its nodes are dropped and never rebuilt.
         """
-        return LANGUAGE_EXTENSIONS[Language.TYPESCRIPT] + LANGUAGE_EXTENSIONS[Language.JAVASCRIPT]
+        return file_extensions_for(Language.TYPESCRIPT)
 
     @property
     def language(self) -> str:

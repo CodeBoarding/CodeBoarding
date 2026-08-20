@@ -51,15 +51,6 @@ class TestAdapterNamesFor(unittest.TestCase):
 
 
 class TestEngineConfigsPerFamily(unittest.TestCase):
-    def _configs(self, languages, files: dict[str, str]):
-        # Resolved: on macOS mkdtemp hands back /var/... while tsc reports /private/var/...
-        tmp = Path(tempfile.mkdtemp()).resolve()
-        for name, body in files.items():
-            path = tmp / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(body)
-        return _create_engine_configs(languages, tmp, RepoIgnoreManager(tmp))
-
     def test_a_typescript_repo_gets_exactly_one_engine(self):
         configs = self._configs(
             [lang("TypeScript"), lang("TSX"), lang("JavaScript")],
@@ -92,6 +83,15 @@ class TestEngineConfigsPerFamily(unittest.TestCase):
         self.assertEqual(len(configs), 1)
         self.assertIs(configs[0].adapter.language_enum, Language.PYTHON)
 
+    def _configs(self, languages, files: dict[str, str]):
+        # Resolved: on macOS mkdtemp hands back /var/... while tsc reports /private/var/...
+        tmp = Path(tempfile.mkdtemp()).resolve()
+        for name, body in files.items():
+            path = tmp / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(body)
+        return _create_engine_configs(languages, tmp, RepoIgnoreManager(tmp))
+
 
 class TestTypeScriptFamilyExtensions(unittest.TestCase):
     def test_the_typescript_adapter_claims_both_families(self):
@@ -103,3 +103,24 @@ class TestTypeScriptFamilyExtensions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestIncrementalRefusesAnIncompatibleCache(unittest.TestCase):
+    def test_an_artifact_from_another_engine_version_is_refused(self):
+        # AGENTS.md: incremental never silently becomes full. A tag bump makes the artifact
+        # unreadable, and running a full pass here would overwrite the one a later run needs.
+        from static_analyzer import StaticAnalysisFatalError, StaticAnalyzer
+
+        tmp = Path(tempfile.mkdtemp()).resolve()
+        (tmp / "a.py").write_text("def a():\n    pass\n")
+        artifacts = tmp / ".codeboarding"
+        artifacts.mkdir()
+        (artifacts / "static_analysis.pkl").write_bytes(b"not-a-real-pickle")
+        (artifacts / "static_analysis.sha").write_text("v1\ndeadbeef\n")
+
+        analyzer = StaticAnalyzer(tmp, changed_files={tmp / "a.py"})
+        analyzer._clients_started = True
+
+        with self.assertRaises(StaticAnalysisFatalError) as caught:
+            analyzer.analyze(artifacts)
+        self.assertIn("full analysis", str(caught.exception))
