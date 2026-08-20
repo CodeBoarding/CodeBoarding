@@ -19,15 +19,9 @@ import networkx as nx
 
 from agents.agent_responses import AnalysisInsights, Component
 from static_analyzer.clustering import METHOD_LEVEL_STRATEGY, ClusterResult
-from static_analyzer.clustering.expansion import (
-    EXPAND_MODULARITY_THRESHOLD,
-    MAX_LEAF_FILES,
-    MAX_LEAF_METHODS,
-    MIN_METHODS_TO_EXPAND,
-    scope_is_separable,
-    scope_load,
-)
+from static_analyzer.clustering.expansion import scope_is_separable, scope_load
 from static_analyzer.clustering.grouping import GroupingService
+from static_analyzer.config import ClusteringConfig
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +39,7 @@ def component_is_separable(
     cluster_results: dict[str, ClusterResult],
     cfg_graphs: dict[str, nx.DiGraph],
     load: float,
-    min_methods: int = MIN_METHODS_TO_EXPAND,
+    min_methods: int = ClusteringConfig.MIN_METHODS_TO_EXPAND,
 ) -> bool:
     """Whether a component's own call structure justifies splitting it into sub-components.
 
@@ -65,8 +59,8 @@ def component_is_separable(
         logger.debug("[Planner] subgraph has no natural cluster structure; keeping as leaf")
         return False
     _groups, modularity = GroupingService().group(cluster_results, cfg_graphs, subcomponents=True)
-    required = EXPAND_MODULARITY_THRESHOLD * max(0.0, 1.0 - load)
-    separable = scope_is_separable(cluster_results, modularity, load, min_methods)
+    required = ClusteringConfig.EXPAND_MODULARITY_THRESHOLD * max(0.0, 1.0 - load)
+    separable = scope_is_separable(cluster_results, modularity, load, total_methods, min_methods)
     logger.debug(
         f"[Planner] subgraph modularity={modularity:.4f} (load={load:.2f}, required {required:.4f}) "
         f"-> separable={separable}"

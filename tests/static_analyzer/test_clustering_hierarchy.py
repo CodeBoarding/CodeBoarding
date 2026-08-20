@@ -1,5 +1,6 @@
 import unittest
 from collections.abc import Mapping
+from unittest.mock import patch
 
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterResult, ClusterScopeInput, ClusteringService
@@ -105,6 +106,41 @@ class TestClusteringHierarchy(unittest.TestCase):
         result = ClusteringService().cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
 
         self.assertIsNone(result.groups[0].children)
+
+    def test_one_group_child_does_not_consume_a_depth_level(self):
+        graph = graph_for([f"n{index:03d}" for index in range(121)], one_file=True)
+
+        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            current = graphs["python"]
+            if scope_id == "root":
+                return ClusterScopeInput(
+                    leaf_clusters_by_language={"python": partition_for(current, {1: set(current.nodes)})}
+                )
+            partition = split_partition(current)
+            return ClusterScopeInput(
+                leaf_clusters_by_language={"python": partition},
+                previous_owner={cluster_id: "1.1" for cluster_id in partition.clusters},
+            )
+
+        result = ClusteringService().cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
+
+        self.assertIsNone(result.groups[0].children)
+
+    def test_expansion_gate_receives_the_child_graph_callable_count(self):
+        graph = graph_for([f"n{index:02d}" for index in range(31)], one_file=True)
+        graph.add_node(Node("Container", NodeType.CLASS, "/repo/scope.py", 100, 110))
+
+        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            current = graphs["python"]
+            partition = (
+                partition_for(current, {1: set(current.nodes)}) if scope_id == "root" else split_partition(current)
+            )
+            return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
+
+        with patch("static_analyzer.clustering.service.scope_is_separable", return_value=False) as separable:
+            ClusteringService().cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+
+        self.assertEqual(separable.call_args.args[3], 31)
 
     def test_rejects_a_depth_below_the_root_level(self):
         with self.assertRaisesRegex(ValueError, "max_depth must be at least 1"):

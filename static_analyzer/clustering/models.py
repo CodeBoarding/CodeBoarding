@@ -77,7 +77,7 @@ class AnchoredGrouping:
     groups: list[set[ClusterId]]
     owners: list[ComponentId]
     regrouped: bool
-    fresh_modularity: float
+    unanchored_modularity: float
 
 
 @dataclass
@@ -132,6 +132,6 @@ class ClusterScopeResult:
     leaf_clusters_by_language: dict[str, ClusterResult] = field(default_factory=dict)
     groups: list[ClusterGroup] = field(default_factory=list)
     connections: list[GroupConnection] = field(default_factory=list)
-    modularity: float = 0.0
-    fresh_modularity: float = 0.0
+    modularity: float = 0.0  # Score of the actual groups, including ownership anchors.
+    unanchored_modularity: float = 0.0  # Best score without previous ownership anchors.
     regrouped: bool = False

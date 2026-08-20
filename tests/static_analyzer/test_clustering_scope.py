@@ -102,7 +102,7 @@ class TestClusteringScope(unittest.TestCase):
     def test_previous_owners_become_stable_group_ids(self):
         graph = graph_for("python", ["a", "b", "c"])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}})
-        _groups, expected_fresh_modularity = GroupingService().group(
+        _groups, expected_unanchored_modularity = GroupingService().group(
             {"python": cluster_result},
             {"python": graph.to_networkx(reference_kinds=())},
         )
@@ -114,7 +114,7 @@ class TestClusteringScope(unittest.TestCase):
         )
 
         self.assertEqual([group.group_id for group in result.groups], ["2", "4", "7"])
-        self.assertEqual(result.fresh_modularity, expected_fresh_modularity)
+        self.assertEqual(result.unanchored_modularity, expected_unanchored_modularity)
         self.assertFalse(result.regrouped)
 
     def test_new_group_ids_follow_the_highest_surviving_sibling(self):
@@ -155,6 +155,32 @@ class TestClusteringScope(unittest.TestCase):
         self.assertEqual(expanded.strategy, METHOD_LEVEL_STRATEGY)
         self.assertEqual(len(expanded.clusters), 5)
         self.assertTrue(all(len(members) == 1 for members in expanded.clusters.values()))
+
+    def test_method_level_fallback_preserves_owners_by_member(self):
+        graph = graph_for("python", ["a", "b", "c", "d", "e", "new"])
+        cluster_result = cluster_result_for(
+            graph,
+            {
+                0: {"d", "e"},
+                4: {"a", "b", "c"},
+            },
+        )
+
+        result = ClusteringService().cluster_scope(
+            {"python": graph},
+            scope_id="9",
+            leaf_clusters_by_language={"python": cluster_result},
+            previous_owner={0: "9.1", 4: "9.2"},
+            method_level_fallback=True,
+        )
+
+        owner_by_member = {
+            member: group.previous_component_id
+            for group in result.groups
+            for member in group.symbol_members_by_language.get("python", set())
+        }
+        self.assertTrue(all(owner_by_member[member] == "9.1" for member in {"d", "e"}))
+        self.assertTrue(all(owner_by_member[member] == "9.2" for member in {"a", "b", "c"}))
 
 
 if __name__ == "__main__":

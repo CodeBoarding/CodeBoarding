@@ -384,17 +384,17 @@ def _anchored_group(
             carried[owner].add(cid)
     if not carried:
         # A first run or unrelated baseline has no ownership to preserve.
-        fresh, fresh_modularity = _optimize_grouping(
+        fresh, unanchored_modularity = _optimize_grouping(
             meta_graph,
             cluster_result,
             method_count,
             config,
         )
-        return AnchoredGrouping(fresh, [""] * len(fresh), True, fresh_modularity)
+        return AnchoredGrouping(fresh, [""] * len(fresh), True, unanchored_modularity)
 
     owners = sorted(carried)
     groups = [carried[owner] for owner in owners]
-    fresh_groups, fresh_modularity = _optimize_grouping(
+    fresh_groups, unanchored_modularity = _optimize_grouping(
         meta_graph,
         cluster_result,
         method_count,
@@ -412,21 +412,21 @@ def _anchored_group(
         _absorb_leftovers(groups, absorbed, meta_graph, cluster_result, method_count)
 
     modularity = _modularity(meta_graph, groups)
-    if fresh_modularity - modularity > config.drift_budget:
+    if unanchored_modularity - modularity > config.drift_budget:
         logger.info(
-            f"[Anchored] carried grouping scores {modularity:.4f} vs {fresh_modularity:.4f} fresh "
+            f"[Anchored] carried grouping scores {modularity:.4f} vs {unanchored_modularity:.4f} unanchored "
             f"(> {config.drift_budget} budget); re-deriving structure from scratch"
         )
         return AnchoredGrouping(
             fresh_groups,
             _inherit_ids(fresh_groups, previous_owner, method_count),
             True,
-            fresh_modularity,
+            unanchored_modularity,
         )
 
     logger.info(
         f"[Anchored] {len(live)} leaf clusters -> {len(groups)} components carried forward "
         f"({len(new_subsystems)} new component(s), {len(absorbed)} clusters absorbed, "
-        f"modularity={modularity:.4f} vs {fresh_modularity:.4f} fresh)"
+        f"modularity={modularity:.4f} vs {unanchored_modularity:.4f} unanchored)"
     )
-    return AnchoredGrouping(groups, owners, False, fresh_modularity)
+    return AnchoredGrouping(groups, owners, False, unanchored_modularity)

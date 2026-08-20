@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
 
@@ -75,6 +75,15 @@ class ClusteringService:
             scope_leaf_clusters[language] = (
                 leaf_clusters_by_language[language] if language in leaf_clusters_by_language else self.cluster(graph)
             )
+        previous_owner_by_language_member = {
+            language: {
+                qualified_name: previous_owner[cluster_id]
+                for cluster_id, members in cluster_result.clusters.items()
+                if previous_owner.get(cluster_id)
+                for qualified_name in members
+            }
+            for language, cluster_result in scope_leaf_clusters.items()
+        }
         if method_level_fallback:
             scope_leaf_clusters = {
                 language: self._expand_to_method_level(graphs[language], cluster_result)
@@ -86,6 +95,16 @@ class ClusteringService:
             ):
                 raise LeafClustersUnavailableError(language)
         reindex_across_languages(scope_leaf_clusters)
+        scope_previous_owner: dict[ClusterId, ComponentId] = {}
+        for language, cluster_result in scope_leaf_clusters.items():
+            owner_by_member = previous_owner_by_language_member[language]
+            for cluster_id, members in cluster_result.clusters.items():
+                owner_counts = Counter(owner_by_member[member] for member in members if member in owner_by_member)
+                if owner_counts:
+                    scope_previous_owner[cluster_id] = min(
+                        owner_counts.items(),
+                        key=lambda claim: (-claim[1], claim[0]),
+                    )[0]
 
         nx_graphs = {language: graph.to_networkx(DEFAULT_REFERENCE_KINDS) for language, graph in graphs.items()}
         grouping_service = GroupingService()
@@ -94,7 +113,7 @@ class ClusteringService:
             grouping = grouping_service.anchored_group(
                 scope_leaf_clusters,
                 nx_graphs,
-                dict(previous_owner),
+                scope_previous_owner,
                 subcomponents=subcomponents,
             )
             raw_groups = grouping.groups
@@ -102,7 +121,7 @@ class ClusteringService:
             combined = combine_cluster_results(scope_leaf_clusters)
             combined_cfg = nx.compose_all(list(nx_graphs.values())) if nx_graphs else nx.DiGraph()
             modularity = score_grouping(combined, combined_cfg, raw_groups)
-            fresh_modularity = grouping.fresh_modularity
+            unanchored_modularity = grouping.unanchored_modularity
             regrouped = grouping.regrouped
         else:
             raw_groups, modularity = grouping_service.group(
@@ -111,7 +130,7 @@ class ClusteringService:
                 subcomponents=subcomponents,
             )
             owners = [""] * len(raw_groups)
-            fresh_modularity = modularity
+            unanchored_modularity = modularity
             regrouped = False
 
         group_ids = self._allocate_group_ids(scope_id, owners)
@@ -131,7 +150,7 @@ class ClusteringService:
             groups=groups,
             connections=connections,
             modularity=modularity,
-            fresh_modularity=fresh_modularity,
+            unanchored_modularity=unanchored_modularity,
             regrouped=regrouped,
         )
 
@@ -165,7 +184,7 @@ class ClusteringService:
             return
         for group in scope.groups:
             child_graphs = self._induced_graphs(group, graphs)
-            method_count, file_count = self._group_size(group, graphs)
+            method_count, file_count = self._scope_size(child_graphs)
             if not child_graphs or not file_count:
                 continue
             child_input = scope_input(group.group_id, child_graphs)
@@ -176,11 +195,14 @@ class ClusteringService:
                 previous_owner=child_input.previous_owner,
                 method_level_fallback=True,
             )
+            if sum(bool(child_group.qualified_names) for child_group in child.groups) < 2:
+                continue
             load = scope_load(method_count, file_count)
             if load < 1.0 and not scope_is_separable(
                 child.leaf_clusters_by_language,
-                child.fresh_modularity,
+                child.unanchored_modularity,
                 load,
+                method_count,
             ):
                 continue
             group.children = child
@@ -199,15 +221,14 @@ class ClusteringService:
         return child_graphs
 
     @staticmethod
-    def _group_size(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> tuple[int, int]:
+    def _scope_size(graphs: Mapping[str, CallGraph]) -> tuple[int, int]:
         files: set[str] = set()
         method_count = 0
-        for language, members in group.symbol_members_by_language.items():
-            graph = graphs[language]
-            for qualified_name in members:
-                node = graph.nodes[qualified_name]
+        for graph in graphs.values():
+            for node in graph.nodes.values():
                 files.add(node.file_path)
-                method_count += 1
+                if node.type in CALLABLE_TYPES:
+                    method_count += 1
         return method_count, len(files)
 
     @staticmethod
