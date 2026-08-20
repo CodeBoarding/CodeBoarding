@@ -65,6 +65,22 @@ class TestAttributionSymbol(unittest.TestCase):
         self._load([lone])
         self.assertIs(self.st.attribution_symbol(lone), lone)
 
+    def test_a_module_level_wrapper_is_used_when_nothing_else_encloses(self):
+        # `export const raw = await ghPaginate(() => ...)` at module level: no function above
+        # it, so the promoted wrapper is the best name available and beats crediting the
+        # callback to itself.
+        wrapper = sym("src.github.raw", 4, 9, kind=NodeType.CLASS, promoted=True)
+        callback = sym("src.github.raw.ghPaginate() callback", 5, 8, name="ghPaginate() callback")
+        self._load([wrapper, callback])
+        self.assertEqual(self.st.attribution_symbol(callback).qualified_name, wrapper.qualified_name)
+
+    def test_a_named_function_still_beats_a_promoted_wrapper(self):
+        outer = sym("src.github.listRepos", 2, 20)
+        wrapper = sym("src.github.listRepos.raw", 4, 9, kind=NodeType.CLASS, promoted=True)
+        callback = sym("src.github.listRepos.raw.map() callback", 5, 8, name="map() callback")
+        self._load([outer, wrapper, callback])
+        self.assertEqual(self.st.attribution_symbol(callback).qualified_name, outer.qualified_name)
+
     def _load(self, symbols):
         self.st.file_symbols["src/github.ts"] = symbols
 
