@@ -63,8 +63,10 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # registered at usage positions.
 # v5: one engine owns the TypeScript/JavaScript family, so a TS repo no longer carries a
 # second, degraded ``javascript`` bucket that was clustered as a separate codebase.
+# v6: a call inside an inline callback is credited to the enclosing declaration, so edge
+# sources are names a reader recognises rather than ``map() callback``.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v5"
+_TAG_VERSION = "v6"
 
 
 class StaticAnalysisCache:
@@ -138,6 +140,15 @@ class StaticAnalysisCache:
         with FileLock(self.lock_path, timeout=30):
             return self._read_tag_sha_unlocked()
 
+    def _tag_version_is_stale(self) -> bool:
+        """Whether a tag file exists and names a version this build does not produce."""
+        try:
+            text = self.sha_path.read_text(encoding="utf-8").strip()
+        except (OSError, FileNotFoundError):
+            return False
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        return bool(lines) and lines[0] != _TAG_VERSION
+
     def _read_tag_sha_unlocked(self) -> str | None:
         try:
             text = self.sha_path.read_text(encoding="utf-8").strip()
@@ -202,6 +213,11 @@ class StaticAnalysisCache:
                     expected_sha,
                 )
                 return None
+        elif self._tag_version_is_stale():
+            # A read-only consumer asks for no SHA gate, but a pickle an older engine wrote
+            # still describes a graph this build would not produce. Only a tag that exists and
+            # disagrees rejects; the untagged legacy artifact below is still read.
+            return None
 
         target = self.pkl_path
         if not target.exists():

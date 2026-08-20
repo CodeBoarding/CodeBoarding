@@ -290,7 +290,12 @@ def _process_references_for_position(
                     continue
             if sym.qualified_name.startswith(container.qualified_name + "."):
                 continue
-            _add_edge_site(edge_set, container.qualified_name, sym.qualified_name, ref_file, ref_line, ref_char)
+            # Every guard above sees the innermost container, which is what decides whether
+            # this reference is an edge at all. Only the credit line is rolled up.
+            attributed = st.attribution_symbol(container).qualified_name
+            if attributed == sym.qualified_name or sym.qualified_name.startswith(attributed + "."):
+                continue
+            _add_edge_site(edge_set, attributed, sym.qualified_name, ref_file, ref_line, ref_char)
 
     return refs_total, refs_call_sites
 
@@ -380,12 +385,15 @@ def _resolve_iterated_types(
                     if target is None or not _is_valid_edge(caller, target):
                         continue
                     resolved += 1
-                    _add_edge_call_site(edge_set, caller.qualified_name, target.qualified_name, site)
+                    attributed = st.attribution_symbol(caller)
+                    if not _is_valid_edge(attributed, target):
+                        continue
+                    _add_edge_call_site(edge_set, attributed.qualified_name, target.qualified_name, site)
                     # The loop calls the enumerator, so name it too when the
                     # type declares one rather than inheriting it.
                     for enumerator in _members_named(target, st, "GetEnumerator"):
-                        if _is_valid_edge(caller, enumerator):
-                            _add_edge_call_site(edge_set, caller.qualified_name, enumerator.qualified_name, site)
+                        if _is_valid_edge(caller, enumerator) and _is_valid_edge(attributed, enumerator):
+                            _add_edge_call_site(edge_set, attributed.qualified_name, enumerator.qualified_name, site)
     return resolved
 
 
@@ -489,16 +497,23 @@ def _resolve_definitions(
                     if not _is_valid_edge(caller, target):
                         continue
 
-                    _add_edge_call_site(edge_set, caller.qualified_name, target.qualified_name, call_site)
+                    # Guards keep the innermost caller; only the credit line rolls up.
+                    attributed = st.attribution_symbol(caller)
+                    if not _is_valid_edge(attributed, target):
+                        continue
+
+                    _add_edge_call_site(edge_set, attributed.qualified_name, target.qualified_name, call_site)
 
                     for override in _override_targets(target, st, dispatch):
-                        if _is_valid_edge(caller, override):
-                            _add_edge_call_site(edge_set, caller.qualified_name, override.qualified_name, call_site)
+                        if _is_valid_edge(caller, override) and _is_valid_edge(attributed, override):
+                            _add_edge_call_site(edge_set, attributed.qualified_name, override.qualified_name, call_site)
 
                     if (call_site.lsp_line, call_site.lsp_column) in collection_positions:
                         for adder in _members_named(target, st, "Add"):
-                            if _is_valid_edge(caller, adder):
-                                _add_edge_call_site(edge_set, caller.qualified_name, adder.qualified_name, call_site)
+                            if _is_valid_edge(caller, adder) and _is_valid_edge(attributed, adder):
+                                _add_edge_call_site(
+                                    edge_set, attributed.qualified_name, adder.qualified_name, call_site
+                                )
 
                     # If target is a callable with a class-like parent, also add edge to the parent class
                     if adapter.is_callable(target.kind) and target.parent_chain:
@@ -506,14 +521,18 @@ def _resolve_definitions(
                         if adapter.is_class_like(parent_kind):
                             parent_qname = parent_qualified_name(target.qualified_name)
                             parent_sym = st.symbols.get(parent_qname)
-                            if parent_sym is not None and _is_valid_edge(caller, parent_sym):
-                                _add_edge_call_site(edge_set, caller.qualified_name, parent_qname, call_site)
+                            if (
+                                parent_sym is not None
+                                and _is_valid_edge(caller, parent_sym)
+                                and _is_valid_edge(attributed, parent_sym)
+                            ):
+                                _add_edge_call_site(edge_set, attributed.qualified_name, parent_qname, call_site)
 
                     # Queue implementation query for polymorphic dispatch
                     if adapter.is_callable(target.kind):
                         impl_queries_pending.append(
                             ImplementationQuery(
-                                caller_qname=caller.qualified_name,
+                                caller_qname=attributed.qualified_name,
                                 target_file=target.file_path,
                                 target_line=target.start_line,
                                 target_char=target.start_char,

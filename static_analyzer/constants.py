@@ -155,6 +155,11 @@ class NodeType(IntEnum):
 
 # Convenience sets – module-level so mypy can resolve them without monkey-patching.
 CALLABLE_TYPES: set[NodeType] = {NodeType.METHOD, NodeType.FUNCTION, NodeType.CONSTRUCTOR}
+
+# Name fragments an LSP server uses for a symbol that is a real lexical scope but not a
+# declaration a reader would name: inline callbacks (``map() callback``) and anonymous
+# functions (``<function>``). A call written inside one belongs to whatever encloses it.
+ANONYMOUS_SYMBOL_MARKERS: tuple[str, ...] = (") callback", "<function>", "<arrow", "<unknown>")
 CLASS_TYPES: set[NodeType] = {NodeType.CLASS, NodeType.INTERFACE, NodeType.STRUCT, NodeType.ENUM}
 DATA_TYPES: set[NodeType] = {
     NodeType.PROPERTY,

@@ -3,7 +3,14 @@
 Extracted from constants.py so that module contains only constants.
 """
 
-from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, DATA_TYPES, ENTITY_LABELS, NodeType
+from static_analyzer.constants import (
+    ANONYMOUS_SYMBOL_MARKERS,
+    CALLABLE_TYPES,
+    CLASS_TYPES,
+    DATA_TYPES,
+    ENTITY_LABELS,
+    NodeType,
+)
 
 
 class Node:
@@ -42,8 +49,7 @@ class Node:
         """Return True if this node represents a data entity (property, field, variable, constant)."""
         return self.type in DATA_TYPES
 
-    # Patterns indicating callback or anonymous function nodes from LSP
-    _CALLBACK_PATTERNS = (") callback", "<function>", "<arrow")
+    _CALLBACK_PATTERNS = ANONYMOUS_SYMBOL_MARKERS
 
     def is_callback_or_anonymous(self) -> bool:
         """Return True if this node represents a callback or anonymous function.
