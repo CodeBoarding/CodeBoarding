@@ -720,6 +720,12 @@ class StaticAnalyzer:
                 results = self._run_full_lsp_pass()
             else:
                 cached_results, cached_sha = warm_start
+                if self._family_owner_changed(cached_results):
+                    raise StaticAnalysisFatalError(
+                        f"{cache.pkl_path} stores the TypeScript/JavaScript graph under a language no "
+                        "longer configured, so a warm start would rebuild only the changed files and "
+                        "drop the rest. Re-run a full analysis to rebuild it."
+                    )
                 logger.info(
                     "static_analysis_cache: outcome=warmstart (cached_sha=%s, current_sha=%s, changes=%s)",
                     cached_sha,
@@ -991,6 +997,20 @@ class StaticAnalyzer:
         # replacing kept only whichever finished last -- which under the concurrency
         # bound is a different one run to run.
         self.collected_diagnostics.setdefault(adapter.language_enum, {}).update(merged_diags)
+
+    def _family_owner_changed(self, cached_results: StaticAnalysisResults) -> bool:
+        """Whether a cached TypeScript/JavaScript bucket belongs to a language nobody owns now.
+
+        Adding a repository's first ``.ts`` (or deleting its last) flips which adapter owns the
+        family, and the warm start extracts the cached state by the *new* language — finding
+        nothing, and silently rebuilding only the changed files.
+        """
+        family = {Language.TYPESCRIPT, Language.JAVASCRIPT}
+        cached_family = {language for language in cached_results.results if language in family}
+        if not cached_family:
+            return False
+        live = {config.adapter.language_enum for config in self._engine_configs}
+        return not (cached_family & live)
 
     def _loc_for_adapter(self, adapter: LanguageAdapter) -> int:
         """Return scanner LOC that should have been covered by this adapter.
