@@ -143,6 +143,37 @@ def _restore_baseline_orientation(relation: Relation, baseline_by_pair: dict) ->
     )
 
 
+def _restore_baseline_wording(fresh: Relation, previous: Relation) -> Relation:
+    """Carry the label, the evidence and the edge highlighting forward onto the fresh edges.
+
+    Why: which edges are highlighted and their per-edge descriptions are re-rolled each run
+    just like the label, so an unrelated commit rewrites them. They are rebound onto the fresh
+    edge objects, never copied from the baseline, so spans and call sites stay current.
+    """
+    wording = {"relation": previous.relation, "evidence": previous.evidence}
+    if not previous.key_edges:
+        return fresh.model_copy(update=wording)
+    highlighted = {
+        (edge.source.qualified_name, edge.target.qualified_name): edge.description for edge in previous.key_edges
+    }
+
+    def annotate(edge: RelationEdge) -> RelationEdge:
+        description = highlighted.get((edge.source.qualified_name, edge.target.qualified_name))
+        return edge.model_copy(update={"description": description}) if description else edge
+
+    # Membership follows the rebuild — a baseline highlight whose edge is gone stays gone —
+    # but an edge the baseline highlighted and the rebuild still has is highlighted again.
+    restored = [
+        edge for edge in fresh.all_edges if (edge.source.qualified_name, edge.target.qualified_name) in highlighted
+    ]
+    return fresh.model_copy(
+        update={
+            **wording,
+            "key_edges": Relation._unique_edges([*map(annotate, fresh.key_edges), *map(annotate, restored)]),
+        }
+    )
+
+
 def _commit_deleted_the_backing(rebuilt: Relation, previous: Relation, changed_members: set[str]) -> bool:
     """Return whether a changed source removed every baseline backing edge.
 
@@ -186,12 +217,9 @@ def preserve_unchanged_relations(
     deleted; restoring it then would resurrect an edge citing a symbol that no longer
     exists.
 
-    Wording is all this layer carries. Edges are never filtered, frozen or back-filled from
-    the baseline: extraction is deterministic, so the fresh CFG is the only honest answer for
-    the current commit, and a baseline edge carried forward keeps the line numbers its call
-    sites had when it was written. Suppressing "this looks changed" is the diff layer's job —
-    doing it here by deleting edges hollows out real relations permanently, because the
-    hollowed relation becomes the next run's baseline.
+    Wording is all this layer carries; CFG-backed edges always come from the fresh rebuild.
+    Why: extraction is deterministic, and a baseline edge carried forward keeps the line
+    numbers its call sites had when it was written.
 
     Keyed on ``(src_id, dst_id)``, the stable component identity, not on displayed names.
     """
@@ -235,7 +263,7 @@ def preserve_unchanged_relations(
             or _relation_edges_unmoved(relation, previous)
             or (not _backing_edge_pairs(relation) and not relation.evidence.strip())
         ):
-            relation = relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence})
+            relation = _restore_baseline_wording(relation, previous)
         kept.append(relation)
     for pair, relation in baseline_by_pair.items():
         if pair in rebuilt_pairs or touches_change(*pair) or pair[0] not in live_ids or pair[1] not in live_ids:

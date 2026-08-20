@@ -456,6 +456,34 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
 
+    def test_unmoved_pair_keeps_baseline_highlighting_on_the_fresh_edge(self):
+        # Which edges are highlighted, and their descriptions, are re-rolled every run. They
+        # are wording, so they carry forward — but onto the fresh edge object, so the call
+        # site stays current.
+        baseline = self._relation("1", "2", "baseline wording")
+        baseline.is_static = True
+        baseline.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
+        baseline.key_edges = [
+            RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"), description="the reader's description")
+        ]
+        fresh = self._relation("1", "2", "rerolled wording")
+        fresh.is_static = True
+        fresh.all_edges = [
+            RelationEdge(
+                source=_ref("pkg.caller"),
+                target=_ref("pkg.callee"),
+                description="a freshly rerolled description",
+                call_sites=[RelationCallSite(line=91, column=4)],
+            )
+        ]
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): baseline}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.elsewhere"}
+        )
+
+        self.assertEqual([edge.description for edge in kept[0].key_edges], ["the reader's description"])
+        self.assertEqual([site.line for edge in kept[0].key_edges for site in edge.call_sites], [91])
+
     def test_pair_the_rebuild_no_longer_grounds_is_dropped(self):
         # The rebuild found no call at all between these components and a changed method
         # accounts for the loss, so the connection is gone rather than merely unreported.
