@@ -1,10 +1,4 @@
-"""One engine per language family, not one per detected language.
-
-The scanner reports TypeScript, TSX, JavaScript and JSX separately, and they all share a
-single ``typescript-language-server``. Emitting a config per detected language indexes the
-same files repeatedly into separate ``Language`` buckets that are then clustered as if they
-were different codebases.
-"""
+"""One engine per language family, not one per detected language."""
 
 import json
 import tempfile
@@ -14,6 +8,7 @@ from pathlib import Path
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import _adapter_names_for, _create_engine_configs
 from static_analyzer.constants import Language
+from static_analyzer.engine.adapters.typescript_adapter import TypeScriptAdapter
 from static_analyzer.programming_language import ProgrammingLanguage
 
 _SUFFIXES = {
@@ -100,8 +95,6 @@ class TestEngineConfigsPerFamily(unittest.TestCase):
 
 class TestTypeScriptFamilyExtensions(unittest.TestCase):
     def test_the_typescript_adapter_claims_both_families(self):
-        from static_analyzer.engine.adapters.typescript_adapter import TypeScriptAdapter
-
         extensions = TypeScriptAdapter().file_extensions
         for suffix in (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"):
             with self.subTest(suffix=suffix):
