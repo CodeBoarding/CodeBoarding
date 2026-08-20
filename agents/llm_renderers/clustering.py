@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from agents.relation_edges import edge_touches_change
 from clustering_ids import ClusterId
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
 
@@ -53,21 +54,52 @@ def render_cluster_groups(group_ids: dict[str, list[ClusterId]], group_descripti
     return f"# Grouped Cluster Components\n{body}"
 
 
-def render_scope_connections(scope: ClusterScopeResult, group_names: dict[str, str]) -> str:
+def render_scope_connections(
+    scope: ClusterScopeResult,
+    group_names: dict[str, str],
+    changed_members: set[str] | None = None,
+) -> str:
     """Render precomputed cross-group communication for an agent prompt."""
     if not scope.connections:
         return "No cross-component communication edges found."
 
     lines: list[str] = []
+    if changed_members:
+        lines.append("Pairs marked '*' carry a call this change touched; the rest are shown as counts only.")
     for connection in scope.connections:
         source = group_names.get(connection.source_group_id, connection.source_group_id)
         target = group_names.get(connection.target_group_id, connection.target_group_id)
-        edge_count = len(connection.edges)
-        lines.append(f"\n{source} -> {target} ({edge_count} edge{'s' if edge_count != 1 else ''}):")
-        for edge in connection.edges[:MAX_CONNECTION_EDGES]:
+        edges = connection.edges
+        edge_count = len(edges)
+        plural = "s" if edge_count != 1 else ""
+        hot = (
+            [
+                edge
+                for edge in edges
+                if edge_touches_change(
+                    edge.source_qualified_name,
+                    edge.target_qualified_name,
+                    changed_members,
+                )
+            ]
+            if changed_members
+            else []
+        )
+        if changed_members and not hot:
+            lines.append(f"\n{source} -> {target} ({edge_count} edge{plural}, none touched by this change)")
+            continue
+        if hot:
+            header = f"({edge_count} edge{plural}, {len(hot)} touched by this change):"
+            ordered = hot + [edge for edge in edges if edge not in hot]
+        else:
+            header = f"({edge_count} edge{plural}):"
+            ordered = list(edges)
+        lines.append(f"\n{source} -> {target} {header}")
+        for edge in ordered[:MAX_CONNECTION_EDGES]:
             short_source = edge.source_qualified_name.split(".")[-1]
             short_target = edge.target_qualified_name.split(".")[-1]
-            lines.append(f"  {short_source} -> {short_target}")
+            marker = "* " if edge in hot else "  "
+            lines.append(f"  {marker}{short_source} -> {short_target}")
         if edge_count > MAX_CONNECTION_EDGES:
             lines.append(f"  ... and {edge_count - MAX_CONNECTION_EDGES} more")
     return "\n".join(lines)
