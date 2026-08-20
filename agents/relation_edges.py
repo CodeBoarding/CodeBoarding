@@ -143,22 +143,6 @@ def _restore_baseline_orientation(relation: Relation, baseline_by_pair: dict) ->
     )
 
 
-def _filter_edges_touched_by_change(relation: Relation, changed_members: set[str]) -> Relation:
-    """Keep only the edges a code change can account for, for a pair with no baseline.
-
-    Why: a call lives in its source method's body, so an edge can only appear when one of its
-    endpoints changed. ``_reconcile_unchanged_edges`` enforces that by falling back to the
-    baseline, but re-clustering invents component-pairs that have no baseline to fall back to —
-    there every re-attributed edge would otherwise enter as if the commit had written it.
-    """
-    return relation.model_copy(
-        update={
-            "all_edges": [e for e in relation.all_edges if _edge_touches_changed_method(e, changed_members)],
-            "key_edges": [e for e in relation.key_edges if _edge_touches_changed_method(e, changed_members)],
-        }
-    )
-
-
 def _commit_deleted_the_backing(rebuilt: Relation, previous: Relation, changed_members: set[str]) -> bool:
     """Return whether a changed source removed every baseline backing edge.
 
@@ -168,33 +152,6 @@ def _commit_deleted_the_backing(rebuilt: Relation, previous: Relation, changed_m
     if not baseline_edges or rebuilt.all_edges or rebuilt.key_edges or rebuilt.evidence.strip():
         return False
     return any(_edge_touches_changed_method(edge, changed_members) for edge in baseline_edges)
-
-
-def _reconcile_unchanged_edges(fresh: Relation, previous: Relation, changed_members: set[str]) -> Relation:
-    """Carry the baseline's edges forward for calls between two byte-identical methods.
-
-    A call is written inside its source method's body, so an unchanged source cannot have
-    changed which methods it calls; a rebuild that adds or drops an edge between two unchanged
-    methods did so by re-attributing the graph, not because the code moved. Within a pair the
-    fresh rebuild is trusted only for edges that touch a changed/added/deleted method (the
-    structural truth); every edge between two unchanged methods is taken from the baseline.
-
-    ``changed_members`` includes added and deleted qnames (present on exactly one side), so a
-    baseline edge kept here can never cite a symbol that no longer exists — the deleted-symbol
-    phantom is excluded at the source.
-    """
-
-    def split(fresh_edges: list[RelationEdge], baseline_edges: list[RelationEdge]) -> list[RelationEdge]:
-        fresh_grounded = [e for e in fresh_edges if _edge_touches_changed_method(e, changed_members)]
-        baseline_stable = [e for e in baseline_edges if not _edge_touches_changed_method(e, changed_members)]
-        return Relation._unique_edges([*fresh_grounded, *baseline_stable])
-
-    return fresh.model_copy(
-        update={
-            "all_edges": split(fresh.all_edges, previous.all_edges),
-            "key_edges": split(fresh.key_edges, previous.key_edges),
-        }
-    )
 
 
 def preserve_unchanged_relations(
@@ -227,8 +184,14 @@ def preserve_unchanged_relations(
     dropped is restored — but only when its backing edges still exist in live code. The
     deterministic rebuild drops a pair when the code connecting the two components was
     deleted; restoring it then would resurrect an edge citing a symbol that no longer
-    exists. A fresh edge invented between two unchanged components is discarded, so
-    structural drift against untouched components is eliminated too.
+    exists.
+
+    Wording is all this layer carries. Edges are never filtered, frozen or back-filled from
+    the baseline: extraction is deterministic, so the fresh CFG is the only honest answer for
+    the current commit, and a baseline edge carried forward keeps the line numbers its call
+    sites had when it was written. Suppressing "this looks changed" is the diff layer's job —
+    doing it here by deleting edges hollows out real relations permanently, because the
+    hollowed relation becomes the next run's baseline.
 
     Keyed on ``(src_id, dst_id)``, the stable component identity, not on displayed names.
     """
@@ -250,21 +213,13 @@ def preserve_unchanged_relations(
             # artifact and is dropped.
             if not touches_change(*pair):
                 continue
-            if changed_members is not None:
-                relation = _filter_edges_touched_by_change(relation, changed_members)
-                # Nothing survived and nothing else is claimed: the pair asserts no connection.
-                if not relation.all_edges and not relation.key_edges and not relation.evidence.strip():
-                    continue
+            # The pair asserts no connection at all.
+            if not relation.all_edges and not relation.key_edges and not relation.evidence.strip():
+                continue
             kept.append(relation)
             continue
-        # Every edge between two byte-identical methods is taken from the baseline; only edges
-        # that touch a changed/added/deleted method come from the fresh rebuild. This stops
-        # re-attribution over untouched code from flipping edges, in touched and untouched
-        # pairs alike.
-        if changed_members is not None:
-            relation = _reconcile_unchanged_edges(relation, previous, changed_members)
-            if _commit_deleted_the_backing(relation, previous, changed_members):
-                continue
+        if changed_members is not None and _commit_deleted_the_backing(relation, previous, changed_members):
+            continue
         # Keep the reader's wording unless this pair's own supporting calls moved.
         #
         # The supporting calls are the concrete method-to-method calls under the relation — the
