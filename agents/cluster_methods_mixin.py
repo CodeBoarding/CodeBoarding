@@ -18,6 +18,7 @@ from agents.content_hash import (
     read_source_lines,
 )
 from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, GraphClusterId
+from agents.relation_edges import edge_touches_change
 from constants import MIN_CLUSTERS_THRESHOLD
 from diagram_analysis.cluster_delta import _delta_for_language
 from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
@@ -724,7 +725,7 @@ class ClusterMethodsMixin:
                 component.source_cluster_ids, prefix
             )
 
-    def build_scope_cfg_string(self, analysis: AnalysisInsights) -> str:
+    def build_scope_cfg_string(self, analysis: AnalysisInsights, changed_members: set[str] | None = None) -> str:
         """Render cross-component communication edges as a human-readable string for the LLM.
 
         For every CFG edge where src belongs to component A and dst belongs to
@@ -733,6 +734,12 @@ class ClusterMethodsMixin:
             ComponentA -> ComponentB (3 edges):
               src_pkg.MethodX -> dst_pkg.MethodY
               src_pkg.MethodZ -> dst_pkg.MethodW
+
+        With ``changed_members`` (an incremental run), a pair carrying no edge the commit
+        touched collapses to a single line stating its weight. Why keep it at all rather than
+        dropping it: the model still needs to see that A talks to B, or it re-invents the
+        relation. A pair summarised here must have its wording restored from the baseline
+        rather than re-authored — ``preserve_unchanged_relations`` applies the same predicate.
         """
         node_to_component = build_node_to_component_map(analysis)
         id_to_name = {c.component_id: c.name for c in analysis.components}
@@ -743,17 +750,32 @@ class ClusterMethodsMixin:
             return "No cross-component communication edges found."
 
         lines: list[str] = []
+        if changed_members:
+            lines.append("Pairs marked '*' carry a call this change touched; the rest are shown as counts only.")
         for relation in static_relations:
-            src_id = relation.src_cluster_id
-            dst_id = relation.dst_cluster_id
-            src_label = id_to_name.get(src_id, src_id)
-            dst_label = id_to_name.get(dst_id, dst_id)
-            edge_count = len(relation.all_edges)
-            lines.append(f"\n{src_label} -> {dst_label} ({edge_count} edge{'s' if edge_count != 1 else ''}):")
-            for edge in relation.all_edges[:10]:
+            src_label = id_to_name.get(relation.src_cluster_id, relation.src_cluster_id)
+            dst_label = id_to_name.get(relation.dst_cluster_id, relation.dst_cluster_id)
+            edges = relation.all_edges
+            edge_count = len(edges)
+            plural = "s" if edge_count != 1 else ""
+            hot = [e for e in edges if edge_touches_change(e, changed_members)] if changed_members else []
+
+            if changed_members and not hot:
+                lines.append(f"\n{src_label} -> {dst_label} ({edge_count} edge{plural}, none touched by this change)")
+                continue
+
+            if hot:
+                header = f"({edge_count} edge{plural}, {len(hot)} touched by this change):"
+                ordered = hot + [e for e in edges if e not in hot]
+            else:
+                header = f"({edge_count} edge{plural}):"
+                ordered = list(edges)
+            lines.append(f"\n{src_label} -> {dst_label} {header}")
+            for edge in ordered[:10]:
                 short_s = edge.source.qualified_name.split(".")[-1]
                 short_d = edge.target.qualified_name.split(".")[-1]
-                lines.append(f"  {short_s} -> {short_d}")
+                marker = "* " if edge in hot else ""
+                lines.append(f"  {marker}{short_s} -> {short_d}")
             if edge_count > 10:
                 lines.append(f"  ... and {edge_count - 10} more")
 
