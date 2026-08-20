@@ -83,6 +83,13 @@ class LanguageAdapter(ABC):
         """LSP language identifier for textDocument/didOpen."""
         return self.language.lower()
 
+    def language_id_for(self, file_path: Path) -> str:
+        """The LSP languageId for one file. Defaults to ``language_id``.
+
+        Why per file: one server can serve several dialects, and the id selects which.
+        """
+        return self.language_id
+
     def build_qualified_name(
         self,
         file_path: Path,

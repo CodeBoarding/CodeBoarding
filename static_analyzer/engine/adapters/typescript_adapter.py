@@ -10,6 +10,8 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 
 class TypeScriptAdapter(LanguageAdapter):
 
+    _JSX_LANGUAGE_IDS = {".tsx": "typescriptreact", ".jsx": "javascriptreact"}
+
     @property
     def language(self) -> str:
         return "TypeScript"
@@ -25,6 +27,15 @@ class TypeScriptAdapter(LanguageAdapter):
     @property
     def language_id(self) -> str:
         return "typescript"
+
+    def language_id_for(self, file_path: Path) -> str:
+        """Send the JSX dialect for .tsx/.jsx so tsserver enables JSX parsing.
+
+        Why: typescript-language-server maps languageId to tsserver's scriptKind, and a
+        .tsx opened as plain "typescript" parses ``<div ...>`` as a type assertion — the
+        component's symbols come back flattened, truncated and partly unnamed.
+        """
+        return self._JSX_LANGUAGE_IDS.get(file_path.suffix, self.language_id)
 
     def extract_package(self, qualified_name: str) -> str:
         return self._extract_deep_package(qualified_name)

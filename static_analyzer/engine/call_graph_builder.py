@@ -178,7 +178,7 @@ class CallGraphBuilder:
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
         for idx, file_path in enumerate(source_files, 1):
             if interleave_open:
-                self._lsp.did_open(file_path, self._adapter.language_id)
+                self._lsp.did_open(file_path, self._adapter.language_id_for(file_path))
             # Reuse the sync probe result for the first file to avoid a
             # redundant document_symbol query (the probe can take minutes).
             # Interleaved adapters deliberately query again after didOpen so
@@ -207,7 +207,7 @@ class CallGraphBuilder:
         for i in range(0, total, DID_OPEN_BATCH_SIZE):
             batch = source_files[i : i + DID_OPEN_BATCH_SIZE]
             for file_path in batch:
-                self._lsp.did_open(file_path, self._adapter.language_id)
+                self._lsp.did_open(file_path, self._adapter.language_id_for(file_path))
             pbar.update(len(batch))
             time.sleep(0.1)
         pbar.finish()
