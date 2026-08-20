@@ -140,6 +140,15 @@ class StaticAnalysisCache:
         with FileLock(self.lock_path, timeout=30):
             return self._read_tag_sha_unlocked()
 
+    def _tag_version_is_stale(self) -> bool:
+        """Whether a tag file exists and names a version this build does not produce."""
+        try:
+            text = self.sha_path.read_text(encoding="utf-8").strip()
+        except (OSError, FileNotFoundError):
+            return False
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        return bool(lines) and lines[0] != _TAG_VERSION
+
     def _read_tag_sha_unlocked(self) -> str | None:
         try:
             text = self.sha_path.read_text(encoding="utf-8").strip()
@@ -153,15 +162,6 @@ class StaticAnalysisCache:
             logger.info(f"Static analysis tag has unknown version {version!r}; treating as cache miss")
             return None
         return sha
-
-    def _tag_version_is_stale(self) -> bool:
-        """Whether a tag file exists and names a version this build does not produce."""
-        try:
-            text = self.sha_path.read_text(encoding="utf-8").strip()
-        except (OSError, FileNotFoundError):
-            return False
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        return bool(lines) and lines[0] != _TAG_VERSION
 
     def _legacy_pkl_path(self) -> Path:
         return self.artifact_dir / _LEGACY_CACHE_SUBDIR / _LEGACY_PKL_NAME
