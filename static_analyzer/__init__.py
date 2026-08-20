@@ -721,18 +721,24 @@ class StaticAnalyzer:
             else:
                 cached_results, cached_sha = warm_start
                 if self._family_owner_changed(cached_results):
-                    raise StaticAnalysisFatalError(
-                        f"{cache.pkl_path} stores the TypeScript/JavaScript graph under a language no "
-                        "longer configured, so a warm start would rebuild only the changed files and "
-                        "drop the rest. Re-run a full analysis to rebuild it."
+                    # A full run rebuilds from scratch and is fine. An incremental one cannot:
+                    # the warm start would keep only the changed files of a bucket nobody owns.
+                    if self.changed_files is not None:
+                        raise StaticAnalysisFatalError(
+                            f"{cache.pkl_path} stores the TypeScript/JavaScript graph under a language "
+                            "no longer configured, so a warm start would rebuild only the changed files "
+                            "and drop the rest. Re-run a full analysis to rebuild it."
+                        )
+                    logger.info("static_analysis_cache: outcome=miss_family_owner_changed")
+                    results = self._run_full_lsp_pass()
+                else:
+                    logger.info(
+                        "static_analysis_cache: outcome=warmstart (cached_sha=%s, current_sha=%s, changes=%s)",
+                        cached_sha,
+                        source_sha or "<none>",
+                        "supplied" if self.changed_files is not None else "git",
                     )
-                logger.info(
-                    "static_analysis_cache: outcome=warmstart (cached_sha=%s, current_sha=%s, changes=%s)",
-                    cached_sha,
-                    source_sha or "<none>",
-                    "supplied" if self.changed_files is not None else "git",
-                )
-                results = self._update_cached_results(cached_results, cached_sha)
+                    results = self._update_cached_results(cached_results, cached_sha)
 
         self._validate_analysis_results(results)
         results.diagnostics = self.collected_diagnostics

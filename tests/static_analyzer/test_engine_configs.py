@@ -13,6 +13,7 @@ from static_analyzer import (
     _adapter_names_for,
     _create_engine_configs,
 )
+from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.engine.adapters.typescript_adapter import TypeScriptAdapter
 from static_analyzer.programming_language import ProgrammingLanguage
@@ -108,10 +109,6 @@ class TestTypeScriptFamilyExtensions(unittest.TestCase):
                 self.assertIn(suffix, extensions)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestIncrementalRefusesAnIncompatibleCache(unittest.TestCase):
     def test_an_artifact_from_another_engine_version_is_refused(self):
         # AGENTS.md: incremental never silently becomes full. A tag bump makes the artifact
@@ -137,9 +134,6 @@ class TestFamilyOwnerFlip(unittest.TestCase):
     def test_a_cache_owned_by_the_other_family_language_is_refused(self):
         # Adding a repo's first .ts flips the owner to TypeScript. Extracting the cached state
         # by the new language finds nothing and would rebuild only the changed files.
-        from static_analyzer.analysis_result import StaticAnalysisResults
-        from static_analyzer.constants import Language
-
         tmp = Path(tempfile.mkdtemp()).resolve()
         with patch.object(ProjectScanner, "scan", return_value=[lang("TypeScript"), lang("JavaScript")]):
             analyzer = StaticAnalyzer(tmp)
@@ -154,18 +148,20 @@ class TestFamilyOwnerFlip(unittest.TestCase):
         with patch.object(ProjectScanner, "scan", return_value=[lang("TypeScript")]):
             analyzer = StaticAnalyzer(tmp)
 
-        from static_analyzer.analysis_result import StaticAnalysisResults
-        from static_analyzer.constants import Language
-
         cached = StaticAnalysisResults()
         cached._bucket(Language.TYPESCRIPT)
 
         self.assertFalse(analyzer._family_owner_changed(cached))
 
-    def test_a_python_only_cache_is_never_a_family_flip(self):
-        from static_analyzer.analysis_result import StaticAnalysisResults
-        from static_analyzer.constants import Language
+    def test_a_full_run_rebuilds_instead_of_refusing(self):
+        # `codeboarding full` without --force still warm-starts, and telling it to "run a full
+        # analysis" would name the operation already in progress.
+        tmp = Path(tempfile.mkdtemp()).resolve()
+        with patch.object(ProjectScanner, "scan", return_value=[lang("TypeScript")]):
+            analyzer = StaticAnalyzer(tmp)
+        self.assertIsNone(analyzer.changed_files)
 
+    def test_a_python_only_cache_is_never_a_family_flip(self):
         tmp = Path(tempfile.mkdtemp()).resolve()
         with patch.object(ProjectScanner, "scan", return_value=[lang("Python")]):
             analyzer = StaticAnalyzer(tmp)
@@ -174,3 +170,7 @@ class TestFamilyOwnerFlip(unittest.TestCase):
         cached._bucket(Language.PYTHON)
 
         self.assertFalse(analyzer._family_owner_changed(cached))
+
+
+if __name__ == "__main__":
+    unittest.main()
