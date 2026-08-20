@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read        # check out the repo + read the committed baseline (no writes in review mode)
+      actions: read         # download the analysis an earlier run published, instead of re-deriving this PR every push
       pull-requests: write  # post the architecture-diff PR comment
       issues: write         # the /codeboarding issue_comment trigger + comment API
       id-token: write       # mint a GitHub OIDC token for the free hosted tier (write is the only level for id-token)
