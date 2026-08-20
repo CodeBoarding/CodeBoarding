@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 
 from static_analyzer.engine.protocols import SymbolNaming
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import ANONYMOUS_SYMBOL_MARKERS, NodeType
 from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
 from static_analyzer.engine.models import SymbolInfo
 
@@ -76,10 +76,12 @@ class SymbolTable:
 
             # Promote variables/constants with method children to class
             children = sym.get("children", [])
+            promoted = False
             if kind in (NodeType.VARIABLE, NodeType.CONSTANT) and children:
                 child_kinds = {c.get("kind", 0) for c in children}
                 if child_kinds & CALLABLE_KINDS:
                     kind = NodeType.CLASS
+                    promoted = True
 
             range_info = sym.get("range", sym.get("location", {}).get("range", {}))
             sel_range = sym.get("selectionRange", range_info)
@@ -108,6 +110,7 @@ class SymbolTable:
                 start_char=start_char,
                 end_line=end_line,
                 end_char=end_char,
+                promoted_from_variable=promoted,
             )
             info.parent_chain = list(parent_chain)
 
@@ -131,6 +134,7 @@ class SymbolTable:
                         start_char=start_char,
                         end_line=end_line,
                         end_char=end_char,
+                        promoted_from_variable=promoted,
                     )
                     unq_info.parent_chain = []
                     self._symbols[unqualified_name] = unq_info
@@ -154,6 +158,7 @@ class SymbolTable:
                                 start_char=start_char,
                                 end_line=end_line,
                                 end_char=end_char,
+                                promoted_from_variable=promoted,
                             )
                             p_info.parent_chain = list(partial_chain)
                             self._symbols[partial_name] = p_info
@@ -263,6 +268,38 @@ class SymbolTable:
                     best_size = size
 
         return best or sym
+
+    def attribution_symbol(self, sym: SymbolInfo) -> SymbolInfo:
+        """The innermost enclosing declaration a reader would name.
+
+        An LSP server reports inline callbacks and anonymous functions as symbols, and a
+        ``const raw = await fn(...)`` wrapper is promoted to class-like during registration.
+        None of those are names anyone uses, so a call written inside one is credited to the
+        declaration enclosing it. Falls back to ``sym`` when nothing encloses it, which keeps
+        a module-level arrow const crediting itself.
+
+        Only the credit line moves: this is deliberately not used to decide which references
+        become edges, because the reference guards need the innermost container.
+        """
+        if not self._is_unnameable(sym):
+            return sym
+
+        best: SymbolInfo | None = None
+        best_size = float("inf")
+        for other in self._file_symbols.get(str(sym.file_path), []):
+            if other.qualified_name == sym.qualified_name or self._is_unnameable(other):
+                continue
+            if not (self._naming.is_callable(other.kind) or self._naming.is_class_like(other.kind)):
+                continue
+            if other.start_line <= sym.start_line and other.end_line >= sym.end_line:
+                size = (other.end_line - other.start_line) * 10000 + (other.end_char - other.start_char)
+                if size < best_size:
+                    best = other
+                    best_size = size
+        return best or sym
+
+    def _is_unnameable(self, sym: SymbolInfo) -> bool:
+        return sym.promoted_from_variable or any(marker in sym.name for marker in ANONYMOUS_SYMBOL_MARKERS)
 
     def get_equivalent_names(self, qualified_name: str) -> list[str]:
         """Get equivalent symbol names for edge expansion using pre-built index."""

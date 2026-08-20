@@ -63,8 +63,10 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # registered at usage positions.
 # v5: one engine owns the TypeScript/JavaScript family, so a TS repo no longer carries a
 # second, degraded ``javascript`` bucket that was clustered as a separate codebase.
+# v6: a call inside an inline callback is credited to the enclosing declaration, so edge
+# sources are names a reader recognises rather than ``map() callback``.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v5"
+_TAG_VERSION = "v6"
 
 
 class StaticAnalysisCache:
