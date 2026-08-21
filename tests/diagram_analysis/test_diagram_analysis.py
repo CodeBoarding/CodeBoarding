@@ -980,8 +980,30 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.prepare_analysis(hierarchy_depth=3)
 
         self.assertEqual(calls, ["deterministic", "agents"])
-        gen.deterministic_analysis.assert_called_once_with(hierarchy_depth=3, target_component=None)
+        gen.deterministic_analysis.assert_called_once_with(
+            hierarchy_depth=3,
+            target_component=None,
+            require_incremental_baseline=False,
+        )
         gen.agent_init.assert_called_once_with()
+
+    def test_deterministic_analysis_rejects_missing_incremental_baseline_before_clustering(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen._get_static_with_new_analyzer = Mock(return_value=StaticAnalysisResults())
+
+        with patch("diagram_analysis.diagram_generator.build_clustering_hierarchy") as mock_build_hierarchy:
+            with self.assertRaises(IncrementalCacheMissingError):
+                gen.deterministic_analysis(require_incremental_baseline=True)
+
+        mock_build_hierarchy.assert_not_called()
 
     def test_process_component_with_exception(self):
         # Test processing a component that raises an exception
@@ -1121,6 +1143,37 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertEqual(root_ids, ["1"])
         self.assertEqual(sub_ids, {})
+        mock_get_expandable_components.assert_not_called()
+
+    @patch("diagram_analysis.diagram_generator.get_expandable_components")
+    def test_preclustered_save_preserves_generated_subtree_owner(self, mock_get_expandable_components):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        owner = Component(name="A", description="", key_entities=[], component_id="1")
+        child = Component(name="A child", description="", key_entities=[], component_id="1.1")
+        root_analysis = AnalysisInsights(description="root", components=[owner], components_relations=[])
+        sub_analyses = {"1": AnalysisInsights(description="child scope", components=[child], components_relations=[])}
+        gen.details_agent = Mock()
+        gen.clustering_hierarchy = ClusterScopeResult(scope_id="root")
+        gen.clustering_hierarchy.register_scope(
+            "1",
+            ClusterScopeResult(
+                scope_id="1",
+                groups=[ClusterGroup(group_id="1.1", cluster_ids=[1], expandable=False)],
+            ),
+        )
+
+        root_ids, sub_ids = gen._expandable_ids_for_tree(root_analysis, sub_analyses)
+
+        self.assertEqual(root_ids, ["1"])
+        self.assertEqual(sub_ids, {"1": []})
         mock_get_expandable_components.assert_not_called()
 
     def test_absorbed_ids_reroot_preclustered_expansion_flags(self):

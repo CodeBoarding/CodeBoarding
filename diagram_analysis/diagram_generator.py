@@ -639,6 +639,7 @@ class DiagramGenerator:
         *,
         hierarchy_depth: int | None = None,
         target_component: Component | None = None,
+        require_incremental_baseline: bool = False,
     ) -> None:
         """Run source fingerprinting, static analysis, and deterministic clustering."""
         self._analysis_start_time = time.time()
@@ -658,6 +659,13 @@ class DiagramGenerator:
             static_analysis = self._get_static_with_new_analyzer()
 
         self.static_analysis = static_analysis
+        if require_incremental_baseline:
+            baseline = static_analysis.incremental_base_results
+            if baseline is None or not snapshot_from_static_analysis(baseline).all_cluster_ids():
+                error = IncrementalCacheMissingError(self.output_dir)
+                logger.error("%s", error)
+                raise error
+
         depth = hierarchy_depth if hierarchy_depth is not None else self.depth_level
         self.clustering_hierarchy = build_clustering_hierarchy(static_analysis, depth)
         if target_component is not None:
@@ -714,11 +722,13 @@ class DiagramGenerator:
         *,
         hierarchy_depth: int | None = None,
         target_component: Component | None = None,
+        require_incremental_baseline: bool = False,
     ) -> None:
         """Prepare deterministic inputs, then initialize the analysis agents."""
         self.deterministic_analysis(
             hierarchy_depth=hierarchy_depth,
             target_component=target_component,
+            require_incremental_baseline=require_incremental_baseline,
         )
         self.agent_init()
 
@@ -794,8 +804,10 @@ class DiagramGenerator:
                     component.component_id
                     for component in scope.components
                     if component.component_id
-                    and (group := clustering_groups.get(component.component_id)) is not None
-                    and group.expandable
+                    and (
+                        component.component_id in sub_analyses
+                        or ((group := clustering_groups.get(component.component_id)) is not None and group.expandable)
+                    )
                 ]
 
             return precomputed_ids(root_analysis), {
@@ -1466,7 +1478,7 @@ class DiagramGenerator:
         Raises when no trustworthy baseline or scoped update plan is available.
         """
         if self.details_agent is None or self.incremental_agent is None:
-            self.prepare_analysis()
+            self.prepare_analysis(require_incremental_baseline=True)
         assert self.static_analysis is not None
         assert self.details_agent is not None
         assert self.incremental_agent is not None
@@ -1529,7 +1541,11 @@ class DiagramGenerator:
                 changed_members.unattributed_files if changed_members is not None else set()
             )
 
-            snapshot_source = self.static_analysis.incremental_base_results or self.static_analysis
+            snapshot_source = self.static_analysis.incremental_base_results
+            if snapshot_source is None:
+                error = IncrementalCacheMissingError(self.output_dir)
+                logger.error("%s", error)
+                raise error
             old_snapshot = snapshot_from_static_analysis(snapshot_source)
             if not old_snapshot.all_cluster_ids():
                 # No cluster_cache on the live CFG — no prior pkl, legacy pkl,
