@@ -757,6 +757,8 @@ class DiagramGenerator:
 
         def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
             persisted = persisted_scopes.get(scope_id)
+            if scope_id != ROOT_SCOPE_ID and persisted is None:
+                return ClusterScopeInput()
             leaf_clusters = (
                 root_leaf_clusters
                 if scope_id == ROOT_SCOPE_ID
@@ -785,6 +787,14 @@ class DiagramGenerator:
                 scope_id,
                 self.repo_location,
             )
+            member_owner = {
+                language: {
+                    qualified_name: owner
+                    for qualified_name, owner in owner_by_member.items()
+                    if qualified_name not in self._changed_members
+                }
+                for language, owner_by_member in member_owner.items()
+            }
             return ClusterScopeInput(
                 leaf_clusters_by_language=leaf_clusters,
                 previous_owner=cluster_owner,

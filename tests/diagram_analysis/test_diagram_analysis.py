@@ -1782,6 +1782,7 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
         gen.static_analysis = MagicMock()
+        gen._changed_members = {"child.member"}
         baseline_analysis = MagicMock()
         gen.static_analysis.incremental_base_results = baseline_analysis
         root = AnalysisInsights(
@@ -1817,9 +1818,10 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(root_input.reserved_group_ids, frozenset({"1"}))
         self.assertTrue(root_input.retain_scope)
         self.assertEqual(child_input.previous_owner, {2: "1.1"})
-        self.assertEqual(child_input.previous_member_owner, {"python": {"child.member": "1.1"}})
+        self.assertEqual(child_input.previous_member_owner, {"python": {}})
         self.assertEqual(child_input.reserved_group_ids, frozenset({"1.1"}))
         self.assertTrue(child_input.retain_scope)
+        self.assertEqual(scope_input("2", child_graphs), ClusterScopeInput())
         child_partitions.assert_called_once_with(baseline_analysis, "1", child_graphs, set(), self.output_dir)
 
     def test_incremental_child_scope_requires_complete_persisted_lineage(self):
