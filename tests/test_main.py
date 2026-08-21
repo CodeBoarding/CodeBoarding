@@ -134,7 +134,10 @@ class TestPartialUpdate(unittest.TestCase):
                 component_id="test_comp_id",
             )
 
-            mock_generator.prepare_analysis.assert_called_once_with(hierarchy_depth=2)
+            mock_generator.prepare_analysis.assert_called_once_with(
+                hierarchy_depth=2,
+                target_component=root_component,
+            )
             mock_generator.process_component.assert_called_once_with(root_component)
             mock_generator.finalize_and_save.assert_called_once_with(
                 root_analysis, {"test_comp_id": mock_sub_analysis}, persist_side_artifacts=False
@@ -193,7 +196,10 @@ class TestPartialUpdate(unittest.TestCase):
                 component_id="nested_comp_id",
             )
 
-            mock_generator.prepare_analysis.assert_called_once_with(hierarchy_depth=3)
+            mock_generator.prepare_analysis.assert_called_once_with(
+                hierarchy_depth=3,
+                target_component=nested_component,
+            )
             mock_generator.process_component.assert_called_once_with(nested_component)
             self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 2)
             mock_generator.finalize_and_save.assert_called_once()
@@ -358,7 +364,7 @@ class TestLocalSource(unittest.TestCase):
                     component_id="does-not-matter",
                 )
 
-            mock_generator_class.return_value.prepare_analysis.assert_called_once_with(hierarchy_depth=2)
+            mock_generator_class.return_value.prepare_analysis.assert_not_called()
 
 
 class TestFullCliLocal(unittest.TestCase):

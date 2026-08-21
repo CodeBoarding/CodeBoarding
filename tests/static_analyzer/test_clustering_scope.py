@@ -4,7 +4,9 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.config import NodeType
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,
+    ClusterGroup,
     ClusterResult,
+    ClusterScopeResult,
     ClusteringService,
     LeafClustersUnavailableError,
 )
@@ -38,6 +40,33 @@ def cluster_result_for(graph: CallGraph, clusters: dict[int, set[str]]) -> Clust
 
 
 class TestClusteringScope(unittest.TestCase):
+    def test_scope_formats_group_metadata_for_agent_prompts(self):
+        cluster_result = ClusterResult(
+            clusters={1: {"pkg.Service.run", "entrypoint"}, 2: {"pkg.Repository.load"}},
+            cluster_to_files={1: {"/repo/service.py"}, 2: {"/repo/repository.py"}},
+        )
+        scope = ClusterScopeResult(
+            scope_id="root",
+            leaf_clusters_by_language={"python": cluster_result},
+            groups=[
+                ClusterGroup(group_id="1", cluster_ids=[1]),
+                ClusterGroup(group_id="2", cluster_ids=[2]),
+            ],
+        )
+
+        self.assertEqual(scope.group_names(), ["Group 1", "Group 2"])
+        self.assertEqual(scope.group_ids(), {"Group 1": [1], "Group 2": [2]})
+        self.assertEqual(
+            scope.llm_str(),
+            "# Grouped Cluster Components\n"
+            "**Group 1** (cluster_ids: [1])\n"
+            "   1 leaf clusters, 2 symbols across 1 files. Files: service.py "
+            "Key symbols: entrypoint, pkg.Service.run\n"
+            "**Group 2** (cluster_ids: [2])\n"
+            "   1 leaf clusters, 1 symbols across 1 files. Files: repository.py "
+            "Key symbols: pkg.Repository.load",
+        )
+
     def test_grouping_matches_the_existing_supercluster_result(self):
         graph = graph_for("python", ["a", "b", "c"], [("a", "b"), ("b", "c")])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}})
@@ -49,6 +78,7 @@ class TestClusteringScope(unittest.TestCase):
             {"python": graph}, leaf_clusters_by_language={"python": cluster_result}
         )
 
+        self.assertIs(result.graphs_by_language["python"], graph)
         self.assertEqual(
             sorted(sorted(group.cluster_ids) for group in result.groups),
             sorted(sorted(group) for group in expected),

@@ -7,13 +7,11 @@ from langchain_core.language_models import BaseChatModel
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
-    ClusterAnalysis,
     ComponentApiSurfaces,
     ComponentArchitecture,
     ComponentRelations,
     Component,
     MetaAnalysisInsights,
-    assign_component_ids,
     assign_relation_ids,
 )
 from agents.prompts import (
@@ -34,8 +32,6 @@ from agents.validation import (
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cfg import CallGraph
-from static_analyzer.config import Language
 from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 
 logger = logging.getLogger(__name__)
@@ -79,31 +75,27 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         }
 
     @trace
-    def step_final_analysis(
+    def step_llm_analysis(
         self,
         component: Component,
-        cluster_analysis: ClusterAnalysis,
-        subgraph_cluster_results: dict[str, ClusterResult],
-        subgraph_cfgs: dict[str, CallGraph],
+        scope: ClusterScopeResult,
     ) -> AnalysisInsights:
         """
         Generate detailed final analysis from grouped clusters.
 
         Args:
             component: The component being analyzed
-            cluster_analysis: The precomputed clustered structure
-            subgraph_cluster_results: Cluster results for the subgraph (for validation)
+            scope: The precomputed clustered structure
 
         Returns:
             AnalysisInsights with detailed component information
         """
         logger.info(f"[DetailsAgent] Generating final detailed analysis for: {component.name}")
-        cluster_str = cluster_analysis.llm_str() if cluster_analysis else "No cluster analysis available."
-
-        group_names = [cc.name for cc in cluster_analysis.cluster_components] if cluster_analysis else []
+        subgraph_cluster_results = scope.leaf_clusters_by_language
+        group_names = scope.group_names()
 
         prompt = self.prompts["final_analysis"].format(
-            cluster_analysis=cluster_str,
+            cluster_analysis=scope.llm_str(),
             component=component.llm_str(),
         )
 
@@ -113,14 +105,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 f"Every one of these names: {group_names} must appear in exactly one component's source_group_names\n"
             )
 
-        self.toolkit.context.cluster_analysis = cluster_analysis
+        self.toolkit.context.clustering = scope
         self.toolkit.context.cluster_results = subgraph_cluster_results
-        self.toolkit.context.cfg_graphs = subgraph_cfgs
+        self.toolkit.context.cfg_graphs = scope.graphs_by_language
 
         context = ValidationContext(
             cluster_results=subgraph_cluster_results,
             static_analysis=self.static_analysis,
-            llm_cluster_analysis=cluster_analysis,
+            clustering=scope,
         )
 
         architecture = self._invoke_repair_validate(
@@ -134,12 +126,12 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             repair_context=ComponentRepairContext(
                 reference_resolver=self.reference_resolver,
                 cluster_results=subgraph_cluster_results,
-                llm_cluster_analysis=cluster_analysis,
+                clustering=scope,
             ),
             validation_context=context,
             max_validation_attempts=3,
         )
-        self.assemble_one_component_per_group(architecture, cluster_analysis, subgraph_cluster_results)
+        self.assemble_one_component_per_group(architecture, scope)
         result = AnalysisInsights(
             description=architecture.description,
             components=architecture.components,
@@ -162,14 +154,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self,
         analysis: AnalysisInsights,
         api_surfaces: ComponentApiSurfaces,
-        cluster_analysis: ClusterAnalysis,
-        cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph],
+        scope: ClusterScopeResult,
         source_cluster_id_prefix: str,
     ) -> None:
         logger.info(f"[DetailsAgent] Discovering component relations for: {self.project_name}")
+        cluster_results = scope.leaf_clusters_by_language
+        cfg_graphs = scope.graphs_by_language
         static_call_evidence = self.build_scope_cfg_string(analysis)
-        self.toolkit.context.cluster_analysis = cluster_analysis
+        self.toolkit.context.clustering = scope
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(
@@ -186,7 +178,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 cfg_graphs=cfg_graphs,
                 repo_dir=str(self.repo_dir),
                 static_analysis=self.static_analysis,
-                llm_cluster_analysis=cluster_analysis,
+                clustering=scope,
                 components=analysis.components,
             ),
             max_validation_attempts=3,
@@ -202,32 +194,17 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
     ) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
         """Name and analyze one precomputed component scope."""
         logger.info(f"[DetailsAgent] Processing precomputed component: {component.name}")
-        subgraph_cfgs: dict[str, CallGraph] = {}
-        for language, partition in scope.leaf_clusters_by_language.items():
-            assigned_qnames = {
-                qualified_name
-                for group in scope.groups
-                for qualified_name in group.symbol_members_by_language.get(language, set())
-            } or {qualified_name for cluster in partition.clusters.values() for qualified_name in cluster}
-            subgraph = self.static_analysis.get_cfg(Language(language)).filter_by_nodes(assigned_qnames)
-            if subgraph.nodes:
-                subgraph_cfgs[language] = subgraph
-
-        cluster_analysis = self.cluster_analysis_from_scope(scope)
         subgraph_cluster_results = scope.leaf_clusters_by_language
-        analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results, subgraph_cfgs)
+        analysis = self.step_llm_analysis(component, scope)
 
-        assign_component_ids(analysis, parent_id=component.component_id)
-        self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
-        self.populate_file_methods(analysis, subgraph_cluster_results, subgraph_cfgs)
+        self._resolve_cluster_ids_from_groups(analysis, scope)
+        self.populate_file_methods(analysis, subgraph_cluster_results, scope.graphs_by_language)
 
         api_surfaces = self.step_api_surfaces(analysis)
         self.step_relation_analysis(
             analysis,
             api_surfaces,
-            cluster_analysis,
-            subgraph_cluster_results,
-            subgraph_cfgs,
+            scope,
             component.component_id,
         )
 

@@ -98,9 +98,6 @@ def run_partial(
         )
 
     depth_level = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_LEVEL)))
-    generator = build_generator(run_paths, run_context, depth_level=depth_level)
-    generator.prepare_analysis(hierarchy_depth=depth_level + 1)
-
     full_analysis = load_full_analysis(run_paths.output_dir)
     if full_analysis is None:
         # Metadata was present but the unified read failed — treat as a
@@ -130,6 +127,9 @@ def run_partial(
     if component_to_analyze is None:
         logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
+
+    generator = build_generator(run_paths, run_context, depth_level=depth_level)
+    generator.prepare_analysis(hierarchy_depth=depth_level + 1, target_component=component_to_analyze)
 
     _, sub_analysis, _ = generator.process_component(component_to_analyze)
     if sub_analysis is None:

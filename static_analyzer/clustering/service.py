@@ -146,6 +146,7 @@ class ClusteringService:
         connections = self._build_connections(graphs, groups)
         return ClusterScopeResult(
             scope_id=scope_id,
+            graphs_by_language=dict(graphs),
             leaf_clusters_by_language=scope_leaf_clusters,
             groups=groups,
             connections=connections,
@@ -159,21 +160,25 @@ class ClusteringService:
         graphs: Mapping[str, CallGraph],
         max_depth: int,
         scope_input: Callable[[ScopeId, Mapping[str, CallGraph]], ClusterScopeInput] = _unseeded_scope,
+        root_scope_id: ScopeId = _ROOT_SCOPE_ID,
     ) -> ClusterScopeResult:
         """Recursively cluster every expandable exact subgraph up to ``max_depth``."""
         if max_depth < 1:
             raise ValueError("max_depth must be at least 1")
-        root_input = scope_input(_ROOT_SCOPE_ID, graphs)
+        root_input = scope_input(root_scope_id, graphs)
         root = self.cluster_scope(
             graphs,
+            scope_id=root_scope_id,
             leaf_clusters_by_language=root_input.leaf_clusters_by_language,
             previous_owner=root_input.previous_owner,
+            method_level_fallback=root_scope_id != _ROOT_SCOPE_ID,
         )
         self._cluster_children(root, graphs, 1, max_depth, scope_input)
+        root.index_hierarchy()
         return root
 
     @staticmethod
-    def induced_graphs(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> dict[str, CallGraph]:
+    def _induced_graphs(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> dict[str, CallGraph]:
         """Return the exact per-language subgraphs owned by ``group``."""
         child_graphs: dict[str, CallGraph] = {}
         for language, graph in graphs.items():
@@ -194,7 +199,7 @@ class ClusteringService:
         scope_input: Callable[[ScopeId, Mapping[str, CallGraph]], ClusterScopeInput],
     ) -> None:
         for group in scope.groups:
-            child_graphs = self.induced_graphs(group, graphs)
+            child_graphs = self._induced_graphs(group, graphs)
             method_count, file_count = self._scope_size(child_graphs)
             if not child_graphs or not file_count:
                 continue

@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
-from static_analyzer.cfg.edge import CallSiteLocation
+from static_analyzer.cfg import CallGraph, CallSiteLocation
 from static_analyzer.node import Node
 
 # Marker on a ClusterResult whose clusters are synthetic one-method-per-cluster
@@ -130,9 +131,117 @@ class ClusterScopeResult:
     """The leaf clusters, architectural groups, and communication for one graph scope."""
 
     scope_id: ScopeId
+    graphs_by_language: dict[str, CallGraph] = field(default_factory=dict)
     leaf_clusters_by_language: dict[str, ClusterResult] = field(default_factory=dict)
     groups: list[ClusterGroup] = field(default_factory=list)
     connections: list[GroupConnection] = field(default_factory=list)
     modularity: float = 0.0  # Score of the actual groups, including ownership anchors.
     unanchored_modularity: float = 0.0  # Best score without previous ownership anchors.
     regrouped: bool = False
+    clustering_groups: dict[GroupId, ClusterGroup] = field(default_factory=dict, init=False, repr=False)
+    preclustered_scopes: dict[GroupId, ClusterScopeResult] = field(default_factory=dict, init=False, repr=False)
+
+    def group_names(self) -> list[str]:
+        return [f"Group {index}" for index, _group in enumerate(self.groups, start=1)]
+
+    def group_ids(self) -> dict[str, list[ClusterId]]:
+        return {name: group.cluster_ids for name, group in zip(self.group_names(), self.groups, strict=True)}
+
+    def group_descriptions(self) -> dict[str, str]:
+        clusters: dict[ClusterId, set[str]] = {}
+        cluster_to_files: dict[ClusterId, set[str]] = {}
+        for result in self.leaf_clusters_by_language.values():
+            clusters.update(result.clusters)
+            cluster_to_files.update(result.cluster_to_files)
+        return {
+            name: self._group_summary(set(group.cluster_ids), clusters, cluster_to_files)
+            for name, group in zip(self.group_names(), self.groups, strict=True)
+        }
+
+    def llm_str(self) -> str:
+        descriptions = self.group_descriptions()
+        if not descriptions:
+            return "No clusters analyzed."
+        body = "\n".join(
+            f"**{name}** (cluster_ids: [{', '.join(str(cluster_id) for cluster_id in cluster_ids)}])\n"
+            f"   {descriptions[name]}"
+            for name, cluster_ids in self.group_ids().items()
+        )
+        return f"# Grouped Cluster Components\n{body}"
+
+    def index_hierarchy(self) -> None:
+        """Index all groups and retained child scopes in this hierarchy."""
+        self.clustering_groups.clear()
+        self.preclustered_scopes.clear()
+
+        def visit(scope: ClusterScopeResult) -> None:
+            for group in scope.groups:
+                self.clustering_groups[group.group_id] = group
+                if group.children is None:
+                    continue
+                self.preclustered_scopes[group.group_id] = group.children
+                visit(group.children)
+
+        visit(self)
+
+    def register_scope(self, owner_id: GroupId, scope: ClusterScopeResult) -> None:
+        """Register an exact component scope and its retained descendants."""
+        scope.index_hierarchy()
+        self.preclustered_scopes[owner_id] = scope
+        self.clustering_groups.update(scope.clustering_groups)
+        self.preclustered_scopes.update(scope.preclustered_scopes)
+
+    def reroot_indexes(self, absorbed_ids: list[GroupId]) -> None:
+        """Keep hierarchy lookups aligned with save-time single-child absorption."""
+        for child_id in absorbed_ids:
+            parent_id = child_id.rpartition(".")[0]
+            prefix = f"{child_id}."
+            rerooted_groups: dict[GroupId, ClusterGroup] = {}
+            for group_id, group in self.clustering_groups.items():
+                if group_id == child_id:
+                    continue
+                if group_id.startswith(prefix):
+                    tail = group_id.removeprefix(prefix)
+                    group_id = f"{parent_id}.{tail}" if parent_id else tail
+                    group.group_id = group_id
+                rerooted_groups[group_id] = group
+            self.clustering_groups = rerooted_groups
+
+            rerooted_scopes: dict[GroupId, ClusterScopeResult] = {}
+            for group_id, scope in self.preclustered_scopes.items():
+                if group_id == child_id:
+                    continue
+                if group_id.startswith(prefix):
+                    tail = group_id.removeprefix(prefix)
+                    group_id = f"{parent_id}.{tail}" if parent_id else tail
+                    scope.scope_id = group_id
+                rerooted_scopes[group_id] = scope
+            self.preclustered_scopes = rerooted_scopes
+
+    def __post_init__(self) -> None:
+        self.index_hierarchy()
+
+    @staticmethod
+    def _group_summary(
+        group: set[ClusterId],
+        node_lookup: dict[ClusterId, set[str]],
+        file_lookup: dict[ClusterId, set[str]],
+        max_symbols: int = 12,
+        max_files: int = 8,
+    ) -> str:
+        """Build a deterministic, name-rich group summary."""
+        symbols = sorted(
+            {qualified_name for cluster_id in group for qualified_name in node_lookup.get(cluster_id, set())},
+            key=lambda qualified_name: (qualified_name.count("."), qualified_name),
+        )
+        files = sorted({path for cluster_id in group for path in file_lookup.get(cluster_id, set())})
+        file_names = [Path(path).name for path in files]
+
+        parts = [f"{len(group)} leaf clusters, {len(symbols)} symbols across {len(files)} files."]
+        if file_names:
+            shown = ", ".join(file_names[:max_files])
+            parts.append(f"Files: {shown}{', ...' if len(file_names) > max_files else ''}")
+        if symbols:
+            shown = ", ".join(symbols[:max_symbols])
+            parts.append(f"Key symbols: {shown}{', ...' if len(symbols) > max_symbols else ''}")
+        return " ".join(parts)

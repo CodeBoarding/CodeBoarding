@@ -18,9 +18,9 @@ def build_clustering_hierarchy(static_analysis: StaticAnalysisResults, max_depth
     root_partitions = build_all_cluster_results(static_analysis)
 
     def scope_input(scope_id: str, _graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
-        return (
-            ClusterScopeInput(leaf_clusters_by_language=root_partitions) if scope_id == "root" else ClusterScopeInput()
-        )
+        if scope_id == "root":
+            return ClusterScopeInput(leaf_clusters_by_language=root_partitions)
+        return ClusterScopeInput()
 
     hierarchy = ClusteringService().cluster_hierarchy(
         static_analysis.available_cfgs(),

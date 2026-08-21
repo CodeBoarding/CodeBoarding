@@ -194,7 +194,7 @@ class TestFindNearestCluster(unittest.TestCase):
         # C is distance-1 from D (cluster 2) and distance-1 from B (cluster 1).
         # Both clusters have a member at distance 1, so the first one found wins
         # (deterministic dict order).
-        result = mixin._find_nearest_cluster("C", cluster_results, undirected_graphs)
+        result = mixin._find_nearest_cluster("python", "C", cluster_results, undirected_graphs)
         self.assertIn(result, {1, 2})
 
     def test_returns_none_for_disconnected_node(self):
@@ -207,7 +207,7 @@ class TestFindNearestCluster(unittest.TestCase):
         mixin = self._make_mixin(cfg)
 
         undirected_graphs = mixin._build_undirected_graphs(cluster_results)
-        result = mixin._find_nearest_cluster("Z", cluster_results, undirected_graphs)
+        result = mixin._find_nearest_cluster("python", "Z", cluster_results, undirected_graphs)
         self.assertIsNone(result)
 
     def test_returns_none_when_node_not_in_graph(self):
@@ -218,7 +218,7 @@ class TestFindNearestCluster(unittest.TestCase):
         mixin = self._make_mixin(cfg)
 
         undirected_graphs = mixin._build_undirected_graphs(cluster_results)
-        result = mixin._find_nearest_cluster("NONEXISTENT", cluster_results, undirected_graphs)
+        result = mixin._find_nearest_cluster("python", "NONEXISTENT", cluster_results, undirected_graphs)
         self.assertIsNone(result)
 
     def test_node_inside_cluster_returns_own_cluster(self):
@@ -229,7 +229,7 @@ class TestFindNearestCluster(unittest.TestCase):
         mixin = self._make_mixin(cfg)
 
         undirected_graphs = mixin._build_undirected_graphs(cluster_results)
-        result = mixin._find_nearest_cluster("A", cluster_results, undirected_graphs)
+        result = mixin._find_nearest_cluster("python", "A", cluster_results, undirected_graphs)
         self.assertEqual(result, 1)
 
     def test_prefers_closer_cluster(self):
@@ -256,7 +256,7 @@ class TestFindNearestCluster(unittest.TestCase):
         mixin = self._make_mixin(cfg)
 
         undirected_graphs = mixin._build_undirected_graphs(cluster_results)
-        result = mixin._find_nearest_cluster("W", cluster_results, undirected_graphs)
+        result = mixin._find_nearest_cluster("python", "W", cluster_results, undirected_graphs)
         self.assertEqual(result, 10)
 
 

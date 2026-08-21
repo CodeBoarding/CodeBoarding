@@ -6,8 +6,6 @@ import networkx as nx
 
 from agents.agent_responses import (
     AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
     Component,
     ComponentArchitecture,
 )
@@ -49,33 +47,16 @@ from static_analyzer.node import Node
 logger = logging.getLogger(__name__)
 
 
-def _summarize_group(
-    group: set[int],
+def _fallback_component(
+    group_name: str,
+    cluster_ids: list[int],
+    description: str,
     node_lookup: dict[int, set[str]],
-    file_lookup: dict[int, set[str]],
-    max_symbols: int = 12,
-    max_files: int = 8,
-) -> str:
-    """A deterministic, name-rich blurb so the LLM can name a group without re-clustering."""
-    symbols = group_symbols(sorted(group), node_lookup)
-    files = sorted({path for cid in group for path in file_lookup.get(cid, set())})
-    file_names = [Path(path).name for path in files]
-
-    parts = [f"{len(group)} leaf clusters, {len(symbols)} symbols across {len(files)} files."]
-    if file_names:
-        shown = ", ".join(file_names[:max_files])
-        parts.append(f"Files: {shown}{', ...' if len(file_names) > max_files else ''}")
-    if symbols:
-        shown = ", ".join(symbols[:max_symbols])
-        parts.append(f"Key symbols: {shown}{', ...' if len(symbols) > max_symbols else ''}")
-    return " ".join(parts)
-
-
-def _fallback_component(group: ClustersComponent, node_lookup: dict[int, set[str]]) -> Component:
+) -> Component:
     """Deterministic component for a group the LLM failed to name (merged/dropped it)."""
-    symbols = group_symbols(group.cluster_ids, node_lookup)
-    name = symbols[0].split(".")[-1] if symbols else group.name
-    return Component(name=name, description=group.description, key_entities=[])
+    symbols = group_symbols(cluster_ids, node_lookup)
+    name = symbols[0].split(".")[-1] if symbols else group_name
+    return Component(name=name, description=description, key_entities=[])
 
 
 def scoped_snapshot_from_lineage(
@@ -118,29 +99,9 @@ class ClusterMethodsMixin:
     static_analysis: StaticAnalysisResults
 
     @staticmethod
-    def cluster_analysis_from_scope(scope: ClusterScopeResult) -> ClusterAnalysis:
-        """Adapt a precomputed structural scope to the agents' naming prompt."""
-        combined = combine_cluster_results(scope.leaf_clusters_by_language)
-        return ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name=f"Group {index}",
-                    cluster_ids=group.cluster_ids,
-                    description=_summarize_group(
-                        set(group.cluster_ids),
-                        combined.clusters,
-                        combined.cluster_to_files,
-                    ),
-                )
-                for index, group in enumerate(scope.groups, start=1)
-            ]
-        )
-
-    @staticmethod
     def assemble_one_component_per_group(
         architecture: ComponentArchitecture,
-        cluster_analysis: ClusterAnalysis,
-        cluster_results: dict[str, ClusterResult],
+        scope: ClusterScopeResult,
     ) -> None:
         """Force exactly one component per fixed group — the count is Leiden's, not the LLM's.
 
@@ -150,7 +111,9 @@ class ClusterMethodsMixin:
         keeps its name/description/key_entities; any group the LLM merged away or
         dropped gets a deterministic fallback so the count never drifts.
         """
-        node_lookup = combine_cluster_results(cluster_results).clusters
+        node_lookup = combine_cluster_results(scope.leaf_clusters_by_language).clusters
+        group_ids = scope.group_ids()
+        descriptions = scope.group_descriptions()
         claimant: dict[str, Component] = {}
         for comp in architecture.components:
             for group_name in comp.source_group_names:
@@ -158,14 +121,21 @@ class ClusterMethodsMixin:
 
         used: set[int] = set()
         final: list[Component] = []
-        for group in cluster_analysis.cluster_components:
-            comp = claimant.get(group.name.lower())
+        for group_name, group in zip(group_ids, scope.groups, strict=True):
+            cluster_ids = group_ids[group_name]
+            comp = claimant.get(group_name.lower())
             if comp is None or id(comp) in used:
-                comp = _fallback_component(group, node_lookup)
+                comp = _fallback_component(
+                    group_name,
+                    cluster_ids,
+                    descriptions[group_name],
+                    node_lookup,
+                )
             else:
                 used.add(id(comp))
                 comp = comp.model_copy(deep=True)
-            comp.source_group_names = [group.name]
+            comp.source_group_names = [group_name]
+            comp.component_id = group.group_id
             final.append(comp)
 
         if len(final) != len(architecture.components):
@@ -224,10 +194,10 @@ class ClusterMethodsMixin:
 
             component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
 
-    def _resolve_cluster_ids_from_groups(self, analysis: AnalysisInsights, cluster_analysis: ClusterAnalysis) -> None:
+    def _resolve_cluster_ids_from_groups(self, analysis: AnalysisInsights, scope: ClusterScopeResult) -> None:
         """Resolve source_cluster_ids deterministically from source_group_names via case-insensitive lookup."""
         group_name_to_ids: dict[str, list[ClusterId]] = {
-            cc.name.lower(): cc.cluster_ids for cc in cluster_analysis.cluster_components
+            name.lower(): cluster_ids for name, cluster_ids in scope.group_ids().items()
         }
 
         for component in analysis.components:
@@ -351,8 +321,8 @@ class ClusterMethodsMixin:
         self,
         cluster_results: dict[str, ClusterResult],
         cfg_graphs: dict[str, CallGraph] | None = None,
-    ) -> dict[str, Node]:
-        """Build a lookup of qualified_name -> Node for all languages present in cluster_results.
+    ) -> dict[tuple[str, str], Node]:
+        """Build a language-qualified node lookup for all clustered languages.
 
         Args:
             cluster_results: Language -> ClusterResult mapping (used to determine languages).
@@ -360,12 +330,12 @@ class ClusterMethodsMixin:
                         When provided (e.g. subgraph from DetailsAgent), only nodes
                         from these graphs are included, preventing scope leakage.
         """
-        all_nodes: dict[str, Node] = {}
+        all_nodes: dict[tuple[str, str], Node] = {}
         for lang in cluster_results:
             cfg = (
                 cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(Language(lang))
             )
-            all_nodes.update(cfg.nodes)
+            all_nodes.update({(lang, qualified_name): node for qualified_name, node in cfg.nodes.items()})
         return all_nodes
 
     def _build_undirected_graphs(
@@ -392,6 +362,7 @@ class ClusterMethodsMixin:
 
     def _find_nearest_cluster(
         self,
+        language: str,
         node_name: str,
         cluster_results: dict[str, ClusterResult],
         undirected_graphs: dict[str, nx.Graph],
@@ -410,22 +381,22 @@ class ClusterMethodsMixin:
         best_cluster: int | None = None
         best_dist = float("inf")
 
-        for lang, cr in cluster_results.items():
-            nx_graph = undirected_graphs.get(lang)
-            if nx_graph is None or node_name not in nx_graph:
-                continue
+        cluster_result = cluster_results.get(language)
+        nx_graph = undirected_graphs.get(language)
+        if cluster_result is None or nx_graph is None or node_name not in nx_graph:
+            return None
 
-            try:
-                distances = nx.single_source_shortest_path_length(nx_graph, node_name)
-            except nx.NetworkXError:
-                continue
+        try:
+            distances = nx.single_source_shortest_path_length(nx_graph, node_name)
+        except nx.NetworkXError:
+            return None
 
-            for cluster_id, members in cr.clusters.items():
-                for member in members:
-                    d = distances.get(member)
-                    if d is not None and d < best_dist:
-                        best_dist = d
-                        best_cluster = cluster_id
+        for cluster_id, members in cluster_result.clusters.items():
+            for member in members:
+                distance = distances.get(member)
+                if distance is not None and distance < best_dist:
+                    best_dist = distance
+                    best_cluster = cluster_id
 
         return best_cluster
 
@@ -495,18 +466,18 @@ class ClusterMethodsMixin:
 
     def _build_node_to_cluster_map(
         self, cluster_results: dict[str, ClusterResult], source_cluster_id_prefix: str = ""
-    ) -> tuple[dict[str, ComponentId], set[ComponentId]]:
-        """Build node_name (qualified name) -> cluster_id mapping and collect all cluster IDs."""
+    ) -> tuple[dict[tuple[str, str], ComponentId], set[ComponentId]]:
+        """Build language-qualified node-to-cluster membership and collect all cluster IDs."""
         all_cluster_ids: set[ComponentId] = set()
-        node_to_cluster: dict[str, ComponentId] = {}
-        for cr in cluster_results.values():
+        node_to_cluster: dict[tuple[str, str], ComponentId] = {}
+        for language, cr in cluster_results.items():
             for cid, members in cr.clusters.items():
                 cluster_id = CodeBoardingClusterIds.qualify_local_id(
                     CodeBoardingClusterIds.from_graph_id(cid), source_cluster_id_prefix
                 )
                 all_cluster_ids.add(cluster_id)
                 for name in members:
-                    node_to_cluster[name] = cluster_id
+                    node_to_cluster[(language, name)] = cluster_id
         return node_to_cluster, all_cluster_ids
 
     def _validate_cluster_coverage(
@@ -523,6 +494,7 @@ class ClusterMethodsMixin:
 
     def _find_component_by_file(
         self,
+        language: str,
         node: Node,
         cluster_results: dict[str, ClusterResult],
         cluster_to_component: dict[str, Component],
@@ -532,21 +504,21 @@ class ClusterMethodsMixin:
         file_path = node.file_path
         if not file_path:
             return None
-        for cr in cluster_results.values():
-            cluster_ids = cr.get_clusters_for_file(file_path)
-            for cid in cluster_ids:
-                cluster_id = CodeBoardingClusterIds.qualify_local_id(
-                    CodeBoardingClusterIds.from_graph_id(cid), source_cluster_id_prefix
-                )
-                comp = cluster_to_component.get(cluster_id)
-                if comp is not None:
-                    return comp
+        cluster_result = cluster_results[language]
+        cluster_ids = cluster_result.get_clusters_for_file(file_path)
+        for cid in cluster_ids:
+            cluster_id = CodeBoardingClusterIds.qualify_local_id(
+                CodeBoardingClusterIds.from_graph_id(cid), source_cluster_id_prefix
+            )
+            comp = cluster_to_component.get(cluster_id)
+            if comp is not None:
+                return comp
         return None
 
     def _assign_nodes_to_components(
         self,
-        all_nodes: dict[str, Node],
-        node_to_cluster: dict[str, str],
+        all_nodes: dict[tuple[str, str], Node],
+        node_to_cluster: dict[tuple[str, str], str],
         cluster_to_component: dict[str, Component],
         cluster_results: dict[str, ClusterResult],
         fallback_component: Component,
@@ -555,14 +527,14 @@ class ClusterMethodsMixin:
     ) -> dict[str, list[Node]]:
         """Assign every node to a component via its cluster, file co-location, graph distance, or fallback."""
         component_nodes: dict[str, list[Node]] = defaultdict(list)
-        unassigned: list[str] = []
+        unassigned: list[tuple[str, str]] = []
 
-        for qname, node in all_nodes.items():
-            cid = node_to_cluster.get(qname)
+        for node_key, node in all_nodes.items():
+            cid = node_to_cluster.get(node_key)
             if cid is not None and cid in cluster_to_component:
                 component_nodes[cluster_to_component[cid].component_id].append(node)
             else:
-                unassigned.append(qname)
+                unassigned.append(node_key)
 
         if unassigned:
             logger.info(f"Assigning {len(unassigned)} orphan node(s)")
@@ -575,18 +547,24 @@ class ClusterMethodsMixin:
         # Pre-build undirected graphs once for all orphan lookups
         undirected_graphs = self._build_undirected_graphs(cluster_results, cfg_graphs) if unassigned else {}
 
-        for qname in unassigned:
-            node = all_nodes[qname]
+        for language, qname in unassigned:
+            node = all_nodes[(language, qname)]
 
             # 1. Try file co-location: if the node's file already belongs to a cluster/component
-            comp = self._find_component_by_file(node, cluster_results, cluster_to_component, source_cluster_id_prefix)
+            comp = self._find_component_by_file(
+                language,
+                node,
+                cluster_results,
+                cluster_to_component,
+                source_cluster_id_prefix,
+            )
             if comp is not None:
                 assigned_by_file += 1
                 component_nodes[comp.component_id].append(node)
                 continue
 
             # 2. Try graph distance: find the nearest cluster in the call graph
-            nearest_cid = self._find_nearest_cluster(qname, cluster_results, undirected_graphs)
+            nearest_cid = self._find_nearest_cluster(language, qname, cluster_results, undirected_graphs)
             nearest_cluster_id = (
                 CodeBoardingClusterIds.qualify_local_id(
                     CodeBoardingClusterIds.from_graph_id(nearest_cid), source_cluster_id_prefix

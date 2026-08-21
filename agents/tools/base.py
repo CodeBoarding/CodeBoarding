@@ -8,7 +8,7 @@ from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 
 
 class RepoContext(BaseModel):
@@ -20,7 +20,7 @@ class RepoContext(BaseModel):
     ignore_manager: RepoIgnoreManager
     static_analysis: Optional[StaticAnalysisResults] = None
     changes: ChangeSet | None = None
-    cluster_analysis: ClusterAnalysis = Field(default_factory=lambda: ClusterAnalysis(cluster_components=[]))
+    clustering: ClusterScopeResult | ClusterAnalysis = Field(default_factory=lambda: ClusterScopeResult(scope_id=""))
     cluster_results: dict[str, ClusterResult] = Field(default_factory=dict)
     cfg_graphs: dict[str, CallGraph] = Field(default_factory=dict)
     # Shared caches to prevent redundant filesystem walks

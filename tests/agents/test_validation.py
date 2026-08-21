@@ -14,8 +14,6 @@ from agents.validation import (
     validate_relations,
 )
 from agents.agent_responses import (
-    ClusterAnalysis,
-    ClustersComponent,
     AnalysisInsights,
     Component,
     Relation,
@@ -25,7 +23,7 @@ from agents.agent_responses import (
     FileClassification,
 )
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 from static_analyzer.node import Node
 from static_analyzer.config import NodeType
 
@@ -341,24 +339,26 @@ class TestValidateRelationEvidence(unittest.TestCase):
             cluster_to_files={},
             strategy="test",
         )
-        cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="GroupA", cluster_ids=[1], description="A"),
-                ClustersComponent(name="GroupB", cluster_ids=[2], description="B"),
-            ]
+        scope = ClusterScopeResult(
+            scope_id="root",
+            leaf_clusters_by_language={"python": cluster_result},
+            groups=[
+                ClusterGroup(group_id="1", cluster_ids=[1]),
+                ClusterGroup(group_id="2", cluster_ids=[2]),
+            ],
         )
         return ValidationContext(
             cluster_results={"python": cluster_result},
             cfg_graphs={"python": cfg},
-            llm_cluster_analysis=cluster_analysis,
+            clustering=scope,
         )
 
     def _make_analysis(self, relation: Relation) -> AnalysisInsights:
         return AnalysisInsights(
             description="test",
             components=[
-                Component(name="A", description="A", key_entities=[], source_group_names=["GroupA"]),
-                Component(name="B", description="B", key_entities=[], source_group_names=["GroupB"]),
+                Component(name="A", description="A", key_entities=[], source_group_names=["Group 1"]),
+                Component(name="B", description="B", key_entities=[], source_group_names=["Group 2"]),
             ],
             components_relations=[relation],
         )
@@ -505,8 +505,8 @@ class TestValidateRelationEvidence(unittest.TestCase):
         analysis = AnalysisInsights(
             description="test",
             components=[
-                Component(name="A", description="A", key_entities=[], source_group_names=["GroupA"]),
-                Component(name="B", description="B", key_entities=[], source_group_names=["GroupB"]),
+                Component(name="A", description="A", key_entities=[], source_group_names=["Group 1"]),
+                Component(name="B", description="B", key_entities=[], source_group_names=["Group 2"]),
             ],
             components_relations=[
                 Relation(relation="calls", src_name="A", dst_name="B"),

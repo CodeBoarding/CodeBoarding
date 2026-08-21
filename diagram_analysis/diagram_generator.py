@@ -84,7 +84,7 @@ from static_analyzer.cluster_relations import (
     prune_ungrounded_edges,
 )
 from static_analyzer.config import Language
-from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
+from static_analyzer.clustering import ClusterResult, ClusterScopeResult, ClusteringService
 from static_analyzer.clustering.orchestration import build_clustering_hierarchy
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
@@ -626,8 +626,6 @@ class DiagramGenerator:
         # plus Leiden sweep behind each answer is the expensive part of the
         # deterministic pipeline. Keyed by membership, so a changed component re-runs.
         self._separable_cache: dict[frozenset[tuple[str, str]], bool] = {}
-        self._clustering_groups: dict[str, ClusterGroup] = {}
-        self._preclustered_scopes: dict[str, ClusterScopeResult] = {}
         self._analysis_start_time = time.time()
 
     @track_analysis
@@ -636,38 +634,93 @@ class DiagramGenerator:
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
         return self._process_component(component)
 
-    def _index_clustering_hierarchy(
+    def deterministic_analysis(
         self,
-        hierarchy: ClusterScopeResult,
+        *,
+        hierarchy_depth: int | None = None,
+        target_component: Component | None = None,
     ) -> None:
-        """Index precomputed child scopes by the component IDs agents will assign."""
-        self._clustering_groups.clear()
-        self._preclustered_scopes.clear()
+        """Run source fingerprinting, static analysis, and deterministic clustering."""
+        self._analysis_start_time = time.time()
+        # Fingerprint the whole tree once; source_sha, the sidecar, and every
+        # save's source_tree_hash reuse it instead of re-walking per call.
+        self._source_tree_fingerprint = hash_repo_source_files(self.repo_location)
+        # Compute the source-state tag from live source when a caller didn't
+        # supply one, so the pkl always gets a .sha sibling for the next
+        # warm-start — no caller has to thread source_sha in.
+        if self.source_sha is None:
+            self.source_sha = self._source_tree_hash() or None
 
-        def visit(scope: ClusterScopeResult) -> None:
-            for group in scope.groups:
-                self._clustering_groups[group.group_id] = group
-                if group.children is None:
-                    continue
-                self._preclustered_scopes[group.group_id] = group.children
-                visit(group.children)
+        if self._static_analyzer is not None:
+            logger.info("Using injected StaticAnalyzer (clients already running)")
+            static_analysis = self._get_static_with_injected_analyzer()
+        else:
+            static_analysis = self._get_static_with_new_analyzer()
 
-        visit(hierarchy)
+        self.static_analysis = static_analysis
+        depth = hierarchy_depth if hierarchy_depth is not None else self.depth_level
+        self.clustering_hierarchy = build_clustering_hierarchy(static_analysis, depth)
+        if target_component is not None:
+            self._register_component_scope(target_component, depth)
 
-    def _reroot_clustering_groups(self, absorbed_ids: list[str]) -> None:
-        """Keep precomputed expansion flags aligned with absorbed component IDs."""
-        for child_id in absorbed_ids:
-            parent_id = child_id.rpartition(".")[0]
-            prefix = f"{child_id}."
-            rerooted: dict[str, ClusterGroup] = {}
-            for group_id, group in self._clustering_groups.items():
-                if group_id == child_id:
-                    continue
-                if group_id.startswith(prefix):
-                    tail = group_id.removeprefix(prefix)
-                    group_id = f"{parent_id}.{tail}" if parent_id else tail
-                rerooted[group_id] = group
-            self._clustering_groups = rerooted
+        # --- Capture Static Analysis Stats ---
+        static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
+        scanner = ProjectScanner(self.repo_location)
+        loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
+        for language in static_analysis.get_languages():
+            files = static_analysis.get_source_files(language)
+            static_stats["languages"][language] = {
+                "file_count": len(files),
+                "lines_of_code": loc_by_language.get(language, 0),
+            }
+
+        # Build file coverage data from scanner's all_text_files and analyzed files
+        self.file_coverage_data = self._build_file_coverage(scanner, static_analysis)
+
+        self._run_health_report(static_analysis)
+
+        if self.monitoring_enabled:
+            monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
+            logger.debug(f"Monitoring enabled. Writing stats to {monitoring_dir}")
+
+            # Save code_stats.json
+            code_stats_file = monitoring_dir / "code_stats.json"
+            with open(code_stats_file, "w", encoding="utf-8") as f:
+                json.dump(static_stats, f, indent=2)
+            logger.debug(f"Written code_stats.json to {code_stats_file}")
+
+    def agent_init(self) -> None:
+        """Initialize the LLM-backed agents after deterministic analysis."""
+        assert self.static_analysis is not None
+        agent_llm, parsing_llm = initialize_llms()
+        self._initialize_meta_agent(agent_llm, parsing_llm)
+        assert self.meta_agent is not None
+        meta_context = self.meta_agent.analyze_project_metadata(skip_cache=self.force_full_analysis)
+        self.meta_context = meta_context
+        self._initialize_agents(self.static_analysis, meta_context, agent_llm, parsing_llm)
+
+        if self.monitoring_enabled:
+            monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
+            self.stats_writer = StreamingStatsWriter(
+                monitoring_dir=monitoring_dir,
+                agents_dict=self._monitoring_agents,
+                repo_name=self.project_name or self.repo_name,
+                output_dir=str(self.output_dir),
+                start_time=self._analysis_start_time,
+            )
+
+    def prepare_analysis(
+        self,
+        *,
+        hierarchy_depth: int | None = None,
+        target_component: Component | None = None,
+    ) -> None:
+        """Prepare deterministic inputs, then initialize the analysis agents."""
+        self.deterministic_analysis(
+            hierarchy_depth=hierarchy_depth,
+            target_component=target_component,
+        )
+        self.agent_init()
 
     def _component_separable(self, component: Component) -> bool:
         """Deterministic gate: should this component be split into sub-components?
@@ -733,14 +786,15 @@ class DiagramGenerator:
         if self.details_agent is None:
             return None, None
 
-        if self._clustering_groups:
+        clustering_groups = self.clustering_hierarchy.clustering_groups if self.clustering_hierarchy else {}
+        if clustering_groups:
 
             def precomputed_ids(scope: AnalysisInsights) -> list[str]:
                 return [
                     component.component_id
                     for component in scope.components
                     if component.component_id
-                    and (group := self._clustering_groups.get(component.component_id)) is not None
+                    and (group := clustering_groups.get(component.component_id)) is not None
                     and group.expandable
                 ]
 
@@ -780,11 +834,12 @@ class DiagramGenerator:
         try:
             assert self.details_agent is not None
 
-            scope = self._preclustered_scopes.get(component.component_id)
+            preclustered_scopes = self.clustering_hierarchy.preclustered_scopes if self.clustering_hierarchy else {}
+            scope = preclustered_scopes.get(component.component_id)
             if scope is None:
                 raise ValueError(f"No precomputed clustering scope for component {component.component_id}")
             analysis, _ = self.details_agent.run(scope, component)
-            new_components = [child for child in analysis.components if child.component_id in self._preclustered_scopes]
+            new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
         except LLMAuthError:
@@ -1001,97 +1056,38 @@ class DiagramGenerator:
             }
         )
 
-    def deterministic_analysis(
-        self,
-        *,
-        include_clustering: bool = True,
-        hierarchy_depth: int | None = None,
-    ) -> None:
-        """Run source fingerprinting, static analysis, and deterministic clustering."""
-        self._analysis_start_time = time.time()
-        # Fingerprint the whole tree once; source_sha, the sidecar, and every
-        # save's source_tree_hash reuse it instead of re-walking per call.
-        self._source_tree_fingerprint = hash_repo_source_files(self.repo_location)
-        # Compute the source-state tag from live source when a caller didn't
-        # supply one, so the pkl always gets a .sha sibling for the next
-        # warm-start — no caller has to thread source_sha in.
-        if self.source_sha is None:
-            self.source_sha = self._source_tree_hash() or None
-
-        if self._static_analyzer is not None:
-            logger.info("Using injected StaticAnalyzer (clients already running)")
-            static_analysis = self._get_static_with_injected_analyzer()
-        else:
-            static_analysis = self._get_static_with_new_analyzer()
-
-        self.static_analysis = static_analysis
-        self.clustering_hierarchy = None
-        self._clustering_groups.clear()
-        self._preclustered_scopes.clear()
-        if include_clustering:
-            depth = hierarchy_depth if hierarchy_depth is not None else self.depth_level
-            hierarchy = build_clustering_hierarchy(static_analysis, depth)
-            self.clustering_hierarchy = hierarchy
-            self._index_clustering_hierarchy(hierarchy)
-
-        # --- Capture Static Analysis Stats ---
-        static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
-        scanner = ProjectScanner(self.repo_location)
-        loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
-        for language in static_analysis.get_languages():
-            files = static_analysis.get_source_files(language)
-            static_stats["languages"][language] = {
-                "file_count": len(files),
-                "lines_of_code": loc_by_language.get(language, 0),
-            }
-
-        # Build file coverage data from scanner's all_text_files and analyzed files
-        self.file_coverage_data = self._build_file_coverage(scanner, static_analysis)
-
-        self._run_health_report(static_analysis)
-
-        if self.monitoring_enabled:
-            monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
-            logger.debug(f"Monitoring enabled. Writing stats to {monitoring_dir}")
-
-            # Save code_stats.json
-            code_stats_file = monitoring_dir / "code_stats.json"
-            with open(code_stats_file, "w", encoding="utf-8") as f:
-                json.dump(static_stats, f, indent=2)
-            logger.debug(f"Written code_stats.json to {code_stats_file}")
-
-    def agent_init(self) -> None:
-        """Initialize the LLM-backed agents after deterministic analysis."""
+    def _register_component_scope(self, component: Component, hierarchy_depth: int) -> None:
+        """Precompute an exact hierarchy rooted at one persisted component ID."""
         assert self.static_analysis is not None
-        agent_llm, parsing_llm = initialize_llms()
-        self._initialize_meta_agent(agent_llm, parsing_llm)
-        assert self.meta_agent is not None
-        meta_context = self.meta_agent.analyze_project_metadata(skip_cache=self.force_full_analysis)
-        self.meta_context = meta_context
-        self._initialize_agents(self.static_analysis, meta_context, agent_llm, parsing_llm)
-
-        if self.monitoring_enabled:
-            monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
-            self.stats_writer = StreamingStatsWriter(
-                monitoring_dir=monitoring_dir,
-                agents_dict=self._monitoring_agents,
-                repo_name=self.project_name or self.repo_name,
-                output_dir=str(self.output_dir),
-                start_time=self._analysis_start_time,
+        assert self.clustering_hierarchy is not None
+        member_keys = {
+            (normalize_repo_path(file_path, self.repo_location), qualified_name)
+            for file_path, qualified_name in _member_keys(component)
+        }
+        graphs: dict[str, CallGraph] = {}
+        for language, graph in self.static_analysis.available_cfgs().items():
+            owned_names = {
+                qualified_name
+                for qualified_name, node in graph.nodes.items()
+                if (normalize_repo_path(node.file_path, self.repo_location), qualified_name) in member_keys
+            }
+            if not owned_names:
+                continue
+            scoped_graph = graph.filter_by_nodes(owned_names)
+            if scoped_graph.nodes:
+                graphs[language] = scoped_graph
+        if not graphs:
+            raise ValueError(
+                f"Cannot build clustering scope for component {component.component_id}: no owned CFG nodes"
             )
 
-    def prepare_analysis(
-        self,
-        *,
-        include_clustering: bool = True,
-        hierarchy_depth: int | None = None,
-    ) -> None:
-        """Prepare deterministic inputs, then initialize the analysis agents."""
-        self.deterministic_analysis(
-            include_clustering=include_clustering,
-            hierarchy_depth=hierarchy_depth,
+        remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
+        scope = ClusteringService().cluster_hierarchy(
+            graphs,
+            remaining_depth,
+            root_scope_id=component.component_id,
         )
-        self.agent_init()
+        self.clustering_hierarchy.register_scope(component.component_id, scope)
 
     def _generate_subcomponents(
         self,
@@ -1212,7 +1208,9 @@ class DiagramGenerator:
             assert self.clustering_hierarchy is not None
             analysis, _cluster_results = self.abstraction_agent.run(self.clustering_hierarchy)
             root_components = [
-                component for component in analysis.components if component.component_id in self._preclustered_scopes
+                component
+                for component in analysis.components
+                if component.component_id in self.clustering_hierarchy.preclustered_scopes
             ]
             logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
@@ -1295,7 +1293,8 @@ class DiagramGenerator:
             else []
         )
         absorbed_ids = absorb_single_child_components(root_analysis, sub_analyses, cluster_caches)
-        self._reroot_clustering_groups(absorbed_ids)
+        if hierarchy := getattr(self, "clustering_hierarchy", None):
+            hierarchy.reroot_indexes(absorbed_ids)
         assert_scope_containment(root_analysis, sub_analyses)
 
     def finalize_and_save(
@@ -1467,7 +1466,7 @@ class DiagramGenerator:
         Raises when no trustworthy baseline or scoped update plan is available.
         """
         if self.details_agent is None or self.incremental_agent is None:
-            self.prepare_analysis(include_clustering=False)
+            self.prepare_analysis()
         assert self.static_analysis is not None
         assert self.details_agent is not None
         assert self.incremental_agent is not None
@@ -1632,6 +1631,8 @@ class DiagramGenerator:
                 if _component_depth(component.component_id) < self.depth_level
             ]
             if new_components:
+                for component in new_components:
+                    self._register_component_scope(component, self.depth_level)
                 _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components, sub_analyses)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 

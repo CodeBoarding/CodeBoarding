@@ -76,6 +76,8 @@ class TestClusteringHierarchy(unittest.TestCase):
         self.assertTrue(group_a.expandable)
         self.assertFalse(group_b.expandable)
         self.assertIsNotNone(group_a.children)
+        assert group_a.children is not None
+        self.assertEqual(set(group_a.children.graphs_by_language["python"].nodes), members_a)
         self.assertIsNone(group_b.children)
 
     def test_recurses_with_new_local_partitions_until_the_depth_cap(self):

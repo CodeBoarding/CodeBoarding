@@ -10,9 +10,7 @@ from agents.agent_responses import (
     ComponentApiSurfaces,
     ComponentArchitecture,
     ComponentRelations,
-    ClusterAnalysis,
     MetaAnalysisInsights,
-    assign_component_ids,
     assign_relation_ids,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
@@ -78,17 +76,13 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         }
 
     @trace
-    def step_final_analysis(
-        self, llm_cluster_analysis: ClusterAnalysis, cluster_results: dict[str, ClusterResult]
-    ) -> AnalysisInsights:
+    def step_llm_analysis(self, scope: ClusterScopeResult) -> AnalysisInsights:
         logger.info(f"[AbstractionAgent] Generating final component analysis for: {self.project_name}")
-
-        cluster_str = llm_cluster_analysis.llm_str() if llm_cluster_analysis else "No cluster analysis available."
-
-        group_names = [cc.name for cc in llm_cluster_analysis.cluster_components] if llm_cluster_analysis else []
+        cluster_results = scope.leaf_clusters_by_language
+        group_names = scope.group_names()
 
         prompt = self.prompts["final_analysis"].format(
-            cluster_analysis=cluster_str,
+            cluster_analysis=scope.llm_str(),
         )
 
         if group_names:
@@ -100,7 +94,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         context = ValidationContext(
             cluster_results=cluster_results,
             static_analysis=self.static_analysis,
-            llm_cluster_analysis=llm_cluster_analysis,
+            clustering=scope,
         )
 
         architecture = self._invoke_repair_validate(
@@ -114,12 +108,12 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             repair_context=ComponentRepairContext(
                 reference_resolver=self.reference_resolver,
                 cluster_results=cluster_results,
-                llm_cluster_analysis=llm_cluster_analysis,
+                clustering=scope,
             ),
             validation_context=context,
             max_validation_attempts=3,
         )
-        self.assemble_one_component_per_group(architecture, llm_cluster_analysis, cluster_results)
+        self.assemble_one_component_per_group(architecture, scope)
         return AnalysisInsights(
             description=architecture.description,
             components=architecture.components,
@@ -141,13 +135,13 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self,
         analysis: AnalysisInsights,
         api_surfaces: ComponentApiSurfaces,
-        cluster_analysis: ClusterAnalysis,
-        cluster_results: dict[str, ClusterResult],
+        scope: ClusterScopeResult,
     ) -> None:
         logger.info(f"[AbstractionAgent] Discovering component relations for: {self.project_name}")
+        cluster_results = scope.leaf_clusters_by_language
         static_call_evidence = self.build_scope_cfg_string(analysis)
-        cfg_graphs = self.static_analysis.available_cfgs()
-        self.toolkit.context.cluster_analysis = cluster_analysis
+        cfg_graphs = scope.graphs_by_language
+        self.toolkit.context.clustering = scope
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(
@@ -164,7 +158,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 cfg_graphs=cfg_graphs,
                 repo_dir=str(self.repo_dir),
                 static_analysis=self.static_analysis,
-                llm_cluster_analysis=cluster_analysis,
+                clustering=scope,
                 components=analysis.components,
             ),
             max_validation_attempts=3,
@@ -175,9 +169,8 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
     def run(self, scope: ClusterScopeResult) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
         """Name and analyze a precomputed root clustering scope."""
-        cluster_analysis = self.cluster_analysis_from_scope(scope)
         cluster_results = scope.leaf_clusters_by_language
-        if not cluster_analysis.cluster_components:
+        if not scope.groups:
             # No leaf clusters means the repo has no callable structure to abstract
             # (unsupported/empty/no-code). Fail loudly instead of emptying the
             # architecture and crashing downstream in populate_file_methods.
@@ -187,16 +180,14 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             )
 
         # Name and describe each fixed group into a component (LLM, one component per group)
-        analysis = self.step_final_analysis(cluster_analysis, cluster_results)
-        # Assign hierarchical component IDs ("1", "2", "3", ...)
-        assign_component_ids(analysis)
+        analysis = self.step_llm_analysis(scope)
         # Resolve cluster IDs deterministically from group names
-        self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
+        self._resolve_cluster_ids_from_groups(analysis, scope)
         # Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, cluster_results)
 
         api_surfaces = self.step_api_surfaces(analysis)
-        self.step_relation_analysis(analysis, api_surfaces, cluster_analysis, cluster_results)
+        self.step_relation_analysis(analysis, api_surfaces, scope)
 
         analysis = self.reference_resolver.fix_source_code_reference_lines(analysis)
         index_relation_endpoints(analysis, self.repo_dir)
