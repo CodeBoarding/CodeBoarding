@@ -674,36 +674,6 @@ class DiagramGenerator:
         )
         self.agent_init()
 
-    def _build_incremental_clustering_hierarchy(
-        self,
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-        root_leaf_clusters: dict[str, ClusterResult],
-    ) -> ClusterScopeResult:
-        """Build one anchored hierarchy from the live graphs and persisted scope ownership."""
-        assert self.static_analysis is not None
-        persisted_scopes = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
-        changed_files = (
-            {
-                normalize_repo_path(change.file_path, self.repo_location)
-                for change in self.changes.files
-                if change.is_content_change()
-            }
-            if self.changes is not None
-            else set()
-        )
-
-        return ClusteringService().build_incremental_hierarchy(
-            self.static_analysis,
-            self.depth_level,
-            root_leaf_clusters,
-            persisted_scopes,
-            self._changed_members,
-            changed_files,
-            self.repo_location,
-            self.output_dir,
-        )
-
     def _component_separable(self, component: Component) -> bool:
         """Deterministic gate: should this component be split into sub-components?
 
@@ -1586,10 +1556,24 @@ class DiagramGenerator:
             # scrub so a deleted method is never re-injected from the baseline into a live scope.
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
             root_cluster_results = delta.cluster_results()
-            hierarchy = self._build_incremental_clustering_hierarchy(
-                root_analysis,
-                sub_analyses,
+            changed_files = (
+                {
+                    normalize_repo_path(change.file_path, self.repo_location)
+                    for change in self.changes.files
+                    if change.is_content_change()
+                }
+                if self.changes is not None
+                else set()
+            )
+            hierarchy = ClusteringService().build_incremental_hierarchy(
+                self.static_analysis,
+                self.depth_level,
                 root_cluster_results,
+                {ROOT_SCOPE_ID: root_analysis, **sub_analyses},
+                self._changed_members,
+                changed_files,
+                self.repo_location,
+                self.output_dir,
             )
             self.clustering_hierarchy = hierarchy
             apply_result = self._apply_incremental_hierarchy(hierarchy, root_analysis, sub_analyses)

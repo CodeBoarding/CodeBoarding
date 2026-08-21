@@ -1809,6 +1809,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(delta_for_language.call_args.kwargs["next_new_id"], 10)
         self.assertEqual(set(partitions["typescript"].clusters), {2, 10})
 
+    @patch.object(ClusteringService, "build_incremental_hierarchy")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
     @patch("diagram_analysis.diagram_generator._build_scope_incremental_inputs")
@@ -1825,6 +1826,7 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_build_scope_inputs,
         _mock_prune,
         mock_save_analysis,
+        mock_build_hierarchy,
     ):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -1872,11 +1874,9 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}
         mock_delta.return_value.has_changes = True
         mock_delta.return_value.cluster_results.return_value = {}
-        gen._build_incremental_clustering_hierarchy = Mock(
-            return_value=ClusterScopeResult(
-                scope_id=ROOT_SCOPE_ID,
-                groups=[ClusterGroup(group_id="1", cluster_ids=[])],
-            )
+        mock_build_hierarchy.return_value = ClusterScopeResult(
+            scope_id=ROOT_SCOPE_ID,
+            groups=[ClusterGroup(group_id="1", cluster_ids=[])],
         )
         root_diff = StructuralClusterDiff(
             by_language={
@@ -1960,6 +1960,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen._generate_subcomponents.assert_not_called()
         self.assertEqual(sub_analyses["1"].components[0].name, "Stable Child")
 
+    @patch.object(ClusteringService, "build_incremental_hierarchy")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
     @patch("diagram_analysis.diagram_generator._build_scope_incremental_inputs")
@@ -1976,6 +1977,7 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_build_scope_inputs,
         _mock_prune,
         mock_save_analysis,
+        mock_build_hierarchy,
     ):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -2002,11 +2004,9 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}
         mock_delta.return_value.has_changes = True
         mock_delta.return_value.cluster_results.return_value = {}
-        gen._build_incremental_clustering_hierarchy = Mock(
-            return_value=ClusterScopeResult(
-                scope_id=ROOT_SCOPE_ID,
-                groups=[ClusterGroup(group_id="1", cluster_ids=[])],
-            )
+        mock_build_hierarchy.return_value = ClusterScopeResult(
+            scope_id=ROOT_SCOPE_ID,
+            groups=[ClusterGroup(group_id="1", cluster_ids=[])],
         )
         _mock_structural_diff.return_value = StructuralClusterDiff(
             by_language={"python": LanguageStructuralDiff(language="python", new=[ClusterRef("python", 2)])}
@@ -2077,14 +2077,14 @@ class TestDiagramGenerator(unittest.TestCase):
                 )
             ],
         )
-        gen._build_incremental_clustering_hierarchy = Mock(return_value=hierarchy)
         gen._apply_incremental_hierarchy = Mock(side_effect=apply_incremental)
         gen._register_component_scope = Mock()
         gen._generate_subcomponents = Mock(side_effect=generate_subcomponents)
         gen._refresh_files_index = Mock()
         gen.finalize_and_save = Mock(return_value=self.output_dir / "analysis.json")
 
-        gen.generate_analysis_incremental(root_analysis, sub_analyses)
+        with patch.object(ClusteringService, "build_incremental_hierarchy", return_value=hierarchy):
+            gen.generate_analysis_incremental(root_analysis, sub_analyses)
 
         self.assertEqual(call_order, ["generate"])
         gen._register_component_scope.assert_not_called()
