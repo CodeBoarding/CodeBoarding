@@ -285,6 +285,27 @@ class TestClusteringScope(unittest.TestCase):
         self.assertEqual(len(expanded.clusters), 5)
         self.assertTrue(all(len(members) == 1 for members in expanded.clusters.values()))
 
+    def test_method_level_fallback_preserves_retained_cluster_ids(self):
+        graph = graph_for("python", ["a.new", "z.retained", "replacement"])
+        cluster_result = cluster_result_for(
+            graph,
+            {
+                4: {"a.new", "z.retained"},
+                10: {"replacement"},
+            },
+        )
+
+        expanded = ClusteringService.expand_to_method_level(
+            graph,
+            cluster_result,
+            next_new_id=10,
+            retained_members_by_cluster={4: {"z.retained"}},
+        )
+
+        self.assertEqual(expanded.clusters[4], {"z.retained"})
+        self.assertEqual(expanded.clusters[10], {"replacement"})
+        self.assertEqual(expanded.clusters[11], {"a.new"})
+
     def test_method_level_fallback_preserves_owners_by_member(self):
         graph = graph_for("python", ["a", "b", "c", "d", "e", "new"])
         cluster_result = cluster_result_for(

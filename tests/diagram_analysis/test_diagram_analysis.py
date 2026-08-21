@@ -1947,6 +1947,38 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(set(partitions["python"].clusters), {2, 3, 4, 5, 10})
 
     @patch("diagram_analysis.diagram_generator._delta_for_language")
+    def test_incremental_method_fallback_does_not_reuse_deleted_cluster_ids(self, delta_for_language):
+        baseline = MagicMock()
+        baseline.get_clusters.return_value.method_paths = MethodClusterPaths(
+            {
+                "pkg.live": {"1.4"},
+                "pkg.deleted": {"1.9"},
+            }
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("pkg.live", NodeType.FUNCTION, "/repo/pkg.py", 1, 2))
+        graph.add_node(Node("pkg.replacement", NodeType.FUNCTION, "/repo/pkg.py", 3, 4))
+        delta_for_language.return_value = LanguageDelta(
+            language="python",
+            cluster_results=ClusterResult(
+                clusters={
+                    4: {"pkg.live"},
+                    10: {"pkg.replacement"},
+                }
+            ),
+        )
+
+        partitions = _incremental_scope_partitions(
+            baseline,
+            "1",
+            {"python": graph},
+            {"pkg.live"},
+            self.output_dir,
+        )
+
+        self.assertEqual(partitions["python"].clusters, {4: {"pkg.live"}, 10: {"pkg.replacement"}})
+
+    @patch("diagram_analysis.diagram_generator._delta_for_language")
     def test_incremental_child_scope_reserves_ids_from_removed_languages(self, delta_for_language):
         baseline = MagicMock()
         baseline.get_languages.return_value = [Language.PYTHON, Language.TYPESCRIPT]

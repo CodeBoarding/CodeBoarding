@@ -567,7 +567,12 @@ def _incremental_scope_partitions(
             ).cluster_results
         else:
             partition = clustering_service.cluster(graph)
-        partition = clustering_service.expand_to_method_level(graph, partition)
+        partition = clustering_service.expand_to_method_level(
+            graph,
+            partition,
+            next_new_id=next_new_id if snapshot else 0,
+            retained_members_by_cluster={cluster_id: entry.members for cluster_id, entry in snapshot.items()},
+        )
         if not snapshot and next_new_id:
             partition = reindex_cluster_result(partition, next_new_id)
         partitions[language] = partition

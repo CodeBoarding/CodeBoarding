@@ -35,6 +35,7 @@ _ROOT_SCOPE_ID: ScopeId = "root"
 _EMPTY_LEAF_CLUSTERS: Mapping[str, ClusterResult] = MappingProxyType({})
 _EMPTY_OWNERS: Mapping[ClusterId, ComponentId] = MappingProxyType({})
 _EMPTY_MEMBER_OWNERS: Mapping[str, Mapping[str, ComponentId]] = MappingProxyType({})
+_EMPTY_RETAINED_CLUSTER_MEMBERS: Mapping[ClusterId, Collection[str]] = MappingProxyType({})
 
 
 class LeafClustersUnavailableError(RuntimeError):
@@ -63,33 +64,61 @@ class ClusteringService:
         return cluster_graph(graph.to_networkx(DEFAULT_REFERENCE_KINDS), delimiter=graph.delimiter)
 
     @staticmethod
-    def expand_to_method_level(graph: CallGraph, partition: ClusterResult) -> ClusterResult:
-        """Replace a coarse partition with one callable per cluster when needed."""
+    def expand_to_method_level(
+        graph: CallGraph,
+        partition: ClusterResult,
+        *,
+        next_new_id: ClusterId = 0,
+        retained_members_by_cluster: Mapping[ClusterId, Collection[str]] = _EMPTY_RETAINED_CLUSTER_MEMBERS,
+    ) -> ClusterResult:
+        """Replace a coarse partition with stable one-symbol clusters when needed."""
         if len(partition.clusters) >= MIN_CLUSTERS_THRESHOLD:
             return partition
 
         clusters: dict[int, set[str]] = {}
         cluster_to_files: dict[int, set[str]] = {}
         file_to_clusters: dict[str, set[int]] = defaultdict(set)
-        included: set[str] = set()
-
-        for qualified_name, node in sorted(graph.nodes.items()):
-            if node.type not in CALLABLE_TYPES:
+        expanded_members = sorted(
+            qualified_name for qualified_name, node in graph.nodes.items() if node.type in CALLABLE_TYPES
+        )
+        if len(expanded_members) < MIN_CLUSTERS_THRESHOLD:
+            expanded_members.extend(
+                sorted(qualified_name for qualified_name, node in graph.nodes.items() if node.type in CLASS_TYPES)
+            )
+        expanded_member_set = set(expanded_members)
+        source_cluster_by_member = {
+            qualified_name: cluster_id
+            for cluster_id, members in partition.clusters.items()
+            for qualified_name in members
+        }
+        retained_member_by_cluster = {
+            cluster_id: min(retained)
+            for cluster_id, members in partition.clusters.items()
+            if (retained := set(members) & set(retained_members_by_cluster.get(cluster_id, ())) & expanded_member_set)
+        }
+        for cluster_id, members in partition.clusters.items():
+            if cluster_id in retained_member_by_cluster:
                 continue
-            cluster_id = len(clusters)
+            live_members = set(members) & expanded_member_set
+            if live_members:
+                retained_member_by_cluster[cluster_id] = min(live_members)
+        next_new_id = max(next_new_id, max(partition.clusters, default=-1) + 1)
+
+        def add_symbol(qualified_name: str) -> None:
+            nonlocal next_new_id
+            node = graph.nodes[qualified_name]
+            source_cluster_id = source_cluster_by_member.get(qualified_name)
+            if source_cluster_id is not None and retained_member_by_cluster.get(source_cluster_id) == qualified_name:
+                cluster_id = source_cluster_id
+            else:
+                cluster_id = next_new_id
+                next_new_id += 1
             clusters[cluster_id] = {qualified_name}
             cluster_to_files[cluster_id] = {node.file_path}
             file_to_clusters[node.file_path].add(cluster_id)
-            included.add(qualified_name)
 
-        if len(clusters) < MIN_CLUSTERS_THRESHOLD:
-            for qualified_name, node in sorted(graph.nodes.items()):
-                if node.type not in CLASS_TYPES or qualified_name in included:
-                    continue
-                cluster_id = len(clusters)
-                clusters[cluster_id] = {qualified_name}
-                cluster_to_files[cluster_id] = {node.file_path}
-                file_to_clusters[node.file_path].add(cluster_id)
+        for qualified_name in expanded_members:
+            add_symbol(qualified_name)
 
         return ClusterResult(
             clusters=clusters,
