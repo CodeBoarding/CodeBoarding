@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
@@ -23,7 +23,6 @@ from agents.agent_responses import (
     SourceCodeReference,
     index_components_by_id,
 )
-from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
 from agents.details_agent import DetailsAgent
 from agents.incremental_agent import (
     IncrementalAgent,
@@ -49,22 +48,17 @@ from diagram_analysis.cluster_delta import (
     ClusterDelta,
     LanguageDelta,
     StructuralClusterDiff,
-    _delta_for_language,
     compute_changed_members,
     compute_cluster_delta,
     structural_diff_from_delta,
 )
-from diagram_analysis.cluster_snapshot import (
-    ClusterSnapshot,
-    ClusterSnapshotEntry,
-    snapshot_from_static_analysis,
-)
+from diagram_analysis.cluster_snapshot import ClusterSnapshot, snapshot_from_static_analysis
 from diagram_analysis.exceptions import IncrementalCacheMissingError, ScopeContainmentError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from repo_utils.path_utils import normalize_repo_path
-from diagram_analysis.scope_plan import plan_scope_result_update, plan_scope_update, previous_ownership
+from diagram_analysis.scope_plan import plan_scope_result_update, plan_scope_update
 from diagram_analysis.tree_shape import absorb_single_child_components
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -88,13 +82,9 @@ from static_analyzer.cluster_relations import (
 from static_analyzer.config import Language
 from static_analyzer.clustering import (
     ClusterResult,
-    ClusterScopeInput,
     ClusterScopeResult,
     ClusteringService,
-    MethodClusterPaths,
 )
-from static_analyzer.clustering.grouping import reindex_across_languages, reindex_cluster_result
-from static_analyzer.clustering.orchestration import build_clustering_hierarchy
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
@@ -503,84 +493,6 @@ def _incremental_changed_component_ids(
     return changed
 
 
-def _incremental_scope_partitions(
-    baseline_analysis: StaticAnalysisResults,
-    scope_id: str,
-    graphs: Mapping[str, CallGraph],
-    persisted_members_by_language: Mapping[str, set[str]],
-    artifact_dir: Path,
-) -> dict[str, ClusterResult]:
-    """Seed each exact child graph from its persisted scope-local cluster lineage."""
-    snapshots: dict[str, dict[int, ClusterSnapshotEntry]] = {}
-    method_paths_by_language: dict[str, MethodClusterPaths] = {}
-    for baseline_language in baseline_analysis.get_languages():
-        try:
-            method_paths_by_language[str(baseline_language)] = baseline_analysis.get_clusters(
-                baseline_language
-            ).method_paths
-        except (KeyError, ValueError):
-            continue
-    for language in graphs:
-        if language in method_paths_by_language:
-            continue
-        try:
-            method_paths_by_language[language] = baseline_analysis.get_clusters(Language(language)).method_paths
-        except (KeyError, ValueError):
-            continue
-
-    prefix = f"{scope_id}."
-    reserved_cluster_ids = {
-        int(local_id)
-        for method_paths in method_paths_by_language.values()
-        for _qualified_name, cluster_ids in method_paths.snapshot()
-        for cluster_id in cluster_ids
-        if cluster_id.startswith(prefix) and (local_id := cluster_id.removeprefix(prefix)).isdigit()
-    }
-    for language, graph in graphs.items():
-        method_paths = method_paths_by_language.get(language)
-        if method_paths is not None:
-            snapshot = scoped_snapshot_from_lineage(graph, method_paths, scope_id)
-        else:
-            snapshot = {}
-        covered_members = {member for entry in snapshot.values() for member in entry.members}
-        missing_members = (persisted_members_by_language.get(language, set()) & set(graph.nodes)) - covered_members
-        if missing_members:
-            raise IncrementalCacheMissingError(
-                artifact_dir,
-                f"persisted scope {scope_id!r} has no cluster lineage for {language} member(s): "
-                + ", ".join(sorted(missing_members)[:5]),
-            )
-        snapshots[language] = snapshot
-
-    partitions: dict[str, ClusterResult] = {}
-    clustering_service = ClusteringService()
-    next_new_id = max(reserved_cluster_ids, default=-1) + 1
-    for language in sorted(graphs):
-        graph = graphs[language]
-        snapshot = snapshots[language]
-        if snapshot:
-            partition = _delta_for_language(
-                language,
-                graph.to_networkx(DEFAULT_REFERENCE_KINDS),
-                snapshot,
-                next_new_id=next_new_id,
-            ).cluster_results
-        else:
-            partition = clustering_service.cluster(graph)
-        partition = clustering_service.expand_to_method_level(
-            graph,
-            partition,
-            next_new_id=next_new_id if snapshot else 0,
-            retained_members_by_cluster={cluster_id: entry.members for cluster_id, entry in snapshot.items()},
-        )
-        if not snapshot and next_new_id:
-            partition = reindex_cluster_result(partition, next_new_id)
-        partitions[language] = partition
-        next_new_id = max(next_new_id, max(partition.clusters, default=0) + 1)
-    reindex_across_languages(partitions)
-    return partitions
-
-
 class DiagramGenerator:
     def __init__(
         self,
@@ -697,7 +609,7 @@ class DiagramGenerator:
                 raise error
 
         depth = hierarchy_depth if hierarchy_depth is not None else self.depth_level
-        self.clustering_hierarchy = build_clustering_hierarchy(static_analysis, depth)
+        self.clustering_hierarchy = ClusteringService().build_full_hierarchy(static_analysis, depth)
         if target_component is not None:
             self._register_component_scope(target_component, depth)
 
@@ -770,10 +682,6 @@ class DiagramGenerator:
     ) -> ClusterScopeResult:
         """Build one anchored hierarchy from the live graphs and persisted scope ownership."""
         assert self.static_analysis is not None
-        static_analysis = self.static_analysis
-        baseline_analysis = static_analysis.incremental_base_results
-        if baseline_analysis is None:
-            raise IncrementalCacheMissingError(self.output_dir)
         persisted_scopes = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
         changed_files = (
             {
@@ -785,78 +693,15 @@ class DiagramGenerator:
             else set()
         )
 
-        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
-            persisted = persisted_scopes.get(scope_id)
-            if scope_id != ROOT_SCOPE_ID and persisted is None:
-                return ClusterScopeInput()
-            leaf_clusters = (
-                root_leaf_clusters
-                if scope_id == ROOT_SCOPE_ID
-                else _incremental_scope_partitions(
-                    baseline_analysis,
-                    scope_id,
-                    graphs,
-                    (
-                        {
-                            language: {
-                                method.qualified_name
-                                for component in persisted.components
-                                for group in component.file_methods
-                                if normalize_repo_path(group.file_path, self.repo_location)
-                                in {
-                                    normalize_repo_path(node.file_path, self.repo_location)
-                                    for node in graph.nodes.values()
-                                }
-                                for method in group.methods
-                            }
-                            for language, graph in graphs.items()
-                        }
-                        if persisted is not None
-                        else {}
-                    ),
-                    self.output_dir,
-                )
-            )
-            if persisted is None:
-                return ClusterScopeInput(leaf_clusters_by_language=leaf_clusters)
-            cluster_owner, member_owner = previous_ownership(
-                persisted,
-                leaf_clusters,
-                scope_id,
-                self.repo_location,
-            )
-            changed_members_by_language = {
-                language: {
-                    qualified_name
-                    for qualified_name in self._changed_members
-                    if qualified_name in graph.nodes
-                    and normalize_repo_path(graph.nodes[qualified_name].file_path, self.repo_location) in changed_files
-                }
-                for language, graph in graphs.items()
-            }
-            member_owner = {
-                language: {
-                    qualified_name: owner
-                    for qualified_name, owner in owner_by_member.items()
-                    if qualified_name not in changed_members_by_language.get(language, set())
-                }
-                for language, owner_by_member in member_owner.items()
-            }
-            return ClusterScopeInput(
-                leaf_clusters_by_language=leaf_clusters,
-                previous_owner=cluster_owner,
-                previous_member_owner=member_owner,
-                reserved_group_ids=frozenset(
-                    component.component_id for component in persisted.components if component.component_id
-                ),
-                retain_scope=True,
-            )
-
-        return build_clustering_hierarchy(
-            static_analysis,
+        return ClusteringService().build_incremental_hierarchy(
+            self.static_analysis,
             self.depth_level,
-            root_leaf_clusters=root_leaf_clusters,
-            scope_input=scope_input,
+            root_leaf_clusters,
+            persisted_scopes,
+            self._changed_members,
+            changed_files,
+            self.repo_location,
+            self.output_dir,
         )
 
     def _component_separable(self, component: Component) -> bool:
@@ -1221,10 +1066,10 @@ class DiagramGenerator:
             )
 
         remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
-        scope = ClusteringService().cluster_hierarchy(
+        scope = ClusteringService().build_scope_hierarchy(
             graphs,
             remaining_depth,
-            root_scope_id=component.component_id,
+            component.component_id,
         )
         self.clustering_hierarchy.register_scope(component.component_id, scope)
 
@@ -1978,7 +1823,11 @@ def scoped_snapshot_for_component(
         sub_cfg = cfg.filter_by_nodes(assigned_qnames)
         if sub_cfg.nodes:
             method_paths = incremental_agent.static_analysis.get_clusters(language).method_paths
-            by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, method_paths, scope_id)
+            by_language[str(language)] = ClusteringService._scoped_snapshot(
+                sub_cfg,
+                method_paths,
+                scope_id,
+            )
     return ClusterSnapshot(by_language=by_language)
 
 

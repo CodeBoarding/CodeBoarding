@@ -174,6 +174,7 @@ class TestComponentBridgeEdgesTool(unittest.TestCase):
             repo_dir=Path("."),
             ignore_manager=RepoIgnoreManager(Path(".")),
             clustering=scope,
+            cluster_group_ids={"Group 1": [1], "Group 2": [2], "Group 3": [3]},
             cluster_results=cluster_results,
             cfg_graphs={"python": cfg},
         )

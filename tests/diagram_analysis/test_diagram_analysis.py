@@ -46,7 +46,6 @@ from diagram_analysis.diagram_generator import (
     _child_scope_needs_recursive_update,
     _component_depth,
     _component_expansion_seeds,
-    _incremental_scope_partitions,
 )
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
@@ -59,8 +58,9 @@ from static_analyzer.clustering import (
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
-    MethodClusterPaths,
+    ClusteringService,
 )
+from static_analyzer.clustering.method_cluster_paths import MethodClusterPaths
 from static_analyzer.node import Node
 
 
@@ -962,7 +962,7 @@ class TestDiagramGenerator(unittest.TestCase):
         with (
             patch("diagram_analysis.diagram_generator.IncrementalAgent") as mock_incremental,
             patch(
-                "diagram_analysis.diagram_generator.build_clustering_hierarchy", return_value=hierarchy
+                "static_analyzer.clustering.service.ClusteringService.build_full_hierarchy", return_value=hierarchy
             ) as mock_build_hierarchy,
         ):
             gen.prepare_analysis()
@@ -1012,7 +1012,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen._get_static_with_new_analyzer = Mock(return_value=StaticAnalysisResults())
 
-        with patch("diagram_analysis.diagram_generator.build_clustering_hierarchy") as mock_build_hierarchy:
+        with patch.object(ClusteringService, "build_full_hierarchy") as mock_build_hierarchy:
             with self.assertRaises(IncrementalCacheMissingError):
                 gen.deterministic_analysis(require_incremental_baseline=True)
 
@@ -1758,7 +1758,7 @@ class TestDiagramGenerator(unittest.TestCase):
         graph = CallGraph(language="typescript")
         graph.add_node(Node("pkg.live", NodeType.FUNCTION, "/repo/pkg.py", 1, 2))
 
-        partitions = _incremental_scope_partitions(
+        partitions = ClusteringService()._incremental_scope_partitions(
             baseline,
             "1",
             {"typescript": graph},
@@ -1768,7 +1768,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertTrue(partitions["typescript"].clusters)
         with self.assertRaisesRegex(IncrementalCacheMissingError, "persisted scope '1'.*pkg.live"):
-            _incremental_scope_partitions(
+            ClusteringService()._incremental_scope_partitions(
                 baseline,
                 "1",
                 {"typescript": graph},
@@ -1776,7 +1776,7 @@ class TestDiagramGenerator(unittest.TestCase):
                 self.output_dir,
             )
 
-    @patch("diagram_analysis.diagram_generator._delta_for_language")
+    @patch("diagram_analysis.cluster_delta._delta_for_language")
     def test_incremental_child_scope_reserves_ids_from_removed_languages(self, delta_for_language):
         baseline = MagicMock()
         baseline.get_languages.return_value = [Language.PYTHON, Language.TYPESCRIPT]
@@ -1798,7 +1798,7 @@ class TestDiagramGenerator(unittest.TestCase):
             ),
         )
 
-        partitions = _incremental_scope_partitions(
+        partitions = ClusteringService()._incremental_scope_partitions(
             baseline,
             "1",
             {"typescript": graph},

@@ -15,8 +15,8 @@ from agents.agent_responses import AnalysisInsights, Component, ScopeOperationAc
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
-from diagram_analysis.scope_plan import plan_scope_result_update, plan_scope_update, previous_ownership
-from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
+from diagram_analysis.scope_plan import plan_scope_result_update, plan_scope_update
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult, ClusteringService
 
 FILE = "pkg/mod.py"
 DELETE = ScopeOperationAction.DELETE_COMPONENT
@@ -75,7 +75,7 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner, _member_owner = previous_ownership(
+        owner, _member_owner = ClusteringService._previous_ownership(
             scope, {"python": clustering({7: {"a.one", "a.two", "b.one"}})}, ROOT_SCOPE_ID, REPO
         )
 
@@ -84,7 +84,7 @@ class TestPreviousOwnership(unittest.TestCase):
     def test_a_cluster_of_entirely_new_methods_has_no_owner(self):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
-        owner, _member_owner = previous_ownership(
+        owner, _member_owner = ClusteringService._previous_ownership(
             scope, {"python": clustering({1: {"a.one"}, 2: {"fresh.thing"}})}, ROOT_SCOPE_ID, REPO
         )
 
@@ -99,7 +99,7 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner, _member_owner = previous_ownership(
+        owner, _member_owner = ClusteringService._previous_ownership(
             scope, {"python": clustering({5: {"a.one", "b.one"}})}, ROOT_SCOPE_ID, REPO
         )
 
@@ -143,7 +143,7 @@ class TestPreviousOwnership(unittest.TestCase):
             ),
         }
 
-        owner, member_owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
+        owner, member_owner = ClusteringService._previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
 
         self.assertEqual(owner, {1: "1", 30: "2"})
         self.assertEqual(member_owner, {"python": {"src.index.run": "1"}, "typescript": {"src.index.run": "2"}})
@@ -172,7 +172,7 @@ class TestPreviousOwnership(unittest.TestCase):
             )
         }
 
-        owner, _member_owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
+        owner, _member_owner = ClusteringService._previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
 
         # Method-anchored: renumbered cluster 99 still resolves to component 1. The id
         # fallback would leave it unowned, so an empty result means anchoring broke.

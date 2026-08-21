@@ -13,7 +13,12 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
     assign_relation_ids,
 )
-from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.cluster_methods_mixin import (
+    ClusterMethodsMixin,
+    cluster_group_descriptions,
+    cluster_group_ids,
+    render_cluster_groups,
+)
 from agents.prompts import (
     get_final_analysis_message,
     get_api_surfaces_message,
@@ -79,10 +84,14 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
     def step_llm_analysis(self, scope: ClusterScopeResult) -> AnalysisInsights:
         logger.info(f"[AbstractionAgent] Generating final component analysis for: {self.project_name}")
         cluster_results = scope.leaf_clusters_by_language
-        group_names = scope.group_names()
+        group_ids = cluster_group_ids(scope.groups)
+        group_names = list(group_ids)
 
         prompt = self.prompts["final_analysis"].format(
-            cluster_analysis=scope.llm_str(),
+            cluster_analysis=render_cluster_groups(
+                group_ids,
+                cluster_group_descriptions(scope.groups, cluster_results),
+            ),
         )
 
         if group_names:
@@ -95,6 +104,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cluster_results=cluster_results,
             static_analysis=self.static_analysis,
             clustering=scope,
+            group_ids=group_ids,
         )
 
         architecture = self._invoke_repair_validate(
@@ -109,6 +119,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 reference_resolver=self.reference_resolver,
                 cluster_results=cluster_results,
                 clustering=scope,
+                group_ids=group_ids,
             ),
             validation_context=context,
             max_validation_attempts=3,
@@ -142,6 +153,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         static_call_evidence = self.build_scope_cfg_string(analysis)
         cfg_graphs = scope.graphs_by_language
         self.toolkit.context.clustering = scope
+        self.toolkit.context.cluster_group_ids = cluster_group_ids(scope.groups)
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(

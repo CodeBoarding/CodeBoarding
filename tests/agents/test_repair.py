@@ -48,6 +48,7 @@ def _component_repair_context() -> ComponentRepairContext:
         reference_resolver=StaticReferenceResolver(Path("/tmp/fake-repo"), static_analysis),
         cluster_results=cluster_results,
         clustering=scope,
+        group_ids={"Group 1": [1]},
     )
 
 

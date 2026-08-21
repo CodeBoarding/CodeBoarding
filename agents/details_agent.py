@@ -23,7 +23,12 @@ from agents.prompts import (
 )
 from agents.relation_edges import index_relation_endpoints
 from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
-from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.cluster_methods_mixin import (
+    ClusterMethodsMixin,
+    cluster_group_descriptions,
+    cluster_group_ids,
+    render_cluster_groups,
+)
 from agents.validation import (
     ValidationContext,
     validate_group_name_coverage,
@@ -92,10 +97,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         """
         logger.info(f"[DetailsAgent] Generating final detailed analysis for: {component.name}")
         subgraph_cluster_results = scope.leaf_clusters_by_language
-        group_names = scope.group_names()
+        group_ids = cluster_group_ids(scope.groups)
+        group_names = list(group_ids)
 
         prompt = self.prompts["final_analysis"].format(
-            cluster_analysis=scope.llm_str(),
+            cluster_analysis=render_cluster_groups(
+                group_ids,
+                cluster_group_descriptions(scope.groups, subgraph_cluster_results),
+            ),
             component=component.llm_str(),
         )
 
@@ -106,6 +115,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             )
 
         self.toolkit.context.clustering = scope
+        self.toolkit.context.cluster_group_ids = cluster_group_ids(scope.groups)
         self.toolkit.context.cluster_results = subgraph_cluster_results
         self.toolkit.context.cfg_graphs = scope.graphs_by_language
 
@@ -113,6 +123,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cluster_results=subgraph_cluster_results,
             static_analysis=self.static_analysis,
             clustering=scope,
+            group_ids=group_ids,
         )
 
         architecture = self._invoke_repair_validate(
@@ -127,6 +138,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 reference_resolver=self.reference_resolver,
                 cluster_results=subgraph_cluster_results,
                 clustering=scope,
+                group_ids=group_ids,
             ),
             validation_context=context,
             max_validation_attempts=3,

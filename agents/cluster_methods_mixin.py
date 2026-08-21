@@ -19,7 +19,6 @@ from agents.cluster_ids import CodeBoardingClusterIds
 from clustering_ids import ClusterId, ComponentId
 from constants import MIN_CLUSTERS_THRESHOLD
 from diagram_analysis.cluster_delta import _delta_for_language
-from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
 from diagram_analysis.file_index import build_files_index
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -37,14 +36,54 @@ from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES, Language
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,
+    ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
     ClusteringService,
-    MethodClusterPaths,
 )
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
+
+
+def cluster_group_ids(groups: list[ClusterGroup]) -> dict[str, list[ClusterId]]:
+    return {f"Group {index}": group.cluster_ids for index, group in enumerate(groups, start=1)}
+
+
+def cluster_group_descriptions(
+    groups: list[ClusterGroup],
+    cluster_results: dict[str, ClusterResult],
+) -> dict[str, str]:
+    combined = combine_cluster_results(cluster_results)
+    descriptions: dict[str, str] = {}
+    for name, group in zip(cluster_group_ids(groups), groups, strict=True):
+        symbols = sorted(
+            group_symbols(group.cluster_ids, combined.clusters),
+            key=lambda qualified_name: (qualified_name.count("."), qualified_name),
+        )
+        files = sorted(
+            {path for cluster_id in group.cluster_ids for path in combined.cluster_to_files.get(cluster_id, set())}
+        )
+        parts = [f"{len(group.cluster_ids)} leaf clusters, {len(symbols)} symbols across {len(files)} files."]
+        if files:
+            shown = ", ".join(Path(path).name for path in files[:8])
+            parts.append(f"Files: {shown}{', ...' if len(files) > 8 else ''}")
+        if symbols:
+            shown = ", ".join(symbols[:12])
+            parts.append(f"Key symbols: {shown}{', ...' if len(symbols) > 12 else ''}")
+        descriptions[name] = " ".join(parts)
+    return descriptions
+
+
+def render_cluster_groups(group_ids: dict[str, list[ClusterId]], group_descriptions: dict[str, str]) -> str:
+    if not group_ids:
+        return "No clusters analyzed."
+    body = "\n".join(
+        f"**{name}** (cluster_ids: [{', '.join(str(cluster_id) for cluster_id in cluster_ids)}])\n"
+        f"   {group_descriptions[name]}"
+        for name, cluster_ids in group_ids.items()
+    )
+    return f"# Grouped Cluster Components\n{body}"
 
 
 def _fallback_component(
@@ -57,32 +96,6 @@ def _fallback_component(
     symbols = group_symbols(cluster_ids, node_lookup)
     name = symbols[0].split(".")[-1] if symbols else group_name
     return Component(name=name, description=description, key_entities=[])
-
-
-def scoped_snapshot_from_lineage(
-    cfg: CallGraph, method_paths: MethodClusterPaths, scope_id: str
-) -> dict[int, ClusterSnapshotEntry]:
-    """Build a scoped snapshot from each method's recorded cluster ancestry/path."""
-    if not scope_id:
-        return {}
-    prefix = f"{scope_id}."
-    entries: dict[int, ClusterSnapshotEntry] = {}
-    for qname, cluster_ids in method_paths.snapshot():
-        if qname not in cfg.nodes:
-            continue
-        for cluster_id in cluster_ids:
-            if not cluster_id.startswith(prefix):
-                continue
-            local_id = cluster_id.removeprefix(prefix)
-            if not local_id.isdigit():
-                continue
-            entry = entries.setdefault(int(local_id), ClusterSnapshotEntry())
-            entry.members.add(qname)
-            file_path = cfg.nodes[qname].file_path
-            if file_path:
-                entry.files.add(file_path)
-                entry.member_files[qname] = file_path
-    return entries
 
 
 class ClusterMethodsMixin:
@@ -112,8 +125,8 @@ class ClusterMethodsMixin:
         dropped gets a deterministic fallback so the count never drifts.
         """
         node_lookup = combine_cluster_results(scope.leaf_clusters_by_language).clusters
-        group_ids = scope.group_ids()
-        descriptions = scope.group_descriptions()
+        group_ids = cluster_group_ids(scope.groups)
+        descriptions = cluster_group_descriptions(scope.groups, scope.leaf_clusters_by_language)
         claimant: dict[str, Component] = {}
         for comp in architecture.components:
             for group_name in comp.source_group_names:
@@ -197,7 +210,7 @@ class ClusterMethodsMixin:
     def _resolve_cluster_ids_from_groups(self, analysis: AnalysisInsights, scope: ClusterScopeResult) -> None:
         """Resolve source_cluster_ids deterministically from source_group_names via case-insensitive lookup."""
         group_name_to_ids: dict[str, list[ClusterId]] = {
-            name.lower(): cluster_ids for name, cluster_ids in scope.group_ids().items()
+            name.lower(): cluster_ids for name, cluster_ids in cluster_group_ids(scope.groups).items()
         }
 
         for component in analysis.components:
@@ -297,8 +310,10 @@ class ClusterMethodsMixin:
                 continue
             subgraph_cfgs[lang] = sub_cfg
 
-            seeded_snapshot = scoped_snapshot_from_lineage(
-                sub_cfg, self.static_analysis.get_clusters(lang).method_paths, source_cluster_id_prefix
+            seeded_snapshot = ClusteringService._scoped_snapshot(
+                sub_cfg,
+                self.static_analysis.get_clusters(lang).method_paths,
+                source_cluster_id_prefix,
             )
             if seeded_snapshot:
                 sub_cluster_result = _delta_for_language(

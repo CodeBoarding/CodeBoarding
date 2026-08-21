@@ -50,6 +50,7 @@ class ValidationContext:
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     clustering: ClusterScopeResult = field(default_factory=lambda: ClusterScopeResult(scope_id=""))
+    group_ids: dict[str, list[int]] = field(default_factory=dict)
     components: list[Component] = field(default_factory=list)  # For relation-only validation steps
 
 
@@ -113,7 +114,7 @@ def validate_group_name_coverage(result: ComponentValidationTarget, context: Val
     Returns:
         ValidationResult with targeted feedback depending on the issue
     """
-    expected_group_names = set(context.clustering.group_ids())
+    expected_group_names = set(context.group_ids)
     if not expected_group_names:
         logger.warning("[Validation] No clustering provided for group name coverage validation")
         return ValidationResult(is_valid=True)

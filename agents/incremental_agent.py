@@ -26,7 +26,7 @@ from agents.agent_responses import (
     iter_components,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.cluster_methods_mixin import ClusterMethodsMixin, cluster_group_ids, render_cluster_groups
 from agents.content_hash import SourceCache
 from agents.cluster_ids import CodeBoardingClusterIds
 from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
@@ -228,23 +228,19 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
     @trace
     def detail_new_components(self, components: list[Component]) -> None:
         """Replace new components' provisional names and descriptions in one LLM call."""
-        groups: list[ClusterGroup] = []
         target_by_group: dict[str, Component] = {}
+        group_ids: dict[str, list[int]] = {}
+        descriptions: dict[str, str] = {}
         for component in components:
             group_name = f"Incremental Group {component.component_id}"
-            groups.append(
-                ClusterGroup(
-                    group_id=component.component_id,
-                    name=group_name,
-                    cluster_ids=[],
-                    description=_new_component_membership_summary(component),
-                )
-            )
+            group_ids[group_name] = []
+            descriptions[group_name] = _new_component_membership_summary(component)
             target_by_group[group_name.casefold()] = component
 
-        clustering = ClusterScopeResult(scope_id="", groups=groups)
-        prompt = self.prompts["new_component_details"].format(cluster_analysis=clustering.llm_str())
-        group_names = clustering.group_names()
+        prompt = self.prompts["new_component_details"].format(
+            cluster_analysis=render_cluster_groups(group_ids, descriptions)
+        )
+        group_names = list(group_ids)
         prompt += (
             f"\n\n## New Component Groups ({len(group_names)} total)\n"
             f"Return exactly one semantically named component for each of these fixed groups: {group_names}.\n"
@@ -329,6 +325,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         cluster_results = clustering.leaf_clusters_by_language
         cfg_graphs = clustering.graphs_by_language
         self.toolkit.context.clustering = clustering
+        self.toolkit.context.cluster_group_ids = _persisted_group_ids(scope.components, clustering)
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(
@@ -569,13 +566,11 @@ def _clustering_for_scope(
         cluster_ids = _local_graph_cluster_ids(component.source_cluster_ids, scope_id, valid_cluster_ids)
         if not component.source_group_names:
             component.source_group_names = [component.name]
-        for group_name in component.source_group_names:
+        for _group_name in component.source_group_names:
             groups.append(
                 ClusterGroup(
                     group_id=component.component_id,
-                    name=group_name,
                     cluster_ids=cluster_ids,
-                    description=component.description,
                 )
             )
     return ClusterScopeResult(
@@ -584,6 +579,11 @@ def _clustering_for_scope(
         leaf_clusters_by_language=cluster_results,
         groups=groups,
     )
+
+
+def _persisted_group_ids(components: list[Component], clustering: ClusterScopeResult) -> dict[str, list[int]]:
+    names = [name for component in components for name in component.source_group_names]
+    return {name: group.cluster_ids for name, group in zip(names, clustering.groups, strict=True)}
 
 
 def _local_graph_cluster_ids(

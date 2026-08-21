@@ -22,11 +22,12 @@ class ComponentRepairContext:
     reference_resolver: StaticReferenceResolver
     clustering: ClusterScopeResult
     cluster_results: dict[str, ClusterResult] = field(default_factory=dict)
+    group_ids: dict[str, list[int]] = field(default_factory=dict)
 
 
 def repair_component_group_names(result: ComponentRepairTarget, context: ComponentRepairContext) -> None:
     """Canonicalize unambiguous component source-group names."""
-    expected_group_names = set(context.clustering.group_ids())
+    expected_group_names = set(context.group_ids)
     canonical_names = {_normalize_group_name(name): name for name in expected_group_names}
     corrected_count = 0
 

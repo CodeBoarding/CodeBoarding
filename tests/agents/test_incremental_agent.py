@@ -448,8 +448,7 @@ class TestIncrementalRelations(unittest.TestCase):
         )
 
         self.assertEqual(component.source_group_names, ["Worker"])
-        self.assertEqual(clustering.group_ids(), {"Worker": [2]})
-        self.assertEqual(clustering.group_descriptions(), {"Worker": "Worker description"})
+        self.assertEqual(clustering.groups[0].cluster_ids, [2])
 
     def test_uses_api_surface_relation_pipeline_and_attaches_static_call_sites(self) -> None:
         source = Node("pkg.api.run", NodeType.FUNCTION, "api.py", 1, 5)

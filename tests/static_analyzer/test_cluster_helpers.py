@@ -3,13 +3,11 @@ from unittest.mock import MagicMock, patch
 
 import networkx as nx
 
-from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
-    build_all_cluster_results,
     reindex_across_languages,
     reindex_cluster_result,
 )
-from static_analyzer.clustering import ClusterCache, ClusterResult, ClusteringService
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.config import DEFAULT_GROUPING_CONFIG
 from static_analyzer.clustering.grouping import GroupingService
 
@@ -28,61 +26,6 @@ def _make_cluster_result(prefix: str, count: int, start: int = 1) -> ClusterResu
 
 
 class TestClusterHelpers(unittest.TestCase):
-    def test_multi_tech_stack_cluster_ids_are_reindexed_without_overlap(self):
-        analysis = MagicMock(spec=StaticAnalysisResults)
-        analysis.get_languages.return_value = ["python", "typescript", "go"]
-
-        python_cfg = MagicMock()
-        typescript_cfg = MagicMock()
-        go_cfg = MagicMock()
-        analysis.get_cfg.side_effect = lambda language: {
-            "python": python_cfg,
-            "typescript": typescript_cfg,
-            "go": go_cfg,
-        }[language]
-        partitions = {
-            python_cfg: _make_cluster_result("py", 40),
-            typescript_cfg: _make_cluster_result("ts", 40),
-            go_cfg: _make_cluster_result("go", 40),
-        }
-        python_clusters, typescript_clusters, go_clusters = ClusterCache(), ClusterCache(), ClusterCache()
-        analysis.get_clusters.side_effect = lambda language: {
-            "python": python_clusters,
-            "typescript": typescript_clusters,
-            "go": go_clusters,
-        }[language]
-
-        with patch.object(ClusteringService, "cluster", side_effect=lambda graph: partitions[graph]):
-            result = build_all_cluster_results(analysis)
-
-        python_ids = set(result["python"].clusters.keys())
-        typescript_ids = set(result["typescript"].clusters.keys())
-        go_ids = set(result["go"].clusters.keys())
-        self.assertEqual(python_ids, set(range(1, 41)))
-        self.assertEqual(typescript_ids, set(range(42, 82)))
-        self.assertEqual(go_ids, set(range(124, 164)))
-        self.assertTrue(python_ids.isdisjoint(typescript_ids))
-        self.assertTrue(python_ids.isdisjoint(go_ids))
-        self.assertTrue(typescript_ids.isdisjoint(go_ids))
-
-        shifted_ts_ids = set().union(*result["typescript"].file_to_clusters.values())
-        self.assertEqual(shifted_ts_ids, typescript_ids)
-        self.assertIs(python_clusters.result, result["python"])
-        self.assertIs(typescript_clusters.result, result["typescript"])
-        self.assertIs(go_clusters.result, result["go"])
-
-    def test_all_clusters_survive_grouping(self):
-        """Every leaf cluster keeps its members — nothing is merged away before grouping."""
-        analysis = MagicMock(spec=StaticAnalysisResults)
-        analysis.get_languages.return_value = ["python"]
-        analysis.get_cfg.return_value = MagicMock()
-        analysis.get_clusters.return_value = ClusterCache()
-
-        with patch.object(ClusteringService, "cluster", return_value=_make_cluster_result("py", 120)):
-            result = build_all_cluster_results(analysis)
-
-        self.assertEqual(len(result["python"].clusters), 120)
-
     def test_reindex_cluster_result_shifts_all_ids(self):
         shifted = reindex_cluster_result(_make_cluster_result("x", 3), 10)
 

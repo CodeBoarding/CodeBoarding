@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
 from static_analyzer.cfg import CallGraph, CallSiteLocation
@@ -115,8 +114,6 @@ class ClusterGroup:
 
     group_id: GroupId
     cluster_ids: list[ClusterId]
-    name: str = ""
-    description: str = ""
     symbol_members_by_language: dict[str, set[str]] = field(default_factory=dict)
     previous_component_id: ComponentId = ""
     expandable: bool = False
@@ -145,34 +142,6 @@ class ClusterScopeResult:
     regrouped: bool = False
     clustering_groups: dict[GroupId, ClusterGroup] = field(default_factory=dict, init=False, repr=False)
     preclustered_scopes: dict[GroupId, ClusterScopeResult] = field(default_factory=dict, init=False, repr=False)
-
-    def group_names(self) -> list[str]:
-        return [group.name or f"Group {index}" for index, group in enumerate(self.groups, start=1)]
-
-    def group_ids(self) -> dict[str, list[ClusterId]]:
-        return {name: group.cluster_ids for name, group in zip(self.group_names(), self.groups, strict=True)}
-
-    def group_descriptions(self) -> dict[str, str]:
-        clusters: dict[ClusterId, set[str]] = {}
-        cluster_to_files: dict[ClusterId, set[str]] = {}
-        for result in self.leaf_clusters_by_language.values():
-            clusters.update(result.clusters)
-            cluster_to_files.update(result.cluster_to_files)
-        return {
-            name: group.description or self._group_summary(set(group.cluster_ids), clusters, cluster_to_files)
-            for name, group in zip(self.group_names(), self.groups, strict=True)
-        }
-
-    def llm_str(self) -> str:
-        descriptions = self.group_descriptions()
-        if not descriptions:
-            return "No clusters analyzed."
-        body = "\n".join(
-            f"**{name}** (cluster_ids: [{', '.join(str(cluster_id) for cluster_id in cluster_ids)}])\n"
-            f"   {descriptions[name]}"
-            for name, cluster_ids in self.group_ids().items()
-        )
-        return f"# Grouped Cluster Components\n{body}"
 
     def index_hierarchy(self) -> None:
         """Index all groups and retained child scopes in this hierarchy."""
@@ -225,28 +194,3 @@ class ClusterScopeResult:
 
     def __post_init__(self) -> None:
         self.index_hierarchy()
-
-    @staticmethod
-    def _group_summary(
-        group: set[ClusterId],
-        node_lookup: dict[ClusterId, set[str]],
-        file_lookup: dict[ClusterId, set[str]],
-        max_symbols: int = 12,
-        max_files: int = 8,
-    ) -> str:
-        """Build a deterministic, name-rich group summary."""
-        symbols = sorted(
-            {qualified_name for cluster_id in group for qualified_name in node_lookup.get(cluster_id, set())},
-            key=lambda qualified_name: (qualified_name.count("."), qualified_name),
-        )
-        files = sorted({path for cluster_id in group for path in file_lookup.get(cluster_id, set())})
-        file_names = [Path(path).name for path in files]
-
-        parts = [f"{len(group)} leaf clusters, {len(symbols)} symbols across {len(files)} files."]
-        if file_names:
-            shown = ", ".join(file_names[:max_files])
-            parts.append(f"Files: {shown}{', ...' if len(file_names) > max_files else ''}")
-        if symbols:
-            shown = ", ".join(symbols[:max_symbols])
-            parts.append(f"Key symbols: {shown}{', ...' if len(symbols) > max_symbols else ''}")
-        return " ".join(parts)
