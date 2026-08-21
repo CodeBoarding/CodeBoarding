@@ -270,6 +270,28 @@ class TestClusteringScope(unittest.TestCase):
         self.assertEqual(members_by_group["2"], {"b.one", "b.moved"})
         self.assertEqual(members_by_group["10"], {"deleted.moved", "fresh"})
 
+    @patch.object(GroupingService, "anchored_group")
+    def test_repair_drops_groups_emptied_by_previous_ownership(self, anchored_group):
+        graph = graph_for("python", ["stable", "moved"])
+        cluster_result = cluster_result_for(graph, {1: {"stable"}, 2: {"moved"}})
+        anchored_group.return_value = AnchoredGrouping(
+            groups=[{1}, {2}],
+            owners=["1", ""],
+            regrouped=True,
+            unanchored_modularity=0.0,
+        )
+
+        result = ClusteringService().cluster_scope(
+            {"python": graph},
+            leaf_clusters_by_language={"python": cluster_result},
+            previous_owner={1: "1", 2: "1"},
+            previous_member_owner={"python": {"stable": "1", "moved": "1"}},
+            reserved_group_ids={"1"},
+        )
+
+        self.assertEqual([group.group_id for group in result.groups], ["1"])
+        self.assertEqual(result.groups[0].qualified_names, {"stable", "moved"})
+
     def test_method_level_fallback_is_available_for_child_scopes(self):
         graph = graph_for("python", ["a", "b", "c", "d", "e"])
         cluster_result = cluster_result_for(graph, {1: set(graph.nodes)})

@@ -213,6 +213,7 @@ class ClusteringService:
         ]
         self._assign_symbol_members(graphs, scope_leaf_clusters, groups)
         repair_member_ownership(groups, previous_member_owner)
+        groups = [group for group in groups if group.qualified_names]
         connections = self._build_connections(graphs, groups)
         return ClusterScopeResult(
             scope_id=scope_id,
