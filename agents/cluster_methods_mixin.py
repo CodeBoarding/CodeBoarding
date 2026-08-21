@@ -44,7 +44,6 @@ from static_analyzer.clustering import (
     ClusteringService,
     MethodClusterPaths,
 )
-from static_analyzer.clustering.grouping import GroupingService
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -136,45 +135,6 @@ class ClusterMethodsMixin:
                 for index, group in enumerate(scope.groups, start=1)
             ]
         )
-
-    def deterministic_cluster_grouping(
-        self,
-        cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, nx.DiGraph],
-        *,
-        subcomponents: bool = False,
-    ) -> ClusterAnalysis:
-        """Partition leaf clusters into fixed component groups via resolution-tuned Leiden.
-
-        The count (modularity peak over the configured range) and membership are chosen
-        deterministically, so the structure is stable across re-runs — the LLM no
-        longer decides it. Each group gets a stable ``Group i`` label and a summary
-        of its members; the final-analysis step only names and describes them.
-
-        ``cfg_graphs`` must span exactly the same scope as ``cluster_results`` — the
-        component's own subgraph when splitting a component, the whole repo at the
-        top level. Handing it the repo graph for a component scope makes the split
-        disagree with the separability gate, which reads the subgraph.
-        """
-        groups, _modularity = GroupingService().group(
-            cluster_results,
-            cfg_graphs,
-            subcomponents=subcomponents,
-        )
-        combined = combine_cluster_results(cluster_results)
-        cluster_components = [
-            ClustersComponent(
-                name=f"Group {i}",
-                cluster_ids=sorted(group),
-                description=_summarize_group(group, combined.clusters, combined.cluster_to_files),
-            )
-            for i, group in enumerate(groups, start=1)
-        ]
-        logger.info(
-            f"[{type(self).__name__}] Partitioned {sum(len(g) for g in groups)} leaf clusters "
-            f"into {len(cluster_components)} deterministic groups"
-        )
-        return ClusterAnalysis(cluster_components=cluster_components)
 
     @staticmethod
     def assemble_one_component_per_group(

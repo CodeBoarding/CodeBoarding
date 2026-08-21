@@ -134,7 +134,7 @@ class TestPartialUpdate(unittest.TestCase):
                 component_id="test_comp_id",
             )
 
-            mock_generator.pre_analysis.assert_called_once()
+            mock_generator.prepare_analysis.assert_called_once_with(hierarchy_depth=2)
             mock_generator.process_component.assert_called_once_with(root_component)
             mock_generator.finalize_and_save.assert_called_once_with(
                 root_analysis, {"test_comp_id": mock_sub_analysis}, persist_side_artifacts=False
@@ -193,7 +193,7 @@ class TestPartialUpdate(unittest.TestCase):
                 component_id="nested_comp_id",
             )
 
-            mock_generator.pre_analysis.assert_called_once()
+            mock_generator.prepare_analysis.assert_called_once_with(hierarchy_depth=3)
             mock_generator.process_component.assert_called_once_with(nested_component)
             self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 2)
             mock_generator.finalize_and_save.assert_called_once()
@@ -218,9 +218,9 @@ class TestPartialUpdate(unittest.TestCase):
                     component_id="TestComponent",
                 )
 
-            # No metadata: raise before building the generator or touching pre_analysis.
+            # No metadata: raise before building the generator or touching prepare_analysis.
             mock_generator_class.assert_not_called()
-            mock_generator.pre_analysis.assert_not_called()
+            mock_generator.prepare_analysis.assert_not_called()
             mock_generator.process_component.assert_not_called()
 
 
@@ -339,7 +339,7 @@ class TestLocalSource(unittest.TestCase):
 
         mock_load_metadata.return_value = {"depth_level": 1}
         # Minimal non-None baseline so run_partial gets past both early-return guards
-        # and reaches pre_analysis (which is what this test asserts on).
+        # and reaches prepare_analysis (which is what this test asserts on).
         mock_load_full.return_value = (
             AnalysisInsights(description="root", components=[], components_relations=[]),
             {},
@@ -358,7 +358,7 @@ class TestLocalSource(unittest.TestCase):
                     component_id="does-not-matter",
                 )
 
-            mock_generator_class.return_value.pre_analysis.assert_called_once()
+            mock_generator_class.return_value.prepare_analysis.assert_called_once_with(hierarchy_depth=2)
 
 
 class TestFullCliLocal(unittest.TestCase):

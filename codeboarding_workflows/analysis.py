@@ -99,7 +99,7 @@ def run_partial(
 
     depth_level = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_LEVEL)))
     generator = build_generator(run_paths, run_context, depth_level=depth_level)
-    generator.pre_analysis()
+    generator.prepare_analysis(hierarchy_depth=depth_level + 1)
 
     full_analysis = load_full_analysis(run_paths.output_dir)
     if full_analysis is None:

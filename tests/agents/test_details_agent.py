@@ -120,19 +120,6 @@ class TestDetailsAgent(unittest.TestCase):
         )
         return cr, graph
 
-    def _assert_partition(self, result, expected_ids):
-        self.assertIsInstance(result, ClusterAnalysis)
-        self.assertGreaterEqual(len(result.cluster_components), 1)
-        # Names are the deterministic Group-1..N labels.
-        self.assertEqual(
-            [cc.name for cc in result.cluster_components],
-            [f"Group {i}" for i in range(1, len(result.cluster_components) + 1)],
-        )
-        # Every leaf cluster is owned by exactly one group (a true, disjoint partition).
-        assigned = [cid for cc in result.cluster_components for cid in cc.cluster_ids]
-        self.assertEqual(sorted(assigned), sorted(expected_ids))
-        self.assertEqual(len(assigned), len(set(assigned)))
-
     def test_init(self):
         # Test initialization
         mock_llm = MagicMock()
@@ -199,27 +186,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_cfg.filter_by_nodes.assert_called_with(expected_qnames)
         mock_cluster.assert_called_once_with(mock_subgraph)
 
-    def test_step_clusters_grouping(self):
-        # Grouping is deterministic (resolution-tuned Leiden on the subgraph), no LLM call.
-        agent = self._make_agent()
-        cr, graph = self._clustered_graph(range(1, 11))
-        subgraph_cfg = MagicMock()
-        subgraph_cfg.to_networkx.return_value = graph
-        subgraph_cluster_results = {"python": cr}
-        subgraph_cfgs = {"python": subgraph_cfg}
-
-        result = agent.step_clusters_grouping(self.test_component, subgraph_cluster_results, subgraph_cfgs)
-        result_again = agent.step_clusters_grouping(self.test_component, subgraph_cluster_results, subgraph_cfgs)
-
-        # A complete, disjoint partition of the leaf clusters into "Group i" components.
-        self._assert_partition(result, list(range(1, 11)))
-        # Deterministic: same membership on a re-run.
-        self.assertEqual(
-            [sorted(cc.cluster_ids) for cc in result.cluster_components],
-            [sorted(cc.cluster_ids) for cc in result_again.cluster_components],
-        )
-
-    def test_run_scope_skips_local_reclustering(self):
+    def test_run_uses_precomputed_scope(self):
         agent = self._make_agent()
         partition = ClusterResult(clusters={1: {"test.func"}}, strategy="test")
         scope = ClusterScopeResult(
@@ -227,22 +194,31 @@ class TestDetailsAgent(unittest.TestCase):
             leaf_clusters_by_language={"python": partition},
             groups=[ClusterGroup(group_id="1.1", cluster_ids=[1])],
         )
-        cfgs = {"python": CallGraph(language="python")}
+        cfg = CallGraph(language="python")
+        cfg.add_node(Node("test.func", NodeType.FUNCTION, "test.py", 1, 10))
+        cfg.add_node(Node("test_utils.helper", NodeType.FUNCTION, "test_utils.py", 1, 5))
+        self.mock_static_analysis.get_cfg.return_value = cfg
         expected = (
             AnalysisInsights(description="done", components=[], components_relations=[]),
             scope.leaf_clusters_by_language,
         )
 
         with (
-            patch.object(agent, "_run_clustered", return_value=expected) as run_clustered,
-            patch.object(agent, "step_clusters_grouping") as regroup,
+            patch.object(agent, "step_final_analysis", return_value=expected[0]) as final_analysis,
+            patch.object(agent, "populate_file_methods"),
+            patch.object(agent, "step_api_surfaces", return_value=MagicMock()),
+            patch.object(agent, "step_relation_analysis"),
+            patch.object(agent.reference_resolver, "fix_source_code_reference_lines", return_value=expected[0]),
+            patch("agents.details_agent.index_relation_endpoints"),
+            patch.object(agent, "_ensure_unique_key_entities"),
         ):
-            result = agent.run_scope(self.test_component, scope, cfgs)
+            result = agent.run(scope, self.test_component)
 
         self.assertEqual(result, expected)
-        regroup.assert_not_called()
-        self.assertIs(run_clustered.call_args.args[2], scope.leaf_clusters_by_language)
-        self.assertIs(run_clustered.call_args.args[3], cfgs)
+        _component, cluster_analysis, partitions, cfgs = final_analysis.call_args.args
+        self.assertEqual(cluster_analysis.cluster_components[0].cluster_ids, [1])
+        self.assertIs(partitions, scope.leaf_clusters_by_language)
+        self.assertEqual(set(cfgs["python"].nodes), {"test.func"})
 
     @patch("agents.details_agent.DetailsAgent._invoke_repair_validate")
     def test_step_final_analysis(self, mock_invoke_repair_validate):
@@ -400,14 +376,13 @@ class TestDetailsAgent(unittest.TestCase):
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
-        # Mock StaticAnalysis and CFG behavior for run
-        abs_assigned = {str(self.repo_dir / fg.file_path) for fg in self.test_component.file_methods}
-        mock_cluster_result = MagicMock()
-        mock_cluster_result.get_cluster_ids.return_value = {1}
-        mock_cluster_result.get_files_for_cluster.return_value = abs_assigned
-
-        # Real subgraph cluster result + graph so deterministic grouping has structure.
+        self.test_component.component_id = "1"
         sub_cluster_result, subgraph_graph = self._clustered_graph(range(1, 7))
+        scope = ClusterScopeResult(
+            scope_id="1",
+            leaf_clusters_by_language={"python": sub_cluster_result},
+            groups=[ClusterGroup(group_id="1.1", cluster_ids=list(range(1, 7)))],
+        )
 
         mock_node = MagicMock()
         mock_node.file_path = str(self.repo_dir / "src" / "main.py")
@@ -418,16 +393,14 @@ class TestDetailsAgent(unittest.TestCase):
 
         mock_subgraph = MagicMock()
         mock_subgraph.nodes = {"n1": mock_node}
-        mock_subgraph.cluster.return_value = sub_cluster_result
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
         mock_subgraph.to_networkx.return_value = subgraph_graph
 
         mock_cfg = MagicMock()
-        mock_cfg.cluster.return_value = mock_cluster_result
         mock_cfg.filter_by_nodes.return_value = mock_subgraph
         # _build_cluster_string calls cfg.to_cluster_string on the original cfg
         mock_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"
-        # deterministic_cluster_grouping reads the (super-)graph via get_cfg(...).to_networkx()
+        # Clustering reads the (super-)graph via get_cfg(...).to_networkx().
         mock_cfg.to_networkx.return_value = subgraph_graph
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
@@ -454,7 +427,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_parse_invoke.return_value = api_response
         mock_fix_ref.return_value = final_response
 
-        analysis, _subgraph_results = agent.run(self.test_component)
+        analysis, _subgraph_results = agent.run(scope, self.test_component)
 
         self.assertEqual(analysis, final_response)
         mock_invoke_validate.assert_called_once_with(
