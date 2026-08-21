@@ -89,7 +89,6 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=MagicMock(),
             parsing_llm=MagicMock(),
-            run_id="test-run-id",
         )
 
     @staticmethod
@@ -139,7 +138,6 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
-            run_id="test-run-id",
         )
 
         self.assertEqual(agent.project_name, self.project_name)
@@ -157,7 +155,6 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
-            run_id="test-run-id",
         )
         # Build the expected set of qualified names from component's file_methods
         expected_qnames = {"test.func", "test_utils.helper"}
@@ -228,7 +225,6 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
-            run_id="test-run-id",
         )
         mock_response = AnalysisInsights(
             description="Structure analysis",
@@ -254,7 +250,6 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
-            run_id="test-run-id",
         )
 
         cluster_analysis = ClusterAnalysis(
@@ -299,7 +294,6 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
-            run_id="test-run-id",
         )
 
         cluster_analysis = ClusterAnalysis(
@@ -335,7 +329,6 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
-            run_id="test-run-id",
         )
         analysis = AnalysisInsights(
             description="Test",
@@ -375,7 +368,6 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
-            run_id="test-run-id",
         )
         # Mock StaticAnalysis and CFG behavior for run
         abs_assigned = {str(self.repo_dir / fg.file_path) for fg in self.test_component.file_methods}
@@ -456,7 +448,6 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
-            run_id="test-run-id",
         )
 
         sub_component = Component(
