@@ -544,20 +544,23 @@ def _definition_nodes(
     if target is not None and target.line_start != line + 1:
         target = None
     if target is None:
-        same_line = [
-            node
-            for node in call_graph.nodes.values()
-            if node.file_path == str(file_path) and node.line_start == line + 1
-        ]
-        if same_line:
-            target = max(
-                same_line,
-                key=lambda node: (
-                    node.is_class(),
-                    node.is_callable(),
-                    len(node.fully_qualified_name),
-                ),
-            )
+        # Some providers return a decorator or annotation line before the declaration.
+        for declaration_line in range(line + 1, line + 4):
+            candidates = [
+                node
+                for node in call_graph.nodes.values()
+                if node.file_path == str(file_path) and node.line_start == declaration_line
+            ]
+            if candidates:
+                target = max(
+                    candidates,
+                    key=lambda node: (
+                        node.is_class(),
+                        node.is_callable(),
+                        len(node.fully_qualified_name),
+                    ),
+                )
+                break
     if target is None:
         return []
 
