@@ -91,6 +91,7 @@ from static_analyzer.clustering import (
     ClusterScopeInput,
     ClusterScopeResult,
     ClusteringService,
+    MethodClusterPaths,
 )
 from static_analyzer.clustering.grouping import reindex_across_languages, reindex_cluster_result
 from static_analyzer.clustering.orchestration import build_clustering_hierarchy
@@ -511,21 +512,36 @@ def _incremental_scope_partitions(
 ) -> dict[str, ClusterResult]:
     """Seed each exact child graph from its persisted scope-local cluster lineage."""
     snapshots: dict[str, dict[int, ClusterSnapshotEntry]] = {}
-    reserved_cluster_ids: set[int] = set()
-    prefix = f"{scope_id}."
-    for language, graph in graphs.items():
+    method_paths_by_language: dict[str, MethodClusterPaths] = {}
+    for baseline_language in baseline_analysis.get_languages():
         try:
-            method_paths = baseline_analysis.get_clusters(Language(language)).method_paths
-            snapshot = scoped_snapshot_from_lineage(graph, method_paths, scope_id)
+            method_paths_by_language[str(baseline_language)] = baseline_analysis.get_clusters(
+                baseline_language
+            ).method_paths
         except (KeyError, ValueError):
-            snapshot = {}
+            continue
+    for language in graphs:
+        if language in method_paths_by_language:
+            continue
+        try:
+            method_paths_by_language[language] = baseline_analysis.get_clusters(Language(language)).method_paths
+        except (KeyError, ValueError):
+            continue
+
+    prefix = f"{scope_id}."
+    reserved_cluster_ids = {
+        int(local_id)
+        for method_paths in method_paths_by_language.values()
+        for _qualified_name, cluster_ids in method_paths.snapshot()
+        for cluster_id in cluster_ids
+        if cluster_id.startswith(prefix) and (local_id := cluster_id.removeprefix(prefix)).isdigit()
+    }
+    for language, graph in graphs.items():
+        method_paths = method_paths_by_language.get(language)
+        if method_paths is not None:
+            snapshot = scoped_snapshot_from_lineage(graph, method_paths, scope_id)
         else:
-            reserved_cluster_ids.update(
-                int(local_id)
-                for _qualified_name, cluster_ids in method_paths.snapshot()
-                for cluster_id in cluster_ids
-                if cluster_id.startswith(prefix) and (local_id := cluster_id.removeprefix(prefix)).isdigit()
-            )
+            snapshot = {}
         covered_members = {member for entry in snapshot.values() for member in entry.members}
         missing_members = (persisted_members & set(graph.nodes)) - covered_members
         if missing_members:
@@ -754,6 +770,15 @@ class DiagramGenerator:
         if baseline_analysis is None:
             raise IncrementalCacheMissingError(self.output_dir)
         persisted_scopes = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
+        changed_files = (
+            {
+                normalize_repo_path(change.file_path, self.repo_location)
+                for change in self.changes.files
+                if change.is_content_change()
+            }
+            if self.changes is not None
+            else set()
+        )
 
         def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
             persisted = persisted_scopes.get(scope_id)
@@ -787,11 +812,20 @@ class DiagramGenerator:
                 scope_id,
                 self.repo_location,
             )
+            changed_members_by_language = {
+                language: {
+                    qualified_name
+                    for qualified_name in self._changed_members
+                    if qualified_name in graph.nodes
+                    and normalize_repo_path(graph.nodes[qualified_name].file_path, self.repo_location) in changed_files
+                }
+                for language, graph in graphs.items()
+            }
             member_owner = {
                 language: {
                     qualified_name: owner
                     for qualified_name, owner in owner_by_member.items()
-                    if qualified_name not in self._changed_members
+                    if qualified_name not in changed_members_by_language.get(language, set())
                 }
                 for language, owner_by_member in member_owner.items()
             }

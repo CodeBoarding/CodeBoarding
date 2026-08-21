@@ -1780,6 +1780,7 @@ class TestDiagramGenerator(unittest.TestCase):
             depth_level=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
+            changes=ChangeSet.from_changed_files([], ["child.py"], []),
         )
         gen.static_analysis = MagicMock()
         gen._changed_members = {"child.member"}
@@ -1797,11 +1798,23 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         root_partition = ClusterResult(clusters={1: {"root.member"}})
         child_partition = ClusterResult(clusters={2: {"child.member"}})
-        child_graphs = {"python": CallGraph(language="python")}
+        python_child_graph = CallGraph(language="python")
+        python_child_graph.add_node(Node("child.member", NodeType.FUNCTION, str(self.repo_location / "child.py"), 1, 2))
+        typescript_child_graph = CallGraph(language="typescript")
+        typescript_child_graph.add_node(
+            Node("child.member", NodeType.FUNCTION, str(self.repo_location / "child.ts"), 1, 2)
+        )
+        child_graphs = {"python": python_child_graph, "typescript": typescript_child_graph}
         child_partitions.return_value = {"python": child_partition}
         previous_owner.side_effect = [
             ({1: "1"}, {"python": {"root.member": "1"}}),
-            ({2: "1.1"}, {"python": {"child.member": "1.1"}}),
+            (
+                {2: "1.1"},
+                {
+                    "python": {"child.member": "1.1"},
+                    "typescript": {"child.member": "1.2"},
+                },
+            ),
         ]
         expected = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
         build_hierarchy.return_value = expected
@@ -1818,7 +1831,10 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(root_input.reserved_group_ids, frozenset({"1"}))
         self.assertTrue(root_input.retain_scope)
         self.assertEqual(child_input.previous_owner, {2: "1.1"})
-        self.assertEqual(child_input.previous_member_owner, {"python": {}})
+        self.assertEqual(
+            child_input.previous_member_owner,
+            {"python": {}, "typescript": {"child.member": "1.2"}},
+        )
         self.assertEqual(child_input.reserved_group_ids, frozenset({"1.1"}))
         self.assertTrue(child_input.retain_scope)
         self.assertEqual(scope_input("2", child_graphs), ClusterScopeInput())
@@ -1929,6 +1945,44 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertEqual(delta_for_language.call_args.kwargs["next_new_id"], 10)
         self.assertEqual(set(partitions["python"].clusters), {2, 3, 4, 5, 10})
+
+    @patch("diagram_analysis.diagram_generator._delta_for_language")
+    def test_incremental_child_scope_reserves_ids_from_removed_languages(self, delta_for_language):
+        baseline = MagicMock()
+        baseline.get_languages.return_value = [Language.PYTHON, Language.TYPESCRIPT]
+        baseline_paths = {
+            Language.PYTHON: MethodClusterPaths({"py.deleted": {"1.9"}}),
+            Language.TYPESCRIPT: MethodClusterPaths({"ts.live": {"1.2"}}),
+        }
+        baseline.get_clusters.side_effect = lambda language: MagicMock(method_paths=baseline_paths[language])
+        graph = CallGraph(language="typescript")
+        graph.add_node(Node("ts.live", NodeType.FUNCTION, "/repo/live.ts", 1, 2))
+        for index in range(3, 6):
+            graph.add_node(Node(f"ts.new{index}", NodeType.FUNCTION, "/repo/new.ts", index, index))
+        graph.add_node(Node("ts.replacement", NodeType.FUNCTION, "/repo/new.ts", 6, 7))
+        delta_for_language.return_value = LanguageDelta(
+            language="typescript",
+            cluster_results=ClusterResult(
+                clusters={
+                    2: {"ts.live"},
+                    3: {"ts.new3"},
+                    4: {"ts.new4"},
+                    5: {"ts.new5"},
+                    10: {"ts.replacement"},
+                }
+            ),
+        )
+
+        partitions = _incremental_scope_partitions(
+            baseline,
+            "1",
+            {"typescript": graph},
+            {"ts.live"},
+            self.output_dir,
+        )
+
+        self.assertEqual(delta_for_language.call_args.kwargs["next_new_id"], 10)
+        self.assertEqual(set(partitions["typescript"].clusters), {2, 3, 4, 5, 10})
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
