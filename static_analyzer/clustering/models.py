@@ -115,6 +115,8 @@ class ClusterGroup:
 
     group_id: GroupId
     cluster_ids: list[ClusterId]
+    name: str = ""
+    description: str = ""
     symbol_members_by_language: dict[str, set[str]] = field(default_factory=dict)
     previous_component_id: ComponentId = ""
     expandable: bool = False
@@ -145,7 +147,7 @@ class ClusterScopeResult:
     preclustered_scopes: dict[GroupId, ClusterScopeResult] = field(default_factory=dict, init=False, repr=False)
 
     def group_names(self) -> list[str]:
-        return [f"Group {index}" for index, _group in enumerate(self.groups, start=1)]
+        return [group.name or f"Group {index}" for index, group in enumerate(self.groups, start=1)]
 
     def group_ids(self) -> dict[str, list[ClusterId]]:
         return {name: group.cluster_ids for name, group in zip(self.group_names(), self.groups, strict=True)}
@@ -157,7 +159,7 @@ class ClusterScopeResult:
             clusters.update(result.clusters)
             cluster_to_files.update(result.cluster_to_files)
         return {
-            name: self._group_summary(set(group.cluster_ids), clusters, cluster_to_files)
+            name: group.description or self._group_summary(set(group.cluster_ids), clusters, cluster_to_files)
             for name, group in zip(self.group_names(), self.groups, strict=True)
         }
 

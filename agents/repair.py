@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Protocol
 
-from agents.agent_responses import ClusterAnalysis, Component
+from agents.agent_responses import Component
 from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
@@ -20,7 +20,7 @@ class ComponentRepairTarget(Protocol):
 @dataclass
 class ComponentRepairContext:
     reference_resolver: StaticReferenceResolver
-    clustering: ClusterScopeResult | ClusterAnalysis
+    clustering: ClusterScopeResult
     cluster_results: dict[str, ClusterResult] = field(default_factory=dict)
 
 

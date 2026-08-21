@@ -6,6 +6,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     ComponentApiSurface,
     ComponentApiSurfaces,
+    ComponentArchitecture,
     ComponentRelations,
     Component,
     Relation,
@@ -19,7 +20,7 @@ from agents.agent_responses import (
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.incremental_agent import (
     IncrementalAgent,
-    _cluster_analysis_for_scope,
+    _clustering_for_scope,
     _patch_file_methods,
     prune_empty_components,
     remove_deleted_files,
@@ -174,6 +175,30 @@ class TestUpdateScope(unittest.TestCase):
         agent._patch_scope_file_methods = MagicMock(side_effect=populate)
         agent.build_static_relations = MagicMock()
         return agent
+
+    def test_detail_new_components_formats_cluster_scope_metadata(self) -> None:
+        component = _component_with_method("New Component", "7")
+        detailed = Component(
+            name="Worker",
+            description="Processes queued jobs.",
+            key_entities=[],
+            source_group_names=["Incremental Group 7"],
+        )
+        prompt_template = MagicMock()
+        prompt_template.format.return_value = "details prompt"
+        agent = self._agent()
+        agent.prompts = {"new_component_details": prompt_template}
+        agent._parse_invoke = MagicMock(
+            return_value=ComponentArchitecture(description="new components", components=[detailed])
+        )
+
+        agent.detail_new_components([component])
+
+        clustering_text = prompt_template.format.call_args.kwargs["cluster_analysis"]
+        self.assertIn("**Incremental Group 7** (cluster_ids: [])", clustering_text)
+        self.assertIn("Final membership: 1 symbols across 1 files.", clustering_text)
+        self.assertEqual(component.name, "Worker")
+        self.assertEqual(component.description, "Processes queued jobs.")
 
     def test_update_without_selected_key_entities_does_not_synthesize_them(self) -> None:
         component = _component("API", "1", source_cluster_ids=["1"])
@@ -503,14 +528,16 @@ class TestIncrementalRelations(unittest.TestCase):
         component.source_group_names = []
         scope = AnalysisInsights(description="nested", components=[component], components_relations=[])
 
-        cluster_analysis = _cluster_analysis_for_scope(
+        clustering = _clustering_for_scope(
             scope,
             "1",
             {"python": ClusterResult(clusters={2: {"worker.run"}})},
+            {"python": CallGraph(language="python")},
         )
 
         self.assertEqual(component.source_group_names, ["Worker"])
-        self.assertEqual(cluster_analysis.cluster_components[0].cluster_ids, [2])
+        self.assertEqual(clustering.group_ids(), {"Worker": [2]})
+        self.assertEqual(clustering.group_descriptions(), {"Worker": "Worker description"})
 
     def test_uses_api_surface_relation_pipeline_and_attaches_static_call_sites(self) -> None:
         source = Node("pkg.api.run", NodeType.FUNCTION, "api.py", 1, 5)

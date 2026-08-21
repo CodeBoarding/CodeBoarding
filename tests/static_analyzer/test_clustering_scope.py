@@ -69,6 +69,25 @@ class TestClusteringScope(unittest.TestCase):
             "Key symbols: pkg.Repository.load",
         )
 
+    def test_scope_formats_explicit_group_metadata(self):
+        scope = ClusterScopeResult(
+            scope_id="1",
+            groups=[
+                ClusterGroup(
+                    group_id="1.2",
+                    cluster_ids=[3],
+                    name="Existing Worker",
+                    description="Processes queued jobs.",
+                )
+            ],
+        )
+
+        self.assertEqual(scope.group_ids(), {"Existing Worker": [3]})
+        self.assertEqual(
+            scope.llm_str(),
+            "# Grouped Cluster Components\n" "**Existing Worker** (cluster_ids: [3])\n" "   Processes queued jobs.",
+        )
+
     def test_grouping_matches_the_existing_supercluster_result(self):
         graph = graph_for("python", ["a", "b", "c"], [("a", "b"), ("b", "c")])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}})

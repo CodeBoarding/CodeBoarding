@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional, List
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
-from agents.agent_responses import ClusterAnalysis
 from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -20,7 +19,7 @@ class RepoContext(BaseModel):
     ignore_manager: RepoIgnoreManager
     static_analysis: Optional[StaticAnalysisResults] = None
     changes: ChangeSet | None = None
-    clustering: ClusterScopeResult | ClusterAnalysis = Field(default_factory=lambda: ClusterScopeResult(scope_id=""))
+    clustering: ClusterScopeResult = Field(default_factory=lambda: ClusterScopeResult(scope_id=""))
     cluster_results: dict[str, ClusterResult] = Field(default_factory=dict)
     cfg_graphs: dict[str, CallGraph] = Field(default_factory=dict)
     # Shared caches to prevent redundant filesystem walks

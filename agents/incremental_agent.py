@@ -12,8 +12,6 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
     Component,
     ComponentApiSurfaces,
     ComponentArchitecture,
@@ -53,7 +51,7 @@ from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult, ClusterScopeResult
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -230,12 +228,13 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
     @trace
     def detail_new_components(self, components: list[Component]) -> None:
         """Replace new components' provisional names and descriptions in one LLM call."""
-        groups: list[ClustersComponent] = []
+        groups: list[ClusterGroup] = []
         target_by_group: dict[str, Component] = {}
         for component in components:
             group_name = f"Incremental Group {component.component_id}"
             groups.append(
-                ClustersComponent(
+                ClusterGroup(
+                    group_id=component.component_id,
                     name=group_name,
                     cluster_ids=[],
                     description=_new_component_membership_summary(component),
@@ -243,9 +242,9 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             )
             target_by_group[group_name.casefold()] = component
 
-        cluster_analysis = ClusterAnalysis(cluster_components=groups)
-        prompt = self.prompts["new_component_details"].format(cluster_analysis=cluster_analysis.llm_str())
-        group_names = [group.name for group in groups]
+        clustering = ClusterScopeResult(scope_id="", groups=groups)
+        prompt = self.prompts["new_component_details"].format(cluster_analysis=clustering.llm_str())
+        group_names = clustering.group_names()
         prompt += (
             f"\n\n## New Component Groups ({len(group_names)} total)\n"
             f"Return exactly one semantically named component for each of these fixed groups: {group_names}.\n"
@@ -323,13 +322,13 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope: AnalysisInsights,
         scope_name: str,
         api_surfaces: ComponentApiSurfaces,
-        cluster_analysis: ClusterAnalysis,
-        cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph],
+        clustering: ClusterScopeResult,
     ) -> list[Relation]:
         """Discover evidence-backed relations and attach deterministic CFG edges."""
         logger.info("[IncrementalAgent] Discovering component relations for scope: %s", scope_name)
-        self.toolkit.context.clustering = cluster_analysis
+        cluster_results = clustering.leaf_clusters_by_language
+        cfg_graphs = clustering.graphs_by_language
+        self.toolkit.context.clustering = clustering
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(
@@ -348,7 +347,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 cfg_graphs=cfg_graphs,
                 repo_dir=str(self.repo_dir),
                 static_analysis=self.static_analysis,
-                clustering=cluster_analysis,
+                clustering=clustering,
                 components=scope.components,
             ),
             max_validation_attempts=3,
@@ -402,15 +401,13 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         }
 
         if context.changed_ids:
-            cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, context.cluster_results)
+            clustering = _clustering_for_scope(scope, scope_name, context.cluster_results, context.cfg_graphs)
             api_surfaces = self.step_api_surfaces(scope, scope_name)
             rels = self.step_relation_analysis(
                 scope,
                 scope_name,
                 api_surfaces,
-                cluster_analysis,
-                context.cluster_results,
-                context.cfg_graphs,
+                clustering,
             )
         else:
             # Nothing in this scope changed, so preserve_unchanged_relations below would discard any
@@ -557,29 +554,36 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
 
 
-def _cluster_analysis_for_scope(
+def _clustering_for_scope(
     scope: AnalysisInsights,
     scope_id: str,
     cluster_results: dict[str, ClusterResult],
-) -> ClusterAnalysis:
+    cfg_graphs: dict[str, CallGraph],
+) -> ClusterScopeResult:
     """Reconstruct grouped-cluster context for a persisted incremental scope."""
     valid_cluster_ids = {
         cluster_id for cluster_result in cluster_results.values() for cluster_id in cluster_result.clusters
     }
-    groups: list[ClustersComponent] = []
+    groups: list[ClusterGroup] = []
     for component in scope.components:
         cluster_ids = _local_graph_cluster_ids(component.source_cluster_ids, scope_id, valid_cluster_ids)
         if not component.source_group_names:
             component.source_group_names = [component.name]
         for group_name in component.source_group_names:
             groups.append(
-                ClustersComponent(
+                ClusterGroup(
+                    group_id=component.component_id,
                     name=group_name,
                     cluster_ids=cluster_ids,
                     description=component.description,
                 )
             )
-    return ClusterAnalysis(cluster_components=groups)
+    return ClusterScopeResult(
+        scope_id=scope_id,
+        graphs_by_language=cfg_graphs,
+        leaf_clusters_by_language=cluster_results,
+        groups=groups,
+    )
 
 
 def _local_graph_cluster_ids(

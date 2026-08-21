@@ -8,7 +8,6 @@ from typing import Protocol
 
 from agents.agent_responses import (
     AnalysisInsights,
-    ClusterAnalysis,
     Component,
     ComponentFiles,
     Relation,
@@ -49,7 +48,7 @@ class ValidationContext:
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
-    clustering: ClusterScopeResult | ClusterAnalysis = field(default_factory=lambda: ClusterScopeResult(scope_id=""))
+    clustering: ClusterScopeResult = field(default_factory=lambda: ClusterScopeResult(scope_id=""))
     components: list[Component] = field(default_factory=list)  # For relation-only validation steps
 
 
@@ -108,7 +107,7 @@ def validate_group_name_coverage(result: ComponentValidationTarget, context: Val
 
     Args:
         result: AnalysisInsights containing components with source_group_names
-        context: ValidationContext with cluster_analysis
+        context: ValidationContext with clustering
 
     Returns:
         ValidationResult with targeted feedback depending on the issue
@@ -484,9 +483,7 @@ def _build_cluster_edge_lookup(
     return cluster_edge_lookup
 
 
-def _component_cluster_ids(
-    components: list[Component], clustering: ClusterScopeResult | ClusterAnalysis
-) -> dict[str, list[int]]:
+def _component_cluster_ids(components: list[Component], clustering: ClusterScopeResult) -> dict[str, list[int]]:
     group_to_cluster_ids = clustering.group_ids()
     component_to_clusters: dict[str, list[int]] = {}
     for component in components:
