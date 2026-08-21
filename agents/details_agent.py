@@ -23,12 +23,8 @@ from agents.prompts import (
 )
 from agents.relation_edges import index_relation_endpoints
 from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
-from agents.cluster_methods_mixin import (
-    ClusterMethodsMixin,
-    cluster_group_descriptions,
-    cluster_group_ids,
-    render_cluster_groups,
-)
+from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.llm_renderers import cluster_group_descriptions, cluster_group_ids, render_cluster_groups
 from agents.validation import (
     ValidationContext,
     validate_group_name_coverage,

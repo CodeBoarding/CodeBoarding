@@ -13,12 +13,8 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
     assign_relation_ids,
 )
-from agents.cluster_methods_mixin import (
-    ClusterMethodsMixin,
-    cluster_group_descriptions,
-    cluster_group_ids,
-    render_cluster_groups,
-)
+from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.llm_renderers import cluster_group_descriptions, cluster_group_ids, render_cluster_groups
 from agents.prompts import (
     get_final_analysis_message,
     get_api_surfaces_message,

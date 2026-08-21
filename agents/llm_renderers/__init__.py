@@ -6,5 +6,6 @@ about the graph, the graph knows nothing about prompts.
 """
 
 from agents.llm_renderers.call_graph import render_call_graph
+from agents.llm_renderers.clustering import cluster_group_descriptions, cluster_group_ids, render_cluster_groups
 
-__all__ = ["render_call_graph"]
+__all__ = ["cluster_group_descriptions", "cluster_group_ids", "render_call_graph", "render_cluster_groups"]
