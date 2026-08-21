@@ -73,7 +73,7 @@ Existing cluster IDs are **preserved** (stable). New clusters get fresh IDs. Thi
 
 **Flavor A** (fallback, change >= 25%): Fresh Louvain on full CFG, match to old clusters by greedy 1:1 Jaccard >= 0.5.
 
-### Step 4: `plan_scope_update()` — no LLM
+### Step 4: `plan_scope_result_update()` — no LLM
 **`diagram_analysis/scope_plan.py`**
 
 Structure is derived, not asked for. The LLM no longer decides which cluster belongs to which
