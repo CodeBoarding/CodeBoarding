@@ -56,6 +56,7 @@ from diagram_analysis.cluster_delta import (
 )
 from diagram_analysis.cluster_snapshot import (
     ClusterSnapshot,
+    ClusterSnapshotEntry,
     snapshot_from_static_analysis,
 )
 from diagram_analysis.exceptions import IncrementalCacheMissingError, ScopeContainmentError
@@ -91,7 +92,7 @@ from static_analyzer.clustering import (
     ClusterScopeResult,
     ClusteringService,
 )
-from static_analyzer.clustering.grouping import reindex_across_languages
+from static_analyzer.clustering.grouping import reindex_across_languages, reindex_cluster_result
 from static_analyzer.clustering.orchestration import build_clustering_hierarchy
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
@@ -502,25 +503,50 @@ def _incremental_changed_component_ids(
 
 
 def _incremental_scope_partitions(
-    static_analysis: StaticAnalysisResults,
+    baseline_analysis: StaticAnalysisResults,
     scope_id: str,
     graphs: Mapping[str, CallGraph],
+    persisted_members: set[str],
+    artifact_dir: Path,
 ) -> dict[str, ClusterResult]:
     """Seed each exact child graph from its persisted scope-local cluster lineage."""
+    snapshots: dict[str, dict[int, ClusterSnapshotEntry]] = {}
+    for language, graph in graphs.items():
+        try:
+            method_paths = baseline_analysis.get_clusters(Language(language)).method_paths
+            snapshot = scoped_snapshot_from_lineage(graph, method_paths, scope_id)
+        except (KeyError, ValueError):
+            snapshot = {}
+        covered_members = {member for entry in snapshot.values() for member in entry.members}
+        missing_members = (persisted_members & set(graph.nodes)) - covered_members
+        if missing_members:
+            raise IncrementalCacheMissingError(
+                artifact_dir,
+                f"persisted scope {scope_id!r} has no cluster lineage for {language} member(s): "
+                + ", ".join(sorted(missing_members)[:5]),
+            )
+        snapshots[language] = snapshot
+
     partitions: dict[str, ClusterResult] = {}
     clustering_service = ClusteringService()
-    for language, graph in graphs.items():
-        method_paths = static_analysis.get_clusters(Language(language)).method_paths
-        snapshot = scoped_snapshot_from_lineage(graph, method_paths, scope_id)
+    next_new_id = max((cluster_id for snapshot in snapshots.values() for cluster_id in snapshot), default=-1) + 1
+    for language in sorted(graphs):
+        graph = graphs[language]
+        snapshot = snapshots[language]
         if snapshot:
             partition = _delta_for_language(
                 language,
                 graph.to_networkx(DEFAULT_REFERENCE_KINDS),
                 snapshot,
+                next_new_id=next_new_id,
             ).cluster_results
         else:
             partition = clustering_service.cluster(graph)
-        partitions[language] = clustering_service.expand_to_method_level(graph, partition)
+        partition = clustering_service.expand_to_method_level(graph, partition)
+        if not snapshot and next_new_id:
+            partition = reindex_cluster_result(partition, next_new_id)
+        partitions[language] = partition
+        next_new_id = max(next_new_id, max(partition.clusters, default=0) + 1)
     reindex_across_languages(partitions)
     return partitions
 
@@ -715,15 +741,33 @@ class DiagramGenerator:
         """Build one anchored hierarchy from the live graphs and persisted scope ownership."""
         assert self.static_analysis is not None
         static_analysis = self.static_analysis
+        baseline_analysis = static_analysis.incremental_base_results
+        if baseline_analysis is None:
+            raise IncrementalCacheMissingError(self.output_dir)
         persisted_scopes = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
 
         def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            persisted = persisted_scopes.get(scope_id)
             leaf_clusters = (
                 root_leaf_clusters
                 if scope_id == ROOT_SCOPE_ID
-                else _incremental_scope_partitions(static_analysis, scope_id, graphs)
+                else _incremental_scope_partitions(
+                    baseline_analysis,
+                    scope_id,
+                    graphs,
+                    (
+                        {
+                            method.qualified_name
+                            for component in persisted.components
+                            for group in component.file_methods
+                            for method in group.methods
+                        }
+                        if persisted is not None
+                        else set()
+                    ),
+                    self.output_dir,
+                )
             )
-            persisted = persisted_scopes.get(scope_id)
             if persisted is None:
                 return ClusterScopeInput(leaf_clusters_by_language=leaf_clusters)
             cluster_owner, member_owner = previous_ownership(
@@ -739,6 +783,7 @@ class DiagramGenerator:
                 reserved_group_ids=frozenset(
                     component.component_id for component in persisted.components if component.component_id
                 ),
+                retain_scope=True,
             )
 
         return build_clustering_hierarchy(

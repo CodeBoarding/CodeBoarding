@@ -38,6 +38,7 @@ def build_clustering_hierarchy(
             previous_owner=provided.previous_owner,
             previous_member_owner=provided.previous_member_owner,
             reserved_group_ids=provided.reserved_group_ids,
+            retain_scope=provided.retain_scope,
         )
 
     hierarchy = ClusteringService().cluster_hierarchy(

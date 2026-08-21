@@ -256,14 +256,21 @@ class ClusteringService:
                 reserved_group_ids=child_input.reserved_group_ids,
                 method_level_fallback=True,
             )
-            if sum(bool(child_group.qualified_names) for child_group in child.groups) < 2:
+            if (
+                not child_input.retain_scope
+                and sum(bool(child_group.qualified_names) for child_group in child.groups) < 2
+            ):
                 continue
             load = scope_load(method_count, file_count)
-            if load < 1.0 and not scope_is_separable(
-                child.leaf_clusters_by_language,
-                child.unanchored_modularity,
-                load,
-                method_count,
+            if (
+                not child_input.retain_scope
+                and load < 1.0
+                and not scope_is_separable(
+                    child.leaf_clusters_by_language,
+                    child.unanchored_modularity,
+                    load,
+                    method_count,
+                )
             ):
                 continue
             group.expandable = True

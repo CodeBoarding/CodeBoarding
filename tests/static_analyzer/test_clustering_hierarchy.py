@@ -176,6 +176,25 @@ class TestClusteringHierarchy(unittest.TestCase):
 
         self.assertEqual(separable.call_args.args[3], 31)
 
+    def test_retains_a_persisted_child_scope_when_it_is_no_longer_separable(self):
+        graph = graph_for([f"n{index:02d}" for index in range(31)], one_file=True)
+
+        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            current = graphs["python"]
+            partition = (
+                partition_for(current, {1: set(current.nodes)}) if scope_id == "root" else split_partition(current)
+            )
+            return ClusterScopeInput(
+                leaf_clusters_by_language={"python": partition},
+                retain_scope=scope_id != "root",
+            )
+
+        with patch("static_analyzer.clustering.service.scope_is_separable", return_value=False):
+            result = ClusteringService().cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+
+        self.assertTrue(result.groups[0].expandable)
+        self.assertIsNotNone(result.groups[0].children)
+
     def test_rejects_a_depth_below_the_root_level(self):
         with self.assertRaisesRegex(ValueError, "max_depth must be at least 1"):
             ClusteringService().cluster_hierarchy({}, max_depth=0)
