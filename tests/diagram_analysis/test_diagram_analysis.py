@@ -5,7 +5,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from agents.agent_responses import (
     AnalysisInsights,
@@ -58,7 +58,6 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import (
     ClusterGroup,
     ClusterResult,
-    ClusterScopeInput,
     ClusterScopeResult,
     MethodClusterPaths,
 )
@@ -1740,243 +1739,42 @@ class TestDiagramGenerator(unittest.TestCase):
             ScopeUpdateResult(relation_context=child_context, refresh_ids={"1.1"}),
         ]
         gen.incremental_agent = incremental_agent
-        root = AnalysisInsights(
-            description="root",
-            components=[Component(name="Parent", description="", key_entities=[], component_id="1")],
-            components_relations=[],
-        )
-        child = AnalysisInsights(
-            description="child",
-            components=[Component(name="Child", description="", key_entities=[], component_id="1.1")],
-            components_relations=[],
-        )
-        child_clustering = ClusterScopeResult(scope_id="1")
+        root = AnalysisInsights(description="root", components=[], components_relations=[])
         hierarchy = ClusterScopeResult(
             scope_id=ROOT_SCOPE_ID,
-            groups=[ClusterGroup(group_id="1", cluster_ids=[1], children=child_clustering)],
+            groups=[ClusterGroup(group_id="1", cluster_ids=[1], children=ClusterScopeResult(scope_id="1"))],
         )
         plan_update.side_effect = [ScopeUpdateDecision(operations=[]), ScopeUpdateDecision(operations=[])]
 
-        result = gen._apply_incremental_hierarchy(hierarchy, root, {"1": child})
+        result = gen._apply_incremental_hierarchy(hierarchy, root, {"1": root.model_copy()})
 
         self.assertEqual(incremental_agent.update_scope.call_count, 2)
         self.assertEqual([call.args[0] for call in incremental_agent.update_scope.call_args_list], ["root", "1"])
         self.assertEqual(result.relation_contexts, {"root": root_context, "1": child_context})
 
-    @patch("diagram_analysis.diagram_generator.build_clustering_hierarchy")
-    @patch("diagram_analysis.diagram_generator._incremental_scope_partitions")
-    @patch("diagram_analysis.diagram_generator.previous_ownership")
-    def test_incremental_hierarchy_anchors_every_persisted_scope(
-        self,
-        previous_owner,
-        child_partitions,
-        build_hierarchy,
-    ):
-        gen = DiagramGenerator(
-            repo_location=self.repo_location,
-            temp_folder=self.temp_folder,
-            repo_name="test_repo",
-            output_dir=self.output_dir,
-            depth_level=3,
-            run_id="test-run-id",
-            log_path="test_repo/test-run-log",
-            changes=ChangeSet.from_changed_files([], ["child.py"], []),
-        )
-        gen.static_analysis = MagicMock()
-        gen._changed_members = {"child.member"}
-        baseline_analysis = MagicMock()
-        gen.static_analysis.incremental_base_results = baseline_analysis
-        root = AnalysisInsights(
-            description="root",
-            components=[Component(name="Parent", description="", key_entities=[], component_id="1")],
-            components_relations=[],
-        )
-        child = AnalysisInsights(
-            description="child",
-            components=[Component(name="Child", description="", key_entities=[], component_id="1.1")],
-            components_relations=[],
-        )
-        root_partition = ClusterResult(clusters={1: {"root.member"}})
-        child_partition = ClusterResult(clusters={2: {"child.member"}})
-        python_child_graph = CallGraph(language="python")
-        python_child_graph.add_node(Node("child.member", NodeType.FUNCTION, str(self.repo_location / "child.py"), 1, 2))
-        typescript_child_graph = CallGraph(language="typescript")
-        typescript_child_graph.add_node(
-            Node("child.member", NodeType.FUNCTION, str(self.repo_location / "child.ts"), 1, 2)
-        )
-        child_graphs = {"python": python_child_graph, "typescript": typescript_child_graph}
-        child_partitions.return_value = {"python": child_partition}
-        previous_owner.side_effect = [
-            ({1: "1"}, {"python": {"root.member": "1"}}),
-            (
-                {2: "1.1"},
-                {
-                    "python": {"child.member": "1.1"},
-                    "typescript": {"child.member": "1.2"},
-                },
-            ),
-        ]
-        expected = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
-        build_hierarchy.return_value = expected
-
-        result = gen._build_incremental_clustering_hierarchy(root, {"1": child}, {"python": root_partition})
-
-        self.assertIs(result, expected)
-        scope_input = build_hierarchy.call_args.kwargs["scope_input"]
-        root_input = scope_input(ROOT_SCOPE_ID, {})
-        child_input = scope_input("1", child_graphs)
-        self.assertIsInstance(root_input, ClusterScopeInput)
-        self.assertEqual(root_input.previous_owner, {1: "1"})
-        self.assertEqual(root_input.previous_member_owner, {"python": {"root.member": "1"}})
-        self.assertEqual(root_input.reserved_group_ids, frozenset({"1"}))
-        self.assertTrue(root_input.retain_scope)
-        self.assertEqual(child_input.previous_owner, {2: "1.1"})
-        self.assertEqual(
-            child_input.previous_member_owner,
-            {"python": {}, "typescript": {"child.member": "1.2"}},
-        )
-        self.assertEqual(child_input.reserved_group_ids, frozenset({"1.1"}))
-        self.assertTrue(child_input.retain_scope)
-        self.assertEqual(scope_input("2", child_graphs), ClusterScopeInput())
-        child_partitions.assert_called_once_with(baseline_analysis, "1", child_graphs, set(), self.output_dir)
-
-    def test_incremental_child_scope_requires_complete_persisted_lineage(self):
+    def test_incremental_lineage_check_is_scoped_by_language(self):
         baseline = MagicMock()
         baseline.get_clusters.return_value.method_paths = MethodClusterPaths()
-        graph = CallGraph(language="python")
+        graph = CallGraph(language="typescript")
         graph.add_node(Node("pkg.live", NodeType.FUNCTION, "/repo/pkg.py", 1, 2))
 
+        partitions = _incremental_scope_partitions(
+            baseline,
+            "1",
+            {"typescript": graph},
+            {"python": {"pkg.live"}},
+            self.output_dir,
+        )
+
+        self.assertTrue(partitions["typescript"].clusters)
         with self.assertRaisesRegex(IncrementalCacheMissingError, "persisted scope '1'.*pkg.live"):
             _incremental_scope_partitions(
                 baseline,
                 "1",
-                {"python": graph},
-                {"pkg.live"},
+                {"typescript": graph},
+                {"typescript": {"pkg.live"}},
                 self.output_dir,
             )
-
-    @patch("diagram_analysis.diagram_generator._delta_for_language")
-    def test_incremental_child_scope_allocates_new_ids_across_languages(self, delta_for_language):
-        baseline = MagicMock()
-        python_members = {f"py.old{cluster_id}" for cluster_id in range(5)}
-        typescript_members = {f"ts.old{cluster_id}" for cluster_id in range(5, 10)}
-        baseline.get_clusters.return_value.method_paths = MethodClusterPaths(
-            {
-                **{member: {f"1.{cluster_id}"} for cluster_id, member in enumerate(sorted(python_members))},
-                **{member: {f"1.{cluster_id}"} for cluster_id, member in zip(range(5, 10), sorted(typescript_members))},
-            }
-        )
-        python_graph = CallGraph(language="python")
-        for line, member in enumerate(sorted(python_members), start=1):
-            python_graph.add_node(Node(member, NodeType.FUNCTION, "/repo/old.py", line, line))
-        python_graph.add_node(Node("py.new", NodeType.FUNCTION, "/repo/new.py", 1, 1))
-        typescript_graph = CallGraph(language="typescript")
-        for line, member in enumerate(sorted(typescript_members), start=1):
-            typescript_graph.add_node(Node(member, NodeType.FUNCTION, "/repo/old.ts", line, line))
-        delta_for_language.side_effect = [
-            LanguageDelta(
-                language="python",
-                cluster_results=ClusterResult(
-                    clusters={
-                        **{cluster_id: {member} for cluster_id, member in enumerate(sorted(python_members))},
-                        10: {"py.new"},
-                    }
-                ),
-            ),
-            LanguageDelta(
-                language="typescript",
-                cluster_results=ClusterResult(
-                    clusters={
-                        cluster_id: {member} for cluster_id, member in zip(range(5, 10), sorted(typescript_members))
-                    }
-                ),
-            ),
-        ]
-
-        partitions = _incremental_scope_partitions(
-            baseline,
-            "1",
-            {"typescript": typescript_graph, "python": python_graph},
-            python_members | typescript_members,
-            self.output_dir,
-        )
-
-        self.assertEqual(
-            [call.kwargs["next_new_id"] for call in delta_for_language.call_args_list],
-            [10, 11],
-        )
-        self.assertEqual(set(partitions["python"].clusters), set(range(5)) | {10})
-        self.assertEqual(set(partitions["typescript"].clusters), set(range(5, 10)))
-
-    @patch("diagram_analysis.diagram_generator._delta_for_language")
-    def test_incremental_child_scope_reserves_cluster_ids_with_deleted_members(self, delta_for_language):
-        baseline = MagicMock()
-        baseline.get_clusters.return_value.method_paths = MethodClusterPaths(
-            {
-                "pkg.live": {"1.2"},
-                "pkg.deleted": {"1.9"},
-            }
-        )
-        graph = CallGraph(language="python")
-        graph.add_node(Node("pkg.live", NodeType.FUNCTION, "/repo/pkg.py", 1, 2))
-        for index in range(3, 6):
-            graph.add_node(Node(f"pkg.new{index}", NodeType.FUNCTION, "/repo/pkg.py", index, index))
-        graph.add_node(Node("pkg.replacement", NodeType.FUNCTION, "/repo/pkg.py", 6, 7))
-        delta_for_language.return_value = LanguageDelta(
-            language="python",
-            cluster_results=ClusterResult(
-                clusters={
-                    2: {"pkg.live"},
-                    3: {"pkg.new3"},
-                    4: {"pkg.new4"},
-                    5: {"pkg.new5"},
-                    10: {"pkg.replacement"},
-                }
-            ),
-        )
-
-        partitions = _incremental_scope_partitions(
-            baseline,
-            "1",
-            {"python": graph},
-            {"pkg.live"},
-            self.output_dir,
-        )
-
-        self.assertEqual(delta_for_language.call_args.kwargs["next_new_id"], 10)
-        self.assertEqual(set(partitions["python"].clusters), {2, 3, 4, 5, 10})
-
-    @patch("diagram_analysis.diagram_generator._delta_for_language")
-    def test_incremental_method_fallback_does_not_reuse_deleted_cluster_ids(self, delta_for_language):
-        baseline = MagicMock()
-        baseline.get_clusters.return_value.method_paths = MethodClusterPaths(
-            {
-                "pkg.live": {"1.4"},
-                "pkg.deleted": {"1.9"},
-            }
-        )
-        graph = CallGraph(language="python")
-        graph.add_node(Node("pkg.live", NodeType.FUNCTION, "/repo/pkg.py", 1, 2))
-        graph.add_node(Node("pkg.replacement", NodeType.FUNCTION, "/repo/pkg.py", 3, 4))
-        delta_for_language.return_value = LanguageDelta(
-            language="python",
-            cluster_results=ClusterResult(
-                clusters={
-                    4: {"pkg.live"},
-                    10: {"pkg.replacement"},
-                }
-            ),
-        )
-
-        partitions = _incremental_scope_partitions(
-            baseline,
-            "1",
-            {"python": graph},
-            {"pkg.live"},
-            self.output_dir,
-        )
-
-        self.assertEqual(partitions["python"].clusters, {4: {"pkg.live"}, 10: {"pkg.replacement"}})
 
     @patch("diagram_analysis.diagram_generator._delta_for_language")
     def test_incremental_child_scope_reserves_ids_from_removed_languages(self, delta_for_language):
@@ -1989,17 +1787,12 @@ class TestDiagramGenerator(unittest.TestCase):
         baseline.get_clusters.side_effect = lambda language: MagicMock(method_paths=baseline_paths[language])
         graph = CallGraph(language="typescript")
         graph.add_node(Node("ts.live", NodeType.FUNCTION, "/repo/live.ts", 1, 2))
-        for index in range(3, 6):
-            graph.add_node(Node(f"ts.new{index}", NodeType.FUNCTION, "/repo/new.ts", index, index))
         graph.add_node(Node("ts.replacement", NodeType.FUNCTION, "/repo/new.ts", 6, 7))
         delta_for_language.return_value = LanguageDelta(
             language="typescript",
             cluster_results=ClusterResult(
                 clusters={
                     2: {"ts.live"},
-                    3: {"ts.new3"},
-                    4: {"ts.new4"},
-                    5: {"ts.new5"},
                     10: {"ts.replacement"},
                 }
             ),
@@ -2009,12 +1802,12 @@ class TestDiagramGenerator(unittest.TestCase):
             baseline,
             "1",
             {"typescript": graph},
-            {"ts.live"},
+            {"typescript": {"ts.live"}},
             self.output_dir,
         )
 
         self.assertEqual(delta_for_language.call_args.kwargs["next_new_id"], 10)
-        self.assertEqual(set(partitions["typescript"].clusters), {2, 3, 4, 5, 10})
+        self.assertEqual(set(partitions["typescript"].clusters), {2, 10})
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())

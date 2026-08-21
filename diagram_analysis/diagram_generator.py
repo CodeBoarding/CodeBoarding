@@ -507,7 +507,7 @@ def _incremental_scope_partitions(
     baseline_analysis: StaticAnalysisResults,
     scope_id: str,
     graphs: Mapping[str, CallGraph],
-    persisted_members: set[str],
+    persisted_members_by_language: Mapping[str, set[str]],
     artifact_dir: Path,
 ) -> dict[str, ClusterResult]:
     """Seed each exact child graph from its persisted scope-local cluster lineage."""
@@ -543,7 +543,7 @@ def _incremental_scope_partitions(
         else:
             snapshot = {}
         covered_members = {member for entry in snapshot.values() for member in entry.members}
-        missing_members = (persisted_members & set(graph.nodes)) - covered_members
+        missing_members = (persisted_members_by_language.get(language, set()) & set(graph.nodes)) - covered_members
         if missing_members:
             raise IncrementalCacheMissingError(
                 artifact_dir,
@@ -798,13 +798,21 @@ class DiagramGenerator:
                     graphs,
                     (
                         {
-                            method.qualified_name
-                            for component in persisted.components
-                            for group in component.file_methods
-                            for method in group.methods
+                            language: {
+                                method.qualified_name
+                                for component in persisted.components
+                                for group in component.file_methods
+                                if normalize_repo_path(group.file_path, self.repo_location)
+                                in {
+                                    normalize_repo_path(node.file_path, self.repo_location)
+                                    for node in graph.nodes.values()
+                                }
+                                for method in group.methods
+                            }
+                            for language, graph in graphs.items()
                         }
                         if persisted is not None
-                        else set()
+                        else {}
                     ),
                     self.output_dir,
                 )

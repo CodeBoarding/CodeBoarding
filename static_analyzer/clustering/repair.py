@@ -18,6 +18,17 @@ def repair_member_ownership(
             for group in groups
             for qualified_name in group.symbol_members_by_language.get(language, set())
         }
+        for previous_group_id in sorted(
+            {owner_by_member[qualified_name] for qualified_name in current_group if qualified_name in owner_by_member}
+            - set(group_by_id)
+        ):
+            target = ClusterGroup(
+                group_id=previous_group_id,
+                cluster_ids=[],
+                previous_component_id=previous_group_id,
+            )
+            groups.append(target)
+            group_by_id[previous_group_id] = target
         for qualified_name, previous_group_id in owner_by_member.items():
             source = current_group.get(qualified_name)
             target = group_by_id.get(previous_group_id)

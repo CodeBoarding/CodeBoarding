@@ -214,6 +214,16 @@ class ClusteringService:
         self._assign_symbol_members(graphs, scope_leaf_clusters, groups)
         repair_member_ownership(groups, previous_member_owner)
         groups = [group for group in groups if group.qualified_names]
+        for group, group_id in zip(
+            groups,
+            self._allocate_group_ids(
+                scope_id,
+                [group.previous_component_id for group in groups],
+                reserved_group_ids,
+            ),
+            strict=True,
+        ):
+            group.group_id = group_id
         connections = self._build_connections(graphs, groups)
         return ClusterScopeResult(
             scope_id=scope_id,

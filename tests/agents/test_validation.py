@@ -29,6 +29,15 @@ from static_analyzer.node import Node
 from static_analyzer.config import NodeType
 
 
+def _file_methods(file_path: str, qualified_name: str) -> list[FileMethodGroup]:
+    return [
+        FileMethodGroup(
+            file_path=file_path,
+            methods=[MethodEntry(qualified_name=qualified_name, start_line=1, end_line=2, node_type="FUNCTION")],
+        )
+    ]
+
+
 class TestValidationContext(unittest.TestCase):
     """Test ValidationContext dataclass initialization."""
 
@@ -363,28 +372,14 @@ class TestValidateRelationEvidence(unittest.TestCase):
                     description="A",
                     key_entities=[],
                     source_group_names=["Group 1"],
-                    file_methods=[
-                        FileMethodGroup(
-                            file_path="a.py",
-                            methods=[
-                                MethodEntry(qualified_name="a.run", start_line=1, end_line=2, node_type="FUNCTION")
-                            ],
-                        )
-                    ],
+                    file_methods=_file_methods("a.py", "a.run"),
                 ),
                 Component(
                     name="B",
                     description="B",
                     key_entities=[],
                     source_group_names=["Group 2"],
-                    file_methods=[
-                        FileMethodGroup(
-                            file_path="b.py",
-                            methods=[
-                                MethodEntry(qualified_name="b.load", start_line=1, end_line=2, node_type="FUNCTION")
-                            ],
-                        )
-                    ],
+                    file_methods=_file_methods("b.py", "b.load"),
                 ),
             ],
             components_relations=[relation],

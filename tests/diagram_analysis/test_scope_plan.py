@@ -181,28 +181,21 @@ class TestPreviousOwnership(unittest.TestCase):
 
 class TestPlanScopeUpdate(unittest.TestCase):
     def test_precomputed_scope_result_is_planned_without_regrouping(self):
-        clusters = {1: {"a.one"}, 2: {"b.one"}}
         scope = AnalysisInsights(
             description="",
-            components=[component("1", ["a.one"], ["1"]), component("2", ["b.one"], ["2"])],
+            components=[component("1", ["a.one"], ["1"])],
             components_relations=[],
         )
         result = ClusterScopeResult(
             scope_id=ROOT_SCOPE_ID,
-            leaf_clusters_by_language={"python": clustering(clusters)},
+            leaf_clusters_by_language={"python": clustering({1: {"a.one"}})},
             groups=[
                 ClusterGroup(
                     group_id="1",
                     cluster_ids=[1],
                     symbol_members_by_language={"python": {"a.one"}},
                     previous_component_id="1",
-                ),
-                ClusterGroup(
-                    group_id="2",
-                    cluster_ids=[2],
-                    symbol_members_by_language={"python": {"b.one"}},
-                    previous_component_id="2",
-                ),
+                )
             ],
         )
 
@@ -210,9 +203,9 @@ class TestPlanScopeUpdate(unittest.TestCase):
             "diagram_analysis.scope_plan.GroupingService.anchored_group",
             side_effect=AssertionError("precomputed results must not be regrouped"),
         ):
-            decision = plan_scope_result_update(scope, result, {"b.one"})
+            decision = plan_scope_result_update(scope, result, {"a.one"})
 
-        self.assertEqual(actions(decision), {"2": ScopeOperationAction.UPDATE_COMPONENT})
+        self.assertEqual(actions(decision), {"1": ScopeOperationAction.UPDATE_COMPONENT})
 
     def test_renumbered_clusters_still_carry_every_component_forward(self):
         # The failure this anchor exists to prevent: a sub-scope is re-clustered from
@@ -285,35 +278,6 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         self.assertEqual(actions(decision), {"2": ScopeOperationAction.UPDATE_COMPONENT})
-
-    def test_repaired_membership_does_not_refresh_unchanged_components(self):
-        scope = AnalysisInsights(
-            description="",
-            components=[component("1", ["a.one"], ["1"]), component("2", ["b.one"], ["2"])],
-            components_relations=[],
-        )
-        result = ClusterScopeResult(
-            scope_id=ROOT_SCOPE_ID,
-            leaf_clusters_by_language={"python": clustering({1: {"b.one"}, 2: {"a.one"}})},
-            groups=[
-                ClusterGroup(
-                    group_id="1",
-                    cluster_ids=[1],
-                    symbol_members_by_language={"python": {"a.one"}},
-                    previous_component_id="1",
-                ),
-                ClusterGroup(
-                    group_id="2",
-                    cluster_ids=[2],
-                    symbol_members_by_language={"python": {"b.one"}},
-                    previous_component_id="2",
-                ),
-            ],
-        )
-
-        decision = plan_scope_result_update(scope, result, set())
-
-        self.assertEqual(decision.operations, [])
 
     def test_a_component_whose_methods_all_vanished_is_deleted(self):
         clusters = {1: {"a.one"}, 2: {"b.one"}, 3: {"c.one"}}

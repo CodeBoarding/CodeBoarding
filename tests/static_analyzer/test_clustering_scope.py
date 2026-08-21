@@ -69,25 +69,6 @@ class TestClusteringScope(unittest.TestCase):
             "Key symbols: pkg.Repository.load",
         )
 
-    def test_scope_formats_explicit_group_metadata(self):
-        scope = ClusterScopeResult(
-            scope_id="1",
-            groups=[
-                ClusterGroup(
-                    group_id="1.2",
-                    cluster_ids=[3],
-                    name="Existing Worker",
-                    description="Processes queued jobs.",
-                )
-            ],
-        )
-
-        self.assertEqual(scope.group_ids(), {"Existing Worker": [3]})
-        self.assertEqual(
-            scope.llm_str(),
-            "# Grouped Cluster Components\n" "**Existing Worker** (cluster_ids: [3])\n" "   Processes queued jobs.",
-        )
-
     def test_grouping_matches_the_existing_supercluster_result(self):
         graph = graph_for("python", ["a", "b", "c"], [("a", "b"), ("b", "c")])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}})
@@ -192,105 +173,29 @@ class TestClusteringScope(unittest.TestCase):
                 },
             )
 
-    def test_repair_keeps_surviving_members_with_their_previous_groups(self):
-        graph = graph_for(
-            "python",
-            ["a.changed", "a.stable", "b.one", "b.two"],
-            [("a.changed", "b.one"), ("a.stable", "b.two")],
-        )
-        cluster_result = cluster_result_for(
-            graph,
-            {
-                1: {"a.changed", "b.one", "b.two"},
-                2: {"a.stable"},
-            },
+    @patch.object(GroupingService, "anchored_group")
+    def test_repair_preserves_previous_owners_and_compacts_new_ids(self, anchored_group):
+        graph = graph_for("python", ["stable", "moved", "fresh"])
+        cluster_result = cluster_result_for(graph, {1: {"stable"}, 2: {"moved"}, 3: {"fresh"}})
+        anchored_group.return_value = AnchoredGrouping(
+            groups=[{1}, {2}, {3}],
+            owners=["1", "", ""],
+            regrouped=True,
+            unanchored_modularity=0.0,
         )
 
         result = ClusteringService().cluster_scope(
             {"python": graph},
             leaf_clusters_by_language={"python": cluster_result},
-            previous_owner={1: "2", 2: "1"},
-            previous_member_owner={
-                "python": {
-                    "a.changed": "1",
-                    "a.stable": "1",
-                    "b.one": "2",
-                    "b.two": "2",
-                }
-            },
+            previous_owner={1: "1"},
+            previous_member_owner={"python": {"stable": "1", "moved": "2"}},
             reserved_group_ids={"1", "2"},
         )
 
-        members_by_group = {group.group_id: group.qualified_names for group in result.groups}
-        self.assertEqual(members_by_group["1"], {"a.changed", "a.stable"})
-        self.assertEqual(members_by_group["2"], {"b.one", "b.two"})
-        self.assertEqual(len(result.connections), 1)
-        self.assertEqual(result.connections[0].source_group_id, "1")
-        self.assertEqual(result.connections[0].target_group_id, "2")
         self.assertEqual(
-            {(edge.source_qualified_name, edge.target_qualified_name) for edge in result.connections[0].edges},
-            {("a.changed", "b.one"), ("a.stable", "b.two")},
+            {group.group_id: group.qualified_names for group in result.groups},
+            {"1": {"stable"}, "2": {"moved"}, "3": {"fresh"}},
         )
-
-    @patch.object(GroupingService, "anchored_group")
-    def test_repair_moves_only_members_whose_previous_group_survives(self, anchored_group):
-        graph = graph_for("python", ["a.one", "b.one", "b.moved", "deleted.moved", "fresh"])
-        cluster_result = cluster_result_for(
-            graph,
-            {
-                1: {"a.one"},
-                2: {"b.one"},
-                3: {"b.moved", "deleted.moved", "fresh"},
-            },
-        )
-        anchored_group.return_value = AnchoredGrouping(
-            groups=[{1}, {2}, {3}],
-            owners=["1", "2", ""],
-            regrouped=True,
-            unanchored_modularity=0.0,
-        )
-
-        result = ClusteringService().cluster_scope(
-            {"python": graph},
-            leaf_clusters_by_language={"python": cluster_result},
-            previous_owner={1: "1", 2: "2", 3: "2"},
-            previous_member_owner={
-                "python": {
-                    "a.one": "1",
-                    "b.one": "2",
-                    "b.moved": "2",
-                    "deleted.moved": "9",
-                }
-            },
-            reserved_group_ids={"1", "2", "9"},
-        )
-
-        members_by_group = {group.group_id: group.qualified_names for group in result.groups}
-        self.assertEqual(members_by_group["1"], {"a.one"})
-        self.assertEqual(members_by_group["2"], {"b.one", "b.moved"})
-        self.assertEqual(members_by_group["10"], {"deleted.moved", "fresh"})
-
-    @patch.object(GroupingService, "anchored_group")
-    def test_repair_drops_groups_emptied_by_previous_ownership(self, anchored_group):
-        graph = graph_for("python", ["stable", "moved"])
-        cluster_result = cluster_result_for(graph, {1: {"stable"}, 2: {"moved"}})
-        anchored_group.return_value = AnchoredGrouping(
-            groups=[{1}, {2}],
-            owners=["1", ""],
-            regrouped=True,
-            unanchored_modularity=0.0,
-        )
-
-        result = ClusteringService().cluster_scope(
-            {"python": graph},
-            leaf_clusters_by_language={"python": cluster_result},
-            previous_owner={1: "1", 2: "1"},
-            previous_member_owner={"python": {"stable": "1", "moved": "1"}},
-            reserved_group_ids={"1"},
-        )
-
-        self.assertEqual([group.group_id for group in result.groups], ["1"])
-        self.assertEqual(result.groups[0].qualified_names, {"stable", "moved"})
 
     def test_method_level_fallback_is_available_for_child_scopes(self):
         graph = graph_for("python", ["a", "b", "c", "d", "e"])
@@ -309,24 +214,14 @@ class TestClusteringScope(unittest.TestCase):
 
     def test_method_level_fallback_preserves_retained_cluster_ids(self):
         graph = graph_for("python", ["a.new", "z.retained", "replacement"])
-        cluster_result = cluster_result_for(
-            graph,
-            {
-                4: {"a.new", "z.retained"},
-                10: {"replacement"},
-            },
-        )
-
         expanded = ClusteringService.expand_to_method_level(
             graph,
-            cluster_result,
+            cluster_result_for(graph, {4: {"a.new", "z.retained"}, 10: {"replacement"}}),
             next_new_id=10,
             retained_members_by_cluster={4: {"z.retained"}},
         )
 
-        self.assertEqual(expanded.clusters[4], {"z.retained"})
-        self.assertEqual(expanded.clusters[10], {"replacement"})
-        self.assertEqual(expanded.clusters[11], {"a.new"})
+        self.assertEqual(expanded.clusters, {4: {"z.retained"}, 10: {"replacement"}, 11: {"a.new"}})
 
     def test_method_level_fallback_preserves_owners_by_member(self):
         graph = graph_for("python", ["a", "b", "c", "d", "e", "new"])

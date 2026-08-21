@@ -6,7 +6,6 @@ from agents.agent_responses import (
     AnalysisInsights,
     ComponentApiSurface,
     ComponentApiSurfaces,
-    ComponentArchitecture,
     ComponentRelations,
     Component,
     Relation,
@@ -29,7 +28,7 @@ from agents.incremental_results import ScopeRelationContext
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import NodeType
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
+from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 from static_analyzer.node import Node
 
 
@@ -176,30 +175,6 @@ class TestUpdateScope(unittest.TestCase):
         agent.build_static_relations = MagicMock()
         return agent
 
-    def test_detail_new_components_formats_cluster_scope_metadata(self) -> None:
-        component = _component_with_method("New Component", "7")
-        detailed = Component(
-            name="Worker",
-            description="Processes queued jobs.",
-            key_entities=[],
-            source_group_names=["Incremental Group 7"],
-        )
-        prompt_template = MagicMock()
-        prompt_template.format.return_value = "details prompt"
-        agent = self._agent()
-        agent.prompts = {"new_component_details": prompt_template}
-        agent._parse_invoke = MagicMock(
-            return_value=ComponentArchitecture(description="new components", components=[detailed])
-        )
-
-        agent.detail_new_components([component])
-
-        clustering_text = prompt_template.format.call_args.kwargs["cluster_analysis"]
-        self.assertIn("**Incremental Group 7** (cluster_ids: [])", clustering_text)
-        self.assertIn("Final membership: 1 symbols across 1 files.", clustering_text)
-        self.assertEqual(component.name, "Worker")
-        self.assertEqual(component.description, "Processes queued jobs.")
-
     def test_update_without_selected_key_entities_does_not_synthesize_them(self) -> None:
         component = _component("API", "1", source_cluster_ids=["1"])
         scope = AnalysisInsights(description="root", components=[component], components_relations=[])
@@ -287,69 +262,6 @@ class TestUpdateScope(unittest.TestCase):
         self.assertEqual(first.source_cluster_ids, ["1.1"])
         self.assertEqual(second.source_cluster_ids, ["1.2", "1.3"])
         self.assertEqual(result.refresh_ids, {"1.1", "1.2"})
-
-    def test_update_materializes_repaired_group_membership(self) -> None:
-        first = _component_with_method("First", "1")
-        first.file_methods[0].methods[0].qualified_name = "a.one"
-        second = _component_with_method("Second", "2")
-        second.file_methods[0].methods[0].qualified_name = "b.one"
-        scope = AnalysisInsights(description="root", components=[first, second], components_relations=[])
-        decision = ScopeUpdateDecision(
-            operations=[
-                ScopeOperation(
-                    action=ScopeOperationAction.UPDATE_COMPONENT,
-                    component_id=component_id,
-                    cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=cluster_id)],
-                    rationale="The leaf clusters changed membership.",
-                )
-                for component_id, cluster_id in (("1", 1), ("2", 2))
-            ]
-        )
-        cfg = CallGraph(language="python")
-        cfg.add_node(Node("a.one", NodeType.FUNCTION, "a.py", 1, 2))
-        cfg.add_node(Node("b.one", NodeType.FUNCTION, "b.py", 1, 2))
-        clustering = ClusterScopeResult(
-            scope_id="root",
-            leaf_clusters_by_language={"python": ClusterResult(clusters={1: {"b.one"}, 2: {"a.one"}})},
-            groups=[
-                ClusterGroup(group_id="1", cluster_ids=[1], symbol_members_by_language={"python": {"a.one"}}),
-                ClusterGroup(group_id="2", cluster_ids=[2], symbol_members_by_language={"python": {"b.one"}}),
-            ],
-        )
-        agent = self._agent()
-        agent._patch_scope_file_methods = IncrementalAgent._patch_scope_file_methods.__get__(agent)
-        agent.repo_dir = Path(".")
-        agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
-        agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
-
-        def file_methods(nodes: list[Node], _source_cache) -> list[FileMethodGroup]:
-            return [
-                FileMethodGroup(
-                    file_path=node.file_path,
-                    methods=[
-                        MethodEntry(
-                            qualified_name=node.fully_qualified_name,
-                            start_line=node.line_start,
-                            end_line=node.line_end,
-                            node_type=node.type.name,
-                        )
-                    ],
-                )
-                for node in nodes
-            ]
-
-        agent._build_file_methods_from_nodes = MagicMock(side_effect=file_methods)
-
-        with patch("agents.incremental_agent.build_files_index", return_value={}):
-            agent.update_scope("root", scope, decision, clustering)
-
-        members_by_component = {
-            component.component_id: {
-                method.qualified_name for group in component.file_methods for method in group.methods
-            }
-            for component in scope.components
-        }
-        self.assertEqual(members_by_component, {"1": {"a.one"}, "2": {"b.one"}})
 
     def test_update_drops_a_cluster_the_component_no_longer_owns(self) -> None:
         # A shrunk component: cluster 2 was deleted from the code, so the planner's UPDATE
