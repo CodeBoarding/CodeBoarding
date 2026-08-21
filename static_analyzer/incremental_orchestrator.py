@@ -539,18 +539,34 @@ def _definition_nodes(
     if location is None:
         return []
     file_path, line, character = location
+    reported_line = line + 1
+    selection_range = definition.get(
+        "targetSelectionRange",
+        definition.get("targetRange", definition.get("range", {})),
+    )
+    end = selection_range.get("end", {})
+    selection_width = end.get("character", character) - character if end.get("line") == line else 0
     target = _most_specific_node_at_position(call_graph, file_path, line, character)
     # A definition must name a graph declaration, not merely fall inside its body.
-    if target is not None and target.line_start != line + 1:
-        target = None
+    if target is not None and target.line_start != reported_line:
+        target_name = target.fully_qualified_name.rsplit(".", 1)[-1]
+        if reported_line - target.line_start not in (1, 2) or selection_width != len(target_name):
+            target = None
     if target is None:
-        # Some providers return a decorator or annotation line before the declaration.
-        for declaration_line in range(line + 1, line + 4):
+        # Providers may report either a declaration range or its inner selection range.
+        for offset in (0, 1, -1, 2, -2):
+            declaration_line = reported_line + offset
+            if declaration_line < 1:
+                continue
             candidates = [
                 node
                 for node in call_graph.nodes.values()
                 if node.file_path == str(file_path) and node.line_start == declaration_line
             ]
+            if offset < 0:
+                candidates = [
+                    node for node in candidates if selection_width == len(node.fully_qualified_name.rsplit(".", 1)[-1])
+                ]
             if candidates:
                 target = max(
                     candidates,

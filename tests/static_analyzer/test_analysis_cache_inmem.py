@@ -534,6 +534,28 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
 
         self.assertEqual([node.fully_qualified_name for node in matches], ["decorated.target"])
 
+    def test_definition_resolution_accepts_a_selection_line_after_the_declaration_range(self) -> None:
+        file_path = Path("/repo/decorated.py")
+        call_graph = CallGraph(language="python")
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="decorated.target",
+                node_type=NodeType.FUNCTION,
+                file_path=str(file_path),
+                line_start=1,
+                line_end=5,
+                col_start=4,
+            )
+        )
+        definition = {
+            "uri": file_path.as_uri(),
+            "range": {"start": {"line": 2, "character": 4}, "end": {"line": 2, "character": 10}},
+        }
+
+        matches = _definition_nodes(call_graph, definition)
+
+        self.assertEqual([node.fully_qualified_name for node in matches], ["decorated.target"])
+
     def test_definition_resolution_ignores_nested_non_graph_definitions(self) -> None:
         file_path = Path("/repo/pkg/context.py")
         call_graph = CallGraph(language="python")

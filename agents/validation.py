@@ -13,6 +13,7 @@ from agents.agent_responses import (
     Relation,
 )
 from repo_utils import normalize_path
+from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterResult, ClusterScopeResult
@@ -323,15 +324,14 @@ def validate_relation_component_names(
 
 def validate_relation_evidence(result: RelationValidationTarget, context: ValidationContext) -> ValidationResult:
     """Validate LLM relations against directed CFG edges or explicit runtime evidence."""
-    if not context.clustering.group_ids() or not context.cluster_results or not context.cfg_graphs:
-        logger.warning("[Validation] Missing static context for relation evidence validation")
-        return ValidationResult(is_valid=True)
-
     components = context.components
     if not components and isinstance(result, AnalysisInsights):
         components = result.components
-    component_to_clusters = _component_cluster_ids(components, context.clustering)
-    cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
+    if not components or not context.cfg_graphs:
+        logger.warning("[Validation] Missing static context for relation evidence validation")
+        return ValidationResult(is_valid=True)
+
+    component_edge_lookup = _build_component_edge_lookup(components, context.cfg_graphs, context.repo_dir)
     unsupported: list[str] = []
     invalid_key_edges: list[str] = []
     unresolved_key_edges: list[str] = []
@@ -339,14 +339,12 @@ def validate_relation_evidence(result: RelationValidationTarget, context: Valida
     total_relations = len(result.components_relations)
 
     for relation in result.components_relations:
-        src_clusters = component_to_clusters.get(relation.src_name, [])
-        dst_clusters = component_to_clusters.get(relation.dst_name, [])
         valid_key_edges, same_endpoint_edges, unresolved_edges = _valid_key_edge_descriptions(relation, context)
         if same_endpoint_edges:
             invalid_key_edges.append(f"{relation.src_name} -> {relation.dst_name}: {', '.join(same_endpoint_edges)}")
         if unresolved_edges:
             unresolved_key_edges.append(f"{relation.src_name} -> {relation.dst_name}: {', '.join(unresolved_edges)}")
-        if _cluster_sets_have_edge(src_clusters, dst_clusters, cluster_edge_lookup):
+        if (relation.src_name, relation.dst_name) in component_edge_lookup:
             if not same_endpoint_edges and not unresolved_edges:
                 valid_relation_count += 1
             continue
@@ -453,59 +451,31 @@ def _has_relation_evidence(relation) -> bool:
     return any(edge.description.strip() for edge in relation.key_edges)
 
 
-def _build_cluster_edge_lookup(
-    cluster_results: dict[str, ClusterResult],
+def _build_component_edge_lookup(
+    components: list[Component],
     cfg_graphs: dict[str, CallGraph],
-) -> dict[str, set[tuple[int, int]]]:
-    """Build a lookup of (src_cluster_id, dst_cluster_id) edges per language."""
-    cluster_edge_lookup: dict[str, set[tuple[int, int]]] = {}
-
-    for lang, cfg in cfg_graphs.items():
-        cluster_result = cluster_results.get(lang)
-        if not cluster_result:
-            continue
-
-        node_to_cluster: dict[str, int] = {}
-        for cluster_id, nodes in cluster_result.clusters.items():
-            for node in nodes:
-                node_to_cluster[node] = cluster_id
-
-        cluster_edges: set[tuple[int, int]] = set()
+    repo_dir: str | None,
+) -> set[tuple[str, str]]:
+    """Build directed component edges from the rendered method ownership."""
+    owner_by_method = {
+        (normalize_repo_path(group.file_path, repo_dir), method.qualified_name): component.name
+        for component in components
+        for group in component.file_methods
+        for method in group.methods
+    }
+    component_edges: set[tuple[str, str]] = set()
+    for cfg in cfg_graphs.values():
         for edge in cfg.edges:
-            src_cluster = node_to_cluster.get(edge.get_source())
-            dst_cluster = node_to_cluster.get(edge.get_destination())
-            if src_cluster is None or dst_cluster is None:
+            source = cfg.nodes.get(edge.get_source())
+            target = cfg.nodes.get(edge.get_destination())
+            if source is None or target is None:
                 continue
-            cluster_edges.add((src_cluster, dst_cluster))
-
-        cluster_edge_lookup[lang] = cluster_edges
-
-    return cluster_edge_lookup
-
-
-def _component_cluster_ids(components: list[Component], clustering: ClusterScopeResult) -> dict[str, list[int]]:
-    group_to_cluster_ids = clustering.group_ids()
-    component_to_clusters: dict[str, list[int]] = {}
-    for component in components:
-        cluster_ids: list[int] = []
-        for group_name in component.source_group_names:
-            cluster_ids.extend(group_to_cluster_ids.get(group_name, []))
-        component_to_clusters[component.name] = cluster_ids
-    return component_to_clusters
-
-
-def _cluster_sets_have_edge(
-    src_cluster_ids: list[int],
-    dst_cluster_ids: list[int],
-    cluster_edge_lookup: dict[str, set[tuple[int, int]]],
-) -> bool:
-    if not src_cluster_ids or not dst_cluster_ids:
-        return False
-
-    src_set = set(src_cluster_ids)
-    dst_set = set(dst_cluster_ids)
-    for cluster_edges in cluster_edge_lookup.values():
-        for src_cluster, dst_cluster in cluster_edges:
-            if src_cluster in src_set and dst_cluster in dst_set:
-                return True
-    return False
+            source_owner = owner_by_method.get(
+                (normalize_repo_path(source.file_path, repo_dir), source.fully_qualified_name)
+            )
+            target_owner = owner_by_method.get(
+                (normalize_repo_path(target.file_path, repo_dir), target.fully_qualified_name)
+            )
+            if source_owner and target_owner and source_owner != target_owner:
+                component_edges.add((source_owner, target_owner))
+    return component_edges

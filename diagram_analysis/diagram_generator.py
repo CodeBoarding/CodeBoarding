@@ -511,12 +511,21 @@ def _incremental_scope_partitions(
 ) -> dict[str, ClusterResult]:
     """Seed each exact child graph from its persisted scope-local cluster lineage."""
     snapshots: dict[str, dict[int, ClusterSnapshotEntry]] = {}
+    reserved_cluster_ids: set[int] = set()
+    prefix = f"{scope_id}."
     for language, graph in graphs.items():
         try:
             method_paths = baseline_analysis.get_clusters(Language(language)).method_paths
             snapshot = scoped_snapshot_from_lineage(graph, method_paths, scope_id)
         except (KeyError, ValueError):
             snapshot = {}
+        else:
+            reserved_cluster_ids.update(
+                int(local_id)
+                for _qualified_name, cluster_ids in method_paths.snapshot()
+                for cluster_id in cluster_ids
+                if cluster_id.startswith(prefix) and (local_id := cluster_id.removeprefix(prefix)).isdigit()
+            )
         covered_members = {member for entry in snapshot.values() for member in entry.members}
         missing_members = (persisted_members & set(graph.nodes)) - covered_members
         if missing_members:
@@ -529,7 +538,7 @@ def _incremental_scope_partitions(
 
     partitions: dict[str, ClusterResult] = {}
     clustering_service = ClusteringService()
-    next_new_id = max((cluster_id for snapshot in snapshots.values() for cluster_id in snapshot), default=-1) + 1
+    next_new_id = max(reserved_cluster_ids, default=-1) + 1
     for language in sorted(graphs):
         graph = graphs[language]
         snapshot = snapshots[language]

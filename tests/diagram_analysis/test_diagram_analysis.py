@@ -1890,6 +1890,44 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(set(partitions["python"].clusters), set(range(5)) | {10})
         self.assertEqual(set(partitions["typescript"].clusters), set(range(5, 10)))
 
+    @patch("diagram_analysis.diagram_generator._delta_for_language")
+    def test_incremental_child_scope_reserves_cluster_ids_with_deleted_members(self, delta_for_language):
+        baseline = MagicMock()
+        baseline.get_clusters.return_value.method_paths = MethodClusterPaths(
+            {
+                "pkg.live": {"1.2"},
+                "pkg.deleted": {"1.9"},
+            }
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("pkg.live", NodeType.FUNCTION, "/repo/pkg.py", 1, 2))
+        for index in range(3, 6):
+            graph.add_node(Node(f"pkg.new{index}", NodeType.FUNCTION, "/repo/pkg.py", index, index))
+        graph.add_node(Node("pkg.replacement", NodeType.FUNCTION, "/repo/pkg.py", 6, 7))
+        delta_for_language.return_value = LanguageDelta(
+            language="python",
+            cluster_results=ClusterResult(
+                clusters={
+                    2: {"pkg.live"},
+                    3: {"pkg.new3"},
+                    4: {"pkg.new4"},
+                    5: {"pkg.new5"},
+                    10: {"pkg.replacement"},
+                }
+            ),
+        )
+
+        partitions = _incremental_scope_partitions(
+            baseline,
+            "1",
+            {"python": graph},
+            {"pkg.live"},
+            self.output_dir,
+        )
+
+        self.assertEqual(delta_for_language.call_args.kwargs["next_new_id"], 10)
+        self.assertEqual(set(partitions["python"].clusters), {2, 3, 4, 5, 10})
+
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
     @patch("diagram_analysis.diagram_generator._build_scope_incremental_inputs")
