@@ -112,6 +112,7 @@ class ClusteringService:
                     name: owner
                     for name, owner in owner_by_member.items()
                     if name not in changed_members
+                    or name not in graph.nodes
                     or normalize_repo_path(graph.nodes[name].file_path, repo_dir) not in normalized_changed_files
                 }
             return ClusterScopeInput(
