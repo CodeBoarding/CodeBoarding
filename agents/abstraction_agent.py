@@ -13,8 +13,12 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
     assign_relation_ids,
 )
-from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.llm_renderers import cluster_group_descriptions, cluster_group_ids, render_cluster_groups
+from agents.llm_renderers import (
+    cluster_group_descriptions,
+    cluster_group_ids,
+    render_cluster_groups,
+    render_scope_connections,
+)
 from agents.prompts import (
     get_final_analysis_message,
     get_api_surfaces_message,
@@ -23,7 +27,13 @@ from agents.prompts import (
     format_project_system_message,
 )
 from agents.relation_edges import index_relation_endpoints
-from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
+from agents.repair import (
+    ComponentRepairContext,
+    ensure_unique_key_entities,
+    repair_component_group_names,
+    repair_key_entities,
+)
+from agents.static_analysis_enricher_mixin import StaticAnalysisEnricherMixin
 from agents.validation import (
     ValidationContext,
     validate_group_name_coverage,
@@ -38,7 +48,7 @@ from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 logger = logging.getLogger(__name__)
 
 
-class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
+class AbstractionAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
     def __init__(
         self,
         repo_dir: Path,
@@ -76,8 +86,30 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             ),
         }
 
+    def run(self, scope: ClusterScopeResult) -> AnalysisInsights:
+        if not scope.groups:
+            # No leaf clusters means the repo has no callable structure to abstract
+            # (unsupported/empty/no-code). Fail loudly instead of emptying the
+            # architecture and crashing downstream in populate_file_methods.
+            raise StaticAnalysisFatalError(
+                f"No component groups found for {self.project_name}: the static analysis produced "
+                "no callable structure to build an architecture from."
+            )
+
+        analysis = self._step_llm_analysis(scope)
+        self.populate_file_methods(analysis, scope)
+
+        api_surfaces = self._step_api_surfaces(analysis, scope)
+        self._step_relation_analysis(analysis, api_surfaces, scope)
+
+        analysis = self.reference_resolver.fix_source_code_reference_lines(analysis)
+        index_relation_endpoints(analysis, self.repo_dir)
+        ensure_unique_key_entities(analysis)
+
+        return analysis
+
     @trace
-    def step_llm_analysis(self, scope: ClusterScopeResult) -> AnalysisInsights:
+    def _step_llm_analysis(self, scope: ClusterScopeResult) -> AnalysisInsights:
         logger.info(f"[AbstractionAgent] Generating final component analysis for: {self.project_name}")
         cluster_results = scope.leaf_clusters_by_language
         group_ids = cluster_group_ids(scope.groups)
@@ -86,7 +118,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         prompt = self.prompts["final_analysis"].format(
             cluster_analysis=render_cluster_groups(
                 group_ids,
-                cluster_group_descriptions(scope.groups, cluster_results),
+                cluster_group_descriptions(scope),
             ),
         )
 
@@ -128,9 +160,16 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
 
     @trace
-    def step_api_surfaces(self, analysis: AnalysisInsights) -> ComponentApiSurfaces:
+    def _step_api_surfaces(
+        self,
+        analysis: AnalysisInsights,
+        scope: ClusterScopeResult,
+    ) -> ComponentApiSurfaces:
         logger.info(f"[AbstractionAgent] Analyzing component API surfaces for: {self.project_name}")
-        static_call_evidence = self.build_scope_cfg_string(analysis)
+        static_call_evidence = render_scope_connections(
+            scope,
+            {component.component_id: component.name for component in analysis.components},
+        )
         prompt = self.prompts["api_surfaces"].format(
             component_summaries=analysis.llm_str(),
             static_call_evidence=static_call_evidence,
@@ -138,7 +177,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         return self._parse_invoke(prompt, ComponentApiSurfaces)
 
     @trace
-    def step_relation_analysis(
+    def _step_relation_analysis(
         self,
         analysis: AnalysisInsights,
         api_surfaces: ComponentApiSurfaces,
@@ -146,7 +185,10 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
     ) -> None:
         logger.info(f"[AbstractionAgent] Discovering component relations for: {self.project_name}")
         cluster_results = scope.leaf_clusters_by_language
-        static_call_evidence = self.build_scope_cfg_string(analysis)
+        static_call_evidence = render_scope_connections(
+            scope,
+            {component.component_id: component.name for component in analysis.components},
+        )
         cfg_graphs = scope.graphs_by_language
         self.toolkit.context.clustering = scope
         self.toolkit.context.cluster_group_ids = cluster_group_ids(scope.groups)
@@ -173,32 +215,4 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
         analysis.components_relations = relation_result.components_relations
         assign_relation_ids(analysis)
-        self.build_static_relations(analysis)
-
-    def run(self, scope: ClusterScopeResult) -> tuple[AnalysisInsights, dict[str, ClusterResult]]:
-        """Name and analyze a precomputed root clustering scope."""
-        cluster_results = scope.leaf_clusters_by_language
-        if not scope.groups:
-            # No leaf clusters means the repo has no callable structure to abstract
-            # (unsupported/empty/no-code). Fail loudly instead of emptying the
-            # architecture and crashing downstream in populate_file_methods.
-            raise StaticAnalysisFatalError(
-                f"No component groups found for {self.project_name}: the static analysis produced "
-                "no callable structure to build an architecture from."
-            )
-
-        # Name and describe each fixed group into a component (LLM, one component per group)
-        analysis = self.step_llm_analysis(scope)
-        # Resolve cluster IDs deterministically from group names
-        self._resolve_cluster_ids_from_groups(analysis, scope)
-        # Populate file_methods deterministically from cluster results + orphan assignment
-        self.populate_file_methods(analysis, cluster_results)
-
-        api_surfaces = self.step_api_surfaces(analysis)
-        self.step_relation_analysis(analysis, api_surfaces, scope)
-
-        analysis = self.reference_resolver.fix_source_code_reference_lines(analysis)
-        index_relation_endpoints(analysis, self.repo_dir)
-        self._ensure_unique_key_entities(analysis)
-
-        return analysis, cluster_results
+        self.merge_scope_relations(analysis, scope)

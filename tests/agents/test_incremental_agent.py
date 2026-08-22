@@ -19,7 +19,7 @@ from agents.agent_responses import (
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.incremental_agent import (
     IncrementalAgent,
-    _clustering_for_scope,
+    _persisted_group_ids,
     _patch_file_methods,
     prune_empty_components,
     remove_deleted_files,
@@ -28,7 +28,13 @@ from agents.incremental_results import ScopeRelationContext
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import NodeType
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult, ClusterScopeResult
+from static_analyzer.clustering import (
+    ClusterConnectionEdge,
+    ClusterGroup,
+    ClusterResult,
+    ClusterScopeResult,
+    GroupConnection,
+)
 from static_analyzer.node import Node
 
 
@@ -172,7 +178,6 @@ class TestUpdateScope(unittest.TestCase):
                     ]
 
         agent._patch_scope_file_methods = MagicMock(side_effect=populate)
-        agent.build_static_relations = MagicMock()
         return agent
 
     def test_update_without_selected_key_entities_does_not_synthesize_them(self) -> None:
@@ -435,20 +440,22 @@ class TestUpdateScope(unittest.TestCase):
 
 
 class TestIncrementalRelations(unittest.TestCase):
-    def test_reconstructs_nested_cluster_context_from_persisted_components(self) -> None:
-        component = _component("Worker", "1.1", source_cluster_ids=["1.2", "9.9"])
-        component.source_group_names = []
-        scope = AnalysisInsights(description="nested", components=[component], components_relations=[])
-
-        clustering = _clustering_for_scope(
-            scope,
-            "1",
-            {"python": ClusterResult(clusters={2: {"worker.run"}})},
-            {"python": CallGraph(language="python")},
+    def test_persisted_group_names_follow_component_ids_not_list_order(self) -> None:
+        first = _component("First", "1")
+        first.source_group_names = ["First group"]
+        second = _component("Second", "2")
+        second.source_group_names = ["Second group"]
+        clustering = ClusterScopeResult(
+            scope_id="root",
+            groups=[
+                ClusterGroup(group_id="2", cluster_ids=[20]),
+                ClusterGroup(group_id="1", cluster_ids=[10]),
+            ],
         )
 
-        self.assertEqual(component.source_group_names, ["Worker"])
-        self.assertEqual(clustering.groups[0].cluster_ids, [2])
+        result = _persisted_group_ids([first, second], clustering)
+
+        self.assertEqual(result, {"Second group": [20], "First group": [10]})
 
     def test_uses_api_surface_relation_pipeline_and_attaches_static_call_sites(self) -> None:
         source = Node("pkg.api.run", NodeType.FUNCTION, "api.py", 1, 5)
@@ -516,6 +523,37 @@ class TestIncrementalRelations(unittest.TestCase):
         cluster_results = {
             "python": ClusterResult(clusters={1: {source.fully_qualified_name}, 2: {target.fully_qualified_name}})
         }
+        clustering = ClusterScopeResult(
+            scope_id="root",
+            graphs_by_language={"python": cfg},
+            leaf_clusters_by_language=cluster_results,
+            groups=[
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {source.fully_qualified_name}},
+                ),
+                ClusterGroup(
+                    group_id="2",
+                    cluster_ids=[2],
+                    symbol_members_by_language={"python": {target.fully_qualified_name}},
+                ),
+            ],
+            connections=[
+                GroupConnection(
+                    source_group_id="1",
+                    target_group_id="2",
+                    edges=[
+                        ClusterConnectionEdge(
+                            language="python",
+                            source_qualified_name=source.fully_qualified_name,
+                            target_qualified_name=target.fully_qualified_name,
+                            call_sites=[{"line": 3, "column": 7}],
+                        )
+                    ],
+                )
+            ],
+        )
 
         with patch("agents.agent.create_agent", return_value=MagicMock()):
             agent = IncrementalAgent(
@@ -540,7 +578,8 @@ class TestIncrementalRelations(unittest.TestCase):
             scope,
             "root",
             ScopeRelationContext(
-                cluster_results=cluster_results, cfg_graphs={"python": cfg}, changed_ids=frozenset({"1", "2"})
+                clustering=clustering,
+                changed_ids=frozenset({"1", "2"}),
             ),
         )
 
@@ -571,7 +610,7 @@ class TestIncrementalRelations(unittest.TestCase):
         agent = object.__new__(IncrementalAgent)
         agent.generate_scope_relations = MagicMock(return_value=[])
         root = AnalysisInsights(description="root", components=[], components_relations=[])
-        context = ScopeRelationContext(cluster_results={}, cfg_graphs={})
+        context = ScopeRelationContext(clustering=_clustering())
 
         agent.generate_all_scope_relations(root, {}, {"root": context}, {"pkg.changed"})
 
@@ -590,7 +629,7 @@ class TestIncrementalRelations(unittest.TestCase):
         result = agent.generate_scope_relations(
             scope,
             "root",
-            ScopeRelationContext(cluster_results={}, cfg_graphs={}),
+            ScopeRelationContext(clustering=_clustering()),
         )
 
         self.assertEqual(result, [])

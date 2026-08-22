@@ -30,32 +30,28 @@ class ComponentBridgeEdgesTool(BaseRepoTool):
         if not self.context.cluster_group_ids:
             return "No grouped cluster context available."
 
-        source_clusters = self._cluster_ids_for_groups(source_group_names)
-        destination_clusters = self._cluster_ids_for_groups(destination_group_names)
-        if not source_clusters:
+        source_groups = self._group_ids_for_names(source_group_names)
+        destination_groups = self._group_ids_for_names(destination_group_names)
+        if not source_groups:
             return f"No source clusters found for groups: {source_group_names}"
-        if not destination_clusters:
+        if not destination_groups:
             return f"No destination clusters found for groups: {destination_group_names}"
 
-        cfg_graphs = self.context.cfg_graphs
-        if not cfg_graphs:
-            if not self.static_analysis:
-                return "No static analysis data available."
-            cfg_graphs = self.static_analysis.available_cfgs()
-
-        source_nodes = self._nodes_for_clusters(source_clusters)
-        destination_nodes = self._nodes_for_clusters(destination_clusters)
         all_edges: list[str] = []
-
-        for language, cfg in cfg_graphs.items():
-            for edge in cfg.edges:
-                src_name = edge.get_source()
-                dst_name = edge.get_destination()
-                if src_name in source_nodes and dst_name in destination_nodes:
-                    all_edges.append(
-                        f"{language}: {src_name} ({edge.src_node.file_path}:{edge.src_node.line_start}) "
-                        f"-> {dst_name} ({edge.dst_node.file_path}:{edge.dst_node.line_start})"
-                    )
+        clustering = self.context.clustering
+        for connection in clustering.connections:
+            if connection.source_group_id not in source_groups or connection.target_group_id not in destination_groups:
+                continue
+            for edge in connection.edges:
+                graph = clustering.graphs_by_language.get(edge.language)
+                source = graph.nodes.get(edge.source_qualified_name) if graph is not None else None
+                target = graph.nodes.get(edge.target_qualified_name) if graph is not None else None
+                source_location = f" ({source.file_path}:{source.line_start})" if source is not None else ""
+                target_location = f" ({target.file_path}:{target.line_start})" if target is not None else ""
+                all_edges.append(
+                    f"{edge.language}: {edge.source_qualified_name}{source_location} "
+                    f"-> {edge.target_qualified_name}{target_location}"
+                )
 
         if not all_edges:
             logger.info(
@@ -68,18 +64,12 @@ class ComponentBridgeEdgesTool(BaseRepoTool):
         header = f"Directed static bridge edges ({len(all_edges)}):"
         return "\n".join([header, *sorted(all_edges)])
 
-    def _cluster_ids_for_groups(self, group_names: list[str]) -> set[int]:
+    def _group_ids_for_names(self, group_names: list[str]) -> set[str]:
         requested = set(group_names)
-        return {
+        cluster_ids = {
             cluster_id
             for name, cluster_ids in self.context.cluster_group_ids.items()
             if name in requested
             for cluster_id in cluster_ids
         }
-
-    def _nodes_for_clusters(self, cluster_ids: set[int]) -> set[str]:
-        nodes: set[str] = set()
-        for cluster_result in self.context.cluster_results.values():
-            for cluster_id in cluster_ids:
-                nodes.update(cluster_result.get_nodes_for_cluster(cluster_id))
-        return nodes
+        return {group.group_id for group in self.context.clustering.groups if set(group.cluster_ids) & cluster_ids}

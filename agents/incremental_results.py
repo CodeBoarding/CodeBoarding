@@ -1,19 +1,25 @@
 from dataclasses import dataclass, field
 
 from static_analyzer.cfg import CallGraph
-
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 
 
 @dataclass(frozen=True)
 class ScopeRelationContext:
     """Static-analysis context required to regenerate one scope's relations."""
 
-    cluster_results: dict[str, ClusterResult]
-    cfg_graphs: dict[str, CallGraph]
+    clustering: ClusterScopeResult
     #: Components in this scope that actually moved. Relations between two components
     #: absent from this set are carried over verbatim instead of being re-worded.
     changed_ids: frozenset[str] = frozenset()
+
+    @property
+    def cluster_results(self) -> dict[str, ClusterResult]:
+        return self.clustering.leaf_clusters_by_language
+
+    @property
+    def cfg_graphs(self) -> dict[str, CallGraph]:
+        return self.clustering.graphs_by_language
 
 
 @dataclass

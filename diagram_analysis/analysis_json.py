@@ -13,7 +13,7 @@ from agents.agent_responses import (
     RelationEdge,
     SourceCodeReference,
 )
-from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry, MethodIndexEntry
 from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
 
@@ -110,18 +110,6 @@ class AnalysisMetadata(BaseModel):
             total_files=0, analyzed=0, not_analyzed=0, not_analyzed_by_reason={}
         ),
         description="Lightweight file coverage counts.",
-    )
-
-
-class MethodIndexEntry(BaseModel):
-    file_path: str = Field(description="Relative path to the source file.")
-    qualified_name: str = Field(description="Fully qualified method/function name.")
-    start_line: int = Field(description="Starting line number in the file.")
-    end_line: int = Field(description="Ending line number in the file.")
-    type: str = Field(description="Node type name (METHOD, FUNCTION, CLASS, ...).")
-    content_hash: str = Field(
-        default="",
-        description="Truncated SHA-256 of the method's source lines; '' when unknown.",
     )
 
 

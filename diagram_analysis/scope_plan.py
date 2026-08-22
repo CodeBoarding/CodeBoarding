@@ -6,9 +6,6 @@ the previous run's methods rather than its unstable local cluster IDs.
 """
 
 import logging
-from pathlib import Path
-
-import networkx as nx
 
 from agents.agent_responses import (
     AnalysisInsights,
@@ -18,81 +15,14 @@ from agents.agent_responses import (
     ScopeUpdateDecision,
 )
 from agents.cluster_ids import CodeBoardingClusterIds
-from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
-from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cluster_helpers import (
     combine_cluster_results,
     group_symbols,
 )
-from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult, ClusteringService
-from static_analyzer.clustering.grouping import GroupingService
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 
 logger = logging.getLogger(__name__)
-
-
-def plan_scope_update(
-    scope_id: str,
-    scope: AnalysisInsights,
-    cluster_results: dict[str, ClusterResult],
-    cfg_graphs: dict[str, nx.DiGraph],
-    changed_members: set[str],
-    repo_dir: Path,
-) -> ScopeUpdateDecision:
-    """The operations that carry this scope's components onto the new clustering.
-
-    ``UPDATE_COMPONENT`` for a component whose cluster set moved or whose code was edited;
-    ``CREATE_COMPONENT`` only for a group with no predecessor; ``DELETE_COMPONENT`` only
-    for a component left with nothing. Names and descriptions are deliberately absent —
-    ``update_scope`` leaves the existing wording alone.
-
-    A component that comes out of the grouping holding exactly what it already held gets
-    **no operation at all**. An operation is not free: ``update_scope`` puts its target in
-    ``refresh_ids``, which reruns the LLM relation analysis for the whole scope, and
-    ``_remove_reassigned_clusters`` strips and restores the referenced clusters. Emitting
-    one per survivor therefore relabels every relation in the tree on a one-line diff.
-    """
-    combined = combine_cluster_results(cluster_results)
-    groups: list[ClusterGroup] = []
-    regrouped = False
-    if combined.clusters:
-        previous, _member_owner = ClusteringService._previous_ownership(
-            scope,
-            cluster_results,
-            scope_id,
-            repo_dir,
-        )
-        grouping = GroupingService().anchored_group(
-            cluster_results,
-            cfg_graphs,
-            previous,
-            subcomponents=scope_id != ROOT_SCOPE_ID,
-        )
-        groups = [
-            ClusterGroup(
-                group_id=owner,
-                cluster_ids=sorted(cluster_ids),
-                symbol_members_by_language={
-                    language: {
-                        qualified_name
-                        for cluster_id in cluster_ids
-                        for qualified_name in result.clusters.get(cluster_id, set())
-                    }
-                    for language, result in cluster_results.items()
-                },
-                previous_component_id=owner,
-            )
-            for cluster_ids, owner in zip(grouping.groups, grouping.owners, strict=True)
-        ]
-        regrouped = grouping.regrouped
-    return _plan_scope_operations(
-        scope_id,
-        scope,
-        cluster_results,
-        groups,
-        changed_members,
-        regrouped,
-    )
 
 
 def plan_scope_result_update(

@@ -8,17 +8,21 @@ state that ``LanguageResults`` owns.
 from static_analyzer.clustering.cache import ClusterCache
 from static_analyzer.clustering.models import (
     METHOD_LEVEL_STRATEGY,
+    ClusterConnectionEdge,
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
+    GroupConnection,
 )
 from static_analyzer.clustering.service import ClusteringService
 
 __all__ = [
     "METHOD_LEVEL_STRATEGY",
     "ClusterCache",
+    "ClusterConnectionEdge",
     "ClusterGroup",
     "ClusterResult",
     "ClusterScopeResult",
     "ClusteringService",
+    "GroupConnection",
 ]

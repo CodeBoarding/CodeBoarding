@@ -143,6 +143,17 @@ class ClusterScopeResult:
     clustering_groups: dict[GroupId, ClusterGroup] = field(default_factory=dict, init=False, repr=False)
     preclustered_scopes: dict[GroupId, ClusterScopeResult] = field(default_factory=dict, init=False, repr=False)
 
+    def connection_between(self, source_group_id: GroupId, target_group_id: GroupId) -> GroupConnection | None:
+        """Return the directed connection between two groups in this exact scope."""
+        return next(
+            (
+                connection
+                for connection in self.connections
+                if connection.source_group_id == source_group_id and connection.target_group_id == target_group_id
+            ),
+            None,
+        )
+
     def index_hierarchy(self) -> None:
         """Index all groups and retained child scopes in this hierarchy."""
         self.clustering_groups.clear()

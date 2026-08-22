@@ -5,19 +5,16 @@ import logging
 from abc import abstractmethod
 from collections.abc import Hashable
 from enum import StrEnum
-from typing import TYPE_CHECKING, get_origin
+from typing import get_origin
 
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
 from clustering_ids import ComponentId
-from agents.file_index_models import FileEntry, FileMethodGroup
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodIndexEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from diagram_analysis.analysis_json import MethodIndexEntry
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -445,6 +442,23 @@ class AnalysisInsights(LLMBaseModel):
     )
     components: list[Component] = Field(description="List of the components identified in the project.")
     components_relations: list[Relation] = Field(description="List of relations among the components.")
+
+    def component_by_id(self, component_id: str) -> Component | None:
+        """Return the component with this stable ID."""
+        return next((component for component in self.components if component.component_id == component_id), None)
+
+    def component_by_name(self, name: str) -> Component | None:
+        """Return the first component with this displayed name."""
+        return next((component for component in self.components if component.name == name), None)
+
+    def node_owners(self) -> dict[str, str]:
+        """Map each indexed symbol to its owning component ID."""
+        return {
+            method.qualified_name: component.component_id
+            for component in self.components
+            for file_methods in component.file_methods
+            for method in file_methods.methods
+        }
 
     def llm_str(self):
         if not self.components:
