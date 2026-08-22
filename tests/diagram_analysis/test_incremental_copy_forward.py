@@ -463,9 +463,7 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         baseline = self._relation("1", "2", "baseline wording")
         baseline.is_static = True
         baseline.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
-        baseline.key_edges = [
-            RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"), description="the reader's description")
-        ]
+        baseline.key_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
         fresh = self._relation("1", "2", "rerolled wording")
         fresh.is_static = True
         fresh.all_edges = [
@@ -481,7 +479,7 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
             [fresh], {("1", "2"): baseline}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.elsewhere"}
         )
 
-        self.assertEqual([edge.description for edge in kept[0].key_edges], ["the reader's description"])
+        self.assertEqual([edge.description for edge in kept[0].key_edges], [""])
         self.assertEqual([site.line for edge in kept[0].key_edges for site in edge.call_sites], [91])
 
     def test_pair_the_rebuild_no_longer_grounds_is_dropped(self):

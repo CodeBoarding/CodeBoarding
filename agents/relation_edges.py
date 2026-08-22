@@ -144,12 +144,7 @@ def _restore_baseline_orientation(relation: Relation, baseline_by_pair: dict) ->
 
 
 def _restore_baseline_wording(fresh: Relation, previous: Relation) -> Relation:
-    """Carry the label, the evidence and the edge highlighting forward onto the fresh edges.
-
-    Why: which edges are highlighted and their per-edge descriptions are re-rolled each run
-    just like the label, so an unrelated commit rewrites them. They are rebound onto the fresh
-    edge objects, never copied from the baseline, so spans and call sites stay current.
-    """
+    """Restore baseline wording and highlighting onto fresh edge metadata."""
     wording = {"relation": previous.relation, "evidence": previous.evidence}
     if not previous.key_edges:
         return fresh.model_copy(update=wording)
@@ -158,8 +153,8 @@ def _restore_baseline_wording(fresh: Relation, previous: Relation) -> Relation:
     }
 
     def annotate(edge: RelationEdge) -> RelationEdge:
-        description = highlighted.get((edge.source.qualified_name, edge.target.qualified_name))
-        return edge.model_copy(update={"description": description}) if description else edge
+        edge_key = (edge.source.qualified_name, edge.target.qualified_name)
+        return edge.model_copy(update={"description": highlighted[edge_key]}) if edge_key in highlighted else edge
 
     # Membership follows the rebuild — a baseline highlight whose edge is gone stays gone —
     # but an edge the baseline highlighted and the rebuild still has is highlighted again.
