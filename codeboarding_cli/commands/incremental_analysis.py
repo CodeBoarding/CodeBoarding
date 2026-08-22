@@ -49,7 +49,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         run_context = RunContext.resolve(
             repo_dir=run_paths.repo_path,
             project_name=run_paths.project_name,
-            reuse_latest_run_id=True,
         )
     except Exception as exc:
         logger.exception("RunContext resolution failed")
@@ -81,8 +80,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         )
         # Human-facing hint (logs to stderr, so the stdout JSON contract stays clean).
         print_view_instructions(analysis_path)
-    finally:
-        run_context.finalize()
 
 
 def _emit_error(message: str) -> None:

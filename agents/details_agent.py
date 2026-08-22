@@ -26,8 +26,6 @@ from agents.prompts import (
 from agents.relation_edges import index_relation_endpoints
 from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from caching.cache import ModelSettings
-from caching.details_cache import FinalAnalysisCache
 from agents.validation import (
     ValidationContext,
     validate_group_name_coverage,
@@ -51,15 +49,11 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         meta_context: MetaAnalysisInsights,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
-        run_id: str,
     ):
         system_message = format_project_system_message(get_system_details_message(), project_name, meta_context)
         super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
         self.project_name = project_name
         self.meta_context = meta_context
-        self.run_id = run_id
-        self._cache_model_settings = ModelSettings.from_chat_model(provider="unknown", llm=agent_llm)
-        self._analysis_cache = FinalAnalysisCache(repo_dir=repo_dir)
 
         self.prompts = {
             "final_analysis": PromptTemplate(
@@ -148,10 +142,6 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             llm_cluster_analysis=cluster_analysis,
         )
 
-        cache_key = self._analysis_cache.build_key(prompt, self._cache_model_settings)
-
-        if (cached := self._analysis_cache.load(cache_key)) is not None:
-            return cached
         architecture = self._invoke_repair_validate(
             prompt,
             ComponentArchitecture,
@@ -173,11 +163,6 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             description=architecture.description,
             components=architecture.components,
             components_relations=[],
-        )
-        self._analysis_cache.store(
-            cache_key,
-            result,
-            run_id=self.run_id,
         )
         return result
 

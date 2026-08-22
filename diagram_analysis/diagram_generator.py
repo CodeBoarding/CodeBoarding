@@ -927,7 +927,6 @@ class DiagramGenerator:
             meta_context=meta_context,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
-            run_id=self.run_id,
         )
         self.abstraction_agent = AbstractionAgent(
             repo_dir=self.repo_location,
