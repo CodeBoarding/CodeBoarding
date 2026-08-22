@@ -5,8 +5,6 @@ import unittest
 import networkx as nx
 
 from agents.planner_agent import (
-    MAX_LEAF_FILES,
-    MAX_LEAF_METHODS,
     component_is_separable,
     get_expandable_components,
     leaf_load,
@@ -19,6 +17,7 @@ from agents.agent_responses import (
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.clustering import ClusterResult, METHOD_LEVEL_STRATEGY
+from static_analyzer.config import ClusteringConfig
 
 
 class TestShouldExpandComponent(unittest.TestCase):
@@ -419,10 +418,14 @@ class TestLeafLoad(unittest.TestCase):
 
     def test_file_count_alone_can_exceed_the_ceiling(self):
         # One method each, but spread over more files than a single box should hold.
-        self.assertGreaterEqual(leaf_load(self._component(files=MAX_LEAF_FILES + 1, methods_per_file=1)), 1.0)
+        self.assertGreaterEqual(
+            leaf_load(self._component(files=ClusteringConfig.MAX_LEAF_FILES + 1, methods_per_file=1)), 1.0
+        )
 
     def test_method_count_alone_can_exceed_the_ceiling(self):
-        self.assertGreaterEqual(leaf_load(self._component(files=2, methods_per_file=MAX_LEAF_METHODS)), 1.0)
+        self.assertGreaterEqual(
+            leaf_load(self._component(files=2, methods_per_file=ClusteringConfig.MAX_LEAF_METHODS)), 1.0
+        )
 
     def test_empty_component_has_zero_load(self):
         self.assertEqual(leaf_load(self._component(files=0, methods_per_file=0)), 0.0)

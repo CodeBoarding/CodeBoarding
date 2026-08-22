@@ -73,6 +73,12 @@ class ClusteringConfig:
     # Display limits
     MAX_DISPLAY_CLUSTERS = 55  # Maximum clusters to show in output (readability limit)
 
+    # Recursive hierarchy expansion thresholds
+    MIN_METHODS_TO_EXPAND = 30
+    MAX_LEAF_FILES = 12
+    MAX_LEAF_METHODS = 120
+    EXPAND_MODULARITY_THRESHOLD = 0.15
+
     # Separator used by every ``LanguageAdapter.build_qualified_name``.
     # A future per-language switch (e.g. Rust to ``::``) would need both a
     # per-adapter override and updates to consumers that hardcode
