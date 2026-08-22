@@ -55,6 +55,7 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
             file_to_clusters={"a.py": {5}, "b.py": {6}},
         )
         static = _build_static({"python": graph}, {"python": partition})
+        static.get_clusters(Language.PYTHON).record_unclustered({"orphan"})
 
         snap = snapshot_from_static_analysis(static)
 
@@ -64,6 +65,7 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
         self.assertEqual(py[5].files, {"a.py"})
         self.assertEqual(py[5].member_files, {"a.foo": "a.py", "a.bar": "a.py"})
         self.assertEqual(py[6].members, {"b.baz"})
+        self.assertEqual(snap.get_unclustered_members("python"), {"orphan"})
 
     def test_partitions_each_language_independently(self) -> None:
         py_graph = _build_graph([("a.foo", "a.py"), ("b.baz", "b.py")])

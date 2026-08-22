@@ -319,6 +319,7 @@ class TestClusterCachePreservation(unittest.TestCase):
                     strategy="leiden",
                 )
             )
+            clusters.record_unclustered({"pkg.a.orphan"}, "1")
             result = StaticAnalysisResults()
             result.add_cfg(Language.PYTHON, cg)
             result.set_clusters(Language.PYTHON, clusters)
@@ -332,6 +333,7 @@ class TestClusterCachePreservation(unittest.TestCase):
             loaded_partition = loaded.get_clusters(Language.PYTHON).result
             self.assertEqual(loaded_partition.cluster_to_files, {1: {expected_file}})
             self.assertEqual(loaded_partition.file_to_clusters, {expected_file: {1}})
+            self.assertEqual(loaded.get_clusters(Language.PYTHON).get_unclustered_members("1"), {"pkg.a.orphan"})
 
 
 class TestUpdateCachedResultsCarriesPartition(unittest.TestCase):

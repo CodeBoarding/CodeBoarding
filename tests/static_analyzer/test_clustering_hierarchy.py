@@ -187,7 +187,7 @@ class TestClusteringHierarchy(unittest.TestCase):
 
     @patch.object(ClusteringService, "_build_leaf_clusters")
     @patch.object(ClusteringService, "_cluster_hierarchy")
-    def test_orchestration_reuses_root_partitions_and_records_child_lineage(
+    def test_orchestration_records_structural_and_unclustered_lineage(
         self,
         cluster_hierarchy,
         build_root,
@@ -198,16 +198,37 @@ class TestClusteringHierarchy(unittest.TestCase):
         grandchild_scope = ClusterScopeResult(
             scope_id="1.1",
             leaf_clusters_by_language={"python": grandchild_partition},
+            groups=[
+                ClusterGroup(
+                    group_id="1.1.1",
+                    cluster_ids=[3],
+                    symbol_members_by_language={"python": {"grandchild", "grandchild.orphan"}},
+                )
+            ],
         )
         child_scope = ClusterScopeResult(
             scope_id="1",
             leaf_clusters_by_language={"python": child_partition},
-            groups=[ClusterGroup(group_id="1.1", cluster_ids=[2], children=grandchild_scope)],
+            groups=[
+                ClusterGroup(
+                    group_id="1.1",
+                    cluster_ids=[2],
+                    symbol_members_by_language={"python": {"child", "child.orphan"}},
+                    children=grandchild_scope,
+                )
+            ],
         )
         hierarchy = ClusterScopeResult(
             scope_id="root",
             leaf_clusters_by_language={"python": root_partition},
-            groups=[ClusterGroup(group_id="1", cluster_ids=[1], children=child_scope)],
+            groups=[
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {"root", "root.orphan"}},
+                    children=child_scope,
+                )
+            ],
         )
         static_analysis = MagicMock()
         static_analysis.available_cfgs.return_value = {"python": CallGraph(language="python")}
@@ -224,11 +245,20 @@ class TestClusteringHierarchy(unittest.TestCase):
         self.assertEqual(depth, 3)
         self.assertIs(scope_input("root", graphs).leaf_clusters_by_language["python"], root_partition)
         self.assertEqual(scope_input("1", graphs).leaf_clusters_by_language, {})
+        cache.adopt.assert_called_once_with(root_partition)
         self.assertEqual(
             cache.record_scope.call_args_list,
             [
                 call(child_partition, "1"),
                 call(grandchild_partition, "1.1"),
+            ],
+        )
+        self.assertEqual(
+            cache.record_unclustered.call_args_list,
+            [
+                call({"root.orphan"}, ""),
+                call({"child.orphan"}, "1"),
+                call({"grandchild.orphan"}, "1.1"),
             ],
         )
         static_analysis.get_clusters.assert_called_with(Language.PYTHON)

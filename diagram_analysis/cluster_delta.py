@@ -13,6 +13,7 @@ existing nodes into newly-formed clusters with added nodes).
 """
 
 import logging
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -235,6 +236,7 @@ def compute_cluster_delta(
             diff_files,
             repo_dir,
             next_new_id,
+            old_snapshot.get_unclustered_members(language),
         )
         delta.by_language[language] = language_delta
         next_new_id = max(next_new_id, max(language_delta.cluster_results.clusters, default=0) + 1)
@@ -258,6 +260,7 @@ def _delta_for_language(
     diff_files: set[str] | None = None,
     repo_dir: Path | None = None,
     next_new_id: int = 0,
+    known_unclustered_members: Collection[str] = (),
 ) -> LanguageDelta:
     # Why raw nodes (not a fresh clustering): seeded Leiden runs on the live
     # graph directly. Singletons in the live graph become added qnames; diff
@@ -269,7 +272,7 @@ def _delta_for_language(
     if not universe:
         return LanguageDelta(language=language, cluster_results=ClusterResult())
 
-    raw_added = live_qnames - old_member_union
+    raw_added = live_qnames - old_member_union - set(known_unclustered_members)
     raw_removed = old_member_union - live_qnames
 
     inconsistent_removed: set[str] = set()

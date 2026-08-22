@@ -63,16 +63,23 @@ class TestFlavorB(unittest.TestCase):
         # clusterable members on both sides — matching baselines round-trip
         # to ``has_changes=False``.
         graph = _build_graph(
-            [("a.foo", "a.py"), ("a.bar", "a.py"), ("b.baz", "b.py"), ("b.qux", "b.py")],
+            [
+                ("a.foo", "a.py"),
+                ("a.bar", "a.py"),
+                ("b.baz", "b.py"),
+                ("b.qux", "b.py"),
+                ("module.__getattr__", "module.py"),
+            ],
             [("a.foo", "a.bar"), ("b.baz", "b.qux")],
         )
-        snap = _snapshot(
-            {
+        snap = ClusterSnapshot(
+            by_language={
                 "python": {
                     1: ClusterSnapshotEntry(members={"a.foo", "a.bar"}),
                     2: ClusterSnapshotEntry(members={"b.baz", "b.qux"}),
                 }
-            }
+            },
+            unclustered_members_by_language={"python": {"module.__getattr__"}},
         )
 
         delta = compute_cluster_delta(snap, _build_static(graph))
@@ -82,6 +89,10 @@ class TestFlavorB(unittest.TestCase):
         self.assertEqual(ld.new_cluster_ids, set())
         self.assertEqual(ld.changed_cluster_ids, set())
         self.assertEqual(ld.dropped_cluster_ids, set())
+        self.assertNotIn(
+            "module.__getattr__",
+            {member for members in ld.cluster_results.clusters.values() for member in members},
+        )
 
     def test_added_node_routed_to_neighbor_cluster(self) -> None:
         # Snapshot lists clusters that fresh clustering will reproduce; "a.new"

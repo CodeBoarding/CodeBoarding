@@ -410,11 +410,15 @@ class TestClusterLineageMovesWithTheTree(unittest.TestCase):
                 component("1.1.1", "G", {"a.py": ["a.one"]}), component("1.1.2", "G2", {"a.py": ["a.one"]})
             ),
         }
-        clusters = ClusterCache(method_paths=MethodClusterPaths({"a.one": {"1.0", "1.1.4"}}))
+        clusters = ClusterCache(
+            method_paths=MethodClusterPaths({"a.one": {"1.0", "1.1.4"}}),
+            unclustered_members_by_scope={"1": {"parent.orphan"}, "1.1": {"child.orphan"}},
+        )
 
         absorb_single_child_components(root, subs, [clusters])
 
         self.assertEqual(clusters.method_paths.snapshot_dict(), {"a.one": {"1.4"}})
+        self.assertEqual(clusters.unclustered_members_by_scope, {"1": {"child.orphan"}})
 
 
 class TestAbsorptionKeepsTheDocumentRenderable(unittest.TestCase):

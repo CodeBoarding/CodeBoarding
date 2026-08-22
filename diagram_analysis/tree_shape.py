@@ -61,7 +61,7 @@ def _absorb(
     sub_analyses.pop(child_id, None)
     _reroot_tree(root_analysis, sub_analyses, child_id, parent_id)
     for cache in cluster_caches:
-        cache.method_paths.reroot_scope(child_id, parent_id)
+        cache.reroot_scope(child_id, parent_id)
     logger.info(f"[TreeShape] Absorbed '{child.name}' ({child_id}) into {parent_id or 'the root'}")
     return child_id
 

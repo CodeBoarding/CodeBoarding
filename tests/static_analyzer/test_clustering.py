@@ -99,9 +99,11 @@ class TestClusterCache(unittest.TestCase):
         result = ClusterResult(clusters={1: {"a.foo", "a.bar"}})
 
         cache.adopt(result)
+        cache.record_unclustered({"a.orphan"})
 
         self.assertIs(cache.result, result)
         self.assertEqual(cache.method_paths.snapshot_dict(), {"a.foo": {"1"}, "a.bar": {"1"}})
+        self.assertEqual(cache.get_unclustered_members(), {"a.orphan"})
 
     def test_record_scope_leaves_the_top_level_partition_alone(self):
         """Why: a component's sub-partition must not overwrite what cluster_snapshot reads."""
@@ -110,9 +112,11 @@ class TestClusterCache(unittest.TestCase):
         cache.adopt(top_level)
 
         cache.record_scope(ClusterResult(clusters={2: {"a.foo"}}), "1")
+        cache.record_unclustered({"a.orphan"}, "1")
 
         self.assertIs(cache.result, top_level)
         self.assertEqual(cache.method_paths.snapshot_dict(), {"a.foo": {"1", "1.2"}})
+        self.assertEqual(cache.get_unclustered_members("1"), {"a.orphan"})
 
     def test_select_keeps_only_surviving_nodes(self):
         cache = ClusterCache()
@@ -123,6 +127,8 @@ class TestClusterCache(unittest.TestCase):
                 file_to_clusters={"a.py": {1}, "b.py": {1}},
             )
         )
+        cache.record_unclustered({"a.orphan", "b.orphan"})
+        cache.record_unclustered({"a.foo", "b.orphan"}, "1")
         surviving = {"a.foo": Node("a.foo", 12, "a.py", 1, 5)}
 
         kept = cache.select(surviving)
@@ -131,6 +137,8 @@ class TestClusterCache(unittest.TestCase):
         self.assertEqual(kept.result.cluster_to_files, {1: {"a.py"}})
         self.assertEqual(kept.result.file_to_clusters, {"a.py": {1}})
         self.assertEqual(kept.method_paths.snapshot_dict(), {"a.foo": {"1"}})
+        self.assertEqual(kept.get_unclustered_members(), set())
+        self.assertEqual(kept.get_unclustered_members("1"), {"a.foo"})
 
     def test_select_without_a_partition(self):
         """An unclustered language selects to an empty partition, never to None."""
