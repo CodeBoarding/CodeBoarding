@@ -17,7 +17,8 @@ from agents.content_hash import (
     hash_method_body,
     read_source_lines,
 )
-from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, GraphClusterId
+from agents.cluster_ids import CodeBoardingClusterIds
+from clustering_ids import ClusterId, ComponentId
 from constants import MIN_CLUSTERS_THRESHOLD
 from diagram_analysis.cluster_delta import _delta_for_language
 from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
@@ -245,7 +246,7 @@ class ClusterMethodsMixin:
 
     def _resolve_cluster_ids_from_groups(self, analysis: AnalysisInsights, cluster_analysis: ClusterAnalysis) -> None:
         """Resolve source_cluster_ids deterministically from source_group_names via case-insensitive lookup."""
-        group_name_to_ids: dict[str, list[GraphClusterId]] = {
+        group_name_to_ids: dict[str, list[ClusterId]] = {
             cc.name.lower(): cc.cluster_ids for cc in cluster_analysis.cluster_components
         }
 
@@ -504,9 +505,9 @@ class ClusterMethodsMixin:
             groups.append(FileMethodGroup(file_path=file_path, methods=methods))
         return groups
 
-    def _build_cluster_to_component_map(self, analysis: AnalysisInsights) -> dict[CodeBoardingClusterId, Component]:
+    def _build_cluster_to_component_map(self, analysis: AnalysisInsights) -> dict[ComponentId, Component]:
         """Build cluster_id -> Component mapping from source_cluster_ids."""
-        cluster_to_component: dict[CodeBoardingClusterId, Component] = {}
+        cluster_to_component: dict[ComponentId, Component] = {}
         for comp in analysis.components:
             for cid in comp.source_cluster_ids:
                 cluster_to_component[cid] = comp
@@ -514,10 +515,10 @@ class ClusterMethodsMixin:
 
     def _build_node_to_cluster_map(
         self, cluster_results: dict[str, ClusterResult], source_cluster_id_prefix: str = ""
-    ) -> tuple[dict[str, CodeBoardingClusterId], set[CodeBoardingClusterId]]:
+    ) -> tuple[dict[str, ComponentId], set[ComponentId]]:
         """Build node_name (qualified name) -> cluster_id mapping and collect all cluster IDs."""
-        all_cluster_ids: set[CodeBoardingClusterId] = set()
-        node_to_cluster: dict[str, CodeBoardingClusterId] = {}
+        all_cluster_ids: set[ComponentId] = set()
+        node_to_cluster: dict[str, ComponentId] = {}
         for cr in cluster_results.values():
             for cid, members in cr.clusters.items():
                 cluster_id = CodeBoardingClusterIds.qualify_local_id(
@@ -529,7 +530,7 @@ class ClusterMethodsMixin:
         return node_to_cluster, all_cluster_ids
 
     def _validate_cluster_coverage(
-        self, cluster_to_component: dict[CodeBoardingClusterId, Component], all_cluster_ids: set[CodeBoardingClusterId]
+        self, cluster_to_component: dict[ComponentId, Component], all_cluster_ids: set[ComponentId]
     ) -> None:
         """Log an error if any cluster IDs are not mapped to a component."""
         unmapped_cluster_ids = sorted(all_cluster_ids - set(cluster_to_component.keys()))

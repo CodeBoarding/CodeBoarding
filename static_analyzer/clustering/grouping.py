@@ -7,15 +7,12 @@ from collections import Counter, defaultdict, deque
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
-from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import (
     DEFAULT_GROUPING_CONFIG,
     SUBCOMPONENT_GROUPING_CONFIG,
     GroupingConfig,
-    Language,
 )
 from static_analyzer.clustering.models import AnchoredGrouping, ClusterResult
-from static_analyzer.clustering.service import ClusteringService
 from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
@@ -50,32 +47,6 @@ class GroupingService:
         combined = combine_cluster_results(cluster_results)
         combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
         return _anchored_group(combined, combined_cfg, previous_owner, config)
-
-
-def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
-    """Cluster every detected language in one shared cluster-ID namespace."""
-    cluster_service = ClusteringService()
-    cluster_results: dict[str, ClusterResult] = {}
-    offset = 0
-    for lang in static_analysis.get_languages():
-        result = cluster_service.cluster(static_analysis.get_cfg(lang))
-        if offset:
-            result = reindex_cluster_result(result, offset)
-            logger.info(f"[Cluster] {lang}: offset IDs by +{offset} ({len(result.clusters)} clusters)")
-        cluster_results[str(lang)] = result
-        offset += max(result.clusters, default=0) + 1
-
-    _sync_cluster_cache(static_analysis, cluster_results)
-    return cluster_results
-
-
-def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]) -> None:
-    """Store each language's partition (with its final, offset IDs) on its cluster cache."""
-    for lang, result in cluster_results.items():
-        try:
-            static_analysis.get_clusters(Language(lang)).adopt(result)
-        except ValueError:
-            logger.warning("Could not sync cluster cache for unknown language %s", lang)
 
 
 def reindex_across_languages(cluster_results: dict[str, ClusterResult]) -> None:
@@ -118,30 +89,6 @@ def reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> Cluste
     )
 
 
-def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.DiGraph:
-    """Build a weighted directed graph of calls between clusters."""
-    node_to_cluster: dict[str, int] = {}
-    for cluster_id, nodes in cluster_result.clusters.items():
-        for node in nodes:
-            node_to_cluster[node] = cluster_id
-
-    meta_graph = nx.DiGraph()
-    for cid in cluster_result.clusters:
-        meta_graph.add_node(cid)
-
-    edge_weights: dict[tuple[int, int], int] = defaultdict(int)
-    for src, dst in cfg_graph.edges():
-        src_cid = node_to_cluster.get(src)
-        dst_cid = node_to_cluster.get(dst)
-        if src_cid is not None and dst_cid is not None and src_cid != dst_cid:
-            edge_weights[(src_cid, dst_cid)] += 1
-
-    for (src_cid, dst_cid), weight in edge_weights.items():
-        meta_graph.add_edge(src_cid, dst_cid, weight=weight)
-
-    return meta_graph
-
-
 def group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> list[str]:
     """Qualified names in a group, most top-level first (fewest name segments)."""
     names = {qname for cid in cluster_ids for qname in node_lookup.get(cid, set())}
@@ -164,6 +111,35 @@ def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> Cluste
         file_to_clusters=dict(file_to_clusters),
         strategy="combined",
     )
+
+
+def score_grouping(cluster_result: ClusterResult, cfg_graph: nx.DiGraph, groups: list[set[int]]) -> float:
+    """Score a concrete grouping against its inter-cluster meta-graph."""
+    return _modularity(_build_meta_graph(cluster_result, cfg_graph), groups)
+
+
+def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.DiGraph:
+    """Build a weighted directed graph of calls between clusters."""
+    node_to_cluster: dict[str, int] = {}
+    for cluster_id, nodes in cluster_result.clusters.items():
+        for node in nodes:
+            node_to_cluster[node] = cluster_id
+
+    meta_graph = nx.DiGraph()
+    for cid in cluster_result.clusters:
+        meta_graph.add_node(cid)
+
+    edge_weights: dict[tuple[int, int], int] = defaultdict(int)
+    for src, dst in cfg_graph.edges():
+        src_cid = node_to_cluster.get(src)
+        dst_cid = node_to_cluster.get(dst)
+        if src_cid is not None and dst_cid is not None and src_cid != dst_cid:
+            edge_weights[(src_cid, dst_cid)] += 1
+
+    for (src_cid, dst_cid), weight in edge_weights.items():
+        meta_graph.add_edge(src_cid, dst_cid, weight=weight)
+
+    return meta_graph
 
 
 def _pick_peak_partition(
