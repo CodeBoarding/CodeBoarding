@@ -50,13 +50,19 @@ STATIC_ANALYSIS_LOCK = "static_analysis.lock"
 # split. Kept for one-time read fallback so CLI users transition smoothly.
 _LEGACY_PKL_NAME = "static_analysis_results.pkl"
 _LEGACY_CACHE_SUBDIR = "cache"
-# Tag file format prefix; bump if the on-disk pickle layout changes.
+# Tag file format prefix; bump when the on-disk pickle layout changes, and when the engine
+# starts producing a materially different graph from the same source. The freshness gate is
+# the source SHA, so without a bump an unchanged tree keeps serving the graph the previous
+# engine built and an upgrade never reaches the user.
 # v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
 # dataclass storage.
 # v3: MethodClusterPaths moved to static_analyzer.clustering, then CallGraph and the edge
 # types to static_analyzer.cfg, and reference edges became ReferenceEdge objects.
+# v4: .tsx/.jsx open with the JSX language id, so tsserver stops parsing JSX as type
+# assertions — every TypeScript graph built before this is flattened and carries symbols
+# registered at usage positions.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v3"
+_TAG_VERSION = "v4"
 
 
 class StaticAnalysisCache:
