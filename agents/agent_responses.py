@@ -435,6 +435,9 @@ class ClusterAnalysis(LLMBaseModel):
         description="Grouped clusters into logical components. Multiple cluster IDs can be grouped together if they work as a cohesive unit."
     )
 
+    def group_ids(self) -> dict[str, list[ClusterId]]:
+        return {group.name: group.cluster_ids for group in self.cluster_components}
+
     def llm_str(self):
         if not self.cluster_components:
             return "No clusters analyzed."

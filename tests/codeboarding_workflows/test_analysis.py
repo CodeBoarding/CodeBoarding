@@ -14,7 +14,7 @@ def patched(tmp_path: Path):
     """Patch the collaborators of ``run_incremental`` and yield their mocks.
 
     Detection is git-free via ``detect_changes_from_fingerprint``. The warm-start
-    source_sha is computed inside the generator (pre_analysis), not here.
+    source_sha is computed inside the generator (prepare_analysis), not here.
     """
     with ExitStack() as stack:
         gen_cls = stack.enter_context(patch("codeboarding_workflows.analysis.DiagramGenerator"))

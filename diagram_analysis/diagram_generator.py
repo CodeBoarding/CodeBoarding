@@ -72,7 +72,7 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
-from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS
+from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -84,7 +84,8 @@ from static_analyzer.cluster_relations import (
     prune_ungrounded_edges,
 )
 from static_analyzer.config import Language
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, ClusterScopeResult, ClusteringService
+from static_analyzer.clustering.orchestration import build_clustering_hierarchy
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
@@ -600,7 +601,7 @@ class DiagramGenerator:
         # save-time global rebuild must treat it as changed.
         self._baseline_member_keys: dict[str, frozenset[tuple[str, str]]] = {}
         # Whole-tree content hash, stamped into the pkl's sibling .sha file as the
-        # diff base for the next warm-start (NOT a cache gate). ``pre_analysis``
+        # diff base for the next warm-start (NOT a cache gate). ``prepare_analysis``
         # fills it from the live tree when unset; ``None`` is a tag-less save.
         self.source_sha: str | None = None
         # Whole-tree ``{posix_path: sha16}`` fingerprint, computed once per run and
@@ -611,6 +612,7 @@ class DiagramGenerator:
 
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
+        self.clustering_hierarchy: ClusterScopeResult | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
         self.incremental_agent: IncrementalAgent | None = None
@@ -624,12 +626,111 @@ class DiagramGenerator:
         # plus Leiden sweep behind each answer is the expensive part of the
         # deterministic pipeline. Keyed by membership, so a changed component re-runs.
         self._separable_cache: dict[frozenset[tuple[str, str]], bool] = {}
+        self._analysis_start_time = time.time()
 
     @track_analysis
     def process_component(
         self, component: Component
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
         return self._process_component(component)
+
+    def deterministic_analysis(
+        self,
+        *,
+        hierarchy_depth: int | None = None,
+        target_component: Component | None = None,
+        require_incremental_baseline: bool = False,
+    ) -> None:
+        """Run source fingerprinting, static analysis, and deterministic clustering."""
+        self._analysis_start_time = time.time()
+        # Fingerprint the whole tree once; source_sha, the sidecar, and every
+        # save's source_tree_hash reuse it instead of re-walking per call.
+        self._source_tree_fingerprint = hash_repo_source_files(self.repo_location)
+        # Compute the source-state tag from live source when a caller didn't
+        # supply one, so the pkl always gets a .sha sibling for the next
+        # warm-start — no caller has to thread source_sha in.
+        if self.source_sha is None:
+            self.source_sha = self._source_tree_hash() or None
+
+        if self._static_analyzer is not None:
+            logger.info("Using injected StaticAnalyzer (clients already running)")
+            static_analysis = self._get_static_with_injected_analyzer()
+        else:
+            static_analysis = self._get_static_with_new_analyzer()
+
+        self.static_analysis = static_analysis
+        if require_incremental_baseline:
+            baseline = static_analysis.incremental_base_results
+            if baseline is None or not snapshot_from_static_analysis(baseline).all_cluster_ids():
+                error = IncrementalCacheMissingError(self.output_dir)
+                logger.error("%s", error)
+                raise error
+
+        depth = hierarchy_depth if hierarchy_depth is not None else self.depth_level
+        self.clustering_hierarchy = build_clustering_hierarchy(static_analysis, depth)
+        if target_component is not None:
+            self._register_component_scope(target_component, depth)
+
+        # --- Capture Static Analysis Stats ---
+        static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
+        scanner = ProjectScanner(self.repo_location)
+        loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
+        for language in static_analysis.get_languages():
+            files = static_analysis.get_source_files(language)
+            static_stats["languages"][language] = {
+                "file_count": len(files),
+                "lines_of_code": loc_by_language.get(language, 0),
+            }
+
+        # Build file coverage data from scanner's all_text_files and analyzed files
+        self.file_coverage_data = self._build_file_coverage(scanner, static_analysis)
+
+        self._run_health_report(static_analysis)
+
+        if self.monitoring_enabled:
+            monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
+            logger.debug(f"Monitoring enabled. Writing stats to {monitoring_dir}")
+
+            # Save code_stats.json
+            code_stats_file = monitoring_dir / "code_stats.json"
+            with open(code_stats_file, "w", encoding="utf-8") as f:
+                json.dump(static_stats, f, indent=2)
+            logger.debug(f"Written code_stats.json to {code_stats_file}")
+
+    def agent_init(self) -> None:
+        """Initialize the LLM-backed agents after deterministic analysis."""
+        assert self.static_analysis is not None
+        agent_llm, parsing_llm = initialize_llms()
+        self._initialize_meta_agent(agent_llm, parsing_llm)
+        assert self.meta_agent is not None
+        meta_context = self.meta_agent.analyze_project_metadata(skip_cache=self.force_full_analysis)
+        self.meta_context = meta_context
+        self._initialize_agents(self.static_analysis, meta_context, agent_llm, parsing_llm)
+
+        if self.monitoring_enabled:
+            monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
+            self.stats_writer = StreamingStatsWriter(
+                monitoring_dir=monitoring_dir,
+                agents_dict=self._monitoring_agents,
+                repo_name=self.project_name or self.repo_name,
+                output_dir=str(self.output_dir),
+                start_time=self._analysis_start_time,
+            )
+
+    def prepare_analysis(
+        self,
+        *,
+        hierarchy_depth: int | None = None,
+        target_component: Component | None = None,
+        require_incremental_baseline: bool = False,
+    ) -> None:
+        """Prepare deterministic inputs, then initialize the analysis agents."""
+        self.deterministic_analysis(
+            hierarchy_depth=hierarchy_depth,
+            target_component=target_component,
+            require_incremental_baseline=require_incremental_baseline,
+        )
+        self.agent_init()
 
     def _component_separable(self, component: Component) -> bool:
         """Deterministic gate: should this component be split into sub-components?
@@ -695,6 +796,24 @@ class DiagramGenerator:
         if self.details_agent is None:
             return None, None
 
+        clustering_groups = self.clustering_hierarchy.clustering_groups if self.clustering_hierarchy else {}
+        if clustering_groups:
+
+            def precomputed_ids(scope: AnalysisInsights) -> list[str]:
+                return [
+                    component.component_id
+                    for component in scope.components
+                    if component.component_id
+                    and (
+                        component.component_id in sub_analyses
+                        or ((group := clustering_groups.get(component.component_id)) is not None and group.expandable)
+                    )
+                ]
+
+            return precomputed_ids(root_analysis), {
+                scope_id: precomputed_ids(scope) for scope_id, scope in sub_analyses.items()
+            }
+
         def expandable_ids(scope: AnalysisInsights, parent_had_clusters: bool = True) -> list[str]:
             ids = [
                 component.component_id
@@ -727,16 +846,12 @@ class DiagramGenerator:
         try:
             assert self.details_agent is not None
 
-            analysis, _ = self.details_agent.run(component)
-
-            # Track whether parent had clusters for expansion decision
-            parent_had_clusters = bool(component.source_cluster_ids)
-
-            # Get new components to analyze (deterministic, no LLM). The separability
-            # gate keeps cohesive sub-components as leaves rather than splitting them.
-            new_components = get_expandable_components(
-                analysis, parent_had_clusters=parent_had_clusters, separable=self._component_separable
-            )
+            preclustered_scopes = self.clustering_hierarchy.preclustered_scopes if self.clustering_hierarchy else {}
+            scope = preclustered_scopes.get(component.component_id)
+            if scope is None:
+                raise ValueError(f"No precomputed clustering scope for component {component.component_id}")
+            analysis, _ = self.details_agent.run(scope, component)
+            new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
         except LLMAuthError:
@@ -892,7 +1007,7 @@ class DiagramGenerator:
         StaticAnalysisCache(self.output_dir, self.repo_location).save(self.static_analysis, source_sha=self.source_sha)
 
     def _source_tree_fingerprint_map(self) -> dict[str, str]:
-        """The whole-tree fingerprint, fingerprinting on first use if pre_analysis didn't."""
+        """The whole-tree fingerprint, fingerprinting on first use if preparation didn't."""
         if self._source_tree_fingerprint is None:
             self._source_tree_fingerprint = hash_repo_source_files(self.repo_location)
         return self._source_tree_fingerprint
@@ -953,78 +1068,38 @@ class DiagramGenerator:
             }
         )
 
-    def pre_analysis(self):
-        analysis_start_time = time.time()
-
-        # Fingerprint the whole tree once; source_sha, the sidecar, and every
-        # save's source_tree_hash reuse it instead of re-walking per call.
-        self._source_tree_fingerprint = hash_repo_source_files(self.repo_location)
-        # Compute the source-state tag from live source when a caller didn't
-        # supply one, so the pkl always gets a .sha sibling for the next
-        # warm-start — no caller has to thread source_sha in.
-        if self.source_sha is None:
-            self.source_sha = self._source_tree_hash() or None
-
-        # Initialize LLMs before spawning threads so both share the same instances
-        agent_llm, parsing_llm = initialize_llms()
-
-        self._initialize_meta_agent(agent_llm, parsing_llm)
-
-        # Decide how to obtain static analysis results, then run it in parallel
-        # with the meta-context computation so neither blocks the other.
-        if self._static_analyzer is not None:
-            logger.info("Using injected StaticAnalyzer (clients already running)")
-            static_callable = self._get_static_with_injected_analyzer
-        else:
-            static_callable = self._get_static_with_new_analyzer
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            meta_agent = self.meta_agent
-            assert meta_agent is not None
-            static_future = executor.submit(static_callable)
-            meta_future = executor.submit(meta_agent.analyze_project_metadata, skip_cache=self.force_full_analysis)
-            static_analysis = static_future.result()
-            meta_context = meta_future.result()
-
-        self.static_analysis = static_analysis
-        self.meta_context = meta_context
-
-        # --- Capture Static Analysis Stats ---
-        static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
-        scanner = ProjectScanner(self.repo_location)
-        loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
-        for language in static_analysis.get_languages():
-            files = static_analysis.get_source_files(language)
-            static_stats["languages"][language] = {
-                "file_count": len(files),
-                "lines_of_code": loc_by_language.get(language, 0),
+    def _register_component_scope(self, component: Component, hierarchy_depth: int) -> None:
+        """Precompute an exact hierarchy rooted at one persisted component ID."""
+        assert self.static_analysis is not None
+        assert self.clustering_hierarchy is not None
+        member_keys = {
+            (normalize_repo_path(file_path, self.repo_location), qualified_name)
+            for file_path, qualified_name in _member_keys(component)
+        }
+        graphs: dict[str, CallGraph] = {}
+        for language, graph in self.static_analysis.available_cfgs().items():
+            owned_names = {
+                qualified_name
+                for qualified_name, node in graph.nodes.items()
+                if (normalize_repo_path(node.file_path, self.repo_location), qualified_name) in member_keys
             }
-
-        # Build file coverage data from scanner's all_text_files and analyzed files
-        self.file_coverage_data = self._build_file_coverage(scanner, static_analysis)
-
-        self._run_health_report(static_analysis)
-
-        self._initialize_agents(static_analysis, meta_context, agent_llm, parsing_llm)
-
-        if self.monitoring_enabled:
-            monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
-            logger.debug(f"Monitoring enabled. Writing stats to {monitoring_dir}")
-
-            # Save code_stats.json
-            code_stats_file = monitoring_dir / "code_stats.json"
-            with open(code_stats_file, "w", encoding="utf-8") as f:
-                json.dump(static_stats, f, indent=2)
-            logger.debug(f"Written code_stats.json to {code_stats_file}")
-
-            # Initialize streaming writer (handles timing and run_metadata.json)
-            self.stats_writer = StreamingStatsWriter(
-                monitoring_dir=monitoring_dir,
-                agents_dict=self._monitoring_agents,
-                repo_name=self.project_name or self.repo_name,
-                output_dir=str(self.output_dir),
-                start_time=analysis_start_time,
+            if not owned_names:
+                continue
+            scoped_graph = graph.filter_by_nodes(owned_names)
+            if scoped_graph.nodes:
+                graphs[language] = scoped_graph
+        if not graphs:
+            raise ValueError(
+                f"Cannot build clustering scope for component {component.component_id}: no owned CFG nodes"
             )
+
+        remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
+        scope = ClusteringService().cluster_hierarchy(
+            graphs,
+            remaining_depth,
+            root_scope_id=component.component_id,
+        )
+        self.clustering_hierarchy.register_scope(component.component_id, scope)
 
     def _generate_subcomponents(
         self,
@@ -1127,8 +1202,13 @@ class DiagramGenerator:
         The output is stored in a single analysis.json file in output_dir.
         Components are analyzed in parallel as soon as their parents complete.
         """
-        if self.details_agent is None or self.abstraction_agent is None:
-            self.pre_analysis()
+        if (
+            self.details_agent is None
+            or self.abstraction_agent is None
+            or self.static_analysis is None
+            or self.clustering_hierarchy is None
+        ):
+            self.prepare_analysis()
 
         # Start monitoring (tracks start time)
         monitor = self.stats_writer if self.stats_writer else nullcontext()
@@ -1137,15 +1217,17 @@ class DiagramGenerator:
             logger.info("Generating initial analysis")
 
             assert self.abstraction_agent is not None
-
-            analysis, cluster_results = self.abstraction_agent.run()
-            # Get the initial components to analyze (deterministic, no LLM). The
-            # separability gate keeps cohesive top-level components as leaves.
-            root_components = get_expandable_components(analysis, separable=self._component_separable)
+            assert self.clustering_hierarchy is not None
+            analysis, _cluster_results = self.abstraction_agent.run(self.clustering_hierarchy)
+            root_components = [
+                component
+                for component in analysis.components
+                if component.component_id in self.clustering_hierarchy.preclustered_scopes
+            ]
             logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
             # Process components using a frontier queue: submit children as soon as parent finishes.
-            expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
+            _expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
 
             analysis_path = self.finalize_and_save(analysis, sub_analyses)
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
@@ -1222,7 +1304,9 @@ class DiagramGenerator:
             if self.static_analysis
             else []
         )
-        absorb_single_child_components(root_analysis, sub_analyses, cluster_caches)
+        absorbed_ids = absorb_single_child_components(root_analysis, sub_analyses, cluster_caches)
+        if hierarchy := getattr(self, "clustering_hierarchy", None):
+            hierarchy.reroot_indexes(absorbed_ids)
         assert_scope_containment(root_analysis, sub_analyses)
 
     def finalize_and_save(
@@ -1394,7 +1478,7 @@ class DiagramGenerator:
         Raises when no trustworthy baseline or scoped update plan is available.
         """
         if self.details_agent is None or self.incremental_agent is None:
-            self.pre_analysis()
+            self.prepare_analysis(require_incremental_baseline=True)
         assert self.static_analysis is not None
         assert self.details_agent is not None
         assert self.incremental_agent is not None
@@ -1457,7 +1541,11 @@ class DiagramGenerator:
                 changed_members.unattributed_files if changed_members is not None else set()
             )
 
-            snapshot_source = self.static_analysis.incremental_base_results or self.static_analysis
+            snapshot_source = self.static_analysis.incremental_base_results
+            if snapshot_source is None:
+                error = IncrementalCacheMissingError(self.output_dir)
+                logger.error("%s", error)
+                raise error
             old_snapshot = snapshot_from_static_analysis(snapshot_source)
             if not old_snapshot.all_cluster_ids():
                 # No cluster_cache on the live CFG — no prior pkl, legacy pkl,
@@ -1559,6 +1647,8 @@ class DiagramGenerator:
                 if _component_depth(component.component_id) < self.depth_level
             ]
             if new_components:
+                for component in new_components:
+                    self._register_component_scope(component, self.depth_level)
                 _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components, sub_analyses)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 

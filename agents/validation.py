@@ -16,7 +16,7 @@ from agents.agent_responses import (
 from repo_utils import normalize_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class ValidationContext:
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
-    llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
+    clustering: ClusterScopeResult | ClusterAnalysis = field(default_factory=lambda: ClusterScopeResult(scope_id=""))
     components: list[Component] = field(default_factory=list)  # For relation-only validation steps
 
 
@@ -113,11 +113,10 @@ def validate_group_name_coverage(result: ComponentValidationTarget, context: Val
     Returns:
         ValidationResult with targeted feedback depending on the issue
     """
-    if not context.llm_cluster_analysis:
-        logger.warning("[Validation] No cluster_analysis provided for group name coverage validation")
+    expected_group_names = set(context.clustering.group_ids())
+    if not expected_group_names:
+        logger.warning("[Validation] No clustering provided for group name coverage validation")
         return ValidationResult(is_valid=True)
-
-    expected_group_names = {cc.name for cc in context.llm_cluster_analysis.cluster_components}
 
     referenced_group_names: set[str] = set()
     for component in result.components:
@@ -325,14 +324,14 @@ def validate_relation_component_names(
 
 def validate_relation_evidence(result: RelationValidationTarget, context: ValidationContext) -> ValidationResult:
     """Validate LLM relations against directed CFG edges or explicit runtime evidence."""
-    if not context.llm_cluster_analysis or not context.cluster_results or not context.cfg_graphs:
+    if not context.clustering.group_ids() or not context.cluster_results or not context.cfg_graphs:
         logger.warning("[Validation] Missing static context for relation evidence validation")
         return ValidationResult(is_valid=True)
 
     components = context.components
     if not components and isinstance(result, AnalysisInsights):
         components = result.components
-    component_to_clusters = _component_cluster_ids(components, context.llm_cluster_analysis)
+    component_to_clusters = _component_cluster_ids(components, context.clustering)
     cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
     unsupported: list[str] = []
     invalid_key_edges: list[str] = []
@@ -485,8 +484,10 @@ def _build_cluster_edge_lookup(
     return cluster_edge_lookup
 
 
-def _component_cluster_ids(components: list[Component], cluster_analysis: ClusterAnalysis) -> dict[str, list[int]]:
-    group_to_cluster_ids = {group.name: group.cluster_ids for group in cluster_analysis.cluster_components}
+def _component_cluster_ids(
+    components: list[Component], clustering: ClusterScopeResult | ClusterAnalysis
+) -> dict[str, list[int]]:
+    group_to_cluster_ids = clustering.group_ids()
     component_to_clusters: dict[str, list[int]] = {}
     for component in components:
         cluster_ids: list[int] = []

@@ -92,6 +92,48 @@ def _assert_no_duplicate_methods_by_location(test_case: unittest.TestCase, analy
         test_case.fail(f"{len(duplicates)} physical method(s) appear in multiple sibling components:\n{detail}{more}")
 
 
+class TestPolyglotQualifiedNameIdentity(unittest.TestCase):
+    def test_same_qualified_name_in_two_languages_keeps_both_nodes(self):
+        python_graph = CallGraph(language="python")
+        python_graph.add_node(Node("main.main", NodeType.FUNCTION, "/repo/main.py", 1, 3))
+        go_graph = CallGraph(language="go")
+        go_graph.add_node(Node("main.main", NodeType.FUNCTION, "/repo/main.go", 5, 8))
+        cluster_results = {
+            "python": ClusterResult(clusters={1: {"main.main"}}),
+            "go": ClusterResult(clusters={2: {"main.main"}}),
+        }
+        analysis = AnalysisInsights(
+            description="polyglot",
+            components=[
+                Component(
+                    name="Python entrypoint",
+                    description="python",
+                    key_entities=[],
+                    source_cluster_ids=["1"],
+                    component_id="1",
+                ),
+                Component(
+                    name="Go entrypoint",
+                    description="go",
+                    key_entities=[],
+                    source_cluster_ids=["2"],
+                    component_id="2",
+                ),
+            ],
+            components_relations=[],
+        )
+        mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=MagicMock())
+
+        mixin.populate_file_methods(
+            analysis,
+            cluster_results,
+            {"python": python_graph, "go": go_graph},
+        )
+
+        self.assertEqual([group.file_path for group in analysis.components[0].file_methods], ["main.py"])
+        self.assertEqual([group.file_path for group in analysis.components[1].file_methods], ["main.go"])
+
+
 class TestMethodUniquenessWithAliases(unittest.TestCase):
     """Reproduce the nanoclaw bug: the same physical method has two qualified-name
     aliases that end up in different clusters and hence different components.

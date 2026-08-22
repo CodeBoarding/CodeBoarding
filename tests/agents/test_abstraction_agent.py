@@ -3,19 +3,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import networkx as nx
-
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import (
     AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
     Component,
     ComponentArchitecture,
     MetaAnalysisInsights,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 
 
 class TestAbstractionAgent(unittest.TestCase):
@@ -81,85 +77,35 @@ class TestAbstractionAgent(unittest.TestCase):
             parsing_llm=MagicMock(),
         )
 
-    @staticmethod
-    def _clustered_graph(cluster_ids):
-        """A ClusterResult + matching nx graph: one chained pair of nodes per cluster id."""
-        clusters, cluster_to_files, file_to_clusters = {}, {}, {}
-        graph = nx.DiGraph()
-        for cid in cluster_ids:
-            nodes = [f"pkg.mod{cid}.a", f"pkg.mod{cid}.b"]
-            clusters[cid] = set(nodes)
-            path = f"/repo/mod{cid}.py"
-            cluster_to_files[cid] = {path}
-            file_to_clusters[path] = {cid}
-            for node in nodes:
-                graph.add_node(node, file_path=path)
-            graph.add_edge(nodes[0], nodes[1])
-        # Chain consecutive clusters so the meta-graph is connected.
-        ids = list(cluster_ids)
-        for prev, cur in zip(ids, ids[1:]):
-            graph.add_edge(f"pkg.mod{prev}.b", f"pkg.mod{cur}.a")
-        cr = ClusterResult(
-            clusters=clusters, cluster_to_files=cluster_to_files, file_to_clusters=file_to_clusters, strategy="test"
-        )
-        return cr, graph
-
-    def _assert_partition(self, result, expected_ids):
-        self.assertIsInstance(result, ClusterAnalysis)
-        self.assertGreaterEqual(len(result.cluster_components), 1)
-        # Names are the deterministic Group-1..N labels.
-        self.assertEqual(
-            [cc.name for cc in result.cluster_components],
-            [f"Group {i}" for i in range(1, len(result.cluster_components) + 1)],
-        )
-        # Every leaf cluster is owned by exactly one group (a true partition).
-        assigned = [cid for cc in result.cluster_components for cid in cc.cluster_ids]
-        self.assertEqual(sorted(assigned), sorted(expected_ids))
-        self.assertEqual(len(assigned), len(set(assigned)))
-
-    def test_step_clusters_grouping_single_language(self):
+    def test_run_uses_the_precomputed_groups(self):
         agent = self._make_agent()
-        cr, graph = self._clustered_graph(range(1, 13))
-        self.mock_static_analysis.get_cfg.return_value.to_networkx.return_value = graph
-        cluster_results = {"python": cr}
-
-        result = agent.step_clusters_grouping(cluster_results)
-        result_again = agent.step_clusters_grouping(cluster_results)
-
-        self._assert_partition(result, list(range(1, 13)))
-        # Deterministic: same membership on a re-run.
-        self.assertEqual(
-            [sorted(cc.cluster_ids) for cc in result.cluster_components],
-            [sorted(cc.cluster_ids) for cc in result_again.cluster_components],
+        partition = ClusterResult(clusters={1: {"a"}, 2: {"b"}}, strategy="test")
+        scope = ClusterScopeResult(
+            scope_id="root",
+            leaf_clusters_by_language={"python": partition},
+            groups=[ClusterGroup(group_id="1", cluster_ids=[1, 2])],
+        )
+        expected = (
+            AnalysisInsights(description="done", components=[], components_relations=[]),
+            scope.leaf_clusters_by_language,
         )
 
-    def test_step_clusters_grouping_multiple_languages(self):
-        self.mock_static_analysis.get_languages.return_value = ["python", "javascript"]
-        agent = self._make_agent()
-        # Globally-unique cluster ids across languages, sharing one combined graph.
-        _, graph = self._clustered_graph(range(1, 13))
-        py_cr, _ = self._clustered_graph(range(1, 7))
-        js_cr, _ = self._clustered_graph(range(7, 13))
-        self.mock_static_analysis.get_cfg.return_value.to_networkx.return_value = graph
-        cluster_results = {"python": py_cr, "javascript": js_cr}
+        with (
+            patch.object(agent, "step_llm_analysis", return_value=expected[0]) as llm_analysis,
+            patch.object(agent, "populate_file_methods"),
+            patch.object(agent, "step_api_surfaces", return_value=MagicMock()),
+            patch.object(agent, "step_relation_analysis"),
+            patch.object(agent.reference_resolver, "fix_source_code_reference_lines", return_value=expected[0]),
+            patch("agents.abstraction_agent.index_relation_endpoints"),
+            patch.object(agent, "_ensure_unique_key_entities"),
+        ):
+            result = agent.run(scope)
 
-        result = agent.step_clusters_grouping(cluster_results)
-
-        self._assert_partition(result, list(range(1, 13)))
-        self.mock_static_analysis.get_cfg.assert_called()
-
-    def test_step_clusters_grouping_no_languages(self):
-        self.mock_static_analysis.get_languages.return_value = []
-        agent = self._make_agent()
-
-        result = agent.step_clusters_grouping({})
-
-        self.assertIsInstance(result, ClusterAnalysis)
-        self.assertEqual(result.cluster_components, [])
+        self.assertEqual(result, expected)
+        llm_analysis.assert_called_once_with(scope)
 
     @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
-    def test_step_final_analysis(self, mock_invoke_repair_validate):
-        # Test step_final_analysis
+    def test_step_llm_analysis(self, mock_invoke_repair_validate):
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
         agent = AbstractionAgent(
@@ -171,8 +117,9 @@ class TestAbstractionAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
         )
 
-        cluster_analysis = ClusterAnalysis(
-            cluster_components=[],
+        scope = ClusterScopeResult(
+            scope_id="root",
+            leaf_clusters_by_language={"python": ClusterResult(clusters={1: {"node1"}})},
         )
 
         mock_response = AnalysisInsights(
@@ -182,24 +129,28 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         mock_invoke_repair_validate.return_value = mock_response
 
-        mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
-        cluster_results = {"python": mock_cluster_result}
-
-        result = agent.step_final_analysis(cluster_analysis, cluster_results)
+        result = agent.step_llm_analysis(scope)
 
         self.assertEqual(result, mock_response)
 
     @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
-    def test_step_final_analysis_pins_one_component_per_group(self, mock_invoke_repair_validate):
+    def test_step_llm_analysis_pins_one_component_per_group(self, mock_invoke_repair_validate):
         """Even when the LLM merges/drops groups, the result has exactly one component per group."""
         agent = self._make_agent()
 
-        cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="Group 1", cluster_ids=[1, 2], description="g1"),
-                ClustersComponent(name="Group 2", cluster_ids=[3], description="g2"),
-                ClustersComponent(name="Group 3", cluster_ids=[4, 5], description="g3"),
-            ]
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={1: {"a"}, 2: {"b"}, 3: {"c"}, 4: {"pkg.Widget"}, 5: {"e"}},
+            )
+        }
+        scope = ClusterScopeResult(
+            scope_id="root",
+            leaf_clusters_by_language=cluster_results,
+            groups=[
+                ClusterGroup(group_id="2", cluster_ids=[1, 2]),
+                ClusterGroup(group_id="4", cluster_ids=[3]),
+                ClusterGroup(group_id="7", cluster_ids=[4, 5]),
+            ],
         )
         # LLM output: keeps Group 1, merges Group 2 + 3 into one component (drops a slot).
         mock_invoke_repair_validate.return_value = ComponentArchitecture(
@@ -210,17 +161,12 @@ class TestAbstractionAgent(unittest.TestCase):
             ],
         )
 
-        cluster_results = {
-            "python": ClusterResult(
-                clusters={1: {"a"}, 2: {"b"}, 3: {"c"}, 4: {"pkg.Widget"}, 5: {"e"}},
-            )
-        }
-
-        result = agent.step_final_analysis(cluster_analysis, cluster_results)
+        result = agent.step_llm_analysis(scope)
 
         # Exactly one component per group, each backed by exactly one group.
         self.assertEqual(len(result.components), 3)
         self.assertEqual([c.source_group_names for c in result.components], [["Group 1"], ["Group 2"], ["Group 3"]])
+        self.assertEqual([c.component_id for c in result.components], ["2", "4", "7"])
         # The claimed groups keep the LLM's names; the dropped one gets a deterministic fallback.
         self.assertEqual(result.components[0].name, "Auth")
         self.assertEqual(result.components[1].name, "Data")

@@ -340,7 +340,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
     ) -> list[Relation]:
         """Discover evidence-backed relations and attach deterministic CFG edges."""
         logger.info("[IncrementalAgent] Discovering component relations for scope: %s", scope_name)
-        self.toolkit.context.cluster_analysis = cluster_analysis
+        self.toolkit.context.clustering = cluster_analysis
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(
@@ -359,7 +359,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 cfg_graphs=cfg_graphs,
                 repo_dir=str(self.repo_dir),
                 static_analysis=self.static_analysis,
-                llm_cluster_analysis=cluster_analysis,
+                clustering=cluster_analysis,
                 components=scope.components,
             ),
             max_validation_attempts=3,

@@ -7,7 +7,7 @@ from difflib import SequenceMatcher
 from typing import Protocol
 
 from agents.agent_responses import ClusterAnalysis, Component
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, ClusterScopeResult
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
@@ -20,13 +20,13 @@ class ComponentRepairTarget(Protocol):
 @dataclass
 class ComponentRepairContext:
     reference_resolver: StaticReferenceResolver
-    llm_cluster_analysis: ClusterAnalysis
+    clustering: ClusterScopeResult | ClusterAnalysis
     cluster_results: dict[str, ClusterResult] = field(default_factory=dict)
 
 
 def repair_component_group_names(result: ComponentRepairTarget, context: ComponentRepairContext) -> None:
     """Canonicalize unambiguous component source-group names."""
-    expected_group_names = {group.name for group in context.llm_cluster_analysis.cluster_components}
+    expected_group_names = set(context.clustering.group_ids())
     canonical_names = {_normalize_group_name(name): name for name in expected_group_names}
     corrected_count = 0
 
