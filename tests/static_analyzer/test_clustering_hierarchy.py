@@ -50,7 +50,7 @@ class TestClusteringHierarchy(unittest.TestCase):
     def test_each_child_uses_its_exact_induced_graph(self):
         members_a = {f"a{index}" for index in range(13)}
         members_b = {"b1", "b2"}
-        graph = graph_for(sorted(members_a | members_b), edges=[("a1", "b1")])
+        graph = graph_for(sorted(members_a | members_b), edges=[("a1", "a2"), ("a1", "b1")])
         seen_nodes: dict[str, set[str]] = {}
         seen_edges: dict[str, set[tuple[str, str]]] = {}
 
@@ -70,8 +70,10 @@ class TestClusteringHierarchy(unittest.TestCase):
         group_b = next(group for group in result.groups if group.qualified_names == members_b)
         self.assertEqual(seen_nodes[group_a.group_id], members_a)
         self.assertEqual(seen_nodes[group_b.group_id], members_b)
-        self.assertEqual(seen_edges[group_a.group_id], set())
+        self.assertEqual(seen_edges[group_a.group_id], {("a1", "a2")})
         self.assertEqual(seen_edges[group_b.group_id], set())
+        self.assertNotIn(("a1", "b1"), seen_edges[group_a.group_id])
+        self.assertNotIn(("a1", "b1"), seen_edges[group_b.group_id])
         self.assertTrue(group_a.expandable)
         self.assertFalse(group_b.expandable)
         self.assertIsNotNone(group_a.children)
@@ -118,25 +120,6 @@ class TestClusteringHierarchy(unittest.TestCase):
         self.assertFalse(result.groups[0].expandable)
         self.assertIsNone(result.groups[0].children)
 
-    def test_one_group_child_does_not_consume_a_depth_level(self):
-        graph = graph_for([f"n{index:03d}" for index in range(121)], one_file=True)
-
-        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
-            current = graphs["python"]
-            if scope_id == "root":
-                return ClusterScopeInput(
-                    leaf_clusters_by_language={"python": partition_for(current, {1: set(current.nodes)})}
-                )
-            partition = split_partition(current)
-            return ClusterScopeInput(
-                leaf_clusters_by_language={"python": partition},
-                previous_owner={cluster_id: "1.1" for cluster_id in partition.clusters},
-            )
-
-        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
-
-        self.assertIsNone(result.groups[0].children)
-
     def test_expansion_gate_receives_the_child_graph_callable_count(self):
         graph = graph_for([f"n{index:02d}" for index in range(31)], one_file=True)
         graph.add_node(Node("Container", NodeType.CLASS, "/repo/scope.py", 100, 110))
@@ -151,7 +134,31 @@ class TestClusteringHierarchy(unittest.TestCase):
         with patch("static_analyzer.clustering.service.scope_is_separable", return_value=False) as separable:
             ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
 
-        self.assertEqual(separable.call_args.args[3], 31)
+        self.assertEqual(separable.call_args.kwargs["method_count"], 31)
+
+    def test_real_separability_gate_expands_a_modular_fresh_scope(self):
+        names = [f"n{index:02d}" for index in range(31)]
+        communities = [names[index::5] for index in range(5)]
+        edges = [
+            edge
+            for left, right in ((communities[0], communities[1]), (communities[2], communities[3]))
+            for edge in [(source, target) for source in left for target in right]
+            + [(source, target) for source in right for target in left]
+        ]
+        edges.extend((source, target) for source in communities[4] for target in communities[3])
+        graph = graph_for(names, one_file=True, edges=edges)
+
+        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            current = graphs["python"]
+            partition = (
+                partition_for(current, {1: set(current.nodes)}) if scope_id == "root" else split_partition(current)
+            )
+            return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
+
+        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+
+        self.assertTrue(result.groups[0].expandable)
+        self.assertIsNotNone(result.groups[0].children)
 
     def test_retains_a_persisted_child_scope_when_it_is_no_longer_separable(self):
         graph = graph_for([f"n{index:02d}" for index in range(31)], one_file=True)
@@ -163,6 +170,7 @@ class TestClusteringHierarchy(unittest.TestCase):
             )
             return ClusterScopeInput(
                 leaf_clusters_by_language={"python": partition},
+                previous_owner={cluster_id: "1.1" for cluster_id in partition.clusters},
                 retain_scope=scope_id != "root",
             )
 

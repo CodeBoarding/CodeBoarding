@@ -16,7 +16,7 @@ from agents.agent_responses import (
 )
 from agents.cluster_ids import CodeBoardingClusterIds
 from diagram_analysis.exceptions import IncrementalClusteringError
-from static_analyzer.cluster_helpers import (
+from static_analyzer.clustering.grouping import (
     combine_cluster_results,
     group_symbols,
 )

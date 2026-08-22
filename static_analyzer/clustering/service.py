@@ -19,10 +19,8 @@ from static_analyzer.clustering.engine import cluster_graph
 from static_analyzer.clustering.expansion import scope_is_separable, scope_load
 from static_analyzer.clustering.grouping import (
     GroupingService,
-    combine_cluster_results,
     reindex_across_languages,
     reindex_cluster_result,
-    score_grouping,
 )
 from static_analyzer.clustering.models import (
     METHOD_LEVEL_STRATEGY,
@@ -257,9 +255,7 @@ class ClusteringService:
             )
             raw_groups = grouping.groups
             owners = grouping.owners
-            combined = combine_cluster_results(scope_leaf_clusters)
-            combined_cfg = nx.compose_all(list(nx_graphs.values())) if nx_graphs else nx.DiGraph()
-            modularity = score_grouping(combined, combined_cfg, raw_groups)
+            modularity = grouping.modularity
             unanchored_modularity = grouping.unanchored_modularity
             regrouped = grouping.regrouped
         else:
@@ -587,10 +583,10 @@ class ClusteringService:
                 not child_input.retain_scope
                 and load < 1.0
                 and not scope_is_separable(
-                    child.leaf_clusters_by_language,
-                    child.unanchored_modularity,
-                    load,
-                    method_count,
+                    leaf_clusters_by_language=child.leaf_clusters_by_language,
+                    modularity=child.unanchored_modularity,
+                    load=load,
+                    method_count=method_count,
                 )
             ):
                 continue

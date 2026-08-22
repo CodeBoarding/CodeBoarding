@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import networkx as nx
 
-from static_analyzer.cluster_helpers import (
+from static_analyzer.clustering.grouping import (
     reindex_across_languages,
     reindex_cluster_result,
 )

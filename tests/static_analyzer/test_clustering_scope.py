@@ -103,8 +103,12 @@ class TestClusteringScope(unittest.TestCase):
         self.assertTrue(python_ids.isdisjoint(typescript_ids))
 
     def test_previous_owners_become_stable_group_ids(self):
-        graph = graph_for("python", ["a", "b", "c"])
-        cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}})
+        graph = graph_for(
+            "python",
+            ["a", "b", "c", "d"],
+            [("c", "b"), ("c", "a"), ("b", "a"), ("c", "d"), ("d", "b"), ("d", "a"), ("d", "c"), ("b", "d")],
+        )
+        cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}, 4: {"d"}})
         _groups, expected_unanchored_modularity = GroupingService().group(
             {"python": cluster_result},
             {"python": graph.to_networkx(reference_kinds=())},
@@ -113,11 +117,12 @@ class TestClusteringScope(unittest.TestCase):
         result = ClusteringService()._cluster_scope(
             {"python": graph},
             leaf_clusters_by_language={"python": cluster_result},
-            previous_owner={1: "2", 2: "4", 3: "7"},
+            previous_owner={1: "2", 2: "4", 3: "7", 4: "7"},
         )
 
         self.assertEqual([group.group_id for group in result.groups], ["2", "4", "7"])
         self.assertEqual(result.unanchored_modularity, expected_unanchored_modularity)
+        self.assertNotEqual(result.unanchored_modularity, result.modularity)
         self.assertFalse(result.regrouped)
 
     def test_new_group_ids_follow_the_highest_surviving_sibling(self):
@@ -152,6 +157,7 @@ class TestClusteringScope(unittest.TestCase):
             groups=[{1}, {2}, {3}],
             owners=["1", "", ""],
             regrouped=True,
+            modularity=0.37,
             unanchored_modularity=0.0,
         )
 
@@ -167,6 +173,7 @@ class TestClusteringScope(unittest.TestCase):
             {group.group_id: group.qualified_names for group in result.groups},
             {"1": {"stable"}, "2": {"moved"}, "3": {"fresh"}},
         )
+        self.assertEqual(result.modularity, 0.37)
 
     def test_method_level_fallback_is_available_for_child_scopes(self):
         graph = graph_for("python", ["a", "b", "c", "d", "e"])

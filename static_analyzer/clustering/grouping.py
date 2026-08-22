@@ -113,11 +113,6 @@ def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> Cluste
     )
 
 
-def score_grouping(cluster_result: ClusterResult, cfg_graph: nx.DiGraph, groups: list[set[int]]) -> float:
-    """Score a concrete grouping against its inter-cluster meta-graph."""
-    return _modularity(_build_meta_graph(cluster_result, cfg_graph), groups)
-
-
 def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.DiGraph:
     """Build a weighted directed graph of calls between clusters."""
     node_to_cluster: dict[str, int] = {}
@@ -373,7 +368,7 @@ def _anchored_group(
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
     live = set(meta_graph.nodes)
     if not live:
-        return AnchoredGrouping([], [], False, 0.0)
+        return AnchoredGrouping([], [], False, 0.0, 0.0)
     method_count = _method_counts(cluster_result)
 
     # Keep one stable group per surviving component.
@@ -390,7 +385,7 @@ def _anchored_group(
             method_count,
             config,
         )
-        return AnchoredGrouping(fresh, [""] * len(fresh), True, unanchored_modularity)
+        return AnchoredGrouping(fresh, [""] * len(fresh), True, unanchored_modularity, unanchored_modularity)
 
     owners = sorted(carried)
     groups = [carried[owner] for owner in owners]
@@ -422,6 +417,7 @@ def _anchored_group(
             _inherit_ids(fresh_groups, previous_owner, method_count),
             True,
             unanchored_modularity,
+            unanchored_modularity,
         )
 
     logger.info(
@@ -429,4 +425,4 @@ def _anchored_group(
         f"({len(new_subsystems)} new component(s), {len(absorbed)} clusters absorbed, "
         f"modularity={modularity:.4f} vs {unanchored_modularity:.4f} unanchored)"
     )
-    return AnchoredGrouping(groups, owners, False, unanchored_modularity)
+    return AnchoredGrouping(groups, owners, False, modularity, unanchored_modularity)
