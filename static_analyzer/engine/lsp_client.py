@@ -13,15 +13,19 @@ import queue
 import subprocess
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from pathlib import Path
 
+from static_analyzer.engine.process_memory import format_bytes, process_tree_rss
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
 
 LSP_METHOD_NOT_FOUND = -32601
+SLOW_REQUEST_HEARTBEAT_SECONDS = 60.0
+RETAINED_STDERR_LINES = 40
 ProgressToken = str | int
 
 
@@ -77,6 +81,8 @@ class LSPClient:
         self._request_id = 0
         self._msg_queue: queue.Queue[dict] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
+        self._stderr_tail: deque[str] = deque(maxlen=RETAINED_STDERR_LINES)
         self._shutdown_event = threading.Event()
         self._write_lock = threading.Lock()
 
@@ -117,7 +123,7 @@ class LSPClient:
                 self._command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 env=env,
                 cwd=str(self._project_root),
             )
@@ -136,6 +142,8 @@ class LSPClient:
         # Start background reader
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
+        self._stderr_thread = threading.Thread(target=self._drain_stderr, daemon=True)
+        self._stderr_thread.start()
 
         root_uri = self._project_root.as_uri()
 
@@ -612,10 +620,22 @@ class LSPClient:
         }
         self._write_message(message)
 
-        deadline = time.monotonic() + timeout
+        started = time.monotonic()
+        deadline = started + timeout
+        next_heartbeat = started + SLOW_REQUEST_HEARTBEAT_SECONDS
         while time.monotonic() < deadline:
             msg = self._next_response(deadline)
             if msg is None:
+                if time.monotonic() >= next_heartbeat:
+                    next_heartbeat = time.monotonic() + SLOW_REQUEST_HEARTBEAT_SECONDS
+                    logger.info(
+                        "Still waiting on %s (request %d): %.0fs of %ds elapsed, server memory %s",
+                        method,
+                        req_id,
+                        time.monotonic() - started,
+                        timeout,
+                        self._server_memory(),
+                    )
                 continue
             if msg.get("id") != req_id:
                 continue
@@ -633,7 +653,47 @@ class LSPClient:
                 return None
             return msg.get("result")
 
-        raise TimeoutError(f"Timeout waiting for LSP response to request {req_id}")
+        raise TimeoutError(
+            f"Timeout waiting for LSP response to request {req_id} ({method}) after {timeout}s; "
+            f"server memory {self._server_memory()}{self._stderr_suffix()}"
+        )
+
+    def _drain_stderr(self) -> None:
+        """Retain the tail of the server's stderr.
+
+        Why: a language server that dies mid-request explains itself on stderr and
+        nowhere else -- csharp-ls prints ``Out of memory.`` there when its heap
+        ceiling is hit. Discarding the stream leaves only a bare timeout.
+        """
+        stream = self._process.stderr if self._process else None
+        if stream is None:
+            return
+        for raw in iter(stream.readline, b""):
+            line = raw.decode("utf-8", errors="replace").rstrip()
+            if line:
+                self._stderr_tail.append(line)
+
+    def _stderr_suffix(self) -> str:
+        """Server stderr formatted for appending to an exception message."""
+        tail = self.server_stderr_tail()
+        return f"; server stderr:\n{tail}" if tail else ""
+
+    def server_stderr_tail(self) -> str:
+        """The retained stderr tail, newest last, empty when the server said nothing."""
+        return "\n".join(self._stderr_tail)
+
+    def _server_memory(self) -> str:
+        """Resident memory of the server process tree, for slow-request diagnostics.
+
+        Why: a server that is still allocating is working or leaking, whereas a
+        flat one is stuck. That distinction is invisible from a bare timeout.
+        """
+        if self._process is None or self._process.poll() is not None:
+            return "server not running"
+        try:
+            return format_bytes(process_tree_rss(self._process.pid))
+        except OSError:
+            return "unavailable"
 
     def _send_notification(self, method: str, params: dict | list | None) -> None:
         """Send a JSON-RPC notification (no response expected)."""
@@ -673,7 +733,9 @@ class LSPClient:
             message = self._msg_queue.get(timeout=min(remaining, 1.0))
         except queue.Empty:
             if self._process and self._process.poll() is not None:
-                raise RuntimeError(f"LSP server process exited with code {self._process.returncode}") from None
+                raise RuntimeError(
+                    f"LSP server process exited with code {self._process.returncode}{self._stderr_suffix()}"
+                ) from None
             return None
 
         # Skip notifications that leaked past the reader loop

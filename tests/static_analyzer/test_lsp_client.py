@@ -4,8 +4,10 @@ These tests mock subprocess/IO to test the protocol logic
 without starting a real LSP server.
 """
 
+import io
 import json
 import os
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1068,3 +1070,56 @@ class TestShutdown:
 
         assert len(client._opened_uris) == 0
         assert len(client._doc_versions) == 0
+
+
+class TestSlowRequestDiagnostics:
+    """A bare timeout cannot distinguish a server that is stuck from one that is leaking."""
+
+    @staticmethod
+    def _client_with_server(stderr_lines: list[str]) -> tuple[LSPClient, MagicMock]:
+        client = LSPClient(["cmd"], Path("/root"))
+        mock_process = MagicMock()
+        mock_process.stdin = MagicMock()
+        mock_process.poll.return_value = None
+        client._process = mock_process
+        client._stderr_tail.extend(stderr_lines)
+        return client, mock_process
+
+    def test_timeout_names_the_method_and_reports_memory(self):
+        client, _ = self._client_with_server([])
+        with patch("static_analyzer.engine.lsp_client.process_tree_rss", return_value=12_479 * 1024 * 1024):
+            with pytest.raises(TimeoutError) as excinfo:
+                client._send_request("textDocument/documentSymbol", {}, timeout=1)
+
+        message = str(excinfo.value)
+        assert "textDocument/documentSymbol" in message
+        assert "12.2 GB" in message or "GB" in message
+
+    def test_timeout_includes_server_stderr(self):
+        client, _ = self._client_with_server(["Roslyn.Solution: loading", "Out of memory."])
+        with patch("static_analyzer.engine.lsp_client.process_tree_rss", return_value=0):
+            with pytest.raises(TimeoutError, match="Out of memory."):
+                client._send_request("textDocument/documentSymbol", {}, timeout=1)
+
+    def test_process_exit_includes_server_stderr(self):
+        client, mock_process = self._client_with_server(["Out of memory."])
+        mock_process.poll.return_value = 134
+        with pytest.raises(RuntimeError, match="Out of memory."):
+            client._next_response(time.monotonic() + 0.05)
+
+    def test_stderr_tail_is_bounded(self):
+        from static_analyzer.engine.lsp_client import RETAINED_STDERR_LINES
+
+        client = LSPClient(["cmd"], Path("/root"))
+        mock_process = MagicMock()
+        mock_process.stderr = io.BytesIO(b"".join(f"line{i}\n".encode() for i in range(500)))
+        client._process = mock_process
+
+        client._drain_stderr()
+
+        assert len(client._stderr_tail) == RETAINED_STDERR_LINES
+        assert client.server_stderr_tail().endswith("line499")
+
+    def test_server_memory_reports_not_running(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        assert client._server_memory() == "server not running"
