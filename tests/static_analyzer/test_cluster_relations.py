@@ -1,6 +1,7 @@
-"""Tests for static_analyzer.cluster_relations module."""
+"""Tests for static relation construction and relation-edge reconciliation."""
 
 import unittest
+from collections.abc import Callable
 
 from agents.agent_responses import (
     AnalysisInsights,
@@ -10,18 +11,17 @@ from agents.agent_responses import (
     SourceCodeReference,
     assign_component_ids,
 )
+from agents.component_ownership import ComponentOwnershipIndex
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from static_analyzer.cluster_relations import (
-    ClusterRelation,
-    build_node_to_component_map,
-    build_component_relations,
-    build_owner_index,
-    edge_crosses_components,
+from agents.relation_edges import (
     drop_reverse_duplicates,
+    edge_crosses_components,
     ground_relation_edges,
-    is_self_or_descendant,
-    merge_relations,
     prune_ungrounded_edges,
+)
+from static_analyzer.cluster_relations import (
+    build_component_relations,
+    is_self_or_descendant,
 )
 from static_analyzer.config import NodeType
 from static_analyzer.cfg import CallGraph, Edge
@@ -72,7 +72,11 @@ def _make_component(name: str, methods: list[tuple[str, str]], component_id: str
     )
 
 
-class TestBuildNodeToComponentMap(unittest.TestCase):
+def _owner_of(nodes: dict[str, str]) -> Callable[[SourceCodeReference], str]:
+    return ComponentOwnershipIndex.from_node_owners(nodes).owner_of
+
+
+class TestAnalysisNodeOwners(unittest.TestCase):
 
     def test_basic_mapping(self):
         analysis = AnalysisInsights(
@@ -83,20 +87,20 @@ class TestBuildNodeToComponentMap(unittest.TestCase):
             ],
             components_relations=[],
         )
-        mapping = build_node_to_component_map(analysis)
+        mapping = analysis.node_owners()
         self.assertEqual(mapping["mod.func1"], "1")
         self.assertEqual(mapping["mod.func2"], "1")
         self.assertEqual(mapping["mod.func3"], "2")
 
     def test_empty_analysis(self):
         analysis = AnalysisInsights(description="test", components=[], components_relations=[])
-        mapping = build_node_to_component_map(analysis)
+        mapping = analysis.node_owners()
         self.assertEqual(mapping, {})
 
     def test_component_with_no_methods(self):
         comp = Component(name="Empty", description="no methods", key_entities=[], component_id="1", file_methods=[])
         analysis = AnalysisInsights(description="test", components=[comp], components_relations=[])
-        mapping = build_node_to_component_map(analysis)
+        mapping = analysis.node_owners()
         self.assertEqual(mapping, {})
 
 
@@ -188,140 +192,9 @@ class TestBuildComponentRelations(unittest.TestCase):
         self.assertEqual(len(relations), 0)
 
 
-class TestMergeRelations(unittest.TestCase):
-
-    def _make_analysis(self) -> AnalysisInsights:
-        analysis = AnalysisInsights(
-            description="test",
-            components=[
-                _make_component("A", [("a.func", "src/a.py")], component_id="1"),
-                _make_component("B", [("b.func", "src/b.py")], component_id="2"),
-                _make_component("C", [("c.func", "src/c.py")], component_id="3"),
-            ],
-            components_relations=[],
-        )
-        return analysis
-
-    def test_llm_with_static_backing_kept(self):
-        """LLM relation backed by static evidence should be kept."""
-        analysis = self._make_analysis()
-        llm_rels = [Relation(relation="depends on", src_name="A", dst_name="B")]
-        static_rels = [
-            ClusterRelation(src_cluster_id="1", dst_cluster_id="2", all_edges=[_make_relation_edge("a.func", "b.func")])
-        ]
-
-        merged = merge_relations(llm_rels, static_rels, analysis)
-
-        self.assertEqual(len(merged), 1)
-        self.assertEqual(merged[0].relation, "depends on")
-        self.assertEqual(len(merged[0].all_edges), 1)
-        self.assertTrue(merged[0].is_static)
-
-    def test_llm_with_static_backing_keeps_bridge_edges(self):
-        analysis = self._make_analysis()
-        llm_rels = [Relation(relation="depends on", src_name="A", dst_name="B")]
-        static_rels = build_component_relations(
-            {"a.func": "1", "b.func": "2"},
-            {"python": CallGraph(edges=[_make_edge("a.func", "b.func", "src/a.py", "src/b.py")])},
-        )
-
-        merged = merge_relations(llm_rels, static_rels, analysis)
-
-        self.assertEqual(len(merged[0].all_edges), 1)
-        self.assertEqual(merged[0].all_edges[0].source.reference_file, "src/a.py")
-        self.assertEqual(merged[0].all_edges[0].target.reference_file, "src/b.py")
-
-    def test_llm_with_evidence_without_static_backing_kept_with_warning(self):
-        analysis = self._make_analysis()
-        llm_rels = [
-            Relation(relation="uses", src_name="A", dst_name="B", evidence="Configured through plugin entry point")
-        ]
-        static_rels: list[ClusterRelation] = []  # No static evidence
-
-        with self.assertLogs("static_analyzer.cluster_relations", level="WARNING") as logs:
-            merged = merge_relations(llm_rels, static_rels, analysis)
-
-        self.assertEqual(len(merged), 1)
-        self.assertEqual(merged[0].evidence, "Configured through plugin entry point")
-        self.assertFalse(merged[0].is_static)
-        self.assertIn("Keeping LLM-only relation without static or key-edge backing", logs.output[0])
-
-    def test_llm_without_static_backing_or_evidence_dropped(self):
-        analysis = self._make_analysis()
-        llm_rels = [Relation(relation="uses", src_name="A", dst_name="B")]
-
-        merged = merge_relations(llm_rels, [], analysis)
-
-        self.assertEqual(merged, [])
-
-    def test_static_only_auto_labeled(self):
-        """Static relation without LLM label should get auto-label 'calls'."""
-        analysis = self._make_analysis()
-        llm_rels: list[Relation] = []
-        static_rels = [
-            ClusterRelation(src_cluster_id="1", dst_cluster_id="2", all_edges=[_make_relation_edge("a.func", "b.func")])
-        ]
-
-        merged = merge_relations(llm_rels, static_rels, analysis)
-
-        self.assertEqual(len(merged), 1)
-        self.assertEqual(merged[0].relation, "calls")
-        self.assertEqual(merged[0].src_name, "A")
-        self.assertEqual(merged[0].dst_name, "B")
-        self.assertEqual(len(merged[0].all_edges), 1)
-        self.assertTrue(merged[0].is_static)
-
-    def test_reverse_direction_does_not_match_static_relation(self):
-        analysis = self._make_analysis()
-        llm_rels = [Relation(relation="used by", src_name="B", dst_name="A")]
-        static_rels = [
-            ClusterRelation(src_cluster_id="1", dst_cluster_id="2", all_edges=[_make_relation_edge("a.func", "b.func")])
-        ]
-
-        merged = merge_relations(llm_rels, static_rels, analysis)
-
-        matching = [r for r in merged if r.relation == "used by"]
-        self.assertEqual(matching, [])
-        static_only = [r for r in merged if r.src_id == "1" and r.dst_id == "2"]
-        self.assertEqual(len(static_only), 1)
-        self.assertTrue(static_only[0].is_static)
-
-    def test_mixed_scenario(self):
-        """Test a mix of backed, unbacked, and static-only relations."""
-        analysis = self._make_analysis()
-        llm_rels = [
-            Relation(relation="calls", src_name="A", dst_name="B"),  # backed
-            Relation(relation="uses", src_name="A", dst_name="C"),  # unbacked
-        ]
-        static_rels = [
-            ClusterRelation(
-                src_cluster_id="1", dst_cluster_id="2", all_edges=[_make_relation_edge("a.func", "b.func")]
-            ),
-            ClusterRelation(
-                src_cluster_id="2", dst_cluster_id="3", all_edges=[_make_relation_edge("b.func", "c.func")]
-            ),
-        ]
-
-        merged = merge_relations(llm_rels, static_rels, analysis)
-
-        # A->B (backed) + B->C (static-only); A->C is dropped because it has no evidence
-        self.assertEqual(len(merged), 2)
-        src_dst = {(r.src_name, r.dst_name) for r in merged}
-        self.assertIn(("A", "B"), src_dst)
-        self.assertIn(("B", "C"), src_dst)
-
-    def test_empty_inputs(self):
-        """Empty LLM and static relations should produce empty result."""
-        analysis = self._make_analysis()
-        merged = merge_relations([], [], analysis)
-        self.assertEqual(len(merged), 0)
-
-
 class TestAssignComponentIdsIntegration(unittest.TestCase):
-    """Integration tests for assign_component_ids with cluster_relations."""
 
-    def test_ids_work_with_node_to_component_map(self):
-        """Verify that assigned IDs work correctly with build_node_to_component_map."""
+    def test_ids_work_with_analysis_node_owners(self):
         analysis = AnalysisInsights(
             description="test",
             components=[
@@ -331,7 +204,7 @@ class TestAssignComponentIdsIntegration(unittest.TestCase):
             components_relations=[],
         )
         assign_component_ids(analysis)
-        mapping = build_node_to_component_map(analysis)
+        mapping = analysis.node_owners()
 
         self.assertEqual(mapping["a.func"], "1")
         self.assertEqual(mapping["b.func"], "2")
@@ -433,7 +306,7 @@ class TestPruneUngroundedEdges(unittest.TestCase):
     NODES = {"pkg.a.caller": "1", "pkg.a.helper": "1", "pkg.b.callee": "2"}
 
     def _prune(self, relation, keep_edge=lambda edge: True):
-        return prune_ungrounded_edges([relation], build_owner_index(self.NODES), keep_edge)
+        return prune_ungrounded_edges([relation], _owner_of(self.NODES), keep_edge)
 
     def _relation(self, edges, evidence=""):
         return Relation(
@@ -465,7 +338,7 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         wrong.src_id, wrong.dst_id = "2", "1"
         right = self._relation([])
         right.evidence = "the pair this call actually runs between"
-        kept = prune_ungrounded_edges([wrong, right], build_owner_index(self.NODES), lambda edge: True)
+        kept = prune_ungrounded_edges([wrong, right], _owner_of(self.NODES), lambda edge: True)
         by_pair = {(r.src_id, r.dst_id): r for r in kept}
         self.assertEqual([e.target.qualified_name for e in by_pair[("1", "2")].all_edges], ["pkg.b.callee"])
         # And the emptied backwards copy goes with it: on prose alone it now states a
@@ -479,7 +352,7 @@ class TestPruneUngroundedEdges(unittest.TestCase):
 
         kept = prune_ungrounded_edges(
             [wrong, right],
-            build_owner_index(self.NODES),
+            _owner_of(self.NODES),
             lambda edge: True,
             {"pkg.other.changed"},
         )
@@ -491,9 +364,7 @@ class TestPruneUngroundedEdges(unittest.TestCase):
     def test_dead_edges_are_dropped_even_when_their_source_is_unchanged(self):
         relation = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
 
-        kept = prune_ungrounded_edges(
-            [relation], build_owner_index(self.NODES), lambda edge: False, {"pkg.other.changed"}
-        )
+        kept = prune_ungrounded_edges([relation], _owner_of(self.NODES), lambda edge: False, {"pkg.other.changed"})
 
         self.assertEqual(kept, [])
 
@@ -513,7 +384,7 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         grounded = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
         backwards = self._relation([], evidence="reads the parsed result")
         backwards.src_id, backwards.dst_id = "2", "1"
-        kept = prune_ungrounded_edges([grounded, backwards], build_owner_index(self.NODES), lambda edge: True)
+        kept = prune_ungrounded_edges([grounded, backwards], _owner_of(self.NODES), lambda edge: True)
         self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("1", "2")])
 
     def test_an_unrelated_reverse_relation_is_not_repaired(self):
@@ -522,7 +393,7 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         backwards.src_id, backwards.dst_id = "2", "1"
 
         kept = prune_ungrounded_edges(
-            [grounded, backwards], build_owner_index(self.NODES), lambda edge: True, {"pkg.other.changed"}
+            [grounded, backwards], _owner_of(self.NODES), lambda edge: True, {"pkg.other.changed"}
         )
 
         self.assertEqual(sorted((relation.src_id, relation.dst_id) for relation in kept), [("1", "2"), ("2", "1")])
@@ -531,7 +402,7 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         # Nothing else states this connection, so its evidence is the only record of it.
         backwards = self._relation([], evidence="over the work queue")
         backwards.src_id, backwards.dst_id = "2", "1"
-        kept = prune_ungrounded_edges([backwards], build_owner_index(self.NODES), lambda edge: True)
+        kept = prune_ungrounded_edges([backwards], _owner_of(self.NODES), lambda edge: True)
         self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("2", "1")])
 
     def test_a_static_edgeless_relation_is_never_dropped_for_its_reverse(self):
@@ -539,7 +410,7 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         backwards = self._relation([], evidence="derived from the call graph")
         backwards.src_id, backwards.dst_id = "2", "1"
         backwards.is_static = True
-        kept = prune_ungrounded_edges([grounded, backwards], build_owner_index(self.NODES), lambda edge: True)
+        kept = prune_ungrounded_edges([grounded, backwards], _owner_of(self.NODES), lambda edge: True)
         self.assertEqual(sorted((r.src_id, r.dst_id) for r in kept), [("1", "2"), ("2", "1")])
 
     def test_a_relation_left_edgeless_survives_on_its_evidence(self):
@@ -562,7 +433,7 @@ class TestEdgeCrossesComponents(unittest.TestCase):
     }
 
     def _crosses(self, edge, src_id, dst_id):
-        return edge_crosses_components(edge, build_owner_index(self.NODES), src_id, dst_id)
+        return edge_crosses_components(edge, _owner_of(self.NODES), src_id, dst_id)
 
     def test_intra_component_edge_is_not_a_cross_component_call(self):
         # Both endpoints belong to component 5, so this cannot back a 5 -> 2 relation.
@@ -580,8 +451,8 @@ class TestEdgeCrossesComponents(unittest.TestCase):
 
     def test_child_component_satisfies_its_ancestor_id(self):
         edge = _make_relation_edge("scripts.build_cta.main", "scripts.submit_feedback.resolve_command")
-        index = build_owner_index({**self.NODES, "scripts.build_cta.main": "5.1"})
-        self.assertTrue(edge_crosses_components(edge, index, "5", "4"))
+        owner_of = _owner_of({**self.NODES, "scripts.build_cta.main": "5.1"})
+        self.assertTrue(edge_crosses_components(edge, owner_of, "5", "4"))
 
     def test_unresolved_pair_ids_skip_the_ownership_check(self):
         edge = _make_relation_edge("scripts.build_cta.main", "scripts.submit_feedback.resolve_command")

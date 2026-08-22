@@ -3,15 +3,15 @@ import logging
 import os
 import time
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
-import networkx as nx
 from langchain_core.language_models import BaseChatModel
 
 from agents.abstraction_agent import AbstractionAgent
@@ -23,7 +23,7 @@ from agents.agent_responses import (
     SourceCodeReference,
     index_components_by_id,
 )
-from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
+from agents.component_ownership import ComponentOwnershipIndex
 from agents.details_agent import DetailsAgent
 from agents.incremental_agent import (
     IncrementalAgent,
@@ -35,8 +35,8 @@ from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
-from agents.planner_agent import component_is_separable, get_expandable_components, leaf_load
-from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
+from agents.planner_agent import get_expandable_components
+from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations, prune_ungrounded_edges
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
@@ -44,25 +44,14 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
-from diagram_analysis.cluster_delta import (
-    ChangedMembers,
-    ClusterDelta,
-    LanguageDelta,
-    StructuralClusterDiff,
-    compute_changed_members,
-    compute_cluster_delta,
-    structural_diff_from_delta,
-)
-from diagram_analysis.cluster_snapshot import (
-    ClusterSnapshot,
-    snapshot_from_static_analysis,
-)
+from diagram_analysis.cluster_delta import ClusterDelta, compute_changed_members, compute_cluster_delta
+from diagram_analysis.cluster_snapshot import snapshot_from_static_analysis
 from diagram_analysis.exceptions import IncrementalCacheMissingError, ScopeContainmentError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from repo_utils.path_utils import normalize_repo_path
-from diagram_analysis.scope_plan import plan_scope_update
+from diagram_analysis.scope_plan import plan_scope_result_update
 from diagram_analysis.tree_shape import absorb_single_child_components
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -72,24 +61,27 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
-from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
+from static_analyzer.cfg import CallGraph
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
 from static_analyzer.cluster_relations import (
     build_global_node_to_component_map,
     build_global_relations,
-    build_owner_index,
     is_self_or_descendant,
-    prune_ungrounded_edges,
 )
 from static_analyzer.config import Language
-from static_analyzer.clustering import ClusterResult, ClusterScopeResult, ClusteringService
-from static_analyzer.clustering.orchestration import build_clustering_hierarchy
+from static_analyzer.clustering import (
+    ClusterResult,
+    ClusterScopeResult,
+    ClusteringService,
+)
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
 logger = logging.getLogger(__name__)
+
+_EMPTY_PERSISTED_SCOPES: Mapping[str, AnalysisInsights] = MappingProxyType({})
 
 
 def _component_depth(component_id: str | None) -> int:
@@ -240,15 +232,19 @@ class _ComponentBaseline:
 class _MembershipBaseline:
     """Pre-update snapshot the incremental restores unchanged components from."""
 
-    # scope_id -> (file_path, qname) -> owning component_id
-    owner_by_scope: dict[str, dict[tuple[str, str], str]] = field(default_factory=dict)
-    # scope_id -> (file_path, qname) -> the baseline method entry (restored verbatim)
-    entry_by_scope: dict[str, dict[tuple[str, str], MethodEntry]] = field(default_factory=dict)
     meta_by_id: dict[str, _ComponentBaseline] = field(default_factory=dict)
     # sub-scope_id -> a verbatim deep copy of the child-scope analysis, so a component with
     # no changed member anywhere in its subtree can have its whole sub-component structure
     # (which method sits in which child) restored, not just its top-level ownership.
     scope_by_id: dict[str, AnalysisInsights] = field(default_factory=dict)
+
+
+@dataclass
+class _IncrementalPreparation:
+    """Clustering inputs prepared before incremental agents initialize."""
+
+    delta: ClusterDelta
+    baseline_membership: _MembershipBaseline
 
 
 def _iter_incremental_scopes(
@@ -287,16 +283,13 @@ def _capture_membership_baseline(
 ) -> _MembershipBaseline:
     """Snapshot per-scope method ownership and per-component metadata before the update.
 
-    The incremental re-partitions clusters, which can shuffle unchanged methods between
-    components. This snapshot lets a later pass pin every unchanged method back to the
-    component that owned it and restore the metadata of components that end up identical.
+    The clustering hierarchy repairs ownership before it is applied. This snapshot retains
+    component metadata and unchanged child scopes that can be restored verbatim afterward.
     """
     baseline = _MembershipBaseline()
     for scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
         if scope_id != ROOT_SCOPE_ID:
             baseline.scope_by_id[scope_id] = analysis.model_copy(deep=True)
-        owner = baseline.owner_by_scope.setdefault(scope_id, {})
-        entries = baseline.entry_by_scope.setdefault(scope_id, {})
         for component in analysis.components:
             if not component.component_id:
                 continue
@@ -305,8 +298,6 @@ def _capture_membership_baseline(
             for group in component.file_methods:
                 for method in group.methods:
                     key = (group.file_path, method.qualified_name)
-                    owner[key] = component.component_id
-                    entries[key] = method.model_copy(deep=True)
                     keys.add(key)
                     qnames.add(method.qualified_name)
             baseline.meta_by_id[component.component_id] = _ComponentBaseline(
@@ -319,49 +310,6 @@ def _capture_membership_baseline(
                 member_qnames=frozenset(qnames),
             )
     return baseline
-
-
-def _restore_unchanged_membership(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-    baseline: _MembershipBaseline,
-    changed_members: set[str],
-    protected_ids: set[str],
-) -> None:
-    """Pin every unchanged method back to the component that owned it in the baseline.
-
-    A method whose body did not change (absent from ``changed_members``) and whose baseline
-    owner still exists is returned to that owner, overriding wherever the re-partition placed
-    it — this is what stops an untouched top-level component from silently gaining or losing
-    methods. Body-changed methods, added methods, methods whose owner was removed, and every
-    method inside a freshly created component (``protected_ids``) keep the re-partition's
-    placement, so a genuinely changed component still re-clusters. Each live method resolves
-    to exactly one owner, so nothing is dropped or duplicated.
-    """
-    for scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
-        owner = baseline.owner_by_scope.get(scope_id, {})
-        entries = baseline.entry_by_scope.get(scope_id, {})
-        live_ids = {component.component_id for component in analysis.components if component.component_id}
-        assigned: dict[str, dict[str, list[MethodEntry]]] = defaultdict(lambda: defaultdict(list))
-        for component in analysis.components:
-            protected = component.component_id in protected_ids
-            for group in component.file_methods:
-                for method in group.methods:
-                    key = (group.file_path, method.qualified_name)
-                    base_owner = owner.get(key)
-                    if not protected and method.qualified_name not in changed_members and base_owner in live_ids:
-                        assigned[base_owner][group.file_path].append(entries.get(key, method))
-                    else:
-                        assigned[component.component_id][group.file_path].append(method)
-        for component in analysis.components:
-            by_file = assigned.get(component.component_id, {})
-            component.file_methods = [
-                FileMethodGroup(
-                    file_path=file_path,
-                    methods=sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name)),
-                )
-                for file_path, methods in sorted(by_file.items())
-            ]
 
 
 def _restore_unchanged_metadata(
@@ -463,13 +411,9 @@ def _restore_unchanged_subtrees(
 ) -> set[str]:
     """Restore the whole child-scope subtree of every fully-unchanged component, verbatim.
 
-    ``_restore_unchanged_membership`` pins top-level ownership, but a component's child
-    sub-components live in separate scopes that the re-partition — or the later
-    ``_rescope_child_analyses`` reconcile — can still reshuffle, moving a method from one
-    child to a sibling. That shifts the node->deepest-component map and churns the
-    deepest-granularity relations even though nothing in the component changed. For every
-    component whose subtree has no changed member, replace each descendant scope with its
-    baseline deep copy so which method sits in which child is identical to the baseline.
+    The hierarchy repairs ownership at every clustered scope, but an entirely untouched
+    descendant scope need not be rebuilt at all. Restore its baseline deep copy so metadata
+    and child boundaries remain byte-for-byte stable.
 
     Returns the full set of preserved ids so the caller can skip them in the reconcile pass;
     the restore itself only rewrites each maximal subtree once (restoring a root already
@@ -580,10 +524,9 @@ class DiagramGenerator:
         # the prior analysis (see ``compute_cluster_delta``). ``None`` runs
         # unscoped (no drift filtering).
         self.changes: ChangeSet | None = changes
-        # Qnames whose method body changed vs the baseline, derived once per incremental run
-        # from the member-granular change signal. Drives copy-forward: an unchanged method is
-        # pinned back to its baseline owner, and the save-time global relation rebuild treats a
-        # component owning one of these as changed.
+        # Qnames whose method body changed vs the baseline, derived once per incremental run.
+        # Ownership repair is independent of this signal; it drives metadata refresh and lets
+        # the save-time global relation rebuild identify components the commit actually changed.
         self._changed_members: set[str] = set()
         # Changed files whose edit no hashed member represents (module-level/config content).
         # A component owning one of these counts as changed even with no body-hash or membership
@@ -613,6 +556,7 @@ class DiagramGenerator:
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.clustering_hierarchy: ClusterScopeResult | None = None
+        self._incremental_preparation: _IncrementalPreparation | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
         self.incremental_agent: IncrementalAgent | None = None
@@ -621,11 +565,6 @@ class DiagramGenerator:
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
-        # Separability verdict per component member set. Traversal asks once per
-        # component and every save asks again for the whole tree; the subgraph build
-        # plus Leiden sweep behind each answer is the expensive part of the
-        # deterministic pipeline. Keyed by membership, so a changed component re-runs.
-        self._separable_cache: dict[frozenset[tuple[str, str]], bool] = {}
         self._analysis_start_time = time.time()
 
     @track_analysis
@@ -639,9 +578,13 @@ class DiagramGenerator:
         *,
         hierarchy_depth: int | None = None,
         target_component: Component | None = None,
-        require_incremental_baseline: bool = False,
+        incremental: bool = False,
+        persisted_scopes: Mapping[str, AnalysisInsights] = _EMPTY_PERSISTED_SCOPES,
     ) -> None:
         """Run source fingerprinting, static analysis, and deterministic clustering."""
+        if incremental and target_component is not None:
+            raise ValueError("Incremental clustering does not support a selected component scope")
+        self._incremental_preparation = None
         self._analysis_start_time = time.time()
         # Fingerprint the whole tree once; source_sha, the sidecar, and every
         # save's source_tree_hash reuse it instead of re-walking per call.
@@ -659,17 +602,21 @@ class DiagramGenerator:
             static_analysis = self._get_static_with_new_analyzer()
 
         self.static_analysis = static_analysis
-        if require_incremental_baseline:
-            baseline = static_analysis.incremental_base_results
-            if baseline is None or not snapshot_from_static_analysis(baseline).all_cluster_ids():
-                error = IncrementalCacheMissingError(self.output_dir)
-                logger.error("%s", error)
-                raise error
-
         depth = hierarchy_depth if hierarchy_depth is not None else self.depth_level
-        self.clustering_hierarchy = build_clustering_hierarchy(static_analysis, depth)
-        if target_component is not None:
-            self._register_component_scope(target_component, depth)
+        if incremental:
+            root_analysis = persisted_scopes.get(ROOT_SCOPE_ID)
+            if root_analysis is None:
+                raise ValueError("Incremental clustering requires the persisted root analysis")
+            sub_analyses = {
+                scope_id: analysis for scope_id, analysis in persisted_scopes.items() if scope_id != ROOT_SCOPE_ID
+            }
+            self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
+        elif target_component is None:
+            self.clustering_hierarchy = ClusteringService().build_full_hierarchy(static_analysis, depth)
+        else:
+            scope = self._build_component_scope(target_component, depth)
+            self.clustering_hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
+            self.clustering_hierarchy.register_scope(target_component.component_id, scope)
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
@@ -722,80 +669,106 @@ class DiagramGenerator:
         *,
         hierarchy_depth: int | None = None,
         target_component: Component | None = None,
-        require_incremental_baseline: bool = False,
+        incremental: bool = False,
+        persisted_scopes: Mapping[str, AnalysisInsights] = _EMPTY_PERSISTED_SCOPES,
     ) -> None:
         """Prepare deterministic inputs, then initialize the analysis agents."""
         self.deterministic_analysis(
             hierarchy_depth=hierarchy_depth,
             target_component=target_component,
-            require_incremental_baseline=require_incremental_baseline,
+            incremental=incremental,
+            persisted_scopes=persisted_scopes,
         )
-        self.agent_init()
+        if not incremental or (self._incremental_preparation and self._incremental_preparation.delta.has_changes):
+            self.agent_init()
 
-    def _component_separable(self, component: Component) -> bool:
-        """Deterministic gate: should this component be split into sub-components?
+    def _prepare_incremental_clustering(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+        hierarchy_depth: int,
+    ) -> _IncrementalPreparation:
+        """Build the seeded hierarchy and change context before agent initialization."""
+        assert self.static_analysis is not None
+        snapshot_source = self.static_analysis.incremental_base_results
+        if snapshot_source is None:
+            error = IncrementalCacheMissingError(self.output_dir)
+            logger.error("%s", error)
+            raise error
+        old_snapshot = snapshot_from_static_analysis(snapshot_source)
+        if not old_snapshot.all_cluster_ids():
+            error = IncrementalCacheMissingError(self.output_dir)
+            logger.error("%s", error)
+            raise error
 
-        A component past the leaf ceiling is split whatever its call structure
-        says — it is too big to read as one box, and that verdict needs no
-        subgraph. Otherwise the component's own subgraph decides, against a bar
-        that eases as the component grows. If the subgraph can't be built (e.g. a
-        legacy static-analysis baseline whose pickled edges predate the current
-        schema), fall back to the structural default of expanding rather than
-        aborting the run.
+        self._baseline_component_ids = {
+            component.component_id
+            for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
+            for component in analysis.components
+            if component.component_id
+        }
+        self._baseline_global_relations = {
+            (relation.src_id, relation.dst_id): relation.model_copy(deep=True)
+            for relation in root_analysis.components_relations
+            if relation.src_id and relation.dst_id
+        }
+        self._baseline_member_keys = _capture_baseline_member_keys(root_analysis, sub_analyses)
 
-        Memoized on the component's member set: traversal asks once per component
-        and every save asks again for the whole tree, and the answer depends on
-        nothing else. A component whose membership changed (including one pruned
-        by ``_strip_ignored``) gets a different key and is re-evaluated.
-        """
-        assert self.details_agent is not None
-        load = leaf_load(component)
-        if load >= 1.0:
-            logger.info(f"[Planner] Component '{component.name}' is past the leaf ceiling (load {load:.2f}); expanding")
-            return True
-        key = _member_keys(component)
-        if key in self._separable_cache:
-            return self._separable_cache[key]
-        try:
-            cluster_results, subgraph_cfgs = self.details_agent._create_strict_component_subgraph(component)
-        except Exception:
-            logger.exception("Separability check failed for '%s'; defaulting to expandable", component.name)
-            return True
-        if not cluster_results:
-            separable = False
-        else:
-            # Reference-augmented graph, matching the production split: a component
-            # separable only via CONTAINS/INHERITS edges
-            # must not be judged cohesive on a call-only graph.
-            cfg_graphs = {lang: cfg.to_networkx(DEFAULT_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()}
-            separable = component_is_separable(cluster_results, cfg_graphs, load)
-        self._separable_cache[key] = separable
-        return separable
+        live_files = {
+            normalize_repo_path(node.file_path, self.repo_location)
+            for graph in self.static_analysis.available_cfgs().values()
+            for node in graph.nodes.values()
+            if node.file_path
+        }
+        remove_deleted_files(root_analysis, sub_analyses, live_files)
+
+        changed_members = (
+            compute_changed_members(
+                root_analysis.files,
+                self.static_analysis,
+                self.changes,
+                self.repo_location,
+            )
+            if self.changes is not None
+            else None
+        )
+        self._changed_members = changed_members.members if changed_members is not None else set()
+        self._changed_unattributed_files = changed_members.unattributed_files if changed_members is not None else set()
+
+        delta = compute_cluster_delta(
+            old_snapshot,
+            self.static_analysis,
+            changes=self.changes,
+            repo_dir=self.repo_location,
+        )
+        baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
+        changed_files = (
+            {
+                normalize_repo_path(change.file_path, self.repo_location)
+                for change in self.changes.files
+                if change.is_content_change()
+            }
+            if self.changes is not None
+            else set()
+        )
+        self.clustering_hierarchy = ClusteringService().build_incremental_hierarchy(
+            self.static_analysis,
+            hierarchy_depth,
+            delta.cluster_results(),
+            {ROOT_SCOPE_ID: root_analysis, **sub_analyses},
+            self._changed_members,
+            changed_files,
+            self.repo_location,
+            self.output_dir,
+        )
+        return _IncrementalPreparation(delta=delta, baseline_membership=baseline_membership)
 
     def _expandable_ids_for_tree(
         self,
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
     ) -> tuple[list[str] | None, dict[str, list[str]] | None]:
-        """The run's own expandable sets for the root scope and each sub-scope.
-
-        Persisting these keeps a component the separability gate kept as a leaf from
-        being re-advertised as expandable by the save-time recompute, which is
-        structural-only. ``(None, None)`` when the details agent isn't live (a bare
-        re-save), leaving the save to its deterministic default rather than crashing.
-
-        A component that already holds an analysed subtree is expandable by definition —
-        the subtree is right there. Re-litigating it here can only destroy it: the save
-        serializes children only for a component it is told is expandable, so a verdict
-        that flips to False discards work already done and, because analysis.json is the
-        store, the subtree is gone for good. Such a component is therefore added
-        unconditionally, outside ``get_expandable_components`` — its structural gate runs
-        before the separability one, so a predicate cannot rescue a component the
-        structural gate has already rejected.
-        """
-        if self.details_agent is None:
-            return None, None
-
+        """Return the clustering service's expansion decisions for every persisted scope."""
         clustering_groups = self.clustering_hierarchy.clustering_groups if self.clustering_hierarchy else {}
         if clustering_groups:
 
@@ -814,12 +787,13 @@ class DiagramGenerator:
                 scope_id: precomputed_ids(scope) for scope_id, scope in sub_analyses.items()
             }
 
+        if self.details_agent is None:
+            return None, None
+
         def expandable_ids(scope: AnalysisInsights, parent_had_clusters: bool = True) -> list[str]:
             ids = [
                 component.component_id
-                for component in get_expandable_components(
-                    scope, parent_had_clusters=parent_had_clusters, separable=self._component_separable
-                )
+                for component in get_expandable_components(scope, parent_had_clusters=parent_had_clusters)
                 if component.component_id
             ]
             chosen = set(ids)
@@ -1068,10 +1042,9 @@ class DiagramGenerator:
             }
         )
 
-    def _register_component_scope(self, component: Component, hierarchy_depth: int) -> None:
+    def _build_component_scope(self, component: Component, hierarchy_depth: int) -> ClusterScopeResult:
         """Precompute an exact hierarchy rooted at one persisted component ID."""
         assert self.static_analysis is not None
-        assert self.clustering_hierarchy is not None
         member_keys = {
             (normalize_repo_path(file_path, self.repo_location), qualified_name)
             for file_path, qualified_name in _member_keys(component)
@@ -1094,12 +1067,12 @@ class DiagramGenerator:
             )
 
         remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
-        scope = ClusteringService().cluster_hierarchy(
+        scope = ClusteringService().build_scope_hierarchy(
             graphs,
             remaining_depth,
-            root_scope_id=component.component_id,
+            component.component_id,
         )
-        self.clustering_hierarchy.register_scope(component.component_id, scope)
+        return scope
 
     def _generate_subcomponents(
         self,
@@ -1218,7 +1191,7 @@ class DiagramGenerator:
 
             assert self.abstraction_agent is not None
             assert self.clustering_hierarchy is not None
-            analysis, _cluster_results = self.abstraction_agent.run(self.clustering_hierarchy)
+            analysis = self.abstraction_agent.run(self.clustering_hierarchy)
             root_components = [
                 component
                 for component in analysis.components
@@ -1280,9 +1253,12 @@ class DiagramGenerator:
             )
             # Same reason as the per-scope path: preservation re-injects baseline edges after
             # the grounding filters ran, so the assembled list is filtered once more.
+            ownership = ComponentOwnershipIndex.from_node_owners(
+                build_global_node_to_component_map(root_analysis, sub_analyses)
+            )
             global_relations = prune_ungrounded_edges(
                 global_relations,
-                build_owner_index(build_global_node_to_component_map(root_analysis, sub_analyses)),
+                ownership.owner_of,
                 StaticReferenceResolver(self.repo_location, self.static_analysis).keep_relation_edge,
                 self._changed_members,
             )
@@ -1407,58 +1383,37 @@ class DiagramGenerator:
                 _reconcile_child_scope(component, child_scope, parent_keys, child_keys, self.repo_location)
             self._rescope_child_analyses(child_scope, sub_analyses, preserved_ids)
 
-    def _apply_incremental_scope_recursively(
+    def _apply_incremental_hierarchy(
         self,
-        scope_id: str,
-        scope: AnalysisInsights,
-        cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, nx.DiGraph],
+        clustering: ClusterScopeResult,
+        root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
-        changed_members: ChangedMembers | None,
     ) -> RecursiveScopeUpdateResult:
+        """Apply persisted-scope updates by traversing one precomputed hierarchy."""
         assert self.incremental_agent is not None
-        # Structure is derived, not asked for — see diagram_analysis/scope_plan.py.
-        decision = plan_scope_update(
-            scope_id, scope, cluster_results, cfg_graphs, self._changed_members, self.repo_location
-        )
-        apply_result = self.incremental_agent.update_scope(scope_id, scope, decision, cluster_results)
-        result = RecursiveScopeUpdateResult(
-            refresh_ids=set(apply_result.refresh_ids),
-            new_component_ids=set(apply_result.new_component_ids),
-            removed_ids=set(apply_result.removed_ids),
-        )
-        if apply_result.refresh_ids or apply_result.removed_ids:
-            result.relation_contexts[scope_id] = apply_result.relation_context
+        scope = root_analysis if clustering.scope_id == ROOT_SCOPE_ID else sub_analyses.get(clustering.scope_id)
+        if scope is None:
+            return RecursiveScopeUpdateResult()
 
-        components_by_id = {
-            component.component_id: component for component in scope.components if component.component_id
-        }
-        existing_refresh_ids = apply_result.refresh_ids - apply_result.new_component_ids
-        for component_id in sorted(existing_refresh_ids):
-            child_scope = sub_analyses.get(component_id)
-            child_component = components_by_id.get(component_id)
-            if child_scope is None or child_component is None or _component_depth(component_id) >= self.depth_level:
+        decision = plan_scope_result_update(scope, clustering, self._changed_members)
+        applied = self.incremental_agent.update_scope(
+            clustering.scope_id,
+            scope,
+            decision,
+            clustering,
+        )
+        result = RecursiveScopeUpdateResult(
+            refresh_ids=set(applied.refresh_ids),
+            new_component_ids=set(applied.new_component_ids),
+            removed_ids=set(applied.removed_ids),
+        )
+        if applied.refresh_ids or applied.removed_ids:
+            result.relation_contexts[clustering.scope_id] = applied.relation_context
+
+        for group in clustering.groups:
+            if group.children is None or group.group_id not in sub_analyses:
                 continue
-            child_cluster_results, child_cfgs, child_diff = _build_scope_incremental_inputs(
-                child_component,
-                component_id,
-                self.incremental_agent,
-                self.changes,
-                self.repo_location,
-                changed_members,
-            )
-            if not child_diff.has_changes:
-                continue
-            if not _child_scope_needs_recursive_update(child_scope, child_diff):
-                continue
-            child_result = self._apply_incremental_scope_recursively(
-                component_id,
-                child_scope,
-                child_cluster_results,
-                child_cfgs,
-                sub_analyses,
-                changed_members,
-            )
+            child_result = self._apply_incremental_hierarchy(group.children, root_analysis, sub_analyses)
             result.refresh_ids |= child_result.refresh_ids
             result.new_component_ids |= child_result.new_component_ids
             result.removed_ids |= child_result.removed_ids
@@ -1471,101 +1426,26 @@ class DiagramGenerator:
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
     ) -> Path:
-        """Cluster-driven incremental update of an existing ``analysis.json``.
-
-        Deterministic cluster delta, one LLM call to route delta clusters,
-        then ``_generate_subcomponents`` seeded with the changed components.
-        Raises when no trustworthy baseline or scoped update plan is available.
-        """
-        if self.details_agent is None or self.incremental_agent is None:
-            self.prepare_analysis(require_incremental_baseline=True)
+        """Update an existing analysis from one upfront, recursively anchored hierarchy."""
+        persisted_scopes = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
+        if self.static_analysis is None:
+            self.prepare_analysis(incremental=True, persisted_scopes=persisted_scopes)
+        elif self._incremental_preparation is None:
+            self._incremental_preparation = self._prepare_incremental_clustering(
+                root_analysis,
+                sub_analyses,
+                self.depth_level,
+            )
+            if self._incremental_preparation.delta.has_changes and (
+                self.details_agent is None or self.incremental_agent is None
+            ):
+                self.agent_init()
         assert self.static_analysis is not None
-        assert self.details_agent is not None
-        assert self.incremental_agent is not None
-
-        # Snapshot the loaded baseline before any mutation: its global relations (deepest
-        # granularity, keyed by component id) are carried over verbatim at save time for any
-        # edge between two components that did not change. This is what marks the run as
-        # incremental for ``rebuild_global_relations``; a full run leaves it ``None``.
-        self._baseline_component_ids = {
-            component.component_id
-            for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
-            for component in analysis.components
-            if component.component_id
-        }
-        self._baseline_global_relations = {
-            (relation.src_id, relation.dst_id): relation.model_copy(deep=True)
-            for relation in root_analysis.components_relations
-            if relation.src_id and relation.dst_id
-        }
-        # Capture per-component member keys BEFORE remove_deleted_files scrubs ownership: a deleted
-        # method must still register as a membership change so its component isn't treated as
-        # unchanged and its stale baseline relations restored. Kept separate from the full
-        # membership baseline (captured post-scrub below) so the restore passes never re-inject a
-        # deleted method. Also drives the empty-delta path, which returns before that capture.
-        self._baseline_member_keys = _capture_baseline_member_keys(root_analysis, sub_analyses)
+        assert self._incremental_preparation is not None
+        preparation = self._incremental_preparation
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
-            # Scrub before cluster math: orphan-routed files never appear in
-            # any cluster, so deletes wouldn't surface via the delta alone.
-            live_files: set[str] = set()
-            for language in self.static_analysis.get_languages():
-                try:
-                    cfg = self.static_analysis.get_cfg(language)
-                except (ValueError, KeyError):
-                    continue
-                for node in cfg.nodes.values():
-                    if node.file_path:
-                        live_files.add(normalize_repo_path(node.file_path, self.repo_location))
-            remove_deleted_files(root_analysis, sub_analyses, live_files)
-
-            # Member-granular change signal from per-method content hashes,
-            # captured from the baseline analysis.json *before* the files index
-            # is refreshed (which would overwrite the prior hashes). Drives the
-            # modified decision so a body-only edit lights up only the clusters
-            # whose own members changed, not every cluster sharing the file.
-            changed_members = (
-                compute_changed_members(
-                    root_analysis.files,
-                    self.static_analysis,
-                    self.changes,
-                    self.repo_location,
-                )
-                if self.changes is not None
-                else None
-            )
-            # Body-changed qnames drive copy-forward and the save-time relation preservation.
-            self._changed_members = changed_members.members if changed_members is not None else set()
-            # Module-level edits no member represents dirty the owning component too.
-            self._changed_unattributed_files = (
-                changed_members.unattributed_files if changed_members is not None else set()
-            )
-
-            snapshot_source = self.static_analysis.incremental_base_results
-            if snapshot_source is None:
-                error = IncrementalCacheMissingError(self.output_dir)
-                logger.error("%s", error)
-                raise error
-            old_snapshot = snapshot_from_static_analysis(snapshot_source)
-            if not old_snapshot.all_cluster_ids():
-                # No cluster_cache on the live CFG — no prior pkl, legacy pkl,
-                # or first-ever incremental run. Refuse to silently rebuild
-                # from scratch; that would discard the existing analysis.json's
-                # depth and component IDs. Caller must explicitly request a
-                # full run instead.  ``IncrementalCacheMissingError`` inspects
-                # the artifact dir to pick the specific diagnostic (missing
-                # pkl, missing sha, or pkl-without-cluster-baseline).
-                artifact_dir = self.output_dir
-                error = IncrementalCacheMissingError(artifact_dir)
-                logger.error("%s", error)
-                raise error
-
-            delta = compute_cluster_delta(
-                old_snapshot,
-                self.static_analysis,
-                changes=self.changes,
-                repo_dir=self.repo_location,
-            )
+            delta = preparation.delta
             if not delta.has_changes:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
                 # No structural change, but a body-only edit still moves content
@@ -1577,33 +1457,14 @@ class DiagramGenerator:
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
-            # Full membership baseline for the restore/rescope passes, captured AFTER the deletion
-            # scrub so a deleted method is never re-injected from the baseline into a live scope.
-            baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
-            root_cluster_results = delta.cluster_results()
-            root_cfgs = {
-                language: self.static_analysis.get_cfg(Language(language)).to_networkx(DEFAULT_REFERENCE_KINDS)
-                for language in root_cluster_results
-            }
-            apply_result = self._apply_incremental_scope_recursively(
-                ROOT_SCOPE_ID,
-                root_analysis,
-                root_cluster_results,
-                root_cfgs,
-                sub_analyses,
-                changed_members,
-            )
-            # Pin unchanged methods back to their baseline owner so the re-partition only
-            # moves what genuinely changed, then freeze the whole subtree of any component
-            # with no changed member so its sub-component boundaries can't drift, and finally
-            # reconcile the child scopes that genuinely moved.
-            _restore_unchanged_membership(
-                root_analysis,
-                sub_analyses,
-                baseline_membership,
-                self._changed_members,
-                apply_result.new_component_ids,
-            )
+            assert self.details_agent is not None
+            assert self.incremental_agent is not None
+            assert self.clustering_hierarchy is not None
+            hierarchy = self.clustering_hierarchy
+            baseline_membership = preparation.baseline_membership
+            apply_result = self._apply_incremental_hierarchy(hierarchy, root_analysis, sub_analyses)
+            # Freeze the whole subtree of components with no changed member, then reconcile
+            # child scopes whose repaired parent membership genuinely changed.
             preserved_ids = _restore_unchanged_subtrees(
                 root_analysis,
                 sub_analyses,
@@ -1644,11 +1505,10 @@ class DiagramGenerator:
             new_components = [
                 component
                 for component in created_components
-                if _component_depth(component.component_id) < self.depth_level
+                if component.component_id in hierarchy.preclustered_scopes
+                and _component_depth(component.component_id) < self.depth_level
             ]
             if new_components:
-                for component in new_components:
-                    self._register_component_scope(component, self.depth_level)
                 _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components, sub_analyses)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
@@ -1751,90 +1611,6 @@ def _drop_removed_subtree_analyses(sub_analyses: dict[str, AnalysisInsights], re
         for scope_id in list(sub_analyses):
             if is_self_or_descendant(scope_id, removed_id):
                 del sub_analyses[scope_id]
-
-
-def _child_scope_needs_recursive_update(
-    child_scope: AnalysisInsights,
-    structural_diff: StructuralClusterDiff,
-) -> bool:
-    owned_qnames = {
-        method.qualified_name
-        for component in child_scope.components
-        for group in component.file_methods
-        for method in group.methods
-        if method.qualified_name
-    }
-    # A module-level edit no member represents surfaces only as dirty_files, so match on the
-    # child's owned files too — otherwise a pure import/constant edit in a file this expanded
-    # child owns refreshes the parent but leaves the child's descriptions/relations stale.
-    owned_files = {
-        normalize_repo_path(group.file_path)
-        for component in child_scope.components
-        for group in component.file_methods
-        if group.file_path
-    }
-    changed_qnames: set[str] = set()
-    dirty_files: set[str] = set()
-    for diff in structural_diff.by_language.values():
-        for member_delta in [*diff.modified, *diff.new_details]:
-            changed_qnames.update(member_delta.removed_methods, member_delta.added_methods, member_delta.dirty_members)
-            dirty_files.update(normalize_repo_path(path) for path in member_delta.dirty_files)
-    return bool(changed_qnames & owned_qnames) or bool(dirty_files & owned_files)
-
-
-def _build_scope_incremental_inputs(
-    component: Component,
-    scope_id: str,
-    incremental_agent: IncrementalAgent,
-    changes: ChangeSet | None,
-    repo_dir: Path,
-    changed_members: ChangedMembers | None,
-) -> tuple[dict[str, ClusterResult], dict[str, nx.DiGraph], StructuralClusterDiff]:
-    old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
-    if not old_snapshot.all_cluster_ids():
-        return {}, {}, StructuralClusterDiff()
-
-    cluster_results, subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
-        component,
-        source_cluster_id_prefix=scope_id,
-    )
-    delta = ClusterDelta(
-        by_language={
-            language: LanguageDelta(language=language, cluster_results=cluster_result)
-            for language, cluster_result in cluster_results.items()
-        }
-    )
-    structural_diff = structural_diff_from_delta(
-        old_snapshot,
-        delta,
-        changes=changes,
-        repo_dir=repo_dir,
-        scope_id=scope_id,
-        changed=changed_members,
-    )
-    return (
-        cluster_results,
-        {lang: cfg.to_networkx(DEFAULT_REFERENCE_KINDS) for lang, cfg in subgraph_cfgs.items()},
-        structural_diff,
-    )
-
-
-def scoped_snapshot_for_component(
-    component: Component,
-    scope_id: str,
-    incremental_agent: IncrementalAgent,
-) -> ClusterSnapshot:
-    assigned_qnames = {
-        method.qualified_name for group in component.file_methods for method in group.methods if method.qualified_name
-    }
-    by_language = {}
-    for language in incremental_agent.static_analysis.get_languages():
-        cfg = incremental_agent.static_analysis.get_cfg(language)
-        sub_cfg = cfg.filter_by_nodes(assigned_qnames)
-        if sub_cfg.nodes:
-            method_paths = incremental_agent.static_analysis.get_clusters(language).method_paths
-            by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, method_paths, scope_id)
-    return ClusterSnapshot(by_language=by_language)
 
 
 def _merge_sub_analyses(

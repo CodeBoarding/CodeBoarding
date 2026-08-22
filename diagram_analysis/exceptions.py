@@ -14,21 +14,22 @@ class IncrementalCacheMissingError(RuntimeError):
     piece is missing — pkl, sha, or cluster baseline.
     """
 
-    def __init__(self, artifact_dir: Path):
+    def __init__(self, artifact_dir: Path, reason: str = ""):
         pkl_path = artifact_dir / STATIC_ANALYSIS_PKL
         sha_path = artifact_dir / STATIC_ANALYSIS_SHA
-        if not pkl_path.exists():
-            reason = f"no {STATIC_ANALYSIS_PKL} at {pkl_path}"
-        elif not sha_path.exists():
-            reason = (
-                f"{STATIC_ANALYSIS_PKL} at {pkl_path} has no sibling "
-                f"{STATIC_ANALYSIS_SHA}; the warm-start cannot SHA-gate"
-            )
-        else:
-            reason = (
-                f"{STATIC_ANALYSIS_PKL} at {pkl_path} loaded but has no cluster baseline "
-                "(legacy pkl or first-ever incremental run)"
-            )
+        if not reason:
+            if not pkl_path.exists():
+                reason = f"no {STATIC_ANALYSIS_PKL} at {pkl_path}"
+            elif not sha_path.exists():
+                reason = (
+                    f"{STATIC_ANALYSIS_PKL} at {pkl_path} has no sibling "
+                    f"{STATIC_ANALYSIS_SHA}; the warm-start cannot SHA-gate"
+                )
+            else:
+                reason = (
+                    f"{STATIC_ANALYSIS_PKL} at {pkl_path} loaded but has no cluster baseline "
+                    "(legacy pkl or first-ever incremental run)"
+                )
         super().__init__(
             f"Incremental analysis cannot proceed: {reason}. " "Run a full analysis first to seed the cache."
         )
@@ -38,7 +39,7 @@ class IncrementalCacheMissingError(RuntimeError):
 class IncrementalClusteringError(RuntimeError):
     """Raised when a scope's clustering comes back empty but it still owns live methods.
 
-    ``_create_strict_component_subgraph`` expands to one cluster per method whenever a
+    Scoped clustering expands to one cluster per method whenever a
     component has any live callable node, so an empty clustering means none of the methods
     the scope claims exist in the live call graph. Continuing would save the scope's stale
     membership and relations and hide the missed change; per the fail-fast rule the caller

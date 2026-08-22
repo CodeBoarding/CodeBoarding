@@ -5,19 +5,16 @@ import logging
 from abc import abstractmethod
 from collections.abc import Hashable
 from enum import StrEnum
-from typing import TYPE_CHECKING, get_origin
+from typing import get_origin
 
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
-from clustering_ids import ClusterId, ComponentId
-from agents.file_index_models import FileEntry, FileMethodGroup
+from clustering_ids import ComponentId
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodIndexEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from diagram_analysis.analysis_json import MethodIndexEntry
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -377,75 +374,6 @@ class Relation(LLMBaseModel):
         return len(self.all_edges)
 
 
-class ClustersComponent(LLMBaseModel):
-    """A grouped component from cluster analysis - may contain multiple clusters."""
-
-    name: str = Field(
-        description="Short, descriptive name for this cluster group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')"
-    )
-    cluster_ids: list[ClusterId] = Field(
-        description="List of cluster IDs from the CFG analysis that are grouped together (e.g., [1, 3, 5])"
-    )
-    description: str = Field(
-        description="Explanation of what this component does, its main flow, WHY these clusters are grouped together, how it interacts with other cluster groups, and the most important classes/methods (by their exact qualified names from the clusters)"
-    )
-    existing_component_id: str | None = Field(
-        default=None,
-        description=(
-            "Incremental routing: the exact component_id of the existing component "
-            "this entry is routing clusters into (e.g. '1.3'). Set to null to create "
-            "a brand-new component. Identity is by ID, not name — leaving this null "
-            "while reusing an existing component's name forks a duplicate component. "
-            "Ignored by the full-analysis flow."
-        ),
-        json_schema_extra={"hidden": True},
-    )
-    parent_id: str | None = Field(
-        default=None,
-        description=(
-            "Incremental routing: when ``existing_component_id`` is null (brand-new "
-            "component), the existing component_id under which the new component "
-            "should attach (or null to attach at root). Ignored when "
-            "``existing_component_id`` is set, and ignored by the full-analysis flow."
-        ),
-        json_schema_extra={"hidden": True},
-    )
-    redetail_needed: bool = Field(
-        default=True,
-        description=(
-            "Incremental routing only: when routing clusters into an existing component "
-            "(``existing_component_id`` is set), set False if the cluster delta is "
-            "cosmetic (refactor, internal rename, small bug fix) and the component's "
-            "high-level purpose is unchanged — the existing description stays. Default "
-            "True forces a full redetail. Ignored for brand-new components (always "
-            "redetailed) and by the full-analysis flow."
-        ),
-        json_schema_extra={"hidden": True},
-    )
-
-    def llm_str(self):
-        ids_str = ", ".join(str(cid) for cid in self.cluster_ids)
-        return f"**{self.name}** (cluster_ids: [{ids_str}])\n   {self.description}"
-
-
-class ClusterAnalysis(LLMBaseModel):
-    """Analysis results containing grouped cluster components."""
-
-    cluster_components: list[ClustersComponent] = Field(
-        description="Grouped clusters into logical components. Multiple cluster IDs can be grouped together if they work as a cohesive unit."
-    )
-
-    def group_ids(self) -> dict[str, list[ClusterId]]:
-        return {group.name: group.cluster_ids for group in self.cluster_components}
-
-    def llm_str(self):
-        if not self.cluster_components:
-            return "No clusters analyzed."
-        title = "# Grouped Cluster Components\n"
-        body = "\n".join(cc.llm_str() for cc in self.cluster_components)
-        return title + body
-
-
 class Component(LLMBaseModel):
     """A software component with name, description, and key entities."""
 
@@ -514,6 +442,23 @@ class AnalysisInsights(LLMBaseModel):
     )
     components: list[Component] = Field(description="List of the components identified in the project.")
     components_relations: list[Relation] = Field(description="List of relations among the components.")
+
+    def component_by_id(self, component_id: str) -> Component | None:
+        """Return the component with this stable ID."""
+        return next((component for component in self.components if component.component_id == component_id), None)
+
+    def component_by_name(self, name: str) -> Component | None:
+        """Return the first component with this displayed name."""
+        return next((component for component in self.components if component.name == name), None)
+
+    def node_owners(self) -> dict[str, str]:
+        """Map each indexed symbol to its owning component ID."""
+        return {
+            method.qualified_name: component.component_id
+            for component in self.components
+            for file_methods in component.file_methods
+            for method in file_methods.methods
+        }
 
     def llm_str(self):
         if not self.components:

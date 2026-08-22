@@ -50,12 +50,12 @@ class GroupingService:
 
 
 def reindex_across_languages(cluster_results: dict[str, ClusterResult]) -> None:
-    """Give each language's clusters a disjoint ID range, in place."""
+    """Give each language's clusters a disjoint ID namespace, in place."""
     if len(cluster_results) <= 1:
         return
     # Preserve stable IDs from seeded incremental partitions that are already disjoint.
-    ranges = sorted((min(r.clusters), max(r.clusters)) for r in cluster_results.values() if r.clusters)
-    if all(ranges[i][0] > ranges[i - 1][1] for i in range(1, len(ranges))):
+    id_sets = [set(result.clusters) for result in cluster_results.values()]
+    if len(set().union(*id_sets)) == sum(len(cluster_ids) for cluster_ids in id_sets):
         return
     offset = 0
     for lang in sorted(cluster_results):

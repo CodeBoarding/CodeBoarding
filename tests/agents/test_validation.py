@@ -22,10 +22,20 @@ from agents.agent_responses import (
     ComponentFiles,
     FileClassification,
 )
+from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 from static_analyzer.node import Node
 from static_analyzer.config import NodeType
+
+
+def _file_methods(file_path: str, qualified_name: str) -> list[FileMethodGroup]:
+    return [
+        FileMethodGroup(
+            file_path=file_path,
+            methods=[MethodEntry(qualified_name=qualified_name, start_line=1, end_line=2, node_type="FUNCTION")],
+        )
+    ]
 
 
 class TestValidationContext(unittest.TestCase):
@@ -357,8 +367,20 @@ class TestValidateRelationEvidence(unittest.TestCase):
         return AnalysisInsights(
             description="test",
             components=[
-                Component(name="A", description="A", key_entities=[], source_group_names=["Group 1"]),
-                Component(name="B", description="B", key_entities=[], source_group_names=["Group 2"]),
+                Component(
+                    name="A",
+                    description="A",
+                    key_entities=[],
+                    source_group_names=["Group 1"],
+                    file_methods=_file_methods("a.py", "a.run"),
+                ),
+                Component(
+                    name="B",
+                    description="B",
+                    key_entities=[],
+                    source_group_names=["Group 2"],
+                    file_methods=_file_methods("b.py", "b.load"),
+                ),
             ],
             components_relations=[relation],
         )
@@ -377,6 +399,15 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
         self.assertFalse(result.is_valid)
         self.assertIn("A -> B", result.feedback_messages[0])
+
+    def test_rendered_ownership_overrides_stale_cluster_membership(self):
+        analysis = self._make_analysis(Relation(relation="calls", src_name="A", dst_name="B"))
+        context = self._make_context(("a.run", "b.load"))
+        context.cluster_results["python"].clusters = {1: {"a.run", "b.load"}, 2: set()}
+
+        result = validate_relation_evidence(analysis, context)
+
+        self.assertTrue(result.is_valid)
 
     def test_runtime_evidence_without_key_edges_allows_llm_only_relation(self):
         analysis = self._make_analysis(
@@ -502,17 +533,8 @@ class TestValidateRelationEvidence(unittest.TestCase):
         self.assertIn("look hallucinated", result.feedback_messages[0])
 
     def test_partially_supported_relation_set_gets_partial_score(self):
-        analysis = AnalysisInsights(
-            description="test",
-            components=[
-                Component(name="A", description="A", key_entities=[], source_group_names=["Group 1"]),
-                Component(name="B", description="B", key_entities=[], source_group_names=["Group 2"]),
-            ],
-            components_relations=[
-                Relation(relation="calls", src_name="A", dst_name="B"),
-                Relation(relation="runtime hook", src_name="B", dst_name="A"),
-            ],
-        )
+        analysis = self._make_analysis(Relation(relation="calls", src_name="A", dst_name="B"))
+        analysis.components_relations.append(Relation(relation="runtime hook", src_name="B", dst_name="A"))
 
         result = validate_relation_evidence(analysis, self._make_context(("a.run", "b.load")))
 

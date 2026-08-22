@@ -1,16 +1,16 @@
 import unittest
+from unittest.mock import patch
 
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import NodeType
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,
-    ClusterGroup,
     ClusterResult,
-    ClusterScopeResult,
     ClusteringService,
-    LeafClustersUnavailableError,
 )
 from static_analyzer.clustering.grouping import GroupingService
+from static_analyzer.clustering.models import AnchoredGrouping
+from static_analyzer.clustering.service import LeafClustersUnavailableError
 from static_analyzer.node import Node
 
 
@@ -40,33 +40,6 @@ def cluster_result_for(graph: CallGraph, clusters: dict[int, set[str]]) -> Clust
 
 
 class TestClusteringScope(unittest.TestCase):
-    def test_scope_formats_group_metadata_for_agent_prompts(self):
-        cluster_result = ClusterResult(
-            clusters={1: {"pkg.Service.run", "entrypoint"}, 2: {"pkg.Repository.load"}},
-            cluster_to_files={1: {"/repo/service.py"}, 2: {"/repo/repository.py"}},
-        )
-        scope = ClusterScopeResult(
-            scope_id="root",
-            leaf_clusters_by_language={"python": cluster_result},
-            groups=[
-                ClusterGroup(group_id="1", cluster_ids=[1]),
-                ClusterGroup(group_id="2", cluster_ids=[2]),
-            ],
-        )
-
-        self.assertEqual(scope.group_names(), ["Group 1", "Group 2"])
-        self.assertEqual(scope.group_ids(), {"Group 1": [1], "Group 2": [2]})
-        self.assertEqual(
-            scope.llm_str(),
-            "# Grouped Cluster Components\n"
-            "**Group 1** (cluster_ids: [1])\n"
-            "   1 leaf clusters, 2 symbols across 1 files. Files: service.py "
-            "Key symbols: entrypoint, pkg.Service.run\n"
-            "**Group 2** (cluster_ids: [2])\n"
-            "   1 leaf clusters, 1 symbols across 1 files. Files: repository.py "
-            "Key symbols: pkg.Repository.load",
-        )
-
     def test_grouping_matches_the_existing_supercluster_result(self):
         graph = graph_for("python", ["a", "b", "c"], [("a", "b"), ("b", "c")])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}})
@@ -74,7 +47,7 @@ class TestClusteringScope(unittest.TestCase):
         expected, expected_modularity = GroupingService().group(
             {"python": cluster_result}, {"python": graph.to_networkx(reference_kinds=())}
         )
-        result = ClusteringService().cluster_scope(
+        result = ClusteringService()._cluster_scope(
             {"python": graph}, leaf_clusters_by_language={"python": cluster_result}
         )
 
@@ -89,7 +62,7 @@ class TestClusteringScope(unittest.TestCase):
         graph = graph_for("python", ["a", "b", "orphan"], [("a", "orphan"), ("orphan", "b")])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}})
 
-        result = ClusteringService().cluster_scope(
+        result = ClusteringService()._cluster_scope(
             {"python": graph}, leaf_clusters_by_language={"python": cluster_result}
         )
 
@@ -101,7 +74,7 @@ class TestClusteringScope(unittest.TestCase):
         graph = graph_for("python", ["caller", "callee"], [("caller", "callee")])
         cluster_result = cluster_result_for(graph, {1: {"caller"}, 2: {"callee"}})
 
-        result = ClusteringService().cluster_scope(
+        result = ClusteringService()._cluster_scope(
             {"python": graph}, leaf_clusters_by_language={"python": cluster_result}
         )
 
@@ -117,7 +90,7 @@ class TestClusteringScope(unittest.TestCase):
         python = graph_for("python", ["py.a"])
         typescript = graph_for("typescript", ["ts.a"])
 
-        result = ClusteringService().cluster_scope(
+        result = ClusteringService()._cluster_scope(
             {"python": python, "typescript": typescript},
             leaf_clusters_by_language={
                 "python": cluster_result_for(python, {1: {"py.a"}}),
@@ -137,7 +110,7 @@ class TestClusteringScope(unittest.TestCase):
             {"python": graph.to_networkx(reference_kinds=())},
         )
 
-        result = ClusteringService().cluster_scope(
+        result = ClusteringService()._cluster_scope(
             {"python": graph},
             leaf_clusters_by_language={"python": cluster_result},
             previous_owner={1: "2", 2: "4", 3: "7"},
@@ -148,7 +121,7 @@ class TestClusteringScope(unittest.TestCase):
         self.assertFalse(result.regrouped)
 
     def test_new_group_ids_follow_the_highest_surviving_sibling(self):
-        group_ids = ClusteringService._allocate_group_ids("root", ["2", ""])
+        group_ids = ClusteringService._allocate_group_ids("root", ["2", ""], ())
 
         self.assertEqual(group_ids, ["2", "3"])
 
@@ -156,14 +129,14 @@ class TestClusteringScope(unittest.TestCase):
         graph = graph_for("python", ["a", "b"])
 
         with self.assertRaisesRegex(LeafClustersUnavailableError, "python"):
-            ClusteringService().cluster_scope({"python": graph})
+            ClusteringService()._cluster_scope({"python": graph})
 
     def test_empty_leaf_clusters_for_a_nonempty_language_raise(self):
         python = graph_for("python", ["py.a"])
         typescript = graph_for("typescript", ["ts.a"])
 
         with self.assertRaisesRegex(LeafClustersUnavailableError, "typescript"):
-            ClusteringService().cluster_scope(
+            ClusteringService()._cluster_scope(
                 {"python": python, "typescript": typescript},
                 leaf_clusters_by_language={
                     "python": cluster_result_for(python, {1: {"py.a"}}),
@@ -171,11 +144,35 @@ class TestClusteringScope(unittest.TestCase):
                 },
             )
 
+    @patch.object(GroupingService, "anchored_group")
+    def test_repair_preserves_previous_owners_and_compacts_new_ids(self, anchored_group):
+        graph = graph_for("python", ["stable", "moved", "fresh"])
+        cluster_result = cluster_result_for(graph, {1: {"stable"}, 2: {"moved"}, 3: {"fresh"}})
+        anchored_group.return_value = AnchoredGrouping(
+            groups=[{1}, {2}, {3}],
+            owners=["1", "", ""],
+            regrouped=True,
+            unanchored_modularity=0.0,
+        )
+
+        result = ClusteringService()._cluster_scope(
+            {"python": graph},
+            leaf_clusters_by_language={"python": cluster_result},
+            previous_owner={1: "1"},
+            previous_member_owner={"python": {"stable": "1", "moved": "2"}},
+            reserved_group_ids={"1", "2"},
+        )
+
+        self.assertEqual(
+            {group.group_id: group.qualified_names for group in result.groups},
+            {"1": {"stable"}, "2": {"moved"}, "3": {"fresh"}},
+        )
+
     def test_method_level_fallback_is_available_for_child_scopes(self):
         graph = graph_for("python", ["a", "b", "c", "d", "e"])
         cluster_result = cluster_result_for(graph, {1: set(graph.nodes)})
 
-        result = ClusteringService().cluster_scope(
+        result = ClusteringService()._cluster_scope(
             {"python": graph},
             leaf_clusters_by_language={"python": cluster_result},
             method_level_fallback=True,
@@ -185,6 +182,17 @@ class TestClusteringScope(unittest.TestCase):
         self.assertEqual(expanded.strategy, METHOD_LEVEL_STRATEGY)
         self.assertEqual(len(expanded.clusters), 5)
         self.assertTrue(all(len(members) == 1 for members in expanded.clusters.values()))
+
+    def test_method_level_fallback_preserves_retained_cluster_ids(self):
+        graph = graph_for("python", ["a.new", "z.retained", "replacement"])
+        expanded = ClusteringService._expand_to_method_level(
+            graph,
+            cluster_result_for(graph, {4: {"a.new", "z.retained"}, 10: {"replacement"}}),
+            next_new_id=10,
+            retained_members_by_cluster={4: {"z.retained"}},
+        )
+
+        self.assertEqual(expanded.clusters, {4: {"z.retained"}, 10: {"replacement"}, 11: {"a.new"}})
 
     def test_method_level_fallback_preserves_owners_by_member(self):
         graph = graph_for("python", ["a", "b", "c", "d", "e", "new"])
@@ -196,7 +204,7 @@ class TestClusteringScope(unittest.TestCase):
             },
         )
 
-        result = ClusteringService().cluster_scope(
+        result = ClusteringService()._cluster_scope(
             {"python": graph},
             scope_id="9",
             leaf_clusters_by_language={"python": cluster_result},

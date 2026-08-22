@@ -2,22 +2,26 @@
 
 from __future__ import annotations
 
+import logging
 from collections import Counter, defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
+from pathlib import Path
 from types import MappingProxyType
+from typing import Any
 
 import networkx as nx
 
 from clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
 from constants import MIN_CLUSTERS_THRESHOLD
+from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
-from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
 from static_analyzer.clustering.engine import cluster_graph
 from static_analyzer.clustering.expansion import scope_is_separable, scope_load
 from static_analyzer.clustering.grouping import (
     GroupingService,
     combine_cluster_results,
     reindex_across_languages,
+    reindex_cluster_result,
     score_grouping,
 )
 from static_analyzer.clustering.models import (
@@ -29,10 +33,14 @@ from static_analyzer.clustering.models import (
     ClusterScopeResult,
     GroupConnection,
 )
+from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES, Language
 
 _ROOT_SCOPE_ID: ScopeId = "root"
 _EMPTY_LEAF_CLUSTERS: Mapping[str, ClusterResult] = MappingProxyType({})
 _EMPTY_OWNERS: Mapping[ClusterId, ComponentId] = MappingProxyType({})
+_EMPTY_MEMBER_OWNERS: Mapping[str, Mapping[str, ComponentId]] = MappingProxyType({})
+_EMPTY_RETAINED_CLUSTER_MEMBERS: Mapping[ClusterId, Collection[str]] = MappingProxyType({})
+logger = logging.getLogger(__name__)
 
 
 class LeafClustersUnavailableError(RuntimeError):
@@ -51,22 +59,153 @@ def _unseeded_scope(_scope_id: ScopeId, _graphs: Mapping[str, CallGraph]) -> Clu
 
 
 class ClusteringService:
-    """Clusters a ``CallGraph``.
-
-    Pure: it neither mutates the graph nor caches anything. Callers that want to
-    keep a result store it in the ``ClusterCache`` on their ``LanguageResults``.
-    """
+    """Build deterministic clustering results and hierarchies."""
 
     def cluster(self, graph: CallGraph) -> ClusterResult:
         return cluster_graph(graph.to_networkx(DEFAULT_REFERENCE_KINDS), delimiter=graph.delimiter)
 
-    def cluster_scope(
+    def build_full_hierarchy(self, static_analysis: Any, max_depth: int) -> ClusterScopeResult:
+        """Build a full hierarchy and synchronize its persisted cluster lineage."""
+        root_results = self._build_leaf_clusters(static_analysis)
+        hierarchy = self._build_hierarchy(static_analysis, max_depth, root_results, _unseeded_scope)
+        self._record_child_scopes(static_analysis, hierarchy)
+        return hierarchy
+
+    def build_incremental_hierarchy(
+        self,
+        static_analysis: Any,
+        max_depth: int,
+        root_leaf_clusters: Mapping[str, ClusterResult],
+        persisted_scopes: Mapping[str, Any],
+        changed_members: Collection[str],
+        changed_files: Collection[str],
+        repo_dir: Path,
+        artifact_dir: Path,
+    ) -> ClusterScopeResult:
+        """Build an anchored hierarchy from persisted ownership and cluster lineage."""
+        from diagram_analysis.exceptions import IncrementalCacheMissingError
+
+        baseline = static_analysis.incremental_base_results
+        if baseline is None:
+            raise IncrementalCacheMissingError(artifact_dir)
+        normalized_changed_files = {normalize_repo_path(path, repo_dir) for path in changed_files}
+
+        def scope_input(scope_id: ScopeId, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            persisted = persisted_scopes.get(scope_id)
+            if scope_id != _ROOT_SCOPE_ID and persisted is None:
+                return ClusterScopeInput()
+            leaf_clusters = (
+                dict(root_leaf_clusters)
+                if scope_id == _ROOT_SCOPE_ID
+                else self._incremental_scope_partitions(
+                    baseline,
+                    scope_id,
+                    graphs,
+                    self._persisted_members(persisted, graphs, repo_dir),
+                    artifact_dir,
+                )
+            )
+            if persisted is None:
+                return ClusterScopeInput(leaf_clusters_by_language=leaf_clusters)
+            cluster_owner, member_owner = self._previous_ownership(persisted, leaf_clusters, scope_id, repo_dir)
+            for language, owner_by_member in member_owner.items():
+                graph = graphs[language]
+                member_owner[language] = {
+                    name: owner
+                    for name, owner in owner_by_member.items()
+                    if name not in changed_members
+                    or normalize_repo_path(graph.nodes[name].file_path, repo_dir) not in normalized_changed_files
+                }
+            return ClusterScopeInput(
+                leaf_clusters_by_language=leaf_clusters,
+                previous_owner=cluster_owner,
+                previous_member_owner=member_owner,
+                reserved_group_ids=frozenset(c.component_id for c in persisted.components if c.component_id),
+                retain_scope=True,
+            )
+
+        hierarchy = self._build_hierarchy(static_analysis, max_depth, root_leaf_clusters, scope_input)
+        self._record_child_scopes(static_analysis, hierarchy)
+        return hierarchy
+
+    def build_scope_hierarchy(
+        self,
+        graphs: Mapping[str, CallGraph],
+        max_depth: int,
+        root_scope_id: ScopeId,
+    ) -> ClusterScopeResult:
+        """Build a hierarchy rooted at one existing component scope."""
+        return self._cluster_hierarchy(graphs, max_depth, root_scope_id=root_scope_id)
+
+    @staticmethod
+    def _expand_to_method_level(
+        graph: CallGraph,
+        partition: ClusterResult,
+        *,
+        next_new_id: ClusterId = 0,
+        retained_members_by_cluster: Mapping[ClusterId, Collection[str]] = _EMPTY_RETAINED_CLUSTER_MEMBERS,
+    ) -> ClusterResult:
+        """Replace a coarse partition with stable one-symbol clusters when needed."""
+        if len(partition.clusters) >= MIN_CLUSTERS_THRESHOLD:
+            return partition
+
+        clusters: dict[int, set[str]] = {}
+        cluster_to_files: dict[int, set[str]] = {}
+        file_to_clusters: dict[str, set[int]] = defaultdict(set)
+        expanded_members = sorted(
+            qualified_name for qualified_name, node in graph.nodes.items() if node.type in CALLABLE_TYPES
+        )
+        if len(expanded_members) < MIN_CLUSTERS_THRESHOLD:
+            expanded_members.extend(
+                sorted(qualified_name for qualified_name, node in graph.nodes.items() if node.type in CLASS_TYPES)
+            )
+        expanded_member_set = set(expanded_members)
+        source_cluster_by_member = {
+            qualified_name: cluster_id
+            for cluster_id, members in partition.clusters.items()
+            for qualified_name in members
+        }
+        retained_member_by_cluster = {
+            cluster_id: min(retained)
+            for cluster_id, members in partition.clusters.items()
+            if (retained := set(members) & set(retained_members_by_cluster.get(cluster_id, ())) & expanded_member_set)
+        }
+        for cluster_id, members in partition.clusters.items():
+            if cluster_id in retained_member_by_cluster:
+                continue
+            live_members = set(members) & expanded_member_set
+            if live_members:
+                retained_member_by_cluster[cluster_id] = min(live_members)
+        next_new_id = max(next_new_id, max(partition.clusters, default=-1) + 1)
+
+        for qualified_name in expanded_members:
+            next_new_id = ClusteringService._add_expanded_symbol(
+                graph,
+                qualified_name,
+                source_cluster_by_member,
+                retained_member_by_cluster,
+                next_new_id,
+                clusters,
+                cluster_to_files,
+                file_to_clusters,
+            )
+
+        return ClusterResult(
+            clusters=clusters,
+            cluster_to_files=cluster_to_files,
+            file_to_clusters=dict(file_to_clusters),
+            strategy=METHOD_LEVEL_STRATEGY,
+        )
+
+    def _cluster_scope(
         self,
         graphs: Mapping[str, CallGraph],
         *,
         scope_id: ScopeId = _ROOT_SCOPE_ID,
         leaf_clusters_by_language: Mapping[str, ClusterResult] = _EMPTY_LEAF_CLUSTERS,
         previous_owner: Mapping[ClusterId, ComponentId] = _EMPTY_OWNERS,
+        previous_member_owner: Mapping[str, Mapping[str, ComponentId]] = _EMPTY_MEMBER_OWNERS,
+        reserved_group_ids: Collection[GroupId] = (),
         method_level_fallback: bool = False,
     ) -> ClusterScopeResult:
         """Cluster and group one exact graph scope, retaining sibling communication."""
@@ -133,7 +272,7 @@ class ClusteringService:
             unanchored_modularity = modularity
             regrouped = False
 
-        group_ids = self._allocate_group_ids(scope_id, owners)
+        group_ids = self._allocate_group_ids(scope_id, owners, reserved_group_ids)
         groups = [
             ClusterGroup(
                 group_id=group_id,
@@ -143,6 +282,18 @@ class ClusteringService:
             for group_id, cluster_ids, owner in zip(group_ids, raw_groups, owners, strict=True)
         ]
         self._assign_symbol_members(graphs, scope_leaf_clusters, groups)
+        self._repair_member_ownership(groups, previous_member_owner)
+        groups = [group for group in groups if group.qualified_names]
+        for group, group_id in zip(
+            groups,
+            self._allocate_group_ids(
+                scope_id,
+                [group.previous_component_id for group in groups],
+                reserved_group_ids,
+            ),
+            strict=True,
+        ):
+            group.group_id = group_id
         connections = self._build_connections(graphs, groups)
         return ClusterScopeResult(
             scope_id=scope_id,
@@ -155,7 +306,7 @@ class ClusteringService:
             regrouped=regrouped,
         )
 
-    def cluster_hierarchy(
+    def _cluster_hierarchy(
         self,
         graphs: Mapping[str, CallGraph],
         max_depth: int,
@@ -166,16 +317,229 @@ class ClusteringService:
         if max_depth < 1:
             raise ValueError("max_depth must be at least 1")
         root_input = scope_input(root_scope_id, graphs)
-        root = self.cluster_scope(
+        root = self._cluster_scope(
             graphs,
             scope_id=root_scope_id,
             leaf_clusters_by_language=root_input.leaf_clusters_by_language,
             previous_owner=root_input.previous_owner,
+            previous_member_owner=root_input.previous_member_owner,
+            reserved_group_ids=root_input.reserved_group_ids,
             method_level_fallback=root_scope_id != _ROOT_SCOPE_ID,
         )
         self._cluster_children(root, graphs, 1, max_depth, scope_input)
         root.index_hierarchy()
         return root
+
+    def _build_hierarchy(
+        self,
+        static_analysis: Any,
+        max_depth: int,
+        root_results: Mapping[str, ClusterResult],
+        scope_input: Callable[[ScopeId, Mapping[str, CallGraph]], ClusterScopeInput],
+    ) -> ClusterScopeResult:
+        def seeded_input(scope_id: ScopeId, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            provided = scope_input(scope_id, graphs)
+            if scope_id != _ROOT_SCOPE_ID:
+                return provided
+            return ClusterScopeInput(
+                leaf_clusters_by_language=root_results,
+                previous_owner=provided.previous_owner,
+                previous_member_owner=provided.previous_member_owner,
+                reserved_group_ids=provided.reserved_group_ids,
+                retain_scope=provided.retain_scope,
+            )
+
+        return self._cluster_hierarchy(static_analysis.available_cfgs(), max_depth, seeded_input)
+
+    def _build_leaf_clusters(self, static_analysis: Any) -> dict[str, ClusterResult]:
+        results: dict[str, ClusterResult] = {}
+        offset = 0
+        for language in static_analysis.get_languages():
+            result = self.cluster(static_analysis.get_cfg(language))
+            if offset:
+                result = reindex_cluster_result(result, offset)
+                logger.info("[Cluster] %s: offset IDs by +%d (%d clusters)", language, offset, len(result.clusters))
+            results[str(language)] = result
+            offset += max(result.clusters, default=0) + 1
+        for language, result in results.items():
+            try:
+                static_analysis.get_clusters(Language(language)).adopt(result)
+            except ValueError:
+                logger.warning("Could not sync cluster cache for unknown language %s", language)
+        return results
+
+    def _incremental_scope_partitions(
+        self,
+        baseline: Any,
+        scope_id: ScopeId,
+        graphs: Mapping[str, CallGraph],
+        persisted_members: Mapping[str, set[str]],
+        artifact_dir: Path,
+    ) -> dict[str, ClusterResult]:
+        # Imported after static-analysis models initialize; cluster_delta reads those models.
+        from diagram_analysis.cluster_delta import _delta_for_language
+        from diagram_analysis.exceptions import IncrementalCacheMissingError
+
+        method_paths = {}
+        for language in baseline.get_languages():
+            try:
+                method_paths[str(language)] = baseline.get_clusters(language).method_paths
+            except (KeyError, ValueError):
+                continue
+        for language in graphs:
+            if language not in method_paths:
+                try:
+                    method_paths[language] = baseline.get_clusters(Language(language)).method_paths
+                except (KeyError, ValueError):
+                    pass
+        prefix = f"{scope_id}."
+        reserved = {
+            int(local_id)
+            for paths in method_paths.values()
+            for _name, cluster_ids in paths.snapshot()
+            for cluster_id in cluster_ids
+            if cluster_id.startswith(prefix) and (local_id := cluster_id.removeprefix(prefix)).isdigit()
+        }
+        snapshots = {
+            language: self._scoped_snapshot(graph, method_paths.get(language), scope_id)
+            for language, graph in graphs.items()
+        }
+        for language, graph in graphs.items():
+            covered = {member for entry in snapshots[language].values() for member in entry.members}
+            missing = (persisted_members.get(language, set()) & set(graph.nodes)) - covered
+            if missing:
+                raise IncrementalCacheMissingError(
+                    artifact_dir,
+                    f"persisted scope {scope_id!r} has no cluster lineage for {language} member(s): "
+                    + ", ".join(sorted(missing)[:5]),
+                )
+        partitions: dict[str, ClusterResult] = {}
+        next_new_id = max(reserved, default=-1) + 1
+        for language in sorted(graphs):
+            graph = graphs[language]
+            snapshot = snapshots[language]
+            partition = (
+                _delta_for_language(
+                    language, graph.to_networkx(DEFAULT_REFERENCE_KINDS), snapshot, next_new_id=next_new_id
+                ).cluster_results
+                if snapshot
+                else self.cluster(graph)
+            )
+            partition = self._expand_to_method_level(
+                graph,
+                partition,
+                next_new_id=next_new_id if snapshot else 0,
+                retained_members_by_cluster={cluster_id: entry.members for cluster_id, entry in snapshot.items()},
+            )
+            if not snapshot and next_new_id:
+                partition = reindex_cluster_result(partition, next_new_id)
+            partitions[language] = partition
+            next_new_id = max(next_new_id, max(partition.clusters, default=0) + 1)
+        reindex_across_languages(partitions)
+        return partitions
+
+    @staticmethod
+    def _scoped_snapshot(graph: CallGraph, method_paths: Any, scope_id: ScopeId) -> dict[int, Any]:
+        from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
+
+        if method_paths is None:
+            return {}
+        prefix = f"{scope_id}."
+        entries: dict[int, Any] = {}
+        for name, cluster_ids in method_paths.snapshot():
+            if name not in graph.nodes:
+                continue
+            for cluster_id in cluster_ids:
+                local_id = cluster_id.removeprefix(prefix)
+                if not cluster_id.startswith(prefix) or not local_id.isdigit():
+                    continue
+                entry = entries.setdefault(int(local_id), ClusterSnapshotEntry())
+                entry.members.add(name)
+                if file_path := graph.nodes[name].file_path:
+                    entry.files.add(file_path)
+                    entry.member_files[name] = file_path
+        return entries
+
+    @staticmethod
+    def _persisted_members(persisted, graphs: Mapping[str, CallGraph], repo_dir: Path) -> dict[str, set[str]]:
+        if persisted is None:
+            return {}
+        return {
+            language: {
+                method.qualified_name
+                for component in persisted.components
+                for group in component.file_methods
+                if normalize_repo_path(group.file_path, repo_dir)
+                in {normalize_repo_path(node.file_path, repo_dir) for node in graph.nodes.values()}
+                for method in group.methods
+            }
+            for language, graph in graphs.items()
+        }
+
+    @staticmethod
+    def _previous_ownership(scope, results: Mapping[str, ClusterResult], scope_id: ScopeId, repo_dir: Path):
+        """Recover persisted ownership from stable members before local cluster IDs."""
+        prefix = "" if scope_id == _ROOT_SCOPE_ID else scope_id
+        claimed = {
+            cluster_id: component.component_id
+            for component in scope.components
+            if component.component_id
+            for cluster_id in component.source_cluster_ids
+        }
+        owners: dict[int, str] = {}
+        member_owners: dict[str, dict[str, str]] = {}
+        for language, result in results.items():
+            files = {
+                normalize_repo_path(path, repo_dir) for paths in result.cluster_to_files.values() for path in paths
+            }
+            by_member = {
+                method.qualified_name: component.component_id
+                for component in scope.components
+                if component.component_id
+                for group in component.file_methods
+                if not files or normalize_repo_path(group.file_path, repo_dir) in files
+                for method in group.methods
+            }
+            member_owners[language] = by_member
+            for cluster_id, members in result.clusters.items():
+                tally = Counter(by_member[member] for member in members if member in by_member)
+                if tally:
+                    owners[cluster_id] = min(tally.items(), key=lambda claim: (-claim[1], claim[0]))[0]
+                    continue
+                qualified = f"{prefix}.{cluster_id}" if prefix else str(cluster_id)
+                if qualified in claimed:
+                    owners[cluster_id] = claimed[qualified]
+        return owners, member_owners
+
+    @staticmethod
+    def _record_child_scopes(static_analysis: Any, scope: ClusterScopeResult) -> None:
+        for group in scope.groups:
+            if group.children is None:
+                continue
+            for language, partition in group.children.leaf_clusters_by_language.items():
+                static_analysis.get_clusters(Language(language)).record_scope(partition, group.group_id)
+            ClusteringService._record_child_scopes(static_analysis, group.children)
+
+    @staticmethod
+    def _add_expanded_symbol(
+        graph: CallGraph,
+        name: str,
+        source_by_member: Mapping[str, ClusterId],
+        retained_by_cluster: Mapping[ClusterId, str],
+        next_new_id: ClusterId,
+        clusters: dict[int, set[str]],
+        cluster_to_files: dict[int, set[str]],
+        file_to_clusters: dict[str, set[int]],
+    ) -> ClusterId:
+        source_id = source_by_member.get(name)
+        cluster_id = source_id if source_id is not None and retained_by_cluster.get(source_id) == name else next_new_id
+        if cluster_id == next_new_id:
+            next_new_id += 1
+        file_path = graph.nodes[name].file_path
+        clusters[cluster_id] = {name}
+        cluster_to_files[cluster_id] = {file_path}
+        file_to_clusters[file_path].add(cluster_id)
+        return next_new_id
 
     @staticmethod
     def _induced_graphs(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> dict[str, CallGraph]:
@@ -204,21 +568,30 @@ class ClusteringService:
             if not child_graphs or not file_count:
                 continue
             child_input = scope_input(group.group_id, child_graphs)
-            child = self.cluster_scope(
+            child = self._cluster_scope(
                 child_graphs,
                 scope_id=group.group_id,
                 leaf_clusters_by_language=child_input.leaf_clusters_by_language,
                 previous_owner=child_input.previous_owner,
+                previous_member_owner=child_input.previous_member_owner,
+                reserved_group_ids=child_input.reserved_group_ids,
                 method_level_fallback=True,
             )
-            if sum(bool(child_group.qualified_names) for child_group in child.groups) < 2:
+            if (
+                not child_input.retain_scope
+                and sum(bool(child_group.qualified_names) for child_group in child.groups) < 2
+            ):
                 continue
             load = scope_load(method_count, file_count)
-            if load < 1.0 and not scope_is_separable(
-                child.leaf_clusters_by_language,
-                child.unanchored_modularity,
-                load,
-                method_count,
+            if (
+                not child_input.retain_scope
+                and load < 1.0
+                and not scope_is_separable(
+                    child.leaf_clusters_by_language,
+                    child.unanchored_modularity,
+                    load,
+                    method_count,
+                )
             ):
                 continue
             group.expandable = True
@@ -239,14 +612,19 @@ class ClusteringService:
         return method_count, len(files)
 
     @staticmethod
-    def _allocate_group_ids(scope_id: ScopeId, owners: list[ComponentId]) -> list[GroupId]:
-        allocated = set(owners) - {""}
-        used_indices = {
-            int(group_id.rsplit(".", maxsplit=1)[-1])
-            for group_id in allocated
-            if group_id.rsplit(".", maxsplit=1)[-1].isdigit()
-        }
+    def _allocate_group_ids(
+        scope_id: ScopeId,
+        owners: list[ComponentId],
+        reserved_group_ids: Collection[GroupId],
+    ) -> list[GroupId]:
+        allocated = (set(owners) | set(reserved_group_ids)) - {""}
         result: list[GroupId] = []
+        prefix = "" if scope_id == _ROOT_SCOPE_ID else f"{scope_id}."
+        used_indices = [
+            int(group_id.removeprefix(prefix))
+            for group_id in allocated
+            if group_id.startswith(prefix) and group_id.removeprefix(prefix).isdigit()
+        ]
         next_index = max(used_indices, default=0) + 1
         for owner in owners:
             if owner:
@@ -260,41 +638,6 @@ class ClusteringService:
                     result.append(candidate)
                     break
         return result
-
-    @staticmethod
-    def _expand_to_method_level(graph: CallGraph, cluster_result: ClusterResult) -> ClusterResult:
-        if len(cluster_result.clusters) >= MIN_CLUSTERS_THRESHOLD:
-            return cluster_result
-
-        clusters: dict[ClusterId, set[str]] = {}
-        cluster_to_files: dict[ClusterId, set[str]] = {}
-        file_to_clusters: dict[str, set[ClusterId]] = defaultdict(set)
-        included: set[str] = set()
-
-        for qualified_name, node in sorted(graph.nodes.items()):
-            if node.type not in CALLABLE_TYPES:
-                continue
-            cluster_id = len(clusters)
-            clusters[cluster_id] = {qualified_name}
-            cluster_to_files[cluster_id] = {node.file_path}
-            file_to_clusters[node.file_path].add(cluster_id)
-            included.add(qualified_name)
-
-        if len(clusters) < MIN_CLUSTERS_THRESHOLD:
-            for qualified_name, node in sorted(graph.nodes.items()):
-                if node.type not in CLASS_TYPES or qualified_name in included:
-                    continue
-                cluster_id = len(clusters)
-                clusters[cluster_id] = {qualified_name}
-                cluster_to_files[cluster_id] = {node.file_path}
-                file_to_clusters[node.file_path].add(cluster_id)
-
-        return ClusterResult(
-            clusters=clusters,
-            cluster_to_files=cluster_to_files,
-            file_to_clusters=dict(file_to_clusters),
-            strategy=METHOD_LEVEL_STRATEGY,
-        )
 
     def _assign_symbol_members(
         self,
@@ -323,6 +666,40 @@ class ClusteringService:
                     cluster_id = self._nearest_cluster(qualified_name, cluster_result, undirected)
                 group = group_by_cluster[cluster_id] if cluster_id is not None else groups[0]
                 group.symbol_members_by_language.setdefault(language, set()).add(qualified_name)
+
+    @staticmethod
+    def _repair_member_ownership(
+        groups: list[ClusterGroup],
+        previous_member_owner: Mapping[str, Mapping[str, ComponentId]],
+    ) -> None:
+        """Keep surviving members with their surviving previous group."""
+        group_by_id = {group.group_id: group for group in groups}
+        for language, owner_by_member in previous_member_owner.items():
+            current_group = {
+                qualified_name: group
+                for group in groups
+                for qualified_name in group.symbol_members_by_language.get(language, set())
+            }
+            missing_owners = {
+                owner_by_member[qualified_name] for qualified_name in current_group if qualified_name in owner_by_member
+            } - set(group_by_id)
+            for previous_group_id in sorted(missing_owners):
+                target = ClusterGroup(
+                    group_id=previous_group_id,
+                    cluster_ids=[],
+                    previous_component_id=previous_group_id,
+                )
+                groups.append(target)
+                group_by_id[previous_group_id] = target
+            for qualified_name, previous_group_id in owner_by_member.items():
+                source = current_group.get(qualified_name)
+                target = group_by_id.get(previous_group_id)
+                if source is None or target is None or source is target:
+                    continue
+                source.symbol_members_by_language[language].remove(qualified_name)
+                if not source.symbol_members_by_language[language]:
+                    del source.symbol_members_by_language[language]
+                target.symbol_members_by_language.setdefault(language, set()).add(qualified_name)
 
     @staticmethod
     def _cluster_for_file(file_path: str, cluster_result: ClusterResult) -> ClusterId | None:

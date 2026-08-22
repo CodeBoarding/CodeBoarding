@@ -1,71 +1,13 @@
-"""Deterministic component expansion planning — which components split further.
-
-Two independent gates, no LLM:
-
-* ``should_expand_component`` — structural. A component needs files, and needs
-  either its own leaf clusters or a parent that had them (one file-level level).
-* ``component_is_separable`` — size and cohesion. Past the leaf ceiling a
-  component splits whatever its call structure says; below it, the split's
-  modularity must clear a bar that eases as the component approaches the ceiling.
-
-See docs/development/component-sizing.md for the constants and the measurements
-behind them.
-"""
+"""Deterministic component expansion planning for persisted analyses."""
 
 import logging
-from collections.abc import Callable
-
-import networkx as nx
 
 from agents.agent_responses import AnalysisInsights, Component
-from static_analyzer.clustering import METHOD_LEVEL_STRATEGY, ClusterResult
-from static_analyzer.clustering.expansion import scope_is_separable, scope_load
-from static_analyzer.clustering.grouping import GroupingService
-from static_analyzer.config import ClusteringConfig
 
 logger = logging.getLogger(__name__)
 
 # Default thresholds
 DEFAULT_MIN_FILES = 1  # Need at least 1 file to have content
-
-
-def leaf_load(component: Component) -> float:
-    """How full a component is against the leaf ceiling; >= 1.0 means too big to leave whole."""
-    methods = sum(len(group.methods) for group in component.file_methods)
-    return scope_load(methods, len(component.file_methods))
-
-
-def component_is_separable(
-    cluster_results: dict[str, ClusterResult],
-    cfg_graphs: dict[str, nx.DiGraph],
-    load: float,
-    min_methods: int = ClusteringConfig.MIN_METHODS_TO_EXPAND,
-) -> bool:
-    """Whether a component's own call structure justifies splitting it into sub-components.
-
-    Requires enough content (>= ``min_methods`` methods) and a split whose modularity
-    clears the size-graded bar. ``load`` is the caller's ``leaf_load``; callers that
-    already know the component is oversized (``load >= 1.0``) should skip this and
-    split unconditionally rather than pay for the partition sweep.
-    """
-    total_methods = sum(len(members) for cr in cluster_results.values() for members in cr.clusters.values())
-    if total_methods < min_methods:
-        logger.debug(f"[Planner] subgraph too small to expand ({total_methods} < {min_methods} methods)")
-        return False
-    if all(cr.strategy == METHOD_LEVEL_STRATEGY for cr in cluster_results.values()):
-        # One synthetic cluster per method: the meta-graph is the raw call graph, whose
-        # modularity is far higher than any real clustering's and not comparable to the
-        # threshold. Too few natural clusters to separate means there is nothing to split.
-        logger.debug("[Planner] subgraph has no natural cluster structure; keeping as leaf")
-        return False
-    _groups, modularity = GroupingService().group(cluster_results, cfg_graphs, subcomponents=True)
-    required = ClusteringConfig.EXPAND_MODULARITY_THRESHOLD * max(0.0, 1.0 - load)
-    separable = scope_is_separable(cluster_results, modularity, load, total_methods, min_methods)
-    logger.debug(
-        f"[Planner] subgraph modularity={modularity:.4f} (load={load:.2f}, required {required:.4f}) "
-        f"-> separable={separable}"
-    )
-    return separable
 
 
 def should_expand_component(
@@ -81,11 +23,6 @@ def should_expand_component(
     - If component has no clusters but has files -> expand if parent had clusters
       (allows one more level to explain file internals)
     - If neither component nor parent has clusters -> stop (leaf node)
-
-    Note: Method-level cluster expansion is handled separately in
-    cluster_methods_mixin._expand_to_method_level_clusters() when a subgraph
-    has fewer than MIN_CLUSTERS_THRESHOLD clusters. This ensures the planner
-    doesn't need to worry about method counts.
 
     Args:
         component: The component to evaluate
@@ -133,7 +70,6 @@ def get_expandable_components(
     analysis: AnalysisInsights,
     parent_had_clusters: bool = True,
     min_files: int = DEFAULT_MIN_FILES,
-    separable: Callable[[Component], bool] | None = None,
 ) -> list[Component]:
     """
     Determine which components should be expanded for deeper analysis.
@@ -145,20 +81,12 @@ def get_expandable_components(
         parent_had_clusters: Whether the parent component (that produced this analysis)
                             had source_cluster_ids. True for top-level analysis.
         min_files: Minimum files for expansion (default: 1)
-        separable: Optional predicate that also requires a component's own call
-            structure to actually split (see ``component_is_separable``). When given,
-            cohesive components are kept as leaves instead of being force-expanded to
-            the depth cap. Omitted (None) preserves the structural-only behaviour.
-
     Returns:
         List of components that should be expanded
     """
     expandable: list[Component] = []
     for component in analysis.components:
         if not should_expand_component(component, parent_had_clusters, min_files):
-            continue
-        if separable is not None and not separable(component):
-            logger.info(f"[Planner] Component '{component.name}' is cohesive (below split threshold); keeping as leaf")
             continue
         expandable.append(component)
 

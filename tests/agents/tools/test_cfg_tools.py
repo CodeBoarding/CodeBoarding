@@ -10,7 +10,13 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph, Edge
-from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
+from static_analyzer.clustering import (
+    ClusterConnectionEdge,
+    ClusterGroup,
+    ClusterResult,
+    ClusterScopeResult,
+    GroupConnection,
+)
 from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
 from utils import get_artifact_dir
@@ -163,17 +169,43 @@ class TestComponentBridgeEdgesTool(unittest.TestCase):
         }
         scope = ClusterScopeResult(
             scope_id="root",
+            graphs_by_language={"python": cfg},
             leaf_clusters_by_language=cluster_results,
             groups=[
                 ClusterGroup(group_id="1", cluster_ids=[1]),
                 ClusterGroup(group_id="2", cluster_ids=[2]),
                 ClusterGroup(group_id="3", cluster_ids=[3]),
             ],
+            connections=[
+                GroupConnection(
+                    source_group_id="1",
+                    target_group_id="2",
+                    edges=[
+                        ClusterConnectionEdge(
+                            language="python",
+                            source_qualified_name=src.fully_qualified_name,
+                            target_qualified_name=dst.fully_qualified_name,
+                        )
+                    ],
+                ),
+                GroupConnection(
+                    source_group_id="2",
+                    target_group_id="3",
+                    edges=[
+                        ClusterConnectionEdge(
+                            language="python",
+                            source_qualified_name=dst.fully_qualified_name,
+                            target_qualified_name=other.fully_qualified_name,
+                        )
+                    ],
+                ),
+            ],
         )
         context = RepoContext(
             repo_dir=Path("."),
             ignore_manager=RepoIgnoreManager(Path(".")),
             clustering=scope,
+            cluster_group_ids={"Group 1": [1], "Group 2": [2], "Group 3": [3]},
             cluster_results=cluster_results,
             cfg_graphs={"python": cfg},
         )

@@ -3,8 +3,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
-import networkx as nx
-
 from agents.details_agent import DetailsAgent
 from agents.agent_responses import (
     AnalysisInsights,
@@ -15,17 +13,16 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
+from agents.static_analysis_enricher_mixin import StaticAnalysisEnricherMixin
 
 from diagram_analysis.file_index import build_files_index
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import (
-    ClusterCache,
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
-    ClusteringService,
 )
 from static_analyzer.node import Node
 
@@ -95,29 +92,6 @@ class TestDetailsAgent(unittest.TestCase):
             parsing_llm=MagicMock(),
         )
 
-    @staticmethod
-    def _clustered_graph(cluster_ids):
-        """A ClusterResult + matching nx graph: one chained pair of nodes per cluster id."""
-        clusters, cluster_to_files, file_to_clusters = {}, {}, {}
-        graph = nx.DiGraph()
-        for cid in cluster_ids:
-            nodes = [f"pkg.mod{cid}.a", f"pkg.mod{cid}.b"]
-            clusters[cid] = set(nodes)
-            path = f"/repo/mod{cid}.py"
-            cluster_to_files[cid] = {path}
-            file_to_clusters[path] = {cid}
-            for node in nodes:
-                graph.add_node(node, file_path=path)
-            graph.add_edge(nodes[0], nodes[1])
-        # Chain consecutive clusters so the meta-graph is connected.
-        ids = list(cluster_ids)
-        for prev, cur in zip(ids, ids[1:]):
-            graph.add_edge(f"pkg.mod{prev}.b", f"pkg.mod{cur}.a")
-        cr = ClusterResult(
-            clusters=clusters, cluster_to_files=cluster_to_files, file_to_clusters=file_to_clusters, strategy="test"
-        )
-        return cr, graph
-
     def test_init(self):
         # Test initialization
         mock_llm = MagicMock()
@@ -134,55 +108,6 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(agent.project_name, self.project_name)
         self.assertEqual(agent.meta_context, self.mock_meta_context)
         self.assertIn("final_analysis", agent.prompts)
-
-    def test_create_strict_component_subgraph(self):
-        # Test creating subgraph from component assigned files
-        mock_llm = MagicMock()
-        mock_parsing_llm = MagicMock()
-        agent = DetailsAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
-        # Build the expected set of qualified names from component's file_methods
-        expected_qnames = {"test.func", "test_utils.helper"}
-
-        # Create a mock node with proper attributes for method-level expansion check
-        mock_node = MagicMock()
-        mock_node.type = NodeType.FUNCTION
-        mock_node.file_path = str(self.repo_dir / "test.py")
-        mock_node.fully_qualified_name = "test.func"
-
-        # Mock cluster result with enough clusters to skip method-level expansion
-        mock_sub_cluster_result = ClusterResult(
-            clusters={i: {f"method_{i}"} for i in range(5)},  # 5 clusters to skip expansion
-            cluster_to_files={i: {str(self.repo_dir / "test.py")} for i in range(5)},
-            file_to_clusters={str(self.repo_dir / "test.py"): set(range(5))},
-            strategy="test",
-        )
-
-        mock_subgraph = MagicMock()
-        mock_subgraph.nodes = {"n1": mock_node}
-
-        mock_cfg = MagicMock()
-        mock_cfg.filter_by_nodes.return_value = mock_subgraph
-
-        self.mock_static_analysis.get_languages.return_value = ["python"]
-        self.mock_static_analysis.get_cfg.return_value = mock_cfg
-        self.mock_static_analysis.get_clusters.return_value = ClusterCache()
-
-        with patch.object(ClusteringService, "cluster", return_value=mock_sub_cluster_result) as mock_cluster:
-            subgraph_cluster_results, subgraph_cfgs = agent._create_strict_component_subgraph(self.test_component)
-
-        self.assertIs(subgraph_cluster_results["python"], mock_sub_cluster_result)
-        self.assertIn("python", subgraph_cfgs)
-        self.assertIs(subgraph_cfgs["python"], mock_subgraph)
-        self.mock_static_analysis.get_cfg.assert_called_with("python")
-        mock_cfg.filter_by_nodes.assert_called_with(expected_qnames)
-        mock_cluster.assert_called_once_with(mock_subgraph)
 
     def test_run_uses_precomputed_scope(self):
         agent = self._make_agent()
@@ -201,23 +126,24 @@ class TestDetailsAgent(unittest.TestCase):
         )
 
         with (
-            patch.object(agent, "step_llm_analysis", return_value=expected[0]) as llm_analysis,
-            patch.object(agent, "populate_file_methods"),
-            patch.object(agent, "step_api_surfaces", return_value=MagicMock()),
-            patch.object(agent, "step_relation_analysis"),
+            patch.object(agent, "_step_llm_analysis", return_value=expected[0]) as llm_analysis,
+            patch.object(agent, "populate_file_methods") as populate_methods,
+            patch.object(agent, "_step_api_surfaces", return_value=MagicMock()),
+            patch.object(agent, "_step_relation_analysis"),
             patch.object(agent.reference_resolver, "fix_source_code_reference_lines", return_value=expected[0]),
             patch("agents.details_agent.index_relation_endpoints"),
-            patch.object(agent, "_ensure_unique_key_entities"),
+            patch("agents.details_agent.ensure_unique_key_entities"),
         ):
             result = agent.run(scope, self.test_component)
 
         self.assertEqual(result, expected)
         _component, received_scope = llm_analysis.call_args.args
         self.assertIs(received_scope, scope)
+        populate_methods.assert_called_once_with(expected[0], scope)
         self.mock_static_analysis.get_cfg.assert_not_called()
 
     @patch("agents.details_agent.DetailsAgent._invoke_repair_validate")
-    def test_step_llm_analysis(self, mock_invoke_repair_validate):
+    def test_llm_analysis(self, mock_invoke_repair_validate):
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
@@ -236,102 +162,12 @@ class TestDetailsAgent(unittest.TestCase):
         mock_invoke_repair_validate.return_value = mock_response
 
         scope = ClusterScopeResult(scope_id="1")
-        result = agent.step_llm_analysis(self.test_component, scope)
+        result = agent._step_llm_analysis(self.test_component, scope)
 
         self.assertEqual(result, mock_response)
         mock_invoke_repair_validate.assert_called_once()
 
-    def test_resolve_cluster_ids_from_groups(self):
-        # Test _resolve_cluster_ids_from_groups
-        mock_llm = MagicMock()
-        mock_parsing_llm = MagicMock()
-        agent = DetailsAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
-
-        scope = ClusterScopeResult(
-            scope_id="1",
-            groups=[
-                ClusterGroup(group_id="1.1", cluster_ids=[1, 2]),
-                ClusterGroup(group_id="1.2", cluster_ids=[3, 4]),
-            ],
-        )
-
-        analysis = AnalysisInsights(
-            description="Test",
-            components=[
-                Component(
-                    name="Comp1",
-                    description="Comp1",
-                    key_entities=[],
-                    source_group_names=["Group 1", "Group 2"],
-                ),
-                Component(
-                    name="Comp2",
-                    description="Comp2",
-                    key_entities=[],
-                    source_group_names=["Group 1"],
-                ),
-            ],
-            components_relations=[],
-        )
-
-        agent._resolve_cluster_ids_from_groups(analysis, scope)
-
-        self.assertEqual(analysis.components[0].source_cluster_ids, ["1", "2", "3", "4"])
-        self.assertEqual(analysis.components[1].source_cluster_ids, ["1", "2"])
-
-    def test_resolve_cluster_ids_from_groups_case_insensitive(self):
-        # Test case-insensitive fallback
-        mock_llm = MagicMock()
-        mock_parsing_llm = MagicMock()
-        agent = DetailsAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
-
-        scope = ClusterScopeResult(
-            scope_id="1",
-            groups=[ClusterGroup(group_id="1.1", cluster_ids=[1, 2])],
-        )
-
-        analysis = AnalysisInsights(
-            description="Test",
-            components=[
-                Component(
-                    name="Comp1",
-                    description="Comp1",
-                    key_entities=[],
-                    source_group_names=["group 1"],
-                ),
-            ],
-            components_relations=[],
-        )
-
-        agent._resolve_cluster_ids_from_groups(analysis, scope)
-
-        self.assertEqual(analysis.components[0].source_cluster_ids, ["1", "2"])
-
-    def test_static_relation_pass_qualifies_detail_cluster_ids_with_parent_component_id(self):
-        mock_llm = MagicMock()
-        mock_parsing_llm = MagicMock()
-        agent = DetailsAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
+    def test_qualifies_detail_cluster_ids_with_parent_component_id(self):
         analysis = AnalysisInsights(
             description="Test",
             components=[
@@ -351,7 +187,7 @@ class TestDetailsAgent(unittest.TestCase):
             components_relations=[],
         )
 
-        agent.build_static_relations(analysis, {}, source_cluster_id_prefix="5.3")
+        StaticAnalysisEnricherMixin.qualify_source_cluster_ids(analysis, "5.3")
 
         self.assertEqual(analysis.components[0].source_cluster_ids, ["5.3.1", "5.3.2"])
         self.assertEqual(analysis.components[1].source_cluster_ids, ["5.3.7"])
@@ -372,34 +208,21 @@ class TestDetailsAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
         )
         self.test_component.component_id = "1"
-        sub_cluster_result, subgraph_graph = self._clustered_graph(range(1, 7))
+        sub_cluster_result = ClusterResult(clusters={1: {"n1"}}, strategy="test")
+        subgraph = CallGraph(language="python")
+        subgraph.add_node(Node("n1", NodeType.FUNCTION, str(self.repo_dir / "src" / "main.py"), 1, 10))
         scope = ClusterScopeResult(
             scope_id="1",
+            graphs_by_language={"python": subgraph},
             leaf_clusters_by_language={"python": sub_cluster_result},
-            groups=[ClusterGroup(group_id="1.1", cluster_ids=list(range(1, 7)))],
+            groups=[
+                ClusterGroup(
+                    group_id="1.1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {"n1"}},
+                )
+            ],
         )
-
-        mock_node = MagicMock()
-        mock_node.file_path = str(self.repo_dir / "src" / "main.py")
-        mock_node.fully_qualified_name = "n1"
-        mock_node.type = NodeType.FUNCTION
-        mock_node.line_start = 1
-        mock_node.line_end = 10
-
-        mock_subgraph = MagicMock()
-        mock_subgraph.nodes = {"n1": mock_node}
-        mock_subgraph.to_cluster_string.return_value = "Component CFG String"
-        mock_subgraph.to_networkx.return_value = subgraph_graph
-
-        mock_cfg = MagicMock()
-        mock_cfg.filter_by_nodes.return_value = mock_subgraph
-        # _build_cluster_string calls cfg.to_cluster_string on the original cfg
-        mock_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"
-        # Clustering reads the (super-)graph via get_cfg(...).to_networkx().
-        mock_cfg.to_networkx.return_value = subgraph_graph
-
-        self.mock_static_analysis.get_languages.return_value = ["python"]
-        self.mock_static_analysis.get_cfg.return_value = mock_cfg
 
         # Mock responses for final analysis. Grouping is now deterministic, so the
         # only _invoke_validate call in the pipeline is for relations.
@@ -437,18 +260,6 @@ class TestDetailsAgent(unittest.TestCase):
         mock_fix_ref.assert_called_once()
 
     def test_populate_file_methods(self):
-        # Test deterministic file population from cluster results
-        mock_llm = MagicMock()
-        mock_parsing_llm = MagicMock()
-        agent = DetailsAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
-
         sub_component = Component(
             name="SubComponent",
             description="Sub component",
@@ -476,9 +287,21 @@ class TestDetailsAgent(unittest.TestCase):
             cluster_to_files={1: {str(cluster_file), str(test_file)}},
             strategy="test",
         )
-        cluster_results = {"python": cluster_result}
+        scope = ClusterScopeResult(
+            scope_id="root",
+            graphs_by_language={"python": call_graph},
+            leaf_clusters_by_language={"python": cluster_result},
+            groups=[
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {"pkg.cluster_fn", "pkg.TestClass"}},
+                )
+            ],
+        )
 
-        agent.populate_file_methods(analysis, cluster_results)
+        agent = self._make_agent()
+        agent.populate_file_methods(analysis, scope)
 
         self.assertEqual([group.file_path for group in sub_component.file_methods], ["cluster_file.py", "test_file.py"])
         self.assertEqual(sub_component.file_methods[0].methods[0].qualified_name, "pkg.cluster_fn")

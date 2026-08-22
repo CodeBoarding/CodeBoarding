@@ -6,11 +6,10 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import (
     ClusterGroup,
     ClusterResult,
-    ClusterScopeInput,
     ClusterScopeResult,
     ClusteringService,
 )
-from static_analyzer.clustering.orchestration import build_clustering_hierarchy
+from static_analyzer.clustering.models import ClusterScopeInput
 from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
 
@@ -65,7 +64,7 @@ class TestClusteringHierarchy(unittest.TestCase):
                 partition = split_partition(current)
             return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
 
-        result = ClusteringService().cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
 
         group_a = next(group for group in result.groups if group.qualified_names == members_a)
         group_b = next(group for group in result.groups if group.qualified_names == members_b)
@@ -92,7 +91,7 @@ class TestClusteringHierarchy(unittest.TestCase):
             )
             return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
 
-        result = ClusteringService().cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
+        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
 
         root_group = result.groups[0]
         self.assertIsNotNone(root_group.children)
@@ -114,7 +113,7 @@ class TestClusteringHierarchy(unittest.TestCase):
             )
             return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
 
-        result = ClusteringService().cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
+        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
 
         self.assertFalse(result.groups[0].expandable)
         self.assertIsNone(result.groups[0].children)
@@ -134,7 +133,7 @@ class TestClusteringHierarchy(unittest.TestCase):
                 previous_owner={cluster_id: "1.1" for cluster_id in partition.clusters},
             )
 
-        result = ClusteringService().cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
+        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
 
         self.assertIsNone(result.groups[0].children)
 
@@ -150,16 +149,35 @@ class TestClusteringHierarchy(unittest.TestCase):
             return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
 
         with patch("static_analyzer.clustering.service.scope_is_separable", return_value=False) as separable:
-            ClusteringService().cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+            ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
 
         self.assertEqual(separable.call_args.args[3], 31)
 
+    def test_retains_a_persisted_child_scope_when_it_is_no_longer_separable(self):
+        graph = graph_for([f"n{index:02d}" for index in range(31)], one_file=True)
+
+        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            current = graphs["python"]
+            partition = (
+                partition_for(current, {1: set(current.nodes)}) if scope_id == "root" else split_partition(current)
+            )
+            return ClusterScopeInput(
+                leaf_clusters_by_language={"python": partition},
+                retain_scope=scope_id != "root",
+            )
+
+        with patch("static_analyzer.clustering.service.scope_is_separable", return_value=False):
+            result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+
+        self.assertTrue(result.groups[0].expandable)
+        self.assertIsNotNone(result.groups[0].children)
+
     def test_rejects_a_depth_below_the_root_level(self):
         with self.assertRaisesRegex(ValueError, "max_depth must be at least 1"):
-            ClusteringService().cluster_hierarchy({}, max_depth=0)
+            ClusteringService()._cluster_hierarchy({}, max_depth=0)
 
-    @patch("static_analyzer.clustering.orchestration.build_all_cluster_results")
-    @patch.object(ClusteringService, "cluster_hierarchy")
+    @patch.object(ClusteringService, "_build_leaf_clusters")
+    @patch.object(ClusteringService, "_cluster_hierarchy")
     def test_full_orchestration_reuses_root_partitions_and_records_child_lineage(
         self,
         cluster_hierarchy,
@@ -189,7 +207,7 @@ class TestClusteringHierarchy(unittest.TestCase):
         build_root.return_value = {"python": root_partition}
         cluster_hierarchy.return_value = hierarchy
 
-        result = build_clustering_hierarchy(static_analysis, max_depth=3)
+        result = ClusteringService().build_full_hierarchy(static_analysis, max_depth=3)
 
         self.assertIs(result, hierarchy)
         graphs, depth, scope_input = cluster_hierarchy.call_args.args

@@ -85,27 +85,25 @@ class TestAbstractionAgent(unittest.TestCase):
             leaf_clusters_by_language={"python": partition},
             groups=[ClusterGroup(group_id="1", cluster_ids=[1, 2])],
         )
-        expected = (
-            AnalysisInsights(description="done", components=[], components_relations=[]),
-            scope.leaf_clusters_by_language,
-        )
+        expected = AnalysisInsights(description="done", components=[], components_relations=[])
 
         with (
-            patch.object(agent, "step_llm_analysis", return_value=expected[0]) as llm_analysis,
-            patch.object(agent, "populate_file_methods"),
-            patch.object(agent, "step_api_surfaces", return_value=MagicMock()),
-            patch.object(agent, "step_relation_analysis"),
-            patch.object(agent.reference_resolver, "fix_source_code_reference_lines", return_value=expected[0]),
+            patch.object(agent, "_step_llm_analysis", return_value=expected) as llm_analysis,
+            patch.object(agent, "populate_file_methods") as populate_methods,
+            patch.object(agent, "_step_api_surfaces", return_value=MagicMock()),
+            patch.object(agent, "_step_relation_analysis"),
+            patch.object(agent.reference_resolver, "fix_source_code_reference_lines", return_value=expected),
             patch("agents.abstraction_agent.index_relation_endpoints"),
-            patch.object(agent, "_ensure_unique_key_entities"),
+            patch("agents.abstraction_agent.ensure_unique_key_entities"),
         ):
             result = agent.run(scope)
 
         self.assertEqual(result, expected)
         llm_analysis.assert_called_once_with(scope)
+        populate_methods.assert_called_once_with(expected, scope)
 
     @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
-    def test_step_llm_analysis(self, mock_invoke_repair_validate):
+    def test_llm_analysis(self, mock_invoke_repair_validate):
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
         agent = AbstractionAgent(
@@ -129,12 +127,12 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         mock_invoke_repair_validate.return_value = mock_response
 
-        result = agent.step_llm_analysis(scope)
+        result = agent._step_llm_analysis(scope)
 
         self.assertEqual(result, mock_response)
 
     @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
-    def test_step_llm_analysis_pins_one_component_per_group(self, mock_invoke_repair_validate):
+    def test_llm_analysis_pins_one_component_per_group(self, mock_invoke_repair_validate):
         """Even when the LLM merges/drops groups, the result has exactly one component per group."""
         agent = self._make_agent()
 
@@ -161,7 +159,7 @@ class TestAbstractionAgent(unittest.TestCase):
             ],
         )
 
-        result = agent.step_llm_analysis(scope)
+        result = agent._step_llm_analysis(scope)
 
         # Exactly one component per group, each backed by exactly one group.
         self.assertEqual(len(result.components), 3)
