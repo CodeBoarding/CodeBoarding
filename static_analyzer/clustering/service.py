@@ -19,10 +19,8 @@ from static_analyzer.clustering.engine import cluster_graph
 from static_analyzer.clustering.expansion import scope_is_separable, scope_load
 from static_analyzer.clustering.grouping import (
     GroupingService,
-    combine_cluster_results,
     reindex_across_languages,
     reindex_cluster_result,
-    score_grouping,
 )
 from static_analyzer.clustering.models import (
     METHOD_LEVEL_STRATEGY,
@@ -68,7 +66,7 @@ class ClusteringService:
         """Build a full hierarchy and synchronize its persisted cluster lineage."""
         root_results = self._build_leaf_clusters(static_analysis)
         hierarchy = self._build_hierarchy(static_analysis, max_depth, root_results, _unseeded_scope)
-        self._record_child_scopes(static_analysis, hierarchy)
+        self._record_scopes(static_analysis, hierarchy)
         return hierarchy
 
     def build_incremental_hierarchy(
@@ -114,6 +112,7 @@ class ClusteringService:
                     name: owner
                     for name, owner in owner_by_member.items()
                     if name not in changed_members
+                    or name not in graph.nodes
                     or normalize_repo_path(graph.nodes[name].file_path, repo_dir) not in normalized_changed_files
                 }
             return ClusterScopeInput(
@@ -125,7 +124,7 @@ class ClusteringService:
             )
 
         hierarchy = self._build_hierarchy(static_analysis, max_depth, root_leaf_clusters, scope_input)
-        self._record_child_scopes(static_analysis, hierarchy)
+        self._record_scopes(static_analysis, hierarchy)
         return hierarchy
 
     def build_scope_hierarchy(
@@ -257,9 +256,7 @@ class ClusteringService:
             )
             raw_groups = grouping.groups
             owners = grouping.owners
-            combined = combine_cluster_results(scope_leaf_clusters)
-            combined_cfg = nx.compose_all(list(nx_graphs.values())) if nx_graphs else nx.DiGraph()
-            modularity = score_grouping(combined, combined_cfg, raw_groups)
+            modularity = grouping.modularity
             unanchored_modularity = grouping.unanchored_modularity
             regrouped = grouping.regrouped
         else:
@@ -380,18 +377,22 @@ class ClusteringService:
         from diagram_analysis.cluster_delta import _delta_for_language
         from diagram_analysis.exceptions import IncrementalCacheMissingError
 
-        method_paths = {}
+        cluster_caches = {}
         for language in baseline.get_languages():
             try:
-                method_paths[str(language)] = baseline.get_clusters(language).method_paths
+                cluster_caches[str(language)] = baseline.get_clusters(language)
             except (KeyError, ValueError):
                 continue
         for language in graphs:
-            if language not in method_paths:
+            if language not in cluster_caches:
                 try:
-                    method_paths[language] = baseline.get_clusters(Language(language)).method_paths
+                    cluster_caches[language] = baseline.get_clusters(Language(language))
                 except (KeyError, ValueError):
                     pass
+        method_paths = {language: cache.method_paths for language, cache in cluster_caches.items()}
+        unclustered_members = {
+            language: cache.get_unclustered_members(scope_id) for language, cache in cluster_caches.items()
+        }
         prefix = f"{scope_id}."
         reserved = {
             int(local_id)
@@ -406,7 +407,11 @@ class ClusteringService:
         }
         for language, graph in graphs.items():
             covered = {member for entry in snapshots[language].values() for member in entry.members}
-            missing = (persisted_members.get(language, set()) & set(graph.nodes)) - covered
+            missing = (
+                (persisted_members.get(language, set()) & set(graph.nodes))
+                - covered
+                - unclustered_members.get(language, set())
+            )
             if missing:
                 raise IncrementalCacheMissingError(
                     artifact_dir,
@@ -420,7 +425,11 @@ class ClusteringService:
             snapshot = snapshots[language]
             partition = (
                 _delta_for_language(
-                    language, graph.to_networkx(DEFAULT_REFERENCE_KINDS), snapshot, next_new_id=next_new_id
+                    language,
+                    graph.to_networkx(DEFAULT_REFERENCE_KINDS),
+                    snapshot,
+                    next_new_id=next_new_id,
+                    known_unclustered_members=unclustered_members.get(language, set()),
                 ).cluster_results
                 if snapshot
                 else self.cluster(graph)
@@ -512,13 +521,23 @@ class ClusteringService:
         return owners, member_owners
 
     @staticmethod
-    def _record_child_scopes(static_analysis: Any, scope: ClusterScopeResult) -> None:
+    def _record_scopes(static_analysis: Any, scope: ClusterScopeResult) -> None:
+        for language, partition in scope.leaf_clusters_by_language.items():
+            cache = static_analysis.get_clusters(Language(language))
+            cache_scope_id = "" if scope.scope_id == _ROOT_SCOPE_ID else scope.scope_id
+            if scope.scope_id == _ROOT_SCOPE_ID:
+                cache.adopt(partition)
+            else:
+                cache.record_scope(partition, scope.scope_id)
+            assigned_members = {
+                member for group in scope.groups for member in group.symbol_members_by_language.get(language, set())
+            }
+            clustered_members = {member for members in partition.clusters.values() for member in members}
+            cache.record_unclustered(assigned_members - clustered_members, cache_scope_id)
         for group in scope.groups:
             if group.children is None:
                 continue
-            for language, partition in group.children.leaf_clusters_by_language.items():
-                static_analysis.get_clusters(Language(language)).record_scope(partition, group.group_id)
-            ClusteringService._record_child_scopes(static_analysis, group.children)
+            ClusteringService._record_scopes(static_analysis, group.children)
 
     @staticmethod
     def _add_expanded_symbol(
@@ -587,10 +606,10 @@ class ClusteringService:
                 not child_input.retain_scope
                 and load < 1.0
                 and not scope_is_separable(
-                    child.leaf_clusters_by_language,
-                    child.unanchored_modularity,
-                    load,
-                    method_count,
+                    leaf_clusters_by_language=child.leaf_clusters_by_language,
+                    modularity=child.unanchored_modularity,
+                    load=load,
+                    method_count=method_count,
                 )
             ):
                 continue

@@ -73,7 +73,7 @@ Existing cluster IDs are **preserved** (stable). New clusters get fresh IDs. Thi
 
 **Flavor A** (fallback, change >= 25%): Fresh Louvain on full CFG, match to old clusters by greedy 1:1 Jaccard >= 0.5.
 
-### Step 4: `plan_scope_update()` — no LLM
+### Step 4: `plan_scope_result_update()` — no LLM
 **`diagram_analysis/scope_plan.py`**
 
 Structure is derived, not asked for. The LLM no longer decides which cluster belongs to which
@@ -85,11 +85,12 @@ that scope changes — exactly when anchoring matters. `previous_ownership()` ma
 the component that owned most of its methods, breaking ties toward the lowest component id so the
 mapping is run-independent.
 
-**Grouping**: `anchored_grouping()` carries the previous grouping onto the new clustering. Every
+**Grouping**: `GroupingService.anchored_group()` carries the previous grouping onto the new clustering. Every
 surviving component keeps what it owned, genuinely new clusters are absorbed into the nearest
 existing group, and only a component left holding nothing is dropped. A from-scratch re-partition
-happens only when the carried grouping falls more than `REGROUP_DRIFT_BUDGET` behind a fresh
-optimum, and even then identity is inherited by method-count overlap.
+happens only when the carried grouping falls more than the `GroupingConfig` drift budget (the
+default `drift_budget` is 0.10) behind a fresh optimum, and even then identity is inherited by
+method-count overlap.
 
 **Output**: a `ScopeUpdateDecision` — `UPDATE_COMPONENT` for a component whose clusters or methods
 moved, `CREATE_COMPONENT` only for a group with no predecessor, `DELETE_COMPONENT` only for a

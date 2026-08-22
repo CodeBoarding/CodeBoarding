@@ -1,5 +1,6 @@
 import unittest
 from collections.abc import Mapping
+from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 from static_analyzer.cfg import CallGraph
@@ -50,7 +51,7 @@ class TestClusteringHierarchy(unittest.TestCase):
     def test_each_child_uses_its_exact_induced_graph(self):
         members_a = {f"a{index}" for index in range(13)}
         members_b = {"b1", "b2"}
-        graph = graph_for(sorted(members_a | members_b), edges=[("a1", "b1")])
+        graph = graph_for(sorted(members_a | members_b), edges=[("a1", "a2"), ("a1", "b1")])
         seen_nodes: dict[str, set[str]] = {}
         seen_edges: dict[str, set[tuple[str, str]]] = {}
 
@@ -70,8 +71,10 @@ class TestClusteringHierarchy(unittest.TestCase):
         group_b = next(group for group in result.groups if group.qualified_names == members_b)
         self.assertEqual(seen_nodes[group_a.group_id], members_a)
         self.assertEqual(seen_nodes[group_b.group_id], members_b)
-        self.assertEqual(seen_edges[group_a.group_id], set())
+        self.assertEqual(seen_edges[group_a.group_id], {("a1", "a2")})
         self.assertEqual(seen_edges[group_b.group_id], set())
+        self.assertNotIn(("a1", "b1"), seen_edges[group_a.group_id])
+        self.assertNotIn(("a1", "b1"), seen_edges[group_b.group_id])
         self.assertTrue(group_a.expandable)
         self.assertFalse(group_b.expandable)
         self.assertIsNotNone(group_a.children)
@@ -118,25 +121,6 @@ class TestClusteringHierarchy(unittest.TestCase):
         self.assertFalse(result.groups[0].expandable)
         self.assertIsNone(result.groups[0].children)
 
-    def test_one_group_child_does_not_consume_a_depth_level(self):
-        graph = graph_for([f"n{index:03d}" for index in range(121)], one_file=True)
-
-        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
-            current = graphs["python"]
-            if scope_id == "root":
-                return ClusterScopeInput(
-                    leaf_clusters_by_language={"python": partition_for(current, {1: set(current.nodes)})}
-                )
-            partition = split_partition(current)
-            return ClusterScopeInput(
-                leaf_clusters_by_language={"python": partition},
-                previous_owner={cluster_id: "1.1" for cluster_id in partition.clusters},
-            )
-
-        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
-
-        self.assertIsNone(result.groups[0].children)
-
     def test_expansion_gate_receives_the_child_graph_callable_count(self):
         graph = graph_for([f"n{index:02d}" for index in range(31)], one_file=True)
         graph.add_node(Node("Container", NodeType.CLASS, "/repo/scope.py", 100, 110))
@@ -151,7 +135,31 @@ class TestClusteringHierarchy(unittest.TestCase):
         with patch("static_analyzer.clustering.service.scope_is_separable", return_value=False) as separable:
             ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
 
-        self.assertEqual(separable.call_args.args[3], 31)
+        self.assertEqual(separable.call_args.kwargs["method_count"], 31)
+
+    def test_real_separability_gate_expands_a_modular_fresh_scope(self):
+        names = [f"n{index:02d}" for index in range(31)]
+        communities = [names[index::5] for index in range(5)]
+        edges = [
+            edge
+            for left, right in ((communities[0], communities[1]), (communities[2], communities[3]))
+            for edge in [(source, target) for source in left for target in right]
+            + [(source, target) for source in right for target in left]
+        ]
+        edges.extend((source, target) for source in communities[4] for target in communities[3])
+        graph = graph_for(names, one_file=True, edges=edges)
+
+        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            current = graphs["python"]
+            partition = (
+                partition_for(current, {1: set(current.nodes)}) if scope_id == "root" else split_partition(current)
+            )
+            return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
+
+        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+
+        self.assertTrue(result.groups[0].expandable)
+        self.assertIsNotNone(result.groups[0].children)
 
     def test_retains_a_persisted_child_scope_when_it_is_no_longer_separable(self):
         graph = graph_for([f"n{index:02d}" for index in range(31)], one_file=True)
@@ -163,6 +171,7 @@ class TestClusteringHierarchy(unittest.TestCase):
             )
             return ClusterScopeInput(
                 leaf_clusters_by_language={"python": partition},
+                previous_owner={cluster_id: "1.1" for cluster_id in partition.clusters},
                 retain_scope=scope_id != "root",
             )
 
@@ -178,7 +187,7 @@ class TestClusteringHierarchy(unittest.TestCase):
 
     @patch.object(ClusteringService, "_build_leaf_clusters")
     @patch.object(ClusteringService, "_cluster_hierarchy")
-    def test_full_orchestration_reuses_root_partitions_and_records_child_lineage(
+    def test_orchestration_records_structural_and_unclustered_lineage(
         self,
         cluster_hierarchy,
         build_root,
@@ -189,16 +198,37 @@ class TestClusteringHierarchy(unittest.TestCase):
         grandchild_scope = ClusterScopeResult(
             scope_id="1.1",
             leaf_clusters_by_language={"python": grandchild_partition},
+            groups=[
+                ClusterGroup(
+                    group_id="1.1.1",
+                    cluster_ids=[3],
+                    symbol_members_by_language={"python": {"grandchild", "grandchild.orphan"}},
+                )
+            ],
         )
         child_scope = ClusterScopeResult(
             scope_id="1",
             leaf_clusters_by_language={"python": child_partition},
-            groups=[ClusterGroup(group_id="1.1", cluster_ids=[2], children=grandchild_scope)],
+            groups=[
+                ClusterGroup(
+                    group_id="1.1",
+                    cluster_ids=[2],
+                    symbol_members_by_language={"python": {"child", "child.orphan"}},
+                    children=grandchild_scope,
+                )
+            ],
         )
         hierarchy = ClusterScopeResult(
             scope_id="root",
             leaf_clusters_by_language={"python": root_partition},
-            groups=[ClusterGroup(group_id="1", cluster_ids=[1], children=child_scope)],
+            groups=[
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {"root", "root.orphan"}},
+                    children=child_scope,
+                )
+            ],
         )
         static_analysis = MagicMock()
         static_analysis.available_cfgs.return_value = {"python": CallGraph(language="python")}
@@ -215,6 +245,7 @@ class TestClusteringHierarchy(unittest.TestCase):
         self.assertEqual(depth, 3)
         self.assertIs(scope_input("root", graphs).leaf_clusters_by_language["python"], root_partition)
         self.assertEqual(scope_input("1", graphs).leaf_clusters_by_language, {})
+        cache.adopt.assert_called_once_with(root_partition)
         self.assertEqual(
             cache.record_scope.call_args_list,
             [
@@ -222,7 +253,46 @@ class TestClusteringHierarchy(unittest.TestCase):
                 call(grandchild_partition, "1.1"),
             ],
         )
+        self.assertEqual(
+            cache.record_unclustered.call_args_list,
+            [
+                call({"root.orphan"}, ""),
+                call({"child.orphan"}, "1"),
+                call({"grandchild.orphan"}, "1.1"),
+            ],
+        )
         static_analysis.get_clusters.assert_called_with(Language.PYTHON)
+
+        graph = graph_for(["pkg.live"], one_file=True)
+        root_partition = partition_for(graph, {1: {"pkg.live"}})
+        persisted_method = MagicMock(qualified_name="pkg.removed")
+        persisted_group = MagicMock(file_path="scope.py", methods=[persisted_method])
+        persisted_component = MagicMock(
+            component_id="1",
+            source_cluster_ids=["1"],
+            file_methods=[persisted_group],
+        )
+        persisted = MagicMock(components=[persisted_component])
+        static_analysis.incremental_base_results = MagicMock()
+        static_analysis.available_cfgs.return_value = {"python": graph}
+        cluster_hierarchy.reset_mock()
+
+        ClusteringService().build_incremental_hierarchy(
+            static_analysis,
+            max_depth=1,
+            root_leaf_clusters={"python": root_partition},
+            persisted_scopes={"root": persisted},
+            changed_members={"pkg.removed"},
+            changed_files={"scope.py"},
+            repo_dir=Path("/repo"),
+            artifact_dir=Path("/artifacts"),
+        )
+
+        graphs, _depth, scope_input = cluster_hierarchy.call_args.args
+        self.assertEqual(
+            scope_input("root", graphs).previous_member_owner,
+            {"python": {"pkg.removed": "1"}},
+        )
 
 
 if __name__ == "__main__":

@@ -77,6 +77,7 @@ class AnchoredGrouping:
     groups: list[set[ClusterId]]
     owners: list[ComponentId]
     regrouped: bool
+    modularity: float
     unanchored_modularity: float
 
 

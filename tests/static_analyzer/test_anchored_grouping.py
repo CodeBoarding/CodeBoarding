@@ -6,15 +6,17 @@ different one and reshuffle ownership. The incremental path uses anchored groupi
 instead, and these tests pin the properties it exists to provide.
 """
 
+import math
 import unittest
 
 import networkx as nx
 
 from static_analyzer.clustering import ClusterResult
-from static_analyzer.config import DEFAULT_GROUPING_CONFIG
+from static_analyzer.config import DEFAULT_GROUPING_CONFIG, GroupingConfig
 from static_analyzer.clustering.grouping import (
     GroupingService,
     _absorb_leftovers,
+    _anchored_group,
     _build_meta_graph,
     _method_counts,
     _modularity,
@@ -186,6 +188,34 @@ class TestAnchoredGrouping(unittest.TestCase):
 
         self.assertTrue(result.regrouped)
         self.assertGreater(len(result.groups), 1)
+
+    def test_drift_budget_boundary_controls_regrouping(self):
+        cr, graph = blocks(n_blocks=6, per_block=4)
+        previous = {cid: "C0" for cid in cr.clusters}
+        measuring_config = GroupingConfig(min_components=5, max_components=8, drift_budget=1.0)
+        carried = _anchored_group(cr, graph, previous, measuring_config)
+        boundary = carried.unanchored_modularity - carried.modularity
+        self.assertGreater(boundary, 0.0)
+
+        at_boundary = _anchored_group(
+            cr,
+            graph,
+            previous,
+            GroupingConfig(min_components=5, max_components=8, drift_budget=boundary),
+        )
+        below_boundary = _anchored_group(
+            cr,
+            graph,
+            previous,
+            GroupingConfig(
+                min_components=5,
+                max_components=8,
+                drift_budget=math.nextafter(boundary, -math.inf),
+            ),
+        )
+
+        self.assertFalse(at_boundary.regrouped)
+        self.assertTrue(below_boundary.regrouped)
 
     def test_a_re_derived_structure_still_inherits_identity(self):
         # Regrouping must not rename everything: the component holding most of a
