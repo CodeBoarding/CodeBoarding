@@ -25,19 +25,16 @@ from diagram_analysis.file_index import build_files_index
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
-    TOP_LEVEL_COMPONENTS_MAX,
-    TOP_LEVEL_COMPONENTS_MIN,
     combine_cluster_results,
     group_symbols,
     reindex_across_languages,
-    supercluster_leaf_ids,
 )
 from static_analyzer.cluster_relations import (
     build_component_relations,
     build_node_to_component_map,
     merge_relations,
 )
-from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
+from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES, Language
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,
@@ -45,6 +42,7 @@ from static_analyzer.clustering import (
     ClusteringService,
     MethodClusterPaths,
 )
+from static_analyzer.clustering.grouping import GroupingService
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -122,12 +120,12 @@ class ClusterMethodsMixin:
         self,
         cluster_results: dict[str, ClusterResult],
         cfg_graphs: dict[str, nx.DiGraph],
-        low: int = TOP_LEVEL_COMPONENTS_MIN,
-        high: int = TOP_LEVEL_COMPONENTS_MAX,
+        *,
+        subcomponents: bool = False,
     ) -> ClusterAnalysis:
         """Partition leaf clusters into fixed component groups via resolution-tuned Leiden.
 
-        The count (modularity peak over ``[low, high]``) and membership are chosen
+        The count (modularity peak over the configured range) and membership are chosen
         deterministically, so the structure is stable across re-runs — the LLM no
         longer decides it. Each group gets a stable ``Group i`` label and a summary
         of its members; the final-analysis step only names and describes them.
@@ -137,7 +135,11 @@ class ClusterMethodsMixin:
         top level. Handing it the repo graph for a component scope makes the split
         disagree with the separability gate, which reads the subgraph.
         """
-        groups, _modularity = supercluster_leaf_ids(cluster_results, cfg_graphs, low, high)
+        groups, _modularity = GroupingService().group(
+            cluster_results,
+            cfg_graphs,
+            subcomponents=subcomponents,
+        )
         combined = combine_cluster_results(cluster_results)
         cluster_components = [
             ClustersComponent(

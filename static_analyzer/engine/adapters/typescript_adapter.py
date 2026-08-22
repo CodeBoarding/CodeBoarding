@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 

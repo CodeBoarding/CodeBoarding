@@ -1,7 +1,7 @@
 """Derive one scope's incremental update from the clustering, without asking an LLM.
 
 Full analysis already fixes component count and membership deterministically
-(``supercluster_leaf_ids`` + ``assemble_one_component_per_group``), leaving the LLM only
+(``GroupingService.group`` + ``assemble_one_component_per_group``), leaving the LLM only
 the naming. ``plan_scope_update`` gives the incremental path the same treatment: every
 surviving component keeps what it owned, genuinely new clusters are absorbed, and only a
 component left holding nothing is deleted. Structure is derived; wording stays the LLM's.
@@ -28,15 +28,11 @@ from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cluster_helpers import (
-    SUBCOMPONENTS_MAX,
-    SUBCOMPONENTS_MIN,
-    TOP_LEVEL_COMPONENTS_MAX,
-    TOP_LEVEL_COMPONENTS_MIN,
-    anchored_grouping,
     combine_cluster_results,
     group_symbols,
 )
 from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering.grouping import GroupingService
 
 logger = logging.getLogger(__name__)
 
@@ -148,14 +144,14 @@ def plan_scope_update(
                 if component.component_id
             ]
         )
-    combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
-
     is_root = scope_id == ROOT_SCOPE_ID
-    low = TOP_LEVEL_COMPONENTS_MIN if is_root else SUBCOMPONENTS_MIN
-    high = TOP_LEVEL_COMPONENTS_MAX if is_root else SUBCOMPONENTS_MAX
-
     previous = previous_ownership(scope, cluster_results, scope_id, repo_dir)
-    grouping = anchored_grouping(combined, combined_cfg, previous, low, high)
+    grouping = GroupingService().anchored_group(
+        cluster_results,
+        cfg_graphs,
+        previous,
+        subcomponents=not is_root,
+    )
 
     language_of: dict[int, str] = {
         cluster_id: language for language, result in cluster_results.items() for cluster_id in result.clusters

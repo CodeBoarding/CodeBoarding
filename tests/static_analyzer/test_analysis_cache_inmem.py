@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 from static_analyzer import EngineConfig, StaticAnalyzer
 from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, merge_results
 from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
-from static_analyzer.constants import Language, NodeType
+from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterCache, ClusterResult
 from static_analyzer.node import Node

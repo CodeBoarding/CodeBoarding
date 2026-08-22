@@ -13,7 +13,7 @@ from tree_sitter import Language as TreeSitterLanguage
 from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Tree
 
-from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
+from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
 from static_analyzer.engine.models import CallSite
 
 import tree_sitter_c_sharp

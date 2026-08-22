@@ -1,9 +1,9 @@
 """Node class for the static analyzer call graph.
 
-Extracted from constants.py so that module contains only constants.
+Node behavior is separate from the static analyzer configuration definitions.
 """
 
-from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, DATA_TYPES, ENTITY_LABELS, NodeType
+from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES, DATA_TYPES, ENTITY_LABELS, NodeType
 
 
 class Node:

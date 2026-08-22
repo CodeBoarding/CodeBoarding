@@ -66,3 +66,12 @@ class ClusterResult:
             file_to_clusters=kept_file_to_clusters,
             strategy=self.strategy,
         )
+
+
+@dataclass(frozen=True)
+class AnchoredGrouping:
+    """A grouping carried forward from the previous run."""
+
+    groups: list[set[int]]
+    owners: list[str]
+    regrouped: bool

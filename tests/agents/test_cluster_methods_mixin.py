@@ -14,7 +14,7 @@ from agents.agent_responses import (
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterResult
-from static_analyzer.constants import Language, NodeType
+from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
 
 

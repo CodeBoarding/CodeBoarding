@@ -26,7 +26,7 @@ from agents.incremental_agent import (
 )
 from agents.incremental_results import ScopeRelationContext
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node

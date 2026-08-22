@@ -18,7 +18,7 @@ from static_analyzer.analysis_cache import (
     invalidate_files,
     merge_results,
 )
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient

@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer import (
     MAX_CONCURRENT_ENGINES_ENV_VAR,
     EngineConfig,

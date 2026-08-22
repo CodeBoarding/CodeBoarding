@@ -5,21 +5,20 @@ import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
-    TOP_LEVEL_COMPONENTS_MAX,
-    TOP_LEVEL_COMPONENTS_MIN,
     build_all_cluster_results,
     reindex_across_languages,
     reindex_cluster_result,
-    supercluster_by_modularity_peak,
-    supercluster_leaf_ids,
 )
 from static_analyzer.clustering import ClusterCache, ClusterResult, ClusteringService
+from static_analyzer.config import DEFAULT_GROUPING_CONFIG
+from static_analyzer.clustering.grouping import GroupingService
 
 
-def _make_cluster_result(prefix: str, count: int) -> ClusterResult:
-    clusters = {cluster_id: {f"{prefix}.node_{cluster_id}"} for cluster_id in range(1, count + 1)}
-    cluster_to_files = {cluster_id: {f"/repo/{prefix}_{cluster_id}.py"} for cluster_id in range(1, count + 1)}
-    file_to_clusters = {f"/repo/{prefix}_{cluster_id}.py": {cluster_id} for cluster_id in range(1, count + 1)}
+def _make_cluster_result(prefix: str, count: int, start: int = 1) -> ClusterResult:
+    cluster_ids = range(start, start + count)
+    clusters = {cluster_id: {f"{prefix}.node_{cluster_id}"} for cluster_id in cluster_ids}
+    cluster_to_files = {cluster_id: {f"/repo/{prefix}_{cluster_id}.py"} for cluster_id in cluster_ids}
+    file_to_clusters = {f"/repo/{prefix}_{cluster_id}.py": {cluster_id} for cluster_id in cluster_ids}
     return ClusterResult(
         clusters=clusters,
         cluster_to_files=cluster_to_files,
@@ -31,19 +30,26 @@ def _make_cluster_result(prefix: str, count: int) -> ClusterResult:
 class TestClusterHelpers(unittest.TestCase):
     def test_multi_tech_stack_cluster_ids_are_reindexed_without_overlap(self):
         analysis = MagicMock(spec=StaticAnalysisResults)
-        analysis.get_languages.return_value = ["python", "typescript"]
+        analysis.get_languages.return_value = ["python", "typescript", "go"]
 
         python_cfg = MagicMock()
         typescript_cfg = MagicMock()
+        go_cfg = MagicMock()
         analysis.get_cfg.side_effect = lambda language: {
             "python": python_cfg,
             "typescript": typescript_cfg,
+            "go": go_cfg,
         }[language]
-        partitions = {python_cfg: _make_cluster_result("py", 40), typescript_cfg: _make_cluster_result("ts", 40)}
-        python_clusters, typescript_clusters = ClusterCache(), ClusterCache()
+        partitions = {
+            python_cfg: _make_cluster_result("py", 40),
+            typescript_cfg: _make_cluster_result("ts", 40),
+            go_cfg: _make_cluster_result("go", 40),
+        }
+        python_clusters, typescript_clusters, go_clusters = ClusterCache(), ClusterCache(), ClusterCache()
         analysis.get_clusters.side_effect = lambda language: {
             "python": python_clusters,
             "typescript": typescript_clusters,
+            "go": go_clusters,
         }[language]
 
         with patch.object(ClusteringService, "cluster", side_effect=lambda graph: partitions[graph]):
@@ -51,14 +57,19 @@ class TestClusterHelpers(unittest.TestCase):
 
         python_ids = set(result["python"].clusters.keys())
         typescript_ids = set(result["typescript"].clusters.keys())
+        go_ids = set(result["go"].clusters.keys())
         self.assertEqual(python_ids, set(range(1, 41)))
+        self.assertEqual(typescript_ids, set(range(42, 82)))
+        self.assertEqual(go_ids, set(range(124, 164)))
         self.assertTrue(python_ids.isdisjoint(typescript_ids))
-        self.assertEqual(len(typescript_ids), 40)
+        self.assertTrue(python_ids.isdisjoint(go_ids))
+        self.assertTrue(typescript_ids.isdisjoint(go_ids))
 
         shifted_ts_ids = set().union(*result["typescript"].file_to_clusters.values())
         self.assertEqual(shifted_ts_ids, typescript_ids)
         self.assertIs(python_clusters.result, result["python"])
         self.assertIs(typescript_clusters.result, result["typescript"])
+        self.assertIs(go_clusters.result, result["go"])
 
     def test_all_clusters_survive_grouping(self):
         """Every leaf cluster keeps its members — nothing is merged away before grouping."""
@@ -80,18 +91,21 @@ class TestClusterHelpers(unittest.TestCase):
         for file_ids in shifted.file_to_clusters.values():
             self.assertTrue(file_ids.issubset({11, 12, 13}))
 
-    def test_reindex_across_languages_makes_ids_disjoint(self):
+    def test_reindex_across_languages_makes_zero_based_ids_disjoint(self):
         cluster_results = {
-            "javascript": _make_cluster_result("js", 10),
-            "python": _make_cluster_result("py", 10),
+            "javascript": _make_cluster_result("js", 10, start=0),
+            "python": _make_cluster_result("py", 10, start=0),
         }
 
         reindex_across_languages(cluster_results)
 
         js_ids = set(cluster_results["javascript"].clusters.keys())
         py_ids = set(cluster_results["python"].clusters.keys())
-        self.assertTrue(js_ids.isdisjoint(py_ids), f"Overlap detected: {js_ids & py_ids}")
-        self.assertEqual(len(js_ids) + len(py_ids), 20)
+        self.assertEqual(js_ids, set(range(0, 10)))
+        self.assertEqual(py_ids, set(range(10, 20)))
+        self.assertTrue(js_ids.isdisjoint(py_ids))
+        self.assertEqual(set().union(*cluster_results["javascript"].file_to_clusters.values()), js_ids)
+        self.assertEqual(set().union(*cluster_results["python"].file_to_clusters.values()), py_ids)
 
     def test_reindex_across_languages_leaves_already_disjoint_ids_alone(self):
         # The seeded incremental path returns the previous run's scoped ids, already
@@ -122,6 +136,8 @@ class TestClusterHelpers(unittest.TestCase):
 
 
 class TestSuperClusterModularityPeak(unittest.TestCase):
+    grouping_service = GroupingService()
+
     @staticmethod
     def _blocks(n_blocks: int, per_block: int, weak_bridges: bool = True):
         """A ClusterResult + meta-friendly cfg with ``n_blocks`` tight blocks of leaf clusters."""
@@ -156,9 +172,12 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         self.assertEqual(sorted(assigned), sorted(expected_ids))
         self.assertEqual(len(assigned), len(set(assigned)), "clusters must be partitioned, not shared")
 
+    def _group(self, cluster_result, graph):
+        return self.grouping_service.group({"test": cluster_result}, {"test": graph})
+
     def test_recovers_natural_block_count_within_range(self):
         cr, graph = self._blocks(n_blocks=6, per_block=5)
-        groups, modularity = supercluster_by_modularity_peak(cr, graph)
+        groups, modularity = self._group(cr, graph)
         self.assertEqual(len(groups), 6)
         self.assertGreater(modularity, 0.5)
         self._assert_partition(groups, range(1, 31))
@@ -166,20 +185,20 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
     def test_count_is_clamped_to_range(self):
         # 10 natural blocks, but the count must not exceed the max.
         cr, graph = self._blocks(n_blocks=10, per_block=4)
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
-        self.assertTrue(TOP_LEVEL_COMPONENTS_MIN <= len(groups) <= TOP_LEVEL_COMPONENTS_MAX)
+        groups, _modularity = self._group(cr, graph)
+        self.assertTrue(DEFAULT_GROUPING_CONFIG.min_components <= len(groups) <= DEFAULT_GROUPING_CONFIG.max_components)
         self._assert_partition(groups, range(1, 41))
 
     def test_deterministic_across_runs(self):
         cr, graph = self._blocks(n_blocks=7, per_block=4)
-        first, first_q = supercluster_by_modularity_peak(cr, graph)
-        second, second_q = supercluster_by_modularity_peak(cr, graph)
+        first, first_q = self._group(cr, graph)
+        second, second_q = self._group(cr, graph)
         self.assertEqual(sorted(map(sorted, first)), sorted(map(sorted, second)))
         self.assertEqual(first_q, second_q)
 
     def test_fewer_clusters_than_floor_returns_singletons(self):
         cr, graph = self._blocks(n_blocks=1, per_block=3, weak_bridges=False)
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
+        groups, _modularity = self._group(cr, graph)
         self.assertEqual(len(groups), 3)
         self._assert_partition(groups, range(1, 4))
 
@@ -201,9 +220,9 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         for cid in range(1, 41):
             graph.add_node(f"n{cid}", file_path=next(iter(cluster_to_files[cid])))
 
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
+        groups, _modularity = self._group(cr, graph)
 
-        self.assertEqual(len(groups), TOP_LEVEL_COMPONENTS_MIN)
+        self.assertEqual(len(groups), DEFAULT_GROUPING_CONFIG.min_components)
         self._assert_partition(groups, range(1, 41))
         biggest = max(len(group) for group in groups)
         self.assertLessEqual(biggest, 12, f"one seed absorbed {biggest}/40 clusters: {sorted(map(len, groups))}")
@@ -219,7 +238,7 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         cr.file_to_clusters["/repo/models/schema.py"] = {big_id}
         graph.add_node("models.Model0", file_path="/repo/models/schema.py")
 
-        groups, _modularity = supercluster_by_modularity_peak(cr, graph)
+        groups, _modularity = self._group(cr, graph)
         owner = next(group for group in groups if big_id in group)
         # It seeded its own group rather than being absorbed into a larger one.
         self.assertEqual(owner, {big_id})
@@ -231,10 +250,10 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         js_clusters = {cid: cr_py.clusters[cid] for cid in range(16, 31)}
         py = ClusterResult(clusters=py_clusters, cluster_to_files=cr_py.cluster_to_files, strategy="t")
         js = ClusterResult(clusters=js_clusters, cluster_to_files=cr_py.cluster_to_files, strategy="t")
-        groups, _modularity = supercluster_leaf_ids(
+        groups, _modularity = self.grouping_service.group(
             {"python": py, "javascript": js}, {"python": graph, "javascript": graph}
         )
-        self.assertTrue(TOP_LEVEL_COMPONENTS_MIN <= len(groups) <= TOP_LEVEL_COMPONENTS_MAX)
+        self.assertTrue(DEFAULT_GROUPING_CONFIG.min_components <= len(groups) <= DEFAULT_GROUPING_CONFIG.max_components)
         self._assert_partition(groups, range(1, 31))
 
     def test_modularity_is_zero_without_inter_cluster_edges(self):
@@ -244,7 +263,7 @@ class TestSuperClusterModularityPeak(unittest.TestCase):
         for cid, members in cr.clusters.items():
             for member in members:
                 graph.add_node(member, file_path=next(iter(cr.cluster_to_files[cid])))
-        _groups, modularity = supercluster_by_modularity_peak(cr, graph)
+        _groups, modularity = self._group(cr, graph)
         self.assertEqual(modularity, 0.0)
 
 

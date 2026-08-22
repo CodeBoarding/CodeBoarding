@@ -4,7 +4,7 @@ import networkx as nx
 
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterCache, ClusterResult, ClusteringService
-from static_analyzer.constants import ClusteringConfig
+from static_analyzer.config import ClusteringConfig
 from static_analyzer.leiden_utils import find_partition
 from static_analyzer.node import Node
 

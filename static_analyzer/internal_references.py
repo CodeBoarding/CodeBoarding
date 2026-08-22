@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from typing import Protocol
 from weakref import ReferenceType, ref
 
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 
 
 class ReferenceNode(Protocol):
