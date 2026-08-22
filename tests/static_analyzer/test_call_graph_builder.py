@@ -171,6 +171,25 @@ class TestDiscoverSymbols:
         probe_call = lsp.document_symbol.call_args_list[0]
         assert probe_call.kwargs.get("timeout") == 1800
 
+    def test_probe_before_open_gets_a_barrier_after_bulk_open(self):
+        """Opening every file queues work the next request waits behind."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        files = [Path(f"/project/file_{i}.cs") for i in range(100)]
+        lsp.document_symbol.return_value = []
+
+        builder._discover_symbols(files)
+
+        # Probe, then bulk didOpen, then a second probe on the same scaled budget.
+        probe_timeouts = [
+            call.kwargs.get("timeout") for call in lsp.document_symbol.call_args_list if "timeout" in call.kwargs
+        ]
+        assert probe_timeouts[:2] == [260, 260]
+        assert lsp.did_open.call_count == 100
+
     def test_interleaves_did_open_with_symbol_queries(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
