@@ -742,22 +742,11 @@ class DiagramGenerator:
             repo_dir=self.repo_location,
         )
         baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
-        changed_files = (
-            {
-                normalize_repo_path(change.file_path, self.repo_location)
-                for change in self.changes.files
-                if change.is_content_change()
-            }
-            if self.changes is not None
-            else set()
-        )
         self.clustering_hierarchy = ClusteringService().build_incremental_hierarchy(
             self.static_analysis,
             hierarchy_depth,
             delta.cluster_results(),
             {ROOT_SCOPE_ID: root_analysis, **sub_analyses},
-            self._changed_members,
-            changed_files,
             self.repo_location,
             self.output_dir,
         )

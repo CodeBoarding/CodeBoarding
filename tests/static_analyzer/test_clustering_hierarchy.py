@@ -263,35 +263,57 @@ class TestClusteringHierarchy(unittest.TestCase):
         )
         static_analysis.get_clusters.assert_called_with(Language.PYTHON)
 
-        graph = graph_for(["pkg.live"], one_file=True)
-        root_partition = partition_for(graph, {1: {"pkg.live"}})
-        persisted_method = MagicMock(qualified_name="pkg.removed")
-        persisted_group = MagicMock(file_path="scope.py", methods=[persisted_method])
-        persisted_component = MagicMock(
-            component_id="1",
-            source_cluster_ids=["1"],
-            file_methods=[persisted_group],
-        )
-        persisted = MagicMock(components=[persisted_component])
+    def test_incremental_hierarchy_preserves_surviving_member_ownership(self):
+        graph = graph_for(["pkg.changed", "stable.one", "stable.two"], one_file=True)
+        root_partition = partition_for(graph, {1: set(graph.nodes)})
+        persisted_components = [
+            MagicMock(
+                component_id="1",
+                source_cluster_ids=["1"],
+                file_methods=[
+                    MagicMock(
+                        file_path="scope.py",
+                        methods=[
+                            MagicMock(qualified_name="pkg.changed"),
+                            MagicMock(qualified_name="pkg.removed"),
+                        ],
+                    )
+                ],
+            ),
+            MagicMock(
+                component_id="2",
+                source_cluster_ids=["2"],
+                file_methods=[
+                    MagicMock(
+                        file_path="scope.py",
+                        methods=[
+                            MagicMock(qualified_name="stable.one"),
+                            MagicMock(qualified_name="stable.two"),
+                        ],
+                    )
+                ],
+            ),
+        ]
+        persisted = MagicMock(components=persisted_components)
+        static_analysis = MagicMock()
         static_analysis.incremental_base_results = MagicMock()
         static_analysis.available_cfgs.return_value = {"python": graph}
-        cluster_hierarchy.reset_mock()
 
-        ClusteringService().build_incremental_hierarchy(
+        hierarchy = ClusteringService().build_incremental_hierarchy(
             static_analysis,
             max_depth=1,
             root_leaf_clusters={"python": root_partition},
             persisted_scopes={"root": persisted},
-            changed_members={"pkg.removed"},
-            changed_files={"scope.py"},
             repo_dir=Path("/repo"),
             artifact_dir=Path("/artifacts"),
         )
 
-        graphs, _depth, scope_input = cluster_hierarchy.call_args.args
         self.assertEqual(
-            scope_input("root", graphs).previous_member_owner,
-            {"python": {"pkg.removed": "1"}},
+            {group.group_id: group.qualified_names for group in hierarchy.groups},
+            {
+                "1": {"pkg.changed"},
+                "2": {"stable.one", "stable.two"},
+            },
         )
 
 

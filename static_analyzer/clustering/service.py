@@ -75,8 +75,6 @@ class ClusteringService:
         max_depth: int,
         root_leaf_clusters: Mapping[str, ClusterResult],
         persisted_scopes: Mapping[str, Any],
-        changed_members: Collection[str],
-        changed_files: Collection[str],
         repo_dir: Path,
         artifact_dir: Path,
     ) -> ClusterScopeResult:
@@ -86,7 +84,6 @@ class ClusteringService:
         baseline = static_analysis.incremental_base_results
         if baseline is None:
             raise IncrementalCacheMissingError(artifact_dir)
-        normalized_changed_files = {normalize_repo_path(path, repo_dir) for path in changed_files}
 
         def scope_input(scope_id: ScopeId, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
             persisted = persisted_scopes.get(scope_id)
@@ -106,15 +103,6 @@ class ClusteringService:
             if persisted is None:
                 return ClusterScopeInput(leaf_clusters_by_language=leaf_clusters)
             cluster_owner, member_owner = self._previous_ownership(persisted, leaf_clusters, scope_id, repo_dir)
-            for language, owner_by_member in member_owner.items():
-                graph = graphs[language]
-                member_owner[language] = {
-                    name: owner
-                    for name, owner in owner_by_member.items()
-                    if name not in changed_members
-                    or name not in graph.nodes
-                    or normalize_repo_path(graph.nodes[name].file_path, repo_dir) not in normalized_changed_files
-                }
             return ClusterScopeInput(
                 leaf_clusters_by_language=leaf_clusters,
                 previous_owner=cluster_owner,
