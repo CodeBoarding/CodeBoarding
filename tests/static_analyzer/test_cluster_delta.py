@@ -1,4 +1,4 @@
-"""Tests for ``diagram_analysis.cluster_delta`` (seeded Leiden, no fallback)."""
+"""Tests for seeded incremental clustering."""
 
 import tempfile
 import unittest
@@ -6,13 +6,13 @@ from pathlib import Path
 
 from agents.content_hash import MethodSpan, hash_file_residual, hash_method_body, hash_whole_file, read_source_lines
 from agents.file_index_models import FileEntry, MethodEntry
-from diagram_analysis.cluster_delta import (
+from diagram_analysis.incremental_changes import compute_changed_members
+from static_analyzer.clustering.delta import (
     _affected_frontier,
     _flavor_b_seeded,
-    compute_changed_members,
     compute_cluster_delta,
 )
-from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry, snapshot_from_cluster_results
+from static_analyzer.clustering.snapshot import ClusterSnapshot, ClusterSnapshotEntry, snapshot_from_cluster_results
 from repo_utils.change_detector import ChangeSet, FileChange
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language, NodeType
@@ -286,7 +286,7 @@ class TestDiffScoping(unittest.TestCase):
         )
 
         changes = self._changeset(["a.py"])  # b.py NOT in diff -> b.lost vanishing is inconsistent
-        with self.assertLogs("diagram_analysis.cluster_delta", level="WARNING") as captured:
+        with self.assertLogs("static_analyzer.clustering.delta", level="WARNING") as captured:
             delta = compute_cluster_delta(snap, _build_static(graph), changes=changes)
 
         ld = delta.by_language["python"]

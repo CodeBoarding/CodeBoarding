@@ -4,9 +4,7 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
-from constants import DEFAULT_STATIC_RELATION_LABEL
 from agents.agent_responses import AnalysisInsights, Component, ComponentArchitecture, Relation, RelationEdge
-from agents.cluster_ids import CodeBoardingClusterIds
 from agents.component_ownership import ComponentOwnershipIndex
 from agents.content_hash import SourceCache
 from agents.llm_renderers import cluster_group_descriptions, cluster_group_ids
@@ -18,6 +16,8 @@ from agents.relation_edges import (
     ground_relation_edges,
     prune_ungrounded_edges,
 )
+from clustering_ids import CodeBoardingClusterIds
+from constants import DEFAULT_STATIC_RELATION_LABEL
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
 from static_analyzer.cfg import Edge
 from static_analyzer.clustering import ClusterScopeResult, GroupConnection

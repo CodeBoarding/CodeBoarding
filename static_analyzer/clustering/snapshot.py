@@ -1,4 +1,4 @@
-"""In-memory cluster snapshot of the prior clustering, used by ``cluster_delta``.
+"""In-memory snapshot of persisted cluster lineage.
 
 The partition is sourced exclusively from each language's ``ClusterCache``,
 populated by the previous run and round-tripped through the SHA-tagged pkl.
@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass, field
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering.models import ClusterResult
 
 logger = logging.getLogger(__name__)
 

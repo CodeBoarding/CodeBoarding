@@ -1,4 +1,4 @@
-"""Tests for ``diagram_analysis.cluster_snapshot``.
+"""Tests for persisted cluster snapshots.
 
 The snapshot is sourced exclusively from each language's ``ClusterCache``
 (the partition is round-tripped through the SHA-tagged pkl). Languages
@@ -8,7 +8,7 @@ full-analysis fallback in ``DiagramGenerator.generate_analysis_incremental``.
 
 import unittest
 
-from diagram_analysis.cluster_snapshot import (
+from static_analyzer.clustering.snapshot import (
     ClusterSnapshot,
     ClusterSnapshotEntry,
     snapshot_from_cluster_results,

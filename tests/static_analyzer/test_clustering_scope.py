@@ -8,11 +8,10 @@ from static_analyzer.clustering import (
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
-    ClusteringService,
 )
 from static_analyzer.clustering.grouping import GroupingService
 from static_analyzer.clustering.models import AnchoredGrouping
-from static_analyzer.clustering.service import LeafClustersUnavailableError
+from static_analyzer.clustering.service import ClusteringService, LeafClustersUnavailableError
 from static_analyzer.node import Node
 
 

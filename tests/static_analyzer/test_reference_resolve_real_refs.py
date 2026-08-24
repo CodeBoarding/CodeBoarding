@@ -37,7 +37,7 @@ ANALYSIS_KEY_ENTITIES: list[tuple[str, str]] = [
     ("caching.meta_cache.MetaCache", "caching/meta_cache.py"),
     ("agents.dependency_discovery.DependencyDiscovery", "agents/dependency_discovery.py"),
     ("agents.tools.read_cfg.ReadCFG", "agents/tools/read_cfg.py"),
-    ("diagram_analysis.cluster_delta.ClusterDelta", "diagram_analysis/cluster_delta.py"),
+    ("static_analyzer.clustering.delta.ClusterDelta", "static_analyzer/clustering/delta.py"),
     ("agents.abstraction_agent.AbstractionAgent", "agents/abstraction_agent.py"),
     ("agents.meta_agent.MetaAgent", "agents/meta_agent.py"),
     ("agents.validation.ValidationContext", "agents/validation.py"),
@@ -216,8 +216,8 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
         self.assertEqual(result.components[0].key_entities, [])
 
     def test_deep_nested_qname_without_static_symbol_is_dropped(self):
-        qname = "diagram_analysis.cluster_delta.ClusterDelta"
-        expected_file = "diagram_analysis/cluster_delta.py"
+        qname = "static_analyzer.clustering.delta.ClusterDelta"
+        expected_file = "static_analyzer/clustering/delta.py"
 
         self.sa.get_reference.side_effect = ValueError("not found")
         self.sa.get_loose_reference.side_effect = Exception("not found")
@@ -371,8 +371,8 @@ class TestMultiComponentAnalysis(unittest.TestCase):
                 ("agents.dependency_discovery.DependencyDiscovery", "agents/dependency_discovery.py"),
                 ("agents.tools.read_cfg.ReadCFG", "agents/tools/read_cfg.py"),
                 (
-                    "diagram_analysis.cluster_delta.ClusterDelta",
-                    "diagram_analysis/cluster_delta.py",
+                    "static_analyzer.clustering.delta.ClusterDelta",
+                    "static_analyzer/clustering/delta.py",
                 ),
             ],
             "AI Agentic Layer": [

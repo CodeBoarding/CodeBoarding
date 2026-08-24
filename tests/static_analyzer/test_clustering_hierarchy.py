@@ -8,9 +8,9 @@ from static_analyzer.clustering import (
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
-    ClusteringService,
 )
 from static_analyzer.clustering.models import ClusterScopeInput
+from static_analyzer.clustering.service import ClusteringService
 from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
 

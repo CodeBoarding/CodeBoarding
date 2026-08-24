@@ -44,16 +44,14 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
-from diagram_analysis.cluster_delta import ClusterDelta, compute_changed_members, compute_cluster_delta
-from diagram_analysis.cluster_snapshot import snapshot_from_static_analysis
 from diagram_analysis.exceptions import (
     ClusteringScopeUnavailableError,
-    IncrementalCacheMissingError,
     ScopeContainmentError,
 )
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
+from diagram_analysis.incremental_changes import compute_changed_members
 from repo_utils.path_utils import normalize_repo_path
 from diagram_analysis.scope_plan import plan_scope_result_update
 from diagram_analysis.tree_shape import absorb_single_child_components
@@ -78,8 +76,11 @@ from static_analyzer.config import Language
 from static_analyzer.clustering import (
     ClusterResult,
     ClusterScopeResult,
-    ClusteringService,
 )
+from static_analyzer.clustering.delta import ClusterDelta, compute_cluster_delta
+from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
+from static_analyzer.clustering.service import ClusteringService
+from static_analyzer.clustering.snapshot import snapshot_from_static_analysis
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 

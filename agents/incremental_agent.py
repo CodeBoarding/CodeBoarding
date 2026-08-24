@@ -25,7 +25,6 @@ from agents.agent_responses import (
     assign_relation_ids,
     iter_components,
 )
-from agents.cluster_ids import CodeBoardingClusterIds
 from agents.content_hash import SourceCache
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
@@ -39,6 +38,7 @@ from agents.prompts import (
 )
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
+from clustering_ids import CodeBoardingClusterIds
 from agents.static_analysis_enricher_mixin import StaticAnalysisEnricherMixin
 from agents.validation import ValidationContext, validate_relations
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index

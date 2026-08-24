@@ -11,11 +11,13 @@ from typing import Any
 
 import networkx as nx
 
-from clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
+from clustering_ids import ROOT_SCOPE_ID, ClusterId, CodeBoardingClusterIds, ComponentId, GroupId, ScopeId
 from constants import MIN_CLUSTERS_THRESHOLD
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering.engine import cluster_graph
+from static_analyzer.clustering.delta import delta_for_language
+from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
 from static_analyzer.clustering.expansion import scope_is_separable, scope_load
 from static_analyzer.clustering.grouping import (
     GroupingService,
@@ -31,9 +33,9 @@ from static_analyzer.clustering.models import (
     ClusterScopeResult,
     GroupConnection,
 )
+from static_analyzer.clustering.snapshot import ClusterSnapshotEntry
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES, Language
 
-_ROOT_SCOPE_ID: ScopeId = "root"
 _EMPTY_LEAF_CLUSTERS: Mapping[str, ClusterResult] = MappingProxyType({})
 _EMPTY_OWNERS: Mapping[ClusterId, ComponentId] = MappingProxyType({})
 _EMPTY_MEMBER_OWNERS: Mapping[str, Mapping[str, ComponentId]] = MappingProxyType({})
@@ -79,19 +81,17 @@ class ClusteringService:
         artifact_dir: Path,
     ) -> ClusterScopeResult:
         """Build an anchored hierarchy from persisted ownership and cluster lineage."""
-        from diagram_analysis.exceptions import IncrementalCacheMissingError
-
         baseline = static_analysis.incremental_base_results
         if baseline is None:
             raise IncrementalCacheMissingError(artifact_dir)
 
         def scope_input(scope_id: ScopeId, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
             persisted = persisted_scopes.get(scope_id)
-            if scope_id != _ROOT_SCOPE_ID and persisted is None:
+            if scope_id != ROOT_SCOPE_ID and persisted is None:
                 return ClusterScopeInput()
             leaf_clusters = (
                 dict(root_leaf_clusters)
-                if scope_id == _ROOT_SCOPE_ID
+                if scope_id == ROOT_SCOPE_ID
                 else self._incremental_scope_partitions(
                     baseline,
                     scope_id,
@@ -191,7 +191,7 @@ class ClusteringService:
         self,
         graphs: Mapping[str, CallGraph],
         *,
-        scope_id: ScopeId = _ROOT_SCOPE_ID,
+        scope_id: ScopeId = ROOT_SCOPE_ID,
         leaf_clusters_by_language: Mapping[str, ClusterResult] = _EMPTY_LEAF_CLUSTERS,
         previous_owner: Mapping[ClusterId, ComponentId] = _EMPTY_OWNERS,
         previous_member_owner: Mapping[str, Mapping[str, ComponentId]] = _EMPTY_MEMBER_OWNERS,
@@ -237,7 +237,7 @@ class ClusteringService:
 
         nx_graphs = {language: graph.to_networkx(DEFAULT_REFERENCE_KINDS) for language, graph in graphs.items()}
         grouping_service = GroupingService()
-        subcomponents = scope_id != _ROOT_SCOPE_ID
+        subcomponents = scope_id != ROOT_SCOPE_ID
         if previous_owner:
             grouping = grouping_service.anchored_group(
                 scope_leaf_clusters,
@@ -299,7 +299,7 @@ class ClusteringService:
         graphs: Mapping[str, CallGraph],
         max_depth: int,
         scope_input: Callable[[ScopeId, Mapping[str, CallGraph]], ClusterScopeInput] = _unseeded_scope,
-        root_scope_id: ScopeId = _ROOT_SCOPE_ID,
+        root_scope_id: ScopeId = ROOT_SCOPE_ID,
     ) -> ClusterScopeResult:
         """Recursively cluster every expandable exact subgraph up to ``max_depth``."""
         if max_depth < 1:
@@ -312,7 +312,7 @@ class ClusteringService:
             previous_owner=root_input.previous_owner,
             previous_member_owner=root_input.previous_member_owner,
             reserved_group_ids=root_input.reserved_group_ids,
-            method_level_fallback=root_scope_id != _ROOT_SCOPE_ID,
+            method_level_fallback=root_scope_id != ROOT_SCOPE_ID,
         )
         self._cluster_children(root, graphs, 1, max_depth, scope_input)
         root.index_hierarchy()
@@ -327,7 +327,7 @@ class ClusteringService:
     ) -> ClusterScopeResult:
         def seeded_input(scope_id: ScopeId, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
             provided = scope_input(scope_id, graphs)
-            if scope_id != _ROOT_SCOPE_ID:
+            if scope_id != ROOT_SCOPE_ID:
                 return provided
             return ClusterScopeInput(
                 leaf_clusters_by_language=root_results,
@@ -364,10 +364,6 @@ class ClusteringService:
         persisted_members: Mapping[str, set[str]],
         artifact_dir: Path,
     ) -> dict[str, ClusterResult]:
-        # Imported after static-analysis models initialize; cluster_delta reads those models.
-        from diagram_analysis.cluster_delta import _delta_for_language
-        from diagram_analysis.exceptions import IncrementalCacheMissingError
-
         cluster_caches = {}
         for language in baseline.get_languages():
             try:
@@ -415,7 +411,7 @@ class ClusteringService:
             graph = graphs[language]
             snapshot = snapshots[language]
             partition = (
-                _delta_for_language(
+                delta_for_language(
                     language,
                     graph.to_networkx(DEFAULT_REFERENCE_KINDS),
                     snapshot,
@@ -440,8 +436,6 @@ class ClusteringService:
 
     @staticmethod
     def _scoped_snapshot(graph: CallGraph, method_paths: Any, scope_id: ScopeId) -> dict[int, Any]:
-        from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
-
         if method_paths is None:
             return {}
         prefix = f"{scope_id}."
@@ -479,7 +473,7 @@ class ClusteringService:
     @staticmethod
     def _previous_ownership(scope, results: Mapping[str, ClusterResult], scope_id: ScopeId, repo_dir: Path):
         """Recover persisted ownership from stable members before local cluster IDs."""
-        prefix = "" if scope_id == _ROOT_SCOPE_ID else scope_id
+        prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
         claimed = {
             cluster_id: component.component_id
             for component in scope.components
@@ -506,7 +500,7 @@ class ClusteringService:
                 if tally:
                     owners[cluster_id] = min(tally.items(), key=lambda claim: (-claim[1], claim[0]))[0]
                     continue
-                qualified = f"{prefix}.{cluster_id}" if prefix else str(cluster_id)
+                qualified = CodeBoardingClusterIds.qualify_local_id(str(cluster_id), prefix)
                 if qualified in claimed:
                     owners[cluster_id] = claimed[qualified]
         return owners, member_owners
@@ -515,8 +509,8 @@ class ClusteringService:
     def _record_scopes(static_analysis: Any, scope: ClusterScopeResult) -> None:
         for language, partition in scope.leaf_clusters_by_language.items():
             cache = static_analysis.get_clusters(Language(language))
-            cache_scope_id = "" if scope.scope_id == _ROOT_SCOPE_ID else scope.scope_id
-            if scope.scope_id == _ROOT_SCOPE_ID:
+            cache_scope_id = CodeBoardingClusterIds.prefix_for_scope(scope.scope_id)
+            if scope.scope_id == ROOT_SCOPE_ID:
                 cache.adopt(partition)
             else:
                 cache.record_scope(partition, scope.scope_id)
@@ -629,11 +623,12 @@ class ClusteringService:
     ) -> list[GroupId]:
         allocated = (set(owners) | set(reserved_group_ids)) - {""}
         result: list[GroupId] = []
-        prefix = "" if scope_id == _ROOT_SCOPE_ID else f"{scope_id}."
+        prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
         used_indices = [
-            int(group_id.removeprefix(prefix))
+            int(local_id)
             for group_id in allocated
-            if group_id.startswith(prefix) and group_id.removeprefix(prefix).isdigit()
+            if (local_id := group_id.removeprefix(f"{prefix}." if prefix else "")).isdigit()
+            and (not prefix or group_id.startswith(f"{prefix}."))
         ]
         next_index = max(used_indices, default=0) + 1
         for owner in owners:
@@ -641,7 +636,7 @@ class ClusteringService:
                 result.append(owner)
                 continue
             while True:
-                candidate = str(next_index) if scope_id == _ROOT_SCOPE_ID else f"{scope_id}.{next_index}"
+                candidate = CodeBoardingClusterIds.qualify_local_id(str(next_index), prefix)
                 next_index += 1
                 if candidate not in allocated:
                     allocated.add(candidate)

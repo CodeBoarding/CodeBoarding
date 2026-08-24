@@ -14,7 +14,6 @@ from static_analyzer.clustering.models import (
     ClusterScopeResult,
     GroupConnection,
 )
-from static_analyzer.clustering.service import ClusteringService
 
 __all__ = [
     "METHOD_LEVEL_STRATEGY",
@@ -23,6 +22,5 @@ __all__ = [
     "ClusterGroup",
     "ClusterResult",
     "ClusterScopeResult",
-    "ClusteringService",
     "GroupConnection",
 ]

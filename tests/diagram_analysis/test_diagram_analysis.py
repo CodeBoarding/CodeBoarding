@@ -32,13 +32,12 @@ from diagram_analysis.analysis_json import (
     from_component_to_json_component,
     parse_unified_analysis,
 )
-from diagram_analysis.cluster_delta import LanguageDelta
 from diagram_analysis.diagram_generator import (
     DiagramGenerator,
     _component_depth,
     _component_expansion_seeds,
 )
-from diagram_analysis.exceptions import ClusteringScopeUnavailableError, IncrementalCacheMissingError
+from diagram_analysis.exceptions import ClusteringScopeUnavailableError
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -49,9 +48,11 @@ from static_analyzer.clustering import (
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
-    ClusteringService,
 )
 from static_analyzer.clustering.method_cluster_paths import MethodClusterPaths
+from static_analyzer.clustering.delta import LanguageDelta
+from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
+from static_analyzer.clustering.service import ClusteringService
 from static_analyzer.node import Node
 
 
@@ -1796,7 +1797,7 @@ class TestDiagramGenerator(unittest.TestCase):
                 self.output_dir,
             )
 
-    @patch("diagram_analysis.cluster_delta._delta_for_language")
+    @patch("static_analyzer.clustering.service.delta_for_language")
     def test_incremental_child_scope_reserves_ids_from_removed_languages(self, delta_for_language):
         baseline = MagicMock()
         baseline.get_languages.return_value = [Language.PYTHON, Language.TYPESCRIPT]
