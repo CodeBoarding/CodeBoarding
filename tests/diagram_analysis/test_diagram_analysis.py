@@ -1204,15 +1204,27 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        expandable = Component(name="A", description="", key_entities=[], component_id="1")
+        expandable = Component(
+            name="A",
+            description="",
+            key_entities=[],
+            component_id="1",
+            file_methods=[FileMethodGroup(file_path="a.py")],
+        )
         leaf = Component(name="B", description="", key_entities=[], component_id="2")
-        analysis = AnalysisInsights(description="root", components=[expandable, leaf], components_relations=[])
+        ignored = Component(name="Ignored", description="", key_entities=[], component_id="3")
+        analysis = AnalysisInsights(
+            description="root",
+            components=[expandable, leaf, ignored],
+            components_relations=[],
+        )
         gen.details_agent = Mock()
         gen.clustering_hierarchy = ClusterScopeResult(
             scope_id="root",
             groups=[
                 ClusterGroup(group_id="1", cluster_ids=[1], expandable=True),
                 ClusterGroup(group_id="2", cluster_ids=[2], expandable=False),
+                ClusterGroup(group_id="3", cluster_ids=[3], expandable=True),
             ],
         )
 
@@ -1264,8 +1276,20 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        target = Component(name="Target", description="", key_entities=[], component_id="1")
-        sibling = Component(name="Sibling", description="", key_entities=[], component_id="2")
+        target = Component(
+            name="Target",
+            description="",
+            key_entities=[],
+            component_id="1",
+            file_methods=[FileMethodGroup(file_path="target.py")],
+        )
+        sibling = Component(
+            name="Sibling",
+            description="",
+            key_entities=[],
+            component_id="2",
+            file_methods=[FileMethodGroup(file_path="sibling.py")],
+        )
         children = [
             Component(name="Child A", description="", key_entities=[], component_id="1.1"),
             Component(name="Child B", description="", key_entities=[], component_id="1.2"),

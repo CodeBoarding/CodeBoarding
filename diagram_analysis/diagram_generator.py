@@ -794,9 +794,12 @@ class DiagramGenerator:
         clustering_groups = self.clustering_hierarchy.clustering_groups if self.clustering_hierarchy else {}
         if clustering_groups:
 
-            def is_expandable(component_id: str) -> bool:
+            def is_expandable(component: Component) -> bool:
+                component_id = component.component_id
                 if component_id in sub_analyses:
                     return True
+                if not component.file_methods:
+                    return False
                 group = clustering_groups.get(component_id)
                 if group is not None:
                     return group.expandable
@@ -806,7 +809,7 @@ class DiagramGenerator:
                 return [
                     component.component_id
                     for component in scope.components
-                    if component.component_id and is_expandable(component.component_id)
+                    if component.component_id and is_expandable(component)
                 ]
 
             return precomputed_ids(root_analysis), {
