@@ -557,7 +557,7 @@ class StaticAnalyzer:
             adapter = engine_config.adapter
             if suffix in adapter.file_extensions:
                 # Open + change to ensure the server has the latest content
-                client.did_open(file_path, adapter.language_id_for(file_path))
+                client.did_open(file_path)
                 client.did_change(file_path, content)
                 logger.debug(f"Sent didOpen+didChange for {file_path} to {adapter.language} engine LSP")
 

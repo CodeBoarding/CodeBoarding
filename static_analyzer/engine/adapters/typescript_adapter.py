@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import ClassVar
 
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
 class TypeScriptAdapter(LanguageAdapter):
-
-    _JSX_LANGUAGE_IDS: ClassVar[dict[str, str]] = {".tsx": "typescriptreact", ".jsx": "javascriptreact"}
 
     @property
     def language(self) -> str:
@@ -28,10 +25,6 @@ class TypeScriptAdapter(LanguageAdapter):
     @property
     def language_id(self) -> str:
         return "typescript"
-
-    def language_id_for(self, file_path: Path) -> str:
-        """The JSX dialect for .tsx/.jsx, so tsserver parses JSX rather than type assertions."""
-        return self._JSX_LANGUAGE_IDS.get(file_path.suffix, self.language_id)
 
     def extract_package(self, qualified_name: str) -> str:
         return self._extract_deep_package(qualified_name)

@@ -925,7 +925,7 @@ class TestDidOpenDidChangeDidClose:
 
         with patch.object(client, "_send_notification") as mock_notif:
             with patch.object(Path, "read_text", return_value="print('hi')"):
-                client.did_open(Path("/root/test.py"), "python")
+                client.did_open(Path("/root/test.py"))
 
             mock_notif.assert_called_once()
             args = mock_notif.call_args[0]
@@ -961,7 +961,7 @@ class TestDidOpenDidChangeDidClose:
 
         with patch.object(client, "_send_notification") as mock_notif:
             with patch.object(Path, "read_text", return_value=""):
-                client.did_open(file_path, "python")
+                client.did_open(file_path)
             client.did_change(file_path, "edited")
 
             change_args = mock_notif.call_args_list[-1][0]
@@ -973,8 +973,8 @@ class TestDidOpenDidChangeDidClose:
 
         with patch.object(client, "_send_notification") as mock_notif:
             with patch.object(Path, "read_text", return_value="content"):
-                client.did_open(file_path, "python")
-                client.did_open(file_path, "python")
+                client.did_open(file_path)
+                client.did_open(file_path)
 
             # Only one didOpen should be sent
             assert mock_notif.call_count == 1
@@ -995,9 +995,9 @@ class TestDidOpenDidChangeDidClose:
 
         with patch.object(client, "_send_notification") as mock_notif:
             with patch.object(Path, "read_text", return_value="content"):
-                client.did_open(file_path, "python")
+                client.did_open(file_path)
                 client.did_close(file_path)
-                client.did_open(file_path, "python")
+                client.did_open(file_path)
 
             methods = [call[0][0] for call in mock_notif.call_args_list]
             assert methods == ["textDocument/didOpen", "textDocument/didClose", "textDocument/didOpen"]
@@ -1007,7 +1007,7 @@ class TestDidOpenDidChangeDidClose:
 
         with patch.object(client, "_send_notification") as mock_notif:
             with patch.object(Path, "read_text", side_effect=PermissionError):
-                client.did_open(Path("/root/test.py"), "python")
+                client.did_open(Path("/root/test.py"))
 
             # Should still send with empty text
             args = mock_notif.call_args[0]

@@ -27,19 +27,64 @@ class Language(StrEnum):
     CPP = "cpp"
 
 
+class SourceSuffix(StrEnum):
+    """File suffixes we recognise, so a suffix is never a loose string."""
+
+    PY = ".py"
+    TS = ".ts"
+    TSX = ".tsx"
+    MTS = ".mts"
+    CTS = ".cts"
+    JS = ".js"
+    JSX = ".jsx"
+    MJS = ".mjs"
+    CJS = ".cjs"
+    GO = ".go"
+    JAVA = ".java"
+    PHP = ".php"
+    RS = ".rs"
+    CS = ".cs"
+    CPP = ".cpp"
+    CC = ".cc"
+    CXX = ".cxx"
+    HPP = ".hpp"
+    HH = ".hh"
+    HXX = ".hxx"
+    H = ".h"
+
+
+class JsxLanguageId(StrEnum):
+    """The only LSP language ids with no ``Language`` of their own.
+
+    Why: a ``.tsx`` is TypeScript, but tsserver derives its scriptKind from the id and
+    reads JSX as a type assertion unless it gets the dialect.
+    """
+
+    TYPESCRIPT = "typescriptreact"
+    JAVASCRIPT = "javascriptreact"
+
+
 # File extensions per language. Every ``Language`` member appears here — keep
 # it that way so adding a new language forces you to list its extensions in
 # the same edit. ``mypy`` enforces total coverage via the assertion below.
-LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
-    Language.PYTHON: (".py",),
-    Language.TYPESCRIPT: (".ts", ".tsx", ".mts", ".cts"),
-    Language.JAVASCRIPT: (".js", ".jsx", ".mjs", ".cjs"),
-    Language.GO: (".go",),
-    Language.JAVA: (".java",),
-    Language.PHP: (".php",),
-    Language.RUST: (".rs",),
-    Language.CSHARP: (".cs",),
-    Language.CPP: (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"),
+LANGUAGE_EXTENSIONS: dict[Language, tuple[SourceSuffix, ...]] = {
+    Language.PYTHON: (SourceSuffix.PY,),
+    Language.TYPESCRIPT: (SourceSuffix.TS, SourceSuffix.TSX, SourceSuffix.MTS, SourceSuffix.CTS),
+    Language.JAVASCRIPT: (SourceSuffix.JS, SourceSuffix.JSX, SourceSuffix.MJS, SourceSuffix.CJS),
+    Language.GO: (SourceSuffix.GO,),
+    Language.JAVA: (SourceSuffix.JAVA,),
+    Language.PHP: (SourceSuffix.PHP,),
+    Language.RUST: (SourceSuffix.RS,),
+    Language.CSHARP: (SourceSuffix.CS,),
+    Language.CPP: (
+        SourceSuffix.CPP,
+        SourceSuffix.CC,
+        SourceSuffix.CXX,
+        SourceSuffix.HPP,
+        SourceSuffix.HH,
+        SourceSuffix.HXX,
+        SourceSuffix.H,
+    ),
 }
 
 # Import-time invariant: every language has an extension list. Cheap check that
@@ -53,6 +98,14 @@ assert set(LANGUAGE_EXTENSIONS) == set(
 # place updates both.
 SOURCE_EXTENSION_TO_LANGUAGE: dict[str, Language] = {
     ext: language for language, exts in LANGUAGE_EXTENSIONS.items() for ext in exts
+}
+
+# The languageId a document is opened with. Follows the file, not whichever adapter
+# owns the family, so a .tsx is never opened as plain "typescript".
+LANGUAGE_ID_BY_SUFFIX: dict[str, str] = {
+    **{suffix: language.value for language, suffixes in LANGUAGE_EXTENSIONS.items() for suffix in suffixes},
+    SourceSuffix.TSX: JsxLanguageId.TYPESCRIPT,
+    SourceSuffix.JSX: JsxLanguageId.JAVASCRIPT,
 }
 
 

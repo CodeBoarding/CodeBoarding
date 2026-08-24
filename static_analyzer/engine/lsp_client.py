@@ -16,6 +16,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from static_analyzer.constants import LANGUAGE_ID_BY_SUFFIX
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
@@ -266,8 +267,11 @@ class LSPClient:
 
     # ---- Document management ----
 
-    def did_open(self, file_path: Path, language_id: str) -> None:
+    def did_open(self, file_path: Path) -> None:
         """Notify the server that a document was opened.
+
+        The languageId follows the file's suffix, not the adapter: one server can serve
+        several dialects, and tsserver mis-parses a .tsx opened as plain "typescript".
 
         Idempotent: silently skips if the file is already open, since the
         LSP spec forbids duplicate didOpen notifications for the same URI.
@@ -275,6 +279,9 @@ class LSPClient:
         uri = file_path.resolve().as_uri()
         if uri in self._opened_uris:
             return
+        language_id = LANGUAGE_ID_BY_SUFFIX.get(file_path.suffix)
+        if language_id is None:
+            raise ValueError(f"No LSP language id for suffix {file_path.suffix!r}: {file_path}")
         try:
             text = file_path.read_text(errors="replace")
         except Exception:
