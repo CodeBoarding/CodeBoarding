@@ -258,6 +258,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_invoke_repair_validate.assert_called_once()
         mock_parse_invoke.assert_called_once_with(ANY, ComponentApiSurfaces)
         mock_fix_ref.assert_called_once()
+        self.assertEqual(agent.toolkit.context.group_ids_by_name, {"Group 1": "1.1"})
 
     def test_populate_file_methods(self):
         sub_component = Component(

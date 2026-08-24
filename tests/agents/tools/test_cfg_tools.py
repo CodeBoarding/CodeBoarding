@@ -205,7 +205,7 @@ class TestComponentBridgeEdgesTool(unittest.TestCase):
             repo_dir=Path("."),
             ignore_manager=RepoIgnoreManager(Path(".")),
             clustering=scope,
-            cluster_group_ids={"Group 1": [1], "Group 2": [2], "Group 3": [3]},
+            group_ids_by_name={"Group 1": "1", "Group 2": "2", "Group 3": "3"},
             cluster_results=cluster_results,
             cfg_graphs={"python": cfg},
         )
@@ -225,6 +225,14 @@ class TestComponentBridgeEdgesTool(unittest.TestCase):
         result = tool._run(["Group 2"], ["Group 1"])
 
         self.assertEqual(result, "No directed static bridge edges found between these component groups.")
+
+    def test_group_with_no_leaf_clusters_resolves_by_authoritative_id(self):
+        tool = self._make_tool()
+        tool.context.clustering.groups[0].cluster_ids = []
+
+        result = tool._run(["Group 1"], ["Group 2"])
+
+        self.assertIn("Directed static bridge edges (1)", result)
 
 
 class TestComponentCFGScoping(unittest.TestCase):

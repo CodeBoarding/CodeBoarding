@@ -25,6 +25,7 @@ from agents.agent_responses import (
     assign_relation_ids,
     iter_components,
 )
+from agents.component_ownership import group_ids_by_name
 from agents.content_hash import SourceCache
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
@@ -327,7 +328,9 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         cluster_results = clustering.leaf_clusters_by_language
         cfg_graphs = clustering.graphs_by_language
         self.toolkit.context.clustering = clustering
-        self.toolkit.context.cluster_group_ids = _persisted_group_ids(scope.components, clustering)
+        self.toolkit.context.group_ids_by_name = group_ids_by_name(
+            scope.components, {group.group_id for group in clustering.groups}
+        )
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(
@@ -555,16 +558,6 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             parsing_llm=self.parsing_llm,
             changes=self.toolkit.context.changes,
         )
-
-
-def _persisted_group_ids(components: list[Component], clustering: ClusterScopeResult) -> dict[str, list[int]]:
-    component_by_id = {component.component_id: component for component in components if component.component_id}
-    return {
-        name: group.cluster_ids
-        for group in clustering.groups
-        if (component := component_by_id.get(group.group_id)) is not None
-        for name in component.source_group_names
-    }
 
 
 def _new_component_membership_summary(component: Component) -> str:

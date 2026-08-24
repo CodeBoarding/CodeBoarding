@@ -14,6 +14,7 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
     assign_relation_ids,
 )
+from agents.component_ownership import group_ids_by_name
 from agents.prompts import (
     get_system_details_message,
     get_details_message,
@@ -146,7 +147,9 @@ class DetailsAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             )
 
         self.toolkit.context.clustering = scope
-        self.toolkit.context.cluster_group_ids = cluster_group_ids(scope.groups)
+        self.toolkit.context.group_ids_by_name = {
+            name: group.group_id for name, group in zip(group_ids, scope.groups, strict=True)
+        }
         self.toolkit.context.cluster_results = subgraph_cluster_results
         self.toolkit.context.cfg_graphs = scope.graphs_by_language
 
@@ -212,6 +215,9 @@ class DetailsAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             {component.component_id: component.name for component in analysis.components},
         )
         self.toolkit.context.clustering = scope
+        self.toolkit.context.group_ids_by_name = group_ids_by_name(
+            analysis.components, {group.group_id for group in scope.groups}
+        )
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(

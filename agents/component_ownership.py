@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 
-from agents.agent_responses import AnalysisInsights, SourceCodeReference
+from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
+
+
+def group_ids_by_name(components: list[Component], valid_group_ids: Collection[str]) -> dict[str, str]:
+    """Map component source-group names to their authoritative live group IDs."""
+    valid_ids = set(valid_group_ids)
+    return {
+        name: component.component_id
+        for component in components
+        if component.component_id in valid_ids
+        for name in component.source_group_names
+    }
 
 
 @dataclass(frozen=True)

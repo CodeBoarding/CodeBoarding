@@ -13,6 +13,7 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
     assign_relation_ids,
 )
+from agents.component_ownership import group_ids_by_name
 from agents.llm_renderers import (
     cluster_group_descriptions,
     cluster_group_ids,
@@ -189,7 +190,9 @@ class AbstractionAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         )
         cfg_graphs = scope.graphs_by_language
         self.toolkit.context.clustering = scope
-        self.toolkit.context.cluster_group_ids = cluster_group_ids(scope.groups)
+        self.toolkit.context.group_ids_by_name = group_ids_by_name(
+            analysis.components, {group.group_id for group in scope.groups}
+        )
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(

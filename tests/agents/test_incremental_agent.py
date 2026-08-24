@@ -16,10 +16,10 @@ from agents.agent_responses import (
     ScopedClusterRef,
     ScopeUpdateDecision,
 )
+from agents.component_ownership import group_ids_by_name
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.incremental_agent import (
     IncrementalAgent,
-    _persisted_group_ids,
     _patch_file_methods,
     prune_empty_components,
     remove_deleted_files,
@@ -453,9 +453,9 @@ class TestIncrementalRelations(unittest.TestCase):
             ],
         )
 
-        result = _persisted_group_ids([first, second], clustering)
+        result = group_ids_by_name([first, second], {group.group_id for group in clustering.groups})
 
-        self.assertEqual(result, {"Second group": [20], "First group": [10]})
+        self.assertEqual(result, {"First group": "1", "Second group": "2"})
 
     def test_uses_api_surface_relation_pipeline_and_attaches_static_call_sites(self) -> None:
         source = Node("pkg.api.run", NodeType.FUNCTION, "api.py", 1, 5)
@@ -605,6 +605,7 @@ class TestIncrementalRelations(unittest.TestCase):
         self.assertTrue(any(edge.call_sites[0].line == 3 for edge in relation.all_edges if edge.call_sites))
         self.assertEqual(scope.files["api.py"].methods[0].qualified_name, source.fully_qualified_name)
         self.assertEqual(scope.files["api.py"].methods[0].node_type, NodeType.FUNCTION.name)
+        self.assertEqual(agent.toolkit.context.group_ids_by_name, {"api": "1", "worker": "2"})
 
     def test_generate_all_scope_relations_includes_root_scope_id(self) -> None:
         agent = object.__new__(IncrementalAgent)
