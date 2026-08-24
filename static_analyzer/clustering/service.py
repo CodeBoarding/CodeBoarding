@@ -117,12 +117,15 @@ class ClusteringService:
 
     def build_scope_hierarchy(
         self,
+        static_analysis: Any,
         graphs: Mapping[str, CallGraph],
         max_depth: int,
         root_scope_id: ScopeId,
     ) -> ClusterScopeResult:
-        """Build a hierarchy rooted at one existing component scope."""
-        return self._cluster_hierarchy(graphs, max_depth, root_scope_id=root_scope_id)
+        """Build one existing component scope and synchronize its persisted lineage."""
+        hierarchy = self._cluster_hierarchy(graphs, max_depth, root_scope_id=root_scope_id)
+        self._record_scopes(static_analysis, hierarchy)
+        return hierarchy
 
     @staticmethod
     def _expand_to_method_level(

@@ -5,7 +5,9 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.config import NodeType
 from static_analyzer.clustering import (
     METHOD_LEVEL_STRATEGY,
+    ClusterGroup,
     ClusterResult,
+    ClusterScopeResult,
     ClusteringService,
 )
 from static_analyzer.clustering.grouping import GroupingService
@@ -40,6 +42,32 @@ def cluster_result_for(graph: CallGraph, clusters: dict[int, set[str]]) -> Clust
 
 
 class TestClusteringScope(unittest.TestCase):
+    def test_reroot_indexes_rejects_group_id_collision(self):
+        child_scope = ClusterScopeResult(
+            scope_id="1.1",
+            groups=[ClusterGroup(group_id="1.1.2", cluster_ids=[2])],
+        )
+        hierarchy = ClusterScopeResult(
+            scope_id="root",
+            groups=[
+                ClusterGroup(group_id="1.1", cluster_ids=[1], children=child_scope),
+                ClusterGroup(group_id="1.2", cluster_ids=[3]),
+            ],
+        )
+
+        with self.assertRaisesRegex(ValueError, "duplicate clustering group ID '1.2'"):
+            hierarchy.reroot_indexes(["1.1"])
+
+    def test_reroot_indexes_rejects_scope_id_collision(self):
+        hierarchy = ClusterScopeResult(scope_id="root")
+        hierarchy.preclustered_scopes = {
+            "1.1.2": ClusterScopeResult(scope_id="1.1.2"),
+            "1.2": ClusterScopeResult(scope_id="1.2"),
+        }
+
+        with self.assertRaisesRegex(ValueError, "duplicate clustering scope ID '1.2'"):
+            hierarchy.reroot_indexes(["1.1"])
+
     def test_grouping_matches_the_existing_supercluster_result(self):
         graph = graph_for("python", ["a", "b", "c"], [("a", "b"), ("b", "c")])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}})

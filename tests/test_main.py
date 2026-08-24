@@ -92,7 +92,7 @@ class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 1}
+        mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash"}
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -128,11 +128,18 @@ class TestPartialUpdate(unittest.TestCase):
             output_dir = Path(temp_dir) / "output"
             output_dir.mkdir()
 
-            run_partial(
-                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
-                component_id="test_comp_id",
-            )
+            with (
+                patch("codeboarding_workflows.analysis.compute_source_tree_hash", return_value="source-hash"),
+                patch(
+                    "codeboarding_workflows.analysis.load_expandable_component_ids",
+                    return_value={"test_comp_id"},
+                ),
+            ):
+                run_partial(
+                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                    RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
+                    component_id="test_comp_id",
+                )
 
             mock_generator.prepare_analysis.assert_called_once_with(
                 hierarchy_depth=2,
@@ -140,14 +147,18 @@ class TestPartialUpdate(unittest.TestCase):
             )
             mock_generator.process_component.assert_called_once_with(root_component)
             mock_generator.finalize_and_save.assert_called_once_with(
-                root_analysis, {"test_comp_id": mock_sub_analysis}, persist_side_artifacts=False
+                root_analysis,
+                {"test_comp_id": mock_sub_analysis},
+                persist_side_artifacts=False,
+                preserved_expandable_ids={"test_comp_id"},
             )
+            mock_generator._persist_static_analysis_artifact.assert_called_once_with()
 
     @patch("codeboarding_workflows.analysis.load_full_analysis")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_nested_component_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 2}
+        mock_load_metadata.return_value = {"depth_level": 2, "source_tree_hash": "source-hash"}
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -190,11 +201,12 @@ class TestPartialUpdate(unittest.TestCase):
             output_dir = Path(temp_dir) / "output"
             output_dir.mkdir()
 
-            run_partial(
-                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
-                component_id="nested_comp_id",
-            )
+            with patch("codeboarding_workflows.analysis.compute_source_tree_hash", return_value="source-hash"):
+                run_partial(
+                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                    RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
+                    component_id="nested_comp_id",
+                )
 
             mock_generator.prepare_analysis.assert_called_once_with(
                 hierarchy_depth=3,
@@ -203,6 +215,32 @@ class TestPartialUpdate(unittest.TestCase):
             mock_generator.process_component.assert_called_once_with(nested_component)
             self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 2)
             mock_generator.finalize_and_save.assert_called_once()
+            mock_generator._persist_static_analysis_artifact.assert_called_once_with()
+
+    @patch("codeboarding_workflows.analysis.load_full_analysis")
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    def test_partial_update_rejects_changed_source(self, mock_generator_class, mock_load_metadata, mock_load_full):
+        mock_load_metadata.return_value = {"depth_level": 2, "source_tree_hash": "baseline-hash"}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            with (
+                patch("codeboarding_workflows.analysis.compute_source_tree_hash", return_value="current-hash"),
+                self.assertRaisesRegex(BaselineUnavailableError, "up-to-date source baseline"),
+            ):
+                run_partial(
+                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                    RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
+                    component_id="nested_comp_id",
+                )
+
+        mock_load_full.assert_not_called()
+        mock_generator_class.assert_not_called()
 
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
@@ -341,15 +379,20 @@ class TestLocalSource(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     def test_local_source_composes_with_partial_update(self, mock_load_metadata, mock_load_full, mock_generator_class):
         """Axes are orthogonal: the local source composes with any scope, not just full."""
-        from agents.agent_responses import AnalysisInsights
+        from agents.agent_responses import AnalysisInsights, Component
 
-        mock_load_metadata.return_value = {"depth_level": 1}
-        # Minimal non-None baseline so run_partial gets past both early-return guards
-        # and reaches prepare_analysis (which is what this test asserts on).
+        component = Component(
+            name="Target",
+            component_id="target",
+            description="",
+            key_entities=[],
+        )
+        mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash"}
         mock_load_full.return_value = (
-            AnalysisInsights(description="root", components=[], components_relations=[]),
+            AnalysisInsights(description="root", components=[component], components_relations=[]),
             {},
         )
+        mock_generator_class.return_value.process_component.return_value = ("target", None, [])
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -358,13 +401,17 @@ class TestLocalSource(unittest.TestCase):
             output_dir.mkdir()
 
             with local_source(repo_path=repo_path, project_name="proj", artifact_dir=output_dir) as src:
-                run_partial(
-                    RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
-                    RunContext(run_id="r", log_path="l"),
-                    component_id="does-not-matter",
-                )
+                with patch("codeboarding_workflows.analysis.compute_source_tree_hash", return_value="source-hash"):
+                    run_partial(
+                        RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
+                        RunContext(run_id="r", log_path="l"),
+                        component_id="target",
+                    )
 
-            mock_generator_class.return_value.prepare_analysis.assert_not_called()
+            mock_generator_class.return_value.prepare_analysis.assert_called_once_with(
+                hierarchy_depth=2,
+                target_component=component,
+            )
 
 
 class TestFullCliLocal(unittest.TestCase):

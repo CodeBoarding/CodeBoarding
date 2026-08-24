@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Collection, Iterable, Iterator, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
@@ -46,7 +46,11 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.cluster_delta import ClusterDelta, compute_changed_members, compute_cluster_delta
 from diagram_analysis.cluster_snapshot import snapshot_from_static_analysis
-from diagram_analysis.exceptions import IncrementalCacheMissingError, ScopeContainmentError
+from diagram_analysis.exceptions import (
+    ClusteringScopeUnavailableError,
+    IncrementalCacheMissingError,
+    ScopeContainmentError,
+)
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
@@ -651,6 +655,52 @@ class DiagramGenerator:
         self._initialize_meta_agent(agent_llm, parsing_llm)
         assert self.meta_agent is not None
         meta_context = self.meta_agent.analyze_project_metadata(skip_cache=self.force_full_analysis)
+        self._complete_agent_initialization(meta_context, agent_llm, parsing_llm)
+
+    def prepare_analysis(
+        self,
+        *,
+        hierarchy_depth: int | None = None,
+        target_component: Component | None = None,
+        incremental: bool = False,
+        persisted_scopes: Mapping[str, AnalysisInsights] = _EMPTY_PERSISTED_SCOPES,
+    ) -> None:
+        """Prepare deterministic inputs, then initialize the analysis agents."""
+        if incremental:
+            self.deterministic_analysis(
+                hierarchy_depth=hierarchy_depth,
+                target_component=target_component,
+                incremental=True,
+                persisted_scopes=persisted_scopes,
+            )
+            if self._incremental_preparation and self._incremental_preparation.delta.has_changes:
+                self.agent_init()
+            return
+
+        agent_llm, parsing_llm = initialize_llms()
+        self._initialize_meta_agent(agent_llm, parsing_llm)
+        assert self.meta_agent is not None
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            meta_future = executor.submit(
+                self.meta_agent.analyze_project_metadata,
+                skip_cache=self.force_full_analysis,
+            )
+            self.deterministic_analysis(
+                hierarchy_depth=hierarchy_depth,
+                target_component=target_component,
+                persisted_scopes=persisted_scopes,
+            )
+            meta_context = meta_future.result()
+        self._complete_agent_initialization(meta_context, agent_llm, parsing_llm)
+
+    def _complete_agent_initialization(
+        self,
+        meta_context: MetaAnalysisInsights,
+        agent_llm: BaseChatModel,
+        parsing_llm: BaseChatModel,
+    ) -> None:
+        """Initialize agents that consume both deterministic and metadata results."""
+        assert self.static_analysis is not None
         self.meta_context = meta_context
         self._initialize_agents(self.static_analysis, meta_context, agent_llm, parsing_llm)
 
@@ -663,24 +713,6 @@ class DiagramGenerator:
                 output_dir=str(self.output_dir),
                 start_time=self._analysis_start_time,
             )
-
-    def prepare_analysis(
-        self,
-        *,
-        hierarchy_depth: int | None = None,
-        target_component: Component | None = None,
-        incremental: bool = False,
-        persisted_scopes: Mapping[str, AnalysisInsights] = _EMPTY_PERSISTED_SCOPES,
-    ) -> None:
-        """Prepare deterministic inputs, then initialize the analysis agents."""
-        self.deterministic_analysis(
-            hierarchy_depth=hierarchy_depth,
-            target_component=target_component,
-            incremental=incremental,
-            persisted_scopes=persisted_scopes,
-        )
-        if not incremental or (self._incremental_preparation and self._incremental_preparation.delta.has_changes):
-            self.agent_init()
 
     def _prepare_incremental_clustering(
         self,
@@ -756,20 +788,25 @@ class DiagramGenerator:
         self,
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
+        preserved_expandable_ids: Collection[str] = (),
     ) -> tuple[list[str] | None, dict[str, list[str]] | None]:
         """Return the clustering service's expansion decisions for every persisted scope."""
         clustering_groups = self.clustering_hierarchy.clustering_groups if self.clustering_hierarchy else {}
         if clustering_groups:
 
+            def is_expandable(component_id: str) -> bool:
+                if component_id in sub_analyses:
+                    return True
+                group = clustering_groups.get(component_id)
+                if group is not None:
+                    return group.expandable
+                return component_id in preserved_expandable_ids
+
             def precomputed_ids(scope: AnalysisInsights) -> list[str]:
                 return [
                     component.component_id
                     for component in scope.components
-                    if component.component_id
-                    and (
-                        component.component_id in sub_analyses
-                        or ((group := clustering_groups.get(component.component_id)) is not None and group.expandable)
-                    )
+                    if component.component_id and is_expandable(component.component_id)
                 ]
 
             return precomputed_ids(root_analysis), {
@@ -806,13 +843,13 @@ class DiagramGenerator:
         self, component: Component
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
         """Analyze a component from its precomputed hierarchy scope."""
+        preclustered_scopes = self.clustering_hierarchy.preclustered_scopes if self.clustering_hierarchy else {}
+        scope = preclustered_scopes.get(component.component_id)
+        if scope is None:
+            raise ClusteringScopeUnavailableError(component.component_id, "no precomputed scope")
+
         try:
             assert self.details_agent is not None
-
-            preclustered_scopes = self.clustering_hierarchy.preclustered_scopes if self.clustering_hierarchy else {}
-            scope = preclustered_scopes.get(component.component_id)
-            if scope is None:
-                raise ValueError(f"No precomputed clustering scope for component {component.component_id}")
             analysis, _ = self.details_agent.run(scope, component)
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
@@ -962,9 +999,6 @@ class DiagramGenerator:
 
     def _persist_static_analysis_artifact(self) -> None:
         """Persist the post-clustering static-analysis artifact."""
-        if self._static_analyzer is not None:
-            self._static_analyzer.flush_cache()
-            return
         if self.static_analysis is None:
             return
         StaticAnalysisCache(self.output_dir, self.repo_location).save(self.static_analysis, source_sha=self.source_sha)
@@ -1050,12 +1084,11 @@ class DiagramGenerator:
             if scoped_graph.nodes:
                 graphs[language] = scoped_graph
         if not graphs:
-            raise ValueError(
-                f"Cannot build clustering scope for component {component.component_id}: no owned CFG nodes"
-            )
+            raise ClusteringScopeUnavailableError(component.component_id, "no owned CFG nodes")
 
         remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
         scope = ClusteringService().build_scope_hierarchy(
+            self.static_analysis,
             graphs,
             remaining_depth,
             component.component_id,
@@ -1269,8 +1302,8 @@ class DiagramGenerator:
             else []
         )
         absorbed_ids = absorb_single_child_components(root_analysis, sub_analyses, cluster_caches)
-        if hierarchy := getattr(self, "clustering_hierarchy", None):
-            hierarchy.reroot_indexes(absorbed_ids)
+        if self.clustering_hierarchy is not None:
+            self.clustering_hierarchy.reroot_indexes(absorbed_ids)
         assert_scope_containment(root_analysis, sub_analyses)
 
     def finalize_and_save(
@@ -1280,6 +1313,7 @@ class DiagramGenerator:
         *,
         seed_delta: dict[str, ClusterResult] | None = None,
         persist_side_artifacts: bool = True,
+        preserved_expandable_ids: Collection[str] = (),
     ) -> Path:
         """Shared post-analysis tail for every flow: finalize, persist, return the path.
 
@@ -1288,20 +1322,22 @@ class DiagramGenerator:
         incremental-only cluster baseline, seeded *after* the save so a crash in
         between re-does the delta (idempotent) rather than silently skipping it.
 
-        ``persist_side_artifacts`` writes ``file_coverage.json``, the static-
-        analysis cache, and the ``fingerprint.json`` sidecar. The partial flow
-        sets it False: it regenerates one component, not the source state, so
-        rewriting those would drop the ``static_analysis.sha`` tag (cold-starting
-        the next incremental) and desync the sidecar from ``source_tree_hash``.
+        ``persist_side_artifacts`` writes ``file_coverage.json``, the static-analysis
+        cache, and ``fingerprint.json``. The partial flow leaves source-state
+        sidecars unchanged and persists its updated lineage after this save.
         """
         self.finalize_for_save(root_analysis, sub_analyses)
         if persist_side_artifacts:
             source_tree_hash = self._source_tree_hash()
         else:
-            # Partial: keep the prior hash so metadata matches the unrewritten sidecar.
+            # Partial keeps the prior hash so metadata matches the unchanged fingerprint.
             prior_metadata = load_analysis_metadata(Path(self.output_dir)) or {}
             source_tree_hash = prior_metadata.get("source_tree_hash", "") or self._source_tree_hash()
-        expandable_component_ids, sub_expandable_ids = self._expandable_ids_for_tree(root_analysis, sub_analyses)
+        expandable_component_ids, sub_expandable_ids = self._expandable_ids_for_tree(
+            root_analysis,
+            sub_analyses,
+            preserved_expandable_ids,
+        )
         analysis_path = save_analysis(
             analysis=root_analysis,
             output_dir=Path(self.output_dir),

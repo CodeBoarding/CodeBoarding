@@ -182,26 +182,36 @@ class ClusterScopeResult:
         for child_id in absorbed_ids:
             parent_id = child_id.rpartition(".")[0]
             prefix = f"{child_id}."
+
+            def rerooted_id(group_id: GroupId) -> GroupId:
+                if not group_id.startswith(prefix):
+                    return group_id
+                tail = group_id.removeprefix(prefix)
+                return f"{parent_id}.{tail}" if parent_id else tail
+
             rerooted_groups: dict[GroupId, ClusterGroup] = {}
             for group_id, group in self.clustering_groups.items():
                 if group_id == child_id:
                     continue
-                if group_id.startswith(prefix):
-                    tail = group_id.removeprefix(prefix)
-                    group_id = f"{parent_id}.{tail}" if parent_id else tail
-                    group.group_id = group_id
+                group_id = rerooted_id(group_id)
+                if group_id in rerooted_groups:
+                    raise ValueError(f"Absorbing {child_id!r} creates duplicate clustering group ID {group_id!r}")
                 rerooted_groups[group_id] = group
-            self.clustering_groups = rerooted_groups
 
             rerooted_scopes: dict[GroupId, ClusterScopeResult] = {}
             for group_id, scope in self.preclustered_scopes.items():
                 if group_id == child_id:
                     continue
-                if group_id.startswith(prefix):
-                    tail = group_id.removeprefix(prefix)
-                    group_id = f"{parent_id}.{tail}" if parent_id else tail
-                    scope.scope_id = group_id
+                group_id = rerooted_id(group_id)
+                if group_id in rerooted_scopes:
+                    raise ValueError(f"Absorbing {child_id!r} creates duplicate clustering scope ID {group_id!r}")
                 rerooted_scopes[group_id] = scope
+
+            for group_id, group in rerooted_groups.items():
+                group.group_id = group_id
+            for scope_id, scope in rerooted_scopes.items():
+                scope.scope_id = scope_id
+            self.clustering_groups = rerooted_groups
             self.preclustered_scopes = rerooted_scopes
 
     def __post_init__(self) -> None:

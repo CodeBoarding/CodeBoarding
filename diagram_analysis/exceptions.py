@@ -69,3 +69,11 @@ class ScopeContainmentError(RuntimeError):
     def __init__(self, violations: list[str]):
         super().__init__("Child scopes own methods outside their parent component: " + "; ".join(violations))
         self.violations = violations
+
+
+class ClusteringScopeUnavailableError(RuntimeError):
+    """Raised when a persisted component cannot be mapped to a clustering scope."""
+
+    def __init__(self, component_id: str, reason: str):
+        super().__init__(f"Clustering scope unavailable for component {component_id!r}: {reason}")
+        self.component_id = component_id

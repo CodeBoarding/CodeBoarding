@@ -13,8 +13,9 @@ baseline resolution.
 import logging
 from pathlib import Path
 
+from agents.content_hash import compute_source_tree_hash
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
+from diagram_analysis.io_utils import load_analysis_metadata, load_expandable_component_ids, load_full_analysis
 from diagram_analysis.run_context import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
 from repo_utils.fingerprint_diff import BaselineUnavailableError, detect_changes_from_fingerprint
 from telemetry.events import track_analysis
@@ -97,6 +98,13 @@ def run_partial(
             f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
         )
 
+    baseline_source_hash = str(metadata.get("source_tree_hash", ""))
+    current_source_hash = compute_source_tree_hash(run_paths.repo_path)
+    if not baseline_source_hash or current_source_hash != baseline_source_hash:
+        raise BaselineUnavailableError(
+            "Partial analysis requires an up-to-date source baseline. Run incremental analysis before expanding a component."
+        )
+
     depth_level = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_LEVEL)))
     full_analysis = load_full_analysis(run_paths.output_dir)
     if full_analysis is None:
@@ -107,6 +115,7 @@ def run_partial(
         )
 
     root_analysis, sub_analyses = full_analysis
+    preserved_expandable_ids = load_expandable_component_ids(run_paths.output_dir)
 
     component_to_analyze = None
     for component in root_analysis.components:
@@ -129,6 +138,8 @@ def run_partial(
         return
 
     generator = build_generator(run_paths, run_context, depth_level=depth_level)
+    generator.source_sha = current_source_hash
+    # A component at the persisted cap needs one additional level prepared for expansion.
     generator.prepare_analysis(hierarchy_depth=depth_level + 1, target_component=component_to_analyze)
 
     _, sub_analysis, _ = generator.process_component(component_to_analyze)
@@ -144,10 +155,14 @@ def run_partial(
     # Repair it here too: this flow only regenerates one component, so nothing else
     # would reconcile the rest of the tree before the save asserts containment.
     generator._rescope_child_analyses(root_analysis, sub_analyses, set())
-    # persist_side_artifacts=False: an expansion must not rewrite file_coverage.json
-    # or the static-analysis cache. The latter would drop the static_analysis.sha
-    # tag (no source_sha here) and force the next incremental run to cold-start.
-    generator.finalize_and_save(root_analysis, sub_analyses, persist_side_artifacts=False)
+    # Keep coverage and fingerprint artifacts unchanged; persist only the new lineage below.
+    generator.finalize_and_save(
+        root_analysis,
+        sub_analyses,
+        persist_side_artifacts=False,
+        preserved_expandable_ids=preserved_expandable_ids,
+    )
+    generator._persist_static_analysis_artifact()
     logger.info(f"Updated component '{component_id}' in analysis.json")
 
 

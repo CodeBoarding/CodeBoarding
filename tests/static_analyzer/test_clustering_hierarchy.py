@@ -263,6 +263,37 @@ class TestClusteringHierarchy(unittest.TestCase):
         )
         static_analysis.get_clusters.assert_called_with(Language.PYTHON)
 
+    @patch.object(ClusteringService, "_cluster_hierarchy")
+    def test_selected_scope_records_structural_lineage(self, cluster_hierarchy):
+        partition = ClusterResult(clusters={4: {"child"}})
+        hierarchy = ClusterScopeResult(
+            scope_id="2",
+            leaf_clusters_by_language={"python": partition},
+            groups=[
+                ClusterGroup(
+                    group_id="2.1",
+                    cluster_ids=[4],
+                    symbol_members_by_language={"python": {"child", "orphan"}},
+                )
+            ],
+        )
+        graph = CallGraph(language="python")
+        static_analysis = MagicMock()
+        cache = MagicMock()
+        static_analysis.get_clusters.return_value = cache
+        cluster_hierarchy.return_value = hierarchy
+
+        result = ClusteringService().build_scope_hierarchy(
+            static_analysis,
+            {"python": graph},
+            max_depth=2,
+            root_scope_id="2",
+        )
+
+        self.assertIs(result, hierarchy)
+        cache.record_scope.assert_called_once_with(partition, "2")
+        cache.record_unclustered.assert_called_once_with({"orphan"}, "2")
+
     def test_incremental_hierarchy_preserves_surviving_member_ownership(self):
         graph = graph_for(["pkg.changed", "stable.one", "stable.two"], one_file=True)
         root_partition = partition_for(graph, {1: set(graph.nodes)})

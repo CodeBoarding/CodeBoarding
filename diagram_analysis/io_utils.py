@@ -264,6 +264,27 @@ def load_full_analysis(output_dir: Path) -> tuple[AnalysisInsights, dict[str, An
     return root_analysis, sub_analyses
 
 
+def load_expandable_component_ids(output_dir: Path) -> set[str]:
+    """Load component IDs currently persisted with ``can_expand=true``."""
+    result = _get_store(output_dir).read()
+    if result is None:
+        return set()
+
+    expandable_ids: set[str] = set()
+
+    def visit(components: list[dict]) -> None:
+        for component in components:
+            component_id = component.get("component_id")
+            if component_id and component.get("can_expand") is True:
+                expandable_ids.add(str(component_id))
+            nested = component.get("components")
+            if isinstance(nested, list):
+                visit(nested)
+
+    visit(result[2].get("components", []))
+    return expandable_ids
+
+
 def load_analysis_metadata(output_dir: Path) -> dict | None:
     """Load raw metadata from the unified analysis file."""
     result = _get_store(output_dir).read()
