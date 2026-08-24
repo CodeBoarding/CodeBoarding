@@ -7,6 +7,7 @@ at a different scope without disturbing what an earlier run recorded.
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field
 
@@ -22,6 +23,10 @@ class ClusterCache:
     result: ClusterResult = field(default_factory=ClusterResult)
     method_paths: MethodClusterPaths = field(default_factory=MethodClusterPaths)
     unclustered_members_by_scope: dict[str, set[str]] = field(default_factory=dict)
+
+    def detached_copy(self) -> ClusterCache:
+        """Return an independent cache carrying the same partition and lineage."""
+        return copy.deepcopy(self)
 
     def adopt(self, cluster_result: ClusterResult) -> None:
         """Make ``cluster_result`` this language's partition and record it at root scope."""

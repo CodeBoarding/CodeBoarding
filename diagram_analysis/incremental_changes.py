@@ -21,8 +21,18 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 class ChangedMembers:
     """Member-granular content changes and unattributed changed files."""
 
-    members: set[str] = field(default_factory=set)
+    added: set[str] = field(default_factory=set)
+    removed: set[str] = field(default_factory=set)
+    modified: set[str] = field(default_factory=set)
     unattributed_files: set[str] = field(default_factory=set)
+
+    @property
+    def members(self) -> set[str]:
+        return self.added | self.removed | self.modified
+
+    @property
+    def has_membership_changes(self) -> bool:
+        return bool(self.added or self.removed)
 
 
 def compute_changed_members(
@@ -50,17 +60,15 @@ def compute_changed_members(
         )
         new_members = new_member_hashes.get(path, {})
 
-        file_changed: set[str] = set()
-        for qname in set(baseline_members) | set(new_members):
-            in_baseline = qname in baseline_members
-            in_new = qname in new_members
-            if in_baseline and in_new:
-                if baseline_members[qname] != new_members[qname]:
-                    file_changed.add(qname)
-            else:
-                file_changed.add(qname)
-
-        result.members |= file_changed
+        baseline_qnames = set(baseline_members)
+        new_qnames = set(new_members)
+        added = new_qnames - baseline_qnames
+        removed = baseline_qnames - new_qnames
+        modified = {qname for qname in baseline_qnames & new_qnames if baseline_members[qname] != new_members[qname]}
+        result.added |= added
+        result.removed |= removed
+        result.modified |= modified
+        file_changed = bool(added or removed or modified)
         baseline_module_hash = baseline_entry.module_hash if baseline_entry is not None else ""
         new_module_hash = hash_file_residual(
             read_source_lines(repo_dir, path, file_cache), new_member_spans.get(path, [])

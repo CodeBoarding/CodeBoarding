@@ -7,6 +7,7 @@ from codeboarding_cli.commands.full_analysis import run_from_args, validate_argu
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental, run_partial
 from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
 from diagram_analysis.run_context import RunContext, RunPaths
+from repo_utils.change_detector import ChangeSet
 
 
 class TestOnboardingMaterialsExist(unittest.TestCase):
@@ -146,6 +147,9 @@ class TestPartialUpdate(unittest.TestCase):
                 target_component=root_component,
             )
             mock_generator.process_component.assert_called_once_with(root_component)
+            changes = mock_generator_class.call_args.kwargs["changes"]
+            self.assertIsInstance(changes, ChangeSet)
+            self.assertEqual(changes.files, [])
             mock_generator.finalize_and_save.assert_called_once_with(
                 root_analysis,
                 {"test_comp_id": mock_sub_analysis},
@@ -220,24 +224,31 @@ class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_full_analysis")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
-    def test_partial_update_rejects_changed_source(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 2, "source_tree_hash": "baseline-hash"}
-
+    def test_partial_update_rejects_unusable_source_baseline(
+        self, mock_generator_class, mock_load_metadata, mock_load_full
+    ):
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
             repo_path.mkdir()
             output_dir = Path(temp_dir) / "output"
             output_dir.mkdir()
 
-            with (
-                patch("codeboarding_workflows.analysis.compute_source_tree_hash", return_value="current-hash"),
-                self.assertRaisesRegex(BaselineUnavailableError, "up-to-date source baseline"),
-            ):
-                run_partial(
-                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                    RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
-                    component_id="nested_comp_id",
-                )
+            cases = (
+                ({"depth_level": 2}, "Run a full analysis first"),
+                ({"depth_level": 2, "source_tree_hash": "baseline-hash"}, "Run incremental analysis"),
+            )
+            for metadata, expected_message in cases:
+                with self.subTest(metadata=metadata):
+                    mock_load_metadata.return_value = metadata
+                    with (
+                        patch("codeboarding_workflows.analysis.compute_source_tree_hash", return_value="current-hash"),
+                        self.assertRaisesRegex(BaselineUnavailableError, expected_message),
+                    ):
+                        run_partial(
+                            RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                            RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
+                            component_id="nested_comp_id",
+                        )
 
         mock_load_full.assert_not_called()
         mock_generator_class.assert_not_called()

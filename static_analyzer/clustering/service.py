@@ -15,6 +15,7 @@ from clustering_ids import ROOT_SCOPE_ID, ClusterId, CodeBoardingClusterIds, Com
 from constants import MIN_CLUSTERS_THRESHOLD
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
+from static_analyzer.clustering.cache import ClusterCache
 from static_analyzer.clustering.engine import cluster_graph
 from static_analyzer.clustering.delta import delta_for_language
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
@@ -64,11 +65,13 @@ class ClusteringService:
     def cluster(self, graph: CallGraph) -> ClusterResult:
         return cluster_graph(graph.to_networkx(DEFAULT_REFERENCE_KINDS), delimiter=graph.delimiter)
 
-    def build_full_hierarchy(self, static_analysis: Any, max_depth: int) -> ClusterScopeResult:
+    def build_full_hierarchy(
+        self, static_analysis: Any, max_depth: int, cluster_caches: Mapping[str, ClusterCache] | None = None
+    ) -> ClusterScopeResult:
         """Build a full hierarchy and synchronize its persisted cluster lineage."""
-        root_results = self._build_leaf_clusters(static_analysis)
+        root_results = self._build_leaf_clusters(static_analysis, cluster_caches)
         hierarchy = self._build_hierarchy(static_analysis, max_depth, root_results, _unseeded_scope)
-        self._record_scopes(static_analysis, hierarchy)
+        self._record_scopes(static_analysis, hierarchy, cluster_caches)
         return hierarchy
 
     def build_incremental_hierarchy(
@@ -79,6 +82,7 @@ class ClusteringService:
         persisted_scopes: Mapping[str, Any],
         repo_dir: Path,
         artifact_dir: Path,
+        cluster_caches: Mapping[str, ClusterCache] | None = None,
     ) -> ClusterScopeResult:
         """Build an anchored hierarchy from persisted ownership and cluster lineage."""
         baseline = static_analysis.incremental_base_results
@@ -112,7 +116,7 @@ class ClusteringService:
             )
 
         hierarchy = self._build_hierarchy(static_analysis, max_depth, root_leaf_clusters, scope_input)
-        self._record_scopes(static_analysis, hierarchy)
+        self._record_scopes(static_analysis, hierarchy, cluster_caches)
         return hierarchy
 
     def build_scope_hierarchy(
@@ -121,10 +125,11 @@ class ClusteringService:
         graphs: Mapping[str, CallGraph],
         max_depth: int,
         root_scope_id: ScopeId,
+        cluster_caches: Mapping[str, ClusterCache] | None = None,
     ) -> ClusterScopeResult:
         """Build one existing component scope and synchronize its persisted lineage."""
         hierarchy = self._cluster_hierarchy(graphs, max_depth, root_scope_id=root_scope_id)
-        self._record_scopes(static_analysis, hierarchy)
+        self._record_scopes(static_analysis, hierarchy, cluster_caches)
         return hierarchy
 
     @staticmethod
@@ -249,6 +254,7 @@ class ClusteringService:
             owners = grouping.owners
             modularity = grouping.modularity
             unanchored_modularity = grouping.unanchored_modularity
+            unanchored_group_count = grouping.unanchored_group_count
             regrouped = grouping.regrouped
         else:
             raw_groups, modularity = grouping_service.group(
@@ -258,6 +264,7 @@ class ClusteringService:
             )
             owners = [""] * len(raw_groups)
             unanchored_modularity = modularity
+            unanchored_group_count = len(raw_groups)
             regrouped = False
 
         group_ids = self._allocate_group_ids(scope_id, owners, reserved_group_ids)
@@ -291,6 +298,7 @@ class ClusteringService:
             connections=connections,
             modularity=modularity,
             unanchored_modularity=unanchored_modularity,
+            unanchored_group_count=unanchored_group_count,
             regrouped=regrouped,
         )
 
@@ -339,7 +347,9 @@ class ClusteringService:
 
         return self._cluster_hierarchy(static_analysis.available_cfgs(), max_depth, seeded_input)
 
-    def _build_leaf_clusters(self, static_analysis: Any) -> dict[str, ClusterResult]:
+    def _build_leaf_clusters(
+        self, static_analysis: Any, cluster_caches: Mapping[str, ClusterCache] | None = None
+    ) -> dict[str, ClusterResult]:
         results: dict[str, ClusterResult] = {}
         offset = 0
         for language in static_analysis.get_languages():
@@ -351,7 +361,12 @@ class ClusteringService:
             offset += max(result.clusters, default=0) + 1
         for language, result in results.items():
             try:
-                static_analysis.get_clusters(Language(language)).adopt(result)
+                cache = (
+                    cluster_caches[str(language)]
+                    if cluster_caches is not None
+                    else static_analysis.get_clusters(Language(language))
+                )
+                cache.adopt(result)
             except ValueError:
                 logger.warning("Could not sync cluster cache for unknown language %s", language)
         return results
@@ -506,9 +521,17 @@ class ClusteringService:
         return owners, member_owners
 
     @staticmethod
-    def _record_scopes(static_analysis: Any, scope: ClusterScopeResult) -> None:
+    def _record_scopes(
+        static_analysis: Any,
+        scope: ClusterScopeResult,
+        cluster_caches: Mapping[str, ClusterCache] | None = None,
+    ) -> None:
         for language, partition in scope.leaf_clusters_by_language.items():
-            cache = static_analysis.get_clusters(Language(language))
+            cache = (
+                cluster_caches[language]
+                if cluster_caches is not None
+                else static_analysis.get_clusters(Language(language))
+            )
             cache_scope_id = CodeBoardingClusterIds.prefix_for_scope(scope.scope_id)
             if scope.scope_id == ROOT_SCOPE_ID:
                 cache.adopt(partition)
@@ -522,7 +545,7 @@ class ClusteringService:
         for group in scope.groups:
             if group.children is None:
                 continue
-            ClusteringService._record_scopes(static_analysis, group.children)
+            ClusteringService._record_scopes(static_analysis, group.children, cluster_caches)
 
     @staticmethod
     def _add_expanded_symbol(
@@ -581,20 +604,18 @@ class ClusteringService:
                 reserved_group_ids=child_input.reserved_group_ids,
                 method_level_fallback=True,
             )
-            if (
-                not child_input.retain_scope
-                and sum(bool(child_group.qualified_names) for child_group in child.groups) < 2
-            ):
-                continue
             load = scope_load(method_count, file_count)
             if (
                 not child_input.retain_scope
                 and load < 1.0
-                and not scope_is_separable(
-                    leaf_clusters_by_language=child.leaf_clusters_by_language,
-                    modularity=child.unanchored_modularity,
-                    load=load,
-                    method_count=method_count,
+                and (
+                    child.unanchored_group_count < 2
+                    or not scope_is_separable(
+                        leaf_clusters_by_language=child.leaf_clusters_by_language,
+                        modularity=child.unanchored_modularity,
+                        load=load,
+                        method_count=method_count,
+                    )
                 )
             ):
                 continue

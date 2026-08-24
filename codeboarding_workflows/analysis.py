@@ -17,6 +17,7 @@ from agents.content_hash import compute_source_tree_hash
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_expandable_component_ids, load_full_analysis
 from diagram_analysis.run_context import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
+from repo_utils.change_detector import ChangeSet
 from repo_utils.fingerprint_diff import BaselineUnavailableError, detect_changes_from_fingerprint
 from telemetry.events import track_analysis
 
@@ -99,8 +100,13 @@ def run_partial(
         )
 
     baseline_source_hash = str(metadata.get("source_tree_hash", ""))
+    if not baseline_source_hash:
+        raise BaselineUnavailableError(
+            "Partial analysis requires a content-versioned source baseline. Run a full analysis first."
+        )
+
     current_source_hash = compute_source_tree_hash(run_paths.repo_path)
-    if not baseline_source_hash or current_source_hash != baseline_source_hash:
+    if current_source_hash != baseline_source_hash:
         raise BaselineUnavailableError(
             "Partial analysis requires an up-to-date source baseline. Run incremental analysis before expanding a component."
         )
@@ -137,7 +143,7 @@ def run_partial(
         logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
 
-    generator = build_generator(run_paths, run_context, depth_level=depth_level)
+    generator = build_generator(run_paths, run_context, depth_level=depth_level, changes=ChangeSet(files=[]))
     generator.source_sha = current_source_hash
     # A component at the persisted cap needs one additional level prepared for expansion.
     generator.prepare_analysis(hierarchy_depth=depth_level + 1, target_component=component_to_analyze)

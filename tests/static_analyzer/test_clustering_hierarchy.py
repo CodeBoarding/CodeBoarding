@@ -121,6 +121,60 @@ class TestClusteringHierarchy(unittest.TestCase):
         self.assertFalse(result.groups[0].expandable)
         self.assertIsNone(result.groups[0].children)
 
+    def test_oversized_scope_expands_despite_a_single_anchored_group(self):
+        graph = graph_for([f"n{index:03d}" for index in range(121)], one_file=True)
+
+        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            current = graphs["python"]
+            if scope_id == "root":
+                return ClusterScopeInput(
+                    leaf_clusters_by_language={"python": partition_for(current, {1: set(current.nodes)})}
+                )
+            partition = split_partition(current)
+            return ClusterScopeInput(
+                leaf_clusters_by_language={"python": partition},
+                previous_owner={cluster_id: "1.1" for cluster_id in partition.clusters},
+            )
+
+        with patch("static_analyzer.clustering.service.scope_is_separable") as separable:
+            result = ClusteringService()._cluster_hierarchy(
+                {"python": graph},
+                max_depth=2,
+                scope_input=scope_input,
+            )
+
+        self.assertTrue(result.groups[0].expandable)
+        self.assertIsNotNone(result.groups[0].children)
+        separable.assert_not_called()
+
+    def test_smaller_scope_counts_unanchored_groups(self):
+        graph = graph_for([f"n{index:02d}" for index in range(31)], one_file=True)
+
+        def scope_input(scope_id: str, graphs: Mapping[str, CallGraph]) -> ClusterScopeInput:
+            current = graphs["python"]
+            if scope_id == "root":
+                return ClusterScopeInput(
+                    leaf_clusters_by_language={"python": partition_for(current, {1: set(current.nodes)})}
+                )
+            partition = split_partition(current)
+            return ClusterScopeInput(
+                leaf_clusters_by_language={"python": partition},
+                previous_owner={cluster_id: "1.1" for cluster_id in partition.clusters},
+            )
+
+        with patch("static_analyzer.clustering.service.scope_is_separable", return_value=True):
+            result = ClusteringService()._cluster_hierarchy(
+                {"python": graph},
+                max_depth=2,
+                scope_input=scope_input,
+            )
+
+        child = result.groups[0].children
+        self.assertIsNotNone(child)
+        assert child is not None
+        self.assertEqual(len(child.groups), 1)
+        self.assertGreaterEqual(child.unanchored_group_count, 2)
+
     def test_expansion_gate_receives_the_child_graph_callable_count(self):
         graph = graph_for([f"n{index:02d}" for index in range(31)], one_file=True)
         graph.add_node(Node("Container", NodeType.CLASS, "/repo/scope.py", 100, 110))

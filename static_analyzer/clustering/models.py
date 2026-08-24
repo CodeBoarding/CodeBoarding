@@ -79,6 +79,7 @@ class AnchoredGrouping:
     regrouped: bool
     modularity: float
     unanchored_modularity: float
+    unanchored_group_count: int = 0
 
 
 @dataclass
@@ -140,6 +141,7 @@ class ClusterScopeResult:
     connections: list[GroupConnection] = field(default_factory=list)
     modularity: float = 0.0  # Score of the actual groups, including ownership anchors.
     unanchored_modularity: float = 0.0  # Best score without previous ownership anchors.
+    unanchored_group_count: int = 0
     regrouped: bool = False
     clustering_groups: dict[GroupId, ClusterGroup] = field(default_factory=dict, init=False, repr=False)
     preclustered_scopes: dict[GroupId, ClusterScopeResult] = field(default_factory=dict, init=False, repr=False)

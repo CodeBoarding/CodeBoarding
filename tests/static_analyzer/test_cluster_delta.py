@@ -512,7 +512,61 @@ class TestMemberGranularDirty(unittest.TestCase):
 
             # m1's body changed; m2's body is unchanged despite its line shift.
             self.assertEqual(changed.members, {"pkg.m1"})
+            self.assertEqual(changed.added, set())
+            self.assertEqual(changed.removed, set())
+            self.assertEqual(changed.modified, {"pkg.m1"})
+            self.assertFalse(changed.has_membership_changes)
             self.assertEqual(changed.unattributed_files, set())
+
+    def test_changed_members_classifies_additions_deletions_and_modifications(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            original = "def removed():\n    return 1\n\ndef modified():\n    return 2\n"
+            (repo / "shared.py").write_text(original, encoding="utf-8")
+            original_lines = read_source_lines(repo, "shared.py", {})
+            baseline_files = {
+                "shared.py": FileEntry(
+                    content_hash=hash_whole_file(original_lines),
+                    methods=[
+                        MethodEntry(
+                            qualified_name="pkg.removed",
+                            start_line=1,
+                            end_line=2,
+                            node_type="FUNCTION",
+                            content_hash=hash_method_body(original_lines, 1, 2),
+                        ),
+                        MethodEntry(
+                            qualified_name="pkg.modified",
+                            start_line=4,
+                            end_line=5,
+                            node_type="FUNCTION",
+                            content_hash=hash_method_body(original_lines, 4, 5),
+                        ),
+                    ],
+                )
+            }
+            (repo / "shared.py").write_text(
+                "def modified():\n    return 3\n\ndef added():\n    return 4\n",
+                encoding="utf-8",
+            )
+            graph = CallGraph(language="python")
+            graph.add_node(Node("pkg.modified", NodeType.FUNCTION, str(repo / "shared.py"), 1, 2))
+            graph.add_node(Node("pkg.added", NodeType.FUNCTION, str(repo / "shared.py"), 4, 5))
+            static = StaticAnalysisResults()
+            static.add_cfg(Language.PYTHON, graph)
+
+            changed = compute_changed_members(
+                baseline_files,
+                static,
+                ChangeSet(files=[FileChange(status_code="M", file_path="shared.py")]),
+                repo,
+            )
+
+            self.assertEqual(changed.added, {"pkg.added"})
+            self.assertEqual(changed.removed, {"pkg.removed"})
+            self.assertEqual(changed.modified, {"pkg.modified"})
+            self.assertEqual(changed.members, {"pkg.added", "pkg.removed", "pkg.modified"})
+            self.assertTrue(changed.has_membership_changes)
 
     def test_a_module_level_variable_does_not_dirty_the_whole_file(self) -> None:
         # The CFG holds module-level variables as nodes so they can be edge endpoints,

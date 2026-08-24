@@ -34,6 +34,8 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.diagram_generator import (
     DiagramGenerator,
+    _IncrementalPreparation,
+    _MembershipBaseline,
     _component_depth,
     _component_expansion_seeds,
 )
@@ -960,7 +962,7 @@ class TestDiagramGenerator(unittest.TestCase):
             gen.prepare_analysis()
 
         # Verify agents were created
-        mock_build_hierarchy.assert_called_once_with(mock_analysis_results, 2)
+        mock_build_hierarchy.assert_called_once_with(mock_analysis_results, 2, {})
         self.assertIs(gen.clustering_hierarchy, hierarchy)
         self.assertIsNotNone(gen.meta_agent)
         self.assertIsNotNone(gen.details_agent)
@@ -1018,7 +1020,7 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
         preparation = MagicMock()
-        preparation.delta.has_changes = False
+        preparation.has_changes = False
         gen.deterministic_analysis = Mock(
             side_effect=lambda **_kwargs: setattr(gen, "_incremental_preparation", preparation)
         )
@@ -1029,6 +1031,32 @@ class TestDiagramGenerator(unittest.TestCase):
 
         initialize_llms.assert_not_called()
         gen.agent_init.assert_not_called()
+
+    def test_prepare_analysis_initializes_agents_for_group_membership_change(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        delta = MagicMock()
+        delta.has_changes = False
+        preparation = _IncrementalPreparation(
+            delta=delta,
+            baseline_membership=_MembershipBaseline(),
+            has_membership_changes=True,
+        )
+        gen.deterministic_analysis = Mock(
+            side_effect=lambda **_kwargs: setattr(gen, "_incremental_preparation", preparation)
+        )
+        gen.agent_init = Mock()
+
+        gen.prepare_analysis(incremental=True)
+
+        gen.agent_init.assert_called_once()
 
     def test_deterministic_analysis_rejects_missing_incremental_baseline_before_clustering(self):
         gen = DiagramGenerator(
@@ -2107,6 +2135,40 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNone(gen.abstraction_agent)
         self.assertEqual(mock_build_index.call_count, 1 + len(sub_analyses))
 
+    def test_group_membership_change_applies_hierarchy_when_cluster_delta_is_empty(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        delta = MagicMock()
+        delta.has_changes = False
+        delta.cluster_results.return_value = {}
+        hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
+        gen.static_analysis = Mock()
+        gen.details_agent = Mock()
+        gen.incremental_agent = Mock()
+        gen.clustering_hierarchy = hierarchy
+        gen._incremental_preparation = _IncrementalPreparation(
+            delta=delta,
+            baseline_membership=_MembershipBaseline(),
+            has_membership_changes=True,
+        )
+        gen._apply_incremental_hierarchy = Mock(return_value=RecursiveScopeUpdateResult())
+        gen._refresh_files_index = Mock()
+        gen.finalize_and_save = Mock(return_value=self.output_dir / "analysis.json")
+        root_analysis = AnalysisInsights(description="root", components=[], components_relations=[])
+
+        result = gen.generate_analysis_incremental(root_analysis, {})
+
+        self.assertEqual(result, self.output_dir / "analysis.json")
+        gen._apply_incremental_hierarchy.assert_called_once_with(hierarchy, root_analysis, {})
+        gen.finalize_and_save.assert_called_once_with(root_analysis, {}, seed_delta={})
+
     def test_refresh_files_index_reuses_sources_and_copies_sub_entries(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -2232,6 +2294,64 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_save.assert_called_once()
         gen._write_file_coverage.assert_not_called()
         gen._persist_static_analysis_artifact.assert_not_called()
+
+    @patch("diagram_analysis.diagram_generator.save_analysis", side_effect=OSError("write failed"))
+    def test_failed_authoritative_save_discards_pending_cache_without_flushing_live_cache(self, mock_save):
+        gen = self._finalize_gen()
+        results = StaticAnalysisResults()
+        results.get_clusters(Language.PYTHON).record_unclustered({"baseline"})
+        live_cache = results.get_clusters(Language.PYTHON)
+        gen.static_analysis = results
+        gen._pending_cluster_caches = {"python": live_cache.detached_copy()}
+        gen._pending_cluster_caches["python"].record_unclustered({"prepared"})
+        analysis = AnalysisInsights(description="d", components=[], components_relations=[])
+
+        with self.assertRaisesRegex(OSError, "write failed"):
+            gen.finalize_and_save(analysis, {})
+
+        self.assertEqual(live_cache.get_unclustered_members(), {"baseline"})
+        self.assertIsNone(gen._pending_cluster_caches)
+        gen._persist_static_analysis_artifact.assert_not_called()
+
+    @patch("diagram_analysis.diagram_generator.save_analysis")
+    def test_successful_authoritative_save_installs_pending_lineage_before_persistence(self, mock_save):
+        mock_save.return_value = self.output_dir / "analysis.json"
+        gen = self._finalize_gen()
+        results = StaticAnalysisResults()
+        live_cache = results.get_clusters(Language.PYTHON)
+        gen.static_analysis = results
+        pending = live_cache.detached_copy()
+        pending.record_unclustered({"committed"}, "1")
+        gen._pending_cluster_caches = {"python": pending}
+        gen._persist_static_analysis_artifact.side_effect = lambda: self.assertIs(
+            results.get_clusters(Language.PYTHON), pending
+        )
+        analysis = AnalysisInsights(description="d", components=[], components_relations=[])
+
+        gen.finalize_and_save(analysis, {})
+
+        self.assertIs(results.get_clusters(Language.PYTHON), pending)
+        self.assertEqual(results.get_clusters(Language.PYTHON).get_unclustered_members("1"), {"committed"})
+        gen._persist_static_analysis_artifact.assert_called_once()
+
+    @patch("diagram_analysis.diagram_generator.assert_scope_containment")
+    @patch("diagram_analysis.diagram_generator.absorb_single_child_components", return_value=[])
+    def test_absorption_receives_pending_cache_not_live_cache(self, mock_absorb, _mock_containment):
+        gen = self._finalize_gen()
+        gen.finalize_for_save = DiagramGenerator.finalize_for_save.__get__(gen)
+        gen._strip_ignored = Mock()
+        gen.rebuild_global_relations = Mock()
+        results = StaticAnalysisResults()
+        live_cache = results.get_clusters(Language.PYTHON)
+        pending = live_cache.detached_copy()
+        gen.static_analysis = results
+        gen._pending_cluster_caches = {"python": pending}
+        analysis = AnalysisInsights(description="d", components=[], components_relations=[])
+
+        gen.finalize_for_save(analysis, {})
+
+        self.assertEqual(mock_absorb.call_args.args[2], [pending])
+        self.assertIsNot(mock_absorb.call_args.args[2][0], live_cache)
 
 
 if __name__ == "__main__":

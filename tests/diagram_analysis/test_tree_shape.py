@@ -300,6 +300,7 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
         generator = DiagramGenerator.__new__(DiagramGenerator)
         generator.static_analysis = None
         generator.clustering_hierarchy = None
+        generator._pending_cluster_caches = None
         generator.repo_location = Path(".")
         generator._baseline_global_relations = None
         root = analysis(
@@ -319,6 +320,7 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
         generator = DiagramGenerator.__new__(DiagramGenerator)
         generator.static_analysis = None
         generator.clustering_hierarchy = None
+        generator._pending_cluster_caches = None
         generator.repo_location = Path(".")
         root = analysis(component("1", "Kept", {"a.py": ["a.one"]}), component("2", "Parent", {}))
         subs = {"2": analysis(component("2.1", "Child", {}))}
@@ -461,6 +463,7 @@ class TestAbsorptionNeverHidesAContainmentViolation(unittest.TestCase):
         generator = DiagramGenerator.__new__(DiagramGenerator)
         generator.static_analysis = None
         generator.clustering_hierarchy = None
+        generator._pending_cluster_caches = None
         generator.repo_location = Path(".")
         generator._baseline_global_relations = None
         root = analysis(component("1", "Parent", {"a.py": ["a.one"]}))
