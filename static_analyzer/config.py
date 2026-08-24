@@ -27,6 +27,19 @@ class Language(StrEnum):
     CPP = "cpp"
 
 
+class AdapterName(StrEnum):
+    """Keys of ``ADAPTER_REGISTRY``. Not ``Language``: one adapter can own several."""
+
+    PYTHON = "Python"
+    TYPESCRIPT = "TypeScript"
+    JAVASCRIPT = "JavaScript"
+    CSHARP = "CSharp"
+    GO = "Go"
+    JAVA = "Java"
+    PHP = "PHP"
+    RUST = "Rust"
+
+
 class SourceSuffix(StrEnum):
     """File suffixes we recognise, so a suffix is never a loose string."""
 

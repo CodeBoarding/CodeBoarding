@@ -11,7 +11,7 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
-from static_analyzer.config import Language
+from static_analyzer.config import AdapterName, Language
 from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
@@ -117,8 +117,8 @@ def _adapter_names_for(programming_languages: list[ProgrammingLanguage]) -> list
             continue
         if adapter_name not in names:
             names.append(adapter_name)
-    if "TypeScript" in names and "JavaScript" in names:
-        names.remove("JavaScript")
+    if AdapterName.TYPESCRIPT in names and AdapterName.JAVASCRIPT in names:
+        names.remove(AdapterName.JAVASCRIPT)
     return names
 
 
@@ -142,7 +142,7 @@ def _create_engine_configs(
             continue
 
         try:
-            if adapter_name in ("TypeScript", "JavaScript"):
+            if adapter_name in (AdapterName.TYPESCRIPT, AdapterName.JAVASCRIPT):
                 ts_config_scanner = TypeScriptConfigScanner(repository_path, ignore_manager=ignore_manager)
                 typescript_projects = ts_config_scanner.find_typescript_projects()
 
@@ -173,7 +173,7 @@ def _create_engine_configs(
                     logger.info(f"No TypeScript config files found, using repository root for {adapter_name}")
                     configs.append(EngineConfig(adapter, repository_path))
 
-            elif adapter_name == "Java":
+            elif adapter_name == AdapterName.JAVA:
                 java_config_scanner = JavaConfigScanner(repository_path, ignore_manager=ignore_manager)
                 java_projects = java_config_scanner.scan()
 
@@ -187,7 +187,7 @@ def _create_engine_configs(
                 else:
                     logger.info("No Java projects detected")
 
-            elif adapter_name == "CSharp":
+            elif adapter_name == AdapterName.CSHARP:
                 csharp_scanner = CSharpConfigScanner(repository_path, ignore_manager=ignore_manager)
                 csharp_projects = csharp_scanner.scan()
 
@@ -213,17 +213,17 @@ def _create_engine_configs(
 def _lang_to_adapter_name(language: str) -> str | None:
     """Map a ProgrammingLanguage name to the engine adapter registry key."""
     mapping: dict[str, str] = {
-        "python": "Python",
-        "typescript": "TypeScript",
-        "javascript": "JavaScript",
-        "tsx": "TypeScript",
-        "jsx": "JavaScript",
-        "c#": "CSharp",
-        "csharp": "CSharp",
-        "go": "Go",
-        "java": "Java",
-        "php": "PHP",
-        "rust": "Rust",
+        "python": AdapterName.PYTHON,
+        "typescript": AdapterName.TYPESCRIPT,
+        "javascript": AdapterName.JAVASCRIPT,
+        "tsx": AdapterName.TYPESCRIPT,
+        "jsx": AdapterName.JAVASCRIPT,
+        "c#": AdapterName.CSHARP,
+        "csharp": AdapterName.CSHARP,
+        "go": AdapterName.GO,
+        "java": AdapterName.JAVA,
+        "php": AdapterName.PHP,
+        "rust": AdapterName.RUST,
     }
     return mapping.get(language.lower())
 
