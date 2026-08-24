@@ -36,7 +36,7 @@ def patched(tmp_path: Path):
 def _invoke(tmp_path: Path, **kwargs) -> None:
     run_incremental(
         RunPaths(repo_path=tmp_path, output_dir=tmp_path / "out", project_name="proj"),
-        RunContext(run_id="rid", log_path="logs/run.log", repo_dir=tmp_path),
+        RunContext(run_id="rid", log_path="logs/run.log"),
         **kwargs,
     )
 

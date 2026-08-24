@@ -47,7 +47,7 @@ class TestGenerateAnalysis(unittest.TestCase):
 
             result = run_full(
                 RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_repo"),
-                RunContext(run_id="test-run-id", log_path="test_repo/test-run-log", repo_dir=repo_path),
+                RunContext(run_id="test-run-id", log_path="test_repo/test-run-log"),
                 depth_level=2,
             )
 
@@ -80,7 +80,7 @@ class TestGenerateAnalysis(unittest.TestCase):
 
             run_full(
                 RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_repo"),
-                RunContext(run_id="test-run-id", log_path="test_repo/test-run-log", repo_dir=repo_path),
+                RunContext(run_id="test-run-id", log_path="test_repo/test-run-log"),
                 force_full=True,
             )
 
@@ -130,7 +130,7 @@ class TestPartialUpdate(unittest.TestCase):
 
             run_partial(
                 RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                RunContext(run_id="test-run-id", log_path="test_project/test-run-log", repo_dir=repo_path),
+                RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
                 component_id="test_comp_id",
             )
 
@@ -192,7 +192,7 @@ class TestPartialUpdate(unittest.TestCase):
 
             run_partial(
                 RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                RunContext(run_id="test-run-id", log_path="test_project/test-run-log", repo_dir=repo_path),
+                RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
                 component_id="nested_comp_id",
             )
 
@@ -220,7 +220,7 @@ class TestPartialUpdate(unittest.TestCase):
             with self.assertRaises(BaselineUnavailableError):
                 run_partial(
                     RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                    RunContext(run_id="test-run-id", log_path="test_project/test-run-log", repo_dir=repo_path),
+                    RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
                     component_id="TestComponent",
                 )
 
@@ -246,7 +246,7 @@ class TestIncrementalDepthSource(unittest.TestCase):
             with self.assertRaises(BaselineUnavailableError):
                 run_incremental(
                     RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                    RunContext(run_id="r", log_path="l", repo_dir=repo_path),
+                    RunContext(run_id="r", log_path="l"),
                 )
 
     @patch("codeboarding_workflows.analysis.run_incremental_workflow")
@@ -268,7 +268,7 @@ class TestIncrementalDepthSource(unittest.TestCase):
 
             run_incremental(
                 RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                RunContext(run_id="r", log_path="l", repo_dir=repo_path),
+                RunContext(run_id="r", log_path="l"),
             )
 
         self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 3)
@@ -360,7 +360,7 @@ class TestLocalSource(unittest.TestCase):
             with local_source(repo_path=repo_path, project_name="proj", artifact_dir=output_dir) as src:
                 run_partial(
                     RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
-                    RunContext(run_id="r", log_path="l", repo_dir=src.repo_path),
+                    RunContext(run_id="r", log_path="l"),
                     component_id="does-not-matter",
                 )
 
@@ -390,7 +390,7 @@ class TestFullCliLocal(unittest.TestCase):
     @patch("codeboarding_workflows.orchestration.RunContext")
     @patch("codeboarding_cli.commands.full_analysis.bootstrap_environment")
     def test_local_full_calls_run_full(self, _mock_bootstrap, mock_run_context, mock_run_full):
-        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l", finalize=lambda: None)
+        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -407,7 +407,7 @@ class TestFullCliLocal(unittest.TestCase):
     @patch("codeboarding_workflows.orchestration.RunContext")
     @patch("codeboarding_cli.commands.full_analysis.bootstrap_environment")
     def test_force_flag_propagates(self, _mock_bootstrap, mock_run_context, mock_run_full):
-        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l", finalize=lambda: None)
+        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -427,7 +427,7 @@ class TestPartialCliLocal(unittest.TestCase):
     def test_dispatch(self, _mock_bootstrap, mock_run_context, mock_run_partial):
         from codeboarding_cli.commands.partial_analysis import run_from_args as partial_run
 
-        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l", finalize=lambda: None)
+        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"

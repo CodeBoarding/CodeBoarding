@@ -23,21 +23,15 @@ class RunPaths:
 
 @dataclass(frozen=True, slots=True)
 class RunContext:
-    """Identifiers and repo reference for a single analysis execution."""
+    """Identifiers for a single analysis execution."""
 
     run_id: str
     log_path: str
-    repo_dir: Path
 
     @classmethod
-    def resolve(
-        cls,
-        repo_dir: Path,
-        project_name: str,
-    ) -> "RunContext":
+    def resolve(cls, project_name: str) -> "RunContext":
         """Resolve the run metadata needed to construct a DiagramGenerator."""
         return cls(
             run_id=generate_run_id(),
             log_path=generate_log_path(project_name),
-            repo_dir=repo_dir,
         )

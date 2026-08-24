@@ -45,15 +45,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         _emit_error(str(exc))
         return
 
-    try:
-        run_context = RunContext.resolve(
-            repo_dir=run_paths.repo_path,
-            project_name=run_paths.project_name,
-        )
-    except Exception as exc:
-        logger.exception("RunContext resolution failed")
-        _emit_error(str(exc))
-        return
+    run_context = RunContext.resolve(project_name=run_paths.project_name)
 
     try:
         analysis_path = run_incremental(
