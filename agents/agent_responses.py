@@ -314,7 +314,7 @@ class Relation(LLMBaseModel):
             src_id=src_id,
             dst_id=dst_id,
             is_static=is_static,
-            all_edges=cls._unique_edges(edges),
+            all_edges=cls.unique_edges(edges),
         )
 
     def llm_str(self) -> str:
@@ -353,12 +353,12 @@ class Relation(LLMBaseModel):
     def _merge_edges(
         key_edges: list[RelationEdge], all_edges: list[RelationEdge]
     ) -> tuple[list[RelationEdge], list[RelationEdge]]:
-        merged_key_edges = Relation._unique_edges(key_edges)
-        merged_all_edges = Relation._unique_edges([*all_edges, *merged_key_edges])
+        merged_key_edges = Relation.unique_edges(key_edges)
+        merged_all_edges = Relation.unique_edges([*all_edges, *merged_key_edges])
         return merged_key_edges, merged_all_edges
 
     @staticmethod
-    def _unique_edges(edges: list[RelationEdge]) -> list[RelationEdge]:
+    def unique_edges(edges: list[RelationEdge]) -> list[RelationEdge]:
         unique_edges: list[RelationEdge] = []
         seen: set[Hashable] = set()
         for edge in edges:

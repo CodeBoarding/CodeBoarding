@@ -11,7 +11,7 @@ from agents.repair import (
 from agents.validation import ValidationContext, validate_group_name_coverage, validate_key_entities
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language, NodeType
-from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
@@ -45,15 +45,9 @@ def _component_repair_context() -> ComponentRepairContext:
             strategy="test",
         )
     }
-    scope = ClusterScopeResult(
-        scope_id="root",
-        leaf_clusters_by_language=cluster_results,
-        groups=[ClusterGroup(group_id="1", cluster_ids=[1])],
-    )
     return ComponentRepairContext(
         reference_resolver=StaticReferenceResolver(Path("/tmp/fake-repo"), static_analysis),
         cluster_results=cluster_results,
-        clustering=scope,
         group_ids={"Group 1": [1]},
     )
 
@@ -99,7 +93,7 @@ def test_component_validators_do_not_mutate_repairable_metadata() -> None:
     validation_context = ValidationContext(
         cluster_results=repair_context.cluster_results,
         static_analysis=repair_context.reference_resolver.static_analysis,
-        clustering=repair_context.clustering,
+        group_ids=repair_context.group_ids,
     )
     before = architecture.model_dump()
 

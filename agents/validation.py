@@ -16,7 +16,7 @@ from repo_utils import normalize_path
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult, ClusterScopeResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,6 @@ class ValidationContext:
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
-    clustering: ClusterScopeResult = field(default_factory=lambda: ClusterScopeResult(scope_id=""))
     group_ids: dict[str, list[int]] = field(default_factory=dict)
     components: list[Component] = field(default_factory=list)  # For relation-only validation steps
 
@@ -433,7 +432,7 @@ def _valid_key_edge_descriptions(relation, context: ValidationContext) -> tuple[
     same_endpoint: list[str] = []
     unresolved: list[str] = []
     for edge in relation.key_edges:
-        resolution = resolver.classify_key_edge(edge, context.cfg_graphs)
+        resolution = resolver.classify_key_edge(edge)
         if resolution.valid:
             valid.append(resolution.description)
             continue

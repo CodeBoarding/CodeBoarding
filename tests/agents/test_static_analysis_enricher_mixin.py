@@ -141,6 +141,17 @@ class TestStaticAnalysisEnricher(unittest.TestCase):
         self.assertEqual([group.file_path for group in analysis.components[0].file_methods], ["main.py"])
         self.assertEqual([group.file_path for group in analysis.components[1].file_methods], ["main.go"])
 
+    def test_populate_file_methods_rejects_group_without_component(self):
+        scope = ClusterScopeResult(scope_id="root", groups=[ClusterGroup(group_id="2", cluster_ids=[1])])
+        analysis = AnalysisInsights(
+            description="missing component",
+            components=[component("1", "Only")],
+            components_relations=[],
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "Clustering group '2' has no matching component"):
+            enricher().populate_file_methods(analysis, scope)
+
     def test_qualifies_detail_leaf_lineage(self):
         analysis = AnalysisInsights(
             description="detail",

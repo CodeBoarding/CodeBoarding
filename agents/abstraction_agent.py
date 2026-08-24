@@ -131,7 +131,6 @@ class AbstractionAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         context = ValidationContext(
             cluster_results=cluster_results,
             static_analysis=self.static_analysis,
-            clustering=scope,
             group_ids=group_ids,
         )
 
@@ -146,7 +145,6 @@ class AbstractionAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             repair_context=ComponentRepairContext(
                 reference_resolver=self.reference_resolver,
                 cluster_results=cluster_results,
-                clustering=scope,
                 group_ids=group_ids,
             ),
             validation_context=context,
@@ -208,7 +206,6 @@ class AbstractionAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
                 cfg_graphs=cfg_graphs,
                 repo_dir=str(self.repo_dir),
                 static_analysis=self.static_analysis,
-                clustering=scope,
                 components=analysis.components,
             ),
             max_validation_attempts=3,

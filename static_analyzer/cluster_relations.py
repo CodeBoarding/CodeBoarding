@@ -19,6 +19,7 @@ from agents.relation_edges import (
     edge_crosses_components,
     ground_relation_edges,
 )
+from clustering_ids import is_self_or_descendant
 from static_analyzer.cfg import CallGraph
 
 logger = logging.getLogger(__name__)
@@ -92,11 +93,6 @@ def iter_ancestor_ids(component_id: str) -> Iterator[str]:
     parts = component_id.split(".")
     for i in range(len(parts), 0, -1):
         yield ".".join(parts[:i])
-
-
-def is_self_or_descendant(component_id: str, ancestor_id: str) -> bool:
-    """True when component_id is ancestor_id or one of its dotted descendants."""
-    return component_id == ancestor_id or component_id.startswith(f"{ancestor_id}.")
 
 
 def _collect_component_names(

@@ -5,6 +5,10 @@ from pathlib import Path
 from clustering_ids import ClusterId
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
 
+MAX_GROUP_FILES = 8
+MAX_GROUP_SYMBOLS = 12
+MAX_CONNECTION_EDGES = 10
+
 
 def cluster_group_ids(groups: list[ClusterGroup]) -> dict[str, list[ClusterId]]:
     return {f"Group {index}": group.cluster_ids for index, group in enumerate(groups, start=1)}
@@ -29,11 +33,11 @@ def cluster_group_descriptions(scope: ClusterScopeResult) -> dict[str, str]:
         )
         parts = [f"{len(group.cluster_ids)} leaf clusters, {len(symbols)} symbols across {len(files)} files."]
         if files:
-            shown = ", ".join(Path(path).name for path in files[:8])
-            parts.append(f"Files: {shown}{', ...' if len(files) > 8 else ''}")
+            shown = ", ".join(Path(path).name for path in files[:MAX_GROUP_FILES])
+            parts.append(f"Files: {shown}{', ...' if len(files) > MAX_GROUP_FILES else ''}")
         if symbols:
-            shown = ", ".join(symbols[:12])
-            parts.append(f"Key symbols: {shown}{', ...' if len(symbols) > 12 else ''}")
+            shown = ", ".join(symbols[:MAX_GROUP_SYMBOLS])
+            parts.append(f"Key symbols: {shown}{', ...' if len(symbols) > MAX_GROUP_SYMBOLS else ''}")
         descriptions[name] = " ".join(parts)
     return descriptions
 
@@ -60,10 +64,10 @@ def render_scope_connections(scope: ClusterScopeResult, group_names: dict[str, s
         target = group_names.get(connection.target_group_id, connection.target_group_id)
         edge_count = len(connection.edges)
         lines.append(f"\n{source} -> {target} ({edge_count} edge{'s' if edge_count != 1 else ''}):")
-        for edge in connection.edges[:10]:
+        for edge in connection.edges[:MAX_CONNECTION_EDGES]:
             short_source = edge.source_qualified_name.split(".")[-1]
             short_target = edge.target_qualified_name.split(".")[-1]
             lines.append(f"  {short_source} -> {short_target}")
-        if edge_count > 10:
-            lines.append(f"  ... and {edge_count - 10} more")
+        if edge_count > MAX_CONNECTION_EDGES:
+            lines.append(f"  ... and {edge_count - MAX_CONNECTION_EDGES} more")
     return "\n".join(lines)

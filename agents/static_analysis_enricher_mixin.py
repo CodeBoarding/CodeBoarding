@@ -84,7 +84,7 @@ class StaticAnalysisEnricherMixin:
         for group in scope.groups:
             component = analysis.component_by_id(group.group_id)
             if component is None:
-                continue
+                raise RuntimeError(f"Clustering group '{group.group_id}' has no matching component")
             nodes = [
                 scope.graphs_by_language[language].nodes[qualified_name]
                 for language, qualified_names in group.symbol_members_by_language.items()

@@ -24,7 +24,7 @@ from agents.agent_responses import (
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
 from static_analyzer.config import NodeType
 
@@ -349,18 +349,9 @@ class TestValidateRelationEvidence(unittest.TestCase):
             cluster_to_files={},
             strategy="test",
         )
-        scope = ClusterScopeResult(
-            scope_id="root",
-            leaf_clusters_by_language={"python": cluster_result},
-            groups=[
-                ClusterGroup(group_id="1", cluster_ids=[1]),
-                ClusterGroup(group_id="2", cluster_ids=[2]),
-            ],
-        )
         return ValidationContext(
             cluster_results={"python": cluster_result},
             cfg_graphs={"python": cfg},
-            clustering=scope,
         )
 
     def _make_analysis(self, relation: Relation) -> AnalysisInsights:
@@ -500,7 +491,7 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
         self.assertTrue(result.is_valid)
 
-    def test_internal_unresolved_key_edge_endpoint_is_rejected(self):
+    def test_internal_unresolved_key_edge_endpoint_allows_relation(self):
         analysis = self._make_analysis(
             Relation(
                 relation="calls helper",
@@ -529,8 +520,36 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
         result = validate_relation_evidence(analysis, context)
 
-        self.assertFalse(result.is_valid)
-        self.assertIn("look hallucinated", result.feedback_messages[0])
+        self.assertTrue(result.is_valid)
+
+    def test_unresolved_source_with_resolved_target_allows_relation(self):
+        analysis = self._make_analysis(
+            Relation(
+                relation="receives callback",
+                src_name="A",
+                dst_name="B",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="framework.callback"),
+                        target=SourceCodeReference(qualified_name="service.OCR.extract_text"),
+                    )
+                ],
+            )
+        )
+        target_node = MagicMock()
+        target_node.fully_qualified_name = "service.OCR.extract_text"
+        target_node.file_path = "service.py"
+        target_node.line_start = 1
+        target_node.line_end = 2
+        context = self._make_context(("b.load", "a.run"))
+        context.static_analysis = MagicMock()
+        context.static_analysis.get_languages.return_value = ["python"]
+        context.static_analysis.get_reference.side_effect = [ValueError("not found"), target_node]
+        context.static_analysis.get_loose_reference.return_value = ("", None)
+
+        result = validate_relation_evidence(analysis, context)
+
+        self.assertTrue(result.is_valid)
 
     def test_partially_supported_relation_set_gets_partial_score(self):
         analysis = self._make_analysis(Relation(relation="calls", src_name="A", dst_name="B"))

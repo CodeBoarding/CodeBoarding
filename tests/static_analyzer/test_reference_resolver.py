@@ -264,7 +264,7 @@ class TestStaticReferenceResolver(unittest.TestCase):
         self.assertEqual(edge.target.reference_file, "module/file.py")
         self.assertEqual([site.model_dump() for site in edge.call_sites], [{"line": 7, "column": 8}])
 
-    def test_fix_source_code_reference_lines_keeps_external_target_edge(self):
+    def test_fix_source_code_reference_lines_keeps_edge_with_resolved_source(self):
         source_node = self._node("service.OCR.extract_text", "service.py", 1, 2)
         self.static_analysis.get_reference.side_effect = self._resolves(source_node)
         self.static_analysis.get_loose_reference.return_value = ("", None)
@@ -276,8 +276,7 @@ class TestStaticReferenceResolver(unittest.TestCase):
             key_edges=[
                 RelationEdge(
                     source=SourceCodeReference(qualified_name="service.OCR.extract_text"),
-                    target=SourceCodeReference(qualified_name="openai.OpenAI"),
-                    description="External OpenAI client call",
+                    target=SourceCodeReference(qualified_name="service._missing_helper"),
                 )
             ],
         )
@@ -292,9 +291,30 @@ class TestStaticReferenceResolver(unittest.TestCase):
         self.assertEqual(len(result.components_relations), 1)
         self.assertEqual(len(result.components_relations[0].key_edges), 1)
 
+    def test_keep_relation_edge_keeps_edge_with_resolved_target(self):
+        target_node = self._node("service.OCR.extract_text", "service.py", 1, 2)
+        self.static_analysis.get_reference.side_effect = self._resolves(target_node)
+        self.static_analysis.get_loose_reference.return_value = ("", None)
+        edge = RelationEdge(
+            source=SourceCodeReference(qualified_name="framework.callback"),
+            target=SourceCodeReference(qualified_name="service.OCR.extract_text"),
+        )
+
+        self.assertTrue(self.resolver.keep_relation_edge(edge))
+
+    def test_keep_relation_edge_drops_edge_with_no_resolved_endpoint(self):
+        self.static_analysis.get_reference.side_effect = self._resolves()
+        self.static_analysis.get_loose_reference.return_value = ("", None)
+        edge = RelationEdge(
+            source=SourceCodeReference(qualified_name="missing.source"),
+            target=SourceCodeReference(qualified_name="missing.target"),
+        )
+
+        self.assertFalse(self.resolver.keep_relation_edge(edge))
+
     def test_fix_source_code_reference_lines_drops_same_endpoint_key_edge(self):
         node = self._node("service.OCR.extract_text", "service.py", 1, 2)
-        self.static_analysis.get_reference.side_effect = [node, node]
+        self.static_analysis.get_reference.side_effect = self._resolves(node)
         relation = Relation(
             relation="self call",
             src_name="Source",

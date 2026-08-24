@@ -4,6 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
+from clustering_ids import is_self_or_descendant
 from repo_utils.path_utils import normalize_repo_path
 
 
@@ -79,9 +80,9 @@ def ground_relation_edges(
     llm_key_edges: list[RelationEdge], static_edges: list[RelationEdge]
 ) -> tuple[list[RelationEdge], list[RelationEdge]]:
     """Ground an LLM relation's key edges in deterministic static edges."""
-    static_unique = Relation._unique_edges(static_edges)
+    static_unique = Relation.unique_edges(static_edges)
     if not static_unique:
-        merged = Relation._unique_edges(llm_key_edges)
+        merged = Relation.unique_edges(llm_key_edges)
         return merged, merged
     highlighted: list[RelationEdge] = []
     for static_edge in static_unique:
@@ -111,7 +112,7 @@ def edge_crosses_components(
     """Return whether an edge's owned endpoints match its declared component pair."""
     for reference, component_id in ((edge.source, src_id), (edge.target, dst_id)):
         owner = owner_of(reference)
-        if owner and component_id and not _is_self_or_descendant(owner, component_id):
+        if owner and component_id and not is_self_or_descendant(owner, component_id):
             return False
     return True
 
@@ -131,10 +132,10 @@ def prune_ungrounded_edges(
         target = owner_of(edge.target)
         if not source or not target:
             return None, False
-        if _is_self_or_descendant(source, target) or _is_self_or_descendant(target, source):
+        if is_self_or_descendant(source, target) or is_self_or_descendant(target, source):
             return None, True
         for pair in by_pair:
-            if _is_self_or_descendant(source, pair[0]) and _is_self_or_descendant(target, pair[1]):
+            if is_self_or_descendant(source, pair[0]) and is_self_or_descendant(target, pair[1]):
                 return pair, False
         return None, False
 
@@ -166,7 +167,7 @@ def prune_ungrounded_edges(
     for relation in kept:
         moved = additions.get((relation.src_id, relation.dst_id))
         if moved:
-            relation = relation.model_copy(update={"all_edges": Relation._unique_edges([*relation.all_edges, *moved])})
+            relation = relation.model_copy(update={"all_edges": Relation.unique_edges([*relation.all_edges, *moved])})
         if not relation.all_edges and not relation.key_edges and not relation.evidence.strip():
             continue
         settled.append(relation)
@@ -214,10 +215,6 @@ def _qualified_names_match(first: str, second: str) -> bool:
     """Return whether canonical or suffix-qualified names denote the same symbol."""
     first, second = first.replace(":", "."), second.replace(":", ".")
     return first == second or first.endswith(f".{second}") or second.endswith(f".{first}")
-
-
-def _is_self_or_descendant(component_id: str, ancestor_id: str) -> bool:
-    return component_id == ancestor_id or component_id.startswith(f"{ancestor_id}.")
 
 
 def _relation_backing_survives(relation: Relation, live_qnames: set[str]) -> bool:
@@ -333,7 +330,7 @@ def _reconcile_unchanged_edges(fresh: Relation, previous: Relation, changed_memb
     def split(fresh_edges: list[RelationEdge], baseline_edges: list[RelationEdge]) -> list[RelationEdge]:
         fresh_grounded = [e for e in fresh_edges if _edge_touches_changed_method(e, changed_members)]
         baseline_stable = [e for e in baseline_edges if not _edge_touches_changed_method(e, changed_members)]
-        return Relation._unique_edges([*fresh_grounded, *baseline_stable])
+        return Relation.unique_edges([*fresh_grounded, *baseline_stable])
 
     return fresh.model_copy(
         update={

@@ -47,3 +47,8 @@ class CodeBoardingClusterIds:
 def _cluster_id_sort_key(cluster_id: ComponentId) -> tuple[tuple[int, int | str], ...]:
     parts = tuple((0, int(part)) if part.isdigit() else (1, part) for part in cluster_id.split("."))
     return ((0, len(parts)), *parts)
+
+
+def is_self_or_descendant(component_id: ComponentId, ancestor_id: ComponentId) -> bool:
+    """True when component_id is ancestor_id or one of its dotted descendants."""
+    return component_id == ancestor_id or component_id.startswith(f"{ancestor_id}.")

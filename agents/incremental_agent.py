@@ -349,7 +349,6 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
                 cfg_graphs=cfg_graphs,
                 repo_dir=str(self.repo_dir),
                 static_analysis=self.static_analysis,
-                clustering=clustering,
                 components=scope.components,
             ),
             max_validation_attempts=3,
