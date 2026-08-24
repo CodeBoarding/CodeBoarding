@@ -653,6 +653,13 @@ class ClusteringService:
         if not groups:
             return
         group_by_cluster = {cluster_id: group for group in groups for cluster_id in group.cluster_ids}
+        unowned_cluster_ids = {
+            cluster_id
+            for cluster_result in leaf_clusters_by_language.values()
+            for cluster_id in cluster_result.clusters
+            if cluster_id not in group_by_cluster
+        }
+        assert not unowned_cluster_ids, f"Leaf clusters have no group owner: {sorted(unowned_cluster_ids)}"
         for language, graph in graphs.items():
             cluster_result = leaf_clusters_by_language.get(language, ClusterResult())
             cluster_by_qualified_name = {

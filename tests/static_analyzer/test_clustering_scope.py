@@ -41,6 +41,17 @@ def cluster_result_for(graph: CallGraph, clusters: dict[int, set[str]]) -> Clust
 
 
 class TestClusteringScope(unittest.TestCase):
+    def test_symbol_assignment_rejects_unowned_leaf_cluster(self):
+        graph = graph_for("python", ["a", "b"])
+        cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}})
+
+        with self.assertRaisesRegex(AssertionError, r"Leaf clusters have no group owner: \[2\]"):
+            ClusteringService()._assign_symbol_members(
+                {"python": graph},
+                {"python": cluster_result},
+                [ClusterGroup(group_id="1", cluster_ids=[1])],
+            )
+
     def test_reroot_indexes_rejects_group_id_collision(self):
         child_scope = ClusterScopeResult(
             scope_id="1.1",

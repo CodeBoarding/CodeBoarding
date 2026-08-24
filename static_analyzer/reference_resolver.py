@@ -240,13 +240,14 @@ class StaticReferenceResolver:
         """Keep relation edges with at least one real, non-self endpoint."""
         source_node = self.resolve_node(edge.source)
         target_node = self.resolve_node(edge.target)
-        if (
-            source_node is not None
-            and target_node is not None
-            and self.node_identity(source_node) == self.node_identity(target_node)
-        ):
-            return False
-        return source_node is not None or target_node is not None
+        return not (
+            (source_node is None and target_node is None)
+            or (
+                source_node is not None
+                and target_node is not None
+                and self.node_identity(source_node) == self.node_identity(target_node)
+            )
+        )
 
     def reference_file_exists(self, reference_file: str) -> bool:
         """Return true for absolute paths or paths relative to the analyzed repo."""
