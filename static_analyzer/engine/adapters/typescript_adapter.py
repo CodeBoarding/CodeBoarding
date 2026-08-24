@@ -12,12 +12,7 @@ class TypeScriptAdapter(LanguageAdapter):
 
     @property
     def file_extensions(self) -> tuple[str, ...]:
-        """Both families: one tsserver serves them, and ``allowJs`` puts .js in a TS project.
-
-        Why not just the TypeScript set: this adapter owns the whole family, so a narrower
-        tuple makes the incremental pass invalidate a changed ``.js`` and then filter it back
-        out — its nodes are dropped and never rebuilt.
-        """
+        """Both families: one tsserver serves them, and ``allowJs`` puts .js in a TS project."""
         return file_extensions_for(Language.TYPESCRIPT)
 
     @property
