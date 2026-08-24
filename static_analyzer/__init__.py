@@ -213,17 +213,18 @@ def _create_engine_configs(
 def _lang_to_adapter_name(language: str) -> str | None:
     """Map a ProgrammingLanguage name to the engine adapter registry key."""
     mapping: dict[str, str] = {
-        "python": AdapterName.PYTHON,
-        "typescript": AdapterName.TYPESCRIPT,
-        "javascript": AdapterName.JAVASCRIPT,
+        Language.PYTHON: AdapterName.PYTHON,
+        Language.TYPESCRIPT: AdapterName.TYPESCRIPT,
+        Language.JAVASCRIPT: AdapterName.JAVASCRIPT,
+        Language.CSHARP: AdapterName.CSHARP,
+        Language.GO: AdapterName.GO,
+        Language.JAVA: AdapterName.JAVA,
+        Language.PHP: AdapterName.PHP,
+        Language.RUST: AdapterName.RUST,
+        # Scanner spellings with no ``Language`` member of their own.
         "tsx": AdapterName.TYPESCRIPT,
         "jsx": AdapterName.JAVASCRIPT,
         "c#": AdapterName.CSHARP,
-        "csharp": AdapterName.CSHARP,
-        "go": AdapterName.GO,
-        "java": AdapterName.JAVA,
-        "php": AdapterName.PHP,
-        "rust": AdapterName.RUST,
     }
     return mapping.get(language.lower())
 
