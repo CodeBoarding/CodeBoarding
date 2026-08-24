@@ -14,6 +14,7 @@ import networkx as nx
 from clustering_ids import ROOT_SCOPE_ID, ClusterId, CodeBoardingClusterIds, ComponentId, GroupId, ScopeId
 from constants import MIN_CLUSTERS_THRESHOLD
 from repo_utils.path_utils import normalize_repo_path
+from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering.cache import ClusterCache
 from static_analyzer.clustering.engine import cluster_graph
@@ -67,7 +68,10 @@ class ClusteringService:
         return cluster_graph(graph.to_networkx(DEFAULT_REFERENCE_KINDS), delimiter=graph.delimiter)
 
     def build_full_hierarchy(
-        self, static_analysis: Any, max_depth: int, cluster_caches: Mapping[str, ClusterCache] | None = None
+        self,
+        static_analysis: StaticAnalysisResults,
+        max_depth: int,
+        cluster_caches: Mapping[str, ClusterCache] | None = None,
     ) -> ClusterScopeResult:
         """Build a full hierarchy and synchronize its persisted cluster lineage."""
         root_results = self._build_leaf_clusters(static_analysis)
@@ -77,7 +81,7 @@ class ClusteringService:
 
     def build_incremental_hierarchy(
         self,
-        static_analysis: Any,
+        static_analysis: StaticAnalysisResults,
         max_depth: int,
         root_leaf_clusters: Mapping[str, ClusterResult],
         persisted_scopes: Mapping[str, Any],
@@ -128,7 +132,7 @@ class ClusteringService:
 
     def build_scope_hierarchy(
         self,
-        static_analysis: Any,
+        static_analysis: StaticAnalysisResults,
         graphs: Mapping[str, CallGraph],
         max_depth: int,
         root_scope_id: ScopeId,
@@ -335,7 +339,7 @@ class ClusteringService:
 
     def _build_hierarchy(
         self,
-        static_analysis: Any,
+        static_analysis: StaticAnalysisResults,
         max_depth: int,
         root_results: Mapping[str, ClusterResult],
         scope_input: Callable[[ScopeId, Mapping[str, CallGraph]], ClusterScopeInput],
@@ -354,7 +358,7 @@ class ClusteringService:
 
         return self._cluster_hierarchy(static_analysis.available_cfgs(), max_depth, seeded_input)
 
-    def _build_leaf_clusters(self, static_analysis: Any) -> dict[str, ClusterResult]:
+    def _build_leaf_clusters(self, static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
         results: dict[str, ClusterResult] = {}
         offset = 0
         for language in static_analysis.get_languages():
@@ -368,7 +372,7 @@ class ClusteringService:
 
     def _incremental_scope_partitions(
         self,
-        baseline: Any,
+        baseline: StaticAnalysisResults,
         scope_id: ScopeId,
         graphs: Mapping[str, CallGraph],
         persisted_ownership: Mapping[str, Mapping[str, ComponentId]],
@@ -516,7 +520,7 @@ class ClusteringService:
 
     @staticmethod
     def _record_scopes(
-        static_analysis: Any,
+        static_analysis: StaticAnalysisResults,
         scope: ClusterScopeResult,
         cluster_caches: Mapping[str, ClusterCache] | None = None,
     ) -> None:

@@ -55,10 +55,9 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # dataclass storage.
 # v3: MethodClusterPaths moved to static_analyzer.clustering, then CallGraph and the edge
 # types to static_analyzer.cfg, and reference edges became ReferenceEdge objects.
-# v4: ClusterCache records intentionally unclustered members for each hierarchy scope.
-# v5: structural and unclustered lineage share one authoritative record per scope.
+# v4: ClusterCache records complete structural and unclustered lineage per hierarchy scope.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v5"
+_TAG_VERSION = "v4"
 
 
 class StaticAnalysisCache:
