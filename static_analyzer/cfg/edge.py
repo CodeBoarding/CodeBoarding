@@ -86,12 +86,9 @@ class Edge:
 
     @staticmethod
     def _normalize_call_site(call_site: Mapping[str, Hashable]) -> CallSiteLocation:
-        normalized = dict(call_site)
-        if "file" not in normalized and "file_path" in normalized:
-            normalized["file"] = normalized.pop("file_path")
-        file = normalized.get("file")
-        line = normalized.get("line")
-        column = normalized.get("column")
+        file = call_site.get("file", call_site.get("file_path"))
+        line = call_site.get("line")
+        column = call_site.get("column")
         if not isinstance(line, int):
             raise ValueError("Call sites require a one-based integer line")
         location = CallSiteLocation(line=line)
