@@ -28,3 +28,13 @@ class IncrementalCacheMissingError(RuntimeError):
             f"Incremental analysis cannot proceed: {reason}. " "Run a full analysis first to seed the cache."
         )
         self.artifact_dir = artifact_dir
+
+
+class PersistedOwnershipConflictError(RuntimeError):
+    """Raised when one persisted scope assigns a live symbol to multiple components."""
+
+    def __init__(self, scope_id: str, language: str, qualified_name: str, owners: set[str]):
+        super().__init__(
+            f"Persisted scope {scope_id!r} assigns {language} member {qualified_name!r} "
+            f"to multiple components: {', '.join(sorted(owners))}"
+        )

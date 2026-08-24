@@ -42,7 +42,7 @@ def _build_static(graphs: dict[str, CallGraph], partitions: dict[str, ClusterRes
     for language, graph in graphs.items():
         results.add_cfg(Language(language), graph)
         if language in partitions:
-            results.get_clusters(Language(language)).adopt(partitions[language])
+            results.get_clusters(Language(language)).record_scope(partitions[language])
     return results
 
 
@@ -55,7 +55,7 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
             file_to_clusters={"a.py": {5}, "b.py": {6}},
         )
         static = _build_static({"python": graph}, {"python": partition})
-        static.get_clusters(Language.PYTHON).record_unclustered({"orphan"})
+        static.get_clusters(Language.PYTHON).record_scope(partition, {"orphan"})
 
         snap = snapshot_from_static_analysis(static)
 

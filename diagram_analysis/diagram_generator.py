@@ -1012,27 +1012,6 @@ class DiagramGenerator:
             changed_files=self._changed_files_for_static_analysis(),
         )
 
-    def _seed_incremental_cluster_cache(self, cluster_results: dict[str, ClusterResult]) -> None:
-        """Write post-delta ``cluster_results`` into each language's ``ClusterCache``.
-
-        On the incremental path the abstraction agent doesn't run, so the live
-        partition has to be plumbed in explicitly before ``stop_clients`` saves
-        the pkl. ``cluster_snapshot`` reads exclusively from this cache.
-        """
-        if self.static_analysis is None:
-            return
-        for language, cr in cluster_results.items():
-            try:
-                cache = (
-                    self._pending_cluster_caches.get(language)
-                    if self._pending_cluster_caches is not None
-                    else self.static_analysis.get_clusters(Language(language))
-                )
-                if cache is not None:
-                    cache.adopt(cr)
-            except (ValueError, KeyError):
-                continue
-
     def _persist_static_analysis_artifact(self) -> None:
         """Persist the post-clustering static-analysis artifact."""
         if self.static_analysis is None:
@@ -1344,20 +1323,16 @@ class DiagramGenerator:
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
         *,
-        seed_delta: dict[str, ClusterResult] | None = None,
         persist_side_artifacts: bool = True,
         preserved_expandable_ids: Collection[str] = (),
     ) -> Path:
         """Shared post-analysis tail for every flow: finalize, persist, return the path.
 
         ``finalize_for_save`` then ``save_analysis`` (stamped with the current
-        ``source_tree_hash`` and file-coverage summary). ``seed_delta`` is the
-        incremental-only cluster baseline, seeded *after* the save so a crash in
-        between re-does the delta (idempotent) rather than silently skipping it.
-
-        ``persist_side_artifacts`` writes ``file_coverage.json``, the static-analysis
-        cache, and ``fingerprint.json``. The partial flow leaves source-state
-        sidecars unchanged and persists its updated lineage after this save.
+        ``source_tree_hash`` and file-coverage summary). ``persist_side_artifacts``
+        writes ``file_coverage.json``, the static-analysis cache, and
+        ``fingerprint.json``. The partial flow leaves source-state sidecars
+        unchanged and persists its updated lineage after this save.
         """
         try:
             self.finalize_for_save(root_analysis, sub_analyses)
@@ -1387,8 +1362,6 @@ class DiagramGenerator:
         except Exception:
             self._pending_cluster_caches = None
             raise
-        if seed_delta is not None:
-            self._seed_incremental_cluster_cache(seed_delta)
         if self.static_analysis is not None and self._pending_cluster_caches is not None:
             for language, cache in self._pending_cluster_caches.items():
                 self.static_analysis.set_clusters(Language(language), cache)
@@ -1595,7 +1568,7 @@ class DiagramGenerator:
 
             self._refresh_files_index(root_analysis, sub_analyses)
 
-            analysis_path = self.finalize_and_save(root_analysis, sub_analyses, seed_delta=delta.cluster_results())
+            analysis_path = self.finalize_and_save(root_analysis, sub_analyses)
             n_subs = sum(len(sub.components) for sub in sub_analyses.values())
             logger.info(
                 "[incremental] saved: %d root + %d sub-components, %d relations",

@@ -5,7 +5,7 @@
 state that ``LanguageResults`` owns.
 """
 
-from static_analyzer.clustering.cache import ClusterCache
+from static_analyzer.clustering.cache import ClusterCache, ClusterScopeLineage
 from static_analyzer.clustering.models import (
     METHOD_LEVEL_STRATEGY,
     ClusterConnectionEdge,
@@ -18,6 +18,7 @@ from static_analyzer.clustering.models import (
 __all__ = [
     "METHOD_LEVEL_STRATEGY",
     "ClusterCache",
+    "ClusterScopeLineage",
     "ClusterConnectionEdge",
     "ClusterGroup",
     "ClusterResult",

@@ -51,7 +51,6 @@ from static_analyzer.clustering import (
     ClusterResult,
     ClusterScopeResult,
 )
-from static_analyzer.clustering.method_cluster_paths import MethodClusterPaths
 from static_analyzer.clustering.delta import LanguageDelta
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
 from static_analyzer.clustering.service import ClusteringService
@@ -1800,28 +1799,28 @@ class TestDiagramGenerator(unittest.TestCase):
             baseline,
             "1",
             {"typescript": graph},
-            {"python": {"pkg.live"}},
+            {"python": {"pkg.live": "1"}},
             self.output_dir,
         )
 
         self.assertTrue(partitions["typescript"].clusters)
-        cache.record_unclustered({"pkg.live"}, "1")
+        cache.record_scope(ClusterResult(), {"pkg.live"}, "1")
         partitions = ClusteringService()._incremental_scope_partitions(
             baseline,
             "1",
             {"typescript": graph},
-            {"typescript": {"pkg.live"}},
+            {"typescript": {"pkg.live": "1"}},
             self.output_dir,
         )
         self.assertTrue(partitions["typescript"].clusters)
 
-        cache.record_unclustered(set(), "1")
+        cache.record_scope(ClusterResult(), scope_id="1")
         with self.assertRaisesRegex(IncrementalCacheMissingError, "persisted scope '1'.*pkg.live"):
             ClusteringService()._incremental_scope_partitions(
                 baseline,
                 "1",
                 {"typescript": graph},
-                {"typescript": {"pkg.live"}},
+                {"typescript": {"pkg.live": "1"}},
                 self.output_dir,
             )
 
@@ -1829,13 +1828,15 @@ class TestDiagramGenerator(unittest.TestCase):
     def test_incremental_child_scope_reserves_ids_from_removed_languages(self, delta_for_language):
         baseline = MagicMock()
         baseline.get_languages.return_value = [Language.PYTHON, Language.TYPESCRIPT]
-        baseline_paths = {
-            Language.PYTHON: MethodClusterPaths({"py.deleted": {"1.9"}}),
-            Language.TYPESCRIPT: MethodClusterPaths({"ts.live": {"1.2"}}),
-        }
-        baseline_caches = {
-            language: ClusterCache(method_paths=method_paths) for language, method_paths in baseline_paths.items()
-        }
+        baseline_caches = {Language.PYTHON: ClusterCache(), Language.TYPESCRIPT: ClusterCache()}
+        baseline_caches[Language.PYTHON].record_scope(
+            ClusterResult(clusters={9: {"py.deleted"}}),
+            scope_id="1",
+        )
+        baseline_caches[Language.TYPESCRIPT].record_scope(
+            ClusterResult(clusters={2: {"ts.live"}}),
+            scope_id="1",
+        )
         baseline.get_clusters.side_effect = lambda language: baseline_caches[language]
         graph = CallGraph(language="typescript")
         graph.add_node(Node("ts.live", NodeType.FUNCTION, "/repo/live.ts", 1, 2))
@@ -1854,7 +1855,7 @@ class TestDiagramGenerator(unittest.TestCase):
             baseline,
             "1",
             {"typescript": graph},
-            {"typescript": {"ts.live"}},
+            {"typescript": {"ts.live": "1"}},
             self.output_dir,
         )
 
@@ -2167,7 +2168,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertEqual(result, self.output_dir / "analysis.json")
         gen._apply_incremental_hierarchy.assert_called_once_with(hierarchy, root_analysis, {})
-        gen.finalize_and_save.assert_called_once_with(root_analysis, {}, seed_delta={})
+        gen.finalize_and_save.assert_called_once_with(root_analysis, {})
 
     def test_refresh_files_index_reuses_sources_and_copies_sub_entries(self):
         gen = DiagramGenerator(
@@ -2233,7 +2234,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         results = StaticAnalysisResults()
         results.add_cfg(Language.PYTHON, cfg)
-        results.get_clusters(Language.PYTHON).adopt(
+        results.get_clusters(Language.PYTHON).record_scope(
             ClusterResult(
                 clusters={1: {"test.fn"}},
                 cluster_to_files={1: {str(self.repo_location / "test.py")}},
@@ -2251,7 +2252,7 @@ class TestDiagramGenerator(unittest.TestCase):
             return
         loaded_results, cached_sha = loaded
         self.assertEqual(cached_sha, "sha-current")
-        self.assertIsNotNone(loaded_results.get_clusters(Language.PYTHON).result)
+        self.assertEqual(loaded_results.get_clusters(Language.PYTHON).get_partition().clusters, {1: {"test.fn"}})
 
     def _finalize_gen(self):
         gen = DiagramGenerator(
@@ -2299,11 +2300,11 @@ class TestDiagramGenerator(unittest.TestCase):
     def test_failed_authoritative_save_discards_pending_cache_without_flushing_live_cache(self, mock_save):
         gen = self._finalize_gen()
         results = StaticAnalysisResults()
-        results.get_clusters(Language.PYTHON).record_unclustered({"baseline"})
+        results.get_clusters(Language.PYTHON).record_scope(ClusterResult(), {"baseline"})
         live_cache = results.get_clusters(Language.PYTHON)
         gen.static_analysis = results
         gen._pending_cluster_caches = {"python": live_cache.detached_copy()}
-        gen._pending_cluster_caches["python"].record_unclustered({"prepared"})
+        gen._pending_cluster_caches["python"].record_scope(ClusterResult(), {"prepared"})
         analysis = AnalysisInsights(description="d", components=[], components_relations=[])
 
         with self.assertRaisesRegex(OSError, "write failed"):
@@ -2321,7 +2322,7 @@ class TestDiagramGenerator(unittest.TestCase):
         live_cache = results.get_clusters(Language.PYTHON)
         gen.static_analysis = results
         pending = live_cache.detached_copy()
-        pending.record_unclustered({"committed"}, "1")
+        pending.record_scope(ClusterResult(), {"committed"}, "1")
         gen._pending_cluster_caches = {"python": pending}
         gen._persist_static_analysis_artifact.side_effect = lambda: self.assertIs(
             results.get_clusters(Language.PYTHON), pending

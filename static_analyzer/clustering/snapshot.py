@@ -58,10 +58,10 @@ def snapshot_from_static_analysis(static_analysis: StaticAnalysisResults) -> Clu
         except ValueError:
             continue
         cache = static_analysis.get_clusters(language)
-        partition = cache.result
+        partition = cache.get_partition()
         if not partition.clusters:
             continue
-        by_language[language] = _entries_from_partition(partition, cfg.to_networkx(reference_kinds=()))
+        by_language[language] = entries_from_partition(partition, cfg.to_networkx(reference_kinds=()))
         unclustered_members_by_language[language] = cache.get_unclustered_members()
     return ClusterSnapshot(
         by_language=by_language,
@@ -69,7 +69,7 @@ def snapshot_from_static_analysis(static_analysis: StaticAnalysisResults) -> Clu
     )
 
 
-def _entries_from_partition(
+def entries_from_partition(
     partition: ClusterResult,
     nx_graph,
 ) -> dict[int, ClusterSnapshotEntry]:

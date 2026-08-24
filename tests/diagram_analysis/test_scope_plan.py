@@ -7,14 +7,19 @@ These tests pin the planner to the anchor that does survive: the methods themsel
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from agents.agent_responses import AnalysisInsights, Component, ScopeOperationAction, ScopeUpdateDecision
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
 from diagram_analysis.scope_plan import plan_scope_result_update
+from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
+from static_analyzer.clustering.exceptions import PersistedOwnershipConflictError
 from static_analyzer.clustering.service import ClusteringService
+from static_analyzer.config import NodeType
+from static_analyzer.node import Node
 
 FILE = "pkg/mod.py"
 DELETE = ScopeOperationAction.DELETE_COMPONENT
@@ -87,8 +92,11 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner, _member_owner = ClusteringService._previous_ownership(
-            scope, {"python": clustering({7: {"a.one", "a.two", "b.one"}})}, ROOT_SCOPE_ID, REPO
+        owner = ClusteringService._previous_cluster_ownership(
+            scope,
+            {"python": clustering({7: {"a.one", "a.two", "b.one"}})},
+            ROOT_SCOPE_ID,
+            {"python": {"a.one": "1", "a.two": "1", "b.one": "2"}},
         )
 
         self.assertEqual(owner, {7: "1"})
@@ -96,8 +104,11 @@ class TestPreviousOwnership(unittest.TestCase):
     def test_a_cluster_of_entirely_new_methods_has_no_owner(self):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
-        owner, _member_owner = ClusteringService._previous_ownership(
-            scope, {"python": clustering({1: {"a.one"}, 2: {"fresh.thing"}})}, ROOT_SCOPE_ID, REPO
+        owner = ClusteringService._previous_cluster_ownership(
+            scope,
+            {"python": clustering({1: {"a.one"}, 2: {"fresh.thing"}})},
+            ROOT_SCOPE_ID,
+            {"python": {"a.one": "1"}},
         )
 
         self.assertEqual(owner, {1: "1"})
@@ -111,8 +122,11 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner, _member_owner = ClusteringService._previous_ownership(
-            scope, {"python": clustering({5: {"a.one", "b.one"}})}, ROOT_SCOPE_ID, REPO
+        owner = ClusteringService._previous_cluster_ownership(
+            scope,
+            {"python": clustering({5: {"a.one", "b.one"}})},
+            ROOT_SCOPE_ID,
+            {"python": {"a.one": "1", "b.one": "2"}},
         )
 
         self.assertEqual(owner, {5: "1"})
@@ -140,6 +154,10 @@ class TestPreviousOwnership(unittest.TestCase):
             file_methods=[group("src/index.ts", "src.index.run")],
         )
         scope = AnalysisInsights(description="", components=[py, ts], components_relations=[])
+        py_graph = CallGraph(language="python")
+        py_graph.add_node(Node("src.index.run", NodeType.FUNCTION, str(REPO / "src/index.py"), 1, 2))
+        ts_graph = CallGraph(language="typescript")
+        ts_graph.add_node(Node("src.index.run", NodeType.FUNCTION, str(REPO / "src/index.ts"), 1, 2))
         cluster_results = {
             "python": ClusterResult(
                 clusters={1: {"src.index.run"}},
@@ -155,7 +173,12 @@ class TestPreviousOwnership(unittest.TestCase):
             ),
         }
 
-        owner, member_owner = ClusteringService._previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
+        member_owner = ClusteringService._index_persisted_ownership(
+            {ROOT_SCOPE_ID: scope},
+            {"python": py_graph, "typescript": ts_graph},
+            REPO,
+        )[ROOT_SCOPE_ID]
+        owner = ClusteringService._previous_cluster_ownership(scope, cluster_results, ROOT_SCOPE_ID, member_owner)
 
         self.assertEqual(owner, {1: "1", 30: "2"})
         self.assertEqual(member_owner, {"python": {"src.index.run": "1"}, "typescript": {"src.index.run": "2"}})
@@ -175,6 +198,8 @@ class TestPreviousOwnership(unittest.TestCase):
             file_methods=[FileMethodGroup(file_path="src/index.py", methods=[method("src.index.run")])],
         )
         scope = AnalysisInsights(description="", components=[py], components_relations=[])
+        graph = CallGraph(language="python")
+        graph.add_node(Node("src.index.run", NodeType.FUNCTION, str(REPO / "src/index.py"), 1, 2))
         cluster_results = {
             "python": ClusterResult(
                 clusters={99: {"src.index.run"}},
@@ -184,11 +209,78 @@ class TestPreviousOwnership(unittest.TestCase):
             )
         }
 
-        owner, _member_owner = ClusteringService._previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
+        member_owner = ClusteringService._index_persisted_ownership({ROOT_SCOPE_ID: scope}, {"python": graph}, REPO)[
+            ROOT_SCOPE_ID
+        ]
+        owner = ClusteringService._previous_cluster_ownership(scope, cluster_results, ROOT_SCOPE_ID, member_owner)
 
         # Method-anchored: renumbered cluster 99 still resolves to component 1. The id
         # fallback would leave it unowned, so an empty result means anchoring broke.
         self.assertEqual(owner, {99: "1"})
+
+    def test_indexes_persisted_members_omitted_from_the_structural_partition(self):
+        scope = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.clustered", "a.omitted"], ["1"])],
+            components_relations=[],
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("a.clustered", NodeType.FUNCTION, str(REPO / FILE), 1, 2))
+        graph.add_node(Node("a.omitted", NodeType.FUNCTION, str(REPO / FILE), 3, 4))
+
+        indexed = ClusteringService._index_persisted_ownership({ROOT_SCOPE_ID: scope}, {"python": graph}, REPO)
+
+        self.assertEqual(indexed[ROOT_SCOPE_ID]["python"], {"a.clustered": "1", "a.omitted": "1"})
+
+    def test_excludes_data_symbols_from_persisted_ownership(self):
+        scope = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.callable", "a.constant"], ["1"])],
+            components_relations=[],
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("a.callable", NodeType.FUNCTION, str(REPO / FILE), 1, 2))
+        graph.add_node(Node("a.constant", NodeType.CONSTANT, str(REPO / FILE), 3, 4))
+
+        indexed = ClusteringService._index_persisted_ownership({ROOT_SCOPE_ID: scope}, {"python": graph}, REPO)
+
+        self.assertEqual(indexed[ROOT_SCOPE_ID]["python"], {"a.callable": "1"})
+
+    def test_normalizes_live_node_paths_once_before_indexing_scopes(self):
+        root = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.one"], ["1"]), component("2", ["a.two"], ["2"])],
+            components_relations=[],
+        )
+        child = AnalysisInsights(
+            description="",
+            components=[component("1.1", ["a.one"], ["1.1"])],
+            components_relations=[],
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("a.one", NodeType.FUNCTION, str(REPO / FILE), 1, 2))
+        graph.add_node(Node("a.two", NodeType.FUNCTION, str(REPO / FILE), 3, 4))
+
+        with patch(
+            "static_analyzer.clustering.service.normalize_repo_path",
+            wraps=lambda path, repo: str(Path(path).relative_to(repo)) if Path(path).is_absolute() else str(path),
+        ) as normalize:
+            ClusteringService._index_persisted_ownership({ROOT_SCOPE_ID: root, "1": child}, {"python": graph}, REPO)
+
+        live_calls = [call for call in normalize.call_args_list if Path(call.args[0]).is_absolute()]
+        self.assertEqual(len(live_calls), 2)
+
+    def test_rejects_multiple_persisted_owners_for_one_live_member(self):
+        scope = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.one"], ["1"]), component("2", ["a.one"], ["2"])],
+            components_relations=[],
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("a.one", NodeType.FUNCTION, str(REPO / FILE), 1, 2))
+
+        with self.assertRaises(PersistedOwnershipConflictError):
+            ClusteringService._index_persisted_ownership({ROOT_SCOPE_ID: scope}, {"python": graph}, REPO)
 
 
 class TestPlanScopeResultUpdate(unittest.TestCase):

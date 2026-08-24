@@ -11,70 +11,86 @@ import copy
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field
 
-from static_analyzer.clustering.method_cluster_paths import MethodClusterPaths
 from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.node import Node
 
 
 @dataclass
-class ClusterCache:
-    """A language's structural partitions and explicitly unclustered group members."""
+class ClusterScopeLineage:
+    """One scope's structural partition and group-owned members omitted from it."""
 
-    result: ClusterResult = field(default_factory=ClusterResult)
-    method_paths: MethodClusterPaths = field(default_factory=MethodClusterPaths)
-    unclustered_members_by_scope: dict[str, set[str]] = field(default_factory=dict)
+    partition: ClusterResult = field(default_factory=ClusterResult)
+    unclustered_members: set[str] = field(default_factory=set)
+
+    def select(self, surviving_nodes: Mapping[str, Node]) -> ClusterScopeLineage:
+        return ClusterScopeLineage(
+            partition=self.partition.select(surviving_nodes),
+            unclustered_members={member for member in self.unclustered_members if member in surviving_nodes},
+        )
+
+    def visit_paths(self, fn: Callable[[str], str]) -> None:
+        self.partition.visit_paths(fn)
+
+
+@dataclass
+class ClusterCache:
+    """A language's authoritative structural and unclustered lineage by scope."""
+
+    scopes: dict[str, ClusterScopeLineage] = field(default_factory=dict)
 
     def detached_copy(self) -> ClusterCache:
         """Return an independent cache carrying the same partition and lineage."""
         return copy.deepcopy(self)
 
-    def adopt(self, cluster_result: ClusterResult) -> None:
-        """Make ``cluster_result`` this language's partition and record it at root scope."""
-        self.result = cluster_result
-        self.method_paths.record(cluster_result)
+    def record_scope(
+        self,
+        partition: ClusterResult,
+        unclustered_members: Collection[str] = (),
+        scope_id: str = "",
+    ) -> None:
+        """Replace one scope's complete structural and unclustered lineage."""
+        self.scopes[scope_id] = ClusterScopeLineage(partition, set(unclustered_members))
 
-    def record_scope(self, cluster_result: ClusterResult, scope_id: str) -> None:
-        """Record a nested scope's partition in the method lineage only.
-
-        Why: sub-clustering a component produces a partition of that scope, not of
-        the language — adopting it would overwrite the top-level partition that
-        ``cluster_snapshot`` reads.
-        """
-        self.method_paths.record(cluster_result, scope_id)
-
-    def record_unclustered(self, members: Collection[str], scope_id: str = "") -> None:
-        """Record symbols assigned to a group without structural cluster lineage."""
-        self.unclustered_members_by_scope[scope_id] = set(members)
+    def get_partition(self, scope_id: str = "") -> ClusterResult:
+        lineage = self.scopes.get(scope_id)
+        return lineage.partition if lineage is not None else ClusterResult()
 
     def get_unclustered_members(self, scope_id: str = "") -> set[str]:
-        return set(self.unclustered_members_by_scope.get(scope_id, set()))
+        lineage = self.scopes.get(scope_id)
+        return set(lineage.unclustered_members) if lineage is not None else set()
 
     def reroot_scope(self, child_id: str, parent_id: str) -> None:
-        """Move a child's structural and unclustered lineage onto its parent."""
-        self.method_paths.reroot_scope(child_id, parent_id)
-        rerooted: dict[str, set[str]] = {}
-        for scope_id, members in self.unclustered_members_by_scope.items():
-            if self._scope_belongs_to(scope_id, child_id):
-                moved = f"{parent_id}{scope_id[len(child_id) :]}" if parent_id else scope_id[len(child_id) :]
-                rerooted[moved.lstrip(".")] = set(members)
-            elif not self._scope_belongs_to(scope_id, parent_id):
-                rerooted[scope_id] = set(members)
-        self.unclustered_members_by_scope = rerooted
+        """Replace a parent subtree with its only child's complete lineage."""
+        moving = {
+            scope_id: lineage for scope_id, lineage in self.scopes.items() if self._scope_belongs_to(scope_id, child_id)
+        }
+        if not moving:
+            if any(self._scope_belongs_to(scope_id, parent_id) for scope_id in self.scopes):
+                raise ValueError(f"Cannot reroot clustering scope {child_id!r}; no lineage exists")
+            return
+        rerooted = {
+            scope_id: lineage
+            for scope_id, lineage in self.scopes.items()
+            if not self._scope_belongs_to(scope_id, parent_id)
+        }
+        for scope_id, lineage in moving.items():
+            moved = f"{parent_id}{scope_id[len(child_id) :]}" if parent_id else scope_id[len(child_id) :]
+            target = moved.lstrip(".")
+            if target in rerooted:
+                raise ValueError(f"Cannot reroot clustering scope {scope_id!r}; target {target!r} already exists")
+            rerooted[target] = lineage
+        self.scopes = rerooted
 
     def select(self, surviving_nodes: Mapping[str, Node]) -> ClusterCache:
         """Return a copy keeping only ``surviving_nodes``, for filter/union of the graph."""
         return ClusterCache(
-            result=self.result.select(surviving_nodes),
-            method_paths=self.method_paths.select(surviving_nodes),
-            unclustered_members_by_scope={
-                scope_id: {member for member in members if member in surviving_nodes}
-                for scope_id, members in self.unclustered_members_by_scope.items()
-            },
+            scopes={scope_id: lineage.select(surviving_nodes) for scope_id, lineage in self.scopes.items()}
         )
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
-        self.result.visit_paths(fn)
+        for lineage in self.scopes.values():
+            lineage.visit_paths(fn)
 
     @staticmethod
     def _scope_belongs_to(scope_id: str, root: str) -> bool:
-        return scope_id == root or scope_id.startswith(f"{root}.")
+        return not root or scope_id == root or scope_id.startswith(f"{root}.")

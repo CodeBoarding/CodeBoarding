@@ -95,55 +95,56 @@ class TestClusteringService(unittest.TestCase):
 
 
 class TestClusterCache(unittest.TestCase):
-    def test_adopt_sets_the_partition_and_root_lineage(self):
+    def test_records_complete_root_lineage(self):
         cache = ClusterCache()
         result = ClusterResult(clusters={1: {"a.foo", "a.bar"}})
 
-        cache.adopt(result)
-        cache.record_unclustered({"a.orphan"})
+        cache.record_scope(result, {"a.orphan"})
 
-        self.assertIs(cache.result, result)
-        self.assertEqual(cache.method_paths.snapshot_dict(), {"a.foo": {"1"}, "a.bar": {"1"}})
+        self.assertIs(cache.get_partition(), result)
         self.assertEqual(cache.get_unclustered_members(), {"a.orphan"})
 
     def test_record_scope_leaves_the_top_level_partition_alone(self):
-        """Why: a component's sub-partition must not overwrite what cluster_snapshot reads."""
         cache = ClusterCache()
         top_level = ClusterResult(clusters={1: {"a.foo"}})
-        cache.adopt(top_level)
+        child = ClusterResult(clusters={2: {"a.foo"}})
+        cache.record_scope(top_level)
 
-        cache.record_scope(ClusterResult(clusters={2: {"a.foo"}}), "1")
-        cache.record_unclustered({"a.orphan"}, "1")
+        cache.record_scope(child, {"a.orphan"}, "1")
 
-        self.assertIs(cache.result, top_level)
-        self.assertEqual(cache.method_paths.snapshot_dict(), {"a.foo": {"1", "1.2"}})
+        self.assertIs(cache.get_partition(), top_level)
+        self.assertIs(cache.get_partition("1"), child)
         self.assertEqual(cache.get_unclustered_members("1"), {"a.orphan"})
 
     def test_select_keeps_only_surviving_nodes(self):
         cache = ClusterCache()
-        cache.adopt(
+        cache.record_scope(
             ClusterResult(
                 clusters={1: {"a.foo", "b.bar"}},
                 cluster_to_files={1: {"a.py", "b.py"}},
                 file_to_clusters={"a.py": {1}, "b.py": {1}},
-            )
+            ),
+            {"a.orphan", "b.orphan"},
         )
-        cache.record_unclustered({"a.orphan", "b.orphan"})
-        cache.record_unclustered({"a.foo", "b.orphan"}, "1")
+        cache.record_scope(
+            ClusterResult(clusters={2: {"a.foo", "b.bar"}}),
+            {"a.foo", "b.orphan"},
+            "1",
+        )
         surviving = {"a.foo": Node("a.foo", 12, "a.py", 1, 5)}
 
         kept = cache.select(surviving)
 
-        self.assertEqual(kept.result.clusters, {1: {"a.foo"}})
-        self.assertEqual(kept.result.cluster_to_files, {1: {"a.py"}})
-        self.assertEqual(kept.result.file_to_clusters, {"a.py": {1}})
-        self.assertEqual(kept.method_paths.snapshot_dict(), {"a.foo": {"1"}})
+        self.assertEqual(kept.get_partition().clusters, {1: {"a.foo"}})
+        self.assertEqual(kept.get_partition().cluster_to_files, {1: {"a.py"}})
+        self.assertEqual(kept.get_partition().file_to_clusters, {"a.py": {1}})
+        self.assertEqual(kept.get_partition("1").clusters, {2: {"a.foo"}})
         self.assertEqual(kept.get_unclustered_members(), set())
         self.assertEqual(kept.get_unclustered_members("1"), {"a.foo"})
 
     def test_select_without_a_partition(self):
         """An unclustered language selects to an empty partition, never to None."""
-        self.assertEqual(ClusterCache().select({}).result.clusters, {})
+        self.assertEqual(ClusterCache().select({}).get_partition().clusters, {})
 
 
 class TestFindPartitionDeterminism(unittest.TestCase):

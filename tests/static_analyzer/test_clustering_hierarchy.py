@@ -299,20 +299,12 @@ class TestClusteringHierarchy(unittest.TestCase):
         self.assertEqual(depth, 3)
         self.assertIs(scope_input("root", graphs).leaf_clusters_by_language["python"], root_partition)
         self.assertEqual(scope_input("1", graphs).leaf_clusters_by_language, {})
-        cache.adopt.assert_called_once_with(root_partition)
         self.assertEqual(
             cache.record_scope.call_args_list,
             [
-                call(child_partition, "1"),
-                call(grandchild_partition, "1.1"),
-            ],
-        )
-        self.assertEqual(
-            cache.record_unclustered.call_args_list,
-            [
-                call({"root.orphan"}, ""),
-                call({"child.orphan"}, "1"),
-                call({"grandchild.orphan"}, "1.1"),
+                call(root_partition, {"root.orphan"}, ""),
+                call(child_partition, {"child.orphan"}, "1"),
+                call(grandchild_partition, {"grandchild.orphan"}, "1.1"),
             ],
         )
         static_analysis.get_clusters.assert_called_with(Language.PYTHON)
@@ -345,8 +337,7 @@ class TestClusteringHierarchy(unittest.TestCase):
         )
 
         self.assertIs(result, hierarchy)
-        cache.record_scope.assert_called_once_with(partition, "2")
-        cache.record_unclustered.assert_called_once_with({"orphan"}, "2")
+        cache.record_scope.assert_called_once_with(partition, {"orphan"}, "2")
 
     def test_incremental_hierarchy_preserves_surviving_member_ownership(self):
         graph = graph_for(["pkg.changed", "stable.one", "stable.two"], one_file=True)

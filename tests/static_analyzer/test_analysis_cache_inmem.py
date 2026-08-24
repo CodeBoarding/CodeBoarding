@@ -199,7 +199,7 @@ class TestClusterCachePreservation(unittest.TestCase):
 
     def _cache(self) -> ClusterCache:
         cache = ClusterCache()
-        cache.adopt(
+        cache.record_scope(
             ClusterResult(
                 clusters={1: {"a.foo", "a.bar"}, 2: {"b.qux"}},
                 cluster_to_files={1: {"a.py"}, 2: {"b.py"}},
@@ -215,7 +215,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         updated = invalidate_files(cached, {Path("a.py")}).analysis
         kept = self._cache().select(updated.call_graph.nodes)
 
-        cc = kept.result
+        cc = kept.get_partition()
         # Cluster 1 had only a.py members -> dropped entirely.
         # Cluster 2 keeps b.qux from b.py.
         self.assertNotIn(1, cc.clusters)
@@ -230,7 +230,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         # cluster 2 (b.qux only) drops.
         updated = invalidate_files(cached, {Path("b.py")}).analysis
 
-        cc = self._cache().select(updated.call_graph.nodes).result
+        cc = self._cache().select(updated.call_graph.nodes).get_partition()
 
         self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
         self.assertNotIn(2, cc.clusters)
@@ -242,7 +242,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         new = _result(new_cg, source_files=["c.py"])
 
         merged = merge_results(_analysis_data(cached), new)
-        cc = self._cache().select(merged.call_graph.nodes).result
+        cc = self._cache().select(merged.call_graph.nodes).get_partition()
 
         # Cached clusters survive; new node 'c.new' is unclustered (intentional —
         # cluster_delta will pick it up as drift on the next run).
@@ -275,7 +275,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         new.add_node(_node("c.new", "c.py"))
 
         unioned = self._cg().union(new)
-        cc = self._cache().select(unioned.nodes).result
+        cc = self._cache().select(unioned.nodes).get_partition()
 
         self.assertEqual(cc.clusters, {1: {"a.foo", "a.bar"}, 2: {"b.qux"}})
         # New node from `other` participates in the graph but not yet in any cluster.
@@ -298,7 +298,7 @@ class TestClusterCachePreservation(unittest.TestCase):
             self.assertIsNone(loaded.incremental_base_results)
             self.assertIs(result.incremental_base_results, base_results)
 
-    def test_static_analysis_cache_round_trips_cluster_paths_between_repo_roots(self) -> None:
+    def test_static_analysis_cache_round_trips_scoped_lineage_between_repo_roots(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             repo_a = temp_path / "repo-a"
@@ -311,7 +311,7 @@ class TestClusterCachePreservation(unittest.TestCase):
             cg = CallGraph(language="python")
             cg.add_node(_node("pkg.a.foo", str(source_file)))
             clusters = ClusterCache()
-            clusters.adopt(
+            clusters.record_scope(
                 ClusterResult(
                     clusters={1: {"pkg.a.foo"}},
                     cluster_to_files={1: {str(source_file)}},
@@ -319,7 +319,16 @@ class TestClusterCachePreservation(unittest.TestCase):
                     strategy="leiden",
                 )
             )
-            clusters.record_unclustered({"pkg.a.orphan"}, "1")
+            clusters.record_scope(
+                ClusterResult(
+                    clusters={2: {"pkg.a.foo"}},
+                    cluster_to_files={2: {str(source_file)}},
+                    file_to_clusters={str(source_file): {2}},
+                    strategy="method_level_expansion",
+                ),
+                {"pkg.a.orphan"},
+                "1",
+            )
             result = StaticAnalysisResults()
             result.add_cfg(Language.PYTHON, cg)
             result.set_clusters(Language.PYTHON, clusters)
@@ -330,9 +339,12 @@ class TestClusterCachePreservation(unittest.TestCase):
             assert loaded is not None
             expected_file = str(repo_b.resolve() / "pkg" / "a.py")
             self.assertEqual(loaded.get_cfg(Language.PYTHON).nodes["pkg.a.foo"].file_path, expected_file)
-            loaded_partition = loaded.get_clusters(Language.PYTHON).result
+            loaded_partition = loaded.get_clusters(Language.PYTHON).get_partition()
             self.assertEqual(loaded_partition.cluster_to_files, {1: {expected_file}})
             self.assertEqual(loaded_partition.file_to_clusters, {expected_file: {1}})
+            child_partition = loaded.get_clusters(Language.PYTHON).get_partition("1")
+            self.assertEqual(child_partition.cluster_to_files, {2: {expected_file}})
+            self.assertEqual(child_partition.file_to_clusters, {expected_file: {2}})
             self.assertEqual(loaded.get_clusters(Language.PYTHON).get_unclustered_members("1"), {"pkg.a.orphan"})
 
 
@@ -362,7 +374,7 @@ class TestUpdateCachedResultsCarriesPartition(unittest.TestCase):
         cached = StaticAnalysisResults()
         cached.add_cfg(Language.PYTHON, cg)
         clusters = ClusterCache()
-        clusters.adopt(ClusterResult(clusters={1: {"a.foo"}, 2: {"b.qux"}}, strategy="leiden"))
+        clusters.record_scope(ClusterResult(clusters={1: {"a.foo"}, 2: {"b.qux"}}, strategy="leiden"))
         cached.set_clusters(Language.PYTHON, clusters)
         return cached
 
@@ -386,7 +398,7 @@ class TestUpdateCachedResultsCarriesPartition(unittest.TestCase):
         ):
             results = analyzer._update_cached_results(self._cached(), cached_sha="deadbeef")
 
-        self.assertEqual(results.get_clusters(Language.PYTHON).result.clusters, {2: {"b.qux"}})
+        self.assertEqual(results.get_clusters(Language.PYTHON).get_partition().clusters, {2: {"b.qux"}})
 
     def test_full_relsp_branch_also_carries_the_partition(self) -> None:
         """Git detection failing is not a reason to hand the next run an empty baseline."""
@@ -401,7 +413,7 @@ class TestUpdateCachedResultsCarriesPartition(unittest.TestCase):
         ):
             results = analyzer._update_cached_results(self._cached(), cached_sha="deadbeef")
 
-        self.assertEqual(results.get_clusters(Language.PYTHON).result.clusters, {2: {"b.qux"}})
+        self.assertEqual(results.get_clusters(Language.PYTHON).get_partition().clusters, {2: {"b.qux"}})
 
 
 class TestWarmStartDeletion(unittest.TestCase):
