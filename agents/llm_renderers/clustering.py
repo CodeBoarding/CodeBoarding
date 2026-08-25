@@ -1,7 +1,10 @@
 """Render deterministic cluster groups for agent prompts."""
 
+from collections.abc import Collection, Mapping
 from pathlib import Path
 
+from agents.agent_responses import Relation
+from agents.relation_edges import edge_touches_change
 from clustering_ids import ClusterId
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
 
@@ -53,21 +56,74 @@ def render_cluster_groups(group_ids: dict[str, list[ClusterId]], group_descripti
     return f"# Grouped Cluster Components\n{body}"
 
 
-def render_scope_connections(scope: ClusterScopeResult, group_names: dict[str, str]) -> str:
+def render_scope_connections(
+    scope: ClusterScopeResult,
+    group_names: dict[str, str],
+    changed_members: Collection[str] = (),
+    baseline_by_pair: Mapping[tuple[str, str], Relation] | None = None,
+) -> str:
     """Render precomputed cross-group communication for an agent prompt."""
     if not scope.connections:
         return "No cross-component communication edges found."
 
     lines: list[str] = []
+    if changed_members:
+        lines.append("Calls marked '*' changed, calls marked '-' were removed; untouched pairs show counts only.")
     for connection in scope.connections:
         source = group_names.get(connection.source_group_id, connection.source_group_id)
         target = group_names.get(connection.target_group_id, connection.target_group_id)
-        edge_count = len(connection.edges)
-        lines.append(f"\n{source} -> {target} ({edge_count} edge{'s' if edge_count != 1 else ''}):")
-        for edge in connection.edges[:MAX_CONNECTION_EDGES]:
-            short_source = edge.source_qualified_name.split(".")[-1]
-            short_target = edge.target_qualified_name.split(".")[-1]
-            lines.append(f"  {short_source} -> {short_target}")
-        if edge_count > MAX_CONNECTION_EDGES:
-            lines.append(f"  ... and {edge_count - MAX_CONNECTION_EDGES} more")
+        edges = connection.edges
+        edge_count = len(edges)
+        plural = "s" if edge_count != 1 else ""
+        hot = [
+            edge
+            for edge in edges
+            if edge_touches_change(
+                edge.source_qualified_name,
+                edge.target_qualified_name,
+                changed_members,
+            )
+        ]
+        current_pairs = {(edge.source_qualified_name, edge.target_qualified_name) for edge in edges}
+        previous = (
+            baseline_by_pair.get((connection.source_group_id, connection.target_group_id))
+            if baseline_by_pair is not None
+            else None
+        )
+        baseline_edges = (previous.all_edges or previous.key_edges) if previous is not None else []
+        removed = [
+            edge
+            for edge in baseline_edges
+            if (edge.source.qualified_name, edge.target.qualified_name) not in current_pairs
+            and edge_touches_change(
+                edge.source.qualified_name,
+                edge.target.qualified_name,
+                changed_members,
+            )
+        ]
+        if changed_members and not hot and not removed:
+            lines.append(f"\n{source} -> {target} ({edge_count} edge{plural}, none touched by this change)")
+            continue
+        if hot or removed:
+            header = f"({edge_count} edge{plural}, {len(hot) + len(removed)} touched by this change):"
+            hot_ids = {id(edge) for edge in hot}
+            ordered = [
+                *[("* ", edge.source_qualified_name, edge.target_qualified_name) for edge in hot],
+                *[("- ", edge.source.qualified_name, edge.target.qualified_name) for edge in removed],
+                *[
+                    ("", edge.source_qualified_name, edge.target_qualified_name)
+                    for edge in edges
+                    if id(edge) not in hot_ids
+                ],
+            ]
+        else:
+            header = f"({edge_count} edge{plural}):"
+            ordered = [("", edge.source_qualified_name, edge.target_qualified_name) for edge in edges]
+        lines.append(f"\n{source} -> {target} {header}")
+        for marker, source_qualified_name, target_qualified_name in ordered[:MAX_CONNECTION_EDGES]:
+            short_source = source_qualified_name.split(".")[-1]
+            short_target = target_qualified_name.split(".")[-1]
+            lines.append(f"  {marker}{short_source} -> {short_target}")
+        if len(ordered) > MAX_CONNECTION_EDGES:
+            lines.append(f"  ... and {len(ordered) - MAX_CONNECTION_EDGES} more")
     return "\n".join(lines)

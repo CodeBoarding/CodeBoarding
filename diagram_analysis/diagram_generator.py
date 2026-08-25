@@ -1564,6 +1564,7 @@ class DiagramGenerator:
                         for scope_id, context in apply_result.relation_contexts.items()
                     },
                     self._changed_members,
+                    self._changed_unattributed_files,
                 )
 
             self._refresh_files_index(root_analysis, sub_analyses)
