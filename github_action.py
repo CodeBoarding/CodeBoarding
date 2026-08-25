@@ -109,7 +109,7 @@ def generate_analysis(
     repo_root = Path(os.getenv("REPO_ROOT", "repos"))
     repo_name = clone_repository(repo_url, repo_root)
     repo_dir = repo_root / repo_name
-    run_context = RunContext.resolve(repo_dir=repo_dir, project_name=repo_name)
+    run_context = RunContext.resolve(project_name=repo_name)
     checkout_repo(repo_dir, source_branch)
     temp_repo_folder = create_temp_repo_folder()
 

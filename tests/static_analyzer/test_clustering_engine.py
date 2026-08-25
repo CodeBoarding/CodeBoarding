@@ -4,7 +4,7 @@ import networkx as nx
 
 from static_analyzer.clustering.engine import Candidate, Level, cluster_graph
 from static_analyzer.clustering.models import ClusterResult
-from static_analyzer.constants import ClusteringConfig
+from static_analyzer.config import ClusteringConfig
 
 
 def _two_cliques() -> nx.DiGraph:

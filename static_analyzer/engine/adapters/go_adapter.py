@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager, _ALWAYS_IGNORED_DIRS
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 logger = logging.getLogger(__name__)

@@ -16,7 +16,7 @@ from static_analyzer.engine.edge_builder import (
     build_edges_via_definitions,
     build_edges_via_references,
 )
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector

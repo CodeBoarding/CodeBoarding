@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS, CallGraph, EdgeKind, ReferenceEdge
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.result_converter import (

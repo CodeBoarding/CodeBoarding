@@ -10,7 +10,7 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ClustersComponent, Relation
+from agents.agent_responses import AnalysisInsights, Component, Relation
 from agents.validation import ValidationResult
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
@@ -408,66 +408,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
     @patch("agents.agent.create_extractor")
     @patch("agents.agent.create_agent")
-    def test_parse_response_cluster_analysis_bug_shape(self, mock_create_agent, mock_create_extractor):
-        mock_create_agent.return_value = Mock()
-
-        mock_extractor = Mock()
-        mock_extractor.invoke.return_value = {
-            "responses": [
-                {
-                    "cluster_components": [
-                        {
-                            "name": "VS Code Extension Host & View Providers",
-                            "cluster_ids": [1, 15],
-                            "description": "Hosts the extension and view providers.",
-                            "interactions": "talks to webview",
-                        },
-                        {"name": "Analysis Pipeline", "cluster_ids": [2, 3], "description": "Runs analysis."},
-                    ]
-                }
-            ]
-        }
-        mock_create_extractor.return_value = mock_extractor
-
-        mock_parsing_llm = Mock(spec=BaseChatModel)
-        agent = CodeBoardingAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_analysis,
-            system_message="Test",
-            agent_llm=self.mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
-
-        fenced = (
-            "```json\n"
-            "{\n"
-            '  "cluster_components": [\n'
-            "    {\n"
-            '      "name": "VS Code Extension Host & View Providers",\n'
-            '      "cluster_ids": [1, 15],\n'
-            '      "description": "Hosts the extension and view providers.",\n'
-            '      "interactions": "talks to webview"\n'
-            "    },\n"
-            "    {\n"
-            '      "name": "Analysis Pipeline",\n'
-            '      "cluster_ids": [2, 3],\n'
-            '      "description": "Runs analysis."\n'
-            "    }\n"
-            "  ]\n"
-            "}\n"
-            "```"
-        )
-
-        result = agent._parse_response("Test prompt", fenced, ClusterAnalysis)
-
-        self.assertIsInstance(result, ClusterAnalysis)
-        self.assertEqual(len(result.cluster_components), 2)
-        self.assertEqual(result.cluster_components[0].name, "VS Code Extension Host & View Providers")
-        self.assertEqual(result.cluster_components[0].cluster_ids, [1, 15])
-        self.assertEqual(result.cluster_components[1].cluster_ids, [2, 3])
-
-    @patch("agents.agent.create_extractor")
-    @patch("agents.agent.create_agent")
     def test_parse_response_invalid_falls_back_to_llm_repair(self, mock_create_agent, mock_create_extractor):
         mock_create_agent.return_value = Mock()
 
@@ -588,31 +528,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
 
 class TestIncludeHidden(unittest.TestCase):
-    def test_extractor_str_hides_hidden_fields_by_default(self):
-        prompt = ClustersComponent.extractor_str()
-        for field in ("existing_component_id", "parent_id", "redetail_needed"):
-            self.assertNotIn(field, prompt)
-
-    def test_extractor_str_shows_hidden_fields_when_requested(self):
-        prompt = ClustersComponent.extractor_str(include_hidden=True)
-        for field in ("existing_component_id", "parent_id", "redetail_needed"):
-            self.assertIn(field, prompt)
-
-    def test_model_json_schema_hides_hidden_fields_by_default(self):
-        schema = ClustersComponent.model_json_schema()
-        props = schema.get("properties", {})
-        for field in ("existing_component_id", "parent_id", "redetail_needed"):
-            self.assertNotIn(field, props)
-        defs = schema.get("$defs", {}).get("ClustersComponent", {}).get("properties", {})
-        for field in ("existing_component_id", "parent_id", "redetail_needed"):
-            self.assertNotIn(field, defs)
-
-    def test_model_json_schema_shows_hidden_fields_when_requested(self):
-        schema = ClustersComponent.model_json_schema(include_hidden=True)
-        props = schema.get("properties", {})
-        for field in ("existing_component_id", "parent_id", "redetail_needed"):
-            self.assertIn(field, props)
-
     def test_relation_static_evidence_hidden_from_llm_schema_by_default(self):
         schema = AnalysisInsights.model_json_schema()
         relation_props = schema.get("$defs", {}).get("Relation", {}).get("properties", {})
@@ -658,14 +573,14 @@ class TestIncludeHidden(unittest.TestCase):
         agent._structured_parse = spy_structured_parse
 
         try:
-            agent._parse_response("prompt", "response", ClusterAnalysis, include_hidden=True)
+            agent._parse_response("prompt", "response", Component, include_hidden=True)
         except Exception:
             pass
 
         instructions = captured_instructions.get("value", "")
-        self.assertIn("existing_component_id", instructions)
-        self.assertIn("parent_id", instructions)
-        self.assertIn("redetail_needed", instructions)
+        self.assertIn("source_cluster_ids", instructions)
+        self.assertIn("file_methods", instructions)
+        self.assertIn("component_id", instructions)
 
     def test_parse_response_hides_fields_by_default(self):
         mock_create_agent = Mock(return_value=Mock())
@@ -688,13 +603,14 @@ class TestIncludeHidden(unittest.TestCase):
         agent._structured_parse = spy_structured_parse
 
         try:
-            agent._parse_response("prompt", "response", ClusterAnalysis)
+            agent._parse_response("prompt", "response", Component)
         except Exception:
             pass
 
         instructions = captured_instructions.get("value", "")
-        self.assertNotIn("existing_component_id", instructions)
-        self.assertNotIn("redetail_needed", instructions)
+        self.assertNotIn("source_cluster_ids", instructions)
+        self.assertNotIn("file_methods", instructions)
+        self.assertNotIn("component_id", instructions)
 
 
 if __name__ == "__main__":

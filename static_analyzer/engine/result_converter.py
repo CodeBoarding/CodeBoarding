@@ -8,7 +8,7 @@ from collections import Counter
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.constants import CLASS_TYPES, GRAPH_NODE_TYPES, NodeType
+from static_analyzer.config import CLASS_TYPES, GRAPH_NODE_TYPES, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import LanguageAnalysisResult
 from static_analyzer.engine.symbol_table import SymbolTable

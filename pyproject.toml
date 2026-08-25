@@ -102,6 +102,7 @@ packages = [
     "telemetry",
 ]
 py-modules = [
+    "clustering_ids",
     "constants",
     "utils",
     "vscode_constants",

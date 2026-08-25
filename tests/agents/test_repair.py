@@ -1,16 +1,16 @@
 from pathlib import Path
 
-from agents.agent_responses import (
-    ClusterAnalysis,
-    ClustersComponent,
-    Component,
-    ComponentArchitecture,
-    SourceCodeReference,
+from agents.agent_responses import AnalysisInsights, Component, ComponentArchitecture, SourceCodeReference
+from agents.file_index_models import FileMethodGroup
+from agents.repair import (
+    ComponentRepairContext,
+    ensure_unique_key_entities,
+    repair_component_group_names,
+    repair_key_entities,
 )
-from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
 from agents.validation import ValidationContext, validate_group_name_coverage, validate_key_entities
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language, NodeType
+from static_analyzer.config import Language, NodeType
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -45,13 +45,10 @@ def _component_repair_context() -> ComponentRepairContext:
             strategy="test",
         )
     }
-    cluster_analysis = ClusterAnalysis(
-        cluster_components=[ClustersComponent(name="API Handler", cluster_ids=[1], description="Handles requests.")]
-    )
     return ComponentRepairContext(
         reference_resolver=StaticReferenceResolver(Path("/tmp/fake-repo"), static_analysis),
         cluster_results=cluster_results,
-        llm_cluster_analysis=cluster_analysis,
+        group_ids={"Group 1": [1]},
     )
 
 
@@ -62,7 +59,7 @@ def test_component_repairs_canonicalize_names_and_keep_only_resolved_in_scope_en
             Component(
                 name="API",
                 description="Handles requests.",
-                source_group_names=["API Handlr"],
+                source_group_names=["Grop 1"],
                 key_entities=[
                     SourceCodeReference(qualified_name="pkg/service.run"),
                     SourceCodeReference(qualified_name="other.service.run"),
@@ -76,7 +73,7 @@ def test_component_repairs_canonicalize_names_and_keep_only_resolved_in_scope_en
     repair_component_group_names(architecture, context)
     repair_key_entities(architecture, context)
 
-    assert architecture.components[0].source_group_names == ["API Handler"]
+    assert architecture.components[0].source_group_names == ["Group 1"]
     assert [entity.qualified_name for entity in architecture.components[0].key_entities] == ["pkg.service.run"]
 
 
@@ -87,7 +84,7 @@ def test_component_validators_do_not_mutate_repairable_metadata() -> None:
             Component(
                 name="API",
                 description="Handles requests.",
-                source_group_names=["API Handlr"],
+                source_group_names=["Grop 1"],
                 key_entities=[SourceCodeReference(qualified_name="pkg/service.run")],
             )
         ],
@@ -96,7 +93,7 @@ def test_component_validators_do_not_mutate_repairable_metadata() -> None:
     validation_context = ValidationContext(
         cluster_results=repair_context.cluster_results,
         static_analysis=repair_context.reference_resolver.static_analysis,
-        llm_cluster_analysis=repair_context.llm_cluster_analysis,
+        group_ids=repair_context.group_ids,
     )
     before = architecture.model_dump()
 
@@ -104,3 +101,20 @@ def test_component_validators_do_not_mutate_repairable_metadata() -> None:
     validate_key_entities(architecture, validation_context)
 
     assert architecture.model_dump() == before
+
+
+def test_unique_key_entity_moves_to_the_component_that_owns_its_file() -> None:
+    shared = SourceCodeReference(qualified_name="pkg.service.run", reference_file="pkg/service.py")
+    first = Component(name="First", description="", key_entities=[shared.model_copy(deep=True)])
+    second = Component(
+        name="Second",
+        description="",
+        key_entities=[shared.model_copy(deep=True)],
+        file_methods=[FileMethodGroup(file_path="pkg/service.py")],
+    )
+    analysis = AnalysisInsights(description="", components=[first, second], components_relations=[])
+
+    ensure_unique_key_entities(analysis)
+
+    assert first.key_entities == []
+    assert [entity.qualified_name for entity in second.key_entities] == ["pkg.service.run"]

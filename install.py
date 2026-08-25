@@ -35,7 +35,7 @@ from tool_registry import (
 )
 from tool_registry.registry import ConfigSection, PackageManagerToolSource
 from vscode_constants import VSCODE_CONFIG
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from user_config import ensure_config_template
 
 

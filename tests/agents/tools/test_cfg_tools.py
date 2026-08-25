@@ -2,11 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from agents.agent_responses import (
-    ClusterAnalysis,
-    ClustersComponent,
-    Component,
-)
+from agents.agent_responses import Component
 from agents.file_index_models import FileMethodGroup
 from agents.tools import ComponentBridgeEdgesTool, GetCFGTool, MethodInvocationsTool
 from agents.tools.base import RepoContext
@@ -14,8 +10,14 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph, Edge
-from static_analyzer.clustering import ClusterResult
-from static_analyzer.constants import Language, NodeType
+from static_analyzer.clustering import (
+    ClusterConnectionEdge,
+    ClusterGroup,
+    ClusterResult,
+    ClusterScopeResult,
+    GroupConnection,
+)
+from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
 from utils import get_artifact_dir
 
@@ -165,17 +167,45 @@ class TestComponentBridgeEdgesTool(unittest.TestCase):
                 clusters={1: {src.fully_qualified_name}, 2: {dst.fully_qualified_name}, 3: {other.fully_qualified_name}}
             )
         }
-        cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="Source Group", cluster_ids=[1], description="source"),
-                ClustersComponent(name="Destination Group", cluster_ids=[2], description="destination"),
-                ClustersComponent(name="Other Group", cluster_ids=[3], description="other"),
-            ]
+        scope = ClusterScopeResult(
+            scope_id="root",
+            graphs_by_language={"python": cfg},
+            leaf_clusters_by_language=cluster_results,
+            groups=[
+                ClusterGroup(group_id="1", cluster_ids=[1]),
+                ClusterGroup(group_id="2", cluster_ids=[2]),
+                ClusterGroup(group_id="3", cluster_ids=[3]),
+            ],
+            connections=[
+                GroupConnection(
+                    source_group_id="1",
+                    target_group_id="2",
+                    edges=[
+                        ClusterConnectionEdge(
+                            language="python",
+                            source_qualified_name=src.fully_qualified_name,
+                            target_qualified_name=dst.fully_qualified_name,
+                        )
+                    ],
+                ),
+                GroupConnection(
+                    source_group_id="2",
+                    target_group_id="3",
+                    edges=[
+                        ClusterConnectionEdge(
+                            language="python",
+                            source_qualified_name=dst.fully_qualified_name,
+                            target_qualified_name=other.fully_qualified_name,
+                        )
+                    ],
+                ),
+            ],
         )
         context = RepoContext(
             repo_dir=Path("."),
             ignore_manager=RepoIgnoreManager(Path(".")),
-            cluster_analysis=cluster_analysis,
+            clustering=scope,
+            group_ids_by_name={"Group 1": "1", "Group 2": "2", "Group 3": "3"},
             cluster_results=cluster_results,
             cfg_graphs={"python": cfg},
         )
@@ -183,7 +213,7 @@ class TestComponentBridgeEdgesTool(unittest.TestCase):
 
     def test_returns_directed_edges_between_component_groups(self):
         tool = self._make_tool()
-        result = tool._run(["Source Group"], ["Destination Group"])
+        result = tool._run(["Group 1"], ["Group 2"])
 
         self.assertIn("Directed static bridge edges (1)", result)
         self.assertIn("pkg.source.call", result)
@@ -192,9 +222,17 @@ class TestComponentBridgeEdgesTool(unittest.TestCase):
 
     def test_reverse_direction_is_not_reported(self):
         tool = self._make_tool()
-        result = tool._run(["Destination Group"], ["Source Group"])
+        result = tool._run(["Group 2"], ["Group 1"])
 
         self.assertEqual(result, "No directed static bridge edges found between these component groups.")
+
+    def test_group_with_no_leaf_clusters_resolves_by_authoritative_id(self):
+        tool = self._make_tool()
+        tool.context.clustering.groups[0].cluster_ids = []
+
+        result = tool._run(["Group 1"], ["Group 2"])
+
+        self.assertIn("Directed static bridge edges (1)", result)
 
 
 class TestComponentCFGScoping(unittest.TestCase):

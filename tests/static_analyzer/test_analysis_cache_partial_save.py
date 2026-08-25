@@ -24,7 +24,7 @@ from static_analyzer.analysis_cache import (
 )
 from utils import CODEBOARDING_DIR_NAME
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 
 
 class TestPartialSaveRollback(unittest.TestCase):

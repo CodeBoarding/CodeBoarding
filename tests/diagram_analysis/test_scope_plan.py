@@ -7,15 +7,19 @@ These tests pin the planner to the anchor that does survive: the methods themsel
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-import networkx as nx
-
-from agents.agent_responses import AnalysisInsights, Component, ScopeOperationAction
+from agents.agent_responses import AnalysisInsights, Component, ScopeOperationAction, ScopeUpdateDecision
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.exceptions import IncrementalClusteringError
-from diagram_analysis.scope_plan import plan_scope_update, previous_ownership
-from static_analyzer.clustering import ClusterResult
+from diagram_analysis.scope_plan import plan_scope_result_update
+from static_analyzer.cfg import CallGraph
+from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
+from static_analyzer.clustering.exceptions import PersistedOwnershipConflictError
+from static_analyzer.clustering.service import ClusteringService
+from static_analyzer.config import NodeType
+from static_analyzer.node import Node
 
 FILE = "pkg/mod.py"
 DELETE = ScopeOperationAction.DELETE_COMPONENT
@@ -46,24 +50,38 @@ def clustering(clusters: dict[int, set[str]]) -> ClusterResult:
     )
 
 
-def cfg_for(clusters: dict[int, set[str]]) -> nx.DiGraph:
-    """A graph with an edge inside each cluster and one bridge between consecutive ones."""
-    graph = nx.DiGraph()
-    for members in clusters.values():
-        ordered = sorted(members)
-        for node in ordered:
-            graph.add_node(node, file_path=FILE)
-        for src, dst in zip(ordered, ordered[1:]):
-            graph.add_edge(src, dst)
-    heads = [sorted(members)[0] for _cid, members in sorted(clusters.items())]
-    for src, dst in zip(heads, heads[1:]):
-        graph.add_edge(src, dst)
-    return graph
-
-
 def actions(decision) -> dict[str, ScopeOperationAction]:
     """component_id (or the created name) -> the action planned for it."""
     return {op.component_id or op.name: op.action for op in decision.operations}
+
+
+def plan_result(
+    scope: AnalysisInsights,
+    clusters: dict[int, set[str]],
+    changed_members: set[str] | frozenset[str] = frozenset(),
+    groups: list[ClusterGroup] | None = None,
+    scope_id: str = ROOT_SCOPE_ID,
+) -> ScopeUpdateDecision:
+    if groups is None:
+        groups = [
+            ClusterGroup(group_id=str(cluster_id), cluster_ids=[cluster_id], previous_component_id=str(cluster_id))
+            for cluster_id in clusters
+        ]
+    for group in groups:
+        if not group.symbol_members_by_language:
+            group.symbol_members_by_language = {
+                "python": {
+                    qualified_name
+                    for cluster_id in group.cluster_ids
+                    for qualified_name in clusters.get(cluster_id, set())
+                }
+            }
+    result = ClusterScopeResult(
+        scope_id=scope_id,
+        leaf_clusters_by_language={"python": clustering(clusters)},
+        groups=groups,
+    )
+    return plan_scope_result_update(scope, result, set(changed_members))
 
 
 class TestPreviousOwnership(unittest.TestCase):
@@ -74,15 +92,23 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner = previous_ownership(scope, {"python": clustering({7: {"a.one", "a.two", "b.one"}})}, ROOT_SCOPE_ID, REPO)
+        owner = ClusteringService._previous_cluster_ownership(
+            scope,
+            {"python": clustering({7: {"a.one", "a.two", "b.one"}})},
+            ROOT_SCOPE_ID,
+            {"python": {"a.one": "1", "a.two": "1", "b.one": "2"}},
+        )
 
         self.assertEqual(owner, {7: "1"})
 
     def test_a_cluster_of_entirely_new_methods_has_no_owner(self):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
-        owner = previous_ownership(
-            scope, {"python": clustering({1: {"a.one"}, 2: {"fresh.thing"}})}, ROOT_SCOPE_ID, REPO
+        owner = ClusteringService._previous_cluster_ownership(
+            scope,
+            {"python": clustering({1: {"a.one"}, 2: {"fresh.thing"}})},
+            ROOT_SCOPE_ID,
+            {"python": {"a.one": "1"}},
         )
 
         self.assertEqual(owner, {1: "1"})
@@ -96,7 +122,12 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner = previous_ownership(scope, {"python": clustering({5: {"a.one", "b.one"}})}, ROOT_SCOPE_ID, REPO)
+        owner = ClusteringService._previous_cluster_ownership(
+            scope,
+            {"python": clustering({5: {"a.one", "b.one"}})},
+            ROOT_SCOPE_ID,
+            {"python": {"a.one": "1", "b.one": "2"}},
+        )
 
         self.assertEqual(owner, {5: "1"})
 
@@ -123,6 +154,10 @@ class TestPreviousOwnership(unittest.TestCase):
             file_methods=[group("src/index.ts", "src.index.run")],
         )
         scope = AnalysisInsights(description="", components=[py, ts], components_relations=[])
+        py_graph = CallGraph(language="python")
+        py_graph.add_node(Node("src.index.run", NodeType.FUNCTION, str(REPO / "src/index.py"), 1, 2))
+        ts_graph = CallGraph(language="typescript")
+        ts_graph.add_node(Node("src.index.run", NodeType.FUNCTION, str(REPO / "src/index.ts"), 1, 2))
         cluster_results = {
             "python": ClusterResult(
                 clusters={1: {"src.index.run"}},
@@ -138,9 +173,15 @@ class TestPreviousOwnership(unittest.TestCase):
             ),
         }
 
-        owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
+        member_owner = ClusteringService._index_persisted_ownership(
+            {ROOT_SCOPE_ID: scope},
+            {"python": py_graph, "typescript": ts_graph},
+            REPO,
+        )[ROOT_SCOPE_ID]
+        owner = ClusteringService._previous_cluster_ownership(scope, cluster_results, ROOT_SCOPE_ID, member_owner)
 
         self.assertEqual(owner, {1: "1", 30: "2"})
+        self.assertEqual(member_owner, {"python": {"src.index.run": "1"}, "typescript": {"src.index.run": "2"}})
 
     def test_anchors_by_method_when_cfg_paths_are_absolute(self):
         # The real production mismatch: cluster_to_files carries the CFG's absolute paths
@@ -157,6 +198,8 @@ class TestPreviousOwnership(unittest.TestCase):
             file_methods=[FileMethodGroup(file_path="src/index.py", methods=[method("src.index.run")])],
         )
         scope = AnalysisInsights(description="", components=[py], components_relations=[])
+        graph = CallGraph(language="python")
+        graph.add_node(Node("src.index.run", NodeType.FUNCTION, str(REPO / "src/index.py"), 1, 2))
         cluster_results = {
             "python": ClusterResult(
                 clusters={99: {"src.index.run"}},
@@ -166,14 +209,104 @@ class TestPreviousOwnership(unittest.TestCase):
             )
         }
 
-        owner = previous_ownership(scope, cluster_results, ROOT_SCOPE_ID, REPO)
+        member_owner = ClusteringService._index_persisted_ownership({ROOT_SCOPE_ID: scope}, {"python": graph}, REPO)[
+            ROOT_SCOPE_ID
+        ]
+        owner = ClusteringService._previous_cluster_ownership(scope, cluster_results, ROOT_SCOPE_ID, member_owner)
 
         # Method-anchored: renumbered cluster 99 still resolves to component 1. The id
         # fallback would leave it unowned, so an empty result means anchoring broke.
         self.assertEqual(owner, {99: "1"})
 
+    def test_indexes_persisted_members_omitted_from_the_structural_partition(self):
+        scope = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.clustered", "a.omitted"], ["1"])],
+            components_relations=[],
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("a.clustered", NodeType.FUNCTION, str(REPO / FILE), 1, 2))
+        graph.add_node(Node("a.omitted", NodeType.FUNCTION, str(REPO / FILE), 3, 4))
 
-class TestPlanScopeUpdate(unittest.TestCase):
+        indexed = ClusteringService._index_persisted_ownership({ROOT_SCOPE_ID: scope}, {"python": graph}, REPO)
+
+        self.assertEqual(indexed[ROOT_SCOPE_ID]["python"], {"a.clustered": "1", "a.omitted": "1"})
+
+    def test_excludes_data_symbols_from_persisted_ownership(self):
+        scope = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.callable", "a.constant"], ["1"])],
+            components_relations=[],
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("a.callable", NodeType.FUNCTION, str(REPO / FILE), 1, 2))
+        graph.add_node(Node("a.constant", NodeType.CONSTANT, str(REPO / FILE), 3, 4))
+
+        indexed = ClusteringService._index_persisted_ownership({ROOT_SCOPE_ID: scope}, {"python": graph}, REPO)
+
+        self.assertEqual(indexed[ROOT_SCOPE_ID]["python"], {"a.callable": "1"})
+
+    def test_normalizes_live_node_paths_once_before_indexing_scopes(self):
+        root = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.one"], ["1"]), component("2", ["a.two"], ["2"])],
+            components_relations=[],
+        )
+        child = AnalysisInsights(
+            description="",
+            components=[component("1.1", ["a.one"], ["1.1"])],
+            components_relations=[],
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("a.one", NodeType.FUNCTION, str(REPO / FILE), 1, 2))
+        graph.add_node(Node("a.two", NodeType.FUNCTION, str(REPO / FILE), 3, 4))
+
+        with patch(
+            "static_analyzer.clustering.service.normalize_repo_path",
+            wraps=lambda path, repo: str(Path(path).relative_to(repo)) if Path(path).is_absolute() else str(path),
+        ) as normalize:
+            ClusteringService._index_persisted_ownership({ROOT_SCOPE_ID: root, "1": child}, {"python": graph}, REPO)
+
+        live_calls = [call for call in normalize.call_args_list if Path(call.args[0]).is_absolute()]
+        self.assertEqual(len(live_calls), 2)
+
+    def test_rejects_multiple_persisted_owners_for_one_live_member(self):
+        scope = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.one"], ["1"]), component("2", ["a.one"], ["2"])],
+            components_relations=[],
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("a.one", NodeType.FUNCTION, str(REPO / FILE), 1, 2))
+
+        with self.assertRaises(PersistedOwnershipConflictError):
+            ClusteringService._index_persisted_ownership({ROOT_SCOPE_ID: scope}, {"python": graph}, REPO)
+
+
+class TestPlanScopeResultUpdate(unittest.TestCase):
+    def test_precomputed_scope_result_is_planned_without_regrouping(self):
+        scope = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.one"], ["1"])],
+            components_relations=[],
+        )
+        result = ClusterScopeResult(
+            scope_id=ROOT_SCOPE_ID,
+            leaf_clusters_by_language={"python": clustering({1: {"a.one"}})},
+            groups=[
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {"a.one"}},
+                    previous_component_id="1",
+                )
+            ],
+        )
+
+        decision = plan_scope_result_update(scope, result, {"a.one"})
+
+        self.assertEqual(actions(decision), {"1": ScopeOperationAction.UPDATE_COMPONENT})
+
     def test_renumbered_clusters_still_carry_every_component_forward(self):
         # The failure this anchor exists to prevent: a sub-scope is re-clustered from
         # scratch, its ids come back different, and every component looks brand new.
@@ -194,8 +327,15 @@ class TestPlanScopeUpdate(unittest.TestCase):
         }
         self.assertFalse({str(cid) for cid in renumbered} & set(members))
 
-        decision = plan_scope_update(
-            "2", scope, {"python": clustering(renumbered)}, {"python": cfg_for(renumbered)}, set(), REPO
+        decision = plan_result(
+            scope,
+            renumbered,
+            groups=[
+                ClusterGroup(group_id="2.1", cluster_ids=[41], previous_component_id="2.1"),
+                ClusterGroup(group_id="2.2", cluster_ids=[42], previous_component_id="2.2"),
+                ClusterGroup(group_id="2.3", cluster_ids=[43], previous_component_id="2.3"),
+            ],
+            scope_id="2",
         )
 
         self.assertEqual(
@@ -222,9 +362,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
             components_relations=[],
         )
 
-        decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set(), REPO
-        )
+        decision = plan_result(scope, clusters)
 
         self.assertEqual(decision.operations, [])
 
@@ -240,9 +378,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
             components_relations=[],
         )
 
-        decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, {"b.one"}, REPO
-        )
+        decision = plan_result(scope, clusters, {"b.one"})
 
         self.assertEqual(actions(decision), {"2": ScopeOperationAction.UPDATE_COMPONENT})
 
@@ -259,9 +395,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
             components_relations=[],
         )
 
-        decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set(), REPO
-        )
+        decision = plan_result(scope, clusters)
 
         self.assertEqual(actions(decision)["4"], ScopeOperationAction.DELETE_COMPONENT)
 
@@ -277,8 +411,14 @@ class TestPlanScopeUpdate(unittest.TestCase):
             components_relations=[],
         )
 
-        decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set(), REPO
+        decision = plan_result(
+            scope,
+            clusters,
+            groups=[
+                ClusterGroup(group_id="1", cluster_ids=[1, 4], previous_component_id="1"),
+                ClusterGroup(group_id="2", cluster_ids=[2], previous_component_id="2"),
+                ClusterGroup(group_id="3", cluster_ids=[3], previous_component_id="3"),
+            ],
         )
 
         # Only the absorbing component is touched; its siblings stay out of the plan.
@@ -296,9 +436,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
             components_relations=[],
         )
 
-        decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set(), REPO
-        )
+        decision = plan_result(scope, clusters, {"b.one"})
 
         for op in decision.operations:
             for ref in op.cluster_refs:
@@ -319,9 +457,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
             components_relations=[],
         )
 
-        decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set(), REPO
-        )
+        decision = plan_result(scope, clusters)
 
         self.assertNotIn("3", [op.component_id for op in decision.operations if op.action == DELETE])
         self.assertNotIn(ScopeOperationAction.CREATE_COMPONENT, {op.action for op in decision.operations})
@@ -336,7 +472,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
             components_relations=[],
         )
 
-        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set(), REPO)
+        decision = plan_result(scope, {})
 
         self.assertEqual(actions(decision), {"1": DELETE, "2": DELETE})
 
@@ -346,12 +482,12 @@ class TestPlanScopeUpdate(unittest.TestCase):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
         with self.assertRaises(IncrementalClusteringError):
-            plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set(), REPO)
+            plan_result(scope, {})
 
     def test_an_empty_scope_plans_nothing(self):
         scope = AnalysisInsights(description="", components=[], components_relations=[])
 
-        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set(), REPO)
+        decision = plan_result(scope, {})
 
         self.assertEqual(decision.operations, [])
 

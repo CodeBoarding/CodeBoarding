@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Protocol
 
-from agents.agent_responses import ClusterAnalysis, Component
+from agents.agent_responses import AnalysisInsights, Component
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
@@ -20,13 +20,13 @@ class ComponentRepairTarget(Protocol):
 @dataclass
 class ComponentRepairContext:
     reference_resolver: StaticReferenceResolver
-    llm_cluster_analysis: ClusterAnalysis
     cluster_results: dict[str, ClusterResult] = field(default_factory=dict)
+    group_ids: dict[str, list[int]] = field(default_factory=dict)
 
 
 def repair_component_group_names(result: ComponentRepairTarget, context: ComponentRepairContext) -> None:
     """Canonicalize unambiguous component source-group names."""
-    expected_group_names = {group.name for group in context.llm_cluster_analysis.cluster_components}
+    expected_group_names = set(context.group_ids)
     canonical_names = {_normalize_group_name(name): name for name in expected_group_names}
     corrected_count = 0
 
@@ -99,3 +99,26 @@ def repair_key_entities(result: ComponentRepairTarget, context: ComponentRepairC
         logger.info("Repaired %d key-entity qualified name(s)", canonicalized_count)
     if dropped_qnames:
         logger.info("Dropped invalid or out-of-scope key entities: %s", sorted(dropped_qnames))
+
+
+def ensure_unique_key_entities(analysis: AnalysisInsights) -> None:
+    """Keep each key entity on the component that owns its referenced file."""
+    seen: dict[str, Component] = {}
+    for component in analysis.components:
+        remove = []
+        for key_entity in component.key_entities:
+            previous = seen.get(key_entity.qualified_name)
+            if previous is None:
+                seen[key_entity.qualified_name] = component
+                continue
+            reference_file = key_entity.reference_file
+            current_owns_file = bool(reference_file and any(reference_file in path for path in component.file_paths()))
+            previous_owns_file = bool(reference_file and any(reference_file in path for path in previous.file_paths()))
+            if current_owns_file and not previous_owns_file:
+                previous.key_entities = [
+                    entity for entity in previous.key_entities if entity.qualified_name != key_entity.qualified_name
+                ]
+                seen[key_entity.qualified_name] = component
+            else:
+                remove.append(key_entity)
+        component.key_entities = [entity for entity in component.key_entities if entity not in remove]

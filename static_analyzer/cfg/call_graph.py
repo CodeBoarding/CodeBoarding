@@ -10,7 +10,7 @@ import networkx as nx
 
 from static_analyzer.cfg.edge import DEFAULT_REFERENCE_KINDS, Edge, EdgeKind, ReferenceEdge
 from static_analyzer.cfg.location_key import LocationKey
-from static_analyzer.constants import ClusteringConfig
+from static_analyzer.config import ClusteringConfig
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)

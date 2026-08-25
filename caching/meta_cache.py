@@ -40,9 +40,6 @@ class MetaCacheKey(BaseModel):
 class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
     """SQLite-backed cache for MetaAgent analysis results."""
 
-    _LLM_NAMESPACE = "meta_agent"
-    _CLEAR_BEFORE_STORE = True
-
     def __init__(
         self,
         repo_dir: Path,

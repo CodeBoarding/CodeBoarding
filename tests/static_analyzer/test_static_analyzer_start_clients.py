@@ -14,7 +14,7 @@ import pytest
 
 from static_analyzer import EngineConfig, StaticAnalysisFatalError, StaticAnalyzer
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 

@@ -16,19 +16,25 @@ from agents.agent_responses import (
     ScopedClusterRef,
     ScopeUpdateDecision,
 )
+from agents.component_ownership import group_ids_by_name
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.incremental_agent import (
     IncrementalAgent,
-    _cluster_analysis_for_scope,
     _patch_file_methods,
     prune_empty_components,
     remove_deleted_files,
 )
 from agents.incremental_results import ScopeRelationContext
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import (
+    ClusterConnectionEdge,
+    ClusterGroup,
+    ClusterResult,
+    ClusterScopeResult,
+    GroupConnection,
+)
 from static_analyzer.node import Node
 
 
@@ -54,6 +60,10 @@ def _component_with_method(name: str, component_id: str) -> Component:
         )
     ]
     return component
+
+
+def _clustering(leaf_clusters: dict[str, ClusterResult] | None = None) -> ClusterScopeResult:
+    return ClusterScopeResult(scope_id="root", leaf_clusters_by_language=leaf_clusters or {})
 
 
 class TestPruneEmptyComponents(unittest.TestCase):
@@ -150,7 +160,7 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis.get_cfg.return_value.filter_by_nodes.return_value = "cfg"
         agent.reference_resolver = MagicMock()
 
-        def populate(scope, _cluster_results, _cfg_graphs, _touched_ids, source_cluster_id_prefix=""):
+        def populate(scope, _clustering, _touched_ids):
             for component in scope.components:
                 if component.source_cluster_ids:
                     component.file_methods = [
@@ -168,7 +178,6 @@ class TestUpdateScope(unittest.TestCase):
                     ]
 
         agent._patch_scope_file_methods = MagicMock(side_effect=populate)
-        agent.build_static_relations = MagicMock()
         return agent
 
     def test_update_without_selected_key_entities_does_not_synthesize_them(self) -> None:
@@ -193,7 +202,7 @@ class TestUpdateScope(unittest.TestCase):
         agent = self._agent()
         reference_resolver = MagicMock()
         agent.reference_resolver = reference_resolver
-        result = agent.update_scope("root", scope, decision, {"python": ClusterResult()})
+        result = agent.update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(component.description, "New")
         self.assertEqual(component.source_cluster_ids, ["1", "2"])
@@ -229,7 +238,7 @@ class TestUpdateScope(unittest.TestCase):
 
         reference_resolver.fix_key_entities_refs.side_effect = resolve_selected_key_entity
 
-        agent.update_scope("root", scope, decision, {"python": ClusterResult()})
+        agent.update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(component.key_entities, [expected])
 
@@ -253,7 +262,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("1", scope, decision, {"python": ClusterResult()})
+        result = self._agent().update_scope("1", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(first.source_cluster_ids, ["1.1"])
         self.assertEqual(second.source_cluster_ids, ["1.2", "1.3"])
@@ -275,7 +284,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+        self._agent().update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(component.source_cluster_ids, ["1"])
 
@@ -296,7 +305,7 @@ class TestUpdateScope(unittest.TestCase):
         )
 
         agent = self._agent()
-        result = agent.update_scope("root", scope, decision, {"python": ClusterResult()})
+        result = agent.update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(component.name, "API")
         self.assertEqual(component.description, "API description")
@@ -324,7 +333,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+        result = self._agent().update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         created = scope.components[1]
         self.assertEqual(created.component_id, "2")
@@ -349,7 +358,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+        result = self._agent().update_scope("root", scope, decision, _clustering({"python": ClusterResult()}))
 
         self.assertEqual(scope.components, [])
         self.assertEqual(result.new_component_ids, set())
@@ -370,7 +379,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("root", scope, decision, {})
+        result = self._agent().update_scope("root", scope, decision, _clustering())
 
         self.assertEqual([component.component_id for component in scope.components], ["2"])
         self.assertEqual(scope.components_relations, [])
@@ -396,7 +405,7 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
         agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
 
-        result = agent.update_scope("root", scope, decision, {})
+        result = agent.update_scope("root", scope, decision, _clustering())
 
         self.assertEqual([component.component_id for component in scope.components], ["1", "2"])
         self.assertEqual(result.removed_ids, set())
@@ -423,7 +432,7 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
         agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
 
-        result = agent.update_scope("root", scope, decision, {})
+        result = agent.update_scope("root", scope, decision, _clustering())
 
         self.assertEqual([component.component_id for component in scope.components], ["1", "2"])
         self.assertEqual(result.removed_ids, set())
@@ -431,19 +440,22 @@ class TestUpdateScope(unittest.TestCase):
 
 
 class TestIncrementalRelations(unittest.TestCase):
-    def test_reconstructs_nested_cluster_context_from_persisted_components(self) -> None:
-        component = _component("Worker", "1.1", source_cluster_ids=["1.2", "9.9"])
-        component.source_group_names = []
-        scope = AnalysisInsights(description="nested", components=[component], components_relations=[])
-
-        cluster_analysis = _cluster_analysis_for_scope(
-            scope,
-            "1",
-            {"python": ClusterResult(clusters={2: {"worker.run"}})},
+    def test_persisted_group_names_follow_component_ids_not_list_order(self) -> None:
+        first = _component("First", "1")
+        first.source_group_names = ["First group"]
+        second = _component("Second", "2")
+        second.source_group_names = ["Second group"]
+        clustering = ClusterScopeResult(
+            scope_id="root",
+            groups=[
+                ClusterGroup(group_id="2", cluster_ids=[20]),
+                ClusterGroup(group_id="1", cluster_ids=[10]),
+            ],
         )
 
-        self.assertEqual(component.source_group_names, ["Worker"])
-        self.assertEqual(cluster_analysis.cluster_components[0].cluster_ids, [2])
+        result = group_ids_by_name([first, second], {group.group_id for group in clustering.groups})
+
+        self.assertEqual(result, {"First group": "1", "Second group": "2"})
 
     def test_uses_api_surface_relation_pipeline_and_attaches_static_call_sites(self) -> None:
         source = Node("pkg.api.run", NodeType.FUNCTION, "api.py", 1, 5)
@@ -511,6 +523,37 @@ class TestIncrementalRelations(unittest.TestCase):
         cluster_results = {
             "python": ClusterResult(clusters={1: {source.fully_qualified_name}, 2: {target.fully_qualified_name}})
         }
+        clustering = ClusterScopeResult(
+            scope_id="root",
+            graphs_by_language={"python": cfg},
+            leaf_clusters_by_language=cluster_results,
+            groups=[
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {source.fully_qualified_name}},
+                ),
+                ClusterGroup(
+                    group_id="2",
+                    cluster_ids=[2],
+                    symbol_members_by_language={"python": {target.fully_qualified_name}},
+                ),
+            ],
+            connections=[
+                GroupConnection(
+                    source_group_id="1",
+                    target_group_id="2",
+                    edges=[
+                        ClusterConnectionEdge(
+                            language="python",
+                            source_qualified_name=source.fully_qualified_name,
+                            target_qualified_name=target.fully_qualified_name,
+                            call_sites=[{"line": 3, "column": 7}],
+                        )
+                    ],
+                )
+            ],
+        )
 
         with patch("agents.agent.create_agent", return_value=MagicMock()):
             agent = IncrementalAgent(
@@ -535,7 +578,8 @@ class TestIncrementalRelations(unittest.TestCase):
             scope,
             "root",
             ScopeRelationContext(
-                cluster_results=cluster_results, cfg_graphs={"python": cfg}, changed_ids=frozenset({"1", "2"})
+                clustering=clustering,
+                changed_ids=frozenset({"1", "2"}),
             ),
         )
 
@@ -561,12 +605,13 @@ class TestIncrementalRelations(unittest.TestCase):
         self.assertTrue(any(edge.call_sites[0].line == 3 for edge in relation.all_edges if edge.call_sites))
         self.assertEqual(scope.files["api.py"].methods[0].qualified_name, source.fully_qualified_name)
         self.assertEqual(scope.files["api.py"].methods[0].node_type, NodeType.FUNCTION.name)
+        self.assertEqual(agent.toolkit.context.group_ids_by_name, {"api": "1", "worker": "2"})
 
     def test_generate_all_scope_relations_includes_root_scope_id(self) -> None:
         agent = object.__new__(IncrementalAgent)
         agent.generate_scope_relations = MagicMock(return_value=[])
         root = AnalysisInsights(description="root", components=[], components_relations=[])
-        context = ScopeRelationContext(cluster_results={}, cfg_graphs={})
+        context = ScopeRelationContext(clustering=_clustering())
 
         agent.generate_all_scope_relations(root, {}, {"root": context}, {"pkg.changed"})
 
@@ -585,7 +630,7 @@ class TestIncrementalRelations(unittest.TestCase):
         result = agent.generate_scope_relations(
             scope,
             "root",
-            ScopeRelationContext(cluster_results={}, cfg_graphs={}),
+            ScopeRelationContext(clustering=_clustering()),
         )
 
         self.assertEqual(result, [])

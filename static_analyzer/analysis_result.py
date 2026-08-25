@@ -1,13 +1,13 @@
 import logging
 import re
-from collections.abc import Hashable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg import CallGraph, CallSiteLocation
 from static_analyzer.clustering import ClusterCache
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
@@ -36,7 +36,7 @@ _WORD_RE = re.compile(r"\b([a-z]+)\b")
 _STANDALONE_SINGLE_LETTER_RE = re.compile(r"(?<![a-z])([a-z])(?!\w)")
 
 # (source name, destination name, source node, destination node, cached call sites)
-InvalidatedEdge = tuple[str, str, Node, Node, list[dict[str, Hashable]]]
+InvalidatedEdge = tuple[str, str, Node, Node, list[CallSiteLocation]]
 
 
 @dataclass

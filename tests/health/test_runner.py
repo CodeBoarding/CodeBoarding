@@ -4,7 +4,7 @@ import unittest
 from health.models import HealthCheckConfig, StandardCheckSummary
 from health.runner import run_health_checks
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.cfg import CallGraph
 from static_analyzer.node import Node
 

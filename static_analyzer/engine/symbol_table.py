@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 
 from static_analyzer.engine.protocols import SymbolNaming
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
 from static_analyzer.engine.models import SymbolInfo
 

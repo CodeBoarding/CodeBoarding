@@ -20,8 +20,8 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from agents.scope_ids import ROOT_SCOPE_ID
 from agents.incremental_agent import prune_empty_components, remove_deleted_files
+from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.diagram_generator import (
     DiagramGenerator,
     _capture_baseline_member_keys,
@@ -31,10 +31,10 @@ from diagram_analysis.diagram_generator import (
     _incremental_changed_component_ids,
     _member_keys,
     preserve_unchanged_relations,
-    _restore_unchanged_membership,
     _restore_unchanged_metadata,
     _restore_unchanged_subtrees,
 )
+from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
 
 
 def method(qname: str, start: int = 1) -> MethodEntry:
@@ -72,51 +72,6 @@ class TestMemberKeys(unittest.TestCase):
 
         self.assertEqual(keys["1"], frozenset({("a.py", "a.one")}))
         self.assertEqual(keys["1.1"], frozenset({("a.py", "a.one")}))
-
-
-class TestRestoreUnchangedMembership(unittest.TestCase):
-    def _baseline_and_live(self):
-        """Baseline owns a.one under component 1; the re-partition moved it to component 2."""
-        baseline_root = analysis(
-            component("1", "A", {"a.py": ["a.one"]}),
-            component("2", "B", {"b.py": ["b.one"]}),
-        )
-        baseline = _capture_membership_baseline(baseline_root, {})
-        live_root = analysis(
-            component("1", "A", {}),
-            component("2", "B", {"b.py": ["b.one"], "a.py": ["a.one"]}),
-        )
-        return baseline, live_root
-
-    def _owner_of(self, root: AnalysisInsights, qname: str) -> str:
-        return next(
-            comp.component_id
-            for comp in root.components
-            for group in comp.file_methods
-            for entry in group.methods
-            if entry.qualified_name == qname
-        )
-
-    def test_unchanged_method_returns_to_its_baseline_owner(self):
-        baseline, live_root = self._baseline_and_live()
-
-        _restore_unchanged_membership(live_root, {}, baseline, changed_members=set(), protected_ids=set())
-
-        self.assertEqual(self._owner_of(live_root, "a.one"), "1")
-
-    def test_body_changed_method_keeps_the_new_placement(self):
-        baseline, live_root = self._baseline_and_live()
-
-        _restore_unchanged_membership(live_root, {}, baseline, changed_members={"a.one"}, protected_ids=set())
-
-        self.assertEqual(self._owner_of(live_root, "a.one"), "2")
-
-    def test_freshly_created_component_keeps_everything_it_was_given(self):
-        baseline, live_root = self._baseline_and_live()
-
-        _restore_unchanged_membership(live_root, {}, baseline, changed_members=set(), protected_ids={"2"})
-
-        self.assertEqual(self._owner_of(live_root, "a.one"), "2")
 
 
 class TestRestoreUnchangedMetadata(unittest.TestCase):
@@ -634,12 +589,7 @@ class TestProgressSaveNeverTruncates(unittest.TestCase):
 
 
 class TestAnalysedSubtreeSurvivesTheSaveTimeVerdict(unittest.TestCase):
-    """A component holding children must never be re-litigated into a leaf.
-
-    analysis.json is the store: the save writes children only for a component it is told is
-    expandable, so a separability verdict that flips False on an inherited subtree deletes
-    already-analysed work permanently.
-    """
+    """A component holding children remains expandable in the persisted tree."""
 
     def _generator(self, tmp: str) -> DiagramGenerator:
         generator = DiagramGenerator(
@@ -652,8 +602,10 @@ class TestAnalysedSubtreeSurvivesTheSaveTimeVerdict(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
         generator.details_agent = MagicMock()
-        # The gate says "keep it as a leaf" for everything.
-        generator._component_separable = MagicMock(return_value=False)  # type: ignore[method-assign]
+        generator.clustering_hierarchy = ClusterScopeResult(
+            scope_id=ROOT_SCOPE_ID,
+            groups=[ClusterGroup(group_id="1", cluster_ids=[1], expandable=False)],
+        )
         return generator
 
     def test_a_component_with_children_stays_expandable(self):
@@ -668,9 +620,7 @@ class TestAnalysedSubtreeSurvivesTheSaveTimeVerdict(unittest.TestCase):
             self.assertEqual(sub_ids, {"1": []})
 
     def test_children_survive_even_when_the_structural_gate_rejects(self):
-        # get_expandable_components runs should_expand_component first, so a predicate
-        # cannot rescue a component that gate has already dropped -- a component with no
-        # file_methods of its own would lose its children despite holding them.
+        # A component with no file_methods still owns its already-persisted subtree.
         with tempfile.TemporaryDirectory() as tmp:
             generator = self._generator(tmp)
             bare = Component(name="A", description="", key_entities=[], component_id="1", file_methods=[])
@@ -696,7 +646,6 @@ class TestScopeIdContract(unittest.TestCase):
         root = analysis(component("1", "A", {"a.py": ["a.one"]}))
         baseline = _capture_membership_baseline(root, {})
 
-        self.assertIn(ROOT_SCOPE_ID, baseline.owner_by_scope)
         self.assertEqual(baseline.scope_by_id, {})
 
 

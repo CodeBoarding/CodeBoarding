@@ -1,44 +1,10 @@
 """Exceptions raised by diagram_analysis pipelines."""
 
-from pathlib import Path
-
-from static_analyzer.analysis_cache import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
-
-
-class IncrementalCacheMissingError(RuntimeError):
-    """Raised when ``generate_analysis_incremental`` finds no usable warm cache.
-
-    Needs a populated ``ClusterCache`` on the cached ``LanguageResults``, from the
-    SHA-tagged ``static_analysis.pkl``. Why raise: falling back to a full analysis
-    discarded analysis.json's depth and component IDs. The message names which
-    piece is missing — pkl, sha, or cluster baseline.
-    """
-
-    def __init__(self, artifact_dir: Path):
-        pkl_path = artifact_dir / STATIC_ANALYSIS_PKL
-        sha_path = artifact_dir / STATIC_ANALYSIS_SHA
-        if not pkl_path.exists():
-            reason = f"no {STATIC_ANALYSIS_PKL} at {pkl_path}"
-        elif not sha_path.exists():
-            reason = (
-                f"{STATIC_ANALYSIS_PKL} at {pkl_path} has no sibling "
-                f"{STATIC_ANALYSIS_SHA}; the warm-start cannot SHA-gate"
-            )
-        else:
-            reason = (
-                f"{STATIC_ANALYSIS_PKL} at {pkl_path} loaded but has no cluster baseline "
-                "(legacy pkl or first-ever incremental run)"
-            )
-        super().__init__(
-            f"Incremental analysis cannot proceed: {reason}. " "Run a full analysis first to seed the cache."
-        )
-        self.artifact_dir = artifact_dir
-
 
 class IncrementalClusteringError(RuntimeError):
     """Raised when a scope's clustering comes back empty but it still owns live methods.
 
-    ``_create_strict_component_subgraph`` expands to one cluster per method whenever a
+    Scoped clustering expands to one cluster per method whenever a
     component has any live callable node, so an empty clustering means none of the methods
     the scope claims exist in the live call graph. Continuing would save the scope's stale
     membership and relations and hide the missed change; per the fail-fast rule the caller
@@ -68,3 +34,11 @@ class ScopeContainmentError(RuntimeError):
     def __init__(self, violations: list[str]):
         super().__init__("Child scopes own methods outside their parent component: " + "; ".join(violations))
         self.violations = violations
+
+
+class ClusteringScopeUnavailableError(RuntimeError):
+    """Raised when a persisted component cannot be mapped to a clustering scope."""
+
+    def __init__(self, component_id: str, reason: str):
+        super().__init__(f"Clustering scope unavailable for component {component_id!r}: {reason}")
+        self.component_id = component_id

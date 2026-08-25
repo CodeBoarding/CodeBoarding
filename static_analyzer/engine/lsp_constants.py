@@ -1,13 +1,13 @@
 """LSP SymbolKind groupings and constants for the engine modules.
 
-``NodeType`` from ``static_analyzer.constants`` is the single source of truth
+``NodeType`` from ``static_analyzer.config`` is the single source of truth
 for LSP SymbolKind integer values.  This module re-exports it for convenience
 and defines derived groupings (CLASS_LIKE_KINDS, CALLABLE_KINDS).
 """
 
 from enum import StrEnum
 
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 
 CLASS_LIKE_KINDS: set[int] = {
     NodeType.CLASS,

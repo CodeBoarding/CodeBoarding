@@ -8,7 +8,7 @@ Adding a new tool:
        zipped on Windows — e.g. upstream rust-analyzer), additionally set
        ``asset_arch_overrides`` (format is inferred from the asset filename suffix).
     2. Add the entry to ``VSCODE_CONFIG`` in ``vscode_constants.py``.
-    3. Add to the ``Language`` enum in ``static_analyzer/constants.py``.
+    3. Add to the ``Language`` enum in ``static_analyzer/config.py``.
 """
 
 import platform

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.adapters.rust_adapter import RustAdapter, _normalize_parent
 

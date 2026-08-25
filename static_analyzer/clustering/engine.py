@@ -10,7 +10,7 @@ from typing import NamedTuple
 import networkx as nx
 
 from static_analyzer.clustering.models import ClusterResult
-from static_analyzer.constants import ClusteringConfig
+from static_analyzer.config import ClusteringConfig
 from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)

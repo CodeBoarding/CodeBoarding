@@ -2,7 +2,7 @@ import unittest
 
 from agents.llm_renderers import render_call_graph
 from static_analyzer.cfg import CallGraph
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
 from static_analyzer.node import Node
 
 

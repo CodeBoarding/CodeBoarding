@@ -14,7 +14,7 @@ def patched(tmp_path: Path):
     """Patch the collaborators of ``run_incremental`` and yield their mocks.
 
     Detection is git-free via ``detect_changes_from_fingerprint``. The warm-start
-    source_sha is computed inside the generator (pre_analysis), not here.
+    source_sha is computed inside the generator (prepare_analysis), not here.
     """
     with ExitStack() as stack:
         gen_cls = stack.enter_context(patch("codeboarding_workflows.analysis.DiagramGenerator"))
@@ -36,7 +36,7 @@ def patched(tmp_path: Path):
 def _invoke(tmp_path: Path, **kwargs) -> None:
     run_incremental(
         RunPaths(repo_path=tmp_path, output_dir=tmp_path / "out", project_name="proj"),
-        RunContext(run_id="rid", log_path="logs/run.log", repo_dir=tmp_path),
+        RunContext(run_id="rid", log_path="logs/run.log"),
         **kwargs,
     )
 

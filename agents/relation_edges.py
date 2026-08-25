@@ -1,8 +1,10 @@
 """Merge component relations and index their source endpoints."""
 
+from collections.abc import Callable
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
+from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
+from clustering_ids import is_self_or_descendant
 from repo_utils.path_utils import normalize_repo_path
 
 
@@ -72,6 +74,147 @@ def _is_internal_self_relation(relation: Relation) -> bool:
 def drop_internal_self_relations(relations: list[Relation]) -> list[Relation]:
     """Remove statically-backed self-loops from an assembled relation list (CFG untouched)."""
     return [relation for relation in relations if not _is_internal_self_relation(relation)]
+
+
+def ground_relation_edges(
+    llm_key_edges: list[RelationEdge], static_edges: list[RelationEdge]
+) -> tuple[list[RelationEdge], list[RelationEdge]]:
+    """Ground an LLM relation's key edges in deterministic static edges."""
+    static_unique = Relation.unique_edges(static_edges)
+    if not static_unique:
+        merged = Relation.unique_edges(llm_key_edges)
+        return merged, merged
+    highlighted: list[RelationEdge] = []
+    for static_edge in static_unique:
+        match = next(
+            (
+                key
+                for key in llm_key_edges
+                if _qualified_names_match(key.source.qualified_name, static_edge.source.qualified_name)
+                and _qualified_names_match(key.target.qualified_name, static_edge.target.qualified_name)
+            ),
+            None,
+        )
+        if match is None:
+            continue
+        highlighted.append(
+            static_edge.model_copy(update={"description": match.description}) if match.description else static_edge
+        )
+    return highlighted, static_unique
+
+
+def edge_crosses_components(
+    edge: RelationEdge,
+    owner_of: Callable[[SourceCodeReference], str],
+    src_id: str,
+    dst_id: str,
+) -> bool:
+    """Return whether an edge's owned endpoints match its declared component pair."""
+    for reference, component_id in ((edge.source, src_id), (edge.target, dst_id)):
+        owner = owner_of(reference)
+        if owner and component_id and not is_self_or_descendant(owner, component_id):
+            return False
+    return True
+
+
+def prune_ungrounded_edges(
+    relations: list[Relation],
+    owner_of: Callable[[SourceCodeReference], str],
+    keep_edge: Callable[[RelationEdge], bool],
+    changed_members: set[str] | None = None,
+) -> list[Relation]:
+    """Re-apply edge filters after baseline preservation, moving misfiled edges when possible."""
+    by_pair: dict[tuple[str, str], Relation] = {(relation.src_id, relation.dst_id): relation for relation in relations}
+    additions: dict[tuple[str, str], list[RelationEdge]] = {}
+
+    def find_relation_pair_for_edge(edge: RelationEdge) -> tuple[tuple[str, str] | None, bool]:
+        source = owner_of(edge.source)
+        target = owner_of(edge.target)
+        if not source or not target:
+            return None, False
+        if is_self_or_descendant(source, target) or is_self_or_descendant(target, source):
+            return None, True
+        for pair in by_pair:
+            if is_self_or_descendant(source, pair[0]) and is_self_or_descendant(target, pair[1]):
+                return pair, False
+        return None, False
+
+    kept: list[Relation] = []
+    for relation in relations:
+        pair = (relation.src_id, relation.dst_id)
+        all_edges: list[RelationEdge] = []
+        for edge in relation.all_edges:
+            if not keep_edge(edge):
+                continue
+            if edge_crosses_components(edge, owner_of, relation.src_id, relation.dst_id):
+                all_edges.append(edge)
+                continue
+            if changed_members is not None and edge.source.qualified_name not in changed_members:
+                all_edges.append(edge)
+                continue
+            matching_pair, is_internal = find_relation_pair_for_edge(edge)
+            if is_internal:
+                continue
+            if matching_pair is None or matching_pair == pair:
+                all_edges.append(edge)
+            else:
+                additions.setdefault(matching_pair, []).append(edge)
+        surviving = {edge.identity() for edge in all_edges}
+        key_edges = [edge for edge in relation.key_edges if edge.identity() in surviving]
+        kept.append(relation.model_copy(update={"all_edges": all_edges, "key_edges": key_edges}))
+
+    settled: list[Relation] = []
+    for relation in kept:
+        moved = additions.get((relation.src_id, relation.dst_id))
+        if moved:
+            relation = relation.model_copy(update={"all_edges": Relation.unique_edges([*relation.all_edges, *moved])})
+        if not relation.all_edges and not relation.key_edges and not relation.evidence.strip():
+            continue
+        settled.append(relation)
+
+    return drop_reverse_duplicates(settled, changed_members)
+
+
+def drop_reverse_duplicates(relations: list[Relation], changed_members: set[str] | None = None) -> list[Relation]:
+    """Collapse an ungrounded relation duplicated in the opposite direction."""
+    grounded_pairs = {
+        (relation.src_id, relation.dst_id)
+        for relation in relations
+        if (relation.all_edges or relation.key_edges)
+        and (
+            changed_members is None
+            or any(edge.source.qualified_name in changed_members for edge in [*relation.all_edges, *relation.key_edges])
+        )
+    }
+    kept: list[Relation] = []
+    dropped_bare: set[tuple[str, str]] = set()
+    by_pair = {(relation.src_id, relation.dst_id): relation for relation in relations}
+    for relation in relations:
+        pair = (relation.src_id, relation.dst_id)
+        reverse = (relation.dst_id, relation.src_id)
+        if relation.all_edges or relation.key_edges or relation.is_static:
+            kept.append(relation)
+            continue
+        if reverse in grounded_pairs:
+            continue
+        other = by_pair.get(reverse) if reverse != pair else None
+        if (
+            changed_members is None
+            and other is not None
+            and not (other.all_edges or other.key_edges or other.is_static)
+        ):
+            loser = max((relation, other), key=lambda item: (-len(item.evidence or ""), item.src_id, item.dst_id))
+            if (loser.src_id, loser.dst_id) == pair and reverse not in dropped_bare:
+                dropped_bare.add(pair)
+                continue
+        kept.append(relation)
+    return kept
+
+
+def _qualified_names_match(first: str, second: str) -> bool:
+    """Return whether canonical or suffix-qualified names denote the same symbol."""
+    first, second = first.replace(":", "."), second.replace(":", ".")
+    return first == second or first.endswith(f".{second}") or second.endswith(f".{first}")
 
 
 def _relation_backing_survives(relation: Relation, live_qnames: set[str]) -> bool:
@@ -164,7 +307,7 @@ def _restore_baseline_wording(fresh: Relation, previous: Relation) -> Relation:
     return fresh.model_copy(
         update={
             **wording,
-            "key_edges": Relation._unique_edges([*map(annotate, fresh.key_edges), *map(annotate, restored)]),
+            "key_edges": Relation.unique_edges([*map(annotate, fresh.key_edges), *map(annotate, restored)]),
         }
     )
 

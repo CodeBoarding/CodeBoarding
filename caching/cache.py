@@ -2,7 +2,6 @@ import hashlib
 import json
 import logging
 import threading
-import time
 from pathlib import Path
 from typing import Generic, TypeVar
 
@@ -11,7 +10,7 @@ from utils import get_cache_dir
 
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import Column, Index, Integer, MetaData, String, Table, delete, event, func, select, text
+from sqlalchemy import Column, Index, MetaData, String, Table, delete, event, select, text
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.engine import Engine, create_engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -29,9 +28,6 @@ logger = logging.getLogger(__name__)
 
 class BaseCache(Generic[K, V]):
     """Minimal key/value cache interface."""
-
-    _CLEAR_BEFORE_STORE = False
-    _REQUIRE_RUN_ID = False
 
     def __init__(
         self,
@@ -54,11 +50,8 @@ class BaseCache(Generic[K, V]):
             self._metadata,
             Column("namespace", String, primary_key=True),
             Column("key_sig", String, primary_key=True),
-            Column("run_id", String, nullable=False),
             Column("value_json", String, nullable=False),
-            Column("updated_at", Integer, nullable=False),
             Index(f"idx_{_CACHE_TABLE}_namespace", "namespace"),
-            Index(f"idx_{_CACHE_TABLE}_namespace_run_id", "namespace", "run_id"),
         )
         self._sqlite_disabled = False
 
@@ -125,7 +118,7 @@ class BaseCache(Generic[K, V]):
         if not columns:
             return
 
-        expected = {"namespace", "key_sig", "run_id", "value_json", "updated_at"}
+        expected = {"namespace", "key_sig", "value_json"}
         actual = {str(row[1]) for row in columns}
         if actual == expected:
             return
@@ -156,29 +149,23 @@ class BaseCache(Generic[K, V]):
             value_json = conn.execute(stmt).scalar_one_or_none()
         return str(value_json) if value_json is not None else None
 
-    def _upsert_conn(self, conn, key_sig: str, value_json: str, run_id: str) -> None:
+    def _upsert_conn(self, conn, key_sig: str, value_json: str) -> None:
         """Core upsert logic using an existing connection."""
         ns = self._namespace
-        updated_at = time.time_ns()
         stmt = insert(self._cache_entries).values(
             namespace=ns,
             key_sig=key_sig,
-            run_id=run_id,
             value_json=value_json,
-            updated_at=updated_at,
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=["namespace", "key_sig"],
-            set_={"run_id": run_id, "value_json": value_json, "updated_at": updated_at},
+            set_={"value_json": value_json},
         )
         conn.execute(stmt)
 
-    def _clear_conn(self, conn, keep_run_ids: list[str] | None = None) -> int:
+    def _clear_conn(self, conn) -> int:
         """Core clear logic using an existing connection within current namespace."""
         stmt = delete(self._cache_entries).where(self._cache_entries.c.namespace == self._namespace)
-        if keep_run_ids:
-            stmt = stmt.where(self._cache_entries.c.run_id.not_in(keep_run_ids))
-
         result = conn.execute(stmt)
         return int(result.rowcount or 0)
 
@@ -196,7 +183,7 @@ class BaseCache(Generic[K, V]):
             logger.warning("Cache load failed: %s", e)
             return None
 
-    def store(self, key: K, value: V, run_id: str) -> None:
+    def store(self, key: K, value: V) -> None:
         try:
             with self._db_lock:
                 engine = self._open_sqlite_unlocked()
@@ -207,54 +194,12 @@ class BaseCache(Generic[K, V]):
                 value_json = value.model_dump_json()
 
                 with engine.begin() as conn:
-                    if self._CLEAR_BEFORE_STORE:
-                        self._clear_conn(conn)
-                    self._upsert_conn(conn, key_sig, value_json, run_id=run_id)
+                    self._clear_conn(conn)
+                    self._upsert_conn(conn, key_sig, value_json)
 
                 logger.info("Cache store success: %s key=%s", self.file_path.name, key_sig)
         except Exception as e:
             logger.warning("Cache store failed: %s", e)
-
-    def clear(self, keep_run_ids: list[str] | None = None) -> int:
-        try:
-            with self._db_lock:
-                engine = self._open_sqlite_unlocked()
-                if engine is None:
-                    return 0
-
-                with engine.begin() as conn:
-                    return self._clear_conn(conn, keep_run_ids=keep_run_ids)
-        except Exception as e:
-            logger.warning("Cache clear failed: %s", e)
-            return 0
-
-    def load_most_recent_run(self, namespace: str | None = None) -> tuple[str, int] | None:
-        try:
-            with self._db_lock:
-                engine = self._open_sqlite_unlocked()
-                if engine is None:
-                    return None
-
-                ns = namespace or self._namespace
-                latest = func.max(self._cache_entries.c.updated_at)
-                stmt = (
-                    select(self._cache_entries.c.run_id, latest.label("latest_updated_at"))
-                    .where(
-                        self._cache_entries.c.namespace == ns,
-                        self._cache_entries.c.run_id != "",
-                    )
-                    .group_by(self._cache_entries.c.run_id)
-                    .order_by(latest.desc())
-                    .limit(1)
-                )
-                with engine.connect() as conn:
-                    row = conn.execute(stmt).first()
-                if row is None or row[0] is None or row[1] is None:
-                    return None
-                return str(row[0]), int(row[1])
-        except Exception as e:
-            logger.warning("Cache load_most_recent_run failed: %s", e)
-            return None
 
     def close(self) -> None:
         cache = self._sqlite_cache

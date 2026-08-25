@@ -1,4 +1,4 @@
-"""Tests for ``diagram_analysis.cluster_delta`` (seeded Leiden, no fallback)."""
+"""Tests for seeded incremental clustering."""
 
 import tempfile
 import unittest
@@ -6,20 +6,16 @@ from pathlib import Path
 
 from agents.content_hash import MethodSpan, hash_file_residual, hash_method_body, hash_whole_file, read_source_lines
 from agents.file_index_models import FileEntry, MethodEntry
-from diagram_analysis.cluster_delta import (
-    ClusterRef,
-    ClusterDelta,
-    LanguageDelta,
+from diagram_analysis.incremental_changes import compute_changed_members
+from static_analyzer.clustering.delta import (
     _affected_frontier,
     _flavor_b_seeded,
-    compute_changed_members,
     compute_cluster_delta,
-    structural_diff_from_delta,
 )
-from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry, snapshot_from_cluster_results
+from static_analyzer.clustering.snapshot import ClusterSnapshot, ClusterSnapshotEntry, snapshot_from_cluster_results
 from repo_utils.change_detector import ChangeSet, FileChange
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language, NodeType
+from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
@@ -67,16 +63,23 @@ class TestFlavorB(unittest.TestCase):
         # clusterable members on both sides — matching baselines round-trip
         # to ``has_changes=False``.
         graph = _build_graph(
-            [("a.foo", "a.py"), ("a.bar", "a.py"), ("b.baz", "b.py"), ("b.qux", "b.py")],
+            [
+                ("a.foo", "a.py"),
+                ("a.bar", "a.py"),
+                ("b.baz", "b.py"),
+                ("b.qux", "b.py"),
+                ("module.__getattr__", "module.py"),
+            ],
             [("a.foo", "a.bar"), ("b.baz", "b.qux")],
         )
-        snap = _snapshot(
-            {
+        snap = ClusterSnapshot(
+            by_language={
                 "python": {
                     1: ClusterSnapshotEntry(members={"a.foo", "a.bar"}),
                     2: ClusterSnapshotEntry(members={"b.baz", "b.qux"}),
                 }
-            }
+            },
+            unclustered_members_by_language={"python": {"module.__getattr__"}},
         )
 
         delta = compute_cluster_delta(snap, _build_static(graph))
@@ -86,6 +89,10 @@ class TestFlavorB(unittest.TestCase):
         self.assertEqual(ld.new_cluster_ids, set())
         self.assertEqual(ld.changed_cluster_ids, set())
         self.assertEqual(ld.dropped_cluster_ids, set())
+        self.assertNotIn(
+            "module.__getattr__",
+            {member for members in ld.cluster_results.clusters.values() for member in members},
+        )
 
     def test_added_node_routed_to_neighbor_cluster(self) -> None:
         # Snapshot lists clusters that fresh clustering will reproduce; "a.new"
@@ -168,140 +175,6 @@ class TestFlavorB(unittest.TestCase):
         self.assertEqual(ld.new_cluster_ids, set())
         self.assertEqual(ld.changed_cluster_ids, {1})
         self.assertIn("a.new", ld.cluster_results.clusters[1])
-
-
-class TestStructuralClusterDiff(unittest.TestCase):
-    def test_classifies_unchanged_and_modified_clusters(self) -> None:
-        old_snapshot = _snapshot(
-            {
-                "python": {
-                    1: ClusterSnapshotEntry(members={"a.foo", "a.bar"}, files={"a.py"}),
-                    2: ClusterSnapshotEntry(members={"b.baz"}, files={"b.py"}),
-                }
-            }
-        )
-        delta = ClusterDelta(
-            by_language={
-                "python": LanguageDelta(
-                    language="python",
-                    cluster_results=ClusterResult(
-                        clusters={1: {"a.foo", "a.bar", "a.new"}, 2: {"b.baz"}},
-                        cluster_to_files={1: {"a.py"}, 2: {"b.py"}},
-                    ),
-                )
-            }
-        )
-
-        structural = structural_diff_from_delta(old_snapshot, delta)
-        lang = structural.by_language["python"]
-
-        self.assertEqual(len(lang.unchanged), 1)
-        self.assertEqual(lang.unchanged[0].old_cluster.cluster_id, 2)
-        self.assertEqual(len(lang.modified), 1)
-        self.assertEqual(lang.modified[0].old_cluster.cluster_id, 1)
-        self.assertEqual(lang.modified[0].added_methods, {"a.new"})
-        self.assertEqual(lang.modified[0].removed_methods, set())
-
-    def test_dirty_unchanged_cluster_is_modified(self) -> None:
-        old_snapshot = _snapshot(
-            {
-                "python": {
-                    1: ClusterSnapshotEntry(
-                        members={"a.foo"},
-                        files={"/repo/a.py"},
-                        member_files={"a.foo": "/repo/a.py"},
-                    ),
-                }
-            }
-        )
-        delta = ClusterDelta(
-            by_language={
-                "python": LanguageDelta(
-                    language="python",
-                    cluster_results=ClusterResult(
-                        clusters={1: {"a.foo"}},
-                        cluster_to_files={1: {"/repo/a.py"}},
-                    ),
-                )
-            }
-        )
-        changes = ChangeSet(
-            files=[FileChange(status_code="M", file_path="a.py")],
-        )
-
-        structural = structural_diff_from_delta(old_snapshot, delta, changes=changes, repo_dir=Path("/repo"))
-        lang = structural.by_language["python"]
-
-        self.assertEqual(lang.unchanged, [])
-        self.assertEqual(len(lang.modified), 1)
-        self.assertEqual(lang.modified[0].dirty_files, {"a.py"})
-        self.assertEqual(lang.modified[0].added_methods, set())
-        self.assertEqual(lang.modified[0].removed_methods, set())
-
-    def test_classifies_new_and_removed_clusters(self) -> None:
-        old_snapshot = _snapshot(
-            {
-                "python": {
-                    1: ClusterSnapshotEntry(members={"a.foo"}),
-                    2: ClusterSnapshotEntry(members={"b.gone"}),
-                }
-            }
-        )
-        delta = ClusterDelta(
-            by_language={
-                "python": LanguageDelta(
-                    language="python",
-                    cluster_results=ClusterResult(
-                        clusters={1: {"a.foo"}, 3: {"c.new"}},
-                        cluster_to_files={1: {"a.py"}, 3: {"c.py"}},
-                    ),
-                )
-            }
-        )
-
-        structural = structural_diff_from_delta(old_snapshot, delta)
-        lang = structural.by_language["python"]
-
-        self.assertEqual(lang.new, [ClusterRef(language="python", cluster_id=3)])
-        self.assertEqual(len(lang.new_details), 1)
-        self.assertEqual(lang.new_details[0].new_cluster, ClusterRef(language="python", cluster_id=3))
-        self.assertEqual(lang.new_details[0].added_methods, {"c.new"})
-        self.assertEqual(lang.removed, [ClusterRef(language="python", cluster_id=2)])
-
-    def test_split_or_merge_overlap_becomes_reshaped(self) -> None:
-        old_snapshot = _snapshot(
-            {
-                "python": {
-                    1: ClusterSnapshotEntry(members={"a.one", "a.two"}),
-                    2: ClusterSnapshotEntry(members={"b.one"}),
-                }
-            }
-        )
-        delta = ClusterDelta(
-            by_language={
-                "python": LanguageDelta(
-                    language="python",
-                    cluster_results=ClusterResult(
-                        clusters={10: {"a.one", "b.one"}, 11: {"a.two"}},
-                    ),
-                )
-            }
-        )
-
-        structural = structural_diff_from_delta(old_snapshot, delta)
-        lang = structural.by_language["python"]
-
-        self.assertEqual(lang.modified, [])
-        self.assertEqual(len(lang.reshaped), 1)
-        reshape = lang.reshaped[0]
-        self.assertEqual({ref.cluster_id for ref in reshape.old_clusters}, {1, 2})
-        self.assertEqual({ref.cluster_id for ref in reshape.new_clusters}, {10, 11})
-        self.assertEqual(
-            reshape.overlap_counts[
-                (ClusterRef(language="python", cluster_id=1), ClusterRef(language="python", cluster_id=10))
-            ],
-            1,
-        )
 
 
 class TestSnapshotIntegration(unittest.TestCase):
@@ -413,7 +286,7 @@ class TestDiffScoping(unittest.TestCase):
         )
 
         changes = self._changeset(["a.py"])  # b.py NOT in diff -> b.lost vanishing is inconsistent
-        with self.assertLogs("diagram_analysis.cluster_delta", level="WARNING") as captured:
+        with self.assertLogs("static_analyzer.clustering.delta", level="WARNING") as captured:
             delta = compute_cluster_delta(snap, _build_static(graph), changes=changes)
 
         ld = delta.by_language["python"]
@@ -631,32 +504,6 @@ class TestMemberGranularDirty(unittest.TestCase):
         changes = ChangeSet(files=[FileChange(status_code="M", file_path="shared.py")])
         return baseline_files, static, changes, repo
 
-    def _snapshot_and_delta(self) -> tuple[ClusterSnapshot, ClusterDelta]:
-        old_snapshot = ClusterSnapshot(
-            by_language={
-                "python": {
-                    1: ClusterSnapshotEntry(
-                        members={"pkg.m1"}, files={"shared.py"}, member_files={"pkg.m1": "shared.py"}
-                    ),
-                    2: ClusterSnapshotEntry(
-                        members={"pkg.m2"}, files={"shared.py"}, member_files={"pkg.m2": "shared.py"}
-                    ),
-                }
-            }
-        )
-        delta = ClusterDelta(
-            by_language={
-                "python": LanguageDelta(
-                    language="python",
-                    cluster_results=ClusterResult(
-                        clusters={1: {"pkg.m1"}, 2: {"pkg.m2"}},
-                        cluster_to_files={1: {"shared.py"}, 2: {"shared.py"}},
-                    ),
-                )
-            }
-        )
-        return old_snapshot, delta
-
     def test_changed_members_pins_edit_to_its_method(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             baseline_files, static, changes, repo = self._fixture(tmp)
@@ -665,7 +512,61 @@ class TestMemberGranularDirty(unittest.TestCase):
 
             # m1's body changed; m2's body is unchanged despite its line shift.
             self.assertEqual(changed.members, {"pkg.m1"})
+            self.assertEqual(changed.added, set())
+            self.assertEqual(changed.removed, set())
+            self.assertEqual(changed.modified, {"pkg.m1"})
+            self.assertFalse(changed.has_membership_changes)
             self.assertEqual(changed.unattributed_files, set())
+
+    def test_changed_members_classifies_additions_deletions_and_modifications(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            original = "def removed():\n    return 1\n\ndef modified():\n    return 2\n"
+            (repo / "shared.py").write_text(original, encoding="utf-8")
+            original_lines = read_source_lines(repo, "shared.py", {})
+            baseline_files = {
+                "shared.py": FileEntry(
+                    content_hash=hash_whole_file(original_lines),
+                    methods=[
+                        MethodEntry(
+                            qualified_name="pkg.removed",
+                            start_line=1,
+                            end_line=2,
+                            node_type="FUNCTION",
+                            content_hash=hash_method_body(original_lines, 1, 2),
+                        ),
+                        MethodEntry(
+                            qualified_name="pkg.modified",
+                            start_line=4,
+                            end_line=5,
+                            node_type="FUNCTION",
+                            content_hash=hash_method_body(original_lines, 4, 5),
+                        ),
+                    ],
+                )
+            }
+            (repo / "shared.py").write_text(
+                "def modified():\n    return 3\n\ndef added():\n    return 4\n",
+                encoding="utf-8",
+            )
+            graph = CallGraph(language="python")
+            graph.add_node(Node("pkg.modified", NodeType.FUNCTION, str(repo / "shared.py"), 1, 2))
+            graph.add_node(Node("pkg.added", NodeType.FUNCTION, str(repo / "shared.py"), 4, 5))
+            static = StaticAnalysisResults()
+            static.add_cfg(Language.PYTHON, graph)
+
+            changed = compute_changed_members(
+                baseline_files,
+                static,
+                ChangeSet(files=[FileChange(status_code="M", file_path="shared.py")]),
+                repo,
+            )
+
+            self.assertEqual(changed.added, {"pkg.added"})
+            self.assertEqual(changed.removed, {"pkg.removed"})
+            self.assertEqual(changed.modified, {"pkg.modified"})
+            self.assertEqual(changed.members, {"pkg.added", "pkg.removed", "pkg.modified"})
+            self.assertTrue(changed.has_membership_changes)
 
     def test_a_module_level_variable_does_not_dirty_the_whole_file(self) -> None:
         # The CFG holds module-level variables as nodes so they can be edge endpoints,
@@ -725,35 +626,6 @@ class TestMemberGranularDirty(unittest.TestCase):
 
             self.assertEqual(changed.members, set())
             self.assertEqual(changed.unattributed_files, set())
-
-    def test_only_owning_cluster_is_modified(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            baseline_files, static, changes, repo = self._fixture(tmp)
-            changed = compute_changed_members(baseline_files, static, changes, repo)
-            old_snapshot, delta = self._snapshot_and_delta()
-
-            structural = structural_diff_from_delta(
-                old_snapshot, delta, changes=changes, repo_dir=repo, changed=changed
-            )
-            lang = structural.by_language["python"]
-
-            self.assertEqual({d.old_cluster.cluster_id for d in lang.modified}, {1})
-            self.assertEqual({d.old_cluster.cluster_id for d in lang.unchanged}, {2})
-            self.assertEqual(lang.modified[0].dirty_members, {"pkg.m1"})
-            # A hashed body edit needs no file-level fallback.
-            self.assertEqual(lang.modified[0].dirty_files, set())
-
-    def test_without_member_signal_file_granular_over_reports(self) -> None:
-        # Contrast: the legacy path (no ``changed``) marks *both* clusters modified
-        # because both own the changed file — the bug this fix removes.
-        with tempfile.TemporaryDirectory() as tmp:
-            _baseline_files, _static, changes, repo = self._fixture(tmp)
-            old_snapshot, delta = self._snapshot_and_delta()
-
-            structural = structural_diff_from_delta(old_snapshot, delta, changes=changes, repo_dir=repo)
-            lang = structural.by_language["python"]
-
-            self.assertEqual({d.old_cluster.cluster_id for d in lang.modified}, {1, 2})
 
     def test_module_level_edit_falls_back_to_file_level(self) -> None:
         # An edit outside any hashed method (module scope) cannot be pinned to a

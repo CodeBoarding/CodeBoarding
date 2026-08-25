@@ -23,13 +23,11 @@ class MetaAgent(CodeBoardingAgent):
         project_name: str,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
-        run_id: str,
     ):
         super().__init__(repo_dir, StaticAnalysisResults(), get_system_meta_analysis_message(), agent_llm, parsing_llm)
         self.project_name = project_name
         self.agent_llm = agent_llm
         self.parsing_llm = parsing_llm
-        self.run_id = run_id
 
         self.meta_analysis_prompt = PromptTemplate(
             template=get_meta_information_prompt(), input_variables=["project_name"]
@@ -60,7 +58,7 @@ class MetaAgent(CodeBoardingAgent):
             return cached
         analysis = self._parse_invoke(prompt, MetaAnalysisInsights)
         if cache_key is not None:
-            self._meta_cache.store(cache_key, analysis, run_id=self.run_id)
+            self._meta_cache.store(cache_key, analysis)
 
         logger.info(f"[MetaAgent] Completed metadata analysis for project: {analysis.llm_str()}")
         return analysis

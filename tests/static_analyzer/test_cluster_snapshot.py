@@ -1,4 +1,4 @@
-"""Tests for ``diagram_analysis.cluster_snapshot``.
+"""Tests for persisted cluster snapshots.
 
 The snapshot is sourced exclusively from each language's ``ClusterCache``
 (the partition is round-tripped through the SHA-tagged pkl). Languages
@@ -8,14 +8,14 @@ full-analysis fallback in ``DiagramGenerator.generate_analysis_incremental``.
 
 import unittest
 
-from diagram_analysis.cluster_snapshot import (
+from static_analyzer.clustering.snapshot import (
     ClusterSnapshot,
     ClusterSnapshotEntry,
     snapshot_from_cluster_results,
     snapshot_from_static_analysis,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language, NodeType
+from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
@@ -42,7 +42,7 @@ def _build_static(graphs: dict[str, CallGraph], partitions: dict[str, ClusterRes
     for language, graph in graphs.items():
         results.add_cfg(Language(language), graph)
         if language in partitions:
-            results.get_clusters(Language(language)).adopt(partitions[language])
+            results.get_clusters(Language(language)).record_scope(partitions[language])
     return results
 
 
@@ -55,6 +55,7 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
             file_to_clusters={"a.py": {5}, "b.py": {6}},
         )
         static = _build_static({"python": graph}, {"python": partition})
+        static.get_clusters(Language.PYTHON).record_scope(partition, {"orphan"})
 
         snap = snapshot_from_static_analysis(static)
 
@@ -64,6 +65,7 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
         self.assertEqual(py[5].files, {"a.py"})
         self.assertEqual(py[5].member_files, {"a.foo": "a.py", "a.bar": "a.py"})
         self.assertEqual(py[6].members, {"b.baz"})
+        self.assertEqual(snap.get_unclustered_members("python"), {"orphan"})
 
     def test_partitions_each_language_independently(self) -> None:
         py_graph = _build_graph([("a.foo", "a.py"), ("b.baz", "b.py")])

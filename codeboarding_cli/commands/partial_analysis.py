@@ -62,7 +62,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
             artifact_dir=run_paths.output_dir,
         ),
         scope=scope,
-        reuse_latest_run_id=True,
     )
     logger.info(f"Component '{args.component_id}' updated in {run_paths.output_dir}")
 

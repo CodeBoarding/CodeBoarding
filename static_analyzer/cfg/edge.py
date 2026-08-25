@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import NotRequired, TypedDict
 
 from static_analyzer.node import Node
 
@@ -40,18 +41,26 @@ class ReferenceEdge:
     kind: EdgeKind
 
 
+class CallSiteLocation(TypedDict):
+    """A one-based source location where a call occurs."""
+
+    line: int
+    file: NotRequired[str]
+    column: NotRequired[int]
+
+
 class Edge:
     def __init__(self, src_node: Node, dst_node: Node, call_sites: Sequence[Mapping[str, Hashable]] = ()) -> None:
         self.src_node = src_node
         self.dst_node = dst_node
-        self._call_sites: list[dict[str, Hashable]] = []
+        self._call_sites: list[CallSiteLocation] = []
         self._call_site_keys: set[tuple[tuple[str, Hashable], ...]] = set()
         for site in call_sites:
             self.add_call_site(site)
 
     @property
-    def call_sites(self) -> list[dict[str, Hashable]]:
-        return [dict(site) for site in self._call_sites]
+    def call_sites(self) -> list[CallSiteLocation]:
+        return [site.copy() for site in self._call_sites]
 
     def get_source(self) -> str:
         return self.src_node.fully_qualified_name
@@ -76,8 +85,19 @@ class Edge:
         self._call_site_keys = {tuple(sorted(site.items())) for site in self._call_sites}
 
     @staticmethod
-    def _normalize_call_site(call_site: Mapping[str, Hashable]) -> dict[str, Hashable]:
-        normalized = dict(call_site)
-        if "file" not in normalized and "file_path" in normalized:
-            normalized["file"] = normalized.pop("file_path")
-        return normalized
+    def _normalize_call_site(call_site: Mapping[str, Hashable]) -> CallSiteLocation:
+        file = call_site.get("file", call_site.get("file_path"))
+        line = call_site.get("line")
+        column = call_site.get("column")
+        if not isinstance(line, int):
+            raise ValueError("Call sites require a one-based integer line")
+        location = CallSiteLocation(line=line)
+        if file is not None:
+            if not isinstance(file, str):
+                raise ValueError("Call-site files must be strings")
+            location["file"] = file
+        if column is not None:
+            if not isinstance(column, int):
+                raise ValueError("Call-site columns must be one-based integers")
+            location["column"] = column
+        return location

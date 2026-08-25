@@ -5,7 +5,7 @@ from agents.tools.read_packages import PackageRelationsTool
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 
 
 class TestPackageRelationsTool(unittest.TestCase):

@@ -19,7 +19,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import install
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 from static_analyzer.engine.adapters import ADAPTER_REGISTRY
 from tool_registry import TOOL_REGISTRY, ToolKind, has_required_tools, needs_install
 from tool_registry.registry import ConfigSection, PackageManagerToolSource
@@ -326,7 +326,7 @@ class TestLspAdapterAndLanguageEnumParity(unittest.TestCase):
                         lang,
                         language_values,
                         f"Language id {lang!r} from VSCODE_CONFIG has no matching "
-                        f"entry in the Language enum (static_analyzer/constants.py). "
+                        f"entry in the Language enum (static_analyzer/config.py). "
                         f"File detection won't be able to route to this language.",
                     )
 

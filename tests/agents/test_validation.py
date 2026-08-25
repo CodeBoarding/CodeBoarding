@@ -14,8 +14,6 @@ from agents.validation import (
     validate_relations,
 )
 from agents.agent_responses import (
-    ClusterAnalysis,
-    ClustersComponent,
     AnalysisInsights,
     Component,
     Relation,
@@ -24,10 +22,20 @@ from agents.agent_responses import (
     ComponentFiles,
     FileClassification,
 )
+from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.node import Node
-from static_analyzer.constants import NodeType
+from static_analyzer.config import NodeType
+
+
+def _file_methods(file_path: str, qualified_name: str) -> list[FileMethodGroup]:
+    return [
+        FileMethodGroup(
+            file_path=file_path,
+            methods=[MethodEntry(qualified_name=qualified_name, start_line=1, end_line=2, node_type="FUNCTION")],
+        )
+    ]
 
 
 class TestValidationContext(unittest.TestCase):
@@ -341,24 +349,29 @@ class TestValidateRelationEvidence(unittest.TestCase):
             cluster_to_files={},
             strategy="test",
         )
-        cluster_analysis = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(name="GroupA", cluster_ids=[1], description="A"),
-                ClustersComponent(name="GroupB", cluster_ids=[2], description="B"),
-            ]
-        )
         return ValidationContext(
             cluster_results={"python": cluster_result},
             cfg_graphs={"python": cfg},
-            llm_cluster_analysis=cluster_analysis,
         )
 
     def _make_analysis(self, relation: Relation) -> AnalysisInsights:
         return AnalysisInsights(
             description="test",
             components=[
-                Component(name="A", description="A", key_entities=[], source_group_names=["GroupA"]),
-                Component(name="B", description="B", key_entities=[], source_group_names=["GroupB"]),
+                Component(
+                    name="A",
+                    description="A",
+                    key_entities=[],
+                    source_group_names=["Group 1"],
+                    file_methods=_file_methods("a.py", "a.run"),
+                ),
+                Component(
+                    name="B",
+                    description="B",
+                    key_entities=[],
+                    source_group_names=["Group 2"],
+                    file_methods=_file_methods("b.py", "b.load"),
+                ),
             ],
             components_relations=[relation],
         )
@@ -377,6 +390,15 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
         self.assertFalse(result.is_valid)
         self.assertIn("A -> B", result.feedback_messages[0])
+
+    def test_rendered_ownership_overrides_stale_cluster_membership(self):
+        analysis = self._make_analysis(Relation(relation="calls", src_name="A", dst_name="B"))
+        context = self._make_context(("a.run", "b.load"))
+        context.cluster_results["python"].clusters = {1: {"a.run", "b.load"}, 2: set()}
+
+        result = validate_relation_evidence(analysis, context)
+
+        self.assertTrue(result.is_valid)
 
     def test_runtime_evidence_without_key_edges_allows_llm_only_relation(self):
         analysis = self._make_analysis(
@@ -469,7 +491,7 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
         self.assertTrue(result.is_valid)
 
-    def test_internal_unresolved_key_edge_endpoint_is_rejected(self):
+    def test_internal_unresolved_key_edge_endpoint_allows_relation(self):
         analysis = self._make_analysis(
             Relation(
                 relation="calls helper",
@@ -498,21 +520,40 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
         result = validate_relation_evidence(analysis, context)
 
-        self.assertFalse(result.is_valid)
-        self.assertIn("look hallucinated", result.feedback_messages[0])
+        self.assertTrue(result.is_valid)
+
+    def test_unresolved_source_with_resolved_target_allows_relation(self):
+        analysis = self._make_analysis(
+            Relation(
+                relation="receives callback",
+                src_name="A",
+                dst_name="B",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="framework.callback"),
+                        target=SourceCodeReference(qualified_name="service.OCR.extract_text"),
+                    )
+                ],
+            )
+        )
+        target_node = MagicMock()
+        target_node.fully_qualified_name = "service.OCR.extract_text"
+        target_node.file_path = "service.py"
+        target_node.line_start = 1
+        target_node.line_end = 2
+        context = self._make_context(("b.load", "a.run"))
+        context.static_analysis = MagicMock()
+        context.static_analysis.get_languages.return_value = ["python"]
+        context.static_analysis.get_reference.side_effect = [ValueError("not found"), target_node]
+        context.static_analysis.get_loose_reference.return_value = ("", None)
+
+        result = validate_relation_evidence(analysis, context)
+
+        self.assertTrue(result.is_valid)
 
     def test_partially_supported_relation_set_gets_partial_score(self):
-        analysis = AnalysisInsights(
-            description="test",
-            components=[
-                Component(name="A", description="A", key_entities=[], source_group_names=["GroupA"]),
-                Component(name="B", description="B", key_entities=[], source_group_names=["GroupB"]),
-            ],
-            components_relations=[
-                Relation(relation="calls", src_name="A", dst_name="B"),
-                Relation(relation="runtime hook", src_name="B", dst_name="A"),
-            ],
-        )
+        analysis = self._make_analysis(Relation(relation="calls", src_name="A", dst_name="B"))
+        analysis.components_relations.append(Relation(relation="runtime hook", src_name="B", dst_name="A"))
 
         result = validate_relation_evidence(analysis, self._make_context(("a.run", "b.load")))
 

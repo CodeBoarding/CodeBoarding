@@ -3,7 +3,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from static_analyzer.constants import Language
+from static_analyzer.config import Language
 
 logger = logging.getLogger(__name__)
 

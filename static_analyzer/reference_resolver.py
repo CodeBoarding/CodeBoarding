@@ -6,8 +6,8 @@ from typing import Any
 
 from agents.agent_responses import AnalysisInsights, RelationCallSite, RelationEdge, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
-from static_analyzer.internal_references import looks_internal_reference, qualified_symbol_parts
+from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
+from static_analyzer.internal_references import qualified_symbol_parts
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -213,50 +213,23 @@ class StaticReferenceResolver:
 
         return None
 
-    def classify_key_edge(self, edge: RelationEdge, cfg_graphs: dict[str, Any]) -> KeyEdgeResolution:
+    def classify_key_edge(self, edge: RelationEdge) -> KeyEdgeResolution:
         """Classify whether a relation key edge supports relation evidence."""
         source_node = self.resolve_node(edge.source)
         target_node = self.resolve_node(edge.target)
         description = edge.llm_str()
 
-        if source_node is None or target_node is None:
-            if self.has_external_unresolved_endpoint(edge, source_node, target_node):
-                return KeyEdgeResolution(description=description, valid=True)
+        if source_node is None and target_node is None:
             return KeyEdgeResolution(description=description, unresolved=True)
 
-        if self.node_identity(source_node) == self.node_identity(target_node):
+        if (
+            source_node is not None
+            and target_node is not None
+            and self.node_identity(source_node) == self.node_identity(target_node)
+        ):
             return KeyEdgeResolution(description=description, same_endpoint=True)
 
-        if not self.has_cfg_edge(source_node.fully_qualified_name, target_node.fully_qualified_name, cfg_graphs):
-            if not edge.description.strip():
-                return KeyEdgeResolution(description=description)
-
         return KeyEdgeResolution(description=description, valid=True)
-
-    def has_external_unresolved_endpoint(self, edge: RelationEdge, source_node, target_node) -> bool:
-        """Return true when one endpoint is repo code and the other looks external."""
-        if source_node is not None and target_node is None:
-            return not looks_internal_reference(self.static_analysis, edge.target.qualified_name)
-        if source_node is None and target_node is not None:
-            return not looks_internal_reference(self.static_analysis, edge.source.qualified_name)
-        return False
-
-    def has_cfg_edge(self, source_qname: str, target_qname: str, cfg_graphs: dict[str, Any] | None = None) -> bool:
-        """Return true when the static CFG has this exact source-to-target edge."""
-        if cfg_graphs:
-            for cfg in cfg_graphs.values():
-                for edge in cfg.edges:
-                    if edge.get_source() == source_qname and edge.get_destination() == target_qname:
-                        return True
-        for lang in self.static_analysis.get_languages():
-            try:
-                cfg = self.static_analysis.get_cfg(lang)
-            except ValueError:
-                continue
-            for edge in cfg.edges:
-                if edge.get_source() == source_qname and edge.get_destination() == target_qname:
-                    return True
-        return False
 
     @staticmethod
     def node_identity(node) -> str:
@@ -264,23 +237,17 @@ class StaticReferenceResolver:
         return f"{node.fully_qualified_name}:{node.file_path}:{node.line_start}:{node.line_end}"
 
     def keep_relation_edge(self, edge: RelationEdge) -> bool:
-        """Keep relation edges whose endpoints are real symbols, or that reach external code.
-
-        Why symbols rather than files: the file an endpoint names proves nothing about the
-        symbol in it. An invented method in a real module resolves to no node, and an edge
-        citing one describes a call that cannot exist. An endpoint that resolves nowhere and
-        does not look like repo code is external — legitimate evidence for a runtime relation.
-        """
-        if self.same_resolved_relation_endpoint(edge):
-            return False
-        source_resolved = self.resolve_node(edge.source) is not None
-        target_resolved = self.resolve_node(edge.target) is not None
-        if source_resolved and target_resolved:
-            return True
-        if source_resolved == target_resolved:
-            return False
-        unresolved = edge.target if source_resolved else edge.source
-        return not looks_internal_reference(self.static_analysis, unresolved.qualified_name)
+        """Keep relation edges with at least one real, non-self endpoint."""
+        source_node = self.resolve_node(edge.source)
+        target_node = self.resolve_node(edge.target)
+        return not (
+            (source_node is None and target_node is None)
+            or (
+                source_node is not None
+                and target_node is not None
+                and self.node_identity(source_node) == self.node_identity(target_node)
+            )
+        )
 
     def reference_file_exists(self, reference_file: str) -> bool:
         """Return true for absolute paths or paths relative to the analyzed repo."""
@@ -310,20 +277,6 @@ class StaticReferenceResolver:
                 if edge.get_source() == source_qname and edge.get_destination() == target_qname:
                     return edge
         return None
-
-    @staticmethod
-    def same_resolved_relation_endpoint(edge: RelationEdge) -> bool:
-        """Return true when a relation edge points to the same resolved symbol."""
-        source = edge.source
-        target = edge.target
-        if source.qualified_name != target.qualified_name:
-            return False
-        if source.reference_file != target.reference_file:
-            return False
-        return (
-            source.reference_start_line == target.reference_start_line
-            and source.reference_end_line == target.reference_end_line
-        )
 
     def remove_unresolved_references(self, analysis: AnalysisInsights) -> None:
         """Remove references that could not be resolved to existing files."""

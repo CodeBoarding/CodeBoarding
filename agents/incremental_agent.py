@@ -12,8 +12,6 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
     Component,
     ComponentApiSurfaces,
     ComponentArchitecture,
@@ -27,11 +25,11 @@ from agents.agent_responses import (
     assign_relation_ids,
     iter_components,
 )
-from agents.file_index_models import FileMethodGroup, MethodEntry
-from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.component_ownership import group_ids_by_name
 from agents.content_hash import SourceCache
-from agents.cluster_ids import CodeBoardingClusterIds
+from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
+from agents.llm_renderers import render_cluster_groups, render_scope_connections
 from agents.prompts import (
     format_project_system_message,
     get_api_surfaces_message,
@@ -40,25 +38,20 @@ from agents.prompts import (
     get_system_message,
 )
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
-from static_analyzer.cluster_relations import (
-    build_node_to_component_map,
-    build_owner_index,
-    prune_ungrounded_edges,
-)
 from agents.scope_ids import ROOT_SCOPE_ID
+from clustering_ids import CodeBoardingClusterIds
+from agents.static_analysis_enricher_mixin import StaticAnalysisEnricherMixin
 from agents.validation import ValidationContext, validate_relations
-from diagram_analysis.file_index import build_files_index
+from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
 from monitoring import trace
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language
-from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterScopeResult
 
 logger = logging.getLogger(__name__)
 
 
-class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
+class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
     """Materialize incremental plans and regenerate touched scope relations."""
 
     def __init__(
@@ -105,7 +98,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope_id: str,
         scope: AnalysisInsights,
         decision: ScopeUpdateDecision,
-        cluster_results: dict[str, ClusterResult],
+        clustering: ClusterScopeResult,
     ) -> ScopeUpdateResult:
         """Apply a planning decision to one scope and refresh its derived fields."""
         components_by_id = {
@@ -163,16 +156,14 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         touched_ids = refresh_ids | new_component_ids
         if touched_ids:
-            cfg_graphs = _cfg_graphs_for_cluster_results(self.static_analysis, cluster_results)
-            self._patch_scope_file_methods(scope, cluster_results, cfg_graphs, touched_ids, scope_id)
+            self._patch_scope_file_methods(scope, clustering, touched_ids)
             self.reference_resolver.fix_key_entities_refs(scope, touched_ids)
 
         _log_duplicate_cluster_ownership(scope_id, scope.components)
 
         return ScopeUpdateResult(
             relation_context=ScopeRelationContext(
-                cluster_results=cluster_results,
-                cfg_graphs=_cfg_graphs_for_scope_methods(self.static_analysis, scope),
+                clustering=clustering,
                 changed_ids=frozenset(refresh_ids | new_component_ids | removed_ids),
             ),
             refresh_ids=refresh_ids,
@@ -229,22 +220,19 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
     @trace
     def detail_new_components(self, components: list[Component]) -> None:
         """Replace new components' provisional names and descriptions in one LLM call."""
-        groups: list[ClustersComponent] = []
         target_by_group: dict[str, Component] = {}
+        group_ids: dict[str, list[int]] = {}
+        descriptions: dict[str, str] = {}
         for component in components:
             group_name = f"Incremental Group {component.component_id}"
-            groups.append(
-                ClustersComponent(
-                    name=group_name,
-                    cluster_ids=[],
-                    description=_new_component_membership_summary(component),
-                )
-            )
+            group_ids[group_name] = []
+            descriptions[group_name] = _new_component_membership_summary(component)
             target_by_group[group_name.casefold()] = component
 
-        cluster_analysis = ClusterAnalysis(cluster_components=groups)
-        prompt = self.prompts["new_component_details"].format(cluster_analysis=cluster_analysis.llm_str())
-        group_names = [group.name for group in groups]
+        prompt = self.prompts["new_component_details"].format(
+            cluster_analysis=render_cluster_groups(group_ids, descriptions)
+        )
+        group_names = list(group_ids)
         prompt += (
             f"\n\n## New Component Groups ({len(group_names)} total)\n"
             f"Return exactly one semantically named component for each of these fixed groups: {group_names}.\n"
@@ -288,43 +276,42 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
     def _patch_scope_file_methods(
         self,
         scope: AnalysisInsights,
-        cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph],
+        clustering: ClusterScopeResult,
         touched_ids: set[str],
-        scope_id: str,
     ) -> None:
-        all_nodes = self._collect_all_cfg_nodes(cluster_results, cfg_graphs)
-        cluster_to_component = self._build_cluster_to_component_map(scope)
-        cluster_id_prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
-        node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results, cluster_id_prefix)
-        self._validate_cluster_coverage(cluster_to_component, all_cluster_ids)
-
-        component_nodes = self._assign_nodes_to_components(
-            all_nodes,
-            node_to_cluster,
-            cluster_to_component,
-            cluster_results,
-            scope.components[0],
-            cfg_graphs,
-            cluster_id_prefix,
-        )
         source_cache: SourceCache = {}
-        patched_groups = {
-            component_id: self._build_file_methods_from_nodes(nodes, source_cache)
-            for component_id, nodes in component_nodes.items()
-        }
+        patched_groups: dict[str, list[FileMethodGroup]] = {}
+        for group in clustering.groups:
+            if group.group_id not in touched_ids:
+                continue
+            nodes = [
+                clustering.graphs_by_language[language].nodes[qualified_name]
+                for language, members in group.symbol_members_by_language.items()
+                if language in clustering.graphs_by_language
+                for qualified_name in sorted(members)
+                if qualified_name in clustering.graphs_by_language[language].nodes
+            ]
+            patched_groups[group.group_id] = build_file_methods_from_nodes(nodes, self.repo_dir, source_cache)
         _patch_file_methods(scope, patched_groups, touched_ids, _live_cfg_qnames(self.static_analysis))
         scope.files = build_files_index(scope, self.repo_dir, source_cache)
 
     @trace
-    def step_api_surfaces(self, scope: AnalysisInsights, scope_name: str) -> ComponentApiSurfaces:
+    def step_api_surfaces(
+        self,
+        scope: AnalysisInsights,
+        scope_name: str,
+        clustering: ClusterScopeResult,
+    ) -> ComponentApiSurfaces:
         """Analyze API surfaces for one updated scope."""
         logger.info("[IncrementalAgent] Analyzing API surfaces for scope: %s", scope_name)
         prompt = self.prompts["api_surfaces"].format(
             component_summaries=ComponentArchitecture(
                 description=scope.description, components=scope.components
             ).llm_str(),
-            static_call_evidence=self.build_scope_cfg_string(scope),
+            static_call_evidence=render_scope_connections(
+                clustering,
+                {component.component_id: component.name for component in scope.components},
+            ),
         )
         return self._parse_invoke(prompt, ComponentApiSurfaces)
 
@@ -334,13 +321,16 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope: AnalysisInsights,
         scope_name: str,
         api_surfaces: ComponentApiSurfaces,
-        cluster_analysis: ClusterAnalysis,
-        cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph],
+        clustering: ClusterScopeResult,
     ) -> list[Relation]:
         """Discover evidence-backed relations and attach deterministic CFG edges."""
         logger.info("[IncrementalAgent] Discovering component relations for scope: %s", scope_name)
-        self.toolkit.context.cluster_analysis = cluster_analysis
+        cluster_results = clustering.leaf_clusters_by_language
+        cfg_graphs = clustering.graphs_by_language
+        self.toolkit.context.clustering = clustering
+        self.toolkit.context.group_ids_by_name = group_ids_by_name(
+            scope.components, {group.group_id for group in clustering.groups}
+        )
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(
@@ -348,7 +338,10 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 description=scope.description, components=scope.components
             ).llm_str(),
             api_surfaces=api_surfaces.llm_str(),
-            static_call_evidence=self.build_scope_cfg_string(scope),
+            static_call_evidence=render_scope_connections(
+                clustering,
+                {component.component_id: component.name for component in scope.components},
+            ),
         )
         relation_result: ComponentRelations = self._invoke_validate(
             prompt,
@@ -359,23 +352,26 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 cfg_graphs=cfg_graphs,
                 repo_dir=str(self.repo_dir),
                 static_analysis=self.static_analysis,
-                llm_cluster_analysis=cluster_analysis,
                 components=scope.components,
             ),
             max_validation_attempts=3,
         )
         scope.components_relations = relation_result.components_relations
-        self._attach_static_relations(scope, cfg_graphs)
+        self._attach_static_relations(scope, clustering)
         return relation_result.components_relations
 
-    def _attach_static_relations(self, scope: AnalysisInsights, cfg_graphs: dict[str, CallGraph]) -> None:
+    def _attach_static_relations(
+        self,
+        scope: AnalysisInsights,
+        clustering: ClusterScopeResult,
+    ) -> None:
         """Ground the scope's relations in the live CFG and resolve their source references.
 
         Why: shared by the LLM and no-change paths; the latter passes no LLM relations, so only
         the deterministic static call edges remain.
         """
         assign_relation_ids(scope)
-        self.build_static_relations(scope, cfg_graphs)
+        self.merge_scope_relations(scope, clustering)
         self.reference_resolver.fix_source_code_reference_lines(scope)
         index_relation_endpoints(scope, self.repo_dir)
 
@@ -413,21 +409,18 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         }
 
         if context.changed_ids:
-            cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, context.cluster_results)
-            api_surfaces = self.step_api_surfaces(scope, scope_name)
+            api_surfaces = self.step_api_surfaces(scope, scope_name, context.clustering)
             rels = self.step_relation_analysis(
                 scope,
                 scope_name,
                 api_surfaces,
-                cluster_analysis,
-                context.cluster_results,
-                context.cfg_graphs,
+                context.clustering,
             )
         else:
             # Nothing in this scope changed, so preserve_unchanged_relations below would discard any
             # LLM output anyway; skip both round-trips and rebuild edges from the live CFG.
             scope.components_relations = []
-            self._attach_static_relations(scope, context.cfg_graphs)
+            self._attach_static_relations(scope, context.clustering)
             rels = scope.components_relations
 
         if baseline_by_pair:
@@ -472,9 +465,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             # Preservation runs after the grounding filters and re-injects baseline edges, so
             # the assembled list is filtered once more — otherwise a baseline's invented or
             # mis-attributed edges survive every update that leaves their methods alone.
-            scope.components_relations = prune_ungrounded_edges(
-                scope.components_relations,
-                build_owner_index(build_node_to_component_map(scope)),
+            self.prune_relations(
+                scope,
                 self.reference_resolver.keep_relation_edge,
                 changed_members or set(),
             )
@@ -566,51 +558,6 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             parsing_llm=self.parsing_llm,
             changes=self.toolkit.context.changes,
         )
-
-
-def _cluster_analysis_for_scope(
-    scope: AnalysisInsights,
-    scope_id: str,
-    cluster_results: dict[str, ClusterResult],
-) -> ClusterAnalysis:
-    """Reconstruct grouped-cluster context for a persisted incremental scope."""
-    valid_cluster_ids = {
-        cluster_id for cluster_result in cluster_results.values() for cluster_id in cluster_result.clusters
-    }
-    groups: list[ClustersComponent] = []
-    for component in scope.components:
-        cluster_ids = _local_graph_cluster_ids(component.source_cluster_ids, scope_id, valid_cluster_ids)
-        if not component.source_group_names:
-            component.source_group_names = [component.name]
-        for group_name in component.source_group_names:
-            groups.append(
-                ClustersComponent(
-                    name=group_name,
-                    cluster_ids=cluster_ids,
-                    description=component.description,
-                )
-            )
-    return ClusterAnalysis(cluster_components=groups)
-
-
-def _local_graph_cluster_ids(
-    source_cluster_ids: list[str],
-    scope_id: str,
-    valid_cluster_ids: set[int],
-) -> list[int]:
-    scope_prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
-    prefix = f"{scope_prefix}." if scope_prefix else ""
-    local_ids: set[int] = set()
-    for source_cluster_id in source_cluster_ids:
-        if prefix:
-            if not source_cluster_id.startswith(prefix):
-                continue
-            local_id = source_cluster_id.removeprefix(prefix)
-        else:
-            local_id = source_cluster_id
-        if local_id.isdigit() and int(local_id) in valid_cluster_ids:
-            local_ids.add(int(local_id))
-    return sorted(local_ids)
 
 
 def _new_component_membership_summary(component: Component) -> str:
@@ -803,37 +750,6 @@ def _component_has_live_cfg_methods(component: Component, live_qnames: set[str])
     return any(
         method.qualified_name in live_qnames for group in component.file_methods for method in group.methods
     ) or any(entity.qualified_name in live_qnames for entity in component.key_entities if entity.qualified_name)
-
-
-def _cfg_graphs_for_scope_methods(
-    static_analysis: StaticAnalysisResults,
-    scope: AnalysisInsights,
-) -> dict[str, CallGraph]:
-    scope_qnames = {
-        method.qualified_name
-        for component in scope.components
-        for group in component.file_methods
-        for method in group.methods
-    }
-    cfg_graphs: dict[str, CallGraph] = {}
-    if not scope_qnames:
-        return cfg_graphs
-    for language in static_analysis.get_languages():
-        try:
-            cfg_graphs[str(language)] = static_analysis.get_cfg(language).filter_by_nodes(scope_qnames)
-        except (KeyError, ValueError):
-            continue
-    return cfg_graphs
-
-
-def _cfg_graphs_for_cluster_results(
-    static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]
-) -> dict[str, CallGraph]:
-    cfg_graphs: dict[str, CallGraph] = {}
-    for language, cluster_result in cluster_results.items():
-        members = {qname for cluster_members in cluster_result.clusters.values() for qname in cluster_members}
-        cfg_graphs[language] = static_analysis.get_cfg(Language(language)).filter_by_nodes(members)
-    return cfg_graphs
 
 
 def remove_deleted_files(
