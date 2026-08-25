@@ -44,6 +44,7 @@ _PROVIDER_SECRETS: dict[str, str] = {
 # Defaulted base URLs (vercel, deepseek, glm, kimi) are shell-override-only on purpose.
 _PROVIDER_ENDPOINTS: dict[str, str] = {
     "openai_base_url": "OPENAI_BASE_URL",
+    "anthropic_base_url": "ANTHROPIC_BASE_URL",
     "ollama_base_url": "OLLAMA_BASE_URL",
     "litellm_base_url": "LITELLM_BASE_URL",
 }
@@ -63,6 +64,7 @@ CONFIG_TEMPLATE = """\
 # openai_api_key            = "sk-..."
 # openai_base_url           = "http://localhost:8000/v1"   # self-hosted / OpenAI-compatible proxy
 # anthropic_api_key         = "sk-ant-..."
+# anthropic_base_url        = "https://resource.services.ai.azure.com/anthropic"
 # google_api_key            = "AIza..."
 # vercel_api_key            = "vck_..."
 # aws_bearer_token_bedrock  = "..."
@@ -93,6 +95,7 @@ class ProviderUserConfig:
     openai_api_key: str | None = None
     openai_base_url: str | None = None
     anthropic_api_key: str | None = None
+    anthropic_base_url: str | None = None
     google_api_key: str | None = None
     vercel_api_key: str | None = None
     aws_bearer_token_bedrock: str | None = None
@@ -144,6 +147,7 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
             openai_api_key=provider_data.get("openai_api_key") or None,
             openai_base_url=provider_data.get("openai_base_url") or None,
             anthropic_api_key=provider_data.get("anthropic_api_key") or None,
+            anthropic_base_url=provider_data.get("anthropic_base_url") or None,
             google_api_key=provider_data.get("google_api_key") or None,
             vercel_api_key=provider_data.get("vercel_api_key") or None,
             aws_bearer_token_bedrock=provider_data.get("aws_bearer_token_bedrock") or None,

@@ -101,6 +101,22 @@ class TestUserConfigApplyToEnv:
             os.environ.clear()
             os.environ.update(original)
 
+    def test_injects_anthropic_base_url(self):
+        cfg = UserConfig(
+            provider=ProviderUserConfig(anthropic_base_url="https://resource.services.ai.azure.com/anthropic")
+        )
+
+        original = os.environ.copy()
+        try:
+            os.environ.pop("ANTHROPIC_BASE_URL", None)
+
+            cfg.apply_to_env()
+
+            assert os.environ["ANTHROPIC_BASE_URL"] == "https://resource.services.ai.azure.com/anthropic"
+        finally:
+            os.environ.clear()
+            os.environ.update(original)
+
     def test_injects_litellm_proxy_key_and_base_url(self):
         cfg = UserConfig(
             provider=ProviderUserConfig(
@@ -153,6 +169,18 @@ class TestLoadUserConfig:
         cfg = load_user_config(path)
 
         assert cfg.provider.openai_base_url is None
+
+    def test_loads_anthropic_base_url(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text(
+            "[provider]\n"
+            'anthropic_api_key = "local"\n'
+            'anthropic_base_url = "https://resource.services.ai.azure.com/anthropic"\n'
+        )
+
+        cfg = load_user_config(path)
+
+        assert cfg.provider.anthropic_base_url == "https://resource.services.ai.azure.com/anthropic"
 
 
 class TestEnsureConfigTemplate:

@@ -26,11 +26,12 @@ logger = logging.getLogger(__name__)
 _OPENROUTER_FALLBACK_CONTEXT_WINDOW = ContextWindow(1_048_576, 65_536, is_fallback=True)
 
 # Model families that reject sampling params (temperature/top_p/top_k) with HTTP 400.
-# Why: Anthropic removed them starting with Opus 4.7; sending temperature (even 0) 400s.
+# Why: newer Anthropic models deprecate them; sending temperature (even 0) 400s.
 # Substrings match bare IDs and Bedrock-prefixed forms (e.g. us.anthropic.claude-opus-4-8-v1:0).
 _SAMPLING_PARAM_FREE_MODEL_SUBSTRINGS = (
     "claude-opus-4-7",
     "claude-opus-4-8",
+    "claude-sonnet-5",
     "claude-fable-5",
     "claude-mythos-5",
 )
@@ -173,12 +174,13 @@ LLM_PROVIDERS = {
     ),
     "anthropic": LLMConfig(
         chat_class=ChatAnthropic,
-        selection_envs=["ANTHROPIC_API_KEY"],
+        selection_envs=["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"],
         api_key_env="ANTHROPIC_API_KEY",
-        agent_model="claude-sonnet-4-6",
+        agent_model="claude-sonnet-5",
         parsing_model="claude-haiku-4-5",
         llm_type=LLMType.CLAUDE,
         extra_args={
+            "base_url": lambda: os.getenv("ANTHROPIC_BASE_URL"),
             "max_tokens": 8192,
             "timeout": None,
             "max_retries": 0,
@@ -434,6 +436,8 @@ def validate_api_key_provided() -> None:
             name,
             config.api_key_env,
         )
+    elif config.api_key_env and not config.has_real_api_key():
+        raise LLMConfigError(f"Provider '{name}' requires {config.api_key_env}.")
 
 
 def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:

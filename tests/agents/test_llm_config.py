@@ -82,6 +82,12 @@ class TestValidateApiKeyProvided:
 
 
 class TestProviderSelection:
+    def test_anthropic_defaults_to_sonnet_5_and_haiku_4_5(self):
+        anthropic = LLM_PROVIDERS["anthropic"]
+
+        assert anthropic.agent_model == "claude-sonnet-5"
+        assert anthropic.parsing_model == "claude-haiku-4-5"
+
     def test_kimi_defaults_to_k2_6(self):
         kimi = LLM_PROVIDERS["kimi"]
 
@@ -116,6 +122,24 @@ class TestProviderSelection:
             assert aws.is_selected_by_env() is True
             assert aws.get_api_key() is None
             assert aws.has_real_api_key() is False
+
+    def test_anthropic_base_url_is_passed_to_client(self):
+        env = {
+            "ANTHROPIC_API_KEY": "sk-ant-test",
+            "ANTHROPIC_BASE_URL": "https://resource.services.ai.azure.com/anthropic",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            anthropic = LLM_PROVIDERS["anthropic"]
+            assert anthropic.get_resolved_extra_args()["base_url"] == env["ANTHROPIC_BASE_URL"]
+
+    def test_anthropic_base_url_without_key_is_rejected(self):
+        with patch.dict(
+            os.environ,
+            {"ANTHROPIC_BASE_URL": "https://resource.services.ai.azure.com/anthropic"},
+            clear=True,
+        ):
+            with pytest.raises(LLMConfigError, match="requires ANTHROPIC_API_KEY"):
+                validate_api_key_provided()
 
 
 class TestLLMConfigKeyless:
@@ -560,13 +584,14 @@ class TestEnvironmentVariables:
 
 
 class TestTemperatureGating:
-    """temperature must be omitted for Anthropic models that reject sampling params (Opus 4.7+)."""
+    """temperature must be omitted for Anthropic models that reject sampling params."""
 
     @pytest.mark.parametrize(
         "model_name",
         [
             "claude-opus-4-7",
             "claude-opus-4-8",
+            "claude-sonnet-5",
             "claude-fable-5",
             "claude-mythos-5",
             "anthropic.claude-opus-4-8",  # Bedrock prefix
