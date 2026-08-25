@@ -64,7 +64,7 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # second bucket is gone; calls are credited to the enclosing declaration; and a call in a
 # declaration's body or initialiser counts as an edge.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v4"
+_TAG_VERSION = "v5"
 
 
 class StaticAnalysisCache:
