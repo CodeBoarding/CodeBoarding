@@ -44,8 +44,7 @@ _ALL_EXTENSIONS = LANGUAGE_EXTENSIONS[Language.TYPESCRIPT]
 def _exclude_spec(patterns: list[str]) -> pathspec.PathSpec:
     """tsconfig ``exclude`` entries as a matcher over project-relative posix paths.
 
-    Anchored with a leading slash: tsconfig resolves ``exclude`` against its own directory,
-    while an unanchored gitwildmatch pattern would match the same name at any depth.
+    Why anchored: tsconfig resolves ``exclude`` against its own directory, gitwildmatch does not.
     """
     cleaned = [p.strip().replace("\\", "/").rstrip("/") for p in patterns if isinstance(p, str) and p.strip()]
     return pathspec.PathSpec.from_lines("gitwildmatch", [f"/{p}" for p in cleaned])
@@ -101,12 +100,7 @@ class TypeScriptConfigScanner:
         return projects
 
     def find_unclaimed_family_files(self, projects: list[TypeScriptProject]) -> list[Path]:
-        """Family files no tsconfig claims, so one engine still covers a mixed repo.
-
-        Why: ``tsc --showConfig`` omits ``.js``/``.jsx`` unless ``allowJs`` is set, so a
-        repo mixing the families would otherwise have only its TypeScript analysed. A path
-        a tsconfig actively ``exclude``s stays out: silence is not the same as refusal.
-        """
+        """Family files no tsconfig ``include`` reaches. What one excludes stays excluded."""
         claimed = {f.resolve() for project in projects for f in project.files}
         specs = [(p.root.resolve(), _exclude_spec(p.exclude)) for p in projects]
         found: set[Path] = set()
@@ -167,10 +161,8 @@ class TypeScriptConfigScanner:
     def _showconfig(self, project_dir: Path, tsc_cmd_prefix: list[str]) -> dict | None:
         """Invoke ``tsc --showConfig -p <dir> --allowJs`` and return parsed JSON.
 
-        Why ``--allowJs``: one adapter owns the whole family, so the engine wants the
-        project's JavaScript too. The flag overrides the file's own ``allowJs`` while
-        ``include``, ``exclude``, ``files`` and ``references`` are still honoured, so tsc
-        stays the authority on membership rather than us re-implementing its globs.
+        Why ``--allowJs``: one adapter owns the family, so we want the project's JavaScript too.
+        It overrides only that setting, leaving tsc the authority on membership.
         """
         cmd = [*tsc_cmd_prefix, "-p", str(project_dir), "--allowJs"]
         try:

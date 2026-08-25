@@ -45,9 +45,8 @@ class LanguageAdapter(ABC):
     def results_language(self) -> Language:
         """The bucket these results are stored under.
 
-        Why not ``language_enum``: one adapter serves a whole family, and which member wins
-        depends on the file mix, so keying by it would move a repo's graph when it gains its
-        first ``.ts``. The languages actually present stay readable from the bucket's files.
+        Why not ``language_enum``: which member wins depends on the file mix, so the key would
+        move when a repo gains its first ``.ts``.
         """
         return self.language_enum
 

@@ -189,11 +189,7 @@ class StaticAnalysisResults:
         return self.results.setdefault(FAMILY_OWNER.get(language, language), LanguageResults())
 
     def _get_bucket(self, language: Language) -> LanguageResults | None:
-        """Read-only sibling of ``_bucket`` — returns None instead of inserting an empty bucket.
-
-        A family member resolves to the family's bucket, the same way ``_bucket`` stores it, so
-        callers keep asking for the language they mean without knowing which member owns it.
-        """
+        """Read-only sibling of ``_bucket``: same family rule, but no empty bucket inserted."""
         return self.results.get(FAMILY_OWNER.get(language, language))
 
     def add_class_hierarchy(self, language: Language, hierarchy):
@@ -315,11 +311,7 @@ class StaticAnalysisResults:
         return list(self.results)
 
     def present_languages(self) -> set[Language]:
-        """Every language the repository actually contains.
-
-        Why not ``get_languages``: that returns bucket keys, and one bucket holds a whole
-        family, so a JavaScript-only repository is stored under TypeScript. Report this.
-        """
+        """Every language the repository actually contains, as opposed to the bucket keys."""
         return {lang for bucket in self.results for lang in self.source_languages(bucket)}
 
     def source_files_of_language(self, language: Language) -> list[str]:
@@ -332,10 +324,7 @@ class StaticAnalysisResults:
         ]
 
     def source_languages(self, language: Language) -> set[Language]:
-        """The languages actually present in a bucket, from the suffixes of its source files.
-
-        A bucket is keyed by the family, so this is what to report to a user rather than the key.
-        """
+        """The languages present in a bucket, from the suffixes of its source files."""
         return {found for path in self.get_source_files(language) if (found := _language_written_in(path)) is not None}
 
     def resolve_across_languages(self, qualified_name: str) -> Node | None:
