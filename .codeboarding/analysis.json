@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-19T10:21:22.321760+00:00",
-    "source_tree_hash": "88fcea61e444729e98cb40505adfbb2b7d655407c4fddcc7aaabb61f4751f0fb",
+    "generated_at": "2026-08-22T15:28:58.593594+00:00",
+    "source_tree_hash": "d652160e6211ec5dbcafcc25cecf64bd18749beeb8c56f77057eed821bfe0863",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -1717,15 +1717,14 @@
         "agents/relation_edges.py|agents.relation_edges._relation_edges_unmoved",
         "agents/relation_edges.py|agents.relation_edges._edge_touches_changed_method",
         "agents/relation_edges.py|agents.relation_edges._restore_baseline_orientation",
-        "agents/relation_edges.py|agents.relation_edges._filter_edges_touched_by_change",
+        "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording",
+        "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording.annotate",
         "agents/relation_edges.py|agents.relation_edges._commit_deleted_the_backing",
-        "agents/relation_edges.py|agents.relation_edges._reconcile_unchanged_edges",
-        "agents/relation_edges.py|agents.relation_edges._reconcile_unchanged_edges.split",
         "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
         "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations.touches_change"
       ],
-      "content_hash": "76719057304244c4",
-      "module_hash": "d6389a7b75b4b31f"
+      "content_hash": "6284e6458482aa2d",
+      "module_hash": "0d54c29e19f9b0d4"
     },
     "agents/repair.py": {
       "method_keys": [
@@ -12134,51 +12133,43 @@
       "type": "FUNCTION",
       "content_hash": "f726540e9ff19aa4"
     },
-    "agents/relation_edges.py|agents.relation_edges._filter_edges_touched_by_change": {
+    "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording": {
       "file_path": "agents/relation_edges.py",
-      "qualified_name": "agents.relation_edges._filter_edges_touched_by_change",
+      "qualified_name": "agents.relation_edges._restore_baseline_wording",
       "start_line": 146,
-      "end_line": 159,
+      "end_line": 169,
       "type": "FUNCTION",
-      "content_hash": "97c8ff64edaac7fc"
+      "content_hash": "918348d6469dd53f"
+    },
+    "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording.annotate": {
+      "file_path": "agents/relation_edges.py",
+      "qualified_name": "agents.relation_edges._restore_baseline_wording.annotate",
+      "start_line": 155,
+      "end_line": 157,
+      "type": "FUNCTION",
+      "content_hash": "1a49eb1b0e833374"
     },
     "agents/relation_edges.py|agents.relation_edges._commit_deleted_the_backing": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._commit_deleted_the_backing",
-      "start_line": 162,
-      "end_line": 170,
+      "start_line": 172,
+      "end_line": 180,
       "type": "FUNCTION",
       "content_hash": "43e96f5554219104"
-    },
-    "agents/relation_edges.py|agents.relation_edges._reconcile_unchanged_edges": {
-      "file_path": "agents/relation_edges.py",
-      "qualified_name": "agents.relation_edges._reconcile_unchanged_edges",
-      "start_line": 173,
-      "end_line": 197,
-      "type": "FUNCTION",
-      "content_hash": "6277796e880bd6e8"
-    },
-    "agents/relation_edges.py|agents.relation_edges._reconcile_unchanged_edges.split": {
-      "file_path": "agents/relation_edges.py",
-      "qualified_name": "agents.relation_edges._reconcile_unchanged_edges.split",
-      "start_line": 187,
-      "end_line": 190,
-      "type": "FUNCTION",
-      "content_hash": "955d4f9b0334b903"
     },
     "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.preserve_unchanged_relations",
-      "start_line": 200,
-      "end_line": 291,
+      "start_line": 183,
+      "end_line": 269,
       "type": "FUNCTION",
-      "content_hash": "3794c492199e47f0"
+      "content_hash": "1d1c53531bbd9bde"
     },
     "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations.touches_change": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.preserve_unchanged_relations.touches_change",
-      "start_line": 236,
-      "end_line": 237,
+      "start_line": 222,
+      "end_line": 223,
       "type": "FUNCTION",
       "content_hash": "78dc36639a27d377"
     },
@@ -27366,10 +27357,9 @@
             "agents.relation_edges._relation_edges_unmoved",
             "agents.relation_edges._edge_touches_changed_method",
             "agents.relation_edges._restore_baseline_orientation",
-            "agents.relation_edges._filter_edges_touched_by_change",
+            "agents.relation_edges._restore_baseline_wording",
+            "agents.relation_edges._restore_baseline_wording.annotate",
             "agents.relation_edges._commit_deleted_the_backing",
-            "agents.relation_edges._reconcile_unchanged_edges",
-            "agents.relation_edges._reconcile_unchanged_edges.split",
             "agents.relation_edges.preserve_unchanged_relations",
             "agents.relation_edges.preserve_unchanged_relations.touches_change"
           ]
@@ -29673,10 +29663,9 @@
                 "agents.relation_edges._relation_edges_unmoved",
                 "agents.relation_edges._edge_touches_changed_method",
                 "agents.relation_edges._restore_baseline_orientation",
-                "agents.relation_edges._filter_edges_touched_by_change",
+                "agents.relation_edges._restore_baseline_wording",
+                "agents.relation_edges._restore_baseline_wording.annotate",
                 "agents.relation_edges._commit_deleted_the_backing",
-                "agents.relation_edges._reconcile_unchanged_edges",
-                "agents.relation_edges._reconcile_unchanged_edges.split",
                 "agents.relation_edges.preserve_unchanged_relations",
                 "agents.relation_edges.preserve_unchanged_relations.touches_change"
               ]
@@ -30017,8 +30006,8 @@
                 {
                   "qualified_name": "agents.relation_edges.preserve_unchanged_relations",
                   "reference_file": "agents/relation_edges.py",
-                  "reference_start_line": 200,
-                  "reference_end_line": 291
+                  "reference_start_line": 183,
+                  "reference_end_line": 269
                 },
                 {
                   "qualified_name": "agents.relation_edges.append_or_merge_relation",
@@ -30058,10 +30047,9 @@
                     "agents.relation_edges._relation_edges_unmoved",
                     "agents.relation_edges._edge_touches_changed_method",
                     "agents.relation_edges._restore_baseline_orientation",
-                    "agents.relation_edges._filter_edges_touched_by_change",
+                    "agents.relation_edges._restore_baseline_wording",
+                    "agents.relation_edges._restore_baseline_wording.annotate",
                     "agents.relation_edges._commit_deleted_the_backing",
-                    "agents.relation_edges._reconcile_unchanged_edges",
-                    "agents.relation_edges._reconcile_unchanged_edges.split",
                     "agents.relation_edges.preserve_unchanged_relations",
                     "agents.relation_edges.preserve_unchanged_relations.touches_change"
                   ]
@@ -30136,10 +30124,10 @@
               "all_edges": []
             },
             {
-              "relation": "Supplies reconciled graph data for rendering",
+              "relation": "provides reconciled edges for visualization",
               "src_name": "Relational Logic & Edge Reconciliation",
               "dst_name": "Architectural Surface & Visualization Generator",
-              "evidence": "The Visualization Generator consumes the enriched Relation objects (which contain key_edges and evidence strings reconciled from static analysis) to generate the interactive Cytoscape.js graph and Markdown tables.",
+              "evidence": "Data Flow: The output of the reconciliation phase (a list of Relation objects) is passed directly into the visualization generators to produce the final interactive graphs.",
               "key_edges": [],
               "src_id": "3.2.3",
               "dst_id": "3.2.2",
@@ -45716,10 +45704,10 @@
       ]
     },
     {
-      "relation": "Supplies reconciled graph data for rendering",
+      "relation": "provides reconciled edges for visualization",
       "src_name": "Relational Logic & Edge Reconciliation",
       "dst_name": "Architectural Surface & Visualization Generator",
-      "evidence": "The Visualization Generator consumes the enriched Relation objects (which contain key_edges and evidence strings reconciled from static analysis) to generate the interactive Cytoscape.js graph and Markdown tables.",
+      "evidence": "Data Flow: The output of the reconciliation phase (a list of Relation objects) is passed directly into the visualization generators to produce the final interactive graphs.",
       "key_edges": [],
       "src_id": "3.2.3",
       "dst_id": "3.2.2",
