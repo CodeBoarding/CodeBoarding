@@ -165,6 +165,12 @@ def _reference_key(fully_qualified_name: str) -> str:
     return _strip_java_generics(result)
 
 
+def _language_written_in(path: str) -> Language | None:
+    """The language a file is written in, or None if the suffix is not one we analyse."""
+    _, suffix = os.path.splitext(path)
+    return SOURCE_EXTENSION_TO_LANGUAGE.get(suffix)
+
+
 @dataclass
 class StaticAnalysisResults:
     """Per-language static-analysis results for one ``analyze()`` invocation.
@@ -180,17 +186,14 @@ class StaticAnalysisResults:
     incremental_base_results: "StaticAnalysisResults | None" = None
 
     def _bucket(self, language: Language) -> LanguageResults:
-        return self.results.setdefault(language, LanguageResults())
+        return self.results.setdefault(FAMILY_OWNER.get(language, language), LanguageResults())
 
     def _get_bucket(self, language: Language) -> LanguageResults | None:
         """Read-only sibling of ``_bucket`` — returns None instead of inserting an empty bucket.
 
-        Asking for a family member returns the family's bucket, so callers can keep asking for
-        the language they mean without knowing which member owns the storage.
+        A family member resolves to the family's bucket, the same way ``_bucket`` stores it, so
+        callers keep asking for the language they mean without knowing which member owns it.
         """
-        bucket = self.results.get(language)
-        if bucket is not None:
-            return bucket
         return self.results.get(FAMILY_OWNER.get(language, language))
 
     def add_class_hierarchy(self, language: Language, hierarchy):
@@ -325,7 +328,7 @@ class StaticAnalysisResults:
             path
             for bucket in self.results
             for path in self.get_source_files(bucket)
-            if SOURCE_EXTENSION_TO_LANGUAGE.get(os.path.splitext(path)[1]) is language
+            if _language_written_in(path) is language
         ]
 
     def source_languages(self, language: Language) -> set[Language]:
@@ -333,11 +336,7 @@ class StaticAnalysisResults:
 
         A bucket is keyed by the family, so this is what to report to a user rather than the key.
         """
-        return {
-            found
-            for path in self.get_source_files(language)
-            if (found := SOURCE_EXTENSION_TO_LANGUAGE.get(os.path.splitext(path)[1])) is not None
-        }
+        return {found for path in self.get_source_files(language) if (found := _language_written_in(path)) is not None}
 
     def resolve_across_languages(self, qualified_name: str) -> Node | None:
         """Try ``get_reference`` then ``get_loose_reference`` across every language.

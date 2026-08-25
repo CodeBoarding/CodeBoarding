@@ -8,10 +8,11 @@ reference / package counts.
 """
 
 import json
-import re
 import logging
 import shutil
 import subprocess
+
+import pathspec
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -39,40 +40,15 @@ class TypeScriptProject:
 
 _ALL_EXTENSIONS = LANGUAGE_EXTENSIONS[Language.TYPESCRIPT]
 
-_GLOB_CHARS = re.compile(r"[*?]")
 
+def _exclude_spec(patterns: list[str]) -> pathspec.PathSpec:
+    """tsconfig ``exclude`` entries as a matcher over project-relative posix paths.
 
-def _exclude_matchers(patterns: list[str]) -> list[re.Pattern]:
-    """Compile tsconfig ``exclude`` entries against project-relative posix paths.
-
-    tsconfig's dialect: ``*`` and ``?`` stop at a separator, ``**/`` spans directories,
-    and a plain path excludes its whole subtree.
+    Anchored with a leading slash: tsconfig resolves ``exclude`` against its own directory,
+    while an unanchored gitwildmatch pattern would match the same name at any depth.
     """
-    compiled: list[re.Pattern] = []
-    for raw in patterns:
-        if not isinstance(raw, str) or not raw.strip():
-            continue
-        rel = raw.strip().replace("\\", "/").rstrip("/")
-        if not _GLOB_CHARS.search(rel):
-            compiled.append(re.compile(rf"^{re.escape(rel)}(?:/.*)?$"))
-            continue
-        out: list[str] = []
-        i = 0
-        while i < len(rel):
-            if rel.startswith("**/", i):
-                out.append("(?:.*/)?")
-                i += 3
-            elif rel[i] == "*":
-                out.append("[^/]*")
-                i += 1
-            elif rel[i] == "?":
-                out.append("[^/]")
-                i += 1
-            else:
-                out.append(re.escape(rel[i]))
-                i += 1
-        compiled.append(re.compile(rf"^{''.join(out)}(?:/.*)?$"))
-    return compiled
+    cleaned = [p.strip().replace("\\", "/").rstrip("/") for p in patterns if isinstance(p, str) and p.strip()]
+    return pathspec.PathSpec.from_lines("gitwildmatch", [f"/{p}" for p in cleaned])
 
 
 class TypeScriptConfigScanner:
@@ -132,7 +108,7 @@ class TypeScriptConfigScanner:
         a tsconfig actively ``exclude``s stays out: silence is not the same as refusal.
         """
         claimed = {f.resolve() for project in projects for f in project.files}
-        matchers = [(p.root.resolve(), _exclude_matchers(p.exclude)) for p in projects]
+        specs = [(p.root.resolve(), _exclude_spec(p.exclude)) for p in projects]
         found: set[Path] = set()
         for path in self.repo_location.rglob("*"):
             if not path.is_file() or path.suffix not in _ALL_EXTENSIONS:
@@ -140,7 +116,7 @@ class TypeScriptConfigScanner:
             resolved = path.resolve()
             if resolved in claimed or self.ignore_manager.should_ignore(path):
                 continue
-            if any(_excluded_by(resolved, root, regexes) for root, regexes in matchers):
+            if any(_excluded_by(resolved, root, spec) for root, spec in specs):
                 continue
             found.add(resolved)
         return sorted(found)
@@ -303,12 +279,9 @@ def _resolve_tsc_command() -> list[str] | None:
     return None
 
 
-def _excluded_by(path: Path, project_root: Path, matchers: list[re.Pattern]) -> bool:
+def _excluded_by(path: Path, project_root: Path, spec: pathspec.PathSpec) -> bool:
     """Whether *path* falls under one of *project_root*'s tsconfig exclude patterns."""
-    if not matchers:
-        return False
     try:
-        rel = path.relative_to(project_root).as_posix()
+        return spec.match_file(path.relative_to(project_root).as_posix())
     except ValueError:
         return False
-    return any(m.match(rel) for m in matchers)
