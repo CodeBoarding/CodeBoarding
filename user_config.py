@@ -18,7 +18,7 @@ from utils import CODEBOARDING_DIR_NAME
 
 CONFIG_PATH = Path.home() / CODEBOARDING_DIR_NAME / "config.toml"
 
-# Both dicts feed config.toml's [provider] table; values are injected into
+# These mappings feed config.toml's [provider] table; values are injected into
 # os.environ at startup. Provider selection itself is decided solely by
 # LLMConfig.selection_envs in agents/llm_config.py — membership here only
 # controls what can live in config.toml (contract-tested in tests/test_user_config.py).
@@ -48,7 +48,12 @@ _PROVIDER_ENDPOINTS: dict[str, str] = {
     "litellm_base_url": "LITELLM_BASE_URL",
 }
 
-_PROVIDER_KEY_TO_ENV: dict[str, str] = _PROVIDER_SECRETS | _PROVIDER_ENDPOINTS
+# Optional endpoints forwarded after another setting selects the provider.
+_PROVIDER_ENDPOINT_OVERRIDES: dict[str, str] = {
+    "anthropic_base_url": "ANTHROPIC_BASE_URL",
+}
+
+_PROVIDER_KEY_TO_ENV: dict[str, str] = _PROVIDER_SECRETS | _PROVIDER_ENDPOINTS | _PROVIDER_ENDPOINT_OVERRIDES
 
 # Template written to ~/.codeboarding/config.toml on first install.
 CONFIG_TEMPLATE = """\
@@ -63,6 +68,7 @@ CONFIG_TEMPLATE = """\
 # openai_api_key            = "sk-..."
 # openai_base_url           = "http://localhost:8000/v1"   # self-hosted / OpenAI-compatible proxy
 # anthropic_api_key         = "sk-ant-..."
+# anthropic_base_url        = "https://resource.services.ai.azure.com/anthropic"
 # google_api_key            = "AIza..."
 # vercel_api_key            = "vck_..."
 # aws_bearer_token_bedrock  = "..."
@@ -93,6 +99,7 @@ class ProviderUserConfig:
     openai_api_key: str | None = None
     openai_base_url: str | None = None
     anthropic_api_key: str | None = None
+    anthropic_base_url: str | None = None
     google_api_key: str | None = None
     vercel_api_key: str | None = None
     aws_bearer_token_bedrock: str | None = None
@@ -144,6 +151,7 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
             openai_api_key=provider_data.get("openai_api_key") or None,
             openai_base_url=provider_data.get("openai_base_url") or None,
             anthropic_api_key=provider_data.get("anthropic_api_key") or None,
+            anthropic_base_url=provider_data.get("anthropic_base_url") or None,
             google_api_key=provider_data.get("google_api_key") or None,
             vercel_api_key=provider_data.get("vercel_api_key") or None,
             aws_bearer_token_bedrock=provider_data.get("aws_bearer_token_bedrock") or None,

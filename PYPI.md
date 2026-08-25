@@ -119,6 +119,9 @@ LLM provider keys and model overrides are stored in `~/.codeboarding/config.toml
 # google_api_key    = "AIza..."
 # ollama_base_url   = "http://localhost:11434"
 
+# Optional Anthropic endpoint override; requires anthropic_api_key above
+# anthropic_base_url = "https://resource.services.ai.azure.com/anthropic"
+
 [llm]
 # Optional: override the default model for your active provider
 # agent_model   = "gemini-3.7-flash"
