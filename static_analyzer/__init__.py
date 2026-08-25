@@ -1001,17 +1001,16 @@ class StaticAnalyzer:
 
     def _loc_for_adapter(self, adapter: LanguageAdapter) -> int:
         """Scanner LOC this adapter should have covered, family-folded like ``_adapter_names_for``."""
-        configured = {name.lower() for name in _adapter_names_for(self.programming_langs)}
-        adapter_name = adapter.language.lower()
+        configured = set(_adapter_names_for(self.programming_langs))
         total = 0
         for pl in self.programming_langs:
             mapped = _lang_to_adapter_name(pl.language)
             if mapped is None:
                 continue
-            mapped = mapped.lower()
-            if mapped == "javascript" and "javascript" not in configured:
-                mapped = "typescript"
-            if mapped == adapter_name:
+            # JavaScript LOC is read by the TypeScript engine whenever that one owns the family.
+            if mapped == AdapterName.JAVASCRIPT and AdapterName.JAVASCRIPT not in configured:
+                mapped = AdapterName.TYPESCRIPT
+            if mapped == adapter.language:
                 total += pl.size
         return total
 
