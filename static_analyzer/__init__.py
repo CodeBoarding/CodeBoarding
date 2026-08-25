@@ -99,12 +99,9 @@ def recommended_engine_concurrency(engine_count: int) -> int:
 def _adapter_names_for(programming_languages: list[ProgrammingLanguage]) -> list[str]:
     """Deduplicated engine-adapter names for the scanner's detected languages.
 
-    Why: the scanner reports TypeScript, TSX, JavaScript and JSX as separate languages that
-    all share one ``typescript-language-server``. One adapter has to own the whole family, or
-    the same files are indexed once per detected language into separate ``Language`` buckets
-    that are then clustered as if they were different codebases. TypeScript wins the family
-    whenever any TypeScript exists: opening a ``.ts`` under ``languageId: "javascript"`` drops
-    its declarations, while ``"typescript"`` reads a ``.js`` in full.
+    Why: the scanner reports TypeScript, TSX, JavaScript and JSX separately, but one server
+    serves them all, and one adapter per detected name indexes the same files into separate
+    buckets that then cluster as separate codebases.
     """
     names: list[str] = []
     for pl in programming_languages:
@@ -117,6 +114,8 @@ def _adapter_names_for(programming_languages: list[ProgrammingLanguage]) -> list
             continue
         if adapter_name not in names:
             names.append(adapter_name)
+    # TypeScript's adapter already covers the JavaScript suffixes, so a second engine over
+    # the same family would only duplicate it. JavaScript keeps its own when alone.
     if AdapterName.TYPESCRIPT in names and AdapterName.JAVASCRIPT in names:
         names.remove(AdapterName.JAVASCRIPT)
     return names
@@ -1015,9 +1014,8 @@ class StaticAnalyzer:
     def _family_owner_changed(self, cached_results: StaticAnalysisResults) -> bool:
         """Whether a cached TypeScript/JavaScript bucket belongs to a language nobody owns now.
 
-        Adding a repository's first ``.ts`` (or deleting its last) flips which adapter owns the
-        family, and the warm start extracts the cached state by the *new* language — finding
-        nothing, and silently rebuilding only the changed files.
+        Why: gaining a first ``.ts`` (or losing the last) flips the owner, and a warm start
+        would then read the cache under a language it was never written to.
         """
         family = {Language.TYPESCRIPT, Language.JAVASCRIPT}
         cached_family = {language for language in cached_results.results if language in family}
@@ -1027,11 +1025,7 @@ class StaticAnalyzer:
         return not (cached_family & live)
 
     def _loc_for_adapter(self, adapter: LanguageAdapter) -> int:
-        """Return scanner LOC that should have been covered by this adapter.
-
-        Folds the family the way ``_adapter_names_for`` does, so the JavaScript LOC a
-        TypeScript engine actually reads is credited to it rather than to nobody.
-        """
+        """Scanner LOC this adapter should have covered, family-folded like ``_adapter_names_for``."""
         configured = {name.lower() for name in _adapter_names_for(self.programming_langs)}
         adapter_name = adapter.language.lower()
         total = 0

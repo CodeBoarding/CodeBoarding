@@ -37,7 +37,7 @@ class TypeScriptProject:
     exclude: list[str] = field(default_factory=list)
 
 
-_ALL_EXTENSIONS = LANGUAGE_EXTENSIONS[Language.TYPESCRIPT] + LANGUAGE_EXTENSIONS[Language.JAVASCRIPT]
+_ALL_EXTENSIONS = LANGUAGE_EXTENSIONS[Language.TYPESCRIPT]
 
 _GLOB_CHARS = re.compile(r"[*?]")
 

@@ -82,7 +82,18 @@ class JsxLanguageId(StrEnum):
 # the same edit. ``mypy`` enforces total coverage via the assertion below.
 LANGUAGE_EXTENSIONS: dict[Language, tuple[SourceSuffix, ...]] = {
     Language.PYTHON: (SourceSuffix.PY,),
-    Language.TYPESCRIPT: (SourceSuffix.TS, SourceSuffix.TSX, SourceSuffix.MTS, SourceSuffix.CTS),
+    # TypeScript carries the JavaScript suffixes too: one tsserver serves the whole family,
+    # and ``allowJs`` puts .js inside a TypeScript project.
+    Language.TYPESCRIPT: (
+        SourceSuffix.TS,
+        SourceSuffix.TSX,
+        SourceSuffix.MTS,
+        SourceSuffix.CTS,
+        SourceSuffix.JS,
+        SourceSuffix.JSX,
+        SourceSuffix.MJS,
+        SourceSuffix.CJS,
+    ),
     Language.JAVASCRIPT: (SourceSuffix.JS, SourceSuffix.JSX, SourceSuffix.MJS, SourceSuffix.CJS),
     Language.GO: (SourceSuffix.GO,),
     Language.JAVA: (SourceSuffix.JAVA,),
@@ -99,17 +110,6 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[SourceSuffix, ...]] = {
         SourceSuffix.H,
     ),
 }
-
-
-def file_extensions_for(language: Language) -> tuple[str, ...]:
-    """Every extension whose symbols may be stored under *language*.
-
-    Why wider than ``LANGUAGE_EXTENSIONS`` for TypeScript: one server owns the whole TS/JS
-    family, so a ``.js`` file's symbols live in the TypeScript bucket.
-    """
-    if language is Language.TYPESCRIPT:
-        return LANGUAGE_EXTENSIONS[Language.TYPESCRIPT] + LANGUAGE_EXTENSIONS[Language.JAVASCRIPT]
-    return LANGUAGE_EXTENSIONS[language]
 
 
 # Import-time invariant: every language has an extension list. Cheap check that

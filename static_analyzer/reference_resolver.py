@@ -6,7 +6,7 @@ from typing import Any
 
 from agents.agent_responses import AnalysisInsights, RelationCallSite, RelationEdge, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.config import Language, file_extensions_for
+from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
 from static_analyzer.internal_references import qualified_symbol_parts
 from static_analyzer.node import Node
 
@@ -404,7 +404,7 @@ class StaticReferenceResolver:
         file_path = qname.replace(".", os.sep)
         full_path = os.path.join(self.repo_dir, file_path)
         file_ref = ".".join(full_path.rsplit(os.sep, 1))
-        language_extensions = file_extensions_for(Language(lang))
+        language_extensions = LANGUAGE_EXTENSIONS[Language(lang)]
         paths = [full_path, *(f"{full_path}{extension}" for extension in language_extensions), file_ref]
 
         for path in paths:

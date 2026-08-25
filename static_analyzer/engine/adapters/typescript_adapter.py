@@ -4,16 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from static_analyzer.config import Language, file_extensions_for
+from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
 class TypeScriptAdapter(LanguageAdapter):
-
-    @property
-    def file_extensions(self) -> tuple[str, ...]:
-        """Both families: one tsserver serves them, and ``allowJs`` puts .js in a TS project."""
-        return file_extensions_for(Language.TYPESCRIPT)
 
     @property
     def language(self) -> str:
