@@ -1,13 +1,13 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-08-25T16:51:41.976500+00:00",
-  "overall_score": 0.9440520446096654,
+  "timestamp": "2026-08-25T17:56:27.407626+00:00",
+  "overall_score": 0.9438719175561281,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1576,
+      "total_entities_checked": 1593,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -17,10 +17,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1592,
-      "findings_count": 36,
-      "warning_count": 36,
-      "score": 0.9773869346733668,
+      "total_entities_checked": 1609,
+      "findings_count": 39,
+      "warning_count": 39,
+      "score": 0.9757613424487259,
       "finding_groups": [
         {
           "severity": "warning",
@@ -30,9 +30,9 @@
             {
               "entity_name": "static_analyzer.engine.edge_builder._resolve_definitions",
               "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 413,
-              "line_end": 533,
-              "metric_value": 27
+              "line_start": 421,
+              "line_end": 552,
+              "metric_value": 28
             },
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
@@ -44,8 +44,8 @@
             {
               "entity_name": "static_analyzer.incremental_orchestrator._add_outbound_edges_from_changed_files",
               "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 346,
-              "line_end": 435,
+              "line_start": 347,
+              "line_end": 436,
               "metric_value": 19
             },
             {
@@ -72,9 +72,9 @@
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
               "file_path": "static_analyzer/__init__.py",
-              "line_start": 834,
-              "line_end": 889,
-              "metric_value": 16
+              "line_start": 864,
+              "line_end": 919,
+              "metric_value": 17
             },
             {
               "entity_name": "health.runner._collect_checks_for_language",
@@ -84,24 +84,17 @@
               "metric_value": 16
             },
             {
-              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder.build",
-              "file_path": "static_analyzer/engine/call_graph_builder.py",
-              "line_start": 48,
-              "line_end": 125,
-              "metric_value": 15
-            },
-            {
-              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
-              "file_path": "static_analyzer/engine/call_graph_builder.py",
-              "line_start": 159,
-              "line_end": 200,
-              "metric_value": 15
-            },
-            {
               "entity_name": "static_analyzer.clustering.service.ClusteringService._cluster_scope",
               "file_path": "static_analyzer/clustering/service.py",
               "line_start": 206,
               "line_end": 314,
+              "metric_value": 15
+            },
+            {
+              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder.build",
+              "file_path": "static_analyzer/engine/call_graph_builder.py",
+              "line_start": 48,
+              "line_end": 125,
               "metric_value": 15
             },
             {
@@ -112,10 +105,10 @@
               "metric_value": 14
             },
             {
-              "entity_name": "static_analyzer.__init__.StaticAnalyzer._spawn_engine_client",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 384,
-              "line_end": 425,
+              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
+              "file_path": "static_analyzer/engine/call_graph_builder.py",
+              "line_start": 159,
+              "line_end": 200,
               "metric_value": 14
             },
             {
@@ -123,6 +116,13 @@
               "file_path": "static_analyzer/incremental_orchestrator.py",
               "line_start": 38,
               "line_end": 110,
+              "metric_value": 14
+            },
+            {
+              "entity_name": "static_analyzer.__init__.StaticAnalyzer._spawn_engine_client",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 405,
+              "line_end": 446,
               "metric_value": 14
             },
             {
@@ -168,13 +168,6 @@
               "metric_value": 12
             },
             {
-              "entity_name": "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 982,
-              "line_end": 1028,
-              "metric_value": 12
-            },
-            {
               "entity_name": "static_analyzer.clustering.service.ClusteringService._incremental_scope_partitions",
               "file_path": "static_analyzer/clustering/service.py",
               "line_start": 373,
@@ -196,6 +189,20 @@
               "metric_value": 12
             },
             {
+              "entity_name": "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 1017,
+              "line_end": 1063,
+              "metric_value": 12
+            },
+            {
+              "entity_name": "static_analyzer.engine.edge_builder._process_references_for_position",
+              "file_path": "static_analyzer/engine/edge_builder.py",
+              "line_start": 218,
+              "line_end": 300,
+              "metric_value": 12
+            },
+            {
               "entity_name": "install.run_install",
               "file_path": "install.py",
               "line_start": 716,
@@ -210,17 +217,17 @@
               "metric_value": 11
             },
             {
-              "entity_name": "static_analyzer.engine.edge_builder._process_references_for_position",
-              "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 218,
-              "line_end": 295,
-              "metric_value": 11
-            },
-            {
               "entity_name": "diagram_analysis.scope_plan._plan_scope_operations",
               "file_path": "diagram_analysis/scope_plan.py",
               "line_start": 44,
               "line_end": 152,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "static_analyzer.engine.edge_builder._resolve_iterated_types",
+              "file_path": "static_analyzer/engine/edge_builder.py",
+              "line_start": 345,
+              "line_end": 397,
               "metric_value": 11
             },
             {
@@ -245,13 +252,6 @@
               "metric_value": 10
             },
             {
-              "entity_name": "static_analyzer.engine.edge_builder.build_edges_via_references",
-              "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 79,
-              "line_end": 181,
-              "metric_value": 10
-            },
-            {
               "entity_name": "agents.details_agent.DetailsAgent._step_relation_analysis",
               "file_path": "agents/details_agent.py",
               "line_start": 204,
@@ -259,24 +259,45 @@
               "metric_value": 10
             },
             {
+              "entity_name": "codeboarding_cli.commands.full_analysis._process_one_remote.scope",
+              "file_path": "codeboarding_cli/commands/full_analysis.py",
+              "line_start": 172,
+              "line_end": 205,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "health.runner.run_health_checks",
+              "file_path": "health/runner.py",
+              "line_start": 190,
+              "line_end": 241,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.incremental_orchestrator._add_iterated_type_edges",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 439,
+              "line_end": 489,
+              "metric_value": 10
+            },
+            {
               "entity_name": "static_analyzer.__init__._create_engine_configs",
               "file_path": "static_analyzer/__init__.py",
-              "line_start": 99,
-              "line_end": 196,
+              "line_start": 124,
+              "line_end": 216,
               "metric_value": 10
             },
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
               "file_path": "static_analyzer/__init__.py",
-              "line_start": 717,
-              "line_end": 832,
+              "line_start": 747,
+              "line_end": 862,
               "metric_value": 10
             },
             {
-              "entity_name": "codeboarding_cli.commands.full_analysis._process_one_remote.scope",
-              "file_path": "codeboarding_cli/commands/full_analysis.py",
-              "line_start": 172,
-              "line_end": 205,
+              "entity_name": "static_analyzer.engine.edge_builder.build_edges_via_references",
+              "file_path": "static_analyzer/engine/edge_builder.py",
+              "line_start": 79,
+              "line_end": 181,
               "metric_value": 10
             }
           ]
@@ -287,10 +308,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1592,
+      "total_entities_checked": 1609,
       "findings_count": 11,
       "warning_count": 11,
-      "score": 0.9930904522613065,
+      "score": 0.9931634555624611,
       "finding_groups": [
         {
           "severity": "warning",
@@ -300,16 +321,16 @@
             {
               "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
               "file_path": "static_analyzer/analysis_result.py",
-              "line_start": 296,
-              "line_end": 298,
-              "metric_value": 24
+              "line_start": 309,
+              "line_end": 311,
+              "metric_value": 23
             },
             {
               "entity_name": "repo_utils.ignore.RepoIgnoreManager.should_ignore",
               "file_path": "repo_utils/ignore.py",
               "line_start": 227,
               "line_end": 243,
-              "metric_value": 18
+              "metric_value": 19
             },
             {
               "entity_name": "repo_utils.path_utils.normalize_repo_path",
@@ -319,17 +340,17 @@
               "metric_value": 17
             },
             {
+              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "file_path": "static_analyzer/analysis_result.py",
+              "line_start": 215,
+              "line_end": 220,
+              "metric_value": 16
+            },
+            {
               "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter.language",
               "file_path": "static_analyzer/engine/language_adapter.py",
               "line_start": 32,
               "line_end": 33,
-              "metric_value": 16
-            },
-            {
-              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "file_path": "static_analyzer/analysis_result.py",
-              "line_start": 208,
-              "line_end": 213,
               "metric_value": 16
             },
             {
@@ -383,9 +404,9 @@
       "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
       "check_type": "standard",
       "total_entities_checked": 106,
-      "findings_count": 14,
-      "warning_count": 14,
-      "score": 0.8679245283018868,
+      "findings_count": 15,
+      "warning_count": 15,
+      "score": 0.8584905660377359,
       "finding_groups": [
         {
           "severity": "warning",
@@ -398,7 +419,7 @@
             },
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer",
-              "metric_value": 130.0
+              "metric_value": 134.0
             },
             {
               "entity_name": "static_analyzer.clustering.service.ClusteringService",
@@ -410,22 +431,22 @@
             },
             {
               "entity_name": "static_analyzer.engine.source_inspector.SourceInspector",
-              "metric_value": 58.0
+              "metric_value": 59.0
             },
             {
               "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder",
-              "metric_value": 54.0
+              "metric_value": 52.0
             },
             {
               "entity_name": "static_analyzer.reference_resolver.StaticReferenceResolver",
               "metric_value": 45.0
             },
             {
-              "entity_name": "static_analyzer.engine.lsp_client.LSPClient",
-              "metric_value": 43.0
+              "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter",
+              "metric_value": 44.0
             },
             {
-              "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter",
+              "entity_name": "static_analyzer.engine.lsp_client.LSPClient",
               "metric_value": 43.0
             },
             {
@@ -445,6 +466,10 @@
               "metric_value": 35.0
             },
             {
+              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+              "metric_value": 34.0
+            },
+            {
               "entity_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
               "metric_value": 26.0
             }
@@ -456,7 +481,7 @@
       "check_name": "inheritance_depth",
       "description": "Checks that class inheritance hierarchies do not exceed depth thresholds",
       "check_type": "standard",
-      "total_entities_checked": 274,
+      "total_entities_checked": 277,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -1135,13 +1160,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
-              "file_path": "static_analyzer/engine/lsp_client.py",
-              "line_start": 108,
-              "line_end": 108,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"_config\" is not accessed",
               "file_path": "agents/llm_config.py",
               "line_start": 464,
@@ -1163,17 +1181,136 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 257,
-              "line_end": 257,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"_i\" is not accessed",
               "file_path": "install.py",
               "line_start": 748,
               "line_end": 748,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ClusterResult\" is not accessed",
+              "file_path": "agents/abstraction_agent.py",
+              "line_start": 47,
+              "line_end": 47,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"context\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 190,
+              "line_end": 190,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_connection_record\" is not accessed",
+              "file_path": "caching/cache.py",
+              "line_start": 69,
+              "line_end": 69,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"repo_ref\" is not accessed",
+              "file_path": "output_generators/mdx.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"DEFAULT_REFERENCE_KINDS\" is not accessed",
+              "file_path": "static_analyzer/cfg/call_graph.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_weight\" is not accessed",
+              "file_path": "static_analyzer/clustering/grouping.py",
+              "line_start": 353,
+              "line_end": 353,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "static_analyzer/clustering/service.py",
+              "line_start": 60,
+              "line_end": 60,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
+              "line_start": 238,
+              "line_end": 238,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
+              "line_start": 124,
+              "line_end": 124,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"receiver_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
+              "line_start": 135,
+              "line_end": 135,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
+              "line_start": 193,
+              "line_end": 193,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 137,
+              "line_end": 137,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 140,
+              "line_end": 140,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/php_adapter.py",
+              "line_start": 65,
+              "line_end": 65,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/python_adapter.py",
+              "line_start": 28,
+              "line_end": 28,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+              "line_start": 187,
+              "line_end": 187,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+              "line_start": 212,
+              "line_end": 212,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+              "line_start": 215,
+              "line_end": 215,
               "metric_value": 0.0
             },
             {
@@ -1275,31 +1412,10 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"ClusterResult\" is not accessed",
-              "file_path": "agents/abstraction_agent.py",
-              "line_start": 47,
-              "line_end": 47,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"context\" is not accessed",
-              "file_path": "agents/validation.py",
-              "line_start": 190,
-              "line_end": 190,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_connection_record\" is not accessed",
-              "file_path": "caching/cache.py",
-              "line_start": 69,
-              "line_end": 69,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"repo_ref\" is not accessed",
-              "file_path": "output_generators/mdx.py",
-              "line_start": 9,
-              "line_end": 9,
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 278,
+              "line_end": 278,
               "metric_value": 0.0
             },
             {
@@ -1307,167 +1423,6 @@
               "file_path": "static_analyzer/analysis_cache.py",
               "line_start": 37,
               "line_end": 37,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"DEFAULT_REFERENCE_KINDS\" is not accessed",
-              "file_path": "static_analyzer/cfg/call_graph.py",
-              "line_start": 11,
-              "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_weight\" is not accessed",
-              "file_path": "static_analyzer/clustering/grouping.py",
-              "line_start": 353,
-              "line_end": 353,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "static_analyzer/clustering/service.py",
-              "line_start": 60,
-              "line_end": 60,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"source_files\" is not accessed",
-              "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 82,
-              "line_end": 82,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 67,
-              "line_end": 67,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 90,
-              "line_end": 90,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 93,
-              "line_end": 93,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 140,
-              "line_end": 140,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"client\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 221,
-              "line_end": 221,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"client\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 238,
-              "line_end": 238,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 242,
-              "line_end": 242,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 246,
-              "line_end": 246,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
-              "line_start": 238,
-              "line_end": 238,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-              "line_start": 124,
-              "line_end": 124,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"receiver_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-              "line_start": 135,
-              "line_end": 135,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-              "line_start": 193,
-              "line_end": 193,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 137,
-              "line_end": 137,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 140,
-              "line_end": 140,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/php_adapter.py",
-              "line_start": 65,
-              "line_end": 65,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/python_adapter.py",
-              "line_start": 28,
-              "line_end": 28,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
-              "line_start": 187,
-              "line_end": 187,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
-              "line_start": 212,
-              "line_end": 212,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
-              "line_start": 215,
-              "line_end": 215,
               "metric_value": 0.0
             },
             {
@@ -1480,15 +1435,85 @@
             {
               "entity_name": "[unused_variable] \"exc\" is not accessed",
               "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 178,
-              "line_end": 178,
+              "line_start": 179,
+              "line_end": 179,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_old_dst_node\" is not accessed",
               "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 224,
-              "line_end": 224,
+              "line_start": 225,
+              "line_end": 225,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"source_files\" is not accessed",
+              "file_path": "static_analyzer/engine/edge_builder.py",
+              "line_start": 82,
+              "line_end": 82,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 76,
+              "line_end": 76,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 99,
+              "line_end": 99,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 102,
+              "line_end": 102,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 149,
+              "line_end": 149,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"client\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 230,
+              "line_end": 230,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"client\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 247,
+              "line_end": 247,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 251,
+              "line_end": 251,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 255,
+              "line_end": 255,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/engine/lsp_client.py",
+              "line_start": 109,
+              "line_end": 109,
               "metric_value": 0.0
             }
           ]
@@ -2095,23 +2120,9 @@
             },
             {
               "entity_name": "[unused_import] Import \"ClusterResult\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 78,
-              "line_end": 78,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"ClusterResult\" is not accessed",
               "file_path": "agents/abstraction_agent.py",
               "line_start": 47,
               "line_end": 47,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"Node\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 37,
-              "line_end": 37,
               "metric_value": 0.0
             },
             {
@@ -2119,6 +2130,20 @@
               "file_path": "static_analyzer/cfg/call_graph.py",
               "line_start": 11,
               "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ClusterResult\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 78,
+              "line_end": 78,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Node\" is not accessed",
+              "file_path": "static_analyzer/analysis_cache.py",
+              "line_start": 37,
+              "line_end": 37,
               "metric_value": 0.0
             }
           ]
@@ -2166,8 +2191,8 @@
             {
               "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
               "file_path": "static_analyzer/node.py",
-              "line_start": 63,
-              "line_end": 63,
+              "line_start": 69,
+              "line_end": 69,
               "metric_value": 0.0
             }
           ]
@@ -2201,6 +2226,12 @@
       "composite_risk_score": 75.0
     },
     {
+      "file_path": "static_analyzer/engine/edge_builder.py",
+      "total_findings": 5,
+      "warning_findings": 4,
+      "composite_risk_score": 70.0
+    },
+    {
       "file_path": "monitoring/__init__.py",
       "total_findings": 8,
       "warning_findings": 4,
@@ -2219,22 +2250,16 @@
       "composite_risk_score": 70.0
     },
     {
-      "file_path": "utils.py",
-      "total_findings": 5,
+      "file_path": "static_analyzer/incremental_orchestrator.py",
+      "total_findings": 6,
       "warning_findings": 3,
       "composite_risk_score": 65.0
     },
     {
-      "file_path": "static_analyzer/incremental_orchestrator.py",
+      "file_path": "utils.py",
       "total_findings": 5,
-      "warning_findings": 2,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "static_analyzer/engine/edge_builder.py",
-      "total_findings": 4,
       "warning_findings": 3,
-      "composite_risk_score": 55.0
+      "composite_risk_score": 65.0
     },
     {
       "file_path": "static_analyzer/engine/language_adapter.py",
@@ -2267,6 +2292,12 @@
       "composite_risk_score": 35.0
     },
     {
+      "file_path": "health/runner.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
+    },
+    {
       "file_path": "static_analyzer/engine/call_graph_builder.py",
       "total_findings": 2,
       "warning_findings": 2,
@@ -2288,12 +2319,6 @@
       "file_path": "static_analyzer/cfg/edge.py",
       "total_findings": 2,
       "warning_findings": 2,
-      "composite_risk_score": 30.0
-    },
-    {
-      "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-      "total_findings": 3,
-      "warning_findings": 0,
       "composite_risk_score": 30.0
     }
   ]
