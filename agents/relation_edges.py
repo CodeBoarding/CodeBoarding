@@ -64,8 +64,7 @@ def pair_untouched_by_change(
 ) -> bool:
     """Whether the commit gives no reason to re-describe this pair.
 
-    Why ``previous``: a deleted call is absent from the rebuilt edges, so judging on those alone
-    would pin a label that still describes it.
+    Why: baseline calls expose deletions absent from rebuilt edges.
     """
     if not changed_members:
         return False
