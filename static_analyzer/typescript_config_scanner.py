@@ -189,8 +189,14 @@ class TypeScriptConfigScanner:
         return self._fallback_walk(project_dir, all_candidates), []
 
     def _showconfig(self, project_dir: Path, tsc_cmd_prefix: list[str]) -> dict | None:
-        """Invoke ``tsc --showConfig -p <dir>`` and return parsed JSON."""
-        cmd = [*tsc_cmd_prefix, "-p", str(project_dir)]
+        """Invoke ``tsc --showConfig -p <dir> --allowJs`` and return parsed JSON.
+
+        Why ``--allowJs``: one adapter owns the whole family, so the engine wants the
+        project's JavaScript too. The flag overrides the file's own ``allowJs`` while
+        ``include``, ``exclude``, ``files`` and ``references`` are still honoured, so tsc
+        stays the authority on membership rather than us re-implementing its globs.
+        """
+        cmd = [*tsc_cmd_prefix, "-p", str(project_dir), "--allowJs"]
         try:
             result = subprocess.run(
                 cmd,
