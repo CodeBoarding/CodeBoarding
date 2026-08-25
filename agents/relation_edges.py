@@ -57,9 +57,7 @@ def index_relation_endpoints(analysis: AnalysisInsights, repo_dir: Path) -> None
 def edge_touches_change(source: str, target: str, changed_members: set[str] | None) -> bool:
     """Whether this edge is evidence the commit gives for re-describing its pair.
 
-    Symmetric, unlike ``_edge_touches_changed_method``: that one asks whether the commit
-    deleted a call, which only a changed *source* can do. Re-describing a connection is
-    warranted by either end moving.
+    Symmetric, unlike ``_edge_touches_changed_method``: either end moving warrants a re-description.
     """
     if not changed_members:
         return False
@@ -71,10 +69,8 @@ def pair_untouched_by_change(
 ) -> bool:
     """Whether the commit gives no reason to re-describe this pair.
 
-    The prompt renders such a pair as a bare count, so its wording comes from the baseline
-    rather than the model. ``previous`` is read too: a call the commit deleted is absent from
-    the rebuilt edges, so judging on those alone would call the pair untouched and pin a label
-    that still describes the deleted interaction.
+    Why ``previous``: a deleted call is absent from the rebuilt edges, so judging on those alone
+    would pin a label that still describes it.
     """
     if not changed_members:
         return False
