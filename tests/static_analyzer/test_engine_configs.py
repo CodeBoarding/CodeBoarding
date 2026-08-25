@@ -18,6 +18,7 @@ from static_analyzer.constants import Language
 from static_analyzer.engine.adapters.typescript_adapter import TypeScriptAdapter
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
+from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner, TypeScriptProject
 
 _SUFFIXES = {
     "TypeScript": [".ts"],
@@ -174,3 +175,45 @@ class TestFamilyOwnerFlip(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMixedFamilyCoverage(unittest.TestCase):
+    """A tsconfig omits .js unless allowJs is set, but one engine owns both families."""
+
+    def _repo(self) -> Path:
+        root = Path(tempfile.mkdtemp())
+        (root / "src").mkdir()
+        for name in ("lib.ts", "widget.tsx", "util.js", "panel.jsx"):
+            (root / "src" / name).write_text("export const x = 1;\n")
+        skipped = root / "node_modules" / "dep"
+        skipped.mkdir(parents=True)
+        (skipped / "index.js").write_text("module.exports = 1;\n")
+        return root
+
+    def test_unclaimed_family_files_are_found(self):
+        root = self._repo()
+        scanner = TypeScriptConfigScanner(root, ignore_manager=RepoIgnoreManager(root))
+        claimed = {(root / "src" / "lib.ts").resolve()}
+        found = [p.name for p in scanner.find_unclaimed_family_files(claimed)]
+        self.assertEqual(sorted(found), ["panel.jsx", "util.js", "widget.tsx"])
+
+    def test_node_modules_stays_out(self):
+        root = self._repo()
+        scanner = TypeScriptConfigScanner(root, ignore_manager=RepoIgnoreManager(root))
+        found = scanner.find_unclaimed_family_files(set())
+        self.assertNotIn("index.js", [p.name for p in found])
+
+    def test_a_claimed_file_is_not_added_twice(self):
+        root = self._repo()
+        scanner = TypeScriptConfigScanner(root, ignore_manager=RepoIgnoreManager(root))
+        claimed = {p.resolve() for p in (root / "src").iterdir()}
+        self.assertEqual(scanner.find_unclaimed_family_files(claimed), [])
+
+    def test_javascript_reaches_the_engine_when_tsconfig_omits_it(self):
+        root = self._repo()
+        only_ts = TypeScriptProject(root=root, files=[(root / "src" / "lib.ts").resolve()])
+        with patch.object(TypeScriptConfigScanner, "find_typescript_projects", return_value=[only_ts]):
+            configs = _create_engine_configs([lang("TypeScript"), lang("JavaScript")], root, RepoIgnoreManager(root))
+        self.assertEqual(len(configs), 1)
+        names = sorted(p.name for p in configs[0].source_files)
+        self.assertEqual(names, ["lib.ts", "panel.jsx", "util.js", "widget.tsx"])

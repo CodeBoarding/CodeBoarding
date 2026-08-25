@@ -168,6 +168,13 @@ def _create_engine_configs(
                         f"({len(union)} files across {len(typescript_projects)} tsconfig project(s): "
                         f"{project_dirs})"
                     )
+                    # tsconfig membership is authoritative for what it covers, but it omits
+                    # .js unless ``allowJs`` is set. One adapter owns the whole family, so top
+                    # up with what no project claimed rather than analysing half a mixed repo.
+                    unclaimed = ts_config_scanner.find_unclaimed_family_files(seen)
+                    if unclaimed:
+                        logger.info(f"Adding {len(unclaimed)} family file(s) claimed by no tsconfig")
+                        union.extend(unclaimed)
                     configs.append(EngineConfig(adapter, repository_path, source_files=union))
                 else:
                     logger.info(f"No TypeScript config files found, using repository root for {adapter_name}")

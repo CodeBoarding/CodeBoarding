@@ -85,6 +85,19 @@ class TypeScriptConfigScanner:
             )
         return projects
 
+    def find_unclaimed_family_files(self, claimed: set[Path]) -> list[Path]:
+        """Family files no tsconfig claims, so one engine still covers a mixed repo.
+
+        Why: ``tsc --showConfig`` omits ``.js``/``.jsx`` unless ``allowJs`` is set, so a
+        repo mixing the families would otherwise have only its TypeScript analysed.
+        """
+        found = {
+            path.resolve()
+            for path in self.repo_location.rglob("*")
+            if path.is_file() and path.suffix in _ALL_EXTENSIONS and not self.ignore_manager.should_ignore(path)
+        }
+        return sorted(found - claimed)
+
     def _discover_candidates(self) -> list[Path]:
         seen: set[Path] = set()
         candidates: list[Path] = []
