@@ -8,6 +8,7 @@ reference / package counts.
 """
 
 import json
+import re
 import logging
 import shutil
 import subprocess
@@ -31,9 +32,47 @@ class TypeScriptProject:
 
     root: Path
     files: list[Path] = field(default_factory=list)
+    # ``exclude`` as the tsconfig gave it. A file under here was actively skipped,
+    # so the family top-up must leave it alone rather than re-claiming it.
+    exclude: list[str] = field(default_factory=list)
 
 
 _ALL_EXTENSIONS = LANGUAGE_EXTENSIONS[Language.TYPESCRIPT] + LANGUAGE_EXTENSIONS[Language.JAVASCRIPT]
+
+_GLOB_CHARS = re.compile(r"[*?]")
+
+
+def _exclude_matchers(patterns: list[str]) -> list[re.Pattern]:
+    """Compile tsconfig ``exclude`` entries against project-relative posix paths.
+
+    tsconfig's dialect: ``*`` and ``?`` stop at a separator, ``**/`` spans directories,
+    and a plain path excludes its whole subtree.
+    """
+    compiled: list[re.Pattern] = []
+    for raw in patterns:
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        rel = raw.strip().replace("\\", "/").rstrip("/")
+        if not _GLOB_CHARS.search(rel):
+            compiled.append(re.compile(rf"^{re.escape(rel)}(?:/.*)?$"))
+            continue
+        out: list[str] = []
+        i = 0
+        while i < len(rel):
+            if rel.startswith("**/", i):
+                out.append("(?:.*/)?")
+                i += 3
+            elif rel[i] == "*":
+                out.append("[^/]*")
+                i += 1
+            elif rel[i] == "?":
+                out.append("[^/]")
+                i += 1
+            else:
+                out.append(re.escape(rel[i]))
+                i += 1
+        compiled.append(re.compile(rf"^{''.join(out)}(?:/.*)?$"))
+    return compiled
 
 
 class TypeScriptConfigScanner:
@@ -69,11 +108,11 @@ class TypeScriptConfigScanner:
 
         projects: list[TypeScriptProject] = []
         for project_dir in candidate_dirs:
-            files = self._resolve_project_files(project_dir, tsc_cmd_prefix, candidate_dirs)
+            files, excluded = self._resolve_project_files(project_dir, tsc_cmd_prefix, candidate_dirs)
             if not files:
                 logger.debug(f"Skipping tsconfig at {project_dir} (no owned files)")
                 continue
-            projects.append(TypeScriptProject(root=project_dir, files=files))
+            projects.append(TypeScriptProject(root=project_dir, files=files, exclude=excluded))
 
         projects = self._trim_overlap(projects)
 
@@ -85,18 +124,26 @@ class TypeScriptConfigScanner:
             )
         return projects
 
-    def find_unclaimed_family_files(self, claimed: set[Path]) -> list[Path]:
+    def find_unclaimed_family_files(self, projects: list[TypeScriptProject]) -> list[Path]:
         """Family files no tsconfig claims, so one engine still covers a mixed repo.
 
         Why: ``tsc --showConfig`` omits ``.js``/``.jsx`` unless ``allowJs`` is set, so a
-        repo mixing the families would otherwise have only its TypeScript analysed.
+        repo mixing the families would otherwise have only its TypeScript analysed. A path
+        a tsconfig actively ``exclude``s stays out: silence is not the same as refusal.
         """
-        found = {
-            path.resolve()
-            for path in self.repo_location.rglob("*")
-            if path.is_file() and path.suffix in _ALL_EXTENSIONS and not self.ignore_manager.should_ignore(path)
-        }
-        return sorted(found - claimed)
+        claimed = {f.resolve() for project in projects for f in project.files}
+        matchers = [(p.root.resolve(), _exclude_matchers(p.exclude)) for p in projects]
+        found: set[Path] = set()
+        for path in self.repo_location.rglob("*"):
+            if not path.is_file() or path.suffix not in _ALL_EXTENSIONS:
+                continue
+            resolved = path.resolve()
+            if resolved in claimed or self.ignore_manager.should_ignore(path):
+                continue
+            if any(_excluded_by(resolved, root, regexes) for root, regexes in matchers):
+                continue
+            found.add(resolved)
+        return sorted(found)
 
     def _discover_candidates(self) -> list[Path]:
         seen: set[Path] = set()
@@ -120,10 +167,11 @@ class TypeScriptConfigScanner:
         project_dir: Path,
         tsc_cmd_prefix: list[str] | None,
         all_candidates: list[Path],
-    ) -> list[Path]:
+    ) -> tuple[list[Path], list[str]]:
         if tsc_cmd_prefix is not None:
             config = self._showconfig(project_dir, tsc_cmd_prefix)
             if config is not None:
+                excluded = [e for e in config.get("exclude", []) if isinstance(e, str)]
                 files = []
                 for raw in config.get("files", []):
                     if not isinstance(raw, str):
@@ -135,9 +183,10 @@ class TypeScriptConfigScanner:
                 # Apply ignore_manager: a permissive root tsconfig can claim
                 # files (e.g. ``*.test.ts``) the user has skipped via
                 # .codeboardingignore — keep that consistent with the FS fallback.
-                return [f for f in files if f.suffix in _ALL_EXTENSIONS and not self.ignore_manager.should_ignore(f)]
+                kept = [f for f in files if f.suffix in _ALL_EXTENSIONS and not self.ignore_manager.should_ignore(f)]
+                return kept, excluded
             # tsc available but failed for this project — try the FS walk.
-        return self._fallback_walk(project_dir, all_candidates)
+        return self._fallback_walk(project_dir, all_candidates), []
 
     def _showconfig(self, project_dir: Path, tsc_cmd_prefix: list[str]) -> dict | None:
         """Invoke ``tsc --showConfig -p <dir>`` and return parsed JSON."""
@@ -211,7 +260,7 @@ class TypeScriptConfigScanner:
             if len(unique) < len(project.files):
                 logger.debug(f"Trimmed project {project.root} from {len(project.files)} to {len(unique)} files")
             claimed.update(unique)
-            survivors.append((orig_idx, TypeScriptProject(root=project.root, files=unique)))
+            survivors.append((orig_idx, TypeScriptProject(root=project.root, files=unique, exclude=project.exclude)))
 
         survivors.sort(key=lambda ip: ip[0])
         return [p for _, p in survivors]
@@ -246,3 +295,14 @@ def _resolve_tsc_command() -> list[str] | None:
     if system_tsc is not None:
         return [system_tsc, "--showConfig"]
     return None
+
+
+def _excluded_by(path: Path, project_root: Path, matchers: list[re.Pattern]) -> bool:
+    """Whether *path* falls under one of *project_root*'s tsconfig exclude patterns."""
+    if not matchers:
+        return False
+    try:
+        rel = path.relative_to(project_root).as_posix()
+    except ValueError:
+        return False
+    return any(m.match(rel) for m in matchers)
