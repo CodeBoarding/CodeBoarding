@@ -53,10 +53,11 @@ class BaseCheckSummary(BaseModel):
 
     check_name: str = Field(description="Name of the health check")
     description: str = Field(description="What this check measures")
-    language: str | None = Field(
-        default=None,
-        description="Programming language this check applies to (e.g. 'python', 'typescript'). "
-        "Set when the repository contains multiple languages.",
+    languages: list[str] = Field(
+        default_factory=list,
+        description="Programming languages this check covers (e.g. ['javascript', 'typescript']). "
+        "One server can serve a whole family, so a check can span more than one. "
+        "Populated when the repository contains multiple languages.",
     )
 
 

@@ -293,3 +293,21 @@ class TestTscIsAskedForJavaScript(unittest.TestCase):
             run.return_value = SimpleNamespace(returncode=0, stdout=payload, stderr="")
             _, excluded = scanner._resolve_project_files(Path("/repo"), ["tsc", "--showConfig"], [])
         self.assertEqual(excluded, ["legacy", "**/*.gen.ts"])
+
+
+class TestSuffixAttribution(unittest.TestCase):
+    """Suffix extraction has to match Path.suffix, including where a path has no extension."""
+
+    def test_odd_paths_do_not_pick_up_a_language(self):
+        results = StaticAnalysisResults()
+        results.add_source_files(
+            Language.TYPESCRIPT,
+            ["/r/v1.2/Makefile", "/r/.codeboardingignore", "/r/noext", "/r/src/a.ts"],
+        )
+        self.assertEqual(results.present_languages(), {Language.TYPESCRIPT})
+        self.assertEqual([Path(p).name for p in results.source_files_of_language(Language.TYPESCRIPT)], ["a.ts"])
+
+    def test_a_multi_dot_name_uses_its_last_suffix(self):
+        results = StaticAnalysisResults()
+        results.add_source_files(Language.TYPESCRIPT, ["/r/src/a.d.ts", "/r/src/b.min.js"])
+        self.assertEqual(results.present_languages(), {Language.TYPESCRIPT, Language.JAVASCRIPT})

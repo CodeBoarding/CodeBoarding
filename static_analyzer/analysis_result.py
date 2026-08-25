@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -324,7 +325,7 @@ class StaticAnalysisResults:
             path
             for bucket in self.results
             for path in self.get_source_files(bucket)
-            if SOURCE_EXTENSION_TO_LANGUAGE.get(Path(path).suffix) is language
+            if SOURCE_EXTENSION_TO_LANGUAGE.get(os.path.splitext(path)[1]) is language
         ]
 
     def source_languages(self, language: Language) -> set[Language]:
@@ -335,7 +336,7 @@ class StaticAnalysisResults:
         return {
             found
             for path in self.get_source_files(language)
-            if (found := SOURCE_EXTENSION_TO_LANGUAGE.get(Path(path).suffix)) is not None
+            if (found := SOURCE_EXTENSION_TO_LANGUAGE.get(os.path.splitext(path)[1])) is not None
         }
 
     def resolve_across_languages(self, qualified_name: str) -> Node | None:
