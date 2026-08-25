@@ -29,6 +29,8 @@ def _make_adapter(
     adapter.language = language
     if language_enum is not None:
         adapter.language_enum = language_enum
+        # Real adapters default results_language to language_enum; a MagicMock would not.
+        adapter.results_language = language_enum
     adapter.fail_on_empty_symbols = fail_on_empty_symbols
     adapter.get_lsp_command.return_value = [f"{language.lower()}-lsp"]
     adapter.get_lsp_init_options.return_value = {}

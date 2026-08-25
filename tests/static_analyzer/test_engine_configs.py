@@ -15,8 +15,9 @@ from static_analyzer import (
     _create_engine_configs,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language
-from static_analyzer.engine.adapters.typescript_adapter import TypeScriptAdapter
+from static_analyzer.config import Language
+from static_analyzer.engine.adapters.python_adapter import PythonAdapter
+from static_analyzer.engine.adapters.typescript_adapter import JavaScriptAdapter, TypeScriptAdapter
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner, TypeScriptProject
@@ -132,46 +133,52 @@ class TestIncrementalRefusesAnIncompatibleCache(unittest.TestCase):
         self.assertIn("full analysis", str(caught.exception))
 
 
-class TestFamilyOwnerFlip(unittest.TestCase):
-    def test_a_cache_owned_by_the_other_family_language_is_refused(self):
-        # Adding a repo's first .ts flips the owner to TypeScript. Extracting the cached state
-        # by the new language finds nothing and would rebuild only the changed files.
-        tmp = Path(tempfile.mkdtemp()).resolve()
-        with patch.object(ProjectScanner, "scan", return_value=[lang("TypeScript"), lang("JavaScript")]):
-            analyzer = StaticAnalyzer(tmp)
+class TestFamilyBucketIsStable(unittest.TestCase):
+    """The bucket key must not move when a repo gains its first .ts or loses its last."""
 
-        cached = StaticAnalysisResults()
-        cached._bucket(Language.JAVASCRIPT)
+    def test_both_family_adapters_store_under_one_language(self):
+        self.assertIs(TypeScriptAdapter().results_language, Language.TYPESCRIPT)
+        self.assertIs(JavaScriptAdapter().results_language, Language.TYPESCRIPT)
 
-        self.assertTrue(analyzer._family_owner_changed(cached))
+    def test_the_family_adapters_still_report_their_own_language(self):
+        # results_language decides storage; language_enum stays the adapter's own identity.
+        self.assertIs(TypeScriptAdapter().language_enum, Language.TYPESCRIPT)
+        self.assertIs(JavaScriptAdapter().language_enum, Language.JAVASCRIPT)
 
-    def test_a_cache_the_live_adapter_owns_is_accepted(self):
-        tmp = Path(tempfile.mkdtemp()).resolve()
-        with patch.object(ProjectScanner, "scan", return_value=[lang("TypeScript")]):
-            analyzer = StaticAnalyzer(tmp)
+    def test_other_languages_store_under_themselves(self):
+        self.assertIs(PythonAdapter().results_language, Language.PYTHON)
 
-        cached = StaticAnalysisResults()
-        cached._bucket(Language.TYPESCRIPT)
+    def test_a_bucket_reports_the_languages_its_files_hold(self):
+        results = StaticAnalysisResults()
+        results.add_source_files(Language.TYPESCRIPT, ["/r/src/a.ts", "/r/src/b.js", "/r/src/c.jsx"])
+        self.assertEqual(
+            results.source_languages(Language.TYPESCRIPT),
+            {Language.TYPESCRIPT, Language.JAVASCRIPT},
+        )
 
-        self.assertFalse(analyzer._family_owner_changed(cached))
+    def test_a_javascript_only_repo_is_still_reported_as_javascript(self):
+        # The key says TypeScript because the family owns the bucket; the files say otherwise.
+        results = StaticAnalysisResults()
+        results.add_source_files(Language.TYPESCRIPT, ["/r/src/a.js", "/r/src/b.mjs"])
+        self.assertEqual(results.source_languages(Language.TYPESCRIPT), {Language.JAVASCRIPT})
+        self.assertEqual(results.present_languages(), {Language.JAVASCRIPT})
 
-    def test_a_full_run_rebuilds_instead_of_refusing(self):
-        # `codeboarding full` without --force still warm-starts, and telling it to "run a full
-        # analysis" would name the operation already in progress.
-        tmp = Path(tempfile.mkdtemp()).resolve()
-        with patch.object(ProjectScanner, "scan", return_value=[lang("TypeScript")]):
-            analyzer = StaticAnalyzer(tmp)
-        self.assertIsNone(analyzer.changed_files)
+    def test_adding_the_first_typescript_file_shows_up_as_a_new_language(self):
+        results = StaticAnalysisResults()
+        results.add_source_files(Language.TYPESCRIPT, ["/r/src/a.js"])
+        self.assertEqual(results.present_languages(), {Language.JAVASCRIPT})
+        results.add_source_files(Language.TYPESCRIPT, ["/r/src/b.ts"])
+        self.assertEqual(results.present_languages(), {Language.JAVASCRIPT, Language.TYPESCRIPT})
 
-    def test_a_python_only_cache_is_never_a_family_flip(self):
-        tmp = Path(tempfile.mkdtemp()).resolve()
-        with patch.object(ProjectScanner, "scan", return_value=[lang("Python")]):
-            analyzer = StaticAnalyzer(tmp)
-
-        cached = StaticAnalysisResults()
-        cached._bucket(Language.PYTHON)
-
-        self.assertFalse(analyzer._family_owner_changed(cached))
+    def test_files_are_attributed_to_the_language_they_are_written_in(self):
+        results = StaticAnalysisResults()
+        results.add_source_files(Language.TYPESCRIPT, ["/r/a.ts", "/r/b.tsx", "/r/c.js", "/r/d.jsx"])
+        self.assertEqual(
+            [Path(p).name for p in results.source_files_of_language(Language.JAVASCRIPT)], ["c.js", "d.jsx"]
+        )
+        self.assertEqual(
+            [Path(p).name for p in results.source_files_of_language(Language.TYPESCRIPT)], ["a.ts", "b.tsx"]
+        )
 
 
 if __name__ == "__main__":

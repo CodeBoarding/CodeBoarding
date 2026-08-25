@@ -7,7 +7,7 @@ from typing import Any
 
 from static_analyzer.cfg import CallGraph, CallSiteLocation
 from static_analyzer.clustering import ClusterCache
-from static_analyzer.config import Language
+from static_analyzer.config import FAMILY_OWNER, SOURCE_EXTENSION_TO_LANGUAGE, Language
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
@@ -182,8 +182,15 @@ class StaticAnalysisResults:
         return self.results.setdefault(language, LanguageResults())
 
     def _get_bucket(self, language: Language) -> LanguageResults | None:
-        """Read-only sibling of ``_bucket`` — returns None instead of inserting an empty bucket."""
-        return self.results.get(language)
+        """Read-only sibling of ``_bucket`` — returns None instead of inserting an empty bucket.
+
+        Asking for a family member returns the family's bucket, so callers can keep asking for
+        the language they mean without knowing which member owns the storage.
+        """
+        bucket = self.results.get(language)
+        if bucket is not None:
+            return bucket
+        return self.results.get(FAMILY_OWNER.get(language, language))
 
     def add_class_hierarchy(self, language: Language, hierarchy):
         """Add/merge a class hierarchy for a language; supports repeated calls."""
@@ -212,13 +219,19 @@ class StaticAnalysisResults:
             return bucket.cfg.graph
         raise ValueError(f"Control flow graph for language '{language}' not found in results.")
 
+    def get_references(self, language: Language) -> dict:
+        """References by qualified name for *language*, resolving through its family."""
+        bucket = self._get_bucket(language)
+        return {} if bucket is None else (bucket.references.by_qualified_name or {})
+
     def get_clusters(self, language: Language) -> ClusterCache:
         """Return the clustering state for ``language``, creating an empty one if absent.
 
         Unlike ``get_cfg`` this never raises: an unclustered language has an empty
         cache, and callers write their partition straight into it.
         """
-        return self._bucket(language).clusters
+        bucket = self._get_bucket(language)
+        return self._bucket(language).clusters if bucket is None else bucket.clusters
 
     def set_clusters(self, language: Language, clusters: ClusterCache) -> None:
         """Replace the clustering state for ``language`` wholesale."""
@@ -296,6 +309,34 @@ class StaticAnalysisResults:
     def get_languages(self) -> list[Language]:
         """Return the list of languages for which any data has been recorded."""
         return list(self.results)
+
+    def present_languages(self) -> set[Language]:
+        """Every language the repository actually contains.
+
+        Why not ``get_languages``: that returns bucket keys, and one bucket holds a whole
+        family, so a JavaScript-only repository is stored under TypeScript. Report this.
+        """
+        return {lang for bucket in self.results for lang in self.source_languages(bucket)}
+
+    def source_files_of_language(self, language: Language) -> list[str]:
+        """Source files written in *language*, across every bucket."""
+        return [
+            path
+            for bucket in self.results
+            for path in self.get_source_files(bucket)
+            if SOURCE_EXTENSION_TO_LANGUAGE.get(Path(path).suffix) is language
+        ]
+
+    def source_languages(self, language: Language) -> set[Language]:
+        """The languages actually present in a bucket, from the suffixes of its source files.
+
+        A bucket is keyed by the family, so this is what to report to a user rather than the key.
+        """
+        return {
+            found
+            for path in self.get_source_files(language)
+            if (found := SOURCE_EXTENSION_TO_LANGUAGE.get(Path(path).suffix)) is not None
+        }
 
     def resolve_across_languages(self, qualified_name: str) -> Node | None:
         """Try ``get_reference`` then ``get_loose_reference`` across every language.

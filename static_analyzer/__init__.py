@@ -516,7 +516,7 @@ class StaticAnalyzer:
         for engine_config, client in self._live_clients("collect_fresh_diagnostics"):
             diags = client.get_collected_diagnostics()
             if diags:
-                result[engine_config.adapter.language_enum] = diags
+                result[engine_config.adapter.results_language] = diags
         return result
 
     def get_diagnostics_generation(self) -> int:
@@ -727,25 +727,13 @@ class StaticAnalyzer:
                 results = self._run_full_lsp_pass()
             else:
                 cached_results, cached_sha = warm_start
-                if self._family_owner_changed(cached_results):
-                    # A full run rebuilds from scratch and is fine. An incremental one cannot:
-                    # the warm start would keep only the changed files of a bucket nobody owns.
-                    if self.changed_files is not None:
-                        raise StaticAnalysisFatalError(
-                            f"{cache.pkl_path} stores the TypeScript/JavaScript graph under a language "
-                            "no longer configured, so a warm start would rebuild only the changed files "
-                            "and drop the rest. Re-run a full analysis to rebuild it."
-                        )
-                    logger.info("static_analysis_cache: outcome=miss_family_owner_changed")
-                    results = self._run_full_lsp_pass()
-                else:
-                    logger.info(
-                        "static_analysis_cache: outcome=warmstart (cached_sha=%s, current_sha=%s, changes=%s)",
-                        cached_sha,
-                        source_sha or "<none>",
-                        "supplied" if self.changed_files is not None else "git",
-                    )
-                    results = self._update_cached_results(cached_results, cached_sha)
+                logger.info(
+                    "static_analysis_cache: outcome=warmstart (cached_sha=%s, current_sha=%s, changes=%s)",
+                    cached_sha,
+                    source_sha or "<none>",
+                    "supplied" if self.changed_files is not None else "git",
+                )
+                results = self._update_cached_results(cached_results, cached_sha)
 
         self._validate_analysis_results(results)
         results.diagnostics = self.collected_diagnostics
@@ -776,7 +764,7 @@ class StaticAnalyzer:
         def run_one(engine_config: EngineConfig, engine_client: LSPClient | None, order: int = 0) -> None:
             """Analyze one engine. Owns the client's lifetime when given none."""
             adapter, project_path = engine_config.adapter, engine_config.project_path
-            language = adapter.language_enum
+            language = adapter.results_language
             t_lang_start = time.monotonic()
             owned_client: LSPClient | None = None
             try:
@@ -803,7 +791,7 @@ class StaticAnalyzer:
                         status="success",
                         duration_ms=duration_ms,
                         analysis=analysis,
-                        diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
+                        diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
                     )
             except StaticAnalysisFatalError:
                 raise
@@ -896,7 +884,7 @@ class StaticAnalyzer:
         results = StaticAnalysisResults()
         for engine_config, engine_client in self._live_clients("warm-start"):
             adapter, project_path = engine_config.adapter, engine_config.project_path
-            language = adapter.language_enum
+            language = adapter.results_language
             cached_lang_dict = self._extract_language_dict(cached_results, language)
             t_lang_start = time.monotonic()
             changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
@@ -925,7 +913,7 @@ class StaticAnalyzer:
                 status="success",
                 duration_ms=round((time.monotonic() - t_lang_start) * 1000),
                 analysis=analysis,
-                diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
+                diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
             )
         results.incremental_base_results = cached_results
         return results
@@ -1009,20 +997,7 @@ class StaticAnalyzer:
         # Merge, not replace: a monorepo yields several configs per language, and
         # replacing kept only whichever finished last -- which under the concurrency
         # bound is a different one run to run.
-        self.collected_diagnostics.setdefault(adapter.language_enum, {}).update(merged_diags)
-
-    def _family_owner_changed(self, cached_results: StaticAnalysisResults) -> bool:
-        """Whether a cached TypeScript/JavaScript bucket belongs to a language nobody owns now.
-
-        Why: gaining a first ``.ts`` (or losing the last) flips the owner, and a warm start
-        would then read the cache under a language it was never written to.
-        """
-        family = {Language.TYPESCRIPT, Language.JAVASCRIPT}
-        cached_family = {language for language in cached_results.results if language in family}
-        if not cached_family:
-            return False
-        live = {config.adapter.language_enum for config in self._engine_configs}
-        return not (cached_family & live)
+        self.collected_diagnostics.setdefault(adapter.results_language, {}).update(merged_diags)
 
     def _loc_for_adapter(self, adapter: LanguageAdapter) -> int:
         """Scanner LOC this adapter should have covered, family-folded like ``_adapter_names_for``."""
@@ -1096,7 +1071,7 @@ class StaticAnalyzer:
             adapter = engine_config.adapter
             if adapter.fail_on_empty_symbols is not True:
                 continue
-            language = adapter.language_enum
+            language = adapter.results_language
             source_files = results.get_source_files(language)
             if not source_files:
                 continue

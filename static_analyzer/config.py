@@ -125,6 +125,10 @@ SOURCE_EXTENSION_TO_LANGUAGE: dict[str, Language] = {
     ext: language for language, exts in LANGUAGE_EXTENSIONS.items() for ext in exts
 }
 
+# One server serves the whole TypeScript/JavaScript family, so its results live in one
+# bucket. This says which member owns that bucket, so a read for either still finds it.
+FAMILY_OWNER: dict[Language, Language] = {Language.JAVASCRIPT: Language.TYPESCRIPT}
+
 # The languageId a document is opened with. Follows the file, not whichever adapter
 # owns the family, so a .tsx is never opened as plain "typescript".
 LANGUAGE_ID_BY_SUFFIX: dict[str, str] = {

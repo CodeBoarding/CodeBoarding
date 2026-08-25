@@ -11,6 +11,10 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 class TypeScriptAdapter(LanguageAdapter):
 
     @property
+    def results_language(self) -> Language:
+        return Language.TYPESCRIPT
+
+    @property
     def language(self) -> str:
         return "TypeScript"
 

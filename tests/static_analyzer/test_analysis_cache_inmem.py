@@ -360,6 +360,7 @@ class TestUpdateCachedResultsCarriesPartition(unittest.TestCase):
         adapter = MagicMock()
         adapter.language = "Python"
         adapter.language_enum = Language.PYTHON
+        adapter.results_language = Language.PYTHON
         analyzer._engine_clients = [(EngineConfig(adapter=adapter, project_path=project), MagicMock())]
         analyzer.collected_diagnostics = {}
         analyzer.ignore_manager = MagicMock()

@@ -217,11 +217,14 @@ def run_health_checks(
 
     check_summaries: CheckSummaryList = []
 
+    present = sorted(static_analysis.present_languages(), key=str)
     for language in languages:
         lang_summaries = _collect_checks_for_language(static_analysis, language, config, ignore_manager)
-        if len(languages) > 1:
+        # A bucket can hold a whole family, so label with what it contains rather than its key.
+        in_bucket = sorted(static_analysis.source_languages(language), key=str)
+        if len(present) > 1 and len(in_bucket) == 1:
             for summary in lang_summaries:
-                summary.language = language
+                summary.language = in_bucket[0]
         check_summaries.extend(lang_summaries)
 
     overall_score = _compute_overall_score(check_summaries)
