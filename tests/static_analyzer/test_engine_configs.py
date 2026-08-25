@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 from pathlib import Path
 
@@ -266,3 +267,22 @@ class TestTsconfigExcludeIsHonoured(unittest.TestCase):
     def test_the_ignore_file_still_wins_over_an_empty_exclude(self):
         root = self._repo()
         self.assertNotIn("e2e/spec.js", self._topped_up(root, []))
+
+
+class TestTscIsAskedForJavaScript(unittest.TestCase):
+    """tsc decides family membership, so it has to be asked about the JS too."""
+
+    def test_showconfig_requests_allowjs(self):
+        scanner = TypeScriptConfigScanner(Path("/repo"), ignore_manager=RepoIgnoreManager(Path("/repo")))
+        with patch("static_analyzer.typescript_config_scanner.subprocess.run") as run:
+            run.return_value = SimpleNamespace(returncode=0, stdout='{"files": []}', stderr="")
+            scanner._showconfig(Path("/repo"), ["tsc", "--showConfig"])
+        self.assertIn("--allowJs", run.call_args[0][0])
+
+    def test_exclude_is_carried_off_showconfig(self):
+        scanner = TypeScriptConfigScanner(Path("/repo"), ignore_manager=RepoIgnoreManager(Path("/repo")))
+        payload = '{"files": [], "exclude": ["legacy", "**/*.gen.ts"]}'
+        with patch("static_analyzer.typescript_config_scanner.subprocess.run") as run:
+            run.return_value = SimpleNamespace(returncode=0, stdout=payload, stderr="")
+            _, excluded = scanner._resolve_project_files(Path("/repo"), ["tsc", "--showConfig"], [])
+        self.assertEqual(excluded, ["legacy", "**/*.gen.ts"])
