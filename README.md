@@ -144,7 +144,7 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 
 `openai_base_url` points CodeBoarding at any OpenAI-compatible gateway. Set the gateway API key as `openai_api_key`, then choose its model IDs with `agent_model` and `parsing_model`. The equivalent shell variables are `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `AGENT_MODEL`, and `PARSING_MODEL`.
 
-`anthropic_base_url` points the Anthropic client at a compatible Messages API, including Azure Foundry Claude deployments. Set the deployment key as `anthropic_api_key` and use deployment names for `agent_model` and `parsing_model`.
+`anthropic_base_url` points the Anthropic client at a compatible Messages API, including Azure Foundry Claude deployments. Set the deployment key as `anthropic_api_key` and use canonical Anthropic model IDs such as `claude-sonnet-5` for `agent_model` and `parsing_model` so CodeBoarding selects the correct model capabilities and prompts.
 
 Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, and `OLLAMA_BASE_URL` take precedence over the config file. For private repositories, set `GITHUB_TOKEN` in your environment.
 

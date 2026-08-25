@@ -123,23 +123,35 @@ class TestProviderSelection:
             assert aws.get_api_key() is None
             assert aws.has_real_api_key() is False
 
-    def test_anthropic_base_url_is_passed_to_client(self):
+    def test_anthropic_client_options_are_resolved(self):
         env = {
             "ANTHROPIC_API_KEY": "sk-ant-test",
             "ANTHROPIC_BASE_URL": "https://resource.services.ai.azure.com/anthropic",
         }
         with patch.dict(os.environ, env, clear=True):
             anthropic = LLM_PROVIDERS["anthropic"]
-            assert anthropic.get_resolved_extra_args()["base_url"] == env["ANTHROPIC_BASE_URL"]
+            extra_args = anthropic.get_resolved_extra_args()
+            assert extra_args["base_url"] == env["ANTHROPIC_BASE_URL"]
+            assert extra_args["thinking"] == {"type": "disabled"}
 
-    def test_anthropic_base_url_without_key_is_rejected(self):
-        with patch.dict(
-            os.environ,
-            {"ANTHROPIC_BASE_URL": "https://resource.services.ai.azure.com/anthropic"},
-            clear=True,
-        ):
+    def test_anthropic_base_url_requires_key_without_selecting_provider(self):
+        env = {"ANTHROPIC_BASE_URL": "https://resource.services.ai.azure.com/anthropic"}
+        with patch.dict(os.environ, env, clear=True):
+            assert LLM_PROVIDERS["anthropic"].is_selected_by_env() is False
             with pytest.raises(LLMConfigError, match="requires ANTHROPIC_API_KEY"):
                 validate_api_key_provided()
+
+    def test_anthropic_base_url_does_not_conflict_with_selected_provider(self):
+        env = {
+            "OPENAI_API_KEY": "sk-test",
+            "ANTHROPIC_BASE_URL": "https://resource.services.ai.azure.com/anthropic",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            validate_api_key_provided()
+
+    def test_native_provider_base_url_without_key_remains_valid(self):
+        with patch.dict(os.environ, {"DEEPSEEK_BASE_URL": "http://localhost:8000/v1"}, clear=True):
+            validate_api_key_provided()
 
 
 class TestLLMConfigKeyless:
@@ -591,6 +603,7 @@ class TestTemperatureGating:
         [
             "claude-opus-4-7",
             "claude-opus-4-8",
+            "claude-opus-5",
             "claude-sonnet-5",
             "claude-fable-5",
             "claude-mythos-5",

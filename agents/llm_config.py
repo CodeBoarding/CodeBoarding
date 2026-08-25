@@ -31,6 +31,7 @@ _OPENROUTER_FALLBACK_CONTEXT_WINDOW = ContextWindow(1_048_576, 65_536, is_fallba
 _SAMPLING_PARAM_FREE_MODEL_SUBSTRINGS = (
     "claude-opus-4-7",
     "claude-opus-4-8",
+    "claude-opus-5",
     "claude-sonnet-5",
     "claude-fable-5",
     "claude-mythos-5",
@@ -174,13 +175,14 @@ LLM_PROVIDERS = {
     ),
     "anthropic": LLMConfig(
         chat_class=ChatAnthropic,
-        selection_envs=["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"],
+        selection_envs=["ANTHROPIC_API_KEY"],
         api_key_env="ANTHROPIC_API_KEY",
         agent_model="claude-sonnet-5",
         parsing_model="claude-haiku-4-5",
         llm_type=LLMType.CLAUDE,
         extra_args={
             "base_url": lambda: os.getenv("ANTHROPIC_BASE_URL"),
+            "thinking": {"type": "disabled"},
             "max_tokens": 8192,
             "timeout": None,
             "max_retries": 0,
@@ -412,14 +414,20 @@ def validate_api_key_provided() -> None:
     capable providers (self-hosted / OpenAI-compatible endpoints, e.g. an
     ``OPENAI_BASE_URL`` with no key) are therefore valid: they are selected by
     their base URL, and the client falls back to a placeholder key downstream.
-    In that case we log a warning rather than fail. Ambiguity detection (more
-    than one selected provider) is preserved so a stray second key is still
-    surfaced, and a key set for an unselected provider (e.g. LITELLM_API_KEY
-    without LITELLM_BASE_URL) is reported rather than silently ignored.
+    In that case we log a warning rather than fail.
+    An ``ANTHROPIC_BASE_URL`` alone reports its missing key without selecting
+    Anthropic when another provider is configured.
+    Ambiguity detection (more than one selected provider) is preserved so a
+    stray second key is still surfaced, and a key set for an unselected provider
+    (e.g. LITELLM_API_KEY without LITELLM_BASE_URL) is reported rather than
+    silently ignored.
     """
     hints = _unselected_key_hints()
     selected = selected_providers()
     if not selected:
+        anthropic = LLM_PROVIDERS["anthropic"]
+        if os.getenv("ANTHROPIC_BASE_URL") and not anthropic.has_real_api_key():
+            raise LLMConfigError("Provider 'anthropic' requires ANTHROPIC_API_KEY.")
         message = f"No LLM provider selected. Set one of: {', '.join(_all_selection_envs())}."
         raise LLMConfigError(" ".join([message, *hints]))
     if len(selected) > 1:
@@ -436,8 +444,6 @@ def validate_api_key_provided() -> None:
             name,
             config.api_key_env,
         )
-    elif config.api_key_env and not config.has_real_api_key():
-        raise LLMConfigError(f"Provider '{name}' requires {config.api_key_env}.")
 
 
 def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:

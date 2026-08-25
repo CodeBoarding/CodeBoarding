@@ -18,7 +18,7 @@ from utils import CODEBOARDING_DIR_NAME
 
 CONFIG_PATH = Path.home() / CODEBOARDING_DIR_NAME / "config.toml"
 
-# Both dicts feed config.toml's [provider] table; values are injected into
+# These mappings feed config.toml's [provider] table; values are injected into
 # os.environ at startup. Provider selection itself is decided solely by
 # LLMConfig.selection_envs in agents/llm_config.py — membership here only
 # controls what can live in config.toml (contract-tested in tests/test_user_config.py).
@@ -44,12 +44,16 @@ _PROVIDER_SECRETS: dict[str, str] = {
 # Defaulted base URLs (vercel, deepseek, glm, kimi) are shell-override-only on purpose.
 _PROVIDER_ENDPOINTS: dict[str, str] = {
     "openai_base_url": "OPENAI_BASE_URL",
-    "anthropic_base_url": "ANTHROPIC_BASE_URL",
     "ollama_base_url": "OLLAMA_BASE_URL",
     "litellm_base_url": "LITELLM_BASE_URL",
 }
 
-_PROVIDER_KEY_TO_ENV: dict[str, str] = _PROVIDER_SECRETS | _PROVIDER_ENDPOINTS
+# Optional endpoints forwarded after another setting selects the provider.
+_PROVIDER_ENDPOINT_OVERRIDES: dict[str, str] = {
+    "anthropic_base_url": "ANTHROPIC_BASE_URL",
+}
+
+_PROVIDER_KEY_TO_ENV: dict[str, str] = _PROVIDER_SECRETS | _PROVIDER_ENDPOINTS | _PROVIDER_ENDPOINT_OVERRIDES
 
 # Template written to ~/.codeboarding/config.toml on first install.
 CONFIG_TEMPLATE = """\

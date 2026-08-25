@@ -2,6 +2,7 @@ import os
 
 from agents.llm_config import LLM_PROVIDERS
 from user_config import (
+    _PROVIDER_ENDPOINT_OVERRIDES,
     _PROVIDER_ENDPOINTS,
     _PROVIDER_SECRETS,
     CONFIG_TEMPLATE,
@@ -237,7 +238,7 @@ class TestProviderEnvContract:
                     f"'{config.api_key_env.lower()}' to _PROVIDER_SECRETS in user_config.py."
                 )
 
-    def test_secrets_are_secrets_and_endpoints_are_endpoints(self):
+    def test_provider_setting_buckets_are_consistent(self):
         # The bucket names are the documentation - keep them honest.
         key_envs = {c.api_key_env for c in LLM_PROVIDERS.values() if c.api_key_env}
         # Credentials consumed by the SDK itself rather than passed as a kwarg
@@ -252,9 +253,14 @@ class TestProviderEnvContract:
         assert (
             not stray_endpoints
         ), f"_PROVIDER_ENDPOINTS entries that are not non-secret selection vars: {sorted(stray_endpoints)}"
+        selecting_overrides = set(_PROVIDER_ENDPOINT_OVERRIDES.values()) & selection_envs
+        assert not selecting_overrides, (
+            "_PROVIDER_ENDPOINT_OVERRIDES entries must not select providers: " f"{sorted(selecting_overrides)}"
+        )
 
     def test_entries_are_discoverable_and_loadable(self):
-        for key, env in (_PROVIDER_SECRETS | _PROVIDER_ENDPOINTS).items():
+        provider_settings = _PROVIDER_SECRETS | _PROVIDER_ENDPOINTS | _PROVIDER_ENDPOINT_OVERRIDES
+        for key, env in provider_settings.items():
             assert key == env.lower(), f"config key '{key}' must be the lowercase of '{env}'"
             assert (
                 key in ProviderUserConfig.__dataclass_fields__
