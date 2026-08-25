@@ -212,9 +212,8 @@ class StaticAnalysisCache:
                 )
                 return None
         elif self._tag_version_is_stale():
-            # A read-only consumer asks for no SHA gate, but a pickle an older engine wrote
-            # still describes a graph this build would not produce. Only a tag that exists and
-            # disagrees rejects; the untagged legacy artifact below is still read.
+            # No SHA gate still means no stale engine: a tag that exists and disagrees rejects,
+            # while the untagged legacy artifact below is still read.
             return None
 
         target = self.pkl_path

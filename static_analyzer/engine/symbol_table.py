@@ -272,8 +272,7 @@ class SymbolTable:
     def attribution_symbol(self, sym: SymbolInfo) -> SymbolInfo:
         """The innermost enclosing declaration a reader would name, or ``sym`` itself.
 
-        Why not reused as the container: the reference guards need the innermost symbol, and
-        widening it there drops grounded call sites.
+        Why credit only: the guards need the innermost symbol, widening it there drops call sites.
         """
         if not self._is_unnameable(sym):
             return sym
