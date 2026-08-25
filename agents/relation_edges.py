@@ -1,6 +1,6 @@
 """Merge component relations and index their source endpoints."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
@@ -54,18 +54,13 @@ def index_relation_endpoints(analysis: AnalysisInsights, repo_dir: Path) -> None
             entry.merge_method_spans(spans)
 
 
-def edge_touches_change(source: str, target: str, changed_members: set[str] | None) -> bool:
-    """Whether this edge is evidence the commit gives for re-describing its pair.
-
-    Symmetric, unlike ``_edge_touches_changed_method``: either end moving warrants a re-description.
-    """
-    if not changed_members:
-        return False
+def edge_touches_change(source: str, target: str, changed_members: Collection[str]) -> bool:
+    """Return whether either endpoint changed and warrants re-describing the pair."""
     return source in changed_members or target in changed_members
 
 
 def pair_untouched_by_change(
-    relation: Relation, changed_members: set[str] | None, previous: Relation | None = None
+    relation: Relation, changed_members: Collection[str], previous: Relation | None = None
 ) -> bool:
     """Whether the commit gives no reason to re-describe this pair.
 
@@ -75,10 +70,10 @@ def pair_untouched_by_change(
     if not changed_members:
         return False
     edges = list(relation.all_edges or relation.key_edges)
-    if not edges:
-        return False
     if previous is not None:
         edges += list(previous.all_edges or previous.key_edges)
+    if not edges:
+        return False
     return not any(
         edge_touches_change(edge.source.qualified_name, edge.target.qualified_name, changed_members) for edge in edges
     )
@@ -360,15 +355,16 @@ def preserve_unchanged_relations(
     live_ids: set[str],
     live_qnames: set[str],
     changed_members: set[str] | None = None,
+    gated_members: Collection[str] = (),
 ) -> list[Relation]:
     """Keep the wording a reader already read for any relation whose call edges did not move.
 
     Regeneration re-derives every relation in its scope and re-words even the edges between
     components whose connection is unchanged, so a one-line diff relabels the whole diagram.
     The label carries forward whenever the pair's backing call edges are identical to the
-    baseline; the call edges themselves always come from the fresh rebuild — they are the
-    structural truth and must never go stale. A pair is re-worded only when its connection
-    genuinely moved (an edge appeared, vanished, or repointed).
+    baseline and the incremental prompt summarized the pair. The call edges themselves always
+    come from the fresh rebuild — they are the structural truth and must never go stale. A pair
+    is re-worded when its connection moved or the commit changed one of its call endpoints.
 
     The endpoint-change set alone is too coarse to gate wording: a component is flagged
     changed for any module-level edit to a file it merely co-owns, and clustering disperses
@@ -416,31 +412,23 @@ def preserve_unchanged_relations(
             continue
         if changed_members is not None and _commit_deleted_the_backing(relation, previous, changed_members):
             continue
-        # Keep the reader's wording unless this pair's own supporting calls moved.
-        #
-        # The supporting calls are the concrete method-to-method calls under the relation — the
-        # ones that show WHERE one component reaches the other. They are the only evidence that
-        # the connection itself changed, so they are what decides whether it may be re-worded.
-        # Gating on the endpoint components' change flags instead re-words far more: a component
-        # is flagged for any edit to a file it merely co-owns, so deleting one function re-worded
-        # 17 of the relations in `referenced-symbol-deleted` whose calls had not moved at all.
-        # A pair with no supporting calls has nothing that could have moved, so its wording is
-        # kept too — an edgeless runtime relation is prose, and re-rolling prose is the churn.
-        #
-        # The last disjunct pairs with the prompt: a pair carrying no edge the commit touched
-        # is rendered to the model as a bare count, so it cannot have been described afresh and
-        # must keep the baseline's wording. Without it, gating the prompt would trade edge
-        # churn for wording churn.
-        if (
-            not touches_change(*pair)
-            or _relation_edges_unmoved(relation, previous)
-            or (not _backing_edge_pairs(relation) and not relation.evidence.strip())
-            or pair_untouched_by_change(relation, changed_members, previous)
+        pair_untouched = pair_untouched_by_change(relation, gated_members, previous)
+        pair_has_edges = bool(relation.all_edges or relation.key_edges or previous.all_edges or previous.key_edges)
+        pair_touched = bool(gated_members) and pair_has_edges and not pair_untouched
+        if pair_untouched or (
+            not pair_touched
+            and (
+                not touches_change(*pair)
+                or _relation_edges_unmoved(relation, previous)
+                or (not _backing_edge_pairs(relation) and not relation.evidence.strip())
+            )
         ):
             relation = _restore_baseline_wording(relation, previous)
         kept.append(relation)
     for pair, relation in baseline_by_pair.items():
-        if pair in rebuilt_pairs or touches_change(*pair) or pair[0] not in live_ids or pair[1] not in live_ids:
+        if pair in rebuilt_pairs or pair[0] not in live_ids or pair[1] not in live_ids:
+            continue
+        if touches_change(*pair) and not pair_untouched_by_change(relation, gated_members):
             continue
         if not _relation_backing_survives(relation, live_qnames):
             continue

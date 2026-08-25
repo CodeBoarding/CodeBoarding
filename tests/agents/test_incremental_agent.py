@@ -581,14 +581,18 @@ class TestIncrementalRelations(unittest.TestCase):
                 clustering=clustering,
                 changed_ids=frozenset({"1", "2"}),
             ),
+            {source.fully_qualified_name},
+            {"settings.py"},
         )
 
         self.assertEqual(generated, relation_result.components_relations)
         self.assertEqual(agent._parse_invoke.call_args.args[1], ComponentApiSurfaces)
         self.assertNotIn("legacy relation", agent._parse_invoke.call_args.args[0])
+        self.assertNotIn("untouched pairs show counts only", agent._parse_invoke.call_args.args[0])
         relation_call = agent._invoke_validate.call_args
         self.assertEqual(relation_call.args[1], ComponentRelations)
         self.assertNotIn("legacy relation", relation_call.args[0])
+        self.assertNotIn("untouched pairs show counts only", relation_call.args[0])
         self.assertEqual(relation_call.kwargs["validators"][0].__name__, "validate_relations")
         self.assertEqual(len(scope.components_relations), 1)
         relation = scope.components_relations[0]
@@ -613,9 +617,21 @@ class TestIncrementalRelations(unittest.TestCase):
         root = AnalysisInsights(description="root", components=[], components_relations=[])
         context = ScopeRelationContext(clustering=_clustering())
 
-        agent.generate_all_scope_relations(root, {}, {"root": context}, {"pkg.changed"})
+        agent.generate_all_scope_relations(
+            root,
+            {},
+            {"root": context},
+            {"pkg.changed"},
+            {"settings.py"},
+        )
 
-        agent.generate_scope_relations.assert_called_once_with(root, "root", context, {"pkg.changed"})
+        agent.generate_scope_relations.assert_called_once_with(
+            root,
+            "root",
+            context,
+            {"pkg.changed"},
+            {"settings.py"},
+        )
 
     def test_single_component_scope_clears_stale_relations_and_resolves_references(self) -> None:
         agent = object.__new__(IncrementalAgent)

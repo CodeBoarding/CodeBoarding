@@ -1,13 +1,11 @@
-"""An incremental prompt details the pairs the commit touched and counts the rest.
-
-The gate and the wording-restore path share one predicate on purpose: a pair the model was
-shown as a bare count must never end up carrying a model-authored label.
-"""
+"""Keep incremental CFG evidence gating and relation preservation aligned."""
 
 import unittest
 
 from agents.agent_responses import Relation, RelationEdge, SourceCodeReference
-from agents.relation_edges import edge_touches_change, pair_untouched_by_change
+from agents.llm_renderers import render_scope_connections
+from agents.relation_edges import edge_touches_change, pair_untouched_by_change, preserve_unchanged_relations
+from static_analyzer.clustering import ClusterConnectionEdge, ClusterScopeResult, GroupConnection
 
 
 def edge(src: str, dst: str) -> RelationEdge:
@@ -19,6 +17,26 @@ def edge(src: str, dst: str) -> RelationEdge:
 
 def relation(*edges: RelationEdge) -> Relation:
     return Relation(relation="calls", src_name="1", dst_name="2", src_id="1", dst_id="2", all_edges=list(edges))
+
+
+def clustering(*edges: tuple[str, str]) -> ClusterScopeResult:
+    return ClusterScopeResult(
+        scope_id="root",
+        connections=[
+            GroupConnection(
+                source_group_id="1",
+                target_group_id="2",
+                edges=[
+                    ClusterConnectionEdge(
+                        language="python",
+                        source_qualified_name=source,
+                        target_qualified_name=target,
+                    )
+                    for source, target in edges
+                ],
+            )
+        ],
+    )
 
 
 class TestEdgeTouchesChange(unittest.TestCase):
@@ -34,7 +52,6 @@ class TestEdgeTouchesChange(unittest.TestCase):
         self.assertFalse(edge_touches_change("pkg.caller", "pkg.callee", {"pkg.elsewhere"}))
 
     def test_a_full_run_has_no_changed_members(self):
-        self.assertFalse(edge_touches_change("pkg.caller", "pkg.callee", None))
         self.assertFalse(edge_touches_change("pkg.caller", "pkg.callee", set()))
 
 
@@ -53,12 +70,7 @@ class TestPairUntouchedByChange(unittest.TestCase):
 
     def test_a_full_run_never_reports_a_pair_untouched(self):
         rel = relation(edge("pkg.a", "pkg.b"))
-        self.assertFalse(pair_untouched_by_change(rel, None))
         self.assertFalse(pair_untouched_by_change(rel, set()))
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestDeletedCallEvidence(unittest.TestCase):
@@ -73,3 +85,97 @@ class TestDeletedCallEvidence(unittest.TestCase):
         rebuilt = relation(edge("pkg.stable", "pkg.callee"))
         previous = relation(edge("pkg.stable", "pkg.callee"))
         self.assertTrue(pair_untouched_by_change(rebuilt, {"pkg.elsewhere"}, previous))
+
+    def test_an_untouched_baseline_counts_when_the_rebuild_has_no_edges(self):
+        rebuilt = relation()
+        previous = relation(edge("pkg.stable", "pkg.callee"))
+        self.assertTrue(pair_untouched_by_change(rebuilt, {"pkg.elsewhere"}, previous))
+
+
+class TestScopeConnectionRendering(unittest.TestCase):
+    def test_full_run_output_is_unchanged(self):
+        rendered = render_scope_connections(
+            clustering(("pkg.caller", "pkg.callee")),
+            {"1": "A", "2": "B"},
+        )
+
+        self.assertEqual(rendered, "\nA -> B (1 edge):\n  caller -> callee")
+
+    def test_untouched_pair_collapses_to_its_count(self):
+        rendered = render_scope_connections(
+            clustering(("pkg.caller", "pkg.callee")),
+            {"1": "A", "2": "B"},
+            {"pkg.elsewhere"},
+        )
+
+        self.assertIn("A -> B (1 edge, none touched by this change)", rendered)
+        self.assertNotIn("caller -> callee", rendered)
+
+    def test_touched_calls_render_first(self):
+        rendered = render_scope_connections(
+            clustering(
+                ("pkg.stable", "pkg.callee"),
+                ("pkg.changed", "pkg.callee"),
+            ),
+            {"1": "A", "2": "B"},
+            {"pkg.changed"},
+        )
+
+        self.assertLess(rendered.index("* changed -> callee"), rendered.index("stable -> callee"))
+
+    def test_deleted_call_is_shown_as_changed_evidence(self):
+        previous = relation(
+            edge("pkg.stable", "pkg.callee"),
+            edge("pkg.removed", "pkg.callee"),
+        )
+
+        rendered = render_scope_connections(
+            clustering(("pkg.stable", "pkg.callee")),
+            {"1": "A", "2": "B"},
+            {"pkg.removed"},
+            {("1", "2"): previous},
+        )
+
+        self.assertIn("1 touched by this change", rendered)
+        self.assertIn("- removed -> callee", rendered)
+        self.assertNotIn("none touched by this change", rendered)
+
+
+class TestGatedRelationPreservation(unittest.TestCase):
+    def test_touched_pair_with_identical_edges_keeps_new_wording(self):
+        rebuilt = relation(edge("pkg.caller", "pkg.callee"))
+        rebuilt.relation = "new wording"
+        previous = relation(edge("pkg.caller", "pkg.callee"))
+        previous.relation = "old wording"
+
+        kept = preserve_unchanged_relations(
+            [rebuilt],
+            {("1", "2"): previous},
+            {"2"},
+            {"1", "2"},
+            {"pkg.caller", "pkg.callee"},
+            {"pkg.callee"},
+            {"pkg.callee"},
+        )
+
+        self.assertEqual(kept[0].relation, "new wording")
+
+    def test_omitted_cold_pair_is_restored(self):
+        previous = relation(edge("pkg.caller", "pkg.callee"))
+        previous.relation = "old wording"
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): previous},
+            {"1"},
+            {"1", "2"},
+            {"pkg.caller", "pkg.callee"},
+            {"pkg.elsewhere"},
+            {"pkg.elsewhere"},
+        )
+
+        self.assertEqual(kept[0].relation, "old wording")
+
+
+if __name__ == "__main__":
+    unittest.main()

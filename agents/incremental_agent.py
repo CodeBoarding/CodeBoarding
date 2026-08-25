@@ -3,6 +3,7 @@
 import logging
 import os
 import threading
+from collections.abc import Collection
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -377,6 +378,7 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         scope_name: str,
         context: ScopeRelationContext,
         changed_members: set[str] | None = None,
+        unattributed_files: Collection[str] = (),
     ) -> list[Relation]:
         """Run the API-surface and relation stages for one updated scope, or skip both when nothing in it changed."""
         if len(scope.components) < 2:
@@ -403,12 +405,15 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             if relation.src_name and relation.dst_name
         }
 
+        gated_members: set[str] = set()
         if context.changed_ids:
             # Rendered once and shared: both prompts must agree on what the commit touched.
+            gated_members = set() if unattributed_files else changed_members or set()
             static_call_evidence = render_scope_connections(
                 context.clustering,
                 {component.component_id: component.name for component in scope.components},
-                changed_members,
+                gated_members,
+                baseline_by_pair,
             )
             api_surfaces = self.step_api_surfaces(scope, scope_name, static_call_evidence)
             rels = self.step_relation_analysis(
@@ -463,6 +468,7 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
                 live_ids,
                 live_qnames,
                 changed_members,
+                gated_members,
             )
             # Preservation runs after the grounding filters and re-injects baseline edges, so
             # the assembled list is filtered once more — otherwise a baseline's invented or
@@ -482,6 +488,7 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         sub_analyses: dict[str, AnalysisInsights],
         relation_contexts: dict[str, ScopeRelationContext],
         changed_members: set[str] | None = None,
+        unattributed_files: Collection[str] = (),
     ) -> None:
         """Regenerate relations for every touched scope with at least two components.
 
@@ -498,11 +505,25 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
 
         if len(tasks) <= 1:
             results = [
-                (scope_id, self.generate_scope_relations(scope, scope_id, relation_contexts[scope_id], changed_members))
+                (
+                    scope_id,
+                    self.generate_scope_relations(
+                        scope,
+                        scope_id,
+                        relation_contexts[scope_id],
+                        changed_members,
+                        unattributed_files,
+                    ),
+                )
                 for scope_id, scope in tasks
             ]
         else:
-            results = self._generate_scope_relations_parallel(tasks, relation_contexts, changed_members)
+            results = self._generate_scope_relations_parallel(
+                tasks,
+                relation_contexts,
+                changed_members,
+                unattributed_files,
+            )
 
         all_llm_rels = [
             (scope_id, rels) for scope_id, rels in results if rels and relation_contexts[scope_id].changed_ids
@@ -516,6 +537,7 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         tasks: list[tuple[str, AnalysisInsights]],
         relation_contexts: dict[str, ScopeRelationContext],
         changed_members: set[str] | None,
+        unattributed_files: Collection[str],
     ) -> list[tuple[str, list[Relation]]]:
         """Regenerate each scope's relations concurrently, one agent clone per worker thread.
 
@@ -536,7 +558,11 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
                 with workers_lock:
                     workers.append(worker)
             return scope_id, worker.generate_scope_relations(
-                scope, scope_id, relation_contexts[scope_id], changed_members
+                scope,
+                scope_id,
+                relation_contexts[scope_id],
+                changed_members,
+                unattributed_files,
             )
 
         try:
