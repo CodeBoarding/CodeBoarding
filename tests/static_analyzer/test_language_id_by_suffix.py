@@ -3,7 +3,7 @@
 import unittest
 from pathlib import Path
 
-from static_analyzer.constants import LANGUAGE_ID_BY_SUFFIX, JsxLanguageId, Language, SourceSuffix
+from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX, JsxLanguageId, Language, SourceSuffix
 
 
 class TestLanguageIdPerSuffix(unittest.TestCase):

@@ -16,7 +16,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from static_analyzer.constants import LANGUAGE_ID_BY_SUFFIX
+from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 

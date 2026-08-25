@@ -59,9 +59,10 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v3: MethodClusterPaths moved to static_analyzer.clustering, then CallGraph and the edge
 # types to static_analyzer.cfg, and reference edges became ReferenceEdge objects.
 # v4: ClusterCache records complete structural and unclustered lineage per hierarchy scope.
-# v5: .tsx/.jsx open with the JSX language id, so tsserver stops parsing JSX as type
-# assertions — every TypeScript graph built before this is flattened and carries symbols
-# registered at usage positions.
+# v5: every TypeScript/JavaScript graph changes. The language id follows the file, so a
+# .tsx is no longer parsed as type assertions; one engine owns the family, so the degraded
+# second bucket is gone; calls are credited to the enclosing declaration; and a call in a
+# declaration's body or initialiser counts as an edge.
 # Older pickles are treated as cache misses and re-run.
 _TAG_VERSION = "v5"
 
