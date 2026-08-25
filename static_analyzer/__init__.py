@@ -11,7 +11,7 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
-from static_analyzer.config import Language
+from static_analyzer.config import AdapterName, Language
 from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
@@ -96,6 +96,31 @@ def recommended_engine_concurrency(engine_count: int) -> int:
     return max(1, min(engine_count, cpu_bound, memory_bound))
 
 
+def _adapter_names_for(programming_languages: list[ProgrammingLanguage]) -> list[str]:
+    """Deduplicated engine-adapter names for the scanner's detected languages.
+
+    Why: the scanner reports TypeScript, TSX, JavaScript and JSX separately, but one server
+    serves them all, and one adapter per detected name indexes the same files into separate
+    buckets that then cluster as separate codebases.
+    """
+    names: list[str] = []
+    for pl in programming_languages:
+        if not pl.is_supported_lang():
+            logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")
+            continue
+        adapter_name = _lang_to_adapter_name(pl.language)
+        if adapter_name is None:
+            logger.warning(f"No engine adapter for language: {pl.language}. Skipping.")
+            continue
+        if adapter_name not in names:
+            names.append(adapter_name)
+    # TypeScript's adapter already covers the JavaScript suffixes, so a second engine over
+    # the same family would only duplicate it. JavaScript keeps its own when alone.
+    if AdapterName.TYPESCRIPT in names and AdapterName.JAVASCRIPT in names:
+        names.remove(AdapterName.JAVASCRIPT)
+    return names
+
+
 def _create_engine_configs(
     programming_languages: list[ProgrammingLanguage],
     repository_path: Path,
@@ -108,19 +133,7 @@ def _create_engine_configs(
     """
     configs: list[EngineConfig] = []
 
-    for pl in programming_languages:
-        if not pl.is_supported_lang():
-            logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")
-            continue
-
-        lang_lower = pl.language.lower()
-
-        # Map CodeBoarding ProgrammingLanguage to engine adapter name
-        adapter_name = _lang_to_adapter_name(pl.language)
-        if adapter_name is None:
-            logger.warning(f"No engine adapter for language: {pl.language}. Skipping.")
-            continue
-
+    for adapter_name in _adapter_names_for(programming_languages):
         try:
             adapter = get_adapter(adapter_name)
         except ValueError:
@@ -128,7 +141,7 @@ def _create_engine_configs(
             continue
 
         try:
-            if lang_lower in (Language.TYPESCRIPT, Language.JAVASCRIPT):
+            if adapter_name in (AdapterName.TYPESCRIPT, AdapterName.JAVASCRIPT):
                 ts_config_scanner = TypeScriptConfigScanner(repository_path, ignore_manager=ignore_manager)
                 typescript_projects = ts_config_scanner.find_typescript_projects()
 
@@ -154,12 +167,19 @@ def _create_engine_configs(
                         f"({len(union)} files across {len(typescript_projects)} tsconfig project(s): "
                         f"{project_dirs})"
                     )
+                    # tsconfig membership is authoritative for what it covers, but it omits
+                    # .js unless ``allowJs`` is set. One adapter owns the whole family, so top
+                    # up with what no project claimed rather than analysing half a mixed repo.
+                    unclaimed = ts_config_scanner.find_unclaimed_family_files(typescript_projects)
+                    if unclaimed:
+                        logger.info(f"Adding {len(unclaimed)} family file(s) claimed by no tsconfig")
+                        union.extend(unclaimed)
                     configs.append(EngineConfig(adapter, repository_path, source_files=union))
                 else:
                     logger.info(f"No TypeScript config files found, using repository root for {adapter_name}")
                     configs.append(EngineConfig(adapter, repository_path))
 
-            elif lang_lower == Language.JAVA:
+            elif adapter_name == AdapterName.JAVA:
                 java_config_scanner = JavaConfigScanner(repository_path, ignore_manager=ignore_manager)
                 java_projects = java_config_scanner.scan()
 
@@ -173,7 +193,7 @@ def _create_engine_configs(
                 else:
                     logger.info("No Java projects detected")
 
-            elif lang_lower in (Language.CSHARP, "c#"):
+            elif adapter_name == AdapterName.CSHARP:
                 csharp_scanner = CSharpConfigScanner(repository_path, ignore_manager=ignore_manager)
                 csharp_projects = csharp_scanner.scan()
 
@@ -191,7 +211,7 @@ def _create_engine_configs(
                 configs.append(EngineConfig(adapter, repository_path))
 
         except RuntimeError as e:
-            logger.error(f"Failed to create engine config for {pl.language}: {e}")
+            logger.error(f"Failed to create engine config for {adapter_name}: {e}")
 
     return configs
 
@@ -199,17 +219,18 @@ def _create_engine_configs(
 def _lang_to_adapter_name(language: str) -> str | None:
     """Map a ProgrammingLanguage name to the engine adapter registry key."""
     mapping: dict[str, str] = {
-        "python": "Python",
-        "typescript": "TypeScript",
-        "javascript": "JavaScript",
-        "tsx": "TypeScript",
-        "jsx": "JavaScript",
-        "c#": "CSharp",
-        "csharp": "CSharp",
-        "go": "Go",
-        "java": "Java",
-        "php": "PHP",
-        "rust": "Rust",
+        Language.PYTHON: AdapterName.PYTHON,
+        Language.TYPESCRIPT: AdapterName.TYPESCRIPT,
+        Language.JAVASCRIPT: AdapterName.JAVASCRIPT,
+        Language.CSHARP: AdapterName.CSHARP,
+        Language.GO: AdapterName.GO,
+        Language.JAVA: AdapterName.JAVA,
+        Language.PHP: AdapterName.PHP,
+        Language.RUST: AdapterName.RUST,
+        # Scanner spellings with no ``Language`` member of their own.
+        "tsx": AdapterName.TYPESCRIPT,
+        "jsx": AdapterName.JAVASCRIPT,
+        "c#": AdapterName.CSHARP,
     }
     return mapping.get(language.lower())
 
@@ -495,7 +516,7 @@ class StaticAnalyzer:
         for engine_config, client in self._live_clients("collect_fresh_diagnostics"):
             diags = client.get_collected_diagnostics()
             if diags:
-                result[engine_config.adapter.language_enum] = diags
+                result[engine_config.adapter.results_language] = diags
         return result
 
     def get_diagnostics_generation(self) -> int:
@@ -557,7 +578,7 @@ class StaticAnalyzer:
             adapter = engine_config.adapter
             if suffix in adapter.file_extensions:
                 # Open + change to ensure the server has the latest content
-                client.did_open(file_path, adapter.language_id)
+                client.did_open(file_path)
                 client.did_change(file_path, content)
                 logger.debug(f"Sent didOpen+didChange for {file_path} to {adapter.language} engine LSP")
 
@@ -693,6 +714,15 @@ class StaticAnalyzer:
         else:
             warm_start = cache.load_with_sha()
             if warm_start is None:
+                # An artifact that is present but unreadable means an engine version whose
+                # graph this build would not reproduce. Refuse rather than quietly running a
+                # full pass: the caller asked for incremental, and the full result would
+                # overwrite the very artifact a later run could have reused.
+                if self.changed_files is not None and cache.pkl_path.exists() and cache.sha_path.exists():
+                    raise StaticAnalysisFatalError(
+                        f"{cache.pkl_path} was written by a different engine version and cannot be "
+                        "reused for an incremental run. Re-run a full analysis to rebuild it."
+                    )
                 logger.info("static_analysis_cache: outcome=miss_absent")
                 results = self._run_full_lsp_pass()
             else:
@@ -734,7 +764,7 @@ class StaticAnalyzer:
         def run_one(engine_config: EngineConfig, engine_client: LSPClient | None, order: int = 0) -> None:
             """Analyze one engine. Owns the client's lifetime when given none."""
             adapter, project_path = engine_config.adapter, engine_config.project_path
-            language = adapter.language_enum
+            language = adapter.results_language
             t_lang_start = time.monotonic()
             owned_client: LSPClient | None = None
             try:
@@ -761,7 +791,7 @@ class StaticAnalyzer:
                         status="success",
                         duration_ms=duration_ms,
                         analysis=analysis,
-                        diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
+                        diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
                     )
             except StaticAnalysisFatalError:
                 raise
@@ -854,7 +884,7 @@ class StaticAnalyzer:
         results = StaticAnalysisResults()
         for engine_config, engine_client in self._live_clients("warm-start"):
             adapter, project_path = engine_config.adapter, engine_config.project_path
-            language = adapter.language_enum
+            language = adapter.results_language
             cached_lang_dict = self._extract_language_dict(cached_results, language)
             t_lang_start = time.monotonic()
             changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
@@ -883,7 +913,7 @@ class StaticAnalyzer:
                 status="success",
                 duration_ms=round((time.monotonic() - t_lang_start) * 1000),
                 analysis=analysis,
-                diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
+                diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
             )
         results.incremental_base_results = cached_results
         return results
@@ -967,15 +997,20 @@ class StaticAnalyzer:
         # Merge, not replace: a monorepo yields several configs per language, and
         # replacing kept only whichever finished last -- which under the concurrency
         # bound is a different one run to run.
-        self.collected_diagnostics.setdefault(adapter.language_enum, {}).update(merged_diags)
+        self.collected_diagnostics.setdefault(adapter.results_language, {}).update(merged_diags)
 
     def _loc_for_adapter(self, adapter: LanguageAdapter) -> int:
-        """Return scanner LOC that should have been covered by this adapter."""
-        adapter_name = adapter.language.lower()
+        """Scanner LOC this adapter should have covered, family-folded like ``_adapter_names_for``."""
+        configured = set(_adapter_names_for(self.programming_langs))
         total = 0
         for pl in self.programming_langs:
             mapped = _lang_to_adapter_name(pl.language)
-            if mapped is not None and mapped.lower() == adapter_name:
+            if mapped is None:
+                continue
+            # JavaScript LOC is read by the TypeScript engine whenever that one owns the family.
+            if mapped == AdapterName.JAVASCRIPT and AdapterName.JAVASCRIPT not in configured:
+                mapped = AdapterName.TYPESCRIPT
+            if mapped == adapter.language:
                 total += pl.size
         return total
 
@@ -1035,7 +1070,7 @@ class StaticAnalyzer:
             adapter = engine_config.adapter
             if adapter.fail_on_empty_symbols is not True:
                 continue
-            language = adapter.language_enum
+            language = adapter.results_language
             source_files = results.get_source_files(language)
             if not source_files:
                 continue

@@ -23,6 +23,9 @@ class SymbolInfo:
     end_line: int
     end_char: int
     parent_chain: list[tuple[str, int]] = field(default_factory=list)
+    # Promoted to CLASS for having callable children: a namespace object, or a
+    # `const raw = await fn(() => ...)` wrapper that is a scope rather than a name.
+    promoted_from_variable: bool = False
 
     @property
     def definition_location(self) -> tuple[str, int, int]:

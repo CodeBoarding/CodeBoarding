@@ -42,6 +42,15 @@ class LanguageAdapter(ABC):
         """
 
     @property
+    def results_language(self) -> Language:
+        """The bucket these results are stored under.
+
+        Why not ``language_enum``: which member wins depends on the file mix, so the key would
+        move when a repo gains its first ``.ts``.
+        """
+        return self.language_enum
+
+    @property
     def file_extensions(self) -> tuple[str, ...]:
         """File extensions for this language.
 

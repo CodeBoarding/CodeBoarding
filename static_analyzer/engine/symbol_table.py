@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 
 from static_analyzer.engine.protocols import SymbolNaming
-from static_analyzer.config import NodeType
+from static_analyzer.config import ANONYMOUS_SYMBOL_MARKERS, NodeType
 from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
 from static_analyzer.engine.models import SymbolInfo
 
@@ -76,10 +76,12 @@ class SymbolTable:
 
             # Promote variables/constants with method children to class
             children = sym.get("children", [])
+            promoted = False
             if kind in (NodeType.VARIABLE, NodeType.CONSTANT) and children:
                 child_kinds = {c.get("kind", 0) for c in children}
                 if child_kinds & CALLABLE_KINDS:
                     kind = NodeType.CLASS
+                    promoted = True
 
             range_info = sym.get("range", sym.get("location", {}).get("range", {}))
             sel_range = sym.get("selectionRange", range_info)
@@ -108,6 +110,7 @@ class SymbolTable:
                 start_char=start_char,
                 end_line=end_line,
                 end_char=end_char,
+                promoted_from_variable=promoted,
             )
             info.parent_chain = list(parent_chain)
 
@@ -131,6 +134,7 @@ class SymbolTable:
                         start_char=start_char,
                         end_line=end_line,
                         end_char=end_char,
+                        promoted_from_variable=promoted,
                     )
                     unq_info.parent_chain = []
                     self._symbols[unqualified_name] = unq_info
@@ -154,6 +158,7 @@ class SymbolTable:
                                 start_char=start_char,
                                 end_line=end_line,
                                 end_char=end_char,
+                                promoted_from_variable=promoted,
                             )
                             p_info.parent_chain = list(partial_chain)
                             self._symbols[partial_name] = p_info
@@ -264,6 +269,38 @@ class SymbolTable:
 
         return best or sym
 
+    def attribution_symbol(self, sym: SymbolInfo) -> SymbolInfo:
+        """The innermost enclosing declaration a reader would name, or ``sym`` itself.
+
+        Why credit only: the guards need the innermost symbol, widening it there drops call sites.
+        """
+        if not self._is_unnameable(sym):
+            return sym
+
+        best: SymbolInfo | None = None
+        best_size = float("inf")
+        # A promoted `const x = ...` wrapper is a name a reader recognises, unlike an anonymous
+        # callback, so it is a usable credit — but only when nothing named encloses it. Module
+        # level is exactly that case: there is no function above it to prefer.
+        fallback: SymbolInfo | None = None
+        fallback_size = float("inf")
+        for other in self._file_symbols.get(str(sym.file_path), []):
+            if other.qualified_name == sym.qualified_name or self._is_anonymous(other):
+                continue
+            if not (self._naming.is_callable(other.kind) or self._naming.is_class_like(other.kind)):
+                continue
+            if not self._encloses(other, sym):
+                continue
+            size = (other.end_line - other.start_line) * 10000 + (other.end_char - other.start_char)
+            if other.promoted_from_variable:
+                if size < fallback_size:
+                    fallback = other
+                    fallback_size = size
+            elif size < best_size:
+                best = other
+                best_size = size
+        return best or fallback or sym
+
     def get_equivalent_names(self, qualified_name: str) -> list[str]:
         """Get equivalent symbol names for edge expansion using pre-built index."""
         sym = self._symbols.get(qualified_name)
@@ -326,3 +363,26 @@ class SymbolTable:
                 return True
 
         return False
+
+    def _is_unnameable(self, sym: SymbolInfo) -> bool:
+        """Whether this symbol's own name is not one a reader would use as a caller."""
+        return sym.promoted_from_variable or self._is_anonymous(sym)
+
+    @staticmethod
+    def _is_anonymous(sym: SymbolInfo) -> bool:
+        return any(marker in sym.name for marker in ANONYMOUS_SYMBOL_MARKERS)
+
+    @staticmethod
+    def _encloses(outer: SymbolInfo, inner: SymbolInfo) -> bool:
+        """Whether *outer*'s range fully contains *inner*'s, character bounds included.
+
+        Why characters: several declarations can share a line, and comparing lines alone lets
+        an unrelated neighbour win.
+        """
+        if outer.start_line > inner.start_line or outer.end_line < inner.end_line:
+            return False
+        if outer.start_line == inner.start_line and outer.start_char > inner.start_char:
+            return False
+        if outer.end_line == inner.end_line and outer.end_char < inner.end_char:
+            return False
+        return True

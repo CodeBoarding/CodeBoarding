@@ -109,6 +109,15 @@ _DIRECTIVE_LINE = re.compile(rb"(?m)^[ \t]*#[^\n]*")
 _PREPROCESSOR_SUFFIXES = frozenset({".cs"})
 _DECLARATION_BLOCK_NODE_TYPES = frozenset({"block", "compound_statement", "statement_block"})
 _EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
+# Fields holding a declaration's body or initialiser rather than its signature.
+# Why only TS/JS: a one-line `onClick={() => f()}` puts the call on its own declaration's
+# line, out of the block-node test's reach. Python's `def g(x=f())` occupies `value` too but
+# the enclosing scope evaluates it, so the rule stays off the other grammars.
+_BODY_FIELD_NAMES = ("body", "value")
+BODY_DECLARATION_LANGUAGES = (Language.TYPESCRIPT, Language.JAVASCRIPT)
+_BODY_FIELD_SUFFIXES = frozenset(
+    suffix for language in BODY_DECLARATION_LANGUAGES for suffix in LANGUAGE_EXTENSIONS[language]
+)
 
 # Ceiling on retained tree-sitter nodes. Trees are by far the largest thing this
 # class touches — retaining one per file cost 2.2GB on a 5k-file C# repo — and
@@ -218,6 +227,8 @@ class SourceInspector:
         if parsed is None:
             return False
 
+        body_fields = file_path.suffix in _BODY_FIELD_SUFFIXES
+        passed_a_call = False
         node = self._smallest_named_node_covering_range(
             parsed.tree.root_node,
             ref_line,
@@ -231,6 +242,11 @@ class SourceInspector:
             if body_starts_in_declaration and node.type in _DECLARATION_BLOCK_NODE_TYPES:
                 return True
             if body_starts_in_declaration and include_expression_body and node.type in _EXPRESSION_BODY_NODE_TYPES:
+                return True
+            if node.type in _CALL_NODE_TYPES or node.type in _CONSTRUCTOR_NODE_TYPES:
+                # The reference is part of a call; an enclosing body or initialiser now counts.
+                passed_a_call = True
+            if body_starts_in_declaration and body_fields and passed_a_call and self._occupies_body_field(node):
                 return True
             node = node.parent
         return False
@@ -595,6 +611,17 @@ class SourceInspector:
                     found.add("explicit")
                 modifiers[(type_name, text(member_name_node))] = frozenset(found)
         return modifiers
+
+    @staticmethod
+    def _occupies_body_field(node: TreeSitterNode) -> bool:
+        """Whether *node* is its parent's body or initialiser rather than part of its signature."""
+        parent = node.parent
+        if parent is None:
+            return False
+        return any(
+            (child := parent.child_by_field_name(field)) is not None and child.id == node.id
+            for field in _BODY_FIELD_NAMES
+        )
 
     @staticmethod
     def _node_is_return_value(target: TreeSitterNode) -> bool:

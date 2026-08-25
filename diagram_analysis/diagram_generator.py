@@ -638,8 +638,8 @@ class DiagramGenerator:
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
         scanner = ProjectScanner(self.repo_location)
         loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
-        for language in static_analysis.get_languages():
-            files = static_analysis.get_source_files(language)
+        for language in sorted(static_analysis.present_languages(), key=str):
+            files = static_analysis.source_files_of_language(language)
             static_stats["languages"][language] = {
                 "file_count": len(files),
                 "lines_of_code": loc_by_language.get(language, 0),

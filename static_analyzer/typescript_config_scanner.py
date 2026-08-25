@@ -11,6 +11,8 @@ import json
 import logging
 import shutil
 import subprocess
+
+import pathspec
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -31,9 +33,21 @@ class TypeScriptProject:
 
     root: Path
     files: list[Path] = field(default_factory=list)
+    # ``exclude`` as the tsconfig gave it. A file under here was actively skipped,
+    # so the family top-up must leave it alone rather than re-claiming it.
+    exclude: list[str] = field(default_factory=list)
 
 
-_ALL_EXTENSIONS = LANGUAGE_EXTENSIONS[Language.TYPESCRIPT] + LANGUAGE_EXTENSIONS[Language.JAVASCRIPT]
+_ALL_EXTENSIONS = LANGUAGE_EXTENSIONS[Language.TYPESCRIPT]
+
+
+def _exclude_spec(patterns: list[str]) -> pathspec.PathSpec:
+    """tsconfig ``exclude`` entries as a matcher over project-relative posix paths.
+
+    Why anchored: tsconfig resolves ``exclude`` against its own directory, gitwildmatch does not.
+    """
+    cleaned = [p.strip().replace("\\", "/").rstrip("/") for p in patterns if isinstance(p, str) and p.strip()]
+    return pathspec.PathSpec.from_lines("gitwildmatch", [f"/{p}" for p in cleaned])
 
 
 class TypeScriptConfigScanner:
@@ -69,11 +83,11 @@ class TypeScriptConfigScanner:
 
         projects: list[TypeScriptProject] = []
         for project_dir in candidate_dirs:
-            files = self._resolve_project_files(project_dir, tsc_cmd_prefix, candidate_dirs)
+            files, excluded = self._resolve_project_files(project_dir, tsc_cmd_prefix, candidate_dirs)
             if not files:
                 logger.debug(f"Skipping tsconfig at {project_dir} (no owned files)")
                 continue
-            projects.append(TypeScriptProject(root=project_dir, files=files))
+            projects.append(TypeScriptProject(root=project_dir, files=files, exclude=excluded))
 
         projects = self._trim_overlap(projects)
 
@@ -84,6 +98,22 @@ class TypeScriptConfigScanner:
                 f"({total_files} total files across all projects)"
             )
         return projects
+
+    def find_unclaimed_family_files(self, projects: list[TypeScriptProject]) -> list[Path]:
+        """Family files no tsconfig ``include`` reaches. What one excludes stays excluded."""
+        claimed = {f.resolve() for project in projects for f in project.files}
+        specs = [(p.root.resolve(), _exclude_spec(p.exclude)) for p in projects]
+        found: set[Path] = set()
+        for path in self.repo_location.rglob("*"):
+            if not path.is_file() or path.suffix not in _ALL_EXTENSIONS:
+                continue
+            resolved = path.resolve()
+            if resolved in claimed or self.ignore_manager.should_ignore(path):
+                continue
+            if any(_excluded_by(resolved, root, spec) for root, spec in specs):
+                continue
+            found.add(resolved)
+        return sorted(found)
 
     def _discover_candidates(self) -> list[Path]:
         seen: set[Path] = set()
@@ -107,10 +137,11 @@ class TypeScriptConfigScanner:
         project_dir: Path,
         tsc_cmd_prefix: list[str] | None,
         all_candidates: list[Path],
-    ) -> list[Path]:
+    ) -> tuple[list[Path], list[str]]:
         if tsc_cmd_prefix is not None:
             config = self._showconfig(project_dir, tsc_cmd_prefix)
             if config is not None:
+                excluded = [e for e in config.get("exclude", []) if isinstance(e, str)]
                 files = []
                 for raw in config.get("files", []):
                     if not isinstance(raw, str):
@@ -122,13 +153,18 @@ class TypeScriptConfigScanner:
                 # Apply ignore_manager: a permissive root tsconfig can claim
                 # files (e.g. ``*.test.ts``) the user has skipped via
                 # .codeboardingignore — keep that consistent with the FS fallback.
-                return [f for f in files if f.suffix in _ALL_EXTENSIONS and not self.ignore_manager.should_ignore(f)]
+                kept = [f for f in files if f.suffix in _ALL_EXTENSIONS and not self.ignore_manager.should_ignore(f)]
+                return kept, excluded
             # tsc available but failed for this project — try the FS walk.
-        return self._fallback_walk(project_dir, all_candidates)
+        return self._fallback_walk(project_dir, all_candidates), []
 
     def _showconfig(self, project_dir: Path, tsc_cmd_prefix: list[str]) -> dict | None:
-        """Invoke ``tsc --showConfig -p <dir>`` and return parsed JSON."""
-        cmd = [*tsc_cmd_prefix, "-p", str(project_dir)]
+        """Invoke ``tsc --showConfig -p <dir> --allowJs`` and return parsed JSON.
+
+        Why ``--allowJs``: one adapter owns the family, so we want the project's JavaScript too.
+        It overrides only that setting, leaving tsc the authority on membership.
+        """
+        cmd = [*tsc_cmd_prefix, "-p", str(project_dir), "--allowJs"]
         try:
             result = subprocess.run(
                 cmd,
@@ -198,7 +234,7 @@ class TypeScriptConfigScanner:
             if len(unique) < len(project.files):
                 logger.debug(f"Trimmed project {project.root} from {len(project.files)} to {len(unique)} files")
             claimed.update(unique)
-            survivors.append((orig_idx, TypeScriptProject(root=project.root, files=unique)))
+            survivors.append((orig_idx, TypeScriptProject(root=project.root, files=unique, exclude=project.exclude)))
 
         survivors.sort(key=lambda ip: ip[0])
         return [p for _, p in survivors]
@@ -233,3 +269,11 @@ def _resolve_tsc_command() -> list[str] | None:
     if system_tsc is not None:
         return [system_tsc, "--showConfig"]
     return None
+
+
+def _excluded_by(path: Path, project_root: Path, spec: pathspec.PathSpec) -> bool:
+    """Whether *path* falls under one of *project_root*'s tsconfig exclude patterns."""
+    try:
+        return spec.match_file(path.relative_to(project_root).as_posix())
+    except ValueError:
+        return False

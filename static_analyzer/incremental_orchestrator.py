@@ -173,7 +173,8 @@ def _restore_cross_boundary_edges(
         refs = references_cache.get(dst_name)
         if refs is None:
             try:
-                engine_client.did_open(Path(dst_node.file_path), adapter.language_id)
+                dst_path = Path(dst_node.file_path)
+                engine_client.did_open(dst_path)
                 refs = engine_client.references(Path(dst_node.file_path), dst_node.line_start - 1, dst_node.col_start)
             except Exception as exc:
                 # An empty result here means the cached edge is not re-confirmed and
@@ -233,7 +234,7 @@ def _restore_inbound_edges_via_definitions(
 
     for file_path in {str(site["file"]) for sites in pending.values() for site in sites}:
         try:
-            engine_client.did_open(Path(file_path), adapter.language_id)
+            engine_client.did_open(Path(file_path))
         except Exception:
             logger.debug("Failed to open %s while restoring cached edges", file_path, exc_info=True)
 

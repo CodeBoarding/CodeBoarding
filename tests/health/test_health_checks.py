@@ -583,7 +583,21 @@ class TestNodeCallbackDetection(unittest.TestCase):
 class TestLanguageFieldOnSummaries(unittest.TestCase):
     """Tests that check summaries include language when multiple languages are present."""
 
-    def test_language_set_on_summary(self):
+    def test_languages_set_on_summary(self):
+        from health.models import StandardCheckSummary
+
+        # One server serves the whole family, so a summary can cover more than one language.
+        summary = StandardCheckSummary(
+            check_name="test",
+            description="test check",
+            total_entities_checked=0,
+            findings_count=0,
+            score=1.0,
+            languages=["javascript", "typescript"],
+        )
+        self.assertEqual(summary.languages, ["javascript", "typescript"])
+
+    def test_languages_empty_by_default(self):
         from health.models import StandardCheckSummary
 
         summary = StandardCheckSummary(
@@ -592,21 +606,8 @@ class TestLanguageFieldOnSummaries(unittest.TestCase):
             total_entities_checked=0,
             findings_count=0,
             score=1.0,
-            language="typescript",
         )
-        self.assertEqual(summary.language, "typescript")
-
-    def test_language_none_by_default(self):
-        from health.models import StandardCheckSummary
-
-        summary = StandardCheckSummary(
-            check_name="test",
-            description="test check",
-            total_entities_checked=0,
-            findings_count=0,
-            score=1.0,
-        )
-        self.assertIsNone(summary.language)
+        self.assertEqual(summary.languages, [])
 
 
 if __name__ == "__main__":

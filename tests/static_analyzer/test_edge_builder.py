@@ -145,7 +145,10 @@ def test_reference_at_caller_declaration_position_is_not_an_edge(tmp_path: Path)
     assert edge_set == {}
 
 
-def test_reference_later_on_declaration_line_is_ignored_by_default(tmp_path: Path):
+def test_a_typescript_concise_arrow_body_is_an_edge(tmp_path: Path):
+    # `const caller = () => target()` is a call from caller, even though the reference shares
+    # a line with caller's own declaration. The declaration-line guard arrived with #427 to
+    # narrow C# incremental edges; suppressing this shape for TypeScript was a side effect.
     source = tmp_path / "Caller.ts"
     source.write_text("const caller = () => target();\n")
     target_file = tmp_path / "Target.ts"
@@ -163,10 +166,33 @@ def test_reference_later_on_declaration_line_is_ignored_by_default(tmp_path: Pat
 
     _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
 
+    assert set(edge_set) == {("Caller.caller", "Target.target")}
+
+
+def test_a_csharp_declaration_line_reference_is_still_ignored_by_default(tmp_path: Path):
+    # The rule is scoped to the TypeScript/JavaScript grammars, so every other language keeps
+    # the #427 default and its explicit opt-in.
+    source = tmp_path / "Caller.cs"
+    source.write_text("class C { string Call() => Target(); }\n")
+    target_file = tmp_path / "Target.cs"
+    target_file.write_text("class T { public static string Target() { return null; } }\n")
+
+    ctx, adapter = _make_ctx()
+    caller = _sym("Call", "C.Call", NodeType.METHOD, str(source), 0, 17, 0, 36)
+    target = _sym("Target", "T.Target", NodeType.METHOD, str(target_file), 0, 30, 0, 36)
+    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    reference = {
+        "uri": source.as_uri(),
+        "range": {"start": {"line": 0, "character": 27}, "end": {"line": 0, "character": 33}},
+    }
+    edge_set: EdgeMap = {}
+
+    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
+
     assert edge_set == {}
 
 
-def test_reference_in_template_interpolation_is_not_a_block_body_edge(tmp_path: Path):
+def test_a_call_interpolated_into_a_concise_arrow_body_is_an_edge(tmp_path: Path):
     source = tmp_path / "Caller.ts"
     source.write_text("const caller = () => `value: ${target()}`;\n")
     target_file = tmp_path / "Target.ts"
@@ -184,7 +210,8 @@ def test_reference_in_template_interpolation_is_not_a_block_body_edge(tmp_path: 
 
     _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
 
-    assert edge_set == {}
+    # A template interpolation in a concise arrow body is still the body: caller calls target.
+    assert set(edge_set) == {("Caller.caller", "Target.target")}
 
 
 def test_reference_in_same_line_block_body_is_an_edge(tmp_path: Path):

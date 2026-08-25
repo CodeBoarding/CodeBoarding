@@ -50,14 +50,21 @@ STATIC_ANALYSIS_LOCK = "static_analysis.lock"
 # split. Kept for one-time read fallback so CLI users transition smoothly.
 _LEGACY_PKL_NAME = "static_analysis_results.pkl"
 _LEGACY_CACHE_SUBDIR = "cache"
-# Tag file format prefix; bump if the on-disk pickle layout changes.
+# Tag file format prefix; bump when the on-disk pickle layout changes, and when the engine
+# starts producing a materially different graph from the same source. The freshness gate is
+# the source SHA, so without a bump an unchanged tree keeps serving the graph the previous
+# engine built and an upgrade never reaches the user.
 # v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
 # dataclass storage.
 # v3: MethodClusterPaths moved to static_analyzer.clustering, then CallGraph and the edge
 # types to static_analyzer.cfg, and reference edges became ReferenceEdge objects.
 # v4: ClusterCache records complete structural and unclustered lineage per hierarchy scope.
+# v5: every TypeScript/JavaScript graph changes. The language id follows the file, so a
+# .tsx is no longer parsed as type assertions; one engine owns the family, so the degraded
+# second bucket is gone; calls are credited to the enclosing declaration; and a call in a
+# declaration's body or initialiser counts as an edge.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v4"
+_TAG_VERSION = "v5"
 
 
 class StaticAnalysisCache:
@@ -195,6 +202,10 @@ class StaticAnalysisCache:
                     expected_sha,
                 )
                 return None
+        elif self._tag_version_is_stale():
+            # No SHA gate still means no stale engine: a tag that exists and disagrees rejects,
+            # while the untagged legacy artifact below is still read.
+            return None
 
         target = self.pkl_path
         if not target.exists():
@@ -277,6 +288,15 @@ class StaticAnalysisCache:
                     self.sha_path.unlink()
                 except OSError:
                     pass
+
+    def _tag_version_is_stale(self) -> bool:
+        """Whether a tag file exists and names a version this build does not produce."""
+        try:
+            text = self.sha_path.read_text(encoding="utf-8").strip()
+        except (OSError, FileNotFoundError):
+            return False
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        return bool(lines) and lines[0] != _TAG_VERSION
 
 
 def copy_cache_files(src_dir: Path, dest_dir: Path) -> bool:

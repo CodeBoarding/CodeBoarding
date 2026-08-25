@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from static_analyzer.config import AdapterName
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.adapters.go_adapter import GoAdapter
@@ -12,14 +13,14 @@ from static_analyzer.engine.adapters.rust_adapter import RustAdapter
 from static_analyzer.engine.adapters.typescript_adapter import JavaScriptAdapter, TypeScriptAdapter
 
 ADAPTER_REGISTRY: dict[str, type[LanguageAdapter]] = {
-    "Python": PythonAdapter,
-    "JavaScript": JavaScriptAdapter,
-    "TypeScript": TypeScriptAdapter,
-    "CSharp": CSharpAdapter,
-    "Go": GoAdapter,
-    "Java": JavaAdapter,
-    "PHP": PHPAdapter,
-    "Rust": RustAdapter,
+    AdapterName.PYTHON: PythonAdapter,
+    AdapterName.JAVASCRIPT: JavaScriptAdapter,
+    AdapterName.TYPESCRIPT: TypeScriptAdapter,
+    AdapterName.CSHARP: CSharpAdapter,
+    AdapterName.GO: GoAdapter,
+    AdapterName.JAVA: JavaAdapter,
+    AdapterName.PHP: PHPAdapter,
+    AdapterName.RUST: RustAdapter,
 }
 
 
