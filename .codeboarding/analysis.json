@@ -1,17 +1,17 @@
 {
   "metadata": {
-    "generated_at": "2026-08-25T18:00:54.468928+00:00",
-    "source_tree_hash": "43ec74e9cf4afe8c9b1641785cbe2bc1334286dddf4df5783cffa66d03b2b7e4",
+    "generated_at": "2026-08-25T18:31:23.929587+00:00",
+    "source_tree_hash": "c5c5ca37cb0300c5c5362735c8f576575795f51ba132e8f1a0e8407fd49d0d3d",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
     "file_coverage_summary": {
-      "total_files": 352,
+      "total_files": 353,
       "analyzed": 196,
-      "not_analyzed": 156,
+      "not_analyzed": 157,
       "not_analyzed_by_reason": {
         "other": 13,
-        "codeboardingignore": 143
+        "codeboardingignore": 144
       }
     }
   },
@@ -1049,8 +1049,8 @@
         "agents/incremental_agent.py|agents.incremental_agent._collect_descendant_ids",
         "agents/incremental_agent.py|agents.incremental_agent._strip_relations"
       ],
-      "content_hash": "840a44262dbba675",
-      "module_hash": "a979dcd64f5412c3"
+      "content_hash": "39a131b56169eeaf",
+      "module_hash": "3dcbc2282ab0371c"
     },
     "agents/llm_config.py": {
       "method_keys": [
@@ -1667,8 +1667,8 @@
         "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_cluster_groups",
         "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_scope_connections"
       ],
-      "content_hash": "7675c841e0dba420",
-      "module_hash": "f8c73b2488d4f6c5"
+      "content_hash": "2ed090ec9a9daf5e",
+      "module_hash": "03cd3c833721777e"
     },
     "agents/planner_agent.py": {
       "method_keys": [
@@ -1683,6 +1683,8 @@
         "agents/relation_edges.py|agents.relation_edges.append_or_merge_relation",
         "agents/relation_edges.py|agents.relation_edges.merge_relations_by_pair",
         "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
+        "agents/relation_edges.py|agents.relation_edges.edge_touches_change",
+        "agents/relation_edges.py|agents.relation_edges.pair_untouched_by_change",
         "agents/relation_edges.py|agents.relation_edges._is_internal_self_relation",
         "agents/relation_edges.py|agents.relation_edges.drop_internal_self_relations",
         "agents/relation_edges.py|agents.relation_edges.ground_relation_edges",
@@ -1702,8 +1704,8 @@
         "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
         "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations.touches_change"
       ],
-      "content_hash": "5f4edbe85fd5fd48",
-      "module_hash": "89e91fba803435cf"
+      "content_hash": "a905440ee2b77049",
+      "module_hash": "6a8fbfbdd7ae8514"
     },
     "agents/repair.py": {
       "method_keys": [
@@ -1849,7 +1851,7 @@
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses"
       ],
-      "content_hash": "4f84d10c2e94f84e",
+      "content_hash": "c111b85fcb81fe54",
       "module_hash": "7a0b16f997bb6ed8"
     },
     "diagram_analysis/exceptions.py": {
@@ -8660,280 +8662,280 @@
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent",
-      "start_line": 54,
-      "end_line": 560,
+      "start_line": 55,
+      "end_line": 588,
       "type": "CLASS",
-      "content_hash": "421a91b05183ab9d"
+      "content_hash": "5f07671fb6588c4f"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.__init__": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent.__init__",
-      "start_line": 57,
-      "end_line": 93,
+      "start_line": 58,
+      "end_line": 94,
       "type": "METHOD",
       "content_hash": "31dd367890863e3f"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.update_scope": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent.update_scope",
-      "start_line": 96,
-      "end_line": 172,
+      "start_line": 97,
+      "end_line": 173,
       "type": "METHOD",
       "content_hash": "e96a17409f3ca10f"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._create_component_from_operation": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._create_component_from_operation",
-      "start_line": 174,
-      "end_line": 204,
+      "start_line": 175,
+      "end_line": 205,
       "type": "METHOD",
       "content_hash": "1a0cb27fe8481560"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._sync_noop_component_cluster_ids": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._sync_noop_component_cluster_ids",
-      "start_line": 206,
-      "end_line": 218,
+      "start_line": 207,
+      "end_line": 219,
       "type": "METHOD",
       "content_hash": "0da2d10780b14c5f"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.detail_new_components": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent.detail_new_components",
-      "start_line": 221,
-      "end_line": 253,
+      "start_line": 222,
+      "end_line": 254,
       "type": "METHOD",
       "content_hash": "2da3b3c10a1980e4"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._update_component_from_operation": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._update_component_from_operation",
-      "start_line": 255,
-      "end_line": 274,
+      "start_line": 256,
+      "end_line": 275,
       "type": "METHOD",
       "content_hash": "42834e247721356a"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._patch_scope_file_methods": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
-      "start_line": 276,
-      "end_line": 296,
+      "start_line": 277,
+      "end_line": 297,
       "type": "METHOD",
       "content_hash": "b6a6609f2fcb7888"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_api_surfaces": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent.step_api_surfaces",
-      "start_line": 299,
-      "end_line": 316,
+      "start_line": 300,
+      "end_line": 314,
       "type": "METHOD",
-      "content_hash": "7af3313e7b0cbc71"
+      "content_hash": "f642d29c058f06a1"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-      "start_line": 319,
-      "end_line": 361,
+      "start_line": 317,
+      "end_line": 357,
       "type": "METHOD",
-      "content_hash": "38084a35d76fcd64"
+      "content_hash": "1c346d303d316a5e"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._attach_static_relations",
-      "start_line": 363,
-      "end_line": 376,
+      "start_line": 359,
+      "end_line": 372,
       "type": "METHOD",
       "content_hash": "7ebd95b51e45196d"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent.generate_scope_relations",
-      "start_line": 379,
-      "end_line": 474,
+      "start_line": 375,
+      "end_line": 482,
       "type": "METHOD",
-      "content_hash": "21dea471f65fff06"
+      "content_hash": "60e8a4193c882f5c"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_all_scope_relations": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent.generate_all_scope_relations",
-      "start_line": 477,
-      "end_line": 510,
+      "start_line": 485,
+      "end_line": 533,
       "type": "METHOD",
-      "content_hash": "190e78a9438add6e"
+      "content_hash": "42b71ef62099baa6"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel",
-      "start_line": 512,
-      "end_line": 548,
+      "start_line": 535,
+      "end_line": 576,
       "type": "METHOD",
-      "content_hash": "fba8fffc2cdfc483"
+      "content_hash": "ad9f99eb0795e8c7"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one",
-      "start_line": 528,
-      "end_line": 538,
+      "start_line": 552,
+      "end_line": 566,
       "type": "FUNCTION",
-      "content_hash": "f8993cb5c3526a5a"
+      "content_hash": "180133b09866a1b3"
     },
     "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._clone_for_worker": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.IncrementalAgent._clone_for_worker",
-      "start_line": 550,
-      "end_line": 560,
+      "start_line": 578,
+      "end_line": 588,
       "type": "METHOD",
       "content_hash": "4eb9c49f623efd41"
     },
     "agents/incremental_agent.py|agents.incremental_agent._new_component_membership_summary": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._new_component_membership_summary",
-      "start_line": 563,
-      "end_line": 574,
+      "start_line": 591,
+      "end_line": 602,
       "type": "FUNCTION",
       "content_hash": "be0930173d938fbb"
     },
     "agents/incremental_agent.py|agents.incremental_agent._log_scope_relations_summary": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._log_scope_relations_summary",
-      "start_line": 577,
-      "end_line": 582,
+      "start_line": 605,
+      "end_line": 610,
       "type": "FUNCTION",
       "content_hash": "37f64da1eab00d3d"
     },
     "agents/incremental_agent.py|agents.incremental_agent._operation_source_cluster_ids": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._operation_source_cluster_ids",
-      "start_line": 585,
-      "end_line": 591,
+      "start_line": 613,
+      "end_line": 619,
       "type": "FUNCTION",
       "content_hash": "71c70c58dd11c121"
     },
     "agents/incremental_agent.py|agents.incremental_agent._remove_reassigned_clusters": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._remove_reassigned_clusters",
-      "start_line": 594,
-      "end_line": 619,
+      "start_line": 622,
+      "end_line": 647,
       "type": "FUNCTION",
       "content_hash": "4f91b3dc0ed5ce00"
     },
     "agents/incremental_agent.py|agents.incremental_agent._log_duplicate_cluster_ownership": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._log_duplicate_cluster_ownership",
-      "start_line": 622,
-      "end_line": 635,
+      "start_line": 650,
+      "end_line": 663,
       "type": "FUNCTION",
       "content_hash": "ed295305b0e30fb6"
     },
     "agents/incremental_agent.py|agents.incremental_agent._component_id_parent": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._component_id_parent",
-      "start_line": 638,
-      "end_line": 639,
+      "start_line": 666,
+      "end_line": 667,
       "type": "FUNCTION",
       "content_hash": "c35893cf3433e0b3"
     },
     "agents/incremental_agent.py|agents.incremental_agent._patch_file_methods": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._patch_file_methods",
-      "start_line": 642,
-      "end_line": 689,
+      "start_line": 670,
+      "end_line": 717,
       "type": "FUNCTION",
       "content_hash": "94c1bf3d8dc3ea5d"
     },
     "agents/incremental_agent.py|agents.incremental_agent._without_methods": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._without_methods",
-      "start_line": 692,
-      "end_line": 707,
+      "start_line": 720,
+      "end_line": 735,
       "type": "FUNCTION",
       "content_hash": "e09325e241a1486d"
     },
     "agents/incremental_agent.py|agents.incremental_agent._merge_file_method_groups": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._merge_file_method_groups",
-      "start_line": 710,
-      "end_line": 731,
+      "start_line": 738,
+      "end_line": 759,
       "type": "FUNCTION",
       "content_hash": "0a12eecd33d7e32b"
     },
     "agents/incremental_agent.py|agents.incremental_agent._method_physical_key": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._method_physical_key",
-      "start_line": 734,
-      "end_line": 736,
+      "start_line": 762,
+      "end_line": 764,
       "type": "FUNCTION",
       "content_hash": "facba2226359944c"
     },
     "agents/incremental_agent.py|agents.incremental_agent._live_cfg_qnames": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._live_cfg_qnames",
-      "start_line": 739,
-      "end_line": 746,
+      "start_line": 767,
+      "end_line": 774,
       "type": "FUNCTION",
       "content_hash": "642dc3eabd8f5ee7"
     },
     "agents/incremental_agent.py|agents.incremental_agent._component_has_live_cfg_methods": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._component_has_live_cfg_methods",
-      "start_line": 749,
-      "end_line": 752,
+      "start_line": 777,
+      "end_line": 780,
       "type": "FUNCTION",
       "content_hash": "d1766c9168848490"
     },
     "agents/incremental_agent.py|agents.incremental_agent.remove_deleted_files": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.remove_deleted_files",
-      "start_line": 755,
-      "end_line": 765,
+      "start_line": 783,
+      "end_line": 793,
       "type": "FUNCTION",
       "content_hash": "66438377622bd5d0"
     },
     "agents/incremental_agent.py|agents.incremental_agent._scrub_one_analysis": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._scrub_one_analysis",
-      "start_line": 768,
-      "end_line": 789,
+      "start_line": 796,
+      "end_line": 817,
       "type": "FUNCTION",
       "content_hash": "c4a1bbba5aae7f4c"
     },
     "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.prune_empty_components",
-      "start_line": 792,
-      "end_line": 829,
+      "start_line": 820,
+      "end_line": 857,
       "type": "FUNCTION",
       "content_hash": "7bd2e5d368cbf7d0"
     },
     "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components.has_methods": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.prune_empty_components.has_methods",
-      "start_line": 799,
-      "end_line": 804,
+      "start_line": 827,
+      "end_line": 832,
       "type": "FUNCTION",
       "content_hash": "3e955f54df012877"
     },
     "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components.collect_empty": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent.prune_empty_components.collect_empty",
-      "start_line": 806,
-      "end_line": 809,
+      "start_line": 834,
+      "end_line": 837,
       "type": "FUNCTION",
       "content_hash": "cc6552c1a69b3787"
     },
     "agents/incremental_agent.py|agents.incremental_agent._collect_descendant_ids": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._collect_descendant_ids",
-      "start_line": 832,
-      "end_line": 849,
+      "start_line": 860,
+      "end_line": 877,
       "type": "FUNCTION",
       "content_hash": "11b1eb55ae301667"
     },
     "agents/incremental_agent.py|agents.incremental_agent._strip_relations": {
       "file_path": "agents/incremental_agent.py",
       "qualified_name": "agents.incremental_agent._strip_relations",
-      "start_line": 852,
-      "end_line": 857,
+      "start_line": 880,
+      "end_line": 885,
       "type": "FUNCTION",
       "content_hash": "345949523a8088b8"
     },
@@ -11836,34 +11838,34 @@
     "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.cluster_group_ids": {
       "file_path": "agents/llm_renderers/clustering.py",
       "qualified_name": "agents.llm_renderers.clustering.cluster_group_ids",
-      "start_line": 13,
-      "end_line": 14,
+      "start_line": 16,
+      "end_line": 17,
       "type": "FUNCTION",
       "content_hash": "a69041d81e5d518f"
     },
     "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.cluster_group_descriptions": {
       "file_path": "agents/llm_renderers/clustering.py",
       "qualified_name": "agents.llm_renderers.clustering.cluster_group_descriptions",
-      "start_line": 17,
-      "end_line": 42,
+      "start_line": 20,
+      "end_line": 45,
       "type": "FUNCTION",
       "content_hash": "f36893d14b083b60"
     },
     "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_cluster_groups": {
       "file_path": "agents/llm_renderers/clustering.py",
       "qualified_name": "agents.llm_renderers.clustering.render_cluster_groups",
-      "start_line": 45,
-      "end_line": 53,
+      "start_line": 48,
+      "end_line": 56,
       "type": "FUNCTION",
       "content_hash": "e2d8d1afc4d4ebf1"
     },
     "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_scope_connections": {
       "file_path": "agents/llm_renderers/clustering.py",
       "qualified_name": "agents.llm_renderers.clustering.render_scope_connections",
-      "start_line": 56,
-      "end_line": 73,
+      "start_line": 59,
+      "end_line": 129,
       "type": "FUNCTION",
-      "content_hash": "705e2241d1066ebb"
+      "content_hash": "e8eca08133ba2254"
     },
     "agents/planner_agent.py|agents.planner_agent.should_expand_component": {
       "file_path": "agents/planner_agent.py",
@@ -11905,147 +11907,163 @@
       "type": "FUNCTION",
       "content_hash": "c49a76dfb64a6373"
     },
+    "agents/relation_edges.py|agents.relation_edges.edge_touches_change": {
+      "file_path": "agents/relation_edges.py",
+      "qualified_name": "agents.relation_edges.edge_touches_change",
+      "start_line": 57,
+      "end_line": 59,
+      "type": "FUNCTION",
+      "content_hash": "1d87c7acef71d4a8"
+    },
+    "agents/relation_edges.py|agents.relation_edges.pair_untouched_by_change": {
+      "file_path": "agents/relation_edges.py",
+      "qualified_name": "agents.relation_edges.pair_untouched_by_change",
+      "start_line": 62,
+      "end_line": 78,
+      "type": "FUNCTION",
+      "content_hash": "5444491391132da7"
+    },
     "agents/relation_edges.py|agents.relation_edges._is_internal_self_relation": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._is_internal_self_relation",
-      "start_line": 57,
-      "end_line": 71,
+      "start_line": 81,
+      "end_line": 95,
       "type": "FUNCTION",
       "content_hash": "68a482b598302fc0"
     },
     "agents/relation_edges.py|agents.relation_edges.drop_internal_self_relations": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.drop_internal_self_relations",
-      "start_line": 74,
-      "end_line": 76,
+      "start_line": 98,
+      "end_line": 100,
       "type": "FUNCTION",
       "content_hash": "8cdb4d7af5cdaee1"
     },
     "agents/relation_edges.py|agents.relation_edges.ground_relation_edges": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.ground_relation_edges",
-      "start_line": 79,
-      "end_line": 103,
+      "start_line": 103,
+      "end_line": 127,
       "type": "FUNCTION",
       "content_hash": "0f2feaf025f56356"
     },
     "agents/relation_edges.py|agents.relation_edges.edge_crosses_components": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.edge_crosses_components",
-      "start_line": 106,
-      "end_line": 117,
+      "start_line": 130,
+      "end_line": 141,
       "type": "FUNCTION",
       "content_hash": "7cc392d4f1676dbf"
     },
     "agents/relation_edges.py|agents.relation_edges.prune_ungrounded_edges": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.prune_ungrounded_edges",
-      "start_line": 120,
-      "end_line": 175,
+      "start_line": 144,
+      "end_line": 199,
       "type": "FUNCTION",
       "content_hash": "0c4f2b16123b08b7"
     },
     "agents/relation_edges.py|agents.relation_edges.prune_ungrounded_edges.find_relation_pair_for_edge": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.prune_ungrounded_edges.find_relation_pair_for_edge",
-      "start_line": 130,
-      "end_line": 140,
+      "start_line": 154,
+      "end_line": 164,
       "type": "FUNCTION",
       "content_hash": "aa8ba459117bd62d"
     },
     "agents/relation_edges.py|agents.relation_edges.drop_reverse_duplicates": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.drop_reverse_duplicates",
-      "start_line": 178,
-      "end_line": 211,
+      "start_line": 202,
+      "end_line": 235,
       "type": "FUNCTION",
       "content_hash": "a719f54766e1296d"
     },
     "agents/relation_edges.py|agents.relation_edges._qualified_names_match": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._qualified_names_match",
-      "start_line": 214,
-      "end_line": 217,
+      "start_line": 238,
+      "end_line": 241,
       "type": "FUNCTION",
       "content_hash": "bc4b8facafcc717f"
     },
     "agents/relation_edges.py|agents.relation_edges._relation_backing_survives": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._relation_backing_survives",
-      "start_line": 220,
-      "end_line": 233,
+      "start_line": 244,
+      "end_line": 257,
       "type": "FUNCTION",
       "content_hash": "6335e1a907031e1e"
     },
     "agents/relation_edges.py|agents.relation_edges._backing_edge_pairs": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._backing_edge_pairs",
-      "start_line": 236,
-      "end_line": 239,
+      "start_line": 260,
+      "end_line": 263,
       "type": "FUNCTION",
       "content_hash": "b241984b676564b8"
     },
     "agents/relation_edges.py|agents.relation_edges._relation_edges_unmoved": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._relation_edges_unmoved",
-      "start_line": 242,
-      "end_line": 251,
+      "start_line": 266,
+      "end_line": 275,
       "type": "FUNCTION",
       "content_hash": "0b07370d696b2cdd"
     },
     "agents/relation_edges.py|agents.relation_edges._edge_touches_changed_method": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._edge_touches_changed_method",
-      "start_line": 254,
-      "end_line": 255,
+      "start_line": 278,
+      "end_line": 279,
       "type": "FUNCTION",
       "content_hash": "5eaf82114da339e6"
     },
     "agents/relation_edges.py|agents.relation_edges._restore_baseline_orientation": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._restore_baseline_orientation",
-      "start_line": 258,
-      "end_line": 286,
+      "start_line": 282,
+      "end_line": 310,
       "type": "FUNCTION",
       "content_hash": "f726540e9ff19aa4"
     },
     "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._restore_baseline_wording",
-      "start_line": 289,
-      "end_line": 312,
+      "start_line": 313,
+      "end_line": 336,
       "type": "FUNCTION",
       "content_hash": "faf3985bb9271452"
     },
     "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording.annotate": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._restore_baseline_wording.annotate",
-      "start_line": 298,
-      "end_line": 300,
+      "start_line": 322,
+      "end_line": 324,
       "type": "FUNCTION",
       "content_hash": "1a49eb1b0e833374"
     },
     "agents/relation_edges.py|agents.relation_edges._commit_deleted_the_backing": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._commit_deleted_the_backing",
-      "start_line": 315,
-      "end_line": 323,
+      "start_line": 339,
+      "end_line": 347,
       "type": "FUNCTION",
       "content_hash": "43e96f5554219104"
     },
     "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.preserve_unchanged_relations",
-      "start_line": 326,
-      "end_line": 412,
+      "start_line": 350,
+      "end_line": 435,
       "type": "FUNCTION",
-      "content_hash": "1d1c53531bbd9bde"
+      "content_hash": "40528f6b554779af"
     },
     "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations.touches_change": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.preserve_unchanged_relations.touches_change",
-      "start_line": 365,
-      "end_line": 366,
+      "start_line": 390,
+      "end_line": 391,
       "type": "FUNCTION",
       "content_hash": "78dc36639a27d377"
     },
@@ -12653,9 +12671,9 @@
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
       "start_line": 508,
-      "end_line": 1599,
+      "end_line": 1600,
       "type": "CLASS",
-      "content_hash": "436029cb31090120"
+      "content_hash": "f64b6f2a441b8916"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.__init__": {
       "file_path": "diagram_analysis/diagram_generator.py",
@@ -12941,47 +12959,47 @@
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
       "start_line": 1462,
-      "end_line": 1579,
+      "end_line": 1580,
       "type": "METHOD",
-      "content_hash": "bb49725fda040565"
+      "content_hash": "d916661bc3ff3724"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
-      "start_line": 1581,
-      "end_line": 1599,
+      "start_line": 1582,
+      "end_line": 1600,
       "type": "METHOD",
       "content_hash": "2f755384d04325e3"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.assert_scope_containment",
-      "start_line": 1602,
-      "end_line": 1626,
+      "start_line": 1603,
+      "end_line": 1627,
       "type": "FUNCTION",
       "content_hash": "92d86f22af91ea60"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._collect_components_by_id": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._collect_components_by_id",
-      "start_line": 1629,
-      "end_line": 1644,
+      "start_line": 1630,
+      "end_line": 1645,
       "type": "FUNCTION",
       "content_hash": "5ddebec0bc81a8ab"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-      "start_line": 1647,
-      "end_line": 1651,
+      "start_line": 1648,
+      "end_line": 1652,
       "type": "FUNCTION",
       "content_hash": "60bded4cd2d7778f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._merge_sub_analyses",
-      "start_line": 1654,
-      "end_line": 1684,
+      "start_line": 1655,
+      "end_line": 1685,
       "type": "FUNCTION",
       "content_hash": "f7f96f55d79e04cb"
     },
@@ -18321,8 +18339,8 @@
           "file_path": "static_analyzer/engine/adapters/typescript_adapter.py",
           "methods": [
             "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter",
-            "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language",
             "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.results_language",
+            "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language",
             "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language_enum",
             "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.lsp_command",
             "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language_id",
@@ -18569,8 +18587,8 @@
             "static_analyzer.engine.source_inspector._error_node_count",
             "static_analyzer.engine.source_inspector.ParsedSource",
             "static_analyzer.engine.source_inspector.SourceUsageIndex",
-            "static_analyzer.engine.source_inspector.SourceInspector.__init__",
             "static_analyzer.engine.source_inspector.SourceInspector",
+            "static_analyzer.engine.source_inspector.SourceInspector.__init__",
             "static_analyzer.engine.source_inspector.SourceInspector.cache_stats",
             "static_analyzer.engine.source_inspector.SourceInspector.get_source_line",
             "static_analyzer.engine.source_inspector.SourceInspector.get_file_lines",
@@ -18596,9 +18614,9 @@
             "static_analyzer.engine.source_inspector.SourceInspector._base_type_nodes",
             "static_analyzer.engine.source_inspector.SourceInspector.find_member_modifiers",
             "static_analyzer.engine.source_inspector.SourceInspector.find_member_modifiers.text",
+            "static_analyzer.engine.source_inspector.SourceInspector._occupies_body_field",
             "static_analyzer.engine.source_inspector.SourceInspector._node_is_return_value",
             "static_analyzer.engine.source_inspector.SourceInspector._node_is_call_argument",
-            "static_analyzer.engine.source_inspector.SourceInspector._occupies_body_field",
             "static_analyzer.engine.source_inspector.SourceInspector._parent_is_call_like",
             "static_analyzer.engine.source_inspector.SourceInspector._smallest_named_node_ending_at",
             "static_analyzer.engine.source_inspector.SourceInspector._smallest_named_node_covering_range",
@@ -18623,8 +18641,8 @@
             "static_analyzer.engine.symbol_table.SymbolTable.build_indices",
             "static_analyzer.engine.symbol_table.SymbolTable.find_containing_symbol",
             "static_analyzer.engine.symbol_table.SymbolTable.lift_to_callable",
-            "static_analyzer.engine.symbol_table.SymbolTable.get_equivalent_names",
             "static_analyzer.engine.symbol_table.SymbolTable.attribution_symbol",
+            "static_analyzer.engine.symbol_table.SymbolTable.get_equivalent_names",
             "static_analyzer.engine.symbol_table.SymbolTable.get_canonical_name",
             "static_analyzer.engine.symbol_table.SymbolTable.is_local_variable",
             "static_analyzer.engine.symbol_table.SymbolTable._is_unnameable",
@@ -19089,8 +19107,8 @@
                 "static_analyzer.engine.source_inspector._error_node_count",
                 "static_analyzer.engine.source_inspector.ParsedSource",
                 "static_analyzer.engine.source_inspector.SourceUsageIndex",
-                "static_analyzer.engine.source_inspector.SourceInspector.__init__",
                 "static_analyzer.engine.source_inspector.SourceInspector",
+                "static_analyzer.engine.source_inspector.SourceInspector.__init__",
                 "static_analyzer.engine.source_inspector.SourceInspector.cache_stats",
                 "static_analyzer.engine.source_inspector.SourceInspector.get_source_line",
                 "static_analyzer.engine.source_inspector.SourceInspector.get_file_lines",
@@ -19116,9 +19134,9 @@
                 "static_analyzer.engine.source_inspector.SourceInspector._base_type_nodes",
                 "static_analyzer.engine.source_inspector.SourceInspector.find_member_modifiers",
                 "static_analyzer.engine.source_inspector.SourceInspector.find_member_modifiers.text",
+                "static_analyzer.engine.source_inspector.SourceInspector._occupies_body_field",
                 "static_analyzer.engine.source_inspector.SourceInspector._node_is_return_value",
                 "static_analyzer.engine.source_inspector.SourceInspector._node_is_call_argument",
-                "static_analyzer.engine.source_inspector.SourceInspector._occupies_body_field",
                 "static_analyzer.engine.source_inspector.SourceInspector._parent_is_call_like",
                 "static_analyzer.engine.source_inspector.SourceInspector._smallest_named_node_ending_at",
                 "static_analyzer.engine.source_inspector.SourceInspector._smallest_named_node_covering_range",
@@ -19143,8 +19161,8 @@
                 "static_analyzer.engine.symbol_table.SymbolTable.build_indices",
                 "static_analyzer.engine.symbol_table.SymbolTable.find_containing_symbol",
                 "static_analyzer.engine.symbol_table.SymbolTable.lift_to_callable",
-                "static_analyzer.engine.symbol_table.SymbolTable.get_equivalent_names",
                 "static_analyzer.engine.symbol_table.SymbolTable.attribution_symbol",
+                "static_analyzer.engine.symbol_table.SymbolTable.get_equivalent_names",
                 "static_analyzer.engine.symbol_table.SymbolTable.get_canonical_name",
                 "static_analyzer.engine.symbol_table.SymbolTable.is_local_variable",
                 "static_analyzer.engine.symbol_table.SymbolTable._is_unnameable",
@@ -19429,8 +19447,8 @@
                     "static_analyzer.engine.symbol_table.SymbolTable.build_indices",
                     "static_analyzer.engine.symbol_table.SymbolTable.find_containing_symbol",
                     "static_analyzer.engine.symbol_table.SymbolTable.lift_to_callable",
-                    "static_analyzer.engine.symbol_table.SymbolTable.get_equivalent_names",
                     "static_analyzer.engine.symbol_table.SymbolTable.attribution_symbol",
+                    "static_analyzer.engine.symbol_table.SymbolTable.get_equivalent_names",
                     "static_analyzer.engine.symbol_table.SymbolTable.get_canonical_name",
                     "static_analyzer.engine.symbol_table.SymbolTable.is_local_variable",
                     "static_analyzer.engine.symbol_table.SymbolTable._is_unnameable",
@@ -19739,8 +19757,8 @@
                         "static_analyzer.engine.symbol_table.SymbolTable.file_symbols",
                         "static_analyzer.engine.symbol_table.SymbolTable.class_to_ctors",
                         "static_analyzer.engine.symbol_table.SymbolTable.build_indices",
-                        "static_analyzer.engine.symbol_table.SymbolTable.get_equivalent_names",
                         "static_analyzer.engine.symbol_table.SymbolTable.attribution_symbol",
+                        "static_analyzer.engine.symbol_table.SymbolTable.get_equivalent_names",
                         "static_analyzer.engine.symbol_table.SymbolTable.get_canonical_name",
                         "static_analyzer.engine.symbol_table.SymbolTable._is_unnameable",
                         "static_analyzer.engine.symbol_table.SymbolTable._is_anonymous",
@@ -20145,8 +20163,8 @@
                     "static_analyzer.engine.source_inspector._error_node_count",
                     "static_analyzer.engine.source_inspector.ParsedSource",
                     "static_analyzer.engine.source_inspector.SourceUsageIndex",
-                    "static_analyzer.engine.source_inspector.SourceInspector.__init__",
                     "static_analyzer.engine.source_inspector.SourceInspector",
+                    "static_analyzer.engine.source_inspector.SourceInspector.__init__",
                     "static_analyzer.engine.source_inspector.SourceInspector.cache_stats",
                     "static_analyzer.engine.source_inspector.SourceInspector.get_source_line",
                     "static_analyzer.engine.source_inspector.SourceInspector.get_file_lines",
@@ -20172,9 +20190,9 @@
                     "static_analyzer.engine.source_inspector.SourceInspector._base_type_nodes",
                     "static_analyzer.engine.source_inspector.SourceInspector.find_member_modifiers",
                     "static_analyzer.engine.source_inspector.SourceInspector.find_member_modifiers.text",
+                    "static_analyzer.engine.source_inspector.SourceInspector._occupies_body_field",
                     "static_analyzer.engine.source_inspector.SourceInspector._node_is_return_value",
                     "static_analyzer.engine.source_inspector.SourceInspector._node_is_call_argument",
-                    "static_analyzer.engine.source_inspector.SourceInspector._occupies_body_field",
                     "static_analyzer.engine.source_inspector.SourceInspector._parent_is_call_like",
                     "static_analyzer.engine.source_inspector.SourceInspector._smallest_named_node_ending_at",
                     "static_analyzer.engine.source_inspector.SourceInspector._smallest_named_node_covering_range",
@@ -20270,8 +20288,8 @@
                         "static_analyzer.engine.source_inspector._error_node_count",
                         "static_analyzer.engine.source_inspector.ParsedSource",
                         "static_analyzer.engine.source_inspector.SourceUsageIndex",
-                        "static_analyzer.engine.source_inspector.SourceInspector.__init__",
                         "static_analyzer.engine.source_inspector.SourceInspector",
+                        "static_analyzer.engine.source_inspector.SourceInspector.__init__",
                         "static_analyzer.engine.source_inspector.SourceInspector.cache_stats",
                         "static_analyzer.engine.source_inspector.SourceInspector.get_source_line",
                         "static_analyzer.engine.source_inspector.SourceInspector.get_file_lines",
@@ -20296,9 +20314,9 @@
                         "static_analyzer.engine.source_inspector.SourceInspector._base_type_nodes",
                         "static_analyzer.engine.source_inspector.SourceInspector.find_member_modifiers",
                         "static_analyzer.engine.source_inspector.SourceInspector.find_member_modifiers.text",
+                        "static_analyzer.engine.source_inspector.SourceInspector._occupies_body_field",
                         "static_analyzer.engine.source_inspector.SourceInspector._node_is_return_value",
                         "static_analyzer.engine.source_inspector.SourceInspector._node_is_call_argument",
-                        "static_analyzer.engine.source_inspector.SourceInspector._occupies_body_field",
                         "static_analyzer.engine.source_inspector.SourceInspector._parent_is_call_like",
                         "static_analyzer.engine.source_inspector.SourceInspector._smallest_named_node_ending_at",
                         "static_analyzer.engine.source_inspector.SourceInspector._smallest_named_node_covering_range",
@@ -23250,8 +23268,8 @@
               "file_path": "static_analyzer/engine/adapters/typescript_adapter.py",
               "methods": [
                 "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter",
-                "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language",
                 "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.results_language",
+                "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language",
                 "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language_enum",
                 "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.lsp_command",
                 "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language_id",
@@ -23774,8 +23792,8 @@
                   "file_path": "static_analyzer/engine/adapters/typescript_adapter.py",
                   "methods": [
                     "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter",
-                    "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language",
                     "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.results_language",
+                    "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language",
                     "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language_enum",
                     "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.lsp_command",
                     "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language_id",
@@ -23932,6 +23950,7 @@
                       "file_path": "static_analyzer/engine/adapters/typescript_adapter.py",
                       "methods": [
                         "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter",
+                        "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.results_language",
                         "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language",
                         "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.language_enum",
                         "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.lsp_command",
@@ -23940,8 +23959,7 @@
                         "static_analyzer.engine.adapters.typescript_adapter.JavaScriptAdapter.language",
                         "static_analyzer.engine.adapters.typescript_adapter.JavaScriptAdapter.language_enum",
                         "static_analyzer.engine.adapters.typescript_adapter.JavaScriptAdapter.language_id",
-                        "static_analyzer.engine.adapters.typescript_adapter.JavaScriptAdapter.config_key",
-                        "static_analyzer.engine.adapters.typescript_adapter.TypeScriptAdapter.results_language"
+                        "static_analyzer.engine.adapters.typescript_adapter.JavaScriptAdapter.config_key"
                       ]
                     }
                   ],
@@ -25385,7 +25403,7 @@
                 }
               ],
               "component_id": "2.1.2",
-              "can_expand": true,
+              "can_expand": false,
               "components": [],
               "components_relations": []
             }
@@ -27477,8 +27495,8 @@
             "agents.incremental_agent.IncrementalAgent.generate_scope_relations",
             "agents.incremental_agent.IncrementalAgent.generate_all_scope_relations",
             "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel",
-            "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one",
             "agents.incremental_agent.IncrementalAgent._clone_for_worker",
+            "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one",
             "agents.incremental_agent._new_component_membership_summary",
             "agents.incremental_agent._log_scope_relations_summary",
             "agents.incremental_agent._operation_source_cluster_ids",
@@ -27524,7 +27542,9 @@
             "agents.relation_edges.append_or_merge_relation",
             "agents.relation_edges.merge_relations_by_pair",
             "agents.relation_edges.index_relation_endpoints",
+            "agents.relation_edges.edge_touches_change",
             "agents.relation_edges._is_internal_self_relation",
+            "agents.relation_edges.pair_untouched_by_change",
             "agents.relation_edges.drop_internal_self_relations",
             "agents.relation_edges.ground_relation_edges",
             "agents.relation_edges.edge_crosses_components",
@@ -27931,8 +27951,8 @@
                 "agents.incremental_agent.IncrementalAgent.generate_scope_relations",
                 "agents.incremental_agent.IncrementalAgent.generate_all_scope_relations",
                 "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel",
-                "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one",
                 "agents.incremental_agent.IncrementalAgent._clone_for_worker",
+                "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one",
                 "agents.incremental_agent._new_component_membership_summary",
                 "agents.incremental_agent._log_scope_relations_summary",
                 "agents.incremental_agent._operation_source_cluster_ids",
@@ -28205,8 +28225,8 @@
                     {
                       "qualified_name": "agents.incremental_agent._new_component_membership_summary",
                       "reference_file": "agents/incremental_agent.py",
-                      "reference_start_line": 563,
-                      "reference_end_line": 574
+                      "reference_start_line": 591,
+                      "reference_end_line": 602
                     }
                   ],
                   "source_cluster_ids": [
@@ -28401,31 +28421,6 @@
                           "column": 40
                         }
                       ],
-                      "description": ""
-                    }
-                  ]
-                },
-                {
-                  "relation": "provides structured analysis state via analysis.json",
-                  "src_name": "Cluster Synthesis & Summarization Engine",
-                  "dst_name": "Project Relationship Renderer",
-                  "evidence": "The Synthesis Engine produces the final 'AnalysisInsights' and 'ScopeUpdateDecision' objects. These are serialized into the project's state files (analysis.json), which the Renderer subsequently consumes to build the visual hierarchy.",
-                  "key_edges": [
-                    {
-                      "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_result_update",
-                      "target": "agents/agent_responses.py|agents.agent_responses.ScopeUpdateDecision",
-                      "call_sites": [],
-                      "description": ""
-                    }
-                  ],
-                  "src_id": "3.1.1.1",
-                  "dst_id": "3.1.1.3",
-                  "is_static": false,
-                  "all_edges": [
-                    {
-                      "source": "diagram_analysis/scope_plan.py|diagram_analysis.scope_plan.plan_scope_result_update",
-                      "target": "agents/agent_responses.py|agents.agent_responses.ScopeUpdateDecision",
-                      "call_sites": [],
                       "description": ""
                     }
                   ]
@@ -28804,8 +28799,8 @@
                 {
                   "qualified_name": "agents.incremental_agent.IncrementalAgent",
                   "reference_file": "agents/incremental_agent.py",
-                  "reference_start_line": 54,
-                  "reference_end_line": 560
+                  "reference_start_line": 55,
+                  "reference_end_line": 588
                 },
                 {
                   "qualified_name": "agents.agent_responses.ComponentArchitecture",
@@ -28822,8 +28817,8 @@
                 {
                   "qualified_name": "agents.incremental_agent._remove_reassigned_clusters",
                   "reference_file": "agents/incremental_agent.py",
-                  "reference_start_line": 594,
-                  "reference_end_line": 619
+                  "reference_start_line": 622,
+                  "reference_end_line": 647
                 }
               ],
               "source_cluster_ids": [
@@ -28855,8 +28850,8 @@
                     "agents.incremental_agent.IncrementalAgent.generate_scope_relations",
                     "agents.incremental_agent.IncrementalAgent.generate_all_scope_relations",
                     "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel",
-                    "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one",
                     "agents.incremental_agent.IncrementalAgent._clone_for_worker",
+                    "agents.incremental_agent.IncrementalAgent._generate_scope_relations_parallel.run_one",
                     "agents.incremental_agent._log_scope_relations_summary",
                     "agents.incremental_agent._operation_source_cluster_ids",
                     "agents.incremental_agent._remove_reassigned_clusters",
@@ -29204,11 +29199,22 @@
               ]
             },
             {
-              "relation": "dispatches semantic synthesis and identity repair",
+              "relation": "Delegates semantic synthesis and identity assignment",
               "src_name": "Incremental Synthesis Orchestrator",
               "dst_name": "Architectural Abstraction & Identity Resolver",
-              "evidence": "The Orchestrator triggers LLM-backed agents to generate component descriptions and uses repair logic to ensure component IDs remain stable across different analysis runs.",
+              "evidence": "The Orchestrator provides the Abstraction layer with cluster summaries and context. The Abstraction layer uses LLMs to generate names and descriptions, ensuring that new components receive stable IDs and validated relations.",
               "key_edges": [
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+                  "target": "agents/validation.py|agents.validation.ValidationContext",
+                  "call_sites": [
+                    {
+                      "line": 346,
+                      "column": 32
+                    }
+                  ],
+                  "description": "Provides context for semantic relation validation."
+                },
                 {
                   "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._create_component_from_operation",
                   "target": "agents/agent_responses.py|agents.agent_responses.assign_component_ids",
@@ -29225,6 +29231,50 @@
               "dst_id": "3.1.2",
               "is_static": true,
               "all_edges": [
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+                  "target": "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_scope_connections",
+                  "call_sites": [
+                    {
+                      "line": 412,
+                      "column": 36
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+                  "target": "agents/agent_responses.py|agents.agent_responses.ComponentApiSurfaces.llm_str",
+                  "call_sites": [
+                    {
+                      "line": 339,
+                      "column": 39
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+                  "target": "agents/component_ownership.py|agents.component_ownership.group_ids_by_name",
+                  "call_sites": [
+                    {
+                      "line": 330,
+                      "column": 50
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+                  "target": "agents/validation.py|agents.validation.ValidationContext",
+                  "call_sites": [
+                    {
+                      "line": 346,
+                      "column": 32
+                    }
+                  ],
+                  "description": ""
+                },
                 {
                   "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
                   "target": "agents/agent_responses.py|agents.agent_responses.assign_relation_ids",
@@ -29243,61 +29293,6 @@
                     {
                       "line": 233,
                       "column": 30
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_api_surfaces",
-                  "target": "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_scope_connections",
-                  "call_sites": [
-                    {
-                      "line": 311,
-                      "column": 34
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-                  "target": "agents/agent_responses.py|agents.agent_responses.ComponentApiSurfaces.llm_str",
-                  "call_sites": [
-                    {
-                      "line": 340,
-                      "column": 39
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-                  "target": "agents/component_ownership.py|agents.component_ownership.group_ids_by_name",
-                  "call_sites": [
-                    {
-                      "line": 331,
-                      "column": 50
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-                  "target": "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_scope_connections",
-                  "call_sites": [
-                    {
-                      "line": 341,
-                      "column": 34
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-                  "target": "agents/validation.py|agents.validation.ValidationContext",
-                  "call_sites": [
-                    {
-                      "line": 350,
-                      "column": 32
                     }
                   ],
                   "description": ""
@@ -29425,7 +29420,9 @@
               "file_path": "agents/relation_edges.py",
               "methods": [
                 "agents.relation_edges.append_or_merge_relation",
+                "agents.relation_edges.edge_touches_change",
                 "agents.relation_edges._is_internal_self_relation",
+                "agents.relation_edges.pair_untouched_by_change",
                 "agents.relation_edges.drop_internal_self_relations",
                 "agents.relation_edges.ground_relation_edges",
                 "agents.relation_edges.edge_crosses_components",
@@ -29795,8 +29792,8 @@
                 {
                   "qualified_name": "agents.relation_edges.preserve_unchanged_relations",
                   "reference_file": "agents/relation_edges.py",
-                  "reference_start_line": 326,
-                  "reference_end_line": 412
+                  "reference_start_line": 350,
+                  "reference_end_line": 435
                 },
                 {
                   "qualified_name": "agents.relation_edges.append_or_merge_relation",
@@ -29842,7 +29839,9 @@
                   "file_path": "agents/relation_edges.py",
                   "methods": [
                     "agents.relation_edges.append_or_merge_relation",
+                    "agents.relation_edges.edge_touches_change",
                     "agents.relation_edges._is_internal_self_relation",
+                    "agents.relation_edges.pair_untouched_by_change",
                     "agents.relation_edges.drop_internal_self_relations",
                     "agents.relation_edges.ground_relation_edges",
                     "agents.relation_edges.edge_crosses_components",
@@ -29969,10 +29968,10 @@
               ]
             },
             {
-              "relation": "supplies resolved graph edges for visualization",
+              "relation": "Supplies reconciled graph data for rendering",
               "src_name": "Relational Logic & Edge Reconciliation",
               "dst_name": "Architectural Surface & Visualization Generator",
-              "evidence": "While the schema defines the 'what', the reconciliation logic determines the 'how' of the connections. The generator relies on the output of the reconciliation process to ensure that the visualized edges represent the current state of the codebase accurately.",
+              "evidence": "The visualization generators ingest the processed and reconciled Relation and Component objects to produce the final HTML/Markdown outputs and Cytoscape graph visualizations.",
               "key_edges": [],
               "src_id": "3.2.3",
               "dst_id": "3.2.2",
@@ -30000,8 +29999,8 @@
             {
               "qualified_name": "agents.incremental_agent._patch_file_methods",
               "reference_file": "agents/incremental_agent.py",
-              "reference_start_line": 642,
-              "reference_end_line": 689
+              "reference_start_line": 670,
+              "reference_end_line": 717
             },
             {
               "qualified_name": "agents.content_hash.MethodRef",
@@ -30348,8 +30347,8 @@
                 {
                   "qualified_name": "agents.incremental_agent._patch_file_methods",
                   "reference_file": "agents/incremental_agent.py",
-                  "reference_start_line": 642,
-                  "reference_end_line": 689
+                  "reference_start_line": 670,
+                  "reference_end_line": 717
                 },
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._reconcile_child_scope",
@@ -30711,10 +30710,10 @@
       ],
       "components_relations": [
         {
-          "relation": "Defines and instantiates architectural schemas",
+          "relation": "Enforces architectural schema on LLM reasoning",
           "src_name": "Architectural Synthesis & Cluster Orchestrator",
           "dst_name": "Component Modeling & API Definition",
-          "evidence": "The Orchestrator acts as the primary consumer of the modeling layer. It interprets LLM outputs to instantiate Component and AnalysisInsights objects.",
+          "evidence": "The orchestrator uses the modeling layer to define the structure of LLM prompts and to validate the structured responses (Pydantic models) that represent the synthesized architecture.",
           "key_edges": [
             {
               "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent._step_llm_analysis",
@@ -30732,6 +30731,43 @@
           "dst_id": "3.2",
           "is_static": true,
           "all_edges": [
+            {
+              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+              "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
+              "call_sites": [
+                {
+                  "line": 464,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_scope_connections",
+              "target": "agents/relation_edges.py|agents.relation_edges.edge_touches_change",
+              "call_sites": [
+                {
+                  "line": 81,
+                  "column": 16
+                },
+                {
+                  "line": 98,
+                  "column": 17
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+              "target": "agents/static_analysis_enricher_mixin.py|agents.static_analysis_enricher_mixin.StaticAnalysisEnricherMixin.prune_relations",
+              "call_sites": [
+                {
+                  "line": 476,
+                  "column": 18
+                }
+              ],
+              "description": ""
+            },
             {
               "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent._step_llm_analysis",
               "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
@@ -30783,28 +30819,6 @@
                 {
                   "line": 374,
                   "column": 14
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
-              "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
-              "call_sites": [
-                {
-                  "line": 457,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
-              "target": "agents/static_analysis_enricher_mixin.py|agents.static_analysis_enricher_mixin.StaticAnalysisEnricherMixin.prune_relations",
-              "call_sites": [
-                {
-                  "line": 468,
-                  "column": 18
                 }
               ],
               "description": ""
@@ -33376,8 +33390,8 @@
             {
               "qualified_name": "agents.incremental_agent.remove_deleted_files",
               "reference_file": "agents/incremental_agent.py",
-              "reference_start_line": 755,
-              "reference_end_line": 765
+              "reference_start_line": 783,
+              "reference_end_line": 793
             },
             {
               "qualified_name": "diagram_analysis.analysis_json.FileCoverageReport",
@@ -33561,7 +33575,7 @@
                   "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
                   "reference_file": "diagram_analysis/diagram_generator.py",
                   "reference_start_line": 508,
-                  "reference_end_line": 1599
+                  "reference_end_line": 1600
                 }
               ],
               "source_cluster_ids": [
@@ -33617,7 +33631,8 @@
                     "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
                     "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
                     "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-                    "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary"
+                    "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary",
+                    "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental"
                   ]
                 },
                 {
@@ -33661,8 +33676,8 @@
                 {
                   "qualified_name": "agents.incremental_agent.remove_deleted_files",
                   "reference_file": "agents/incremental_agent.py",
-                  "reference_start_line": 755,
-                  "reference_end_line": 765
+                  "reference_start_line": 783,
+                  "reference_end_line": 793
                 },
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._capture_membership_baseline",
@@ -33705,7 +33720,6 @@
                     "diagram_analysis.diagram_generator._incremental_changed_component_ids",
                     "diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
                     "diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_hierarchy",
-                    "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
                     "diagram_analysis.diagram_generator._collect_components_by_id",
                     "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
                     "diagram_analysis.diagram_generator._merge_sub_analyses"
@@ -34036,10 +34050,10 @@
           ],
           "components_relations": [
             {
-              "relation": "Orchestrates state cleanup and baseline capture",
+              "relation": "orchestrates state synchronization and cleanup",
               "src_name": "Source Integrity & Expansion Planner",
               "dst_name": "State Reconciliation & Baseline Manager",
-              "evidence": "The planner initiates the incremental workflow by triggering state synchronization and baseline capture to identify what parts of the analysis are still valid.",
+              "evidence": "The Planner initiates the incremental analysis lifecycle by requesting a membership baseline and purging deleted files from the persistent state before new analysis begins.",
               "key_edges": [
                 {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._prepare_incremental_clustering",
@@ -34068,6 +34082,87 @@
               "dst_id": "4.2.2",
               "is_static": true,
               "all_edges": [
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_hierarchy",
+                  "call_sites": [
+                    {
+                      "line": 1503,
+                      "column": 33
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
+                  "call_sites": [
+                    {
+                      "line": 1494,
+                      "column": 22
+                    },
+                    {
+                      "line": 1514,
+                      "column": 18
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._collect_components_by_id",
+                  "call_sites": [
+                    {
+                      "line": 1535,
+                      "column": 34
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
+                  "call_sites": [
+                    {
+                      "line": 1533,
+                      "column": 13
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses",
+                  "call_sites": [
+                    {
+                      "line": 1551,
+                      "column": 17
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_metadata",
+                  "call_sites": [
+                    {
+                      "line": 1520,
+                      "column": 29
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_subtrees",
+                  "call_sites": [
+                    {
+                      "line": 1506,
+                      "column": 29
+                    }
+                  ],
+                  "description": ""
+                },
                 {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._prepare_incremental_clustering",
                   "target": "agents/incremental_agent.py|agents.incremental_agent.remove_deleted_files",
@@ -34130,10 +34225,10 @@
               ]
             },
             {
-              "relation": "Identifies re-analysis seeds for structural updates",
+              "relation": "queries expansion seeds for incremental analysis",
               "src_name": "Source Integrity & Expansion Planner",
               "dst_name": "Structural Delta & Change Analyzer",
-              "evidence": "During subcomponent generation, the planner queries the delta analyzer to find expansion seeds where code changes necessitate new clustering.",
+              "evidence": "The Planner uses the Delta Analyzer to identify which specific code clusters have changed enough to require LLM re-analysis (expansion seeds).",
               "key_edges": [
                 {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
@@ -34151,6 +34246,17 @@
               "dst_id": "4.2.3",
               "is_static": true,
               "all_edges": [
+                {
+                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth",
+                  "call_sites": [
+                    {
+                      "line": 1547,
+                      "column": 21
+                    }
+                  ],
+                  "description": ""
+                },
                 {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
@@ -34187,119 +34293,34 @@
               ]
             },
             {
-              "relation": "hands off raw hierarchy for finalization",
+              "relation": "delegates final tree transformation and validation",
               "src_name": "Source Integrity & Expansion Planner",
               "dst_name": "Diagram Structural Refiner",
-              "evidence": "Once the analysis is complete, the Planner passes the full ClusteringHierarchy to the Refiner to enforce visual constraints and structural integrity before persistence.",
-              "key_edges": [],
-              "src_id": "4.2.1",
-              "dst_id": "4.2.4",
-              "is_static": true,
-              "all_edges": []
-            },
-            {
-              "relation": "Drives the incremental analysis workflow loop",
-              "src_name": "State Reconciliation & Baseline Manager",
-              "dst_name": "Source Integrity & Expansion Planner",
-              "evidence": "The manager controls the high-level generate_analysis_incremental loop, calling back into the planner to initialize agents and finalize the analysis state.",
+              "evidence": "After analysis completion, the Planner hands off the raw component graph to the Refiner for tree re-rooting, containment validation, and final serialization.",
               "key_edges": [
                 {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
                   "call_sites": [
                     {
-                      "line": 1480,
-                      "column": 22
+                      "line": 1517,
+                      "column": 13
                     }
                   ],
-                  "description": "Initializes agents for incremental loop"
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.prepare_analysis",
-                  "call_sites": [
-                    {
-                      "line": 1470,
-                      "column": 18
-                    }
-                  ],
-                  "description": "Prepares analysis state"
+                  "description": ""
                 }
               ],
-              "src_id": "4.2.2",
-              "dst_id": "4.2.1",
+              "src_id": "4.2.1",
+              "dst_id": "4.2.4",
               "is_static": true,
               "all_edges": [
                 {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
+                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
                   "call_sites": [
                     {
-                      "line": 1550,
-                      "column": 43
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._prepare_incremental_clustering",
-                  "call_sites": [
-                    {
-                      "line": 1472,
-                      "column": 50
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
-                  "call_sites": [
-                    {
-                      "line": 1480,
-                      "column": 22
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-                  "call_sites": [
-                    {
-                      "line": 1496,
-                      "column": 29
-                    },
-                    {
-                      "line": 1571,
-                      "column": 34
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.prepare_analysis",
-                  "call_sites": [
-                    {
-                      "line": 1470,
-                      "column": 18
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._IncrementalPreparation.has_changes",
-                  "call_sites": [
-                    {
-                      "line": 1477,
-                      "column": 46
-                    },
-                    {
-                      "line": 1487,
-                      "column": 32
+                      "line": 1517,
+                      "column": 13
                     }
                   ],
                   "description": ""
@@ -34346,17 +34367,6 @@
                     }
                   ],
                   "description": ""
-                },
-                {
-                  "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                  "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth",
-                  "call_sites": [
-                    {
-                      "line": 1547,
-                      "column": 21
-                    }
-                  ],
-                  "description": ""
                 }
               ]
             },
@@ -34384,10 +34394,10 @@
               ]
             },
             {
-              "relation": "mutates and re-roots indexing structures",
+              "relation": "updates internal index mappings via re-rooting",
               "src_name": "Diagram Structural Refiner",
               "dst_name": "Source Integrity & Expansion Planner",
-              "evidence": "The Refiner performs tree re-rooting and index maintenance on the Planner's data structures to ensure the final output is consistent with the refined visual hierarchy.",
+              "evidence": "The Refiner modifies the Planner's internal state by providing updated index mappings (reroot_indexes) to ensure the final diagram reflects the optimized hierarchy.",
               "key_edges": [],
               "src_id": "4.2.4",
               "dst_id": "4.2.1",
@@ -34738,8 +34748,8 @@
             {
               "qualified_name": "agents.incremental_agent.prune_empty_components",
               "reference_file": "agents/incremental_agent.py",
-              "reference_start_line": 792,
-              "reference_end_line": 829
+              "reference_start_line": 820,
+              "reference_end_line": 857
             },
             {
               "qualified_name": "diagram_analysis.io_utils._AnalysisFileStore",
@@ -35017,6 +35027,17 @@
           "is_static": true,
           "all_edges": [
             {
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+              "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
+              "call_sites": [
+                {
+                  "line": 1529,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
               "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
               "target": "agents/agent_responses.py|agents.agent_responses.index_components_by_id",
               "call_sites": [
@@ -35056,17 +35077,6 @@
                 {
                   "line": 1374,
                   "column": 13
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-              "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
-              "call_sites": [
-                {
-                  "line": 1529,
-                  "column": 27
                 }
               ],
               "description": ""
@@ -35357,11 +35367,11 @@
             "static_analyzer.__init__.StaticAnalyzer.stop_clients",
             "static_analyzer.__init__.StaticAnalyzer.flush_cache",
             "static_analyzer.__init__.StaticAnalyzer._live_clients",
+            "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
             "static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation",
             "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
-            "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
-            "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
             "static_analyzer.__init__.StaticAnalyzer.notify_file_changed",
+            "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
             "static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file",
             "static_analyzer.__init__.StaticAnalyzer.analyze",
             "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
@@ -35371,8 +35381,8 @@
             "static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
             "static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
             "static_analyzer.__init__.StaticAnalyzer._collect_diagnostics_for",
-            "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
             "static_analyzer.__init__.StaticAnalyzer._loc_for_adapter",
+            "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
             "static_analyzer.__init__.StaticAnalyzer._validate_analysis_results"
           ]
         },
@@ -35416,25 +35426,25 @@
             "static_analyzer.analysis_result._language_written_in",
             "static_analyzer.analysis_result.StaticAnalysisResults",
             "static_analyzer.analysis_result.StaticAnalysisResults._bucket",
-            "static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
             "static_analyzer.analysis_result.StaticAnalysisResults._get_bucket",
+            "static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
             "static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
             "static_analyzer.analysis_result.StaticAnalysisResults.add_package_dependencies",
             "static_analyzer.analysis_result.StaticAnalysisResults.add_references",
             "static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
             "static_analyzer.analysis_result.StaticAnalysisResults.get_references",
-            "static_analyzer.analysis_result.StaticAnalysisResults.set_clusters",
             "static_analyzer.analysis_result.StaticAnalysisResults.get_clusters",
+            "static_analyzer.analysis_result.StaticAnalysisResults.set_clusters",
             "static_analyzer.analysis_result.StaticAnalysisResults.get_hierarchy",
             "static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
             "static_analyzer.analysis_result.StaticAnalysisResults.get_reference",
             "static_analyzer.analysis_result.StaticAnalysisResults.get_loose_reference",
             "static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+            "static_analyzer.analysis_result.StaticAnalysisResults.source_files_of_language",
+            "static_analyzer.analysis_result.StaticAnalysisResults.source_languages",
             "static_analyzer.analysis_result.StaticAnalysisResults.resolve_across_languages",
             "static_analyzer.analysis_result.StaticAnalysisResults.iter_reference_nodes",
-            "static_analyzer.analysis_result.StaticAnalysisResults.source_files_of_language",
             "static_analyzer.analysis_result.StaticAnalysisResults.add_source_files",
-            "static_analyzer.analysis_result.StaticAnalysisResults.source_languages",
             "static_analyzer.analysis_result.StaticAnalysisResults.get_source_files",
             "static_analyzer.analysis_result.StaticAnalysisResults.get_all_source_files"
           ]
@@ -35647,8 +35657,8 @@
           "methods": [
             "static_analyzer.engine.language_adapter.LanguageAdapter.language",
             "static_analyzer.engine.language_adapter.LanguageAdapter.language_enum",
-            "static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
             "static_analyzer.engine.language_adapter.LanguageAdapter.results_language",
+            "static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
             "static_analyzer.engine.language_adapter.LanguageAdapter.fail_on_empty_symbols",
             "static_analyzer.engine.language_adapter.LanguageAdapter.discover_source_files"
           ]
@@ -37487,11 +37497,11 @@
                 "static_analyzer.__init__.StaticAnalyzer.stop_clients",
                 "static_analyzer.__init__.StaticAnalyzer.flush_cache",
                 "static_analyzer.__init__.StaticAnalyzer._live_clients",
+                "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
                 "static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation",
                 "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
-                "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
-                "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
                 "static_analyzer.__init__.StaticAnalyzer.notify_file_changed",
+                "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
                 "static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file",
                 "static_analyzer.__init__.StaticAnalyzer.analyze",
                 "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
@@ -37500,8 +37510,8 @@
                 "static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
                 "static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
                 "static_analyzer.__init__.StaticAnalyzer._collect_diagnostics_for",
-                "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
                 "static_analyzer.__init__.StaticAnalyzer._loc_for_adapter",
+                "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
                 "static_analyzer.__init__.StaticAnalyzer._validate_analysis_results"
               ]
             },
@@ -37538,16 +37548,16 @@
                 "static_analyzer.analysis_result._language_written_in",
                 "static_analyzer.analysis_result.StaticAnalysisResults",
                 "static_analyzer.analysis_result.StaticAnalysisResults._bucket",
-                "static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
                 "static_analyzer.analysis_result.StaticAnalysisResults._get_bucket",
+                "static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
                 "static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
                 "static_analyzer.analysis_result.StaticAnalysisResults.add_package_dependencies",
                 "static_analyzer.analysis_result.StaticAnalysisResults.add_references",
                 "static_analyzer.analysis_result.StaticAnalysisResults.get_references",
                 "static_analyzer.analysis_result.StaticAnalysisResults.get_clusters",
                 "static_analyzer.analysis_result.StaticAnalysisResults.source_files_of_language",
-                "static_analyzer.analysis_result.StaticAnalysisResults.add_source_files",
-                "static_analyzer.analysis_result.StaticAnalysisResults.source_languages"
+                "static_analyzer.analysis_result.StaticAnalysisResults.source_languages",
+                "static_analyzer.analysis_result.StaticAnalysisResults.add_source_files"
               ]
             },
             {
@@ -37561,8 +37571,8 @@
               "methods": [
                 "static_analyzer.engine.language_adapter.LanguageAdapter.language",
                 "static_analyzer.engine.language_adapter.LanguageAdapter.language_enum",
-                "static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
                 "static_analyzer.engine.language_adapter.LanguageAdapter.results_language",
+                "static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
                 "static_analyzer.engine.language_adapter.LanguageAdapter.fail_on_empty_symbols",
                 "static_analyzer.engine.language_adapter.LanguageAdapter.discover_source_files"
               ]
@@ -38961,8 +38971,8 @@
           "methods": [
             "static_analyzer.config.AdapterName",
             "static_analyzer.config.SourceSuffix",
-            "static_analyzer.config.ClusteringConfig",
             "static_analyzer.config.JsxLanguageId",
+            "static_analyzer.config.ClusteringConfig",
             "static_analyzer.config.GroupingConfig"
           ]
         },
@@ -39076,17 +39086,17 @@
           "file_path": "static_analyzer/typescript_config_scanner.py",
           "methods": [
             "static_analyzer.typescript_config_scanner.TypeScriptProject",
-            "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.__init__",
             "static_analyzer.typescript_config_scanner._exclude_spec",
             "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner",
+            "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.__init__",
             "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.find_typescript_projects",
-            "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._discover_candidates",
             "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.find_unclaimed_family_files",
+            "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._discover_candidates",
             "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._resolve_project_files",
-            "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._fallback_walk",
             "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._showconfig",
-            "static_analyzer.typescript_config_scanner._is_ancestor",
+            "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._fallback_walk",
             "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._trim_overlap",
+            "static_analyzer.typescript_config_scanner._is_ancestor",
             "static_analyzer.typescript_config_scanner._excluded_by"
           ]
         },
@@ -39222,8 +39232,8 @@
               "methods": [
                 "static_analyzer.config.AdapterName",
                 "static_analyzer.config.SourceSuffix",
-                "static_analyzer.config.ClusteringConfig",
                 "static_analyzer.config.JsxLanguageId",
+                "static_analyzer.config.ClusteringConfig",
                 "static_analyzer.config.GroupingConfig"
               ]
             },
@@ -39421,8 +39431,8 @@
                   "methods": [
                     "static_analyzer.config.AdapterName",
                     "static_analyzer.config.SourceSuffix",
-                    "static_analyzer.config.ClusteringConfig",
                     "static_analyzer.config.JsxLanguageId",
+                    "static_analyzer.config.ClusteringConfig",
                     "static_analyzer.config.GroupingConfig"
                   ]
                 },
@@ -39735,17 +39745,17 @@
               "file_path": "static_analyzer/typescript_config_scanner.py",
               "methods": [
                 "static_analyzer.typescript_config_scanner.TypeScriptProject",
-                "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.__init__",
                 "static_analyzer.typescript_config_scanner._exclude_spec",
                 "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner",
+                "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.__init__",
                 "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.find_typescript_projects",
-                "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._discover_candidates",
                 "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.find_unclaimed_family_files",
+                "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._discover_candidates",
                 "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._resolve_project_files",
-                "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._fallback_walk",
                 "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._showconfig",
-                "static_analyzer.typescript_config_scanner._is_ancestor",
+                "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._fallback_walk",
                 "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner._trim_overlap",
+                "static_analyzer.typescript_config_scanner._is_ancestor",
                 "static_analyzer.typescript_config_scanner._excluded_by"
               ]
             }
@@ -43959,10 +43969,10 @@
       "all_edges": []
     },
     {
-      "relation": "Defines and instantiates architectural schemas",
+      "relation": "Enforces architectural schema on LLM reasoning",
       "src_name": "Project Relationship Renderer",
       "dst_name": "Relational Logic & Edge Reconciliation",
-      "evidence": "The Orchestrator acts as the primary consumer of the modeling layer. It interprets LLM outputs to instantiate Component and AnalysisInsights objects.",
+      "evidence": "The orchestrator uses the modeling layer to define the structure of LLM prompts and to validate the structured responses (Pydantic models) that represent the synthesized architecture.",
       "key_edges": [],
       "src_id": "3.1.1.3",
       "dst_id": "3.2.3",
@@ -44438,10 +44448,10 @@
       ]
     },
     {
-      "relation": "Defines and instantiates architectural schemas",
+      "relation": "Enforces architectural schema on LLM reasoning",
       "src_name": "Component Synthesis & Relation Mapper",
       "dst_name": "Relational Logic & Edge Reconciliation",
-      "evidence": "The Orchestrator acts as the primary consumer of the modeling layer. It interprets LLM outputs to instantiate Component and AnalysisInsights objects.",
+      "evidence": "The orchestrator uses the modeling layer to define the structure of LLM prompts and to validate the structured responses (Pydantic models) that represent the synthesized architecture.",
       "key_edges": [
         {
           "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent._step_llm_analysis",
@@ -44459,6 +44469,21 @@
       "dst_id": "3.2.3",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_scope_connections",
+          "target": "agents/relation_edges.py|agents.relation_edges.edge_touches_change",
+          "call_sites": [
+            {
+              "line": 81,
+              "column": 16
+            },
+            {
+              "line": 98,
+              "column": 17
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "agents/abstraction_agent.py|agents.abstraction_agent.AbstractionAgent._step_llm_analysis",
           "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
@@ -44585,10 +44610,10 @@
       ]
     },
     {
-      "relation": "validates model edges against static CFG",
+      "relation": "Validates logical models against physical code",
       "src_name": "Component Synthesis & Relation Mapper",
       "dst_name": "Structural Graph & Edge Validator",
-      "evidence": "Refines LLM-generated architectural components by cross-referencing them with deterministic call graph data and symbol references.",
+      "evidence": "Cross-references LLM-proposed architectural relations against the ground-truth static call graph to ensure structural integrity.",
       "key_edges": [],
       "src_id": "3.1.2.1",
       "dst_id": "5.1.1",
@@ -44857,22 +44882,11 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.detail_new_components",
-          "target": "agents/agent.py|agents.agent.CodeBoardingAgent._parse_invoke",
-          "call_sites": [
-            {
-              "line": 242,
-              "column": 29
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_api_surfaces",
           "target": "agents/agent.py|agents.agent.CodeBoardingAgent._parse_invoke",
           "call_sites": [
             {
-              "line": 316,
+              "line": 314,
               "column": 21
             }
           ],
@@ -44883,8 +44897,19 @@
           "target": "agents/agent.py|agents.agent.CodeBoardingAgent._invoke_validate",
           "call_sites": [
             {
-              "line": 346,
+              "line": 342,
               "column": 52
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.detail_new_components",
+          "target": "agents/agent.py|agents.agent.CodeBoardingAgent._parse_invoke",
+          "call_sites": [
+            {
+              "line": 242,
+              "column": 29
             }
           ],
           "description": ""
@@ -44921,7 +44946,7 @@
           "target": "monitoring/stats.py|monitoring.stats.RunStats.merge",
           "call_sites": [
             {
-              "line": 495,
+              "line": 575,
               "column": 34
             }
           ],
@@ -44964,10 +44989,10 @@
       "all_edges": []
     },
     {
-      "relation": "dispatches semantic synthesis and identity repair",
+      "relation": "Delegates semantic synthesis and identity assignment",
       "src_name": "Incremental Synthesis Orchestrator",
       "dst_name": "Component Synthesis & Relation Mapper",
-      "evidence": "The Orchestrator triggers LLM-backed agents to generate component descriptions and uses repair logic to ensure component IDs remain stable across different analysis runs.",
+      "evidence": "The Orchestrator provides the Abstraction layer with cluster summaries and context. The Abstraction layer uses LLMs to generate names and descriptions, ensuring that new components receive stable IDs and validated relations.",
       "key_edges": [
         {
           "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._create_component_from_operation",
@@ -44985,6 +45010,39 @@
       "dst_id": "3.1.2.1",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+          "target": "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_scope_connections",
+          "call_sites": [
+            {
+              "line": 412,
+              "column": 36
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+          "target": "agents/agent_responses.py|agents.agent_responses.ComponentApiSurfaces.llm_str",
+          "call_sites": [
+            {
+              "line": 339,
+              "column": 39
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+          "target": "agents/component_ownership.py|agents.component_ownership.group_ids_by_name",
+          "call_sites": [
+            {
+              "line": 330,
+              "column": 50
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
           "target": "agents/agent_responses.py|agents.agent_responses.assign_relation_ids",
@@ -45008,50 +45066,6 @@
           "description": ""
         },
         {
-          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_api_surfaces",
-          "target": "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_scope_connections",
-          "call_sites": [
-            {
-              "line": 311,
-              "column": 34
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-          "target": "agents/agent_responses.py|agents.agent_responses.ComponentApiSurfaces.llm_str",
-          "call_sites": [
-            {
-              "line": 340,
-              "column": 39
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-          "target": "agents/component_ownership.py|agents.component_ownership.group_ids_by_name",
-          "call_sites": [
-            {
-              "line": 331,
-              "column": 50
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
-          "target": "agents/llm_renderers/clustering.py|agents.llm_renderers.clustering.render_scope_connections",
-          "call_sites": [
-            {
-              "line": 341,
-              "column": 34
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._create_component_from_operation",
           "target": "agents/agent_responses.py|agents.agent_responses.assign_component_ids",
           "call_sites": [
@@ -45069,7 +45083,19 @@
       "src_name": "Incremental Synthesis Orchestrator",
       "dst_name": "Identity Repair & Integrity Validator",
       "evidence": "The Orchestrator triggers the Abstraction and Details agents to interpret raw clusters into human-readable components and uses the Resolver's identity logic to ensure component IDs remain stable across incremental runs.",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+          "target": "agents/validation.py|agents.validation.ValidationContext",
+          "call_sites": [
+            {
+              "line": 346,
+              "column": 32
+            }
+          ],
+          "description": "Provides context for semantic relation validation."
+        }
+      ],
       "src_id": "3.1.3",
       "dst_id": "3.1.2.2",
       "is_static": true,
@@ -45079,7 +45105,7 @@
           "target": "agents/validation.py|agents.validation.ValidationContext",
           "call_sites": [
             {
-              "line": 350,
+              "line": 346,
               "column": 32
             }
           ],
@@ -45143,22 +45169,11 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
-          "target": "agents/static_analysis_enricher_mixin.py|agents.static_analysis_enricher_mixin.StaticAnalysisEnricherMixin.merge_scope_relations",
-          "call_sites": [
-            {
-              "line": 374,
-              "column": 14
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
           "target": "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
           "call_sites": [
             {
-              "line": 457,
+              "line": 464,
               "column": 42
             }
           ],
@@ -45169,8 +45184,19 @@
           "target": "agents/static_analysis_enricher_mixin.py|agents.static_analysis_enricher_mixin.StaticAnalysisEnricherMixin.prune_relations",
           "call_sites": [
             {
-              "line": 468,
+              "line": 476,
               "column": 18
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
+          "target": "agents/static_analysis_enricher_mixin.py|agents.static_analysis_enricher_mixin.StaticAnalysisEnricherMixin.merge_scope_relations",
+          "call_sites": [
+            {
+              "line": 374,
+              "column": 14
             }
           ],
           "description": ""
@@ -45234,22 +45260,11 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
-          "target": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.fix_source_code_reference_lines",
-          "call_sites": [
-            {
-              "line": 375,
-              "column": 33
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_scope_relations",
           "target": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.fix_source_code_reference_lines",
           "call_sites": [
             {
-              "line": 389,
+              "line": 386,
               "column": 37
             }
           ],
@@ -45260,8 +45275,19 @@
           "target": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.keep_relation_edge",
           "call_sites": [
             {
-              "line": 470,
+              "line": 478,
               "column": 41
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent._attach_static_relations",
+          "target": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.fix_source_code_reference_lines",
+          "call_sites": [
+            {
+              "line": 375,
+              "column": 33
             }
           ],
           "description": ""
@@ -45433,10 +45459,10 @@
       ]
     },
     {
-      "relation": "supplies resolved graph edges for visualization",
+      "relation": "Supplies reconciled graph data for rendering",
       "src_name": "Relational Logic & Edge Reconciliation",
       "dst_name": "Architectural Surface & Visualization Generator",
-      "evidence": "While the schema defines the 'what', the reconciliation logic determines the 'how' of the connections. The generator relies on the output of the reconciliation process to ensure that the visualized edges represent the current state of the codebase accurately.",
+      "evidence": "The visualization generators ingest the processed and reconciled Relation and Component objects to produce the final HTML/Markdown outputs and Cytoscape graph visualizations.",
       "key_edges": [],
       "src_id": "3.2.3",
       "dst_id": "3.2.2",
@@ -47060,15 +47086,64 @@
       ]
     },
     {
-      "relation": "calls",
+      "relation": "Serializes architectural models",
+      "src_name": "Source Integrity & Expansion Planner",
+      "dst_name": "Incremental Synthesis Orchestrator",
+      "evidence": "Collects the high-level component models generated by agents and serializes them into the final documentation artifacts.",
+      "key_edges": [],
+      "src_id": "4.2.1",
+      "dst_id": "3.1.3",
+      "is_static": true,
+      "all_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.detail_new_components",
+          "call_sites": [
+            {
+              "line": 1541,
+              "column": 40
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_all_scope_relations",
+          "call_sites": [
+            {
+              "line": 1559,
+              "column": 40
+            }
+          ],
+          "description": ""
+        }
+      ]
+    },
+    {
+      "relation": "Serializes architectural models",
       "src_name": "Source Integrity & Expansion Planner",
       "dst_name": "Persistent State Schema & Index Models",
-      "evidence": "",
+      "evidence": "Collects the high-level component models generated by agents and serializes them into the final documentation artifacts.",
       "key_edges": [],
       "src_id": "4.2.1",
       "dst_id": "3.3.1",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
+          "call_sites": [
+            {
+              "line": 1495,
+              "column": 22
+            },
+            {
+              "line": 1570,
+              "column": 18
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.expandable_ids",
           "target": "agents/planner_agent.py|agents.planner_agent.get_expandable_components",
@@ -47229,10 +47304,10 @@
       ]
     },
     {
-      "relation": "Orchestrates state cleanup and baseline capture",
+      "relation": "orchestrates state synchronization and cleanup",
       "src_name": "Source Integrity & Expansion Planner",
       "dst_name": "State Reconciliation & Baseline Manager",
-      "evidence": "The planner initiates the incremental workflow by triggering state synchronization and baseline capture to identify what parts of the analysis are still valid.",
+      "evidence": "The Planner initiates the incremental analysis lifecycle by requesting a membership baseline and purging deleted files from the persistent state before new analysis begins.",
       "key_edges": [
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._prepare_incremental_clustering",
@@ -47261,6 +47336,87 @@
       "dst_id": "4.2.2",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_hierarchy",
+          "call_sites": [
+            {
+              "line": 1503,
+              "column": 33
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
+          "call_sites": [
+            {
+              "line": 1494,
+              "column": 22
+            },
+            {
+              "line": 1514,
+              "column": 18
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._collect_components_by_id",
+          "call_sites": [
+            {
+              "line": 1535,
+              "column": 34
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
+          "call_sites": [
+            {
+              "line": 1533,
+              "column": 13
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses",
+          "call_sites": [
+            {
+              "line": 1551,
+              "column": 17
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_metadata",
+          "call_sites": [
+            {
+              "line": 1520,
+              "column": 29
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_subtrees",
+          "call_sites": [
+            {
+              "line": 1506,
+              "column": 29
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._prepare_incremental_clustering",
           "target": "agents/incremental_agent.py|agents.incremental_agent.remove_deleted_files",
@@ -47323,10 +47479,10 @@
       ]
     },
     {
-      "relation": "Identifies re-analysis seeds for structural updates",
+      "relation": "queries expansion seeds for incremental analysis",
       "src_name": "Source Integrity & Expansion Planner",
       "dst_name": "Structural Delta & Change Analyzer",
-      "evidence": "During subcomponent generation, the planner queries the delta analyzer to find expansion seeds where code changes necessitate new clustering.",
+      "evidence": "The Planner uses the Delta Analyzer to identify which specific code clusters have changed enough to require LLM re-analysis (expansion seeds).",
       "key_edges": [
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
@@ -47344,6 +47500,17 @@
       "dst_id": "4.2.3",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth",
+          "call_sites": [
+            {
+              "line": 1547,
+              "column": 21
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
@@ -47380,15 +47547,39 @@
       ]
     },
     {
-      "relation": "hands off raw hierarchy for finalization",
+      "relation": "delegates final tree transformation and validation",
       "src_name": "Source Integrity & Expansion Planner",
       "dst_name": "Diagram Lifecycle Orchestrator",
-      "evidence": "Once the analysis is complete, the Planner passes the full ClusteringHierarchy to the Refiner to enforce visual constraints and structural integrity before persistence.",
-      "key_edges": [],
+      "evidence": "After analysis completion, the Planner hands off the raw component graph to the Refiner for tree re-rooting, containment validation, and final serialization.",
+      "key_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
+          "call_sites": [
+            {
+              "line": 1517,
+              "column": 13
+            }
+          ],
+          "description": ""
+        }
+      ],
       "src_id": "4.2.1",
       "dst_id": "4.2.4.1",
       "is_static": true,
-      "all_edges": []
+      "all_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment",
+          "call_sites": [
+            {
+              "line": 1517,
+              "column": 13
+            }
+          ],
+          "description": ""
+        }
+      ]
     },
     {
       "relation": "Validates structural state against file system changes",
@@ -47457,6 +47648,17 @@
       "dst_id": "4.4",
       "is_static": true,
       "all_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+          "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
+          "call_sites": [
+            {
+              "line": 1529,
+              "column": 27
+            }
+          ],
+          "description": ""
+        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
           "target": "agents/agent_responses.py|agents.agent_responses.index_components_by_id",
@@ -47923,40 +48125,6 @@
     {
       "relation": "calls",
       "src_name": "State Reconciliation & Baseline Manager",
-      "dst_name": "Incremental Synthesis Orchestrator",
-      "evidence": "",
-      "key_edges": [],
-      "src_id": "4.2.2",
-      "dst_id": "3.1.3",
-      "is_static": true,
-      "all_edges": [
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.detail_new_components",
-          "call_sites": [
-            {
-              "line": 1541,
-              "column": 40
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "agents/incremental_agent.py|agents.incremental_agent.IncrementalAgent.generate_all_scope_relations",
-          "call_sites": [
-            {
-              "line": 1559,
-              "column": 40
-            }
-          ],
-          "description": ""
-        }
-      ]
-    },
-    {
-      "relation": "calls",
-      "src_name": "State Reconciliation & Baseline Manager",
       "dst_name": "Relational Logic & Edge Reconciliation",
       "evidence": "",
       "key_edges": [],
@@ -47971,33 +48139,6 @@
             {
               "line": 445,
               "column": 20
-            }
-          ],
-          "description": ""
-        }
-      ]
-    },
-    {
-      "relation": "Triggers high-level model generation",
-      "src_name": "State Reconciliation & Baseline Manager",
-      "dst_name": "Persistent State Schema & Index Models",
-      "evidence": "The workflow executes the AbstractionAgent to transform raw code structures into component-based architectural views and handles the resulting Pydantic models for reporting.",
-      "key_edges": [],
-      "src_id": "4.2.2",
-      "dst_id": "3.3.1",
-      "is_static": true,
-      "all_edges": [
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
-          "call_sites": [
-            {
-              "line": 1495,
-              "column": 22
-            },
-            {
-              "line": 1569,
-              "column": 18
             }
           ],
           "description": ""
@@ -48021,115 +48162,6 @@
             {
               "line": 1325,
               "column": 17
-            }
-          ],
-          "description": ""
-        }
-      ]
-    },
-    {
-      "relation": "Drives the incremental analysis workflow loop",
-      "src_name": "State Reconciliation & Baseline Manager",
-      "dst_name": "Source Integrity & Expansion Planner",
-      "evidence": "The manager controls the high-level generate_analysis_incremental loop, calling back into the planner to initialize agents and finalize the analysis state.",
-      "key_edges": [
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
-          "call_sites": [
-            {
-              "line": 1480,
-              "column": 22
-            }
-          ],
-          "description": "Initializes agents for incremental loop"
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.prepare_analysis",
-          "call_sites": [
-            {
-              "line": 1470,
-              "column": 18
-            }
-          ],
-          "description": "Prepares analysis state"
-        }
-      ],
-      "src_id": "4.2.2",
-      "dst_id": "4.2.1",
-      "is_static": true,
-      "all_edges": [
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
-          "call_sites": [
-            {
-              "line": 1550,
-              "column": 43
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._prepare_incremental_clustering",
-          "call_sites": [
-            {
-              "line": 1472,
-              "column": 50
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
-          "call_sites": [
-            {
-              "line": 1480,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-          "call_sites": [
-            {
-              "line": 1496,
-              "column": 29
-            },
-            {
-              "line": 1571,
-              "column": 34
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.prepare_analysis",
-          "call_sites": [
-            {
-              "line": 1470,
-              "column": 18
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._IncrementalPreparation.has_changes",
-          "call_sites": [
-            {
-              "line": 1477,
-              "column": 46
-            },
-            {
-              "line": 1487,
-              "column": 32
             }
           ],
           "description": ""
@@ -48173,40 +48205,6 @@
             {
               "line": 1443,
               "column": 18
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth",
-          "call_sites": [
-            {
-              "line": 1547,
-              "column": 21
-            }
-          ],
-          "description": ""
-        }
-      ]
-    },
-    {
-      "relation": "Persists analysis artifacts and metadata",
-      "src_name": "State Reconciliation & Baseline Manager",
-      "dst_name": "Workflow Orchestrator & Pruning Controller",
-      "evidence": "The planner utilizes the orchestrator's I/O utilities to save finalized analysis results and update the persistent state store.",
-      "key_edges": [],
-      "src_id": "4.2.2",
-      "dst_id": "4.4",
-      "is_static": true,
-      "all_edges": [
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-          "target": "agents/incremental_agent.py|agents.incremental_agent.prune_empty_components",
-          "call_sites": [
-            {
-              "line": 1529,
-              "column": 27
             }
           ],
           "description": ""
@@ -48332,10 +48330,10 @@
       ]
     },
     {
-      "relation": "triggers model generation and rendering",
+      "relation": "Serializes architectural models",
       "src_name": "Diagram Lifecycle Orchestrator",
       "dst_name": "Relational Logic & Edge Reconciliation",
-      "evidence": "Orchestrates the transformation of analyzed data into unified architectural models and final documentation artifacts.",
+      "evidence": "Collects the high-level component models generated by agents and serializes them into the final documentation artifacts.",
       "key_edges": [],
       "src_id": "4.2.4.1",
       "dst_id": "3.2.3",
@@ -48343,10 +48341,10 @@
       "all_edges": []
     },
     {
-      "relation": "mutates and re-roots indexing structures",
+      "relation": "updates internal index mappings via re-rooting",
       "src_name": "Diagram Lifecycle Orchestrator",
       "dst_name": "Source Integrity & Expansion Planner",
-      "evidence": "The Refiner performs tree re-rooting and index maintenance on the Planner's data structures to ensure the final output is consistent with the refined visual hierarchy.",
+      "evidence": "The Refiner modifies the Planner's internal state by providing updated index mappings (reroot_indexes) to ensure the final diagram reflects the optimized hierarchy.",
       "key_edges": [],
       "src_id": "4.2.4.1",
       "dst_id": "4.2.1",
