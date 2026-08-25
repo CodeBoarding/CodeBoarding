@@ -11,7 +11,14 @@ import unittest
 from unittest.mock import MagicMock
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge, SourceCodeReference
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    Relation,
+    RelationCallSite,
+    RelationEdge,
+    SourceCodeReference,
+)
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.incremental_agent import prune_empty_components, remove_deleted_files
 from agents.scope_ids import ROOT_SCOPE_ID
@@ -305,11 +312,10 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual([rel.relation for rel in kept], ["rebuilt wording"])
 
-    def test_touched_pair_carries_baseline_edges_between_unchanged_methods(self):
-        # Pair (1, 2) is flagged changed. The rebuild's edge between two unchanged methods
-        # (pkg.a -> pkg.stable) that the baseline did not have is dropped; the baseline's edge
-        # between two unchanged methods (pkg.old -> pkg.stable) is carried forward; and the
-        # edge that touches a changed method (pkg.changed -> pkg.stable) is taken from the rebuild.
+    def test_touched_pair_takes_its_whole_edge_set_from_the_rebuild(self):
+        # Extraction is deterministic, so the fresh CFG is the only honest answer for this
+        # commit. A baseline edge the rebuild no longer has (pkg.old) is gone, and a rebuilt
+        # edge the baseline lacked (pkg.a) is present, whether or not either end changed.
         baseline = self._relation("1", "2", "baseline")
         baseline.all_edges = [RelationEdge(source=_ref("pkg.old"), target=_ref("pkg.stable"))]
         fresh = self._relation("1", "2", "rebuilt")
@@ -323,7 +329,28 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         )
 
         edge_pairs = {(e.source.qualified_name, e.target.qualified_name) for e in kept[0].all_edges}
-        self.assertEqual(edge_pairs, {("pkg.old", "pkg.stable"), ("pkg.changed", "pkg.stable")})
+        self.assertEqual(edge_pairs, {("pkg.a", "pkg.stable"), ("pkg.changed", "pkg.stable")})
+
+    def test_statically_backed_pair_is_never_hollowed_by_change_gating(self):
+        # A pair the rebuild grounds in real CFG edges must keep them even when the commit
+        # touched none of them and the pair has no baseline to fall back on. Deleting them
+        # produced `is_static: true` relations with zero edges that no later run could refill,
+        # because the hollowed relation became the next run's baseline.
+        fresh = self._relation("1", "2", "rebuilt")
+        fresh.is_static = True
+        fresh.evidence = "Model-authored justification that outlived its edges."
+        fresh.all_edges = [
+            RelationEdge(source=_ref("pkg.untouched"), target=_ref("pkg.callee")),
+            RelationEdge(source=_ref("pkg.also_untouched"), target=_ref("pkg.callee")),
+        ]
+
+        kept = preserve_unchanged_relations(
+            [fresh], {}, {"1", "2"}, {"1", "2"}, set(), changed_members={"pkg.elsewhere"}
+        )
+
+        self.assertEqual(len(kept), 1)
+        self.assertTrue(kept[0].is_static)
+        self.assertEqual(len(kept[0].all_edges), 2)
 
     def test_baseline_edge_the_rebuild_dropped_is_restored(self):
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
@@ -384,7 +411,35 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
 
-    def test_pair_keeping_one_backing_call_between_unchanged_methods_survives(self):
+    def test_unmoved_pair_keeps_baseline_highlighting_on_the_fresh_edge(self):
+        # Which edges are highlighted, and their descriptions, are re-rolled every run. They
+        # are wording, so they carry forward — but onto the fresh edge object, so the call
+        # site stays current.
+        baseline = self._relation("1", "2", "baseline wording")
+        baseline.is_static = True
+        baseline.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
+        baseline.key_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
+        fresh = self._relation("1", "2", "rerolled wording")
+        fresh.is_static = True
+        fresh.all_edges = [
+            RelationEdge(
+                source=_ref("pkg.caller"),
+                target=_ref("pkg.callee"),
+                description="a freshly rerolled description",
+                call_sites=[RelationCallSite(line=91, column=4)],
+            )
+        ]
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): baseline}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.elsewhere"}
+        )
+
+        self.assertEqual([edge.description for edge in kept[0].key_edges], [""])
+        self.assertEqual([site.line for edge in kept[0].key_edges for site in edge.call_sites], [91])
+
+    def test_pair_the_rebuild_no_longer_grounds_is_dropped(self):
+        # The rebuild found no call at all between these components and a changed method
+        # accounts for the loss, so the connection is gone rather than merely unreported.
         stale = self._relation("1", "2", "baseline wording")
         stale.all_edges = [
             RelationEdge(source=_ref("pkg.changed"), target=_ref("pkg.callee")),
@@ -396,8 +451,32 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
             [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.changed"}
         )
 
-        edge_pairs = {(e.source.qualified_name, e.target.qualified_name) for e in kept[0].all_edges}
-        self.assertEqual(edge_pairs, {("pkg.stable", "pkg.callee")})
+        self.assertEqual(kept, [])
+
+    def test_carried_forward_pair_never_keeps_a_baseline_call_site(self):
+        # content_hash is position-independent, so a method can be byte-identical while its
+        # body sits 40 lines further down. Reusing the baseline's call sites then points the
+        # reader at whatever now occupies the old line — a blank line or a comment.
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [
+            RelationEdge(
+                source=_ref("pkg.stable"), target=_ref("pkg.callee"), call_sites=[RelationCallSite(line=12, column=4)]
+            )
+        ]
+        fresh = self._relation("1", "2", "rebuilt wording")
+        fresh.all_edges = [
+            RelationEdge(
+                source=_ref("pkg.stable"), target=_ref("pkg.callee"), call_sites=[RelationCallSite(line=52, column=4)]
+            )
+        ]
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.elsewhere"}
+        )
+
+        self.assertEqual([site.line for edge in kept[0].all_edges for site in edge.call_sites], [52])
+        # The edge set did not move, so the reader's wording is still preserved.
+        self.assertEqual(kept[0].relation, "baseline wording")
 
     def test_evidence_backed_rebuild_survives_after_static_call_is_deleted(self):
         stale = self._relation("1", "2", "baseline wording")
