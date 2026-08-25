@@ -181,25 +181,8 @@ class TestFamilyBucketIsStable(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestMixedFamilyCoverage(unittest.TestCase):
     """A tsconfig omits .js unless allowJs is set, but one engine owns both families."""
-
-    def _repo(self) -> Path:
-        root = Path(tempfile.mkdtemp()).resolve()
-        (root / "src").mkdir()
-        for name in ("lib.ts", "widget.tsx", "util.js", "panel.jsx"):
-            (root / "src" / name).write_text("export const x = 1;\n")
-        skipped = root / "node_modules" / "dep"
-        skipped.mkdir(parents=True)
-        (skipped / "index.js").write_text("module.exports = 1;\n")
-        return root
-
-    def _scanner(self, root: Path) -> TypeScriptConfigScanner:
-        return TypeScriptConfigScanner(root, ignore_manager=RepoIgnoreManager(root))
 
     def test_unclaimed_family_files_are_found(self):
         root = self._repo()
@@ -226,25 +209,22 @@ class TestMixedFamilyCoverage(unittest.TestCase):
         names = sorted(p.name for p in configs[0].source_files)
         self.assertEqual(names, ["lib.ts", "panel.jsx", "util.js", "widget.tsx"])
 
+    def _repo(self) -> Path:
+        root = Path(tempfile.mkdtemp()).resolve()
+        (root / "src").mkdir()
+        for name in ("lib.ts", "widget.tsx", "util.js", "panel.jsx"):
+            (root / "src" / name).write_text("export const x = 1;\n")
+        skipped = root / "node_modules" / "dep"
+        skipped.mkdir(parents=True)
+        (skipped / "index.js").write_text("module.exports = 1;\n")
+        return root
+
+    def _scanner(self, root: Path) -> TypeScriptConfigScanner:
+        return TypeScriptConfigScanner(root, ignore_manager=RepoIgnoreManager(root))
+
 
 class TestTsconfigExcludeIsHonoured(unittest.TestCase):
     """Silence about .js is not the same as an explicit exclude."""
-
-    def _repo(self) -> Path:
-        root = Path(tempfile.mkdtemp()).resolve()
-        for sub in ("src", "e2e", "webview-ui/src", "gen"):
-            (root / sub).mkdir(parents=True)
-        (root / "src" / "keep.ts").write_text("export const a = 1;\n")
-        (root / "src" / "keep.js").write_text("export const b = 2;\n")
-        (root / "e2e" / "spec.js").write_text("export const c = 3;\n")
-        (root / "webview-ui" / "src" / "app.jsx").write_text("export const d = 4;\n")
-        (root / "gen" / "thing.gen.js").write_text("export const e = 5;\n")
-        return root
-
-    def _topped_up(self, root: Path, exclude: list[str]) -> list[str]:
-        project = TypeScriptProject(root=root, files=[(root / "src" / "keep.ts").resolve()], exclude=exclude)
-        scanner = TypeScriptConfigScanner(root, ignore_manager=RepoIgnoreManager(root))
-        return sorted(p.relative_to(root).as_posix() for p in scanner.find_unclaimed_family_files([project]))
 
     def test_a_plain_directory_exclude_takes_its_whole_subtree(self):
         self.assertNotIn("webview-ui/src/app.jsx", self._topped_up(self._repo(), ["webview-ui"]))
@@ -274,6 +254,22 @@ class TestTsconfigExcludeIsHonoured(unittest.TestCase):
     def test_the_ignore_file_still_wins_over_an_empty_exclude(self):
         root = self._repo()
         self.assertNotIn("e2e/spec.js", self._topped_up(root, []))
+
+    def _repo(self) -> Path:
+        root = Path(tempfile.mkdtemp()).resolve()
+        for sub in ("src", "e2e", "webview-ui/src", "gen"):
+            (root / sub).mkdir(parents=True)
+        (root / "src" / "keep.ts").write_text("export const a = 1;\n")
+        (root / "src" / "keep.js").write_text("export const b = 2;\n")
+        (root / "e2e" / "spec.js").write_text("export const c = 3;\n")
+        (root / "webview-ui" / "src" / "app.jsx").write_text("export const d = 4;\n")
+        (root / "gen" / "thing.gen.js").write_text("export const e = 5;\n")
+        return root
+
+    def _topped_up(self, root: Path, exclude: list[str]) -> list[str]:
+        project = TypeScriptProject(root=root, files=[(root / "src" / "keep.ts").resolve()], exclude=exclude)
+        scanner = TypeScriptConfigScanner(root, ignore_manager=RepoIgnoreManager(root))
+        return sorted(p.relative_to(root).as_posix() for p in scanner.find_unclaimed_family_files([project]))
 
 
 class TestTscIsAskedForJavaScript(unittest.TestCase):
@@ -311,3 +307,7 @@ class TestSuffixAttribution(unittest.TestCase):
         results = StaticAnalysisResults()
         results.add_source_files(Language.TYPESCRIPT, ["/r/src/a.d.ts", "/r/src/b.min.js"])
         self.assertEqual(results.present_languages(), {Language.TYPESCRIPT, Language.JAVASCRIPT})
+
+
+if __name__ == "__main__":
+    unittest.main()
