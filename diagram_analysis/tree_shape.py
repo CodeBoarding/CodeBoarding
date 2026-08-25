@@ -53,15 +53,17 @@ def _absorb(
     grandchildren = sub_analyses.get(child_id)
 
     if grandchildren is None or not grandchildren.components:
+        for cache in cluster_caches:
+            cache.discard_scope(parent_id)
         del sub_analyses[parent_id]
     else:
+        for cache in cluster_caches:
+            cache.reroot_scope(child_id, parent_id)
         scope.components = grandchildren.components
         if parent_id != ROOT_SCOPE:
             scope.components_relations = grandchildren.components_relations
     sub_analyses.pop(child_id, None)
     _reroot_tree(root_analysis, sub_analyses, child_id, parent_id)
-    for cache in cluster_caches:
-        cache.reroot_scope(child_id, parent_id)
     logger.info(f"[TreeShape] Absorbed '{child.name}' ({child_id}) into {parent_id or 'the root'}")
     return child_id
 

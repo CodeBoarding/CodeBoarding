@@ -81,6 +81,14 @@ class ClusterCache:
             rerooted[target] = lineage
         self.scopes = rerooted
 
+    def discard_scope(self, scope_id: str) -> None:
+        """Discard lineage for a scope that is no longer expanded and its descendants."""
+        self.scopes = {
+            candidate: lineage
+            for candidate, lineage in self.scopes.items()
+            if not self._scope_belongs_to(candidate, scope_id)
+        }
+
     def select(self, surviving_nodes: Mapping[str, Node]) -> ClusterCache:
         """Return a copy keeping only ``surviving_nodes``, for filter/union of the graph."""
         return ClusterCache(

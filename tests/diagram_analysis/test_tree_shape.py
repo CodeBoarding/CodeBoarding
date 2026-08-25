@@ -78,6 +78,15 @@ class TestChildlessOnlyChild(unittest.TestCase):
         )
         self.assertEqual(absorbed, ["2.1"])
 
+    def test_the_parent_cache_scope_is_removed_when_it_becomes_a_leaf(self):
+        root, subs = self._tree()
+        cache = ClusterCache()
+        cache.record_scope(ClusterResult(clusters={1: {"b.one", "b.two"}}), scope_id="2")
+
+        absorb_single_child_components(root, subs, [cache])
+
+        self.assertNotIn("2", cache.scopes)
+
 
 class TestGrandchildrenArePromoted(unittest.TestCase):
     def _tree(self):
