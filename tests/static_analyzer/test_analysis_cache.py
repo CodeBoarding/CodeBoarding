@@ -44,7 +44,7 @@ class TestStaticAnalysisCache(unittest.TestCase):
         self.assertFalse(self.artifact_dir.exists())
 
         results = StaticAnalysisResults()
-        self.cache.save(results)
+        self.cache.save(results, source_sha="sha-current")
 
         self.assertTrue(self.artifact_dir.exists())
 
@@ -54,7 +54,7 @@ class TestStaticAnalysisCache(unittest.TestCase):
         results = StaticAnalysisResults()
         results.add_source_files(Language.PYTHON, [file1, file2])
 
-        self.cache.save(results)
+        self.cache.save(results, source_sha="sha-current")
         loaded = self.cache.get()
 
         self.assertIsNotNone(loaded)
@@ -76,11 +76,11 @@ class TestStaticAnalysisCache(unittest.TestCase):
 
         results1 = StaticAnalysisResults()
         results1.add_source_files(Language.PYTHON, [old_file])
-        self.cache.save(results1)
+        self.cache.save(results1, source_sha="sha-old")
 
         results2 = StaticAnalysisResults()
         results2.add_source_files(Language.PYTHON, [new_file])
-        self.cache.save(results2)
+        self.cache.save(results2, source_sha="sha-new")
 
         loaded = self.cache.get()
         self.assertIsNotNone(loaded)
@@ -95,6 +95,10 @@ class TestStaticAnalysisCache(unittest.TestCase):
 
         self.assertTrue((self.artifact_dir / STATIC_ANALYSIS_PKL).exists())
         self.assertTrue((self.artifact_dir / STATIC_ANALYSIS_SHA).exists())
+
+    def test_save_rejects_empty_source_sha(self):
+        with self.assertRaisesRegex(ValueError, "source_sha"):
+            self.cache.save(StaticAnalysisResults(), source_sha="")
 
 
 class TestStaticAnalysisCacheShaGate(unittest.TestCase):
@@ -126,29 +130,21 @@ class TestStaticAnalysisCacheShaGate(unittest.TestCase):
 
     def test_missing_tag_with_expected_sha_returns_none(self):
         results = StaticAnalysisResults()
-        self.cache.save(results, source_sha=None)
+        self.cache.save(results, source_sha="sha-current")
+        self.cache.sha_path.unlink()
 
         loaded = self.cache.get(expected_sha="sha-current")
         self.assertIsNone(loaded)
 
     def test_missing_tag_without_expected_sha_returns_results(self):
-        # Untagged save then untagged load = still works (legacy / CLI path).
+        # An untagged legacy artifact remains available to ungated inspection.
         results = StaticAnalysisResults()
         results.add_source_files(Language.PYTHON, [str(self.repo_root / "main.py")])
-        self.cache.save(results, source_sha=None)
+        self.cache.save(results, source_sha="sha-current")
+        self.cache.sha_path.unlink()
 
         loaded = self.cache.get(expected_sha=None)
         self.assertIsNotNone(loaded)
-
-    def test_resave_without_sha_drops_stale_tag(self):
-        # First save with tag, second save without tag should drop the old tag
-        # so a SHA-gated load doesn't accept a now-mismatched pickle.
-        results = StaticAnalysisResults()
-        self.cache.save(results, source_sha="sha-old")
-        self.assertTrue((self.artifact_dir / STATIC_ANALYSIS_SHA).exists())
-
-        self.cache.save(results, source_sha=None)
-        self.assertFalse((self.artifact_dir / STATIC_ANALYSIS_SHA).exists())
 
     def test_unknown_tag_version_treated_as_miss(self):
         results = StaticAnalysisResults()
@@ -178,7 +174,8 @@ class TestStaticAnalysisCacheLegacyMigration(unittest.TestCase):
         # still loadable but live where the previous code would have written.
         results = StaticAnalysisResults()
         results.add_source_files(Language.PYTHON, [str(self.repo_root / "src/legacy.py")])
-        self.cache.save(results, source_sha=None)
+        self.cache.save(results, source_sha="legacy-sha")
+        self.cache.sha_path.unlink()
         new_pkl = self.artifact_dir / STATIC_ANALYSIS_PKL
 
         legacy_dir = self.artifact_dir / "cache"
@@ -198,7 +195,8 @@ class TestStaticAnalysisCacheLegacyMigration(unittest.TestCase):
     def test_legacy_fallback_disabled_under_sha_gate(self):
         # SHA-gated callers must not silently accept untagged legacy pickles.
         results = StaticAnalysisResults()
-        self.cache.save(results, source_sha=None)
+        self.cache.save(results, source_sha="legacy-sha")
+        self.cache.sha_path.unlink()
         new_pkl = self.artifact_dir / STATIC_ANALYSIS_PKL
 
         legacy_dir = self.artifact_dir / "cache"
@@ -292,9 +290,10 @@ class TestLoadWithSha(unittest.TestCase):
             )
 
     def test_returns_none_when_tag_absent(self):
-        # Untagged save: pkl exists but no SHA tag -> not warm-startable.
+        # A legacy pkl without its tag is not warm-startable.
         results = StaticAnalysisResults()
-        self.cache.save(results, source_sha=None)
+        self.cache.save(results, source_sha="sha-current")
+        self.cache.sha_path.unlink()
 
         self.assertIsNone(self.cache.load_with_sha())
 

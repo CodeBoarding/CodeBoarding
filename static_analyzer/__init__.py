@@ -250,26 +250,10 @@ class StaticAnalyzer:
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
         self._cached_results: StaticAnalysisResults | None = None
-        # True once ``analyze()`` has produced fresh results this session that
-        # the on-disk pkl doesn't have yet. Only ``analyze()`` sets it;
-        # ``flush_cache``/``stop_clients`` write the pkl iff it is set. A
-        # read-only ``load_cached_analysis`` never flips it, so rehydrating the
-        # artifact for inspection can't rewrite (and strip the SHA sidecar of) a
-        # pkl this session didn't produce.
-        self._results_need_saving: bool = False
         # Git-free changed-file set (absolute paths) scoping the warm-start re-LSP,
         # e.g. the incremental fingerprint diff. ``None`` means "detect via git"
         # (the legacy CLI-on-a-real-checkout path); an empty set re-LSPs nothing.
         self.changed_files = changed_files
-        # ``stop_clients`` writes the pkl using ``_pending_source_sha`` as the
-        # tag value (a diff-base for the next warm-start, NOT a cache gate).
-        # ``analyze()`` updates it on every call so the latest run's SHA
-        # always reaches disk — including after warm-start merges.
-        self._pending_source_sha: str | None = None
-        # ``stop_clients`` writes the pkl into ``_pending_cache_dir``.
-        # ``analyze()`` resolves it from its ``cache_dir`` arg, falling back
-        # to the default below. Always a real path — never None.
-        self._pending_cache_dir: Path = get_artifact_dir(self.repository_path)
 
     def __enter__(self) -> "StaticAnalyzer":
         self.start_clients()
@@ -446,16 +430,9 @@ class StaticAnalyzer:
         return engine_client
 
     def stop_clients(self) -> None:
-        """Gracefully shut down all engine LSP server processes. Idempotent.
-
-        Persists ``_cached_results`` on the way down so the abstraction agent's
-        ``ClusterCache`` writes reach disk in one save. Save errors are logged
-        but never block teardown.
-        """
+        """Gracefully shut down all engine LSP server processes. Idempotent."""
         if not self._clients_started:
             return
-        if self._results_need_saving:
-            self.flush_cache()
         for engine_config, client in self._engine_clients:
             try:
                 client.shutdown()
@@ -464,29 +441,6 @@ class StaticAnalyzer:
         self._engine_clients = []
         self._clients_started = False
         self._cached_results = None
-
-    def flush_cache(self) -> None:
-        """Write ``_cached_results`` to the SHA-tagged pkl at ``_pending_cache_dir``.
-
-        No-op unless ``analyze()`` produced results this session. A pkl loaded
-        read-only via ``load_cached_analysis`` is never written back, so a flush
-        after a bare load can't strip the artifact's SHA sidecar. Called
-        automatically by ``stop_clients``; callers that need the pkl on disk
-        before teardown (e.g. capture tooling) can invoke this explicitly after
-        the run completes.
-        """
-        if not self._results_need_saving or self._cached_results is None:
-            return
-        try:
-            StaticAnalysisCache(self._pending_cache_dir, self.repository_path).save(
-                self._cached_results, source_sha=self._pending_source_sha
-            )
-            logger.info(f"Saved static analysis run artifact to {self._pending_cache_dir}")
-            # Clear so an idempotent second stop_clients (or explicit flush)
-            # doesn't rewrite the pkl it just saved.
-            self._results_need_saving = False
-        except Exception:
-            logger.exception("Failed to persist static analysis pkl during stop_clients; continuing teardown")
 
     def _live_clients(self, operation: str) -> list[tuple[EngineConfig, LSPClient]]:
         """The started engine clients, refusing callers the concurrency bound cannot serve.
@@ -533,10 +487,7 @@ class StaticAnalyzer:
         """Rehydrate the on-disk run artifact for read-only reuse, or None if absent/stale.
 
         Used by health/status consumers that reuse the last analysis's call
-        graph without re-analyzing. This never marks results as produced, so a
-        subsequent ``flush_cache``/``stop_clients`` is a no-op — rehydrating an
-        artifact for inspection can't rewrite (and strip the SHA sidecar of) a
-        pkl this session didn't produce.
+        graph without re-analyzing.
 
         Args:
             artifact_dir: Optional artifact directory to load from. If None,
@@ -687,10 +638,6 @@ class StaticAnalyzer:
            (or git when that is ``None``), re-LSP just those, merge in memory.
         4. No pkl -> full LSP.
 
-        Persistence is deferred to ``stop_clients`` so downstream mutations
-        (cluster cache populated by the abstraction agent) reach disk in one
-        save instead of two. ``source_sha`` is stashed for that save.
-
         Clients must be running before calling this method. Use ``start_clients()``
         or the context manager (``with StaticAnalyzer(...) as sa:``).
         """
@@ -738,10 +685,6 @@ class StaticAnalyzer:
         self._validate_analysis_results(results)
         results.diagnostics = self.collected_diagnostics
         self._cached_results = results
-        self._pending_source_sha = source_sha
-        self._pending_cache_dir = cache_dir
-        # Fresh results this session: flush_cache/stop_clients should write them.
-        self._results_need_saving = True
         return results
 
     def _run_full_lsp_pass(self) -> StaticAnalysisResults:
@@ -1095,7 +1038,7 @@ def get_static_analysis(
 ) -> StaticAnalysisResults:
     """CLI orchestrator: get static analysis results with full LSP lifecycle management.
 
-    Starts LSP clients, runs analysis, and stops clients — all in one call.
+    Starts LSP clients, runs analysis, and stops clients.
 
     Args:
         repo_path: Path to the repository to analyze.
@@ -1104,9 +1047,7 @@ def get_static_analysis(
             per-branch override.
         skip_cache: If True, bypass the SHA-tagged pkl warm-start and re-LSP
             the entire repository from scratch.
-        source_sha: Canonical source-state identifier (typically a git tree SHA)
-            stamped onto the freshly-saved pkl as a diff base for the next
-            warm-start.
+        source_sha: Canonical source-state identifier used in cache diagnostics.
 
     Returns:
         StaticAnalysisResults reflecting the live source state.

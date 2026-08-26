@@ -57,12 +57,7 @@ def run_full(
     static_analyzer=None,
     source_sha: str | None = None,
 ) -> Path:
-    """Full analysis scope — rebuild the whole diagram from scratch.
-
-    ``source_sha`` is forwarded to ``StaticAnalyzer.analyze`` so the on-disk
-    static-analysis run artifact (sibling of ``analysis.json``) gets a
-    matching SHA tag — enabling the next run's SHA-gated cache reuse.
-    """
+    """Full analysis scope — rebuild the whole diagram from scratch."""
     logger.info(f"Running FULL analysis workflow for repo '{run_paths.project_name}'.")
     generator = build_generator(
         run_paths,
