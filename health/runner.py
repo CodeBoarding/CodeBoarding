@@ -6,11 +6,7 @@ from pathlib import Path
 
 from core import run_plugin_health_checks
 from health.checks.circular_deps import check_circular_dependencies
-from health.checks.coupling import check_fan_in, check_fan_out
 from health.checks.function_size import check_function_size
-from health.checks.god_class import check_god_classes
-from health.checks.inheritance import check_inheritance_depth
-from health.checks.instability import check_package_instability
 from health.checks.unused_code_diagnostics import (
     LSPDiagnosticsCollector,
     check_unused_code_diagnostics,
@@ -78,19 +74,7 @@ def _collect_checks_for_language(
     """Run all applicable health checks for a single language and return the summaries."""
     summaries: CheckSummaryList = []
 
-    call_graph = static_analysis.get_cfg(language)
-    try:
-        hierarchy = static_analysis.get_hierarchy(language)
-    except ValueError:
-        hierarchy = None
-
-    summaries.append(check_function_size(call_graph, config, ignore_manager))
-    summaries.append(check_fan_out(call_graph, config))
-    summaries.append(check_fan_in(call_graph, config))
-    summaries.append(check_god_classes(call_graph, hierarchy, config))
-
-    if hierarchy:
-        summaries.append(check_inheritance_depth(hierarchy, config))
+    summaries.append(check_function_size(static_analysis.get_cfg(language), config, ignore_manager))
 
     try:
         package_deps = static_analysis.get_package_dependencies(language)
@@ -98,10 +82,6 @@ def _collect_checks_for_language(
         package_deps = None
     if package_deps:
         summaries.append(check_circular_dependencies(package_deps, config))
-        summaries.append(check_package_instability(package_deps, config))
-
-    # check_component_cohesion is not wired in: it clusters the whole graph, and nothing
-    # about ClusteringService makes that unsafe — only expensive.
 
     # Run LSP-based unused code detection
     exclude_patterns = config.health_exclude_patterns
