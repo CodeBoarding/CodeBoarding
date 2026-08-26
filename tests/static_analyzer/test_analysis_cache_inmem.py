@@ -56,6 +56,60 @@ def _analysis_data(result: dict) -> AnalysisData:
     return AnalysisData.from_dict(result)
 
 
+def _nested_closure_graph() -> tuple[CallGraph, Node, Node, Node]:
+    """An unchanged caller holding a nested closure, plus the changed destination both call."""
+    caller_file = "/repo/caller.py"
+    target_file = "/repo/target.py"
+    outer = Node(
+        fully_qualified_name="caller.outer",
+        node_type=NodeType.FUNCTION,
+        file_path=caller_file,
+        line_start=1,
+        line_end=20,
+    )
+    inner = Node(
+        fully_qualified_name="caller.outer.inner",
+        node_type=NodeType.FUNCTION,
+        file_path=caller_file,
+        line_start=10,
+        line_end=13,
+        col_start=4,
+    )
+    target = Node(
+        fully_qualified_name="target.echo",
+        node_type=NodeType.FUNCTION,
+        file_path=target_file,
+        line_start=1,
+        line_end=2,
+    )
+    call_graph = CallGraph(language="python")
+    for node in (outer, inner, target):
+        call_graph.add_node(node)
+    return call_graph, outer, inner, target
+
+
+def _references_client(zero_based_lines: list[int]) -> MagicMock:
+    engine_client = MagicMock()
+    engine_client.references.return_value = [
+        {
+            "uri": Path("/repo/caller.py").as_uri(),
+            "range": {
+                "start": {"line": line, "character": 8},
+                "end": {"line": line, "character": 12},
+            },
+        }
+        for line in zero_based_lines
+    ]
+    return engine_client
+
+
+def _inbound_adapter() -> MagicMock:
+    adapter = MagicMock()
+    adapter.language_id = "python"
+    adapter.is_class_like.return_value = False
+    return adapter
+
+
 class TestInvalidateFiles(unittest.TestCase):
     def test_drops_nodes_from_changed_files(self) -> None:
         cg = CallGraph(language="python")
@@ -634,6 +688,40 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
                 call_graph.edges[0].call_sites,
                 [{"file": str(changed_file), "line": 2, "column": 12}],
             )
+
+    def test_nested_closure_call_sites_are_not_credited_to_the_enclosing_function(self) -> None:
+        call_graph, outer, inner, target = _nested_closure_graph()
+
+        _restore_cross_boundary_edges(
+            call_graph,
+            [
+                (outer.fully_qualified_name, target.fully_qualified_name, outer, target, []),
+                (inner.fully_qualified_name, target.fully_qualified_name, inner, target, []),
+            ],
+            {target.file_path},
+            _inbound_adapter(),
+            _references_client([10, 15]),
+            SourceInspector(),
+        )
+
+        self.assertEqual(
+            {edge.get_source(): [site["line"] for site in edge.call_sites] for edge in call_graph.edges},
+            {"caller.outer": [16], "caller.outer.inner": [11]},
+        )
+
+    def test_enclosing_function_edge_is_dropped_when_only_the_closure_calls_the_destination(self) -> None:
+        call_graph, outer, _inner, target = _nested_closure_graph()
+
+        _restore_cross_boundary_edges(
+            call_graph,
+            [(outer.fully_qualified_name, target.fully_qualified_name, outer, target, [])],
+            {target.file_path},
+            _inbound_adapter(),
+            _references_client([10]),
+            SourceInspector(),
+        )
+
+        self.assertEqual(call_graph.edges, [])
 
 
 if __name__ == "__main__":

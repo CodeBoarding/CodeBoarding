@@ -183,7 +183,7 @@ def _restore_cross_boundary_edges(
                 refs = []
             references_cache[dst_name] = refs
 
-        call_sites = _edge_reference_call_sites(src_node, dst_node, refs, adapter, source_inspector)
+        call_sites = _edge_reference_call_sites(call_graph, src_node, dst_node, refs, adapter, source_inspector)
         if call_sites:
             try:
                 call_graph.add_edge(src_name, dst_name, call_sites=call_sites)
@@ -282,12 +282,21 @@ def _restore_inbound_edges_via_definitions(
 
 
 def _edge_reference_call_sites(
+    call_graph: CallGraph,
     src_node: Node,
     dst_node: Node,
     refs: list[dict],
     adapter: LanguageAdapter,
     source_inspector: SourceInspector,
 ) -> list[dict[str, str | int]]:
+    """Call sites in ``src_node`` that this reference list credits to the edge.
+
+    Why innermost and not containment: a nested closure sits inside its enclosing
+    function's range, so a plain range test hands the child's calls to the parent
+    as well. The full rebuild credits the innermost containing symbol only, and
+    this path has to agree or the cached edge comes back wider than the one a
+    full run would build.
+    """
     call_sites: list[dict[str, str | int]] = []
     for ref in refs:
         ref_file = uri_to_path(ref.get("uri", ""))
@@ -300,7 +309,7 @@ def _edge_reference_call_sites(
         ref_line = ref_start.get("line", -1)
         ref_char = ref_start.get("character", -1)
         ref_end_char = ref_end.get("character", -1)
-        if not _position_inside_node(src_node, ref_line, ref_char):
+        if _containing_source_node(call_graph, ref_file, ref_line, ref_char) is not src_node:
             continue
         if not _reference_matches_edge_kind(
             dst_node, ref_file, ref_line, ref_char, ref_end_char, adapter, source_inspector
