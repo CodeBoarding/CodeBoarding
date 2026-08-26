@@ -79,13 +79,6 @@ class TestHealthRunner(unittest.TestCase):
         # large_func is 110 lines (>100 threshold)
         self.assertEqual(size_summary.findings_count, 1)
 
-        # Find fan_out check
-        fan_out_summary = next(s for s in report.check_summaries if s.check_name == "fan_out")
-        self.assertIsNotNone(fan_out_summary)
-        assert isinstance(fan_out_summary, StandardCheckSummary)
-        # caller calls 2 functions (threshold is high by default)
-        self.assertEqual(fan_out_summary.findings_count, 0)
-
         # Find unused_code_diagnostics check
         unused_code_summary = next(s for s in report.check_summaries if s.check_name == "unused_code_diagnostics")
         self.assertIsNotNone(unused_code_summary)

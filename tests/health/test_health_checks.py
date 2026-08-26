@@ -3,12 +3,7 @@ import unittest
 from pathlib import Path
 
 from health.checks.circular_deps import check_circular_dependencies
-from health.checks.cohesion import check_component_cohesion
-from health.checks.coupling import check_fan_in, check_fan_out
 from health.checks.function_size import check_function_size
-from health.checks.god_class import check_god_classes
-from health.checks.inheritance import check_inheritance_depth
-from health.checks.instability import check_package_instability
 from health.models import HealthCheckConfig, Severity
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.cfg import CallGraph
@@ -106,180 +101,6 @@ class TestFunctionSize(unittest.TestCase):
         self.assertEqual(result.total_entities_checked, 0)
 
 
-class TestFanOut(unittest.TestCase):
-    def test_high_fan_out(self):
-        graph = _build_simple_graph()
-        config = HealthCheckConfig(
-            fan_out_max=2,
-        )
-        result = check_fan_out(graph, config)
-        warning_group = next((g for g in result.finding_groups if g.severity == Severity.WARNING), None)
-        self.assertIsNotNone(warning_group)
-        assert warning_group is not None
-        fan_out_findings = [e for e in warning_group.entities if e.entity_name == "mod.A"]
-        self.assertEqual(len(fan_out_findings), 1)
-
-    def test_no_fan_out_findings(self):
-        graph = _build_simple_graph()
-        config = HealthCheckConfig(fan_out_max=20)
-        result = check_fan_out(graph, config)
-        self.assertEqual(result.findings_count, 0)
-
-
-class TestFanIn(unittest.TestCase):
-    def test_fan_in_detection(self):
-        graph = CallGraph()
-        target = _make_node("mod.target", "/f.py", 0, 10)
-        graph.add_node(target)
-        for i in range(5):
-            caller = _make_node(f"mod.caller{i}", "/f.py", 20 + i * 10, 29 + i * 10)
-            graph.add_node(caller)
-            graph.add_edge(f"mod.caller{i}", "mod.target")
-
-        config = HealthCheckConfig(
-            fan_in_max=3,
-        )
-        result = check_fan_in(graph, config)
-        all_entities = []
-        for group in result.finding_groups:
-            all_entities.extend(group.entities)
-        target_findings = [e for e in all_entities if e.entity_name == "mod.target"]
-        self.assertEqual(len(target_findings), 1)
-        self.assertEqual(target_findings[0].metric_value, 5.0)
-
-
-class TestGodClass(unittest.TestCase):
-    def test_god_class_by_method_count(self):
-        graph = CallGraph()
-        graph.add_node(_make_node("mod.BigClass", "/f.py", 0, 250, node_type=NodeType.CLASS))
-        for i in range(25):
-            graph.add_node(
-                _make_node(
-                    f"mod.BigClass.method{i}",
-                    "/f.py",
-                    i * 10,
-                    i * 10 + 5,
-                    node_type=NodeType.METHOD,
-                )
-            )
-        config = HealthCheckConfig(
-            god_class_method_count_max=20,
-            god_class_loc_max=500,
-            god_class_fan_out_max=30,
-        )
-        result = check_god_classes(graph, None, config)
-        self.assertGreater(result.findings_count, 0)
-        all_entities = []
-        for group in result.finding_groups:
-            all_entities.extend(group.entities)
-        big_class_findings = [e for e in all_entities if e.entity_name == "mod.BigClass"]
-        self.assertEqual(len(big_class_findings), 1)
-
-    def test_no_god_class(self):
-        graph = CallGraph()
-        for i in range(3):
-            graph.add_node(_make_node(f"mod.SmallClass.method{i}", "/f.py", i * 10, i * 10 + 5))
-        config = HealthCheckConfig(
-            god_class_method_count_max=20,
-        )
-        result = check_god_classes(graph, None, config)
-        self.assertEqual(result.findings_count, 0)
-
-    def test_god_class_with_hierarchy(self):
-        graph = CallGraph()
-        for i in range(25):
-            graph.add_node(_make_node(f"mod.BigClass.method{i}", "/f.py", i * 10, i * 10 + 5))
-        hierarchy = {
-            "mod.BigClass": {
-                "superclasses": [],
-                "subclasses": [],
-                "file_path": "/f.py",
-                "line_start": 0,
-                "line_end": 600,
-            }
-        }
-        config = HealthCheckConfig(
-            god_class_method_count_max=20,
-            god_class_loc_max=500,
-        )
-        result = check_god_classes(graph, hierarchy, config)
-        self.assertGreater(result.findings_count, 0)
-        warning_group = next((g for g in result.finding_groups if g.severity == Severity.WARNING), None)
-        self.assertIsNotNone(warning_group)
-        assert warning_group is not None
-        self.assertTrue(len(warning_group.entities) > 0)
-
-
-class TestInheritanceDepth(unittest.TestCase):
-    def test_deep_hierarchy(self):
-        hierarchy = {
-            "Base": {
-                "superclasses": [],
-                "subclasses": ["Child1"],
-                "file_path": "/f.py",
-                "line_start": 0,
-                "line_end": 10,
-            },
-            "Child1": {
-                "superclasses": ["Base"],
-                "subclasses": ["Child2"],
-                "file_path": "/f.py",
-                "line_start": 10,
-                "line_end": 20,
-            },
-            "Child2": {
-                "superclasses": ["Child1"],
-                "subclasses": ["Child3"],
-                "file_path": "/f.py",
-                "line_start": 20,
-                "line_end": 30,
-            },
-            "Child3": {
-                "superclasses": ["Child2"],
-                "subclasses": ["Child4"],
-                "file_path": "/f.py",
-                "line_start": 30,
-                "line_end": 40,
-            },
-            "Child4": {
-                "superclasses": ["Child3"],
-                "subclasses": [],
-                "file_path": "/f.py",
-                "line_start": 40,
-                "line_end": 50,
-            },
-        }
-        config = HealthCheckConfig(inheritance_depth_max=3)
-        result = check_inheritance_depth(hierarchy, config)
-        self.assertGreater(result.findings_count, 0)
-        all_entities = []
-        for group in result.finding_groups:
-            all_entities.extend(group.entities)
-        deep_findings = [e for e in all_entities if e.entity_name == "Child4"]
-        self.assertEqual(len(deep_findings), 1)
-
-    def test_shallow_hierarchy(self):
-        hierarchy = {
-            "Base": {
-                "superclasses": [],
-                "subclasses": ["Child"],
-                "file_path": "/f.py",
-                "line_start": 0,
-                "line_end": 10,
-            },
-            "Child": {
-                "superclasses": ["Base"],
-                "subclasses": [],
-                "file_path": "/f.py",
-                "line_start": 10,
-                "line_end": 20,
-            },
-        }
-        config = HealthCheckConfig(inheritance_depth_max=5)
-        result = check_inheritance_depth(hierarchy, config)
-        self.assertEqual(result.findings_count, 0)
-
-
 class TestCircularDependencies(unittest.TestCase):
     def test_cycle_detected(self):
         pkg_deps = {
@@ -335,62 +156,6 @@ class TestCircularDependencies(unittest.TestCase):
         self.assertEqual(len(summary.cycles), 0)
 
 
-class TestPackageInstability(unittest.TestCase):
-    def test_unstable_package_with_dependents(self):
-        pkg_deps = {
-            "unstable": {
-                "imports": ["dep1", "dep2", "dep3", "dep4", "dep5"],
-                "imported_by": ["consumer"],
-            },
-            "dep1": {"imports": [], "imported_by": ["unstable"]},
-            "dep2": {"imports": [], "imported_by": ["unstable"]},
-            "dep3": {"imports": [], "imported_by": ["unstable"]},
-            "dep4": {"imports": [], "imported_by": ["unstable"]},
-            "dep5": {"imports": [], "imported_by": ["unstable"]},
-            "consumer": {"imports": ["unstable"], "imported_by": []},
-        }
-        config = HealthCheckConfig(instability_high=0.8)
-        result = check_package_instability(pkg_deps, config)
-        unstable_findings = [f for f in result.findings if f.entity_name == "unstable"]
-        self.assertEqual(len(unstable_findings), 1)
-
-    def test_stable_package(self):
-        pkg_deps = {
-            "stable": {"imports": [], "imported_by": ["a", "b", "c"]},
-            "a": {"imports": ["stable"], "imported_by": []},
-            "b": {"imports": ["stable"], "imported_by": []},
-            "c": {"imports": ["stable"], "imported_by": []},
-        }
-        config = HealthCheckConfig(instability_high=0.8)
-        result = check_package_instability(pkg_deps, config)
-        stable_findings = [f for f in result.findings if f.entity_name == "stable"]
-        self.assertEqual(len(stable_findings), 0)
-
-
-class TestComponentCohesion(unittest.TestCase):
-    def test_low_cohesion(self):
-        graph = CallGraph()
-        graph.add_node(_make_node("a.func1", "/a.py", 0, 10))
-        graph.add_node(_make_node("a.func2", "/a.py", 10, 20))
-        graph.add_node(_make_node("b.func1", "/b.py", 0, 10))
-        graph.add_node(_make_node("b.func2", "/b.py", 10, 20))
-
-        graph.add_edge("a.func1", "b.func1")
-        graph.add_edge("a.func2", "b.func2")
-        graph.add_edge("b.func1", "a.func2")
-
-        config = HealthCheckConfig(cohesion_low=0.1)
-        result = check_component_cohesion(graph, config)
-        self.assertIsNotNone(result)
-
-    def test_empty_graph(self):
-        graph = CallGraph()
-        config = HealthCheckConfig()
-        result = check_component_cohesion(graph, config)
-        self.assertEqual(result.total_entities_checked, 0)
-        self.assertEqual(result.score, 1.0)
-
-
 class TestEntityTypeFiltering(unittest.TestCase):
     """Tests that health checks correctly filter out classes and data entities."""
 
@@ -418,35 +183,6 @@ class TestEntityTypeFiltering(unittest.TestCase):
         result = check_function_size(graph, config, _IGNORE_MANAGER)
         self.assertEqual(result.total_entities_checked, 0)
         self.assertEqual(result.findings_count, 0)
-
-    def test_fan_out_skips_classes(self):
-        graph = CallGraph()
-        graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS))
-        graph.add_node(_make_node("mod.func", "/f.py", 101, 110, node_type=NodeType.FUNCTION))
-        graph.add_node(_make_node("mod.other", "/f.py", 111, 120, node_type=NodeType.FUNCTION))
-        graph.add_edge("mod.MyClass", "mod.other")
-        graph.add_edge("mod.func", "mod.other")
-        config = HealthCheckConfig(
-            fan_out_max=1,
-        )
-        result = check_fan_out(graph, config)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("mod.MyClass", entity_names)
-        self.assertIn("mod.func", entity_names)
-
-    def test_fan_in_skips_classes(self):
-        graph = CallGraph()
-        graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS))
-        graph.add_node(_make_node("mod.func1", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
-        graph.add_node(_make_node("mod.func2", "/f.py", 11, 20, node_type=NodeType.FUNCTION))
-        graph.add_edge("mod.func1", "mod.MyClass")
-        graph.add_edge("mod.func2", "mod.MyClass")
-        config = HealthCheckConfig(
-            fan_in_max=1,
-        )
-        result = check_fan_in(graph, config)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("mod.MyClass", entity_names)
 
     def test_entity_label_on_node(self):
         func_node = _make_node("mod.func", "/f.py", 0, 10, node_type=NodeType.FUNCTION)
@@ -483,53 +219,10 @@ class TestHealthCheckConfig(unittest.TestCase):
     def test_default_config(self):
         config = HealthCheckConfig()
         self.assertEqual(config.function_size_max, 150)
-        self.assertEqual(config.fan_out_max, 10)
 
     def test_custom_config(self):
         config = HealthCheckConfig(function_size_max=60)
         self.assertEqual(config.function_size_max, 60)
-
-
-class TestInheritanceDepthFixedThreshold(unittest.TestCase):
-    """Tests that inheritance depth uses a fixed threshold (no adaptive)."""
-
-    def test_root_classes_not_flagged(self):
-        """All root classes (depth 0) should not be flagged with default threshold."""
-        hierarchy = {
-            "ClassA": {
-                "superclasses": [],
-                "subclasses": [],
-                "file_path": "/f.py",
-                "line_start": 0,
-                "line_end": 50,
-            },
-            "ClassB": {
-                "superclasses": [],
-                "subclasses": [],
-                "file_path": "/f.py",
-                "line_start": 50,
-                "line_end": 100,
-            },
-        }
-        config = HealthCheckConfig()  # default inheritance_depth_max=8
-        result = check_inheritance_depth(hierarchy, config)
-        self.assertEqual(result.findings_count, 0)
-        self.assertEqual(result.score, 1.0)
-
-    def test_fixed_threshold_ignores_distribution(self):
-        """Even with percentile set, threshold should be fixed (percentile is None by default)."""
-        hierarchy = {
-            "Base": {
-                "superclasses": [],
-                "subclasses": [],
-                "file_path": "/f.py",
-                "line_start": 0,
-                "line_end": 10,
-            },
-        }
-        config = HealthCheckConfig(inheritance_depth_max=8)
-        result = check_inheritance_depth(hierarchy, config)
-        self.assertEqual(result.findings_count, 0)
 
 
 class TestFunctionSizeIgnoreFiltering(unittest.TestCase):

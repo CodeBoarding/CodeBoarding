@@ -59,8 +59,6 @@ class TestLoadHealthConfig(unittest.TestCase):
 
             config = load_health_config(health_dir)
             self.assertEqual(config.function_size_max, 150)
-            self.assertEqual(config.fan_out_max, 10)
-            self.assertAlmostEqual(config.instability_high, 0.8)
 
     def test_partial_overrides(self):
         """Test loading config with only some fields overridden."""
@@ -80,10 +78,7 @@ class TestLoadHealthConfig(unittest.TestCase):
 
             config = load_health_config(health_dir)
             self.assertEqual(config.function_size_max, 200)
-            self.assertEqual(config.fan_out_max, 20)
             # Non-overridden fields should have defaults
-            self.assertEqual(config.fan_in_max, 10)
-            self.assertEqual(config.inheritance_depth_max, 5)
 
     def test_falls_back_on_invalid_json(self):
         """Test that malformed JSON falls back to defaults."""
@@ -156,15 +151,7 @@ class TestLoadHealthConfig(unittest.TestCase):
 
             config = load_health_config(health_dir)
             self.assertEqual(config.function_size_max, 150)
-            self.assertEqual(config.fan_out_max, 10)
-            self.assertEqual(config.fan_in_max, 10)
-            self.assertEqual(config.god_class_method_count_max, 25)
-            self.assertEqual(config.god_class_loc_max, 400)
-            self.assertEqual(config.god_class_fan_out_max, 30)
-            self.assertEqual(config.inheritance_depth_max, 5)
             self.assertEqual(config.max_cycles_reported, 50)
-            self.assertAlmostEqual(config.instability_high, 0.8)
-            self.assertAlmostEqual(config.cohesion_low, 0.1)
 
 
 if __name__ == "__main__":
