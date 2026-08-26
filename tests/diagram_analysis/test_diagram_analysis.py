@@ -1554,6 +1554,7 @@ class TestDiagramGenerator(unittest.TestCase):
             ],
         )
         gen.clustering_hierarchy = hierarchy
+        gen.source_sha = "source-sha"
         gen.abstraction_agent.run.return_value = analysis
         captured: dict[str, list[Component]] = {}
 
@@ -1640,6 +1641,7 @@ class TestDiagramGenerator(unittest.TestCase):
             ],
         )
         gen.clustering_hierarchy = hierarchy
+        gen.source_sha = "source-sha"
         gen.abstraction_agent.run.return_value = analysis
 
         gen.generate_analysis()

@@ -1013,9 +1013,11 @@ class DiagramGenerator:
         )
 
     def _persist_static_analysis_artifact(self) -> None:
-        """Persist the post-clustering static-analysis artifact."""
+        """Persist the static-analysis artifact."""
         if self.static_analysis is None:
             return
+        if self.source_sha is None:
+            raise RuntimeError("Cannot persist static analysis without a source SHA")
         StaticAnalysisCache(self.output_dir, self.repo_location).save(self.static_analysis, source_sha=self.source_sha)
 
     def _source_tree_fingerprint_map(self) -> dict[str, str]:

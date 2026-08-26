@@ -25,19 +25,16 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from filelock import FileLock
 
 from constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
 from repo_utils.path_utils import to_absolute_path, to_relative_path
-from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge
+from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge, StaticAnalysisResults
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
-
-if TYPE_CHECKING:
-    from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +83,7 @@ class StaticAnalysisCache:
     def _to_absolute(self, path: str) -> str:
         return to_absolute_path(path, self.repo_root)
 
-    def _relativize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
+    def _relativize(self, result: StaticAnalysisResults) -> StaticAnalysisResults:
         """Return a copy of result with all file paths made repo-relative."""
         portable = copy.copy(result)
         # Drop runtime-only warm-start context before deep-copying/pickling the cache artifact.
@@ -100,7 +97,7 @@ class StaticAnalysisCache:
         }
         return portable
 
-    def _absolutize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
+    def _absolutize(self, result: StaticAnalysisResults) -> StaticAnalysisResults:
         """Expand all repo-relative file paths in result to absolute paths."""
         for lang_data in result.results.values():
             lang_data.visit_paths(self._to_absolute)
@@ -155,7 +152,7 @@ class StaticAnalysisCache:
     def _legacy_pkl_path(self) -> Path:
         return self.artifact_dir / _LEGACY_CACHE_SUBDIR / _LEGACY_PKL_NAME
 
-    def load_with_sha(self) -> "tuple[StaticAnalysisResults, str] | None":
+    def load_with_sha(self) -> tuple[StaticAnalysisResults, str] | None:
         """Load the pkl and its tag SHA together; returns ``None`` if either is absent.
 
         Used by the warm-start flow: the SHA is needed as a git diff base
@@ -176,7 +173,7 @@ class StaticAnalysisCache:
                 return None
             return results, cached_sha
 
-    def get(self, expected_sha: str | None = None) -> "StaticAnalysisResults | None":
+    def get(self, expected_sha: str | None = None) -> StaticAnalysisResults | None:
         """Load the cached results, or None if absent/invalid/SHA-mismatched.
 
         When ``expected_sha`` is provided, the tag file is read first and
@@ -190,7 +187,7 @@ class StaticAnalysisCache:
         with FileLock(self.lock_path, timeout=30):
             return self._get_unlocked(expected_sha=expected_sha)
 
-    def _get_unlocked(self, expected_sha: str | None = None) -> "StaticAnalysisResults | None":
+    def _get_unlocked(self, expected_sha: str | None = None) -> StaticAnalysisResults | None:
         if expected_sha is not None:
             cached_sha = self._read_tag_sha_unlocked()
             if cached_sha is None:
@@ -230,16 +227,16 @@ class StaticAnalysisCache:
             logger.warning(f"Failed to load static analysis cache: {e}")
             return None
 
-    def save(self, result: "StaticAnalysisResults", source_sha: str | None = None) -> None:
+    def save(self, result: StaticAnalysisResults, source_sha: str) -> None:
         """Save the result with repo-relative paths and a sibling SHA tag.
 
         ``source_sha`` is the canonical identifier of the source state this
         pickle reflects (e.g. a git tree SHA over HEAD + dirty overlay).
-        Stored in the sibling ``static_analysis.sha`` tag so future loads
-        can SHA-gate before paying the unpickle cost. Saving without a
-        SHA writes the pickle but leaves the tag absent — callers that
-        ``get(expected_sha=...)`` will then miss the cache.
+        Stored in the sibling ``static_analysis.sha`` tag so future loads can
+        SHA-gate before paying the unpickle cost.
         """
+        if not source_sha:
+            raise ValueError("source_sha must be non-empty")
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
 
         with FileLock(self.lock_path, timeout=30):
@@ -264,30 +261,22 @@ class StaticAnalysisCache:
 
             # Write the sibling tag last so a partially-written pkl never gets a
             # SHA stamp; readers that miss the tag treat it as no-cache.
-            if source_sha is not None:
-                tag_text = f"{_TAG_VERSION}\n{source_sha}\n"
-                tag_fd, tag_tmp = tempfile.mkstemp(dir=self.artifact_dir, suffix=".sha.tmp")
-                try:
-                    with open(tag_fd, "w", encoding="utf-8", newline="\n") as f:
-                        f.write(tag_text)
-                        f.flush()
-                        os.fsync(f.fileno())
-                    Path(tag_tmp).replace(self.sha_path)
-                except Exception as e:
-                    Path(tag_tmp).unlink(missing_ok=True)
-                    # Drop any old tag rather than pair it with the new pkl.
-                    try:
-                        self.sha_path.unlink()
-                    except (OSError, FileNotFoundError):
-                        pass
-                    logger.warning(f"Failed to write SHA tag, dropped stale tag to avoid mismatch: {e}")
-            elif self.sha_path.exists():
-                # No SHA provided this run; drop any stale tag so the next
-                # SHA-gated read doesn't accidentally accept a mismatched pickle.
+            tag_text = f"{_TAG_VERSION}\n{source_sha}\n"
+            tag_fd, tag_tmp = tempfile.mkstemp(dir=self.artifact_dir, suffix=".sha.tmp")
+            try:
+                with open(tag_fd, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(tag_text)
+                    f.flush()
+                    os.fsync(f.fileno())
+                Path(tag_tmp).replace(self.sha_path)
+            except Exception as e:
+                Path(tag_tmp).unlink(missing_ok=True)
+                # Drop any old tag rather than pair it with the new pkl.
                 try:
                     self.sha_path.unlink()
-                except OSError:
+                except (OSError, FileNotFoundError):
                     pass
+                logger.warning(f"Failed to write SHA tag, dropped stale tag to avoid mismatch: {e}")
 
     def _tag_version_is_stale(self) -> bool:
         """Whether a tag file exists and names a version this build does not produce."""
