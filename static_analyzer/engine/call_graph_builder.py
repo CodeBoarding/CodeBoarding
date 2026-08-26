@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from pathlib import Path
 
@@ -19,6 +20,10 @@ from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
 logger = logging.getLogger(__name__)
+
+
+class SymbolIndexTimeoutError(TimeoutError):
+    """Raised when an LSP never exposes a usable symbol index."""
 
 
 class CallGraphBuilder:
@@ -167,23 +172,23 @@ class CallGraphBuilder:
         # request backpressure while creating overlays, so they interleave
         # each didOpen notification with the matching documentSymbol request.
         if self._adapter.probe_before_open or interleave_open:
-            probe_result = self._send_sync_probe(source_files, probe_timeout)
+            probe_file, probe_result = self._send_sync_probe(source_files, probe_timeout)
             if not interleave_open:
                 self._bulk_did_open(source_files)
         else:
             self._bulk_did_open(source_files)
-            probe_result = self._send_sync_probe(source_files, probe_timeout)
+            probe_file, probe_result = self._send_sync_probe(source_files, probe_timeout)
 
         # Phase 1: extract symbols from each file
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
-        for idx, file_path in enumerate(source_files, 1):
+        for file_path in source_files:
             if interleave_open:
                 self._lsp.did_open(file_path)
-            # Reuse the sync probe result for the first file to avoid a
+            # Reuse the sync probe result for its source file to avoid a
             # redundant document_symbol query (the probe can take minutes).
             # Interleaved adapters deliberately query again after didOpen so
             # that each overlay notification has a response barrier.
-            should_reuse_probe = idx == 1 and not interleave_open
+            should_reuse_probe = file_path == probe_file and not interleave_open
             if should_reuse_probe:
                 symbols = probe_result
             elif interleave_open:
@@ -213,19 +218,46 @@ class CallGraphBuilder:
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
-    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> list[dict]:
+    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> tuple[Path | None, list[dict]]:
         """Send a documentSymbol probe to wait for the LSP server to finish indexing."""
         probe_result: list[dict] = []
         logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
         t_probe = time.monotonic()
-        if source_files:
-            probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
+        probe_files = self._adapter.select_sync_probe_files(source_files) if source_files else []
+        probe_file: Path | None = None
+        deadline = t_probe + probe_timeout
+        attempts = 0
+        while probe_files:
+            probe_file = probe_files[attempts % len(probe_files)]
+            remaining = max(1, math.ceil(deadline - time.monotonic()))
+            try:
+                probe_result = self._lsp.document_symbol(probe_file, timeout=remaining)
+            except TimeoutError as exc:
+                if not self._adapter.sync_probe_requires_symbols:
+                    raise
+                raise SymbolIndexTimeoutError(
+                    f"{self._adapter.language} symbol index did not become usable within {probe_timeout}s while "
+                    f"probing {probe_file}; not caching empty analysis."
+                ) from exc
+            attempts += 1
+            if probe_result or not self._adapter.sync_probe_requires_symbols:
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise SymbolIndexTimeoutError(
+                    f"{self._adapter.language} symbol index did not become usable within {probe_timeout}s while "
+                    f"probing {probe_file}; not caching empty analysis."
+                )
+            if attempts == 1:
+                logger.info("Sync probe returned no symbols; waiting for the LSP index to become usable...")
+            time.sleep(min(1.0, remaining))
         logger.info(
-            "Sync probe: %.1fs (%d symbols)",
+            "Sync probe: %.1fs (%d symbols, %d attempt(s))",
             time.monotonic() - t_probe,
             len(probe_result) if probe_result else 0,
+            attempts,
         )
-        return probe_result
+        return probe_file, probe_result
 
     def _warmup_references(self, source_files: list[Path]) -> None:
         """Trigger the LSP server's cross-reference index build.
