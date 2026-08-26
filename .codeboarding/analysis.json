@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-26T17:39:47.070882+00:00",
-    "source_tree_hash": "fe60f5299b6139e96d985bdd480045f5cf3dd39a9a93ae1f49e732ef790c735b",
+    "generated_at": "2026-08-26T20:00:57.281632+00:00",
+    "source_tree_hash": "bed174b3d11ae91d03af61258d0a55c8fdb618b76faf2a34d4824c569dab43e8",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -98,7 +98,6 @@
         "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._prepare_project_once",
         "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._spawn_engine_client",
         "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.stop_clients",
-        "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.flush_cache",
         "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._live_clients",
         "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
         "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation",
@@ -120,7 +119,7 @@
         "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._validate_analysis_results",
         "static_analyzer/__init__.py|static_analyzer.__init__.get_static_analysis"
       ],
-      "content_hash": "2b9ffad751cffc92",
+      "content_hash": "cd6fc7c46a50f39a",
       "module_hash": "55c684c3a0a75ab4"
     },
     "static_analyzer/dotnet_sdk.py": {
@@ -1851,7 +1850,7 @@
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses"
       ],
-      "content_hash": "c111b85fcb81fe54",
+      "content_hash": "e879d16775473bff",
       "module_hash": "7a0b16f997bb6ed8"
     },
     "diagram_analysis/exceptions.py": {
@@ -2251,7 +2250,7 @@
         "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.run_incremental",
         "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.run_incremental_workflow"
       ],
-      "content_hash": "ba44239155a5556b",
+      "content_hash": "b669de5b68eb14fa",
       "module_hash": "719fb6d288f3ed05"
     },
     "codeboarding_workflows/orchestration.py": {
@@ -2662,8 +2661,8 @@
         "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._rederive_inherits_edges",
         "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._validate_no_dangling_references"
       ],
-      "content_hash": "61aff3630fd3de34",
-      "module_hash": "572ffde5a154c0e9"
+      "content_hash": "5546fa5eeed6bbca",
+      "module_hash": "ab2f2e7b072f2e5f"
     },
     "static_analyzer/cfg/call_graph.py": {
       "method_keys": [
@@ -3295,233 +3294,225 @@
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer",
       "start_line": 238,
-      "end_line": 1086,
+      "end_line": 1029,
       "type": "CLASS",
-      "content_hash": "637158e8f959900b"
+      "content_hash": "9754d7dcca6ae9bd"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.__init__",
       "start_line": 241,
-      "end_line": 272,
+      "end_line": 256,
       "type": "METHOD",
-      "content_hash": "9bb339b691c6b6bf"
+      "content_hash": "0319ef35b8eddad4"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__enter__": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.__enter__",
-      "start_line": 274,
-      "end_line": 276,
+      "start_line": 258,
+      "end_line": 260,
       "type": "METHOD",
       "content_hash": "4393f166b427568c"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__exit__": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.__exit__",
-      "start_line": 278,
-      "end_line": 279,
+      "start_line": 262,
+      "end_line": 263,
       "type": "METHOD",
       "content_hash": "bea710a963761fc5"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.start_clients": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.start_clients",
-      "start_line": 281,
-      "end_line": 373,
+      "start_line": 265,
+      "end_line": 357,
       "type": "METHOD",
       "content_hash": "a99bbdf731a2e16e"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._prepare_project_once": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._prepare_project_once",
-      "start_line": 375,
-      "end_line": 403,
+      "start_line": 359,
+      "end_line": 387,
       "type": "METHOD",
       "content_hash": "ea4b07bed8204e62"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._spawn_engine_client": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._spawn_engine_client",
-      "start_line": 405,
-      "end_line": 446,
+      "start_line": 389,
+      "end_line": 430,
       "type": "METHOD",
       "content_hash": "7cdd13a440ed16cf"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.stop_clients": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.stop_clients",
-      "start_line": 448,
-      "end_line": 466,
+      "start_line": 432,
+      "end_line": 443,
       "type": "METHOD",
-      "content_hash": "113de904be463f69"
-    },
-    "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.flush_cache": {
-      "file_path": "static_analyzer/__init__.py",
-      "qualified_name": "static_analyzer.__init__.StaticAnalyzer.flush_cache",
-      "start_line": 468,
-      "end_line": 489,
-      "type": "METHOD",
-      "content_hash": "7f3bd88450452f68"
+      "content_hash": "fa6261b2f51b5898"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._live_clients": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._live_clients",
-      "start_line": 491,
-      "end_line": 506,
+      "start_line": 445,
+      "end_line": 460,
       "type": "METHOD",
       "content_hash": "e73d83bc6de08146"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
-      "start_line": 508,
-      "end_line": 520,
+      "start_line": 462,
+      "end_line": 474,
       "type": "METHOD",
       "content_hash": "96c8f6ba4db804af"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation",
-      "start_line": 522,
-      "end_line": 526,
+      "start_line": 476,
+      "end_line": 480,
       "type": "METHOD",
       "content_hash": "8bbfebc9dbf3ef25"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.load_cached_analysis": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
-      "start_line": 528,
-      "end_line": 564,
+      "start_line": 482,
+      "end_line": 515,
       "type": "METHOD",
-      "content_hash": "878153fde549ec2c"
+      "content_hash": "7d69faaaa68fbf14"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.notify_file_changed": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.notify_file_changed",
-      "start_line": 566,
-      "end_line": 583,
+      "start_line": 517,
+      "end_line": 534,
       "type": "METHOD",
       "content_hash": "664561c3d18da789"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.get_file_symbols": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
-      "start_line": 585,
-      "end_line": 608,
+      "start_line": 536,
+      "end_line": 559,
       "type": "METHOD",
       "content_hash": "a1df0feb383a8174"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file",
-      "start_line": 610,
-      "end_line": 616,
+      "start_line": 561,
+      "end_line": 567,
       "type": "METHOD",
       "content_hash": "6c668861a958a9e1"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.discover_file_dependencies": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.discover_file_dependencies",
-      "start_line": 618,
-      "end_line": 672,
+      "start_line": 569,
+      "end_line": 623,
       "type": "METHOD",
       "content_hash": "7430e92f72fcb45f"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.analyze",
-      "start_line": 674,
-      "end_line": 745,
+      "start_line": 625,
+      "end_line": 688,
       "type": "METHOD",
-      "content_hash": "d4b181294c4c8cd4"
+      "content_hash": "7aaf4462bfe5083b"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
-      "start_line": 747,
-      "end_line": 862,
+      "start_line": 690,
+      "end_line": 805,
       "type": "METHOD",
       "content_hash": "ae6ffcd249de9de8"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass.run_one": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass.run_one",
-      "start_line": 764,
-      "end_line": 816,
+      "start_line": 707,
+      "end_line": 759,
       "type": "FUNCTION",
       "content_hash": "e30bb953a7dc05cd"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._update_cached_results": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
-      "start_line": 864,
-      "end_line": 919,
+      "start_line": 807,
+      "end_line": 862,
       "type": "METHOD",
       "content_hash": "d616064a3813b8ff"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._changed_files_for_language": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
-      "start_line": 921,
-      "end_line": 939,
+      "start_line": 864,
+      "end_line": 882,
       "type": "METHOD",
       "content_hash": "fe26ffade154d5c5"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
-      "start_line": 941,
-      "end_line": 964,
+      "start_line": 884,
+      "end_line": 907,
       "type": "METHOD",
       "content_hash": "17d68086ef791aff"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-      "start_line": 966,
-      "end_line": 973,
+      "start_line": 909,
+      "end_line": 916,
       "type": "METHOD",
       "content_hash": "0db110868fc1fe4e"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._collect_diagnostics_for": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._collect_diagnostics_for",
-      "start_line": 975,
-      "end_line": 1000,
+      "start_line": 918,
+      "end_line": 943,
       "type": "METHOD",
       "content_hash": "53ef4caf03408a86"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._loc_for_adapter": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._loc_for_adapter",
-      "start_line": 1002,
-      "end_line": 1015,
+      "start_line": 945,
+      "end_line": 958,
       "type": "METHOD",
       "content_hash": "253c3c76fb8880b3"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_analysis": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
-      "start_line": 1017,
-      "end_line": 1063,
+      "start_line": 960,
+      "end_line": 1006,
       "type": "METHOD",
       "content_hash": "b7328d0be77d3ed8"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._validate_analysis_results": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.StaticAnalyzer._validate_analysis_results",
-      "start_line": 1065,
-      "end_line": 1086,
+      "start_line": 1008,
+      "end_line": 1029,
       "type": "METHOD",
       "content_hash": "e510333456d59375"
     },
     "static_analyzer/__init__.py|static_analyzer.__init__.get_static_analysis": {
       "file_path": "static_analyzer/__init__.py",
       "qualified_name": "static_analyzer.__init__.get_static_analysis",
-      "start_line": 1089,
-      "end_line": 1122,
+      "start_line": 1032,
+      "end_line": 1063,
       "type": "FUNCTION",
-      "content_hash": "e7ca2fad49817f79"
+      "content_hash": "1a609147d5135e99"
     },
     "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.DotnetSdkError": {
       "file_path": "static_analyzer/dotnet_sdk.py",
@@ -12671,9 +12662,9 @@
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
       "start_line": 508,
-      "end_line": 1600,
+      "end_line": 1602,
       "type": "CLASS",
-      "content_hash": "f64b6f2a441b8916"
+      "content_hash": "923abae771ca7d38"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.__init__": {
       "file_path": "diagram_analysis/diagram_generator.py",
@@ -12839,167 +12830,167 @@
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._persist_static_analysis_artifact",
       "start_line": 1015,
-      "end_line": 1019,
+      "end_line": 1021,
       "type": "METHOD",
-      "content_hash": "caabae2d13528b01"
+      "content_hash": "33fae970899d64e1"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._source_tree_fingerprint_map": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._source_tree_fingerprint_map",
-      "start_line": 1021,
-      "end_line": 1025,
+      "start_line": 1023,
+      "end_line": 1027,
       "type": "METHOD",
       "content_hash": "50bccb63b5e441cb"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._source_tree_hash": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._source_tree_hash",
-      "start_line": 1027,
-      "end_line": 1029,
+      "start_line": 1029,
+      "end_line": 1031,
       "type": "METHOD",
       "content_hash": "91a242ffeae08e87"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._initialize_meta_agent": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._initialize_meta_agent",
-      "start_line": 1031,
-      "end_line": 1039,
+      "start_line": 1033,
+      "end_line": 1041,
       "type": "METHOD",
       "content_hash": "1b143693ffaa4bac"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._initialize_agents": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._initialize_agents",
-      "start_line": 1041,
-      "end_line": 1080,
+      "start_line": 1043,
+      "end_line": 1082,
       "type": "METHOD",
       "content_hash": "e60752a012a10397"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
-      "start_line": 1082,
-      "end_line": 1112,
+      "start_line": 1084,
+      "end_line": 1114,
       "type": "METHOD",
       "content_hash": "a80f2ee89671bc51"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
-      "start_line": 1114,
-      "end_line": 1206,
+      "start_line": 1116,
+      "end_line": 1208,
       "type": "METHOD",
       "content_hash": "ef7af7a0d88f7c9c"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
-      "start_line": 1138,
-      "end_line": 1142,
+      "start_line": 1140,
+      "end_line": 1144,
       "type": "FUNCTION",
       "content_hash": "caba3a0bd7ec7a98"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-      "start_line": 1209,
-      "end_line": 1244,
+      "start_line": 1211,
+      "end_line": 1246,
       "type": "METHOD",
       "content_hash": "6cfa27aee108115f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations",
-      "start_line": 1246,
-      "end_line": 1303,
+      "start_line": 1248,
+      "end_line": 1305,
       "type": "METHOD",
       "content_hash": "59629800bd1c7e7b"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
-      "start_line": 1305,
-      "end_line": 1319,
+      "start_line": 1307,
+      "end_line": 1321,
       "type": "METHOD",
       "content_hash": "19916973a0dcc747"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-      "start_line": 1321,
-      "end_line": 1375,
+      "start_line": 1323,
+      "end_line": 1377,
       "type": "METHOD",
       "content_hash": "113e4d998c2b77f4"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary",
-      "start_line": 1377,
-      "end_line": 1386,
+      "start_line": 1379,
+      "end_line": 1388,
       "type": "METHOD",
       "content_hash": "e6336d28882210dd"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
-      "start_line": 1388,
-      "end_line": 1422,
+      "start_line": 1390,
+      "end_line": 1424,
       "type": "METHOD",
       "content_hash": "f28becdbd82eaa36"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_hierarchy": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_hierarchy",
-      "start_line": 1424,
-      "end_line": 1459,
+      "start_line": 1426,
+      "end_line": 1461,
       "type": "METHOD",
       "content_hash": "982a7f61243b2897"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-      "start_line": 1462,
-      "end_line": 1580,
+      "start_line": 1464,
+      "end_line": 1582,
       "type": "METHOD",
       "content_hash": "d916661bc3ff3724"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
-      "start_line": 1582,
-      "end_line": 1600,
+      "start_line": 1584,
+      "end_line": 1602,
       "type": "METHOD",
       "content_hash": "2f755384d04325e3"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.assert_scope_containment",
-      "start_line": 1603,
-      "end_line": 1627,
+      "start_line": 1605,
+      "end_line": 1629,
       "type": "FUNCTION",
       "content_hash": "92d86f22af91ea60"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._collect_components_by_id": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._collect_components_by_id",
-      "start_line": 1630,
-      "end_line": 1645,
+      "start_line": 1632,
+      "end_line": 1647,
       "type": "FUNCTION",
       "content_hash": "5ddebec0bc81a8ab"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-      "start_line": 1648,
-      "end_line": 1652,
+      "start_line": 1650,
+      "end_line": 1654,
       "type": "FUNCTION",
       "content_hash": "60bded4cd2d7778f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._merge_sub_analyses",
-      "start_line": 1655,
-      "end_line": 1685,
+      "start_line": 1657,
+      "end_line": 1687,
       "type": "FUNCTION",
       "content_hash": "f7f96f55d79e04cb"
     },
@@ -14831,31 +14822,31 @@
       "file_path": "codeboarding_workflows/analysis.py",
       "qualified_name": "codeboarding_workflows.analysis.run_full",
       "start_line": 51,
-      "end_line": 76,
+      "end_line": 71,
       "type": "FUNCTION",
-      "content_hash": "fdc8269a397b7343"
+      "content_hash": "50cd7599f18cfc13"
     },
     "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.run_partial": {
       "file_path": "codeboarding_workflows/analysis.py",
       "qualified_name": "codeboarding_workflows.analysis.run_partial",
-      "start_line": 79,
-      "end_line": 172,
+      "start_line": 74,
+      "end_line": 167,
       "type": "FUNCTION",
       "content_hash": "cba8ca0467ac77fc"
     },
     "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.run_incremental": {
       "file_path": "codeboarding_workflows/analysis.py",
       "qualified_name": "codeboarding_workflows.analysis.run_incremental",
-      "start_line": 175,
-      "end_line": 220,
+      "start_line": 170,
+      "end_line": 215,
       "type": "FUNCTION",
       "content_hash": "4f65d623f2c34519"
     },
     "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.run_incremental_workflow": {
       "file_path": "codeboarding_workflows/analysis.py",
       "qualified_name": "codeboarding_workflows.analysis.run_incremental_workflow",
-      "start_line": 223,
-      "end_line": 246,
+      "start_line": 218,
+      "end_line": 241,
       "type": "FUNCTION",
       "content_hash": "b0da84c50068a219"
     },
@@ -16334,184 +16325,184 @@
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache",
-      "start_line": 70,
-      "end_line": 299,
+      "start_line": 67,
+      "end_line": 288,
       "type": "CLASS",
-      "content_hash": "22cd94558b5ca301"
+      "content_hash": "4b7fbcc4a7828960"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.__init__": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache.__init__",
-      "start_line": 79,
-      "end_line": 81,
+      "start_line": 76,
+      "end_line": 78,
       "type": "METHOD",
       "content_hash": "984b444dd520ad74"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache._to_relative": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache._to_relative",
-      "start_line": 83,
-      "end_line": 84,
+      "start_line": 80,
+      "end_line": 81,
       "type": "METHOD",
       "content_hash": "32590483a57001ac"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache._to_absolute": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache._to_absolute",
-      "start_line": 86,
-      "end_line": 87,
+      "start_line": 83,
+      "end_line": 84,
       "type": "METHOD",
       "content_hash": "03b6a860185155e9"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache._relativize": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache._relativize",
-      "start_line": 89,
-      "end_line": 101,
+      "start_line": 86,
+      "end_line": 98,
       "type": "METHOD",
-      "content_hash": "4b1a9a05d2578a42"
+      "content_hash": "4938fb162cd4f0cb"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache._absolutize": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache._absolutize",
-      "start_line": 103,
-      "end_line": 111,
+      "start_line": 100,
+      "end_line": 108,
       "type": "METHOD",
-      "content_hash": "16cb593c3389f2db"
+      "content_hash": "46b89309c21c6fa2"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.pkl_path": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache.pkl_path",
-      "start_line": 114,
-      "end_line": 115,
+      "start_line": 111,
+      "end_line": 112,
       "type": "METHOD",
       "content_hash": "a49f74cc66a792e8"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.sha_path": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache.sha_path",
-      "start_line": 118,
-      "end_line": 119,
+      "start_line": 115,
+      "end_line": 116,
       "type": "METHOD",
       "content_hash": "dbc155a0d9ce8b52"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.lock_path": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache.lock_path",
-      "start_line": 122,
-      "end_line": 123,
+      "start_line": 119,
+      "end_line": 120,
       "type": "METHOD",
       "content_hash": "28ed67ae0d3fc0df"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.read_tag_sha": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache.read_tag_sha",
-      "start_line": 125,
-      "end_line": 139,
+      "start_line": 122,
+      "end_line": 136,
       "type": "METHOD",
       "content_hash": "43a99ed42e9303a5"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache._read_tag_sha_unlocked": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache._read_tag_sha_unlocked",
-      "start_line": 141,
-      "end_line": 153,
+      "start_line": 138,
+      "end_line": 150,
       "type": "METHOD",
       "content_hash": "a7b42b07fdc89b82"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache._legacy_pkl_path": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache._legacy_pkl_path",
-      "start_line": 155,
-      "end_line": 156,
+      "start_line": 152,
+      "end_line": 153,
       "type": "METHOD",
       "content_hash": "11f0bbf797eaffe9"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.load_with_sha": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache.load_with_sha",
-      "start_line": 158,
-      "end_line": 177,
+      "start_line": 155,
+      "end_line": 174,
       "type": "METHOD",
-      "content_hash": "34f86b0ca8922d60"
+      "content_hash": "94250f217666dfe9"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.get": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache.get",
-      "start_line": 179,
-      "end_line": 191,
+      "start_line": 176,
+      "end_line": 188,
       "type": "METHOD",
-      "content_hash": "80c87e23441dd777"
+      "content_hash": "5d1645ad611c139d"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache._get_unlocked": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache._get_unlocked",
-      "start_line": 193,
-      "end_line": 231,
+      "start_line": 190,
+      "end_line": 228,
       "type": "METHOD",
-      "content_hash": "69fe079a5aaabd4e"
+      "content_hash": "f3b2600892fa0703"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.save": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache.save",
-      "start_line": 233,
-      "end_line": 290,
+      "start_line": 230,
+      "end_line": 279,
       "type": "METHOD",
-      "content_hash": "446e272dfecdccf3"
+      "content_hash": "e21f2730c3bf1192"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache._tag_version_is_stale": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache._tag_version_is_stale",
-      "start_line": 292,
-      "end_line": 299,
+      "start_line": 281,
+      "end_line": 288,
       "type": "METHOD",
       "content_hash": "e69346461cf27f42"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.copy_cache_files": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.copy_cache_files",
-      "start_line": 302,
-      "end_line": 341,
+      "start_line": 291,
+      "end_line": 330,
       "type": "FUNCTION",
       "content_hash": "9c526df1ec06b1b3"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._atomic_copy": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache._atomic_copy",
-      "start_line": 344,
-      "end_line": 359,
+      "start_line": 333,
+      "end_line": 348,
       "type": "FUNCTION",
       "content_hash": "362ef2e5a3d76ffb"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.invalidate_files",
-      "start_line": 362,
-      "end_line": 419,
+      "start_line": 351,
+      "end_line": 408,
       "type": "FUNCTION",
       "content_hash": "3f0904397dd3919f"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache.merge_results",
-      "start_line": 422,
-      "end_line": 459,
+      "start_line": 411,
+      "end_line": 448,
       "type": "FUNCTION",
       "content_hash": "bb13aba48a11ce5c"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._rederive_inherits_edges": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache._rederive_inherits_edges",
-      "start_line": 462,
-      "end_line": 473,
+      "start_line": 451,
+      "end_line": 462,
       "type": "FUNCTION",
       "content_hash": "32437f183cddc589"
     },
     "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._validate_no_dangling_references": {
       "file_path": "static_analyzer/analysis_cache.py",
       "qualified_name": "static_analyzer.analysis_cache._validate_no_dangling_references",
-      "start_line": 476,
-      "end_line": 509,
+      "start_line": 465,
+      "end_line": 498,
       "type": "FUNCTION",
       "content_hash": "978bbe75b4144b79"
     },
@@ -18840,8 +18831,8 @@
             {
               "qualified_name": "static_analyzer.__init__.StaticAnalyzer.discover_file_dependencies",
               "reference_file": "static_analyzer/__init__.py",
-              "reference_start_line": 618,
-              "reference_end_line": 672
+              "reference_start_line": 569,
+              "reference_end_line": 623
             },
             {
               "qualified_name": "static_analyzer.incremental_orchestrator._restore_cross_boundary_edges",
@@ -20104,8 +20095,8 @@
                 {
                   "qualified_name": "static_analyzer.__init__.StaticAnalyzer.discover_file_dependencies",
                   "reference_file": "static_analyzer/__init__.py",
-                  "reference_start_line": 618,
-                  "reference_end_line": 672
+                  "reference_start_line": 569,
+                  "reference_end_line": 623
                 },
                 {
                   "qualified_name": "static_analyzer.internal_references.parent_qualified_name",
@@ -20359,8 +20350,8 @@
                     {
                       "qualified_name": "static_analyzer.__init__.StaticAnalyzer.discover_file_dependencies",
                       "reference_file": "static_analyzer/__init__.py",
-                      "reference_start_line": 618,
-                      "reference_end_line": 672
+                      "reference_start_line": 569,
+                      "reference_end_line": 623
                     },
                     {
                       "qualified_name": "static_analyzer.internal_references.parent_qualified_name",
@@ -32136,7 +32127,7 @@
                   "qualified_name": "codeboarding_workflows.analysis.run_full",
                   "reference_file": "codeboarding_workflows/analysis.py",
                   "reference_start_line": 51,
-                  "reference_end_line": 76
+                  "reference_end_line": 71
                 },
                 {
                   "qualified_name": "codeboarding_cli.view_instructions.print_view_instructions",
@@ -32444,7 +32435,7 @@
                       "qualified_name": "codeboarding_workflows.analysis.run_full",
                       "reference_file": "codeboarding_workflows/analysis.py",
                       "reference_start_line": 51,
-                      "reference_end_line": 76
+                      "reference_end_line": 71
                     },
                     {
                       "qualified_name": "repo_utils.git_ops.get_changed_files_since",
@@ -33012,10 +33003,10 @@
                   ]
                 },
                 {
-                  "relation": "Provides tool definitions for analysis",
+                  "relation": "Provides tool definitions for analysis context",
                   "src_name": "Plugin & Tool Registry Manager",
                   "dst_name": "System Configuration & Health Orchestrator",
-                  "evidence": "The registry manager supplies tool factories and instances used by the orchestrator to perform repository-level operations.",
+                  "evidence": "The Registry Manager populates the toolset used by the Orchestrator's downstream analysis tasks.",
                   "key_edges": [],
                   "src_id": "4.1.2.2",
                   "dst_id": "4.1.2.1",
@@ -33575,7 +33566,7 @@
                   "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
                   "reference_file": "diagram_analysis/diagram_generator.py",
                   "reference_start_line": 508,
-                  "reference_end_line": 1600
+                  "reference_end_line": 1602
                 }
               ],
               "source_cluster_ids": [
@@ -34394,10 +34385,10 @@
               ]
             },
             {
-              "relation": "updates internal index mappings via re-rooting",
+              "relation": "Refines and re-roots analysis indexes",
               "src_name": "Diagram Structural Refiner",
               "dst_name": "Source Integrity & Expansion Planner",
-              "evidence": "The Refiner modifies the Planner's internal state by providing updated index mappings (reroot_indexes) to ensure the final diagram reflects the optimized hierarchy.",
+              "evidence": "The refiner modifies the planner's internal state by stripping ignored components and adjusting index roots for the final output.",
               "key_edges": [],
               "src_id": "4.2.4",
               "dst_id": "4.2.1",
@@ -34736,8 +34727,8 @@
             {
               "qualified_name": "codeboarding_workflows.analysis.run_incremental_workflow",
               "reference_file": "codeboarding_workflows/analysis.py",
-              "reference_start_line": 223,
-              "reference_end_line": 246
+              "reference_start_line": 218,
+              "reference_end_line": 241
             },
             {
               "qualified_name": "codeboarding_workflows.analysis.build_generator",
@@ -34848,6 +34839,17 @@
           "is_static": true,
           "all_edges": [
             {
+              "source": "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.run_full",
+              "target": "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.build_generator",
+              "call_sites": [
+                {
+                  "line": 62,
+                  "column": 17
+                }
+              ],
+              "description": ""
+            },
+            {
               "source": "codeboarding_cli/commands/incremental_analysis.py|codeboarding_cli.commands.incremental_analysis.run_from_args",
               "target": "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.run_incremental",
               "call_sites": [
@@ -34876,17 +34878,6 @@
                 {
                   "line": 52,
                   "column": 9
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.run_full",
-              "target": "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.build_generator",
-              "call_sites": [
-                {
-                  "line": 65,
-                  "column": 17
                 }
               ],
               "description": ""
@@ -35365,11 +35356,10 @@
             "static_analyzer.__init__.StaticAnalyzer.__exit__",
             "static_analyzer.__init__.StaticAnalyzer.start_clients",
             "static_analyzer.__init__.StaticAnalyzer.stop_clients",
-            "static_analyzer.__init__.StaticAnalyzer.flush_cache",
+            "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
             "static_analyzer.__init__.StaticAnalyzer._live_clients",
             "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
             "static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation",
-            "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
             "static_analyzer.__init__.StaticAnalyzer.notify_file_changed",
             "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
             "static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file",
@@ -36271,7 +36261,7 @@
                 }
               ],
               "component_id": "5.1.1",
-              "can_expand": false,
+              "can_expand": true,
               "components": [],
               "components_relations": []
             },
@@ -37459,8 +37449,8 @@
             {
               "qualified_name": "static_analyzer.analysis_cache.StaticAnalysisCache",
               "reference_file": "static_analyzer/analysis_cache.py",
-              "reference_start_line": 70,
-              "reference_end_line": 299
+              "reference_start_line": 67,
+              "reference_end_line": 288
             },
             {
               "qualified_name": "static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
@@ -37495,11 +37485,10 @@
                 "static_analyzer.__init__.StaticAnalyzer.__exit__",
                 "static_analyzer.__init__.StaticAnalyzer.start_clients",
                 "static_analyzer.__init__.StaticAnalyzer.stop_clients",
-                "static_analyzer.__init__.StaticAnalyzer.flush_cache",
+                "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
                 "static_analyzer.__init__.StaticAnalyzer._live_clients",
                 "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
                 "static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation",
-                "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
                 "static_analyzer.__init__.StaticAnalyzer.notify_file_changed",
                 "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
                 "static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file",
@@ -39186,8 +39175,8 @@
             {
               "qualified_name": "static_analyzer.analysis_cache.copy_cache_files",
               "reference_file": "static_analyzer/analysis_cache.py",
-              "reference_start_line": 302,
-              "reference_end_line": 341
+              "reference_start_line": 291,
+              "reference_end_line": 330
             },
             {
               "qualified_name": "static_analyzer.csharp_config_scanner.CSharpConfigScanner",
@@ -39477,8 +39466,8 @@
                 {
                   "qualified_name": "static_analyzer.analysis_cache.copy_cache_files",
                   "reference_file": "static_analyzer/analysis_cache.py",
-                  "reference_start_line": 302,
-                  "reference_end_line": 341
+                  "reference_start_line": 291,
+                  "reference_end_line": 330
                 },
                 {
                   "qualified_name": "static_analyzer.scanner.ProjectScanner",
@@ -39495,8 +39484,8 @@
                 {
                   "qualified_name": "static_analyzer.analysis_cache._atomic_copy",
                   "reference_file": "static_analyzer/analysis_cache.py",
-                  "reference_start_line": 344,
-                  "reference_end_line": 359
+                  "reference_start_line": 333,
+                  "reference_end_line": 348
                 }
               ],
               "source_cluster_ids": [
@@ -39584,6 +39573,17 @@
               ]
             },
             {
+              "relation": "provides clustering metadata for persistence",
+              "src_name": "Codebase Partitioning & Language Strategy",
+              "dst_name": "Artifact Scanner & Cache Manager",
+              "evidence": "The output of the partition_to_clusters function (the logical clusters) is passed back to the cache management system to be stored as part of the analysis artifacts in the .codeboarding-cache directory.",
+              "key_edges": [],
+              "src_id": "6.1.1",
+              "dst_id": "6.1.3",
+              "is_static": false,
+              "all_edges": []
+            },
+            {
               "relation": "Triggers language-specific build and partitioning",
               "src_name": "Artifact Scanner & Cache Manager",
               "dst_name": "Codebase Partitioning & Language Strategy",
@@ -39618,10 +39618,10 @@
               ]
             },
             {
-              "relation": "triggers environment-specific configuration",
+              "relation": "validates project compatibility and environment",
               "src_name": "Artifact Scanner & Cache Manager",
               "dst_name": "Analysis Engine Orchestrator",
-              "evidence": "During the scanning phase, the system checks for supported language capabilities to determine if specialized environment scanners (like C#) should be activated.",
+              "evidence": "During the scanning phase, the Artifact Scanner queries the Orchestrator to verify if detected file extensions or project structures (like C# solutions) are supported by the available analysis engines.",
               "key_edges": [],
               "src_id": "6.1.3",
               "dst_id": "6.1.2",
@@ -39850,15 +39850,37 @@
       ],
       "components_relations": [
         {
-          "relation": "Orchestrates environment discovery and file filtering",
+          "relation": "Delegates file filtering and project discovery",
           "src_name": "Analysis Orchestrator & Partitioning Engine",
           "dst_name": "Repository State & Multi-Language Discovery",
-          "evidence": "The Orchestrator acts as the lifecycle manager, invoking the Discovery component to establish the project's scope. It uses the RepoIgnoreManager to filter the file system and triggers ProjectScanner to identify language-specific project boundaries.",
+          "evidence": "The Orchestrator relies on the RepoIgnoreManager to determine the analysis scope and uses language scanners to bootstrap engine configurations based on detected project manifests (e.g., csproj, package.json).",
           "key_edges": [],
           "src_id": "6.1",
           "dst_id": "6.2",
           "is_static": true,
           "all_edges": [
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+              "target": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
+              "call_sites": [
+                {
+                  "line": 245,
+                  "column": 32
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+              "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+              "call_sites": [
+                {
+                  "line": 243,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
             {
               "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.scan",
               "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
@@ -39881,17 +39903,6 @@
                 {
                   "line": 107,
                   "column": 44
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-              "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-              "call_sites": [
-                {
-                  "line": 222,
-                  "column": 31
                 }
               ],
               "description": ""
@@ -40023,6 +40034,17 @@
           "key_edges": [],
           "src_id": "6.2",
           "dst_id": "6.3",
+          "is_static": false,
+          "all_edges": []
+        },
+        {
+          "relation": "Injects execution context via ContextVars",
+          "src_name": "Environment Identity & Execution Telemetry",
+          "dst_name": "Analysis Orchestrator & Partitioning Engine",
+          "evidence": "The telemetry layer manages a global run_id and execution context that is consumed by the Orchestrator's logging and partitioning logic to correlate distributed analysis steps.",
+          "key_edges": [],
+          "src_id": "6.3",
+          "dst_id": "6.1",
           "is_static": false,
           "all_edges": []
         }
@@ -46476,7 +46498,7 @@
           "target": "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.build_generator",
           "call_sites": [
             {
-              "line": 65,
+              "line": 62,
               "column": 17
             }
           ],
@@ -46687,6 +46709,28 @@
       "is_static": true,
       "all_edges": [
         {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.get_static_analysis",
+          "target": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer",
+          "call_sites": [
+            {
+              "line": 1055,
+              "column": 16
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.get_static_analysis",
+          "target": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
+          "call_sites": [
+            {
+              "line": 1057,
+              "column": 28
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "health/runner.py|health.runner.run_health_checks",
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.source_languages",
           "call_sites": [
@@ -46704,28 +46748,6 @@
             {
               "line": 315,
               "column": 66
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/__init__.py|static_analyzer.__init__.get_static_analysis",
-          "target": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer",
-          "call_sites": [
-            {
-              "line": 862,
-              "column": 16
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/__init__.py|static_analyzer.__init__.get_static_analysis",
-          "target": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
-          "call_sites": [
-            {
-              "line": 864,
-              "column": 28
             }
           ],
           "description": ""
@@ -47887,22 +47909,11 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.source_files_of_language",
-          "call_sites": [
-            {
-              "line": 642,
-              "column": 37
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._persist_static_analysis_artifact",
           "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache",
           "call_sites": [
             {
-              "line": 1019,
+              "line": 1021,
               "column": 9
             }
           ],
@@ -47913,8 +47924,19 @@
           "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.save",
           "call_sites": [
             {
-              "line": 1019,
+              "line": 1021,
               "column": 66
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.source_files_of_language",
+          "call_sites": [
+            {
+              "line": 642,
+              "column": 37
             }
           ],
           "description": ""
@@ -48341,10 +48363,10 @@
       "all_edges": []
     },
     {
-      "relation": "updates internal index mappings via re-rooting",
+      "relation": "Refines and re-roots analysis indexes",
       "src_name": "Diagram Lifecycle Orchestrator",
       "dst_name": "Source Integrity & Expansion Planner",
-      "evidence": "The Refiner modifies the Planner's internal state by providing updated index mappings (reroot_indexes) to ensure the final diagram reflects the optimized hierarchy.",
+      "evidence": "The refiner modifies the planner's internal state by stripping ignored components and adjusting index roots for the final output.",
       "key_edges": [],
       "src_id": "4.2.4.1",
       "dst_id": "4.2.1",
@@ -49853,6 +49875,17 @@
       "is_static": true,
       "all_edges": [
         {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.stop_clients",
+          "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.shutdown",
+          "call_sites": [
+            {
+              "line": 438,
+              "column": 24
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass.run_one",
           "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.shutdown",
           "call_sites": [
@@ -49881,17 +49914,6 @@
             {
               "line": 504,
               "column": 20
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.stop_clients",
-          "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.shutdown",
-          "call_sites": [
-            {
-              "line": 339,
-              "column": 24
             }
           ],
           "description": ""
@@ -50341,7 +50363,7 @@
           "target": "utils.py|utils.get_artifact_dir",
           "call_sites": [
             {
-              "line": 403,
+              "line": 509,
               "column": 72
             }
           ],
@@ -51123,26 +51145,15 @@
       ]
     },
     {
-      "relation": "Reports project metrics for engine refinement",
+      "relation": "validates project compatibility and environment",
       "src_name": "Artifact Scanner & Cache Manager",
       "dst_name": "Analysis Engine Orchestrator",
-      "evidence": "The scanner identifies project characteristics and supported languages during the scan, which informs the orchestrator's engine configuration logic.",
+      "evidence": "During the scanning phase, the Artifact Scanner queries the Orchestrator to verify if detected file extensions or project structures (like C# solutions) are supported by the available analysis engines.",
       "key_edges": [],
       "src_id": "6.1.3",
       "dst_id": "6.1.2",
       "is_static": true,
       "all_edges": [
-        {
-          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-          "target": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
-          "call_sites": [
-            {
-              "line": 224,
-              "column": 32
-            }
-          ],
-          "description": ""
-        },
         {
           "source": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner.scan",
           "target": "static_analyzer/programming_language.py|static_analyzer.programming_language.ProgrammingLanguage.is_supported_lang",
@@ -51157,10 +51168,10 @@
       ]
     },
     {
-      "relation": "Orchestrates project discovery and applies structural filtering",
+      "relation": "Delegates file filtering and project discovery",
       "src_name": "Artifact Scanner & Cache Manager",
       "dst_name": "Repository State & Multi-Language Discovery",
-      "evidence": "The orchestrator initializes language-specific scanners and ignore managers to partition the codebase based on discovered project structures.",
+      "evidence": "The Orchestrator relies on the RepoIgnoreManager to determine the analysis scope and uses language scanners to bootstrap engine configurations based on detected project manifests (e.g., csproj, package.json).",
       "key_edges": [],
       "src_id": "6.1.3",
       "dst_id": "6.2",
@@ -51168,10 +51179,21 @@
       "all_edges": [
         {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+          "target": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
+          "call_sites": [
+            {
+              "line": 245,
+              "column": 32
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
           "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
             {
-              "line": 222,
+              "line": 243,
               "column": 31
             }
           ],
@@ -51357,6 +51379,17 @@
           "description": ""
         }
       ]
+    },
+    {
+      "relation": "Injects execution context via ContextVars",
+      "src_name": "Environment Identity & Execution Telemetry",
+      "dst_name": "Analysis Orchestrator & Partitioning Engine",
+      "evidence": "The telemetry layer manages a global run_id and execution context that is consumed by the Orchestrator's logging and partitioning logic to correlate distributed analysis steps.",
+      "key_edges": [],
+      "src_id": "6.3",
+      "dst_id": "6.1",
+      "is_static": false,
+      "all_edges": []
     }
   ]
 }
