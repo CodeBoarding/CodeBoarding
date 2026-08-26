@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-26T20:00:57.281632+00:00",
-    "source_tree_hash": "bed174b3d11ae91d03af61258d0a55c8fdb618b76faf2a34d4824c569dab43e8",
+    "generated_at": "2026-08-26T20:15:24.384081+00:00",
+    "source_tree_hash": "13bafc6414aed596bc2642beef9a4bf6c8063f71f6c0681fc29905eaf35d23b7",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -1688,6 +1688,7 @@
         "agents/relation_edges.py|agents.relation_edges.drop_internal_self_relations",
         "agents/relation_edges.py|agents.relation_edges.ground_relation_edges",
         "agents/relation_edges.py|agents.relation_edges.edge_crosses_components",
+        "agents/relation_edges.py|agents.relation_edges.drop_misattributed_edges",
         "agents/relation_edges.py|agents.relation_edges.prune_ungrounded_edges",
         "agents/relation_edges.py|agents.relation_edges.prune_ungrounded_edges.find_relation_pair_for_edge",
         "agents/relation_edges.py|agents.relation_edges.drop_reverse_duplicates",
@@ -1703,8 +1704,8 @@
         "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations",
         "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations.touches_change"
       ],
-      "content_hash": "a905440ee2b77049",
-      "module_hash": "6a8fbfbdd7ae8514"
+      "content_hash": "2b7405e80854aef7",
+      "module_hash": "e32479ba9c9ce419"
     },
     "agents/repair.py": {
       "method_keys": [
@@ -1850,8 +1851,8 @@
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
         "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses"
       ],
-      "content_hash": "e879d16775473bff",
-      "module_hash": "7a0b16f997bb6ed8"
+      "content_hash": "b70846e3fcbe52db",
+      "module_hash": "49e5cd847aa66db6"
     },
     "diagram_analysis/exceptions.py": {
       "method_keys": [
@@ -11946,115 +11947,123 @@
       "type": "FUNCTION",
       "content_hash": "7cc392d4f1676dbf"
     },
+    "agents/relation_edges.py|agents.relation_edges.drop_misattributed_edges": {
+      "file_path": "agents/relation_edges.py",
+      "qualified_name": "agents.relation_edges.drop_misattributed_edges",
+      "start_line": 144,
+      "end_line": 175,
+      "type": "FUNCTION",
+      "content_hash": "f59a9ceb2c89470e"
+    },
     "agents/relation_edges.py|agents.relation_edges.prune_ungrounded_edges": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.prune_ungrounded_edges",
-      "start_line": 144,
-      "end_line": 199,
+      "start_line": 178,
+      "end_line": 233,
       "type": "FUNCTION",
       "content_hash": "0c4f2b16123b08b7"
     },
     "agents/relation_edges.py|agents.relation_edges.prune_ungrounded_edges.find_relation_pair_for_edge": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.prune_ungrounded_edges.find_relation_pair_for_edge",
-      "start_line": 154,
-      "end_line": 164,
+      "start_line": 188,
+      "end_line": 198,
       "type": "FUNCTION",
       "content_hash": "aa8ba459117bd62d"
     },
     "agents/relation_edges.py|agents.relation_edges.drop_reverse_duplicates": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.drop_reverse_duplicates",
-      "start_line": 202,
-      "end_line": 235,
+      "start_line": 236,
+      "end_line": 269,
       "type": "FUNCTION",
       "content_hash": "a719f54766e1296d"
     },
     "agents/relation_edges.py|agents.relation_edges._qualified_names_match": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._qualified_names_match",
-      "start_line": 238,
-      "end_line": 241,
+      "start_line": 272,
+      "end_line": 275,
       "type": "FUNCTION",
       "content_hash": "bc4b8facafcc717f"
     },
     "agents/relation_edges.py|agents.relation_edges._relation_backing_survives": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._relation_backing_survives",
-      "start_line": 244,
-      "end_line": 257,
+      "start_line": 278,
+      "end_line": 291,
       "type": "FUNCTION",
       "content_hash": "6335e1a907031e1e"
     },
     "agents/relation_edges.py|agents.relation_edges._backing_edge_pairs": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._backing_edge_pairs",
-      "start_line": 260,
-      "end_line": 263,
+      "start_line": 294,
+      "end_line": 297,
       "type": "FUNCTION",
       "content_hash": "b241984b676564b8"
     },
     "agents/relation_edges.py|agents.relation_edges._relation_edges_unmoved": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._relation_edges_unmoved",
-      "start_line": 266,
-      "end_line": 275,
+      "start_line": 300,
+      "end_line": 309,
       "type": "FUNCTION",
       "content_hash": "0b07370d696b2cdd"
     },
     "agents/relation_edges.py|agents.relation_edges._edge_touches_changed_method": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._edge_touches_changed_method",
-      "start_line": 278,
-      "end_line": 279,
+      "start_line": 312,
+      "end_line": 313,
       "type": "FUNCTION",
       "content_hash": "5eaf82114da339e6"
     },
     "agents/relation_edges.py|agents.relation_edges._restore_baseline_orientation": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._restore_baseline_orientation",
-      "start_line": 282,
-      "end_line": 310,
+      "start_line": 316,
+      "end_line": 344,
       "type": "FUNCTION",
       "content_hash": "f726540e9ff19aa4"
     },
     "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._restore_baseline_wording",
-      "start_line": 313,
-      "end_line": 336,
+      "start_line": 347,
+      "end_line": 370,
       "type": "FUNCTION",
       "content_hash": "faf3985bb9271452"
     },
     "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording.annotate": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._restore_baseline_wording.annotate",
-      "start_line": 322,
-      "end_line": 324,
+      "start_line": 356,
+      "end_line": 358,
       "type": "FUNCTION",
       "content_hash": "1a49eb1b0e833374"
     },
     "agents/relation_edges.py|agents.relation_edges._commit_deleted_the_backing": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges._commit_deleted_the_backing",
-      "start_line": 339,
-      "end_line": 347,
+      "start_line": 373,
+      "end_line": 381,
       "type": "FUNCTION",
       "content_hash": "43e96f5554219104"
     },
     "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.preserve_unchanged_relations",
-      "start_line": 350,
-      "end_line": 435,
+      "start_line": 384,
+      "end_line": 469,
       "type": "FUNCTION",
       "content_hash": "40528f6b554779af"
     },
     "agents/relation_edges.py|agents.relation_edges.preserve_unchanged_relations.touches_change": {
       "file_path": "agents/relation_edges.py",
       "qualified_name": "agents.relation_edges.preserve_unchanged_relations.touches_change",
-      "start_line": 390,
-      "end_line": 391,
+      "start_line": 424,
+      "end_line": 425,
       "type": "FUNCTION",
       "content_hash": "78dc36639a27d377"
     },
@@ -12509,488 +12518,488 @@
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_depth": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._component_depth",
-      "start_line": 93,
-      "end_line": 97,
+      "start_line": 98,
+      "end_line": 102,
       "type": "FUNCTION",
       "content_hash": "0ea9d71686c23da1"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._component_expansion_seeds": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._component_expansion_seeds",
-      "start_line": 100,
-      "end_line": 106,
+      "start_line": 105,
+      "end_line": 111,
       "type": "FUNCTION",
       "content_hash": "0a5528dfa0af24e7"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._member_keys": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._member_keys",
-      "start_line": 109,
-      "end_line": 113,
+      "start_line": 114,
+      "end_line": 118,
       "type": "FUNCTION",
       "content_hash": "d4fdba5da7f5a3d7"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._owned_method_keys": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._owned_method_keys",
-      "start_line": 116,
-      "end_line": 118,
+      "start_line": 121,
+      "end_line": 123,
       "type": "FUNCTION",
       "content_hash": "2adf4b2943e61f25"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._key_entity_is_owned": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._key_entity_is_owned",
-      "start_line": 121,
-      "end_line": 131,
+      "start_line": 126,
+      "end_line": 136,
       "type": "FUNCTION",
       "content_hash": "cefd816878df9699"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._reconcile_child_scope": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._reconcile_child_scope",
-      "start_line": 134,
-      "end_line": 188,
+      "start_line": 139,
+      "end_line": 193,
       "type": "FUNCTION",
       "content_hash": "5049182be6aa645c"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._graft_entered_methods": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._graft_entered_methods",
-      "start_line": 191,
-      "end_line": 212,
+      "start_line": 196,
+      "end_line": 217,
       "type": "FUNCTION",
       "content_hash": "289554826024fab3"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._append_method": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._append_method",
-      "start_line": 215,
-      "end_line": 221,
+      "start_line": 220,
+      "end_line": 226,
       "type": "FUNCTION",
       "content_hash": "79df3c2ea1739b83"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._ComponentBaseline": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._ComponentBaseline",
-      "start_line": 225,
-      "end_line": 234,
+      "start_line": 230,
+      "end_line": 239,
       "type": "CLASS",
       "content_hash": "659c3c590a4b5f6e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._MembershipBaseline": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._MembershipBaseline",
-      "start_line": 238,
-      "end_line": 245,
+      "start_line": 243,
+      "end_line": 250,
       "type": "CLASS",
       "content_hash": "1aeede5235f76440"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._IncrementalPreparation": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._IncrementalPreparation",
-      "start_line": 249,
-      "end_line": 258,
+      "start_line": 254,
+      "end_line": 263,
       "type": "CLASS",
       "content_hash": "eae85cc8ac36138b"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._IncrementalPreparation.has_changes": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._IncrementalPreparation.has_changes",
-      "start_line": 257,
-      "end_line": 258,
+      "start_line": 262,
+      "end_line": 263,
       "type": "METHOD",
       "content_hash": "bbb9019062b3cbb4"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._iter_incremental_scopes": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._iter_incremental_scopes",
-      "start_line": 261,
-      "end_line": 268,
+      "start_line": 266,
+      "end_line": 273,
       "type": "FUNCTION",
       "content_hash": "0481810ea7bef063"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._capture_baseline_member_keys": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._capture_baseline_member_keys",
-      "start_line": 271,
-      "end_line": 288,
+      "start_line": 276,
+      "end_line": 293,
       "type": "FUNCTION",
       "content_hash": "a3c1ba9d830f7147"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._capture_membership_baseline": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._capture_membership_baseline",
-      "start_line": 291,
-      "end_line": 323,
+      "start_line": 296,
+      "end_line": 328,
       "type": "FUNCTION",
       "content_hash": "95db2a5cb759c9bb"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_metadata": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._restore_unchanged_metadata",
-      "start_line": 326,
-      "end_line": 378,
+      "start_line": 331,
+      "end_line": 383,
       "type": "FUNCTION",
       "content_hash": "93e3f7ec1c0c8b15"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._fully_unchanged_component_ids": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
-      "start_line": 381,
-      "end_line": 412,
+      "start_line": 386,
+      "end_line": 417,
       "type": "FUNCTION",
       "content_hash": "2679d66c8e4bf765"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._restore_unchanged_subtrees": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
-      "start_line": 415,
-      "end_line": 447,
+      "start_line": 420,
+      "end_line": 452,
       "type": "FUNCTION",
       "content_hash": "ebc11c8410f1996d"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._incremental_changed_component_ids": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-      "start_line": 450,
-      "end_line": 505,
+      "start_line": 455,
+      "end_line": 510,
       "type": "FUNCTION",
       "content_hash": "5d140468d6757065"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
-      "start_line": 508,
-      "end_line": 1602,
+      "start_line": 513,
+      "end_line": 1612,
       "type": "CLASS",
-      "content_hash": "923abae771ca7d38"
+      "content_hash": "a74f4694dae910a0"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.__init__": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
-      "start_line": 509,
-      "end_line": 580,
+      "start_line": 514,
+      "end_line": 585,
       "type": "METHOD",
       "content_hash": "fbda59308bb66c2d"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.process_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
-      "start_line": 583,
-      "end_line": 586,
+      "start_line": 588,
+      "end_line": 591,
       "type": "METHOD",
       "content_hash": "dc8a5a3bc49e165b"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
-      "start_line": 588,
-      "end_line": 661,
+      "start_line": 593,
+      "end_line": 666,
       "type": "METHOD",
       "content_hash": "14724de66c582aa5"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.agent_init": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
-      "start_line": 663,
-      "end_line": 670,
+      "start_line": 668,
+      "end_line": 675,
       "type": "METHOD",
       "content_hash": "a0f6cc7d50da0fe7"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.prepare_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.prepare_analysis",
-      "start_line": 672,
-      "end_line": 706,
+      "start_line": 677,
+      "end_line": 711,
       "type": "METHOD",
       "content_hash": "6e8ab35403e4edc9"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._complete_agent_initialization": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._complete_agent_initialization",
-      "start_line": 708,
-      "end_line": 727,
+      "start_line": 713,
+      "end_line": 732,
       "type": "METHOD",
       "content_hash": "c86dd041589887de"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._stage_cluster_caches": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._stage_cluster_caches",
-      "start_line": 729,
-      "end_line": 737,
+      "start_line": 734,
+      "end_line": 742,
       "type": "METHOD",
       "content_hash": "9cf970e84d438f06"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._prepare_incremental_clustering": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._prepare_incremental_clustering",
-      "start_line": 739,
-      "end_line": 812,
+      "start_line": 744,
+      "end_line": 817,
       "type": "METHOD",
       "content_hash": "8fb39894b8292ff0"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree",
-      "start_line": 814,
-      "end_line": 870,
+      "start_line": 819,
+      "end_line": 875,
       "type": "METHOD",
       "content_hash": "bf544fb6b9965c4b"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.is_expandable": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.is_expandable",
-      "start_line": 824,
-      "end_line": 833,
+      "start_line": 829,
+      "end_line": 838,
       "type": "FUNCTION",
       "content_hash": "fd08ee10c8cc4e08"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.precomputed_ids": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.precomputed_ids",
-      "start_line": 835,
-      "end_line": 840,
+      "start_line": 840,
+      "end_line": 845,
       "type": "FUNCTION",
       "content_hash": "75fb0789b7ec6fa5"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.expandable_ids": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._expandable_ids_for_tree.expandable_ids",
-      "start_line": 849,
-      "end_line": 862,
+      "start_line": 854,
+      "end_line": 867,
       "type": "FUNCTION",
       "content_hash": "8cccd91f9d527d04"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._process_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._process_component",
-      "start_line": 872,
-      "end_line": 893,
+      "start_line": 877,
+      "end_line": 898,
       "type": "METHOD",
       "content_hash": "c34976c2fc3f8513"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._run_health_report": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._run_health_report",
-      "start_line": 895,
-      "end_line": 913,
+      "start_line": 900,
+      "end_line": 918,
       "type": "METHOD",
       "content_hash": "31b5445440d49d51"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored",
-      "start_line": 915,
-      "end_line": 935,
+      "start_line": 920,
+      "end_line": 940,
       "type": "METHOD",
       "content_hash": "e757e14900d3523f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
-      "start_line": 937,
-      "end_line": 946,
+      "start_line": 942,
+      "end_line": 951,
       "type": "METHOD",
       "content_hash": "30bc4b6234e0956e"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._write_file_coverage": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._write_file_coverage",
-      "start_line": 948,
-      "end_line": 964,
+      "start_line": 953,
+      "end_line": 969,
       "type": "METHOD",
       "content_hash": "2cceb77171d8f401"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._changed_files_for_static_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._changed_files_for_static_analysis",
-      "start_line": 966,
-      "end_line": 979,
+      "start_line": 971,
+      "end_line": 984,
       "type": "METHOD",
       "content_hash": "c7d9de90ea7b5c04"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_injected_analyzer": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_injected_analyzer",
-      "start_line": 981,
-      "end_line": 997,
+      "start_line": 986,
+      "end_line": 1002,
       "type": "METHOD",
       "content_hash": "926f824e7f1b4706"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_new_analyzer": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._get_static_with_new_analyzer",
-      "start_line": 999,
-      "end_line": 1013,
+      "start_line": 1004,
+      "end_line": 1018,
       "type": "METHOD",
       "content_hash": "96aeb631a3791346"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._persist_static_analysis_artifact": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._persist_static_analysis_artifact",
-      "start_line": 1015,
-      "end_line": 1021,
+      "start_line": 1020,
+      "end_line": 1026,
       "type": "METHOD",
       "content_hash": "33fae970899d64e1"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._source_tree_fingerprint_map": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._source_tree_fingerprint_map",
-      "start_line": 1023,
-      "end_line": 1027,
+      "start_line": 1028,
+      "end_line": 1032,
       "type": "METHOD",
       "content_hash": "50bccb63b5e441cb"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._source_tree_hash": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._source_tree_hash",
-      "start_line": 1029,
-      "end_line": 1031,
+      "start_line": 1034,
+      "end_line": 1036,
       "type": "METHOD",
       "content_hash": "91a242ffeae08e87"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._initialize_meta_agent": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._initialize_meta_agent",
-      "start_line": 1033,
-      "end_line": 1041,
+      "start_line": 1038,
+      "end_line": 1046,
       "type": "METHOD",
       "content_hash": "1b143693ffaa4bac"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._initialize_agents": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._initialize_agents",
-      "start_line": 1043,
-      "end_line": 1082,
+      "start_line": 1048,
+      "end_line": 1087,
       "type": "METHOD",
       "content_hash": "e60752a012a10397"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
-      "start_line": 1084,
-      "end_line": 1114,
+      "start_line": 1089,
+      "end_line": 1119,
       "type": "METHOD",
       "content_hash": "a80f2ee89671bc51"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
-      "start_line": 1116,
-      "end_line": 1208,
+      "start_line": 1121,
+      "end_line": 1213,
       "type": "METHOD",
       "content_hash": "ef7af7a0d88f7c9c"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
-      "start_line": 1140,
-      "end_line": 1144,
+      "start_line": 1145,
+      "end_line": 1149,
       "type": "FUNCTION",
       "content_hash": "caba3a0bd7ec7a98"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-      "start_line": 1211,
-      "end_line": 1246,
+      "start_line": 1216,
+      "end_line": 1251,
       "type": "METHOD",
       "content_hash": "6cfa27aee108115f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.rebuild_global_relations",
-      "start_line": 1248,
-      "end_line": 1305,
+      "start_line": 1253,
+      "end_line": 1315,
       "type": "METHOD",
-      "content_hash": "59629800bd1c7e7b"
+      "content_hash": "d6d91106c018d756"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
-      "start_line": 1307,
-      "end_line": 1321,
+      "start_line": 1317,
+      "end_line": 1331,
       "type": "METHOD",
       "content_hash": "19916973a0dcc747"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-      "start_line": 1323,
-      "end_line": 1377,
+      "start_line": 1333,
+      "end_line": 1387,
       "type": "METHOD",
       "content_hash": "113e4d998c2b77f4"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary",
-      "start_line": 1379,
-      "end_line": 1388,
+      "start_line": 1389,
+      "end_line": 1398,
       "type": "METHOD",
       "content_hash": "e6336d28882210dd"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._rescope_child_analyses",
-      "start_line": 1390,
-      "end_line": 1424,
+      "start_line": 1400,
+      "end_line": 1434,
       "type": "METHOD",
       "content_hash": "f28becdbd82eaa36"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_hierarchy": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_hierarchy",
-      "start_line": 1426,
-      "end_line": 1461,
+      "start_line": 1436,
+      "end_line": 1471,
       "type": "METHOD",
       "content_hash": "982a7f61243b2897"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-      "start_line": 1464,
-      "end_line": 1582,
+      "start_line": 1474,
+      "end_line": 1592,
       "type": "METHOD",
       "content_hash": "d916661bc3ff3724"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
-      "start_line": 1584,
-      "end_line": 1602,
+      "start_line": 1594,
+      "end_line": 1612,
       "type": "METHOD",
       "content_hash": "2f755384d04325e3"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.assert_scope_containment": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator.assert_scope_containment",
-      "start_line": 1605,
-      "end_line": 1629,
+      "start_line": 1615,
+      "end_line": 1639,
       "type": "FUNCTION",
       "content_hash": "92d86f22af91ea60"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._collect_components_by_id": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._collect_components_by_id",
-      "start_line": 1632,
-      "end_line": 1647,
+      "start_line": 1642,
+      "end_line": 1657,
       "type": "FUNCTION",
       "content_hash": "5ddebec0bc81a8ab"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-      "start_line": 1650,
-      "end_line": 1654,
+      "start_line": 1660,
+      "end_line": 1664,
       "type": "FUNCTION",
       "content_hash": "60bded4cd2d7778f"
     },
     "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._merge_sub_analyses": {
       "file_path": "diagram_analysis/diagram_generator.py",
       "qualified_name": "diagram_analysis.diagram_generator._merge_sub_analyses",
-      "start_line": 1657,
-      "end_line": 1687,
+      "start_line": 1667,
+      "end_line": 1697,
       "type": "FUNCTION",
       "content_hash": "f7f96f55d79e04cb"
     },
@@ -27539,6 +27548,7 @@
             "agents.relation_edges.drop_internal_self_relations",
             "agents.relation_edges.ground_relation_edges",
             "agents.relation_edges.edge_crosses_components",
+            "agents.relation_edges.drop_misattributed_edges",
             "agents.relation_edges.prune_ungrounded_edges",
             "agents.relation_edges.prune_ungrounded_edges.find_relation_pair_for_edge",
             "agents.relation_edges.drop_reverse_duplicates",
@@ -29417,6 +29427,7 @@
                 "agents.relation_edges.drop_internal_self_relations",
                 "agents.relation_edges.ground_relation_edges",
                 "agents.relation_edges.edge_crosses_components",
+                "agents.relation_edges.drop_misattributed_edges",
                 "agents.relation_edges.prune_ungrounded_edges",
                 "agents.relation_edges.prune_ungrounded_edges.find_relation_pair_for_edge",
                 "agents.relation_edges.drop_reverse_duplicates",
@@ -29783,8 +29794,8 @@
                 {
                   "qualified_name": "agents.relation_edges.preserve_unchanged_relations",
                   "reference_file": "agents/relation_edges.py",
-                  "reference_start_line": 350,
-                  "reference_end_line": 435
+                  "reference_start_line": 384,
+                  "reference_end_line": 469
                 },
                 {
                   "qualified_name": "agents.relation_edges.append_or_merge_relation",
@@ -29836,6 +29847,7 @@
                     "agents.relation_edges.drop_internal_self_relations",
                     "agents.relation_edges.ground_relation_edges",
                     "agents.relation_edges.edge_crosses_components",
+                    "agents.relation_edges.drop_misattributed_edges",
                     "agents.relation_edges.prune_ungrounded_edges",
                     "agents.relation_edges.prune_ungrounded_edges.find_relation_pair_for_edge",
                     "agents.relation_edges.drop_reverse_duplicates",
@@ -29959,10 +29971,10 @@
               ]
             },
             {
-              "relation": "Supplies reconciled graph data for rendering",
+              "relation": "supplies reconciled graph data for visualization",
               "src_name": "Relational Logic & Edge Reconciliation",
               "dst_name": "Architectural Surface & Visualization Generator",
-              "evidence": "The visualization generators ingest the processed and reconciled Relation and Component objects to produce the final HTML/Markdown outputs and Cytoscape graph visualizations.",
+              "evidence": "The visualization generator consumes the 'stable' set of relations and components produced after the reconciliation logic has filtered and merged incremental updates.",
               "key_edges": [],
               "src_id": "3.2.3",
               "dst_id": "3.2.2",
@@ -30344,8 +30356,8 @@
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._reconcile_child_scope",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 134,
-                  "reference_end_line": 188
+                  "reference_start_line": 139,
+                  "reference_end_line": 193
                 },
                 {
                   "qualified_name": "agents.file_index_models.FileMethodGroup",
@@ -30356,8 +30368,8 @@
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._graft_entered_methods",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 191,
-                  "reference_end_line": 212
+                  "reference_start_line": 196,
+                  "reference_end_line": 217
                 }
               ],
               "source_cluster_ids": [
@@ -31405,8 +31417,8 @@
             "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
             "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
             "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-            "diagram_analysis.diagram_generator.DiagramGenerator",
             "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
+            "diagram_analysis.diagram_generator.DiagramGenerator",
             "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
             "diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
             "diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
@@ -33444,8 +33456,8 @@
                 "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
                 "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
                 "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-                "diagram_analysis.diagram_generator.DiagramGenerator",
                 "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
+                "diagram_analysis.diagram_generator.DiagramGenerator",
                 "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
                 "diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
                 "diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
@@ -33565,8 +33577,8 @@
                 {
                   "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 508,
-                  "reference_end_line": 1602
+                  "reference_start_line": 513,
+                  "reference_end_line": 1612
                 }
               ],
               "source_cluster_ids": [
@@ -33596,8 +33608,8 @@
                   "methods": [
                     "diagram_analysis.diagram_generator._IncrementalPreparation",
                     "diagram_analysis.diagram_generator._IncrementalPreparation.has_changes",
-                    "diagram_analysis.diagram_generator.DiagramGenerator",
                     "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
+                    "diagram_analysis.diagram_generator.DiagramGenerator",
                     "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
                     "diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
                     "diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
@@ -33673,14 +33685,14 @@
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._capture_membership_baseline",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 291,
-                  "reference_end_line": 323
+                  "reference_start_line": 296,
+                  "reference_end_line": 328
                 },
                 {
                   "qualified_name": "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
                   "reference_file": "diagram_analysis/diagram_generator.py",
-                  "reference_start_line": 381,
-                  "reference_end_line": 412
+                  "reference_start_line": 386,
+                  "reference_end_line": 417
                 }
               ],
               "source_cluster_ids": [
@@ -34385,10 +34397,10 @@
               ]
             },
             {
-              "relation": "Refines and re-roots analysis indexes",
+              "relation": "Re-roots indexes during tree transformation",
               "src_name": "Diagram Structural Refiner",
               "dst_name": "Source Integrity & Expansion Planner",
-              "evidence": "The refiner modifies the planner's internal state by stripping ignored components and adjusting index roots for the final output.",
+              "evidence": "During the finalization phase, the Refiner may perform tree re-rooting or child absorption, calling back into the Planner's indexing logic to maintain global reference integrity.",
               "key_edges": [],
               "src_id": "4.2.4",
               "dst_id": "4.2.1",
@@ -35356,10 +35368,10 @@
             "static_analyzer.__init__.StaticAnalyzer.__exit__",
             "static_analyzer.__init__.StaticAnalyzer.start_clients",
             "static_analyzer.__init__.StaticAnalyzer.stop_clients",
-            "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
             "static_analyzer.__init__.StaticAnalyzer._live_clients",
             "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
             "static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation",
+            "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
             "static_analyzer.__init__.StaticAnalyzer.notify_file_changed",
             "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
             "static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file",
@@ -37485,10 +37497,10 @@
                 "static_analyzer.__init__.StaticAnalyzer.__exit__",
                 "static_analyzer.__init__.StaticAnalyzer.start_clients",
                 "static_analyzer.__init__.StaticAnalyzer.stop_clients",
-                "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
                 "static_analyzer.__init__.StaticAnalyzer._live_clients",
                 "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
                 "static_analyzer.__init__.StaticAnalyzer.get_diagnostics_generation",
+                "static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
                 "static_analyzer.__init__.StaticAnalyzer.notify_file_changed",
                 "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
                 "static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file",
@@ -45481,10 +45493,10 @@
       ]
     },
     {
-      "relation": "Supplies reconciled graph data for rendering",
+      "relation": "supplies reconciled graph data for visualization",
       "src_name": "Relational Logic & Edge Reconciliation",
       "dst_name": "Architectural Surface & Visualization Generator",
-      "evidence": "The visualization generators ingest the processed and reconciled Relation and Component objects to produce the final HTML/Markdown outputs and Cytoscape graph visualizations.",
+      "evidence": "The visualization generator consumes the 'stable' set of relations and components produced after the reconciliation logic has filtered and merged incremental updates.",
       "key_edges": [],
       "src_id": "3.2.3",
       "dst_id": "3.2.2",
@@ -45506,7 +45518,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._incremental_changed_component_ids",
           "call_sites": [
             {
-              "line": 1264,
+              "line": 1275,
               "column": 27
             }
           ],
@@ -45517,7 +45529,7 @@
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._iter_incremental_scopes",
           "call_sites": [
             {
-              "line": 1274,
+              "line": 1285,
               "column": 44
             }
           ],
@@ -45540,11 +45552,11 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
           "call_sites": [
             {
-              "line": 1259,
+              "line": 1267,
               "column": 55
             },
             {
-              "line": 1281,
+              "line": 1292,
               "column": 60
             }
           ],
@@ -45567,7 +45579,7 @@
           "target": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver",
           "call_sites": [
             {
-              "line": 1299,
+              "line": 1307,
               "column": 17
             }
           ],
@@ -45578,7 +45590,7 @@
           "target": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.keep_relation_edge",
           "call_sites": [
             {
-              "line": 1299,
+              "line": 1307,
               "column": 83
             }
           ],
@@ -45601,11 +45613,11 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
           "call_sites": [
             {
-              "line": 1259,
+              "line": 1267,
               "column": 102
             },
             {
-              "line": 1280,
+              "line": 1291,
               "column": 50
             }
           ],
@@ -48363,10 +48375,10 @@
       "all_edges": []
     },
     {
-      "relation": "Refines and re-roots analysis indexes",
+      "relation": "Re-roots indexes during tree transformation",
       "src_name": "Diagram Lifecycle Orchestrator",
       "dst_name": "Source Integrity & Expansion Planner",
-      "evidence": "The refiner modifies the planner's internal state by stripping ignored components and adjusting index roots for the final output.",
+      "evidence": "During the finalization phase, the Refiner may perform tree re-rooting or child absorption, calling back into the Planner's indexing logic to maintain global reference integrity.",
       "key_edges": [],
       "src_id": "4.2.4.1",
       "dst_id": "4.2.1",
