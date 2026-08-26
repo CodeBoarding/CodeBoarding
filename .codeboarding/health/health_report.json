@@ -1,6 +1,6 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-08-25T18:29:02.296468+00:00",
+  "timestamp": "2026-08-26T12:38:23.439397+00:00",
   "overall_score": 0.9439338235294118,
   "check_summaries": [
     {
@@ -1160,20 +1160,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 464,
-              "line_end": 464,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 477,
-              "line_end": 477,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
               "file_path": "codeboarding_workflows/analysis.py",
               "line_start": 22,
@@ -1514,6 +1500,20 @@
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 1486,
               "line_end": 1486,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 464,
+              "line_end": 464,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 477,
+              "line_end": 477,
               "metric_value": 0.0
             }
           ]
