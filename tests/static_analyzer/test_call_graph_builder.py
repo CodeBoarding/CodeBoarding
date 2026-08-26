@@ -3,11 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from static_analyzer.config import Language, NodeType
-from static_analyzer.engine.adapters.java_adapter import JavaAdapter
-from static_analyzer.engine.call_graph_builder import CallGraphBuilder, SymbolIndexTimeoutError
+from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_references
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
@@ -57,8 +54,6 @@ def _make_adapter() -> MagicMock:
     adapter.get_probe_timeout_minimum.return_value = 0
     adapter.probe_before_open = False
     adapter.interleave_did_open_with_symbols = False
-    adapter.sync_probe_requires_symbols = False
-    adapter.select_sync_probe_files.side_effect = lambda files: files[:1]
     return adapter
 
 
@@ -122,50 +117,6 @@ class TestDiscoverSymbols:
         # document_symbol is called once for the probe, and the probe result is reused
         # for the first file, so no second call
         assert lsp.document_symbol.call_count == 1
-
-    @patch("static_analyzer.engine.call_graph_builder.time.sleep")
-    def test_retries_when_service_ready_precedes_symbols(self, mock_sleep):
-        lsp = _make_lsp()
-        adapter = _make_adapter()
-        adapter.sync_probe_requires_symbols = True
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
-        symbols = [
-            {
-                "name": "Main",
-                "kind": NodeType.CLASS,
-                "range": {"start": {"line": 0, "character": 0}, "end": {"line": 2, "character": 1}},
-                "selectionRange": {"start": {"line": 0, "character": 6}, "end": {"line": 0, "character": 10}},
-            }
-        ]
-        lsp.document_symbol.side_effect = [[], symbols]
-
-        builder._discover_symbols([Path("/project/Main.java")])
-
-        assert lsp.document_symbol.call_count == 2
-        mock_sleep.assert_any_call(1.0)
-        assert builder.symbol_table.symbols
-
-    def test_permanently_empty_required_probe_times_out(self):
-        lsp = _make_lsp()
-        adapter = _make_adapter()
-        adapter.language = "Java"
-        adapter.sync_probe_requires_symbols = True
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
-
-        with patch("static_analyzer.engine.call_graph_builder.time.monotonic", side_effect=[0.0, 0.0, 1.0]):
-            with pytest.raises(SymbolIndexTimeoutError, match="Java symbol index did not become usable"):
-                builder._send_sync_probe([Path("/project/Main.java")], probe_timeout=1)
-
-        lsp.document_symbol.assert_called_once()
-
-    def test_java_probe_uses_type_source_and_rejects_empty_analysis(self):
-        adapter = JavaAdapter()
-        package_info = Path("/project/src/package-info.java")
-        main = Path("/project/src/Main.java")
-
-        assert adapter.select_sync_probe_files([package_info, main]) == [main]
-        assert adapter.sync_probe_requires_symbols is True
-        assert adapter.fail_on_empty_symbols is True
 
     def test_empty_source_files(self):
         lsp = _make_lsp()

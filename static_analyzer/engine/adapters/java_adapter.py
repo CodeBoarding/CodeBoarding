@@ -33,21 +33,6 @@ class JavaAdapter(LanguageAdapter):
         return True
 
     @property
-    def sync_probe_requires_symbols(self) -> bool:
-        """JDTLS can emit ServiceReady before its symbol index is usable."""
-        return True
-
-    def select_sync_probe_files(self, source_files: list[Path]) -> list[Path]:
-        """Probe Java type sources rather than package or module descriptors."""
-        metadata_names = {"module-info.java", "package-info.java"}
-        candidates = [path for path in source_files if path.name not in metadata_names]
-        return candidates or source_files[:1]
-
-    @property
-    def fail_on_empty_symbols(self) -> bool:
-        return True
-
-    @property
     def language(self) -> str:
         return "Java"
 
