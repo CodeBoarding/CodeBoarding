@@ -15,6 +15,7 @@ import pytest
 from static_analyzer import EngineConfig, StaticAnalysisFatalError, StaticAnalyzer
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language
+from static_analyzer.engine.call_graph_builder import SymbolIndexTimeoutError
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
@@ -165,6 +166,17 @@ class TestStartClientsGracefulDegradation:
         results.add_source_files(Language.PYTHON, [str(tmp_path / "app.py")])
 
         analyzer._validate_analysis_results(results)
+
+    def test_symbol_index_timeout_is_fatal(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        java_adapter = _make_adapter("Java", language_enum=Language.JAVA, fail_on_empty_symbols=True)
+        source_file = tmp_path / "Main.java"
+        source_file.write_text("class Main {}")
+        config = EngineConfig(java_adapter, tmp_path, source_files=[source_file])
+
+        with patch("static_analyzer.CallGraphBuilder") as builder_cls:
+            builder_cls.return_value.build.side_effect = SymbolIndexTimeoutError("Java symbol index unavailable")
+            with pytest.raises(StaticAnalysisFatalError, match="Java symbol index unavailable"):
+                analyzer._run_full_analysis(config, MagicMock())
 
     def test_all_success_records_no_failures(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python")

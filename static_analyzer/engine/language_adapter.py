@@ -201,6 +201,15 @@ class LanguageAdapter(ABC):
         return False
 
     @property
+    def sync_probe_requires_symbols(self) -> bool:
+        """If True, an empty document-symbol probe does not prove indexing is complete."""
+        return False
+
+    def select_sync_probe_files(self, source_files: list[Path]) -> list[Path]:
+        """Select source documents that can verify the LSP index is usable."""
+        return source_files[:1]
+
+    @property
     def workspace_owns_documents(self) -> bool:
         """If True, the server reads documents from the project, not from our didOpen.
 

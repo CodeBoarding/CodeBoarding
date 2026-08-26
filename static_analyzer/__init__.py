@@ -14,7 +14,7 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.config import AdapterName, Language
 from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
-from static_analyzer.engine.call_graph_builder import CallGraphBuilder
+from static_analyzer.engine.call_graph_builder import CallGraphBuilder, SymbolIndexTimeoutError
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_recycler import default_memory_budget, per_engine_memory_budget
@@ -1048,7 +1048,10 @@ class StaticAnalyzer:
             project_path,
             memory_budget_bytes=per_engine_memory_budget(max(max_concurrent_engines(), 1)),
         )
-        engine_result = builder.build(source_files)
+        try:
+            engine_result = builder.build(source_files)
+        except SymbolIndexTimeoutError as exc:
+            raise StaticAnalysisFatalError(str(exc)) from exc
         logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")
         if adapter.fail_on_empty_symbols is True and not builder.symbol_table.symbols:
             raise StaticAnalysisFatalError(
