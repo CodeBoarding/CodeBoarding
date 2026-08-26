@@ -1,13 +1,13 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-08-26T20:12:58.754954+00:00",
-  "overall_score": 0.9439338235294118,
+  "timestamp": "2026-08-26T21:29:20.745669+00:00",
+  "overall_score": 0.9437973747457941,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1595,
+      "total_entities_checked": 1585,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -17,10 +17,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1611,
+      "total_entities_checked": 1601,
       "findings_count": 39,
       "warning_count": 39,
-      "score": 0.9757914338919925,
+      "score": 0.9756402248594629,
       "finding_groups": [
         {
           "severity": "warning",
@@ -75,13 +75,6 @@
               "line_start": 807,
               "line_end": 862,
               "metric_value": 17
-            },
-            {
-              "entity_name": "health.runner._collect_checks_for_language",
-              "file_path": "health/runner.py",
-              "line_start": 72,
-              "line_end": 128,
-              "metric_value": 16
             },
             {
               "entity_name": "static_analyzer.clustering.service.ClusteringService._cluster_scope",
@@ -266,13 +259,6 @@
               "metric_value": 10
             },
             {
-              "entity_name": "health.runner.run_health_checks",
-              "file_path": "health/runner.py",
-              "line_start": 190,
-              "line_end": 241,
-              "metric_value": 10
-            },
-            {
               "entity_name": "static_analyzer.incremental_orchestrator._add_iterated_type_edges",
               "file_path": "static_analyzer/incremental_orchestrator.py",
               "line_start": 439,
@@ -299,6 +285,20 @@
               "line_start": 690,
               "line_end": 805,
               "metric_value": 10
+            },
+            {
+              "entity_name": "health.runner._collect_checks_for_language",
+              "file_path": "health/runner.py",
+              "line_start": 68,
+              "line_end": 108,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "health.runner.run_health_checks",
+              "file_path": "health/runner.py",
+              "line_start": 170,
+              "line_end": 221,
+              "metric_value": 10
             }
           ]
         }
@@ -308,10 +308,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1611,
+      "total_entities_checked": 1601,
       "findings_count": 11,
       "warning_count": 11,
-      "score": 0.9931719428926132,
+      "score": 0.9931292941911305,
       "finding_groups": [
         {
           "severity": "warning",
@@ -491,8 +491,8 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 240,
-      "findings_count": 240,
+      "total_entities_checked": 239,
+      "findings_count": 239,
       "warning_count": 89,
       "score": 0.0,
       "finding_groups": [
@@ -1150,13 +1150,6 @@
               "file_path": "output_generators/rendering.py",
               "line_start": 16,
               "line_end": 16,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_class_name\" is not accessed",
-              "file_path": "health/checks/god_class.py",
-              "line_start": 43,
-              "line_end": 43,
               "metric_value": 0.0
             },
             {
@@ -2292,12 +2285,6 @@
       "composite_risk_score": 35.0
     },
     {
-      "file_path": "health/runner.py",
-      "total_findings": 2,
-      "warning_findings": 2,
-      "composite_risk_score": 30.0
-    },
-    {
       "file_path": "static_analyzer/engine/call_graph_builder.py",
       "total_findings": 2,
       "warning_findings": 2,
@@ -2305,6 +2292,12 @@
     },
     {
       "file_path": "agents/details_agent.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
+    },
+    {
+      "file_path": "health/runner.py",
       "total_findings": 2,
       "warning_findings": 2,
       "composite_risk_score": 30.0

@@ -198,17 +198,12 @@
     "diagram_analysis/run_mode.py": "76a7ee42c56fbee7",
     "diagram_analysis/file_index.py": "fc165dbb1b94e4c4",
     "health/__init__.py": "6a81ac923657ec6b",
-    "health/models.py": "94b490f404a85e6f",
-    "health/runner.py": "9263da93fde5d8b6",
-    "health/config.py": "98670ac7ba71fcce",
+    "health/models.py": "6e3a2e45ef42096d",
+    "health/runner.py": "e60cd65bf6cc462e",
+    "health/config.py": "0f9d63e82bb900e8",
     "health/checks/__init__.py": "b4e8cb89789531d5",
     "health/checks/function_size.py": "f65c187a1a84c3ae",
     "health/checks/unused_code_diagnostics.py": "836f59c588b634e1",
-    "health/checks/circular_deps.py": "9589300c28e539c1",
-    "health/checks/god_class.py": "b2253de19da40268",
-    "health/checks/inheritance.py": "7026c1306e1c1007",
-    "health/checks/coupling.py": "72cdae7f34b50f5e",
-    "health/checks/cohesion.py": "d715a5eb92e981a4",
-    "health/checks/instability.py": "0d40f8b447fbe446"
+    "health/checks/circular_deps.py": "9589300c28e539c1"
   }
 }

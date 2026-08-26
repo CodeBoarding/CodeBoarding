@@ -1,13 +1,13 @@
 {
   "metadata": {
-    "generated_at": "2026-08-26T20:15:24.384081+00:00",
-    "source_tree_hash": "13bafc6414aed596bc2642beef9a4bf6c8063f71f6c0681fc29905eaf35d23b7",
+    "generated_at": "2026-08-26T21:30:32.483488+00:00",
+    "source_tree_hash": "e86958dc384bf5bca75000a544c743998c187908d626783a5662db735f736d8f",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
     "file_coverage_summary": {
-      "total_files": 353,
-      "analyzed": 196,
+      "total_files": 348,
+      "analyzed": 191,
       "not_analyzed": 157,
       "not_analyzed_by_reason": {
         "other": 13,
@@ -2373,8 +2373,8 @@
         "health/config.py|health.config._load_health_exclude_patterns",
         "health/config.py|health.config.load_health_config"
       ],
-      "content_hash": "98670ac7ba71fcce",
-      "module_hash": "f039489fc254ec43"
+      "content_hash": "0f9d63e82bb900e8",
+      "module_hash": "6eb6fb4b2efd917c"
     },
     "health/models.py": {
       "method_keys": [
@@ -2390,7 +2390,7 @@
         "health/models.py|health.models.HealthReport",
         "health/models.py|health.models.HealthCheckConfig"
       ],
-      "content_hash": "94b490f404a85e6f",
+      "content_hash": "6e3a2e45ef42096d",
       "module_hash": "d7ff6901a51a1a89"
     },
     "health/runner.py": {
@@ -2404,8 +2404,8 @@
         "health/runner.py|health.runner._relativize_report_paths",
         "health/runner.py|health.runner.run_health_checks"
       ],
-      "content_hash": "9263da93fde5d8b6",
-      "module_hash": "86aa6bf29c1aecd4"
+      "content_hash": "e60cd65bf6cc462e",
+      "module_hash": "5e5eea067214d172"
     },
     "health_main.py": {
       "method_keys": [
@@ -2568,22 +2568,6 @@
       "content_hash": "9589300c28e539c1",
       "module_hash": "6435cc0f15eef10d"
     },
-    "health/checks/cohesion.py": {
-      "method_keys": [
-        "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion"
-      ],
-      "content_hash": "d715a5eb92e981a4",
-      "module_hash": "6ee20cff29b61d18"
-    },
-    "health/checks/coupling.py": {
-      "method_keys": [
-        "health/checks/coupling.py|health.checks.coupling.collect_coupling_values",
-        "health/checks/coupling.py|health.checks.coupling.check_fan_out",
-        "health/checks/coupling.py|health.checks.coupling.check_fan_in"
-      ],
-      "content_hash": "72cdae7f34b50f5e",
-      "module_hash": "a0f8f58a299dcaa3"
-    },
     "health/checks/function_size.py": {
       "method_keys": [
         "health/checks/function_size.py|health.checks.function_size.collect_function_sizes",
@@ -2591,30 +2575,6 @@
       ],
       "content_hash": "f65c187a1a84c3ae",
       "module_hash": "0381c266621bbbf9"
-    },
-    "health/checks/god_class.py": {
-      "method_keys": [
-        "health/checks/god_class.py|health.checks.god_class._group_methods_by_class",
-        "health/checks/god_class.py|health.checks.god_class.collect_god_class_values",
-        "health/checks/god_class.py|health.checks.god_class.check_god_classes"
-      ],
-      "content_hash": "b2253de19da40268",
-      "module_hash": "0f5d0dcc5217c171"
-    },
-    "health/checks/inheritance.py": {
-      "method_keys": [
-        "health/checks/inheritance.py|health.checks.inheritance._compute_inheritance_depths",
-        "health/checks/inheritance.py|health.checks.inheritance.check_inheritance_depth"
-      ],
-      "content_hash": "7026c1306e1c1007",
-      "module_hash": "08c5a1921b2a7067"
-    },
-    "health/checks/instability.py": {
-      "method_keys": [
-        "health/checks/instability.py|health.checks.instability.check_package_instability"
-      ],
-      "content_hash": "0d40f8b447fbe446",
-      "module_hash": "ffa4bd3549565829"
     },
     "health/checks/unused_code_diagnostics.py": {
       "method_keys": [
@@ -15230,32 +15190,32 @@
     "health/config.py|health.config._initialize_template": {
       "file_path": "health/config.py",
       "qualified_name": "health.config._initialize_template",
-      "start_line": 77,
-      "end_line": 84,
+      "start_line": 45,
+      "end_line": 52,
       "type": "FUNCTION",
       "content_hash": "ea15ae4a0e7eda50"
     },
     "health/config.py|health.config.initialize_health_dir": {
       "file_path": "health/config.py",
       "qualified_name": "health.config.initialize_health_dir",
-      "start_line": 87,
-      "end_line": 98,
+      "start_line": 55,
+      "end_line": 66,
       "type": "FUNCTION",
       "content_hash": "fffd16252bcf28e6"
     },
     "health/config.py|health.config._load_health_exclude_patterns": {
       "file_path": "health/config.py",
       "qualified_name": "health.config._load_health_exclude_patterns",
-      "start_line": 101,
-      "end_line": 126,
+      "start_line": 69,
+      "end_line": 94,
       "type": "FUNCTION",
       "content_hash": "90c7f1bfa0d6980f"
     },
     "health/config.py|health.config.load_health_config": {
       "file_path": "health/config.py",
       "qualified_name": "health.config.load_health_config",
-      "start_line": 129,
-      "end_line": 173,
+      "start_line": 97,
+      "end_line": 141,
       "type": "FUNCTION",
       "content_hash": "5d1e5a11a755e4a0"
     },
@@ -15343,71 +15303,71 @@
       "file_path": "health/models.py",
       "qualified_name": "health.models.HealthCheckConfig",
       "start_line": 139,
-      "end_line": 187,
+      "end_line": 155,
       "type": "CLASS",
-      "content_hash": "4c4c2ddcbc5a0e6b"
+      "content_hash": "f9aa21f0056b4f3f"
     },
     "health/runner.py|health.runner._matches_exclude_pattern": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._matches_exclude_pattern",
-      "start_line": 35,
-      "end_line": 42,
+      "start_line": 31,
+      "end_line": 38,
       "type": "FUNCTION",
       "content_hash": "3b00cefc5f193fa4"
     },
     "health/runner.py|health.runner._apply_exclude_patterns": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._apply_exclude_patterns",
-      "start_line": 45,
-      "end_line": 64,
+      "start_line": 41,
+      "end_line": 60,
       "type": "FUNCTION",
       "content_hash": "498d96119ec0a255"
     },
     "health/runner.py|health.runner._relativize_path": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._relativize_path",
-      "start_line": 67,
-      "end_line": 69,
+      "start_line": 63,
+      "end_line": 65,
       "type": "FUNCTION",
       "content_hash": "2ad7ab2a297aaeb9"
     },
     "health/runner.py|health.runner._collect_checks_for_language": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._collect_checks_for_language",
-      "start_line": 72,
-      "end_line": 128,
+      "start_line": 68,
+      "end_line": 108,
       "type": "FUNCTION",
-      "content_hash": "bb6932f7479ab1ab"
+      "content_hash": "34a39b17c8abc38d"
     },
     "health/runner.py|health.runner._compute_overall_score": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._compute_overall_score",
-      "start_line": 131,
-      "end_line": 139,
+      "start_line": 111,
+      "end_line": 119,
       "type": "FUNCTION",
       "content_hash": "1c65daac077aaf92"
     },
     "health/runner.py|health.runner._aggregate_file_summaries": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._aggregate_file_summaries",
-      "start_line": 142,
-      "end_line": 168,
+      "start_line": 122,
+      "end_line": 148,
       "type": "FUNCTION",
       "content_hash": "885650fa44ec3766"
     },
     "health/runner.py|health.runner._relativize_report_paths": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner._relativize_report_paths",
-      "start_line": 171,
-      "end_line": 187,
+      "start_line": 151,
+      "end_line": 167,
       "type": "FUNCTION",
       "content_hash": "54eb385cc1b04dca"
     },
     "health/runner.py|health.runner.run_health_checks": {
       "file_path": "health/runner.py",
       "qualified_name": "health.runner.run_health_checks",
-      "start_line": 190,
-      "end_line": 241,
+      "start_line": 170,
+      "end_line": 221,
       "type": "FUNCTION",
       "content_hash": "c01b114f1d7d908d"
     },
@@ -16123,38 +16083,6 @@
       "type": "FUNCTION",
       "content_hash": "60926c483ce527e3"
     },
-    "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion": {
-      "file_path": "health/checks/cohesion.py",
-      "qualified_name": "health.checks.cohesion.check_component_cohesion",
-      "start_line": 10,
-      "end_line": 98,
-      "type": "FUNCTION",
-      "content_hash": "1dbb7a2c7595bd59"
-    },
-    "health/checks/coupling.py|health.checks.coupling.collect_coupling_values": {
-      "file_path": "health/checks/coupling.py",
-      "qualified_name": "health.checks.coupling.collect_coupling_values",
-      "start_line": 15,
-      "end_line": 34,
-      "type": "FUNCTION",
-      "content_hash": "7ca93b7ec21c7452"
-    },
-    "health/checks/coupling.py|health.checks.coupling.check_fan_out": {
-      "file_path": "health/checks/coupling.py",
-      "qualified_name": "health.checks.coupling.check_fan_out",
-      "start_line": 37,
-      "end_line": 87,
-      "type": "FUNCTION",
-      "content_hash": "9abeef9bd1ca3a48"
-    },
-    "health/checks/coupling.py|health.checks.coupling.check_fan_in": {
-      "file_path": "health/checks/coupling.py",
-      "qualified_name": "health.checks.coupling.check_fan_in",
-      "start_line": 90,
-      "end_line": 143,
-      "type": "FUNCTION",
-      "content_hash": "c989a25811a620c9"
-    },
     "health/checks/function_size.py|health.checks.function_size.collect_function_sizes": {
       "file_path": "health/checks/function_size.py",
       "qualified_name": "health.checks.function_size.collect_function_sizes",
@@ -16170,54 +16098,6 @@
       "end_line": 85,
       "type": "FUNCTION",
       "content_hash": "1a9b164d11a85de2"
-    },
-    "health/checks/god_class.py|health.checks.god_class._group_methods_by_class": {
-      "file_path": "health/checks/god_class.py",
-      "qualified_name": "health.checks.god_class._group_methods_by_class",
-      "start_line": 16,
-      "end_line": 27,
-      "type": "FUNCTION",
-      "content_hash": "ea416398c8aa5306"
-    },
-    "health/checks/god_class.py|health.checks.god_class.collect_god_class_values": {
-      "file_path": "health/checks/god_class.py",
-      "qualified_name": "health.checks.god_class.collect_god_class_values",
-      "start_line": 30,
-      "end_line": 64,
-      "type": "FUNCTION",
-      "content_hash": "fcd0ad262a810574"
-    },
-    "health/checks/god_class.py|health.checks.god_class.check_god_classes": {
-      "file_path": "health/checks/god_class.py",
-      "qualified_name": "health.checks.god_class.check_god_classes",
-      "start_line": 67,
-      "end_line": 167,
-      "type": "FUNCTION",
-      "content_hash": "0cecd68f3054ce3d"
-    },
-    "health/checks/inheritance.py|health.checks.inheritance._compute_inheritance_depths": {
-      "file_path": "health/checks/inheritance.py",
-      "qualified_name": "health.checks.inheritance._compute_inheritance_depths",
-      "start_line": 15,
-      "end_line": 50,
-      "type": "FUNCTION",
-      "content_hash": "d80784e8af38b3ef"
-    },
-    "health/checks/inheritance.py|health.checks.inheritance.check_inheritance_depth": {
-      "file_path": "health/checks/inheritance.py",
-      "qualified_name": "health.checks.inheritance.check_inheritance_depth",
-      "start_line": 53,
-      "end_line": 104,
-      "type": "FUNCTION",
-      "content_hash": "0b236cf82ef0c7fb"
-    },
-    "health/checks/instability.py|health.checks.instability.check_package_instability": {
-      "file_path": "health/checks/instability.py",
-      "qualified_name": "health.checks.instability.check_package_instability",
-      "start_line": 8,
-      "end_line": 77,
-      "type": "FUNCTION",
-      "content_hash": "8df76d52f1a52b39"
     },
     "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.DeadCodeCategory": {
       "file_path": "health/checks/unused_code_diagnostics.py",
@@ -31417,8 +31297,8 @@
             "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
             "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
             "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-            "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
             "diagram_analysis.diagram_generator.DiagramGenerator",
+            "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
             "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
             "diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
             "diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
@@ -33015,10 +32895,10 @@
                   ]
                 },
                 {
-                  "relation": "Provides tool definitions for analysis context",
+                  "relation": "provides configuration-driven tool definitions",
                   "src_name": "Plugin & Tool Registry Manager",
                   "dst_name": "System Configuration & Health Orchestrator",
-                  "evidence": "The Registry Manager populates the toolset used by the Orchestrator's downstream analysis tasks.",
+                  "evidence": "The registry manager utilizes the system's user configuration to determine which plugins and tools should be loaded, filtered, or prioritized during the registration lifecycle.",
                   "key_edges": [],
                   "src_id": "4.1.2.2",
                   "dst_id": "4.1.2.1",
@@ -33456,8 +33336,8 @@
                 "diagram_analysis.diagram_generator._fully_unchanged_component_ids",
                 "diagram_analysis.diagram_generator._restore_unchanged_subtrees",
                 "diagram_analysis.diagram_generator._incremental_changed_component_ids",
-                "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                 "diagram_analysis.diagram_generator.DiagramGenerator",
+                "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                 "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
                 "diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
                 "diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
@@ -33608,8 +33488,8 @@
                   "methods": [
                     "diagram_analysis.diagram_generator._IncrementalPreparation",
                     "diagram_analysis.diagram_generator._IncrementalPreparation.has_changes",
-                    "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                     "diagram_analysis.diagram_generator.DiagramGenerator",
+                    "diagram_analysis.diagram_generator.DiagramGenerator.__init__",
                     "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
                     "diagram_analysis.diagram_generator.DiagramGenerator.deterministic_analysis",
                     "diagram_analysis.diagram_generator.DiagramGenerator.agent_init",
@@ -35278,45 +35158,10 @@
           ]
         },
         {
-          "file_path": "health/checks/cohesion.py",
-          "methods": [
-            "health.checks.cohesion.check_component_cohesion"
-          ]
-        },
-        {
-          "file_path": "health/checks/coupling.py",
-          "methods": [
-            "health.checks.coupling.collect_coupling_values",
-            "health.checks.coupling.check_fan_out",
-            "health.checks.coupling.check_fan_in"
-          ]
-        },
-        {
           "file_path": "health/checks/function_size.py",
           "methods": [
             "health.checks.function_size.collect_function_sizes",
             "health.checks.function_size.check_function_size"
-          ]
-        },
-        {
-          "file_path": "health/checks/god_class.py",
-          "methods": [
-            "health.checks.god_class._group_methods_by_class",
-            "health.checks.god_class.collect_god_class_values",
-            "health.checks.god_class.check_god_classes"
-          ]
-        },
-        {
-          "file_path": "health/checks/inheritance.py",
-          "methods": [
-            "health.checks.inheritance._compute_inheritance_depths",
-            "health.checks.inheritance.check_inheritance_depth"
-          ]
-        },
-        {
-          "file_path": "health/checks/instability.py",
-          "methods": [
-            "health.checks.instability.check_package_instability"
           ]
         },
         {
@@ -35827,45 +35672,10 @@
               ]
             },
             {
-              "file_path": "health/checks/cohesion.py",
-              "methods": [
-                "health.checks.cohesion.check_component_cohesion"
-              ]
-            },
-            {
-              "file_path": "health/checks/coupling.py",
-              "methods": [
-                "health.checks.coupling.collect_coupling_values",
-                "health.checks.coupling.check_fan_out",
-                "health.checks.coupling.check_fan_in"
-              ]
-            },
-            {
               "file_path": "health/checks/function_size.py",
               "methods": [
                 "health.checks.function_size.collect_function_sizes",
                 "health.checks.function_size.check_function_size"
-              ]
-            },
-            {
-              "file_path": "health/checks/god_class.py",
-              "methods": [
-                "health.checks.god_class._group_methods_by_class",
-                "health.checks.god_class.collect_god_class_values",
-                "health.checks.god_class.check_god_classes"
-              ]
-            },
-            {
-              "file_path": "health/checks/inheritance.py",
-              "methods": [
-                "health.checks.inheritance._compute_inheritance_depths",
-                "health.checks.inheritance.check_inheritance_depth"
-              ]
-            },
-            {
-              "file_path": "health/checks/instability.py",
-              "methods": [
-                "health.checks.instability.check_package_instability"
               ]
             },
             {
@@ -36825,18 +36635,6 @@
                   "reference_file": "health/checks/circular_deps.py",
                   "reference_start_line": 10,
                   "reference_end_line": 48
-                },
-                {
-                  "qualified_name": "health.checks.cohesion.check_component_cohesion",
-                  "reference_file": "health/checks/cohesion.py",
-                  "reference_start_line": 10,
-                  "reference_end_line": 98
-                },
-                {
-                  "qualified_name": "health.checks.coupling.check_fan_out",
-                  "reference_file": "health/checks/coupling.py",
-                  "reference_start_line": 37,
-                  "reference_end_line": 87
                 }
               ],
               "source_cluster_ids": [
@@ -36852,45 +36650,10 @@
                   ]
                 },
                 {
-                  "file_path": "health/checks/cohesion.py",
-                  "methods": [
-                    "health.checks.cohesion.check_component_cohesion"
-                  ]
-                },
-                {
-                  "file_path": "health/checks/coupling.py",
-                  "methods": [
-                    "health.checks.coupling.collect_coupling_values",
-                    "health.checks.coupling.check_fan_out",
-                    "health.checks.coupling.check_fan_in"
-                  ]
-                },
-                {
                   "file_path": "health/checks/function_size.py",
                   "methods": [
                     "health.checks.function_size.collect_function_sizes",
                     "health.checks.function_size.check_function_size"
-                  ]
-                },
-                {
-                  "file_path": "health/checks/god_class.py",
-                  "methods": [
-                    "health.checks.god_class._group_methods_by_class",
-                    "health.checks.god_class.collect_god_class_values",
-                    "health.checks.god_class.check_god_classes"
-                  ]
-                },
-                {
-                  "file_path": "health/checks/inheritance.py",
-                  "methods": [
-                    "health.checks.inheritance._compute_inheritance_depths",
-                    "health.checks.inheritance.check_inheritance_depth"
-                  ]
-                },
-                {
-                  "file_path": "health/checks/instability.py",
-                  "methods": [
-                    "health.checks.instability.check_package_instability"
                   ]
                 },
                 {
@@ -36956,18 +36719,6 @@
                       "reference_end_line": 61
                     },
                     {
-                      "qualified_name": "health.checks.cohesion.check_component_cohesion",
-                      "reference_file": "health/checks/cohesion.py",
-                      "reference_start_line": 10,
-                      "reference_end_line": 98
-                    },
-                    {
-                      "qualified_name": "health.checks.coupling.check_fan_out",
-                      "reference_file": "health/checks/coupling.py",
-                      "reference_start_line": 37,
-                      "reference_end_line": 87
-                    },
-                    {
                       "qualified_name": "health.checks.circular_deps.check_circular_dependencies",
                       "reference_file": "health/checks/circular_deps.py",
                       "reference_start_line": 10,
@@ -36994,45 +36745,10 @@
                       ]
                     },
                     {
-                      "file_path": "health/checks/cohesion.py",
-                      "methods": [
-                        "health.checks.cohesion.check_component_cohesion"
-                      ]
-                    },
-                    {
-                      "file_path": "health/checks/coupling.py",
-                      "methods": [
-                        "health.checks.coupling.collect_coupling_values",
-                        "health.checks.coupling.check_fan_out",
-                        "health.checks.coupling.check_fan_in"
-                      ]
-                    },
-                    {
                       "file_path": "health/checks/function_size.py",
                       "methods": [
                         "health.checks.function_size.collect_function_sizes",
                         "health.checks.function_size.check_function_size"
-                      ]
-                    },
-                    {
-                      "file_path": "health/checks/god_class.py",
-                      "methods": [
-                        "health.checks.god_class._group_methods_by_class",
-                        "health.checks.god_class.collect_god_class_values",
-                        "health.checks.god_class.check_god_classes"
-                      ]
-                    },
-                    {
-                      "file_path": "health/checks/inheritance.py",
-                      "methods": [
-                        "health.checks.inheritance._compute_inheritance_depths",
-                        "health.checks.inheritance.check_inheritance_depth"
-                      ]
-                    },
-                    {
-                      "file_path": "health/checks/instability.py",
-                      "methods": [
-                        "health.checks.instability.check_package_instability"
                       ]
                     },
                     {
@@ -37069,8 +36785,8 @@
                     {
                       "qualified_name": "health.runner._collect_checks_for_language",
                       "reference_file": "health/runner.py",
-                      "reference_start_line": 72,
-                      "reference_end_line": 128
+                      "reference_start_line": 68,
+                      "reference_end_line": 108
                     },
                     {
                       "qualified_name": "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector",
@@ -37087,8 +36803,8 @@
                     {
                       "qualified_name": "health.runner._apply_exclude_patterns",
                       "reference_file": "health/runner.py",
-                      "reference_start_line": 45,
-                      "reference_end_line": 64
+                      "reference_start_line": 41,
+                      "reference_end_line": 60
                     }
                   ],
                   "source_cluster_ids": [
@@ -37133,43 +36849,32 @@
               ],
               "components_relations": [
                 {
-                  "relation": "Orchestrates execution and aggregates metric summaries",
+                  "relation": "Orchestrates execution and aggregates metric results",
                   "src_name": "Diagnostic Orchestrator & External Sensor Integrator",
                   "dst_name": "Structural & Complexity Metrics Engine",
-                  "evidence": "The Orchestrator acts as a control plane that dynamically collects and executes specific health check functions based on the target language. It consumes the standardized data models (BaseCheckSummary, FindingGroup) to unify internal static analysis results with external diagnostic data.",
+                  "evidence": "The Orchestrator acts as a controller that dynamically collects and dispatches specific health checks based on the target language. It instantiates the domain models defined in the Metrics Engine to standardize output.",
                   "key_edges": [
                     {
                       "source": "health/runner.py|health.runner._collect_checks_for_language",
                       "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
                       "call_sites": [
                         {
-                          "line": 100,
+                          "line": 84,
                           "column": 26
                         }
                       ],
-                      "description": "Orchestrator collects and invokes circular dependency checks."
+                      "description": "Orchestrator dispatches circular dependency analysis."
                     },
                     {
                       "source": "health/runner.py|health.runner._collect_checks_for_language",
                       "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
                       "call_sites": [
                         {
-                          "line": 87,
+                          "line": 77,
                           "column": 22
                         }
                       ],
-                      "description": "Orchestrator collects and invokes function size metrics."
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/coupling.py|health.checks.coupling.check_fan_out",
-                      "call_sites": [
-                        {
-                          "line": 88,
-                          "column": 22
-                        }
-                      ],
-                      "description": "Orchestrator collects and invokes coupling metrics."
+                      "description": "Orchestrator dispatches function size analysis."
                     },
                     {
                       "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
@@ -37192,29 +36897,7 @@
                       "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
                       "call_sites": [
                         {
-                          "line": 100,
-                          "column": 26
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/inheritance.py|health.checks.inheritance.check_inheritance_depth",
-                      "call_sites": [
-                        {
-                          "line": 93,
-                          "column": 26
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/instability.py|health.checks.instability.check_package_instability",
-                      "call_sites": [
-                        {
-                          "line": 101,
+                          "line": 84,
                           "column": 26
                         }
                       ],
@@ -37225,40 +36908,7 @@
                       "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
                       "call_sites": [
                         {
-                          "line": 87,
-                          "column": 22
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/god_class.py|health.checks.god_class.check_god_classes",
-                      "call_sites": [
-                        {
-                          "line": 90,
-                          "column": 22
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/coupling.py|health.checks.coupling.check_fan_in",
-                      "call_sites": [
-                        {
-                          "line": 89,
-                          "column": 22
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "health/runner.py|health.runner._collect_checks_for_language",
-                      "target": "health/checks/coupling.py|health.checks.coupling.check_fan_out",
-                      "call_sites": [
-                        {
-                          "line": 88,
+                          "line": 77,
                           "column": 22
                         }
                       ],
@@ -37303,6 +36953,17 @@
             }
           ],
           "components_relations": [
+            {
+              "relation": "Provides normalized data for metric calculation",
+              "src_name": "Structural Graph & Edge Validator",
+              "dst_name": "Architectural Health & Metric Evaluator",
+              "evidence": "The validator converts internal graph representations into a standardized 'codeboarding format' that the health checks consume to evaluate cohesion and coupling metrics.",
+              "key_edges": [],
+              "src_id": "5.1.1",
+              "dst_id": "5.1.3",
+              "is_static": true,
+              "all_edges": []
+            },
             {
               "relation": "Projects structural graph into cluster-aware subgraphs",
               "src_name": "Cluster Evolution & Delta Processor",
@@ -37379,7 +37040,19 @@
               "src_name": "Architectural Health & Metric Evaluator",
               "dst_name": "Cluster Evolution & Delta Processor",
               "evidence": "The Health Evaluator consumes the output of the Delta Processor (ClusterResult) to map structural findings back to source files and calculate cohesion/coupling metrics.",
-              "key_edges": [],
+              "key_edges": [
+                {
+                  "source": "health/runner.py|health.runner._collect_checks_for_language",
+                  "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+                  "call_sites": [
+                    {
+                      "line": 77,
+                      "column": 58
+                    }
+                  ],
+                  "description": "Pulls CFG for structural analysis"
+                }
+              ],
               "src_id": "5.1.3",
               "dst_id": "5.1.2",
               "is_static": true,
@@ -37389,63 +37062,8 @@
                   "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
                   "call_sites": [
                     {
-                      "line": 81,
-                      "column": 34
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "health/checks/coupling.py|health.checks.coupling.check_fan_in",
-                  "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
-                  "call_sites": [
-                    {
-                      "line": 102,
-                      "column": 27
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "health/checks/coupling.py|health.checks.coupling.collect_coupling_values",
-                  "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
-                  "call_sites": [
-                    {
-                      "line": 23,
-                      "column": 27
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
-                  "target": "static_analyzer/clustering/models.py|static_analyzer.clustering.models.ClusterResult.get_files_for_cluster",
-                  "call_sites": [
-                    {
-                      "line": 61,
-                      "column": 40
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
-                  "target": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService",
-                  "call_sites": [
-                    {
-                      "line": 26,
-                      "column": 22
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
-                  "target": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.cluster",
-                  "call_sites": [
-                    {
-                      "line": 26,
-                      "column": 42
+                      "line": 77,
+                      "column": 58
                     }
                   ],
                   "description": ""
@@ -38458,10 +38076,10 @@
           ]
         },
         {
-          "relation": "Requests semantic validation for structural deltas",
+          "relation": "Validates language-specific constraints and dependencies",
           "src_name": "Delta Calculation & Cluster Evolution Engine",
           "dst_name": "Semantic Reference & Edge Resolver",
-          "evidence": "Queries the resolver to verify if structural changes impact existing semantic references.",
+          "evidence": "Consults the resolver to ensure cluster deltas respect language-specific package boundaries and available source languages",
           "key_edges": [
             {
               "source": "static_analyzer/clustering/delta.py|static_analyzer.clustering.delta.compute_cluster_delta",
@@ -38479,6 +38097,17 @@
           "dst_id": "5.3",
           "is_static": true,
           "all_edges": [
+            {
+              "source": "health/runner.py|health.runner._collect_checks_for_language",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
+              "call_sites": [
+                {
+                  "line": 80,
+                  "column": 40
+                }
+              ],
+              "description": ""
+            },
             {
               "source": "static_analyzer/clustering/delta.py|static_analyzer.clustering.delta.compute_cluster_delta",
               "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
@@ -38519,28 +38148,6 @@
                 {
                   "line": 55,
                   "column": 37
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "health/runner.py|health.runner._collect_checks_for_language",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_hierarchy",
-              "call_sites": [
-                {
-                  "line": 83,
-                  "column": 37
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "health/runner.py|health.runner._collect_checks_for_language",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
-              "call_sites": [
-                {
-                  "line": 96,
-                  "column": 40
                 }
               ],
               "description": ""
@@ -49405,73 +49012,6 @@
       ]
     },
     {
-      "relation": "evaluates quality of evolved cluster results",
-      "src_name": "Structural & Complexity Metrics Engine",
-      "dst_name": "Snapshot Manager & Delta Orchestrator",
-      "evidence": "The Health Evaluator consumes the output of the Delta Processor (ClusterResult) to map structural findings back to source files and calculate cohesion/coupling metrics.",
-      "key_edges": [],
-      "src_id": "5.1.3.1",
-      "dst_id": "5.1.2.1",
-      "is_static": true,
-      "all_edges": [
-        {
-          "source": "health/checks/coupling.py|health.checks.coupling.check_fan_in",
-          "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
-          "call_sites": [
-            {
-              "line": 102,
-              "column": 27
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/checks/coupling.py|health.checks.coupling.collect_coupling_values",
-          "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.to_networkx",
-          "call_sites": [
-            {
-              "line": 23,
-              "column": 27
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
-          "target": "static_analyzer/clustering/models.py|static_analyzer.clustering.models.ClusterResult.get_files_for_cluster",
-          "call_sites": [
-            {
-              "line": 61,
-              "column": 40
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
-          "target": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService",
-          "call_sites": [
-            {
-              "line": 26,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/checks/cohesion.py|health.checks.cohesion.check_component_cohesion",
-          "target": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.cluster",
-          "call_sites": [
-            {
-              "line": 26,
-              "column": 42
-            }
-          ],
-          "description": ""
-        }
-      ]
-    },
-    {
       "relation": "Persists analysis artifacts",
       "src_name": "Structural & Complexity Metrics Engine",
       "dst_name": "Repository State & Multi-Language Discovery",
@@ -49509,7 +49049,7 @@
           "target": "core/__init__.py|core.__init__.run_plugin_health_checks",
           "call_sites": [
             {
-              "line": 123,
+              "line": 103,
               "column": 22
             }
           ],
@@ -49522,7 +49062,19 @@
       "src_name": "Diagnostic Orchestrator & External Sensor Integrator",
       "dst_name": "Snapshot Manager & Delta Orchestrator",
       "evidence": "The Health Evaluator consumes the materialized views (NetworkX representations and file mappings) produced by the Evolution engine to calculate cohesion and coupling metrics across architectural boundaries.",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "health/runner.py|health.runner._collect_checks_for_language",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+          "call_sites": [
+            {
+              "line": 77,
+              "column": 58
+            }
+          ],
+          "description": "Pulls CFG for structural analysis"
+        }
+      ],
       "src_id": "5.1.3.2",
       "dst_id": "5.1.2.1",
       "is_static": true,
@@ -49532,8 +49084,8 @@
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
           "call_sites": [
             {
-              "line": 81,
-              "column": 34
+              "line": 77,
+              "column": 58
             }
           ],
           "description": ""
@@ -49541,43 +49093,32 @@
       ]
     },
     {
-      "relation": "Orchestrates execution and aggregates metric summaries",
+      "relation": "Orchestrates execution and aggregates metric results",
       "src_name": "Diagnostic Orchestrator & External Sensor Integrator",
       "dst_name": "Structural & Complexity Metrics Engine",
-      "evidence": "The Orchestrator acts as a control plane that dynamically collects and executes specific health check functions based on the target language. It consumes the standardized data models (BaseCheckSummary, FindingGroup) to unify internal static analysis results with external diagnostic data.",
+      "evidence": "The Orchestrator acts as a controller that dynamically collects and dispatches specific health checks based on the target language. It instantiates the domain models defined in the Metrics Engine to standardize output.",
       "key_edges": [
         {
           "source": "health/runner.py|health.runner._collect_checks_for_language",
           "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
           "call_sites": [
             {
-              "line": 100,
+              "line": 84,
               "column": 26
             }
           ],
-          "description": "Orchestrator collects and invokes circular dependency checks."
+          "description": "Orchestrator dispatches circular dependency analysis."
         },
         {
           "source": "health/runner.py|health.runner._collect_checks_for_language",
           "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
           "call_sites": [
             {
-              "line": 87,
+              "line": 77,
               "column": 22
             }
           ],
-          "description": "Orchestrator collects and invokes function size metrics."
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/coupling.py|health.checks.coupling.check_fan_out",
-          "call_sites": [
-            {
-              "line": 88,
-              "column": 22
-            }
-          ],
-          "description": "Orchestrator collects and invokes coupling metrics."
+          "description": "Orchestrator dispatches function size analysis."
         },
         {
           "source": "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.check_unused_code_diagnostics",
@@ -49600,29 +49141,7 @@
           "target": "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies",
           "call_sites": [
             {
-              "line": 100,
-              "column": 26
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/inheritance.py|health.checks.inheritance.check_inheritance_depth",
-          "call_sites": [
-            {
-              "line": 93,
-              "column": 26
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/instability.py|health.checks.instability.check_package_instability",
-          "call_sites": [
-            {
-              "line": 101,
+              "line": 84,
               "column": 26
             }
           ],
@@ -49633,40 +49152,7 @@
           "target": "health/checks/function_size.py|health.checks.function_size.check_function_size",
           "call_sites": [
             {
-              "line": 87,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/god_class.py|health.checks.god_class.check_god_classes",
-          "call_sites": [
-            {
-              "line": 90,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/coupling.py|health.checks.coupling.check_fan_in",
-          "call_sites": [
-            {
-              "line": 89,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "health/checks/coupling.py|health.checks.coupling.check_fan_out",
-          "call_sites": [
-            {
-              "line": 88,
+              "line": 77,
               "column": 22
             }
           ],
@@ -49708,10 +49194,10 @@
       ]
     },
     {
-      "relation": "Queries structural metadata for delta computation",
+      "relation": "Validates language-specific constraints and dependencies",
       "src_name": "Diagnostic Orchestrator & External Sensor Integrator",
       "dst_name": "Structural Metadata Provider",
-      "evidence": "When calculating structural differences between versions (deltas), the Engine queries the Resolver for language-specific hierarchies and package dependencies to determine if a change is purely internal or affects the architectural interface.",
+      "evidence": "Consults the resolver to ensure cluster deltas respect language-specific package boundaries and available source languages",
       "key_edges": [],
       "src_id": "5.1.3.2",
       "dst_id": "5.3.2.4",
@@ -49719,21 +49205,10 @@
       "all_edges": [
         {
           "source": "health/runner.py|health.runner._collect_checks_for_language",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_hierarchy",
-          "call_sites": [
-            {
-              "line": 83,
-              "column": 37
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/runner.py|health.runner._collect_checks_for_language",
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
           "call_sites": [
             {
-              "line": 96,
+              "line": 80,
               "column": 40
             }
           ],
