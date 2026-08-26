@@ -247,8 +247,8 @@ LLM_PROVIDERS = {
         chat_class=ChatOpenAI,
         selection_envs=["DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"],
         api_key_env="DEEPSEEK_API_KEY",
-        agent_model="deepseek-chat",
-        parsing_model="deepseek-chat",
+        agent_model="deepseek-v4-flash",
+        parsing_model="deepseek-v4-flash",
         llm_type=LLMType.DEEPSEEK,
         extra_args={
             "base_url": lambda: os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
