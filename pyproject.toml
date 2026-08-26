@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codeboarding"
-version = "0.13.8"
+version = "0.13.9"
 description = "Interactive Diagrams for Code"
 readme = "PYPI.md"
 license = "MIT"
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.12,<3.13"
 authors = [
     {name = "CodeBoarding Team"}
 ]
@@ -17,7 +17,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Documentation",
     "Topic :: Software Development :: Code Generators",
 ]
@@ -29,6 +28,7 @@ dependencies = [
     "filelock>=3.12",
     "gitpython>=3.1",
     "google-api-core>=2.10",
+    "igraph>=1.0",
     "jsonpatch>=1.33",
     "jsonschema>=4.25",
     "langchain>=1.2",
@@ -36,9 +36,11 @@ dependencies = [
     "langchain-aws>=1.1",
     "langchain-cerebras>=0.8",
     "langchain-community>=0.4",
+    "langchain-core>=1.2",
     "langchain-google-genai>=3.1",
     "langchain-ollama>=1.0",
     "langchain-openai>=1.1",
+    "langgraph>=1.0",
     "leidenalg>=0.10",
     "markdown>=3.8",
     "markdown-it-py>=3.0",
@@ -50,7 +52,10 @@ dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
     "regex>=2024.11",
+    "requests>=2.32",
     "rich>=12.6",
+    "sqlalchemy>=2.0",
+    "tqdm>=4.67",
     "tree-sitter==0.25.2",
     "tree-sitter-c-sharp==0.23.5",
     "tree-sitter-go==0.25.0",
