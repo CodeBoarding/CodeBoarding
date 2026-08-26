@@ -14,7 +14,7 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
     assign_relation_ids,
 )
-from agents.component_ownership import group_ids_by_name
+from agents.component_ownership import ComponentOwnershipIndex, group_ids_by_name
 from agents.prompts import (
     get_system_details_message,
     get_details_message,
@@ -58,9 +58,11 @@ class DetailsAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         meta_context: MetaAnalysisInsights,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
+        component_ownership: ComponentOwnershipIndex,
     ):
         system_message = format_project_system_message(get_system_details_message(), project_name, meta_context)
         super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
+        self.component_ownership = component_ownership
         self.project_name = project_name
         self.meta_context = meta_context
 

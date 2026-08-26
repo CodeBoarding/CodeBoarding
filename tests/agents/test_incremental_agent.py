@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from agents.component_ownership import ComponentOwnershipIndex
 from agents.agent_responses import (
     AnalysisInsights,
     ComponentApiSurface,
@@ -563,6 +564,7 @@ class TestIncrementalRelations(unittest.TestCase):
                 meta_context=None,
                 agent_llm=MagicMock(),
                 parsing_llm=MagicMock(),
+                component_ownership=ComponentOwnershipIndex({}),
             )
         agent._parse_invoke = MagicMock(return_value=api_surfaces)
         agent._invoke_validate = MagicMock(return_value=relation_result)

@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
 from agents.details_agent import DetailsAgent
+from agents.component_ownership import ComponentOwnershipIndex
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
@@ -90,6 +91,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=MagicMock(),
             parsing_llm=MagicMock(),
+            component_ownership=ComponentOwnershipIndex({}),
         )
 
     def test_init(self):
@@ -103,6 +105,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            component_ownership=ComponentOwnershipIndex({}),
         )
 
         self.assertEqual(agent.project_name, self.project_name)
@@ -153,6 +156,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            component_ownership=ComponentOwnershipIndex({}),
         )
         mock_response = AnalysisInsights(
             description="Structure analysis",
@@ -206,6 +210,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            component_ownership=ComponentOwnershipIndex({}),
         )
         self.test_component.component_id = "1"
         sub_cluster_result = ClusterResult(clusters={1: {"n1"}}, strategy="test")

@@ -26,7 +26,7 @@ from agents.agent_responses import (
     assign_relation_ids,
     iter_components,
 )
-from agents.component_ownership import group_ids_by_name
+from agents.component_ownership import ComponentOwnershipIndex, group_ids_by_name
 from agents.content_hash import SourceCache
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
@@ -63,12 +63,14 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         meta_context: MetaAnalysisInsights | None,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
+        component_ownership: ComponentOwnershipIndex,
         changes: ChangeSet | None = None,
     ):
         system_message = format_project_system_message(get_system_message(), project_name, meta_context)
         super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
         if changes is not None:
             self.toolkit.context.changes = changes
+        self.component_ownership = component_ownership
         self.project_name = project_name
         self.meta_context = meta_context
         self.prompts = {
@@ -584,6 +586,7 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             meta_context=self.meta_context,
             agent_llm=self.agent_llm,
             parsing_llm=self.parsing_llm,
+            component_ownership=self.component_ownership,
             changes=self.toolkit.context.changes,
         )
 

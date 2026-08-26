@@ -1,8 +1,19 @@
+import os
 import tempfile
 import unittest
+from collections.abc import Collection
 from pathlib import Path
+from unittest import mock
 
-from agents.agent_responses import AnalysisInsights, Component, ComponentArchitecture, Relation, SourceCodeReference
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    ComponentArchitecture,
+    Relation,
+    RelationEdge,
+    SourceCodeReference,
+)
+from agents.component_ownership import ComponentOwnershipIndex
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.llm_renderers import render_scope_connections
 from agents.static_analysis_enricher_mixin import StaticAnalysisEnricherMixin
@@ -17,7 +28,8 @@ from static_analyzer.clustering import (
     ClusterScopeResult,
     GroupConnection,
 )
-from static_analyzer.config import NodeType
+from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
 
 
@@ -25,9 +37,19 @@ def component(component_id: str, name: str) -> Component:
     return Component(name=name, description=name, key_entities=[], component_id=component_id)
 
 
-def enricher(repo_dir: Path = Path("/repo")) -> StaticAnalysisEnricherMixin:
+def enricher(
+    repo_dir: Path = Path("/repo"),
+    component_ownership: ComponentOwnershipIndex = ComponentOwnershipIndex({}),
+    indexed_files: Collection[str] = (),
+) -> StaticAnalysisEnricherMixin:
     instance = StaticAnalysisEnricherMixin()
     instance.repo_dir = repo_dir
+    instance.component_ownership = component_ownership
+    graph = CallGraph(language="python")
+    for index, file_path in enumerate(indexed_files, start=1):
+        graph.add_node(Node(f"indexed.symbol{index}", NodeType.FUNCTION, file_path, index, index + 1))
+    instance.static_analysis = StaticAnalysisResults()
+    instance.static_analysis.add_cfg(Language.PYTHON, graph)
     return instance
 
 
@@ -418,5 +440,91 @@ class TestScopeContainment(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestRelationEdgeSourceGate(unittest.TestCase):
+    """The gate a scope agent applies to its own LLM key edges, using the whole hierarchy."""
+
+    @staticmethod
+    def _hierarchy() -> ClusterScopeResult:
+        """Two branches: 1 splits into 1.1/1.2, and 2 owns c.func in a scope 1 never sees."""
+        branch = ClusterScopeResult(
+            scope_id="1",
+            groups=[
+                ClusterGroup(group_id="1.1", cluster_ids=[1], symbol_members_by_language={"python": {"a.func"}}),
+                ClusterGroup(group_id="1.2", cluster_ids=[2], symbol_members_by_language={"python": {"b.func"}}),
+            ],
+        )
+        root = ClusterScopeResult(
+            scope_id="root",
+            groups=[
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1, 2],
+                    symbol_members_by_language={"python": {"a.func", "b.func"}},
+                    children=branch,
+                ),
+                ClusterGroup(group_id="2", cluster_ids=[3], symbol_members_by_language={"python": {"c.func"}}),
+            ],
+        )
+        root.index_hierarchy()
+        return root
+
+    @staticmethod
+    def _sub_scope() -> ClusterScopeResult:
+        graph = CallGraph(language="python")
+        graph.add_node(Node("a.func", NodeType.FUNCTION, "src/a.py", 1, 5))
+        graph.add_node(Node("b.func", NodeType.FUNCTION, "src/b.py", 1, 5))
+        return ClusterScopeResult(
+            scope_id="1",
+            graphs_by_language={"python": graph},
+            groups=[
+                ClusterGroup(group_id="1.1", cluster_ids=[1], symbol_members_by_language={"python": {"a.func"}}),
+                ClusterGroup(group_id="1.2", cluster_ids=[2], symbol_members_by_language={"python": {"b.func"}}),
+            ],
+        )
+
+    @staticmethod
+    def _analysis(target_qualified_name: str) -> AnalysisInsights:
+        return AnalysisInsights(
+            description="analysis",
+            components=[component("1.1", "A"), component("1.2", "B")],
+            components_relations=[
+                Relation(
+                    relation="delegates to",
+                    src_name="A",
+                    dst_name="B",
+                    evidence="wired at startup",
+                    key_edges=[
+                        RelationEdge(
+                            source=SourceCodeReference(qualified_name="a.func", reference_file="src/a.py"),
+                            target=SourceCodeReference(qualified_name=target_qualified_name, reference_file="src/c.py"),
+                        )
+                    ],
+                )
+            ],
+        )
+
+    def test_drops_a_key_edge_owned_by_a_component_outside_this_scope(self):
+        analysis = self._analysis("c.func")
+        ownership = ComponentOwnershipIndex.from_clustering_hierarchy(self._hierarchy())
+
+        enricher(component_ownership=ownership).merge_scope_relations(analysis, self._sub_scope())
+
+        self.assertEqual(len(analysis.components_relations), 1)
+        self.assertEqual(analysis.components_relations[0].all_edges, [])
+
+    def test_scope_only_ownership_cannot_judge_that_edge(self):
+        """Why the map had to change: the scope's own components leave c.func unresolved."""
+        analysis = self._analysis("c.func")
+        scope_only = ComponentOwnershipIndex.from_node_owners({"a.func": "1.1", "b.func": "1.2"})
+
+        enricher(component_ownership=scope_only).merge_scope_relations(analysis, self._sub_scope())
+
+        self.assertEqual(len(analysis.components_relations[0].all_edges), 1)
+
+    def test_keeps_a_key_edge_owned_by_a_descendant_of_the_declared_target(self):
+        analysis = self._analysis("b.func")
+        ownership = ComponentOwnershipIndex.from_clustering_hierarchy(self._hierarchy())
+
+        enricher(component_ownership=ownership).merge_scope_relations(analysis, self._sub_scope())
+
+        self.assertEqual(len(analysis.components_relations[0].all_edges), 1)

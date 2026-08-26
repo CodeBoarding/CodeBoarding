@@ -1046,6 +1046,10 @@ class DiagramGenerator:
         parsing_llm: BaseChatModel,
     ) -> None:
         """Initialize agents that depend on static analysis and project metadata."""
+        assert self.clustering_hierarchy is not None
+        # One index for the whole run: every scope agent judges its relation edges against
+        # the full hierarchy, not against the handful of components it is naming.
+        component_ownership = ComponentOwnershipIndex.from_clustering_hierarchy(self.clustering_hierarchy)
         self.details_agent = DetailsAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
@@ -1053,6 +1057,7 @@ class DiagramGenerator:
             meta_context=meta_context,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
+            component_ownership=component_ownership,
         )
         self.abstraction_agent = AbstractionAgent(
             repo_dir=self.repo_location,
@@ -1061,6 +1066,7 @@ class DiagramGenerator:
             meta_context=meta_context,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
+            component_ownership=component_ownership,
         )
         self.incremental_agent = IncrementalAgent(
             repo_dir=self.repo_location,
@@ -1069,6 +1075,7 @@ class DiagramGenerator:
             meta_context=meta_context,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
+            component_ownership=component_ownership,
             changes=self.changes,
         )
         self._monitoring_agents.update(

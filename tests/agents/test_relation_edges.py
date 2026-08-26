@@ -2,7 +2,11 @@ from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
 from agents.file_index_models import FileEntry, MethodEntry
-from agents.relation_edges import _edge_touches_changed_method, index_relation_endpoints
+from agents.component_ownership import ComponentOwnershipIndex
+from agents.relation_edges import (
+    _edge_touches_changed_method,
+    index_relation_endpoints,
+)
 from static_analyzer.config import NodeType
 
 
@@ -129,3 +133,10 @@ def test_a_new_call_to_an_untouched_function_still_counts() -> None:
     # The commonest way a real dependency appears: a caller edited to call something that
     # already existed. Requiring BOTH ends to change would suppress it.
     assert _edge_touches_changed_method(_changed_edge("pkg.caller", "pkg.old"), {"pkg.caller"})
+
+
+def _edge(source_file: str, source_name: str, target_file: str, target_name: str) -> RelationEdge:
+    return RelationEdge(
+        source=SourceCodeReference(qualified_name=source_name, reference_file=source_file),
+        target=SourceCodeReference(qualified_name=target_name, reference_file=target_file),
+    )

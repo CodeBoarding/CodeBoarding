@@ -19,6 +19,7 @@ from agents.relation_edges import (
 from clustering_ids import CodeBoardingClusterIds
 from constants import DEFAULT_STATIC_RELATION_LABEL
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
+from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import Edge
 from static_analyzer.clustering import ClusterScopeResult, GroupConnection
 
@@ -29,6 +30,11 @@ class StaticAnalysisEnricherMixin:
     """Enrich LLM output from one authoritative clustering scope."""
 
     repo_dir: Path
+    static_analysis: StaticAnalysisResults
+    #: Symbol ownership for the WHOLE hierarchy, not just the scope being enriched: an
+    #: endpoint owned by a component in another branch of the tree can only be judged
+    #: against a map that covers that branch.
+    component_ownership: ComponentOwnershipIndex
 
     @staticmethod
     def assemble_one_component_per_group(
@@ -99,12 +105,10 @@ class StaticAnalysisEnricherMixin:
         total = sum(len(group.qualified_names) for group in scope.groups)
         logger.info("Component symbol coverage: %d/%d assigned", assigned, total)
 
-    @staticmethod
-    def merge_scope_relations(analysis: AnalysisInsights, scope: ClusterScopeResult) -> None:
+    def merge_scope_relations(self, analysis: AnalysisInsights, scope: ClusterScopeResult) -> None:
         """Merge LLM relations with precomputed scope connection evidence."""
         merged: list[Relation] = []
         matched_pairs: set[tuple[str, str]] = set()
-        ownership = ComponentOwnershipIndex.from_analysis(analysis)
 
         for llm_relation in analysis.components_relations:
             source = analysis.component_by_id(llm_relation.src_id) or analysis.component_by_name(llm_relation.src_name)
@@ -112,16 +116,11 @@ class StaticAnalysisEnricherMixin:
             src_id = source.component_id if source is not None else ""
             dst_id = target.component_id if target is not None else ""
             connection = scope.connection_between(src_id, dst_id)
-            static_edges = StaticAnalysisEnricherMixin._connection_edges(scope, connection)
+            static_edges = self._connection_edges(scope, connection)
             key_edges = [
                 edge
                 for edge in llm_relation.key_edges
-                if edge_crosses_components(
-                    edge,
-                    ownership.owner_of,
-                    src_id,
-                    dst_id,
-                )
+                if edge_crosses_components(edge, self.component_ownership.owner_of, src_id, dst_id)
             ]
             has_evidence = bool(llm_relation.evidence.strip())
             if not static_edges and not key_edges and not has_evidence:
@@ -157,7 +156,7 @@ class StaticAnalysisEnricherMixin:
             pair = (connection.source_group_id, connection.target_group_id)
             if pair in matched_pairs:
                 continue
-            edges = StaticAnalysisEnricherMixin._connection_edges(scope, connection)
+            edges = self._connection_edges(scope, connection)
             if not edges:
                 continue
             source = analysis.component_by_id(connection.source_group_id)
@@ -183,17 +182,16 @@ class StaticAnalysisEnricherMixin:
             sum(1 for relation in analysis.components_relations if not relation.is_static),
         )
 
-    @staticmethod
     def prune_relations(
+        self,
         analysis: AnalysisInsights,
         keep_edge: Callable[[RelationEdge], bool],
         changed_members: set[str] | None = None,
     ) -> None:
         """Re-apply static edge filters after incremental relation preservation."""
-        ownership = ComponentOwnershipIndex.from_analysis(analysis)
         analysis.components_relations = prune_ungrounded_edges(
             analysis.components_relations,
-            ownership.owner_of,
+            self.component_ownership.owner_of,
             keep_edge,
             changed_members,
         )

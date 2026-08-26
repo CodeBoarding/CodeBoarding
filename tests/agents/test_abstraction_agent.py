@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from agents.abstraction_agent import AbstractionAgent
+from agents.component_ownership import ComponentOwnershipIndex
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
@@ -61,6 +62,7 @@ class TestAbstractionAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            component_ownership=ComponentOwnershipIndex({}),
         )
 
         self.assertEqual(agent.project_name, self.project_name)
@@ -75,6 +77,7 @@ class TestAbstractionAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=MagicMock(),
             parsing_llm=MagicMock(),
+            component_ownership=ComponentOwnershipIndex({}),
         )
 
     def test_run_uses_the_precomputed_groups(self):
@@ -113,6 +116,7 @@ class TestAbstractionAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            component_ownership=ComponentOwnershipIndex({}),
         )
 
         scope = ClusterScopeResult(
