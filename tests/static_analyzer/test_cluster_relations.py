@@ -14,6 +14,7 @@ from agents.agent_responses import (
 from agents.component_ownership import ComponentOwnershipIndex
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.relation_edges import (
+    drop_misattributed_edges,
     drop_reverse_duplicates,
     edge_crosses_components,
     ground_relation_edges,
@@ -296,6 +297,69 @@ class TestGroundRelationEdges(unittest.TestCase):
         key_edges, all_edges = ground_relation_edges([], [dup, dup])
         self.assertEqual(len(all_edges), 1)
         self.assertEqual(key_edges, [])
+
+
+class TestDropMisattributedEdges(unittest.TestCase):
+    """A sub-scope agent indexes only its own scope, so an out-of-scope endpoint resolves to
+    nothing and its edge survives that scope's own gate. The frontier-wide owner map resolves
+    it and rejects the mismatch."""
+
+    NODES = {"pkg.a.caller": "1.1", "pkg.a.helper": "1.1", "pkg.b.callee": "1.2", "pkg.c.far": "3.4"}
+
+    def _relation(self, edges, evidence="", src_id="1.1", dst_id="1.2"):
+        return Relation(
+            relation="calls",
+            src_name="A",
+            dst_name="B",
+            src_id=src_id,
+            dst_id=dst_id,
+            evidence=evidence,
+            key_edges=list(edges),
+            all_edges=list(edges),
+        )
+
+    def _drop(self, relations):
+        return drop_misattributed_edges(relations, _owner_of(self.NODES))
+
+    def test_an_edge_owned_outside_the_declared_pair_is_dropped(self):
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.c.far")])
+        self.assertEqual(self._drop([rel])[0].all_edges, [])
+
+    def test_a_dropped_edge_leaves_the_relation_standing_on_its_evidence(self):
+        # 33 of 42 inferred relations in the eval corpus already serialize with no edges, so
+        # an edgeless relation is ordinary output — the prose is the claim.
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.c.far")], evidence="over the queue")
+        kept = self._drop([rel])
+        self.assertEqual([(r.src_id, r.dst_id, r.evidence) for r in kept], [("1.1", "1.2", "over the queue")])
+
+    def test_a_dropped_edge_is_dropped_from_key_edges_too(self):
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.c.far")])
+        self.assertEqual(self._drop([rel])[0].key_edges, [])
+
+    def test_a_crossing_edge_survives(self):
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
+        kept = self._drop([rel])
+        self.assertEqual([e.target.qualified_name for e in kept[0].all_edges], ["pkg.b.callee"])
+        self.assertEqual(len(kept[0].key_edges), 1)
+
+    def test_an_edge_owned_by_a_descendant_of_the_declared_component_survives(self):
+        # The global map owns a symbol at the deepest expanded level; a relation declared one
+        # level up is still the connection that edge makes.
+        owner_of = _owner_of({"pkg.a.caller": "1.1.3", "pkg.b.callee": "1.2.1"})
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
+        self.assertEqual(len(drop_misattributed_edges([rel], owner_of)[0].all_edges), 1)
+
+    def test_an_endpoint_no_component_owns_is_left_alone(self):
+        # An external library call is legitimate evidence for a runtime relation.
+        rel = self._relation([_make_relation_edge("pkg.a.caller", "third_party.lib.send")])
+        self.assertEqual(len(self._drop([rel])[0].all_edges), 1)
+
+    def test_no_relation_is_ever_removed(self):
+        rels = [
+            self._relation([_make_relation_edge("pkg.a.caller", "pkg.c.far")]),
+            self._relation([], src_id="1.2", dst_id="1.1"),
+        ]
+        self.assertEqual([(r.src_id, r.dst_id) for r in self._drop(rels)], [("1.1", "1.2"), ("1.2", "1.1")])
 
 
 class TestPruneUngroundedEdges(unittest.TestCase):

@@ -2357,5 +2357,111 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNot(mock_absorb.call_args.args[2][0], live_cache)
 
 
+class TestSubScopeRelationsAreGloballyGated(unittest.TestCase):
+    """A sub-scope agent indexes only its own components, so an edge naming a symbol owned
+    elsewhere in the tree resolves to nothing there and survives. ``rebuild_global_relations``
+    runs at the complete expansion frontier with canonical endpoints, which is the only place
+    that owner is knowable."""
+
+    def _generator(self) -> DiagramGenerator:
+        gen = DiagramGenerator.__new__(DiagramGenerator)
+        gen.static_analysis = StaticAnalysisResults()
+        gen.static_analysis.add_cfg(Language.PYTHON, CallGraph(edges=[]))
+        gen.repo_location = Path(".")
+        gen._baseline_global_relations = None
+        return gen
+
+    def _tree(self) -> tuple[AnalysisInsights, dict[str, AnalysisInsights]]:
+        def component(component_id: str, qualified_name: str) -> Component:
+            return Component(
+                name=f"c{component_id}",
+                description="d",
+                key_entities=[],
+                component_id=component_id,
+                file_methods=[
+                    FileMethodGroup(
+                        file_path="src/a.py",
+                        methods=[
+                            MethodEntry(
+                                qualified_name=qualified_name,
+                                start_line=1,
+                                end_line=5,
+                                node_type="FUNCTION",
+                            )
+                        ],
+                    )
+                ],
+            )
+
+        root = AnalysisInsights(
+            description="d",
+            components=[component("1", "pkg.one"), component("2", "pkg.two")],
+            components_relations=[],
+        )
+        subs = {
+            "1": AnalysisInsights(
+                description="d",
+                components=[component("1.1", "pkg.one.a"), component("1.2", "pkg.one.b")],
+                components_relations=[],
+            ),
+            "2": AnalysisInsights(
+                description="d",
+                components=[component("2.1", "pkg.two.a")],
+                components_relations=[],
+            ),
+        }
+        return root, subs
+
+    def _relation(self, source: str, target: str) -> Relation:
+        edge = RelationEdge(
+            source=SourceCodeReference(qualified_name=source, reference_file="src/a.py"),
+            target=SourceCodeReference(qualified_name=target, reference_file="src/a.py"),
+        )
+        return Relation(
+            relation="calls",
+            src_name="A",
+            dst_name="B",
+            evidence="stated in prose too",
+            src_id="1.1",
+            dst_id="1.2",
+            key_edges=[edge],
+            all_edges=[edge],
+        )
+
+    def test_an_edge_owned_by_another_scope_is_dropped_from_a_sub_analysis(self):
+        gen = self._generator()
+        root, subs = self._tree()
+        subs["1"].components_relations = [self._relation("pkg.one.a", "pkg.two.a")]
+
+        gen.rebuild_global_relations(root, subs)
+
+        self.assertEqual(subs["1"].components_relations[0].all_edges, [])
+        self.assertEqual(subs["1"].components_relations[0].key_edges, [])
+
+    def test_the_stripped_relation_is_kept_on_its_evidence(self):
+        gen = self._generator()
+        root, subs = self._tree()
+        subs["1"].components_relations = [self._relation("pkg.one.a", "pkg.two.a")]
+
+        gen.rebuild_global_relations(root, subs)
+
+        self.assertEqual(
+            [(rel.src_id, rel.dst_id, rel.evidence) for rel in subs["1"].components_relations],
+            [("1.1", "1.2", "stated in prose too")],
+        )
+
+    def test_an_edge_that_does_connect_the_declared_pair_survives(self):
+        gen = self._generator()
+        root, subs = self._tree()
+        subs["1"].components_relations = [self._relation("pkg.one.a", "pkg.one.b")]
+
+        gen.rebuild_global_relations(root, subs)
+
+        self.assertEqual(
+            [edge.target.qualified_name for edge in subs["1"].components_relations[0].all_edges],
+            ["pkg.one.b"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

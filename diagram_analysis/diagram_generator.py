@@ -36,7 +36,12 @@ from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
-from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations, prune_ungrounded_edges
+from agents.relation_edges import (
+    drop_misattributed_edges,
+    index_relation_endpoints,
+    preserve_unchanged_relations,
+    prune_ungrounded_edges,
+)
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
@@ -1254,12 +1259,16 @@ class DiagramGenerator:
 
         Walks the full CFG with a global node->deepest-component-id map so we
         catch edges like ``1.1.1 -> 2.1.2`` that per-level analysis cannot see.
-        Mutates ``root_analysis.components_relations`` in place.
+        Mutates ``root_analysis.components_relations`` in place, and applies the same
+        frontier-wide ownership gate to every sub-scope's relations.
         """
         if not self.static_analysis:
             return []
         cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
         global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs)
+        ownership = ComponentOwnershipIndex.from_node_owners(
+            build_global_node_to_component_map(root_analysis, sub_analyses)
+        )
         if self._baseline_global_relations is not None:
             # Incremental: the wholesale rebuild would relabel edges between two untouched
             # components, so carry those over verbatim from the baseline.
@@ -1292,9 +1301,6 @@ class DiagramGenerator:
             )
             # Same reason as the per-scope path: preservation re-injects baseline edges after
             # the grounding filters ran, so the assembled list is filtered once more.
-            ownership = ComponentOwnershipIndex.from_node_owners(
-                build_global_node_to_component_map(root_analysis, sub_analyses)
-            )
             global_relations = prune_ungrounded_edges(
                 global_relations,
                 ownership.owner_of,
@@ -1302,6 +1308,10 @@ class DiagramGenerator:
                 self._changed_members,
             )
         root_analysis.components_relations = global_relations
+        for sub_analysis in sub_analyses.values():
+            sub_analysis.components_relations = drop_misattributed_edges(
+                sub_analysis.components_relations, ownership.owner_of
+            )
         return global_relations
 
     def finalize_for_save(
