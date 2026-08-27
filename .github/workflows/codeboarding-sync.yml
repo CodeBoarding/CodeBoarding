@@ -25,7 +25,7 @@ on:
 
 permissions:
   contents: write   # commit the generated baseline + docs to the branch
-  id-token: write   # mint a GitHub OIDC token for the free hosted tier (omit if you set a key/license)
+  id-token: write   # mint a GitHub OIDC token; required by llm: license as well as the free tier
 
 concurrency:
   # Serialize against itself so a push landing mid-run can't make two commits.

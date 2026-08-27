@@ -23,7 +23,7 @@ jobs:
       actions: read         # download the analysis an earlier run published, instead of re-deriving this PR every push
       pull-requests: write  # post the architecture-diff PR comment
       issues: write         # the /codeboarding issue_comment trigger + comment API
-      id-token: write       # mint a GitHub OIDC token for the free hosted tier (write is the only level for id-token)
+      id-token: write       # mint a GitHub OIDC token; both hosted tiers, free and licensed, need it
     if: >
       (github.event_name == 'pull_request' && github.event.action != 'closed' &&
        github.event.pull_request.draft == false &&
