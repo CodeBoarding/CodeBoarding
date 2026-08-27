@@ -40,11 +40,9 @@ jobs:
           # Requires the licensed tier (the free tier caps depth at 3).
           depth_level: 4
           # Named, not inferred: the action requires `llm` and fails rather than falling
-          # back, so this says outright what every run has actually used. Both secrets
-          # were already wired here and OPENROUTER_API_KEY took precedence, which is
-          # exactly what `llm: openrouter` keeps. The licence stays wired alongside it
-          # (the action reports that pair as `byok+license`) so the entitlement is still
-          # recorded; it is what lifts the free tier's depth cap off `depth_level: 4`.
-          llm: openrouter
-          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          # back to anything. CodeBoarding's own repositories run on the CodeBoarding
+          # plan, which is also what lifts the free tier's depth cap off `depth_level: 4`.
+          # Both secrets used to be wired here at once and OPENROUTER_API_KEY silently
+          # won, so the plan was never actually spent; this is the deliberate choice.
+          llm: license
           license_key: ${{ secrets.CODEBOARDING_LICENSE }}
