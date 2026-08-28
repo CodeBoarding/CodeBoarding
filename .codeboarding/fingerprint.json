@@ -196,7 +196,7 @@
     "diagram_analysis/io_utils.py": "ca9d02a113a5cf91",
     "diagram_analysis/incremental_changes.py": "33d1be923b501a66",
     "diagram_analysis/run_mode.py": "76a7ee42c56fbee7",
-    "diagram_analysis/file_index.py": "fc165dbb1b94e4c4",
+    "diagram_analysis/file_index.py": "f75b4bdc92239ac1",
     "health/__init__.py": "6a81ac923657ec6b",
     "health/models.py": "6e3a2e45ef42096d",
     "health/runner.py": "e60cd65bf6cc462e",
