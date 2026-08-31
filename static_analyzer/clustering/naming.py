@@ -1,0 +1,268 @@
+"""Partition symbols by what their qualified names say.
+
+A qualified name has two halves. ``src/Catalog.API/Model/CatalogItem`` is structural
+(``Catalog.API``, ``Model``) and lexical (``Catalog``, ``Item``). Which half carries the
+architecture is a property of the repo, not of the algorithm: where the top-level scopes are
+features the structural half is the answer, and where they are layers -- ``Api``,
+``Application``, ``Domain``, ``Infrastructure`` -- the feature survives only in the
+identifiers, and grouping by scope reproduces the layering.
+
+The components, the vocabulary each owns, the machinery vocabulary and the per-scope
+feature/layer call arrive as a :class:`NamingModel` decided once per full analysis.
+Everything here is arithmetic over names, so an incremental run reusing the model reproduces
+the same partition exactly.
+"""
+
+from __future__ import annotations
+
+import re
+from collections import Counter
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import PurePosixPath
+
+from clustering_ids import ClusterId
+from static_analyzer.clustering.models import ClusterResult
+
+INFRASTRUCTURE = "Infrastructure"
+"""Where symbols carrying no domain vocabulary go. One named component rather than a
+scattering: a symbol the vocabulary cannot place is evidence of absence, and spreading it
+across the others invents membership the names do not support."""
+
+BUILD_ROOTS = frozenset({"src", "lib", "source", "sources", "packages", "apps", "modules", "pkg"})
+"""Directories that name a build layout rather than a scope, so they are no part of a name."""
+
+_TOKEN = re.compile(r"[A-Z]+(?![a-z])|[A-Z][a-z0-9]*|[a-z0-9]+")
+_GENERIC_ARITY = re.compile(r"`\d+$")
+_INTERFACE_PREFIX = re.compile(r"^I(?=[A-Z])")
+_INFLECTIONS = ("ing", "ies", "es", "s")
+
+
+def tokenize(identifier: str) -> tuple[str, ...]:
+    """Split an identifier into its words.
+
+    Handles CamelCase, snake_case and runs of capitals (``HTTPServer`` -> ``HTTP``,
+    ``Server``). Drops a parameter list, generic arguments, a C# generic arity suffix, and
+    the ``I`` a C#/Java interface name starts with.
+    """
+    name = identifier.split("(", 1)[0]
+    name = _GENERIC_ARITY.sub("", name)
+    name = re.sub(r"<[^<>]*>", "", name)
+    name = _INTERFACE_PREFIX.sub("", name.strip())
+    return tuple(_TOKEN.findall(name))
+
+
+def stem(word: str) -> str:
+    """Fold the inflections a name carries, so ``Ordering`` and ``Order`` are one word."""
+    lowered = word.casefold()
+    for suffix in _INFLECTIONS:
+        if len(lowered) > len(suffix) + 2 and lowered.endswith(suffix):
+            return lowered[: -len(suffix)]
+    return lowered
+
+
+def scope_of(file_path: str) -> str:
+    """The outermost scope a file is declared under, ignoring build roots."""
+    parts = [part for part in PurePosixPath(file_path).parts[:-1] if part.casefold() not in BUILD_ROOTS]
+    return parts[0] if parts else ""
+
+
+def ubiquitous_words(scope_names: set[str]) -> frozenset[str]:
+    """Words every scope carries, which therefore distinguish no scope from another.
+
+    ``Modulify.Catalog``, ``Modulify.Player`` and ``Modulify.Library`` all start with
+    ``Modulify``; keeping it leaves every scope one word and collapses the repo to a single
+    component.
+    """
+    per_scope = [{stem(word) for word in tokenize(name)} for name in scope_names if name]
+    return frozenset(set.intersection(*per_scope)) if per_scope else frozenset()
+
+
+@dataclass(frozen=True)
+class Component:
+    """A component the naming model proposes, and the vocabulary it owns."""
+
+    name: str
+    owns: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class NamingModel:
+    """The per-repo decision an incremental run reuses verbatim."""
+
+    components: tuple[Component, ...]
+    machinery: frozenset[str]
+    """Vocabulary naming how software is built rather than what this system is about. It
+    never owns a component, so ``Handler`` cannot gather every handler into one box."""
+    scope_kinds: dict[str, str]
+    """Each top-level scope as ``"feature"`` or ``"layer"``. Asked per scope because "is
+    ``Beacon.Domain`` a feature or a layer" is checkable, where "how structural is this
+    repo, 0 to 1" is not -- and the latter moved between 0.3 and 0.8 across draws."""
+
+    def owner_by_word(self) -> dict[str, str]:
+        owner: dict[str, str] = {}
+        machinery = {word.casefold() for word in self.machinery}
+        for component in self.components:
+            for word in component.owns:
+                key = stem(word)
+                if key not in machinery and word.casefold() not in machinery:
+                    owner.setdefault(key, component.name)
+        return owner
+
+    def scopes_are_features(self, scope_names: set[str]) -> bool:
+        named = [name for name in scope_names if name]
+        if not named:
+            return False
+        features = sum(1 for name in named if self.scope_kinds.get(name, "feature") == "feature")
+        return features / len(named) >= 0.5
+
+
+@dataclass(frozen=True)
+class NamePartition:
+    """An assignment plus the evidence for how far to trust it."""
+
+    assignment: dict[str, str]
+    placed: int
+    total: int
+    by_structure: bool
+
+    @property
+    def coverage(self) -> float:
+        """Fraction of units the vocabulary could place.
+
+        Low coverage is the signal that a repo has no domain vocabulary to cluster on -- a
+        compiler whose every noun is Node, Visitor and Context. Callers must surface it
+        rather than let ``Infrastructure`` quietly swallow the repo.
+        """
+        return self.placed / self.total if self.total else 0.0
+
+
+@dataclass(frozen=True)
+class Unit:
+    """One thing to place: a leaf cluster, or a single symbol."""
+
+    files: tuple[str, ...]
+    qualified_names: tuple[str, ...]
+
+
+def partition_by_name(
+    units: dict[str, Unit],
+    model: NamingModel,
+    *,
+    delimiter: str = ".",
+) -> NamePartition:
+    """Assign each unit to a component, by whichever half of its names carries the architecture."""
+    scope_names = {scope_of(path) for unit in units.values() for path in unit.files}
+    if model.scopes_are_features(scope_names):
+        return _by_scope(units, model, scope_names)
+    return _by_vocabulary(units, model, delimiter)
+
+
+def group_leaf_clusters(
+    cluster_results: Mapping[str, ClusterResult],
+    model: NamingModel,
+    *,
+    delimiter: str = ".",
+) -> tuple[list[set[ClusterId]], NamePartition]:
+    """Group leaf clusters into components by name, for ``GroupingService``.
+
+    Returns groups that are exhaustive over every cluster id and disjoint, which is what
+    ``_assign_symbol_members`` asserts. A component the names leave empty is dropped, so a
+    scope can never produce a group with nothing in it.
+    """
+    units: dict[str, Unit] = {}
+    for result in cluster_results.values():
+        for cluster_id, qualified_names in result.clusters.items():
+            units[str(cluster_id)] = Unit(
+                files=tuple(sorted(result.cluster_to_files.get(cluster_id, set()))),
+                qualified_names=tuple(sorted(qualified_names)),
+            )
+
+    partition = partition_by_name(units, model, delimiter=delimiter)
+    by_component: dict[str, set[ClusterId]] = {}
+    for unit_id, component in partition.assignment.items():
+        by_component.setdefault(component, set()).add(int(unit_id))
+    return [members for _, members in sorted(by_component.items()) if members], partition
+
+
+def _by_scope(units: dict[str, Unit], model: NamingModel, scope_names: set[str]) -> NamePartition:
+    """Group by the scope a unit sits in, merging scopes that share their own word.
+
+    The scope is a grouping key, not a vocabulary lookup: a scope the model never enumerated
+    is still a component. Scopes merge on their own distinctive word rather than on a
+    component's ``owns``, which keeps ``Ordering.API``, ``Ordering.Domain`` and
+    ``OrderProcessor`` together while leaving ``PaymentProcessor`` alone -- letting ``owns``
+    do it instead pulled payments into ordering and the web app into the mobile client.
+    """
+    machinery = {word.casefold() for word in model.machinery}
+    ubiquitous = ubiquitous_words(scope_names)
+    assignment: dict[str, str] = {}
+    placed = 0
+
+    for unit_id, unit in units.items():
+        scopes = Counter(scope_of(path) for path in unit.files if scope_of(path))
+        if not scopes:
+            assignment[unit_id] = INFRASTRUCTURE
+            continue
+        scope = max(sorted(scopes), key=lambda name: (scopes[name], name))
+        assignment[unit_id] = _distinctive_word(scope, machinery, ubiquitous) or scope
+        placed += 1
+
+    return NamePartition(assignment, placed, len(units), by_structure=True)
+
+
+def _by_vocabulary(units: dict[str, Unit], model: NamingModel, delimiter: str) -> NamePartition:
+    """Group by the domain words the identifiers carry."""
+    owner = model.owner_by_word()
+    machinery = {word.casefold() for word in model.machinery}
+    assignment: dict[str, str] = {}
+    placed = 0
+
+    for unit_id, unit in units.items():
+        votes: Counter[str] = Counter()
+        for qualified_name in unit.qualified_names:
+            for part in _segments(qualified_name, delimiter):
+                words = tokenize(part)
+                for position, word in enumerate(words):
+                    key = stem(word)
+                    if word.casefold() in machinery or key in machinery or key not in owner:
+                        continue
+                    # A noun phrase modifies rightwards, so a word nearer the head weighs
+                    # more. That reads `IncidentResolvedMetricsHandler` as metrics: it
+                    # reacts to the incident event rather than being about incidents.
+                    votes[owner[key]] += 2.0 ** (position - (len(words) - 1))
+        if votes:
+            assignment[unit_id] = max(sorted(votes), key=lambda name: (votes[name], name))
+            placed += 1
+        else:
+            assignment[unit_id] = INFRASTRUCTURE
+
+    return NamePartition(assignment, placed, len(units), by_structure=False)
+
+
+def _distinctive_word(scope_name: str, machinery: set[str], ubiquitous: frozenset[str]) -> str:
+    """The first word of a scope name that names this scope rather than every scope."""
+    for word in tokenize(scope_name):
+        folded = stem(word)
+        if word.casefold() not in machinery and folded not in machinery and folded not in ubiquitous:
+            return folded
+    return ""
+
+
+def _segments(qualified_name: str, delimiter: str) -> list[str]:
+    """Split on *delimiter*, keeping parameter lists and generics whole."""
+    out: list[str] = []
+    depth = 0
+    current: list[str] = []
+    for char in qualified_name:
+        if char in "(<":
+            depth += 1
+        elif char in ")>":
+            depth -= 1
+        if char == delimiter and depth == 0:
+            out.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    out.append("".join(current))
+    return [part for part in out if part]
