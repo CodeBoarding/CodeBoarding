@@ -286,6 +286,7 @@ class TestLspAdapterAndLanguageEnumParity(unittest.TestCase):
         "go": "Go",
         "php": "PHP",
         "csharp": "CSharp",
+        "fsharp": "FSharp",
         "java": "Java",
         "rust": "Rust",
     }

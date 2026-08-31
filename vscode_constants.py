@@ -113,6 +113,15 @@ VSCODE_CONFIG = {
             # tool_registry. Full migration mode targets .NET 10.
             "install_commands": "codeboarding-setup (installs csharp-ls automatically; requires .NET SDK 10.0+)",
         },
+        "fsharp": {
+            "name": "FsAutoComplete Language Server",
+            "command": ["fsautocomplete"],
+            "languages": ["fsharp"],
+            "file_extensions": [".fs"],
+            # fsautocomplete is installed via `dotnet tool install --tool-path`
+            # by tool_registry; the install_commands string is informational only.
+            "install_commands": "codeboarding-setup (installs fsautocomplete automatically; requires a .NET SDK)",
+        },
         "java": {
             "name": "Eclipse JDT Language Server",
             "command": ["java"],  # Placeholder - will be resolved by update_command_paths()

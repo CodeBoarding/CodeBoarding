@@ -114,6 +114,15 @@ class LanguageAdapter(ABC):
             return f"{module}.{parents}.{symbol_name}"
         return f"{module}.{symbol_name}"
 
+    def normalize_symbols(self, symbols: list[dict]) -> list[dict]:
+        """Reshape a ``documentSymbol`` response before it is registered.
+
+        Default: pass through. Override for a server that returns a flat list
+        where the protocol permits nesting, or that reports a symbol kind the
+        rest of the pipeline cannot act on.
+        """
+        return symbols
+
     def build_reference_key(self, qualified_name: str) -> str:
         """Build the reference key from a qualified name.
 

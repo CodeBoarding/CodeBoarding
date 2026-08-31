@@ -21,6 +21,7 @@ from static_analyzer.engine.lsp_recycler import default_memory_budget, per_engin
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
+from static_analyzer.fsharp_config_scanner import FSharpConfigScanner
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -207,6 +208,20 @@ def _create_engine_configs(
                 else:
                     logger.info("No C# projects detected")
 
+            elif adapter_name == AdapterName.FSHARP:
+                fsharp_scanner = FSharpConfigScanner(repository_path, ignore_manager=ignore_manager)
+                fsharp_projects = fsharp_scanner.scan()
+
+                if fsharp_projects:
+                    for fsharp_config in fsharp_projects:
+                        logger.info(
+                            f"Creating engine config for FSharp ({fsharp_config.project_type}) at: "
+                            f"{fsharp_config.root.relative_to(repository_path)}"
+                        )
+                        configs.append(EngineConfig(adapter, fsharp_config.root))
+                else:
+                    logger.info("No F# projects detected")
+
             else:
                 configs.append(EngineConfig(adapter, repository_path))
 
@@ -223,6 +238,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
         Language.TYPESCRIPT: AdapterName.TYPESCRIPT,
         Language.JAVASCRIPT: AdapterName.JAVASCRIPT,
         Language.CSHARP: AdapterName.CSHARP,
+        Language.FSHARP: AdapterName.FSHARP,
         Language.GO: AdapterName.GO,
         Language.JAVA: AdapterName.JAVA,
         Language.PHP: AdapterName.PHP,
@@ -231,6 +247,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "tsx": AdapterName.TYPESCRIPT,
         "jsx": AdapterName.JAVASCRIPT,
         "c#": AdapterName.CSHARP,
+        "f#": AdapterName.FSHARP,
     }
     return mapping.get(language.lower())
 
