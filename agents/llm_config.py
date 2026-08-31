@@ -91,6 +91,8 @@ class LLMConfig:
         selection_envs: Env vars that select this provider — any one being set selects it.
         api_key_env: Env var holding the provider's secret, or None when the
                      underlying SDK reads its credentials from the environment itself.
+        base_url_env: Env var that overrides the provider endpoint, or an empty string when unsupported.
+        default_base_url: Built-in endpoint used when base_url_env is unset, or an empty string for the SDK default.
         agent_model: The "agent" model used for complex reasoning and agentic tasks.
         parsing_model: The "parsing" model used for fast, cost-effective extraction and parsing tasks.
         agent_temperature: Temperature for the agent model. Defaults to 0 for deterministic behavior
@@ -109,6 +111,8 @@ class LLMConfig:
     parsing_temperature: float = LLMDefaults.DEFAULT_PARSING_TEMPERATURE
     extra_args: dict[str, Any] = field(default_factory=dict)
     api_key_env: str | None = None
+    base_url_env: str = ""
+    default_base_url: str = ""
     keyless_capable: bool = False
     """Whether this provider can run without a real API key.
 
@@ -139,6 +143,10 @@ class LLMConfig:
             value = v() if callable(v) else v
             if value is not None:
                 resolved[k] = value
+        if self.base_url_env:
+            base_url = os.getenv(self.base_url_env, self.default_base_url or None)
+            if base_url is not None:
+                resolved["base_url"] = base_url
         return resolved
 
 
@@ -152,8 +160,8 @@ LLM_PROVIDERS = {
         parsing_model="gpt-4o-mini",
         llm_type=LLMType.GPT4,
         keyless_capable=True,
+        base_url_env="OPENAI_BASE_URL",
         extra_args={
-            "base_url": lambda: os.getenv("OPENAI_BASE_URL"),
             "max_tokens": None,
             "timeout": None,
             "max_retries": 0,
@@ -166,8 +174,9 @@ LLM_PROVIDERS = {
         agent_model="google/gemini-3.7-flash",
         parsing_model="openai/gpt-5-mini",
         llm_type=LLMType.GEMINI_FLASH,
+        base_url_env="VERCEL_BASE_URL",
+        default_base_url="https://ai-gateway.vercel.sh/v1",
         extra_args={
-            "base_url": lambda: os.getenv("VERCEL_BASE_URL", f"https://ai-gateway.vercel.sh/v1"),
             "max_tokens": None,
             "timeout": None,
             "max_retries": 0,
@@ -180,8 +189,8 @@ LLM_PROVIDERS = {
         agent_model="claude-sonnet-5",
         parsing_model="claude-haiku-4-5",
         llm_type=LLMType.CLAUDE,
+        base_url_env="ANTHROPIC_BASE_URL",
         extra_args={
-            "base_url": lambda: os.getenv("ANTHROPIC_BASE_URL"),
             "thinking": {"type": "disabled"},
             "max_tokens": 8192,
             "timeout": None,
@@ -239,9 +248,7 @@ LLM_PROVIDERS = {
         llm_type=LLMType.GEMINI_FLASH,
         agent_temperature=LLMDefaults.DEFAULT_AGENT_TEMPERATURE,
         parsing_temperature=LLMDefaults.DEFAULT_PARSING_TEMPERATURE,
-        extra_args={
-            "base_url": lambda: os.getenv("OLLAMA_BASE_URL"),
-        },
+        base_url_env="OLLAMA_BASE_URL",
     ),
     "deepseek": LLMConfig(
         chat_class=ChatOpenAI,
@@ -250,8 +257,9 @@ LLM_PROVIDERS = {
         agent_model="deepseek-v4-flash",
         parsing_model="deepseek-v4-flash",
         llm_type=LLMType.DEEPSEEK,
+        base_url_env="DEEPSEEK_BASE_URL",
+        default_base_url="https://api.deepseek.com/v1",
         extra_args={
-            "base_url": lambda: os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
             "max_tokens": None,
             "timeout": None,
             "max_retries": 0,
@@ -264,8 +272,9 @@ LLM_PROVIDERS = {
         agent_model="glm-4.7-flash",
         parsing_model="glm-4.7-flash",
         llm_type=LLMType.GLM,
+        base_url_env="GLM_BASE_URL",
+        default_base_url="https://open.bigmodel.cn/api/paas/v4",
         extra_args={
-            "base_url": lambda: os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
             "max_tokens": None,
             "timeout": None,
             "max_retries": 0,
@@ -278,8 +287,9 @@ LLM_PROVIDERS = {
         agent_model="kimi-k2.6",
         parsing_model="kimi-k2.6",
         llm_type=LLMType.KIMI,
+        base_url_env="KIMI_BASE_URL",
+        default_base_url="https://api.moonshot.cn/v1",
         extra_args={
-            "base_url": lambda: os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1"),
             "max_tokens": None,
             "timeout": None,
             "max_retries": 0,
@@ -292,8 +302,9 @@ LLM_PROVIDERS = {
         agent_model="google/gemini-3.7-flash",
         parsing_model="google/gemini-3.7-flash",
         llm_type=LLMType.GEMINI_FLASH,
+        base_url_env="OPENROUTER_BASE_URL",
+        default_base_url="https://openrouter.ai/api/v1",
         extra_args={
-            "base_url": lambda: os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
             "max_tokens": None,
             "timeout": None,
             "max_retries": 0,
@@ -306,8 +317,9 @@ LLM_PROVIDERS = {
         agent_model="openai/gpt-5.4-mini",
         parsing_model="openai/gpt-5.4-mini",
         llm_type=LLMType.GPT4,
+        base_url_env="ORCAROUTER_BASE_URL",
+        default_base_url="https://api.orcarouter.ai/v1",
         extra_args={
-            "base_url": lambda: os.getenv("ORCAROUTER_BASE_URL", "https://api.orcarouter.ai/v1"),
             "max_tokens": None,
             "timeout": None,
             "max_retries": 0,
@@ -323,8 +335,8 @@ LLM_PROVIDERS = {
         parsing_model="gpt-4o-mini",
         llm_type=LLMType.GPT4,
         keyless_capable=True,
+        base_url_env="LITELLM_BASE_URL",
         extra_args={
-            "base_url": lambda: os.getenv("LITELLM_BASE_URL"),
             "max_tokens": None,
             "timeout": None,
             "max_retries": 0,
@@ -333,20 +345,11 @@ LLM_PROVIDERS = {
 }
 
 
-# Endpoint overrides that affect an already-selected provider rather than
-# selecting one themselves.
-_PROVIDER_ENDPOINT_OVERRIDE_ENV_VARS = frozenset(
-    {
-        "ANTHROPIC_BASE_URL",
-        "OPENROUTER_BASE_URL",
-        "ORCAROUTER_BASE_URL",
-    }
-)
-
-LLM_PROVIDER_ENV_VARS: frozenset[str] = (
-    frozenset(var for config in LLM_PROVIDERS.values() for var in config.selection_envs)
-    | frozenset(config.api_key_env for config in LLM_PROVIDERS.values() if config.api_key_env)
-    | _PROVIDER_ENDPOINT_OVERRIDE_ENV_VARS
+LLM_PROVIDER_ENV_VARS: frozenset[str] = frozenset(
+    var
+    for config in LLM_PROVIDERS.values()
+    for var in [*config.selection_envs, config.api_key_env, config.base_url_env]
+    if var
 )
 LLM_ENV_VARS: frozenset[str] = LLM_PROVIDER_ENV_VARS | frozenset({"AGENT_MODEL", "PARSING_MODEL"})
 
