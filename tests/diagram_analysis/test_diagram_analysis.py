@@ -1568,6 +1568,7 @@ class TestDiagramGenerator(unittest.TestCase):
             depth_cap,
             sub_analyses,
             file_coverage_summary,
+            naming_model,
         ):
             captured["expandable_components"] = expandable_components
             return "{}"

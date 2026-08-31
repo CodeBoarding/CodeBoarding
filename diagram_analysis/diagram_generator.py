@@ -56,6 +56,8 @@ from diagram_analysis.exceptions import (
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
+from agents.naming_model_agent import NamingModelAgent
+from static_analyzer.clustering.naming import NamingModel
 from diagram_analysis.incremental_changes import compute_changed_members
 from repo_utils.path_utils import normalize_repo_path
 from diagram_analysis.scope_plan import plan_scope_result_update
@@ -572,6 +574,10 @@ class DiagramGenerator:
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.clustering_hierarchy: ClusterScopeResult | None = None
+        # What this repo's identifiers say its components are. Read once on a full analysis
+        # and stored in the analysis metadata; an incremental run reuses it verbatim.
+        self.naming_model: NamingModel | None = None
+        self._naming_llms: tuple[BaseChatModel, BaseChatModel] | None = None
         self._pending_cluster_caches: dict[str, ClusterCache] | None = None
         self._incremental_preparation: _IncrementalPreparation | None = None
         self.abstraction_agent: AbstractionAgent | None = None
@@ -622,6 +628,8 @@ class DiagramGenerator:
         self._pending_cluster_caches = None
         pending_cluster_caches = self._stage_cluster_caches()
         depth = hierarchy_depth if hierarchy_depth is not None else self.depth_level
+        self.naming_model = self._resolve_naming_model(static_analysis, incremental)
+        repo_root = str(self.repo_location)
         if incremental:
             root_analysis = persisted_scopes.get(ROOT_SCOPE_ID)
             if root_analysis is None:
@@ -631,7 +639,7 @@ class DiagramGenerator:
             }
             self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
         elif target_component is None:
-            self.clustering_hierarchy = ClusteringService().build_full_hierarchy(
+            self.clustering_hierarchy = ClusteringService(self.naming_model, repo_root).build_full_hierarchy(
                 static_analysis, depth, pending_cluster_caches
             )
         else:
@@ -665,6 +673,30 @@ class DiagramGenerator:
                 json.dump(static_stats, f, indent=2)
             logger.debug(f"Written code_stats.json to {code_stats_file}")
 
+    def _resolve_naming_model(self, static_analysis: StaticAnalysisResults, incremental: bool) -> NamingModel | None:
+        """The components this repo's identifiers name.
+
+        Read once on a full analysis and stored in the analysis metadata; an incremental run
+        reuses it verbatim, so the partition cannot move underneath unchanged code. Returns
+        None when no LLM is configured or the read fails, and clustering falls back to the
+        graph partitioner.
+        """
+        if incremental:
+            stored = (load_analysis_metadata(Path(self.output_dir)) or {}).get("naming_model")
+            if stored:
+                return NamingModel.from_dict(stored)
+            logger.info("[Naming] No stored model on the baseline; keeping the graph partitioner")
+            return None
+        if self._naming_llms is None:
+            return None
+        agent_llm, parsing_llm = self._naming_llms
+        try:
+            return NamingModelAgent(self.repo_location, static_analysis, agent_llm, parsing_llm).read_naming_model()
+        except Exception:
+            # A partition is better than no analysis: fall back rather than fail the run.
+            logger.exception("[Naming] Could not read a naming model; keeping the graph partitioner")
+            return None
+
     def agent_init(self) -> None:
         """Initialize the LLM-backed agents after deterministic analysis."""
         assert self.static_analysis is not None
@@ -695,6 +727,7 @@ class DiagramGenerator:
             return
 
         agent_llm, parsing_llm = initialize_llms()
+        self._naming_llms = (agent_llm, parsing_llm)
         self._initialize_meta_agent(agent_llm, parsing_llm)
         assert self.meta_agent is not None
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -801,7 +834,9 @@ class DiagramGenerator:
             repo_dir=self.repo_location,
         )
         baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
-        self.clustering_hierarchy = ClusteringService().build_incremental_hierarchy(
+        self.clustering_hierarchy = ClusteringService(
+            self.naming_model, str(self.repo_location)
+        ).build_incremental_hierarchy(
             self.static_analysis,
             hierarchy_depth,
             delta.cluster_results(),
@@ -1109,7 +1144,7 @@ class DiagramGenerator:
             raise ClusteringScopeUnavailableError(component.component_id, "no owned CFG nodes")
 
         remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
-        scope = ClusteringService().build_scope_hierarchy(
+        scope = ClusteringService(self.naming_model, str(self.repo_location)).build_scope_hierarchy(
             self.static_analysis,
             graphs,
             remaining_depth,
@@ -1185,6 +1220,7 @@ class DiagramGenerator:
                                 expandable_component_ids=expandable_ids,
                                 sub_expandable_ids=sub_expandable_ids,
                                 depth_cap=self.depth_level,
+                                naming_model=self.naming_model.to_dict() if self.naming_model else None,
                             )
 
                         if new_components and level + 1 < self.depth_level:
@@ -1370,6 +1406,7 @@ class DiagramGenerator:
                 expandable_component_ids=expandable_component_ids,
                 sub_expandable_ids=sub_expandable_ids,
                 depth_cap=self.depth_level,
+                naming_model=self.naming_model.to_dict() if self.naming_model else None,
             ).resolve()
         except Exception:
             self._pending_cluster_caches = None

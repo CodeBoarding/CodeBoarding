@@ -113,6 +113,22 @@ class NamingModel:
     """Vocabulary naming how software is built rather than what this system is about. It
     never owns a component, so ``Handler`` cannot gather every handler into one box."""
 
+    def to_dict(self) -> dict:
+        """Serializable form, so an incremental run reuses the decision rather than re-asking."""
+        return {
+            "components": [{"name": c.name, "owns": list(c.owns)} for c in self.components],
+            "machinery": sorted(self.machinery),
+        }
+
+    @classmethod
+    def from_dict(cls, raw: Mapping) -> NamingModel:
+        return cls(
+            components=tuple(
+                ComponentVocabulary(c["name"], tuple(c.get("owns", ()))) for c in raw.get("components", ())
+            ),
+            machinery=frozenset(raw.get("machinery", ())),
+        )
+
     def owner_by_word(self) -> dict[str, str]:
         owner: dict[str, str] = {}
         machinery = {word.casefold() for word in self.machinery}

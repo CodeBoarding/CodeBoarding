@@ -101,6 +101,7 @@ class _AnalysisFileStore:
         file_coverage_summary: FileCoverageSummary | None = None,
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
+        naming_model: dict | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -120,6 +121,7 @@ class _AnalysisFileStore:
                 file_coverage_summary,
                 sub_expandable_ids,
                 depth_cap,
+                naming_model,
             )
 
     def _write_with_lock_held(
@@ -133,6 +135,7 @@ class _AnalysisFileStore:
         file_coverage_summary: FileCoverageSummary | None = None,
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
+        naming_model: dict | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # A caller-provided set is authoritative: it already reflects the run's expansion
@@ -219,6 +222,7 @@ class _AnalysisFileStore:
             depth_cap=depth_cap,
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
+            naming_model=naming_model,
         )
         write_text_atomic(self._analysis_path, payload)
         return self._analysis_path
@@ -341,6 +345,7 @@ def save_analysis(
     file_coverage_summary: FileCoverageSummary | None = None,
     sub_expandable_ids: dict[str, list[str]] | None = None,
     depth_cap: int | None = None,
+    naming_model: dict | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 
@@ -359,4 +364,5 @@ def save_analysis(
         file_coverage_summary,
         sub_expandable_ids,
         depth_cap,
+        naming_model,
     )
