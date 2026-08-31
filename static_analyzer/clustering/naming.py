@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 from clustering_ids import ClusterId
+from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering.models import ClusterResult
 
 INFRASTRUCTURE = "Infrastructure"
@@ -36,6 +37,9 @@ _TOKEN = re.compile(r"[A-Z]+(?![a-z])|[A-Z][a-z0-9]*|[a-z0-9]+")
 _GENERIC_ARITY = re.compile(r"`\d+$")
 _INTERFACE_PREFIX = re.compile(r"^I(?=[A-Z])")
 _INFLECTIONS = ("ing", "ies", "es", "s")
+
+FILE_STRATEGY = "file_leaves"
+"""Recorded on a ``ClusterResult`` whose leaves are files rather than graph communities."""
 
 SCOPES_ARE_COMPONENTS_RATIO = 0.25
 """How many scopes the components must name before the structural half leads. The measured
@@ -178,6 +182,31 @@ def partition_by_name(
     if model.scopes_are_components(scope_names):
         return _by_scope(units, model, scope_names, repo_root)
     return _by_vocabulary(units, model, delimiter)
+
+
+def file_leaf_clusters(graph: CallGraph) -> ClusterResult:
+    """One leaf cluster per file, for a partition that groups on names.
+
+    Why not Leiden's clusters: they are drawn from the call graph and cross the boundaries a
+    name partition wants to keep. Measured on Beacon, 7 of 21 held symbols from more than one
+    component, which caps *any* grouping over them at 0.34 against a ruler the same names
+    reach 0.90 on. A file crosses no boundary in either ruler, and pools its identifiers, so
+    it carries more vocabulary than a lone symbol does.
+    """
+    clusters: dict[ClusterId, set[str]] = {}
+    cluster_to_files: dict[ClusterId, set[str]] = {}
+    file_to_clusters: dict[str, set[ClusterId]] = {}
+    for cluster_id, file_path in enumerate(sorted({node.file_path for node in graph.nodes.values() if node.file_path})):
+        members = {name for name, node in graph.nodes.items() if node.file_path == file_path}
+        clusters[cluster_id] = members
+        cluster_to_files[cluster_id] = {file_path}
+        file_to_clusters[file_path] = {cluster_id}
+    return ClusterResult(
+        clusters=clusters,
+        cluster_to_files=cluster_to_files,
+        file_to_clusters=file_to_clusters,
+        strategy=FILE_STRATEGY,
+    )
 
 
 def group_leaf_clusters(
