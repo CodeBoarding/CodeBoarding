@@ -22,10 +22,13 @@ logger = logging.getLogger(__name__)
 class GroupingService:
     """Group leaf clusters without retaining graph or partition state."""
 
-    def __init__(self, naming_model: NamingModel | None = None) -> None:
+    def __init__(self, naming_model: NamingModel | None = None, repo_root: str = "") -> None:
         self._naming_model = naming_model
         """What the repo's identifiers say its components are, decided once per full
         analysis. Absent, grouping falls back to the modularity peak over the call graph."""
+        self._repo_root = repo_root
+        """Nodes carry absolute paths, so the scope of a file is only readable against the
+        root. Without it one scope covers the repo and the structural half cannot lead."""
 
     def group(
         self,
@@ -39,7 +42,7 @@ class GroupingService:
         combined = combine_cluster_results(cluster_results)
         combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
         if self._naming_model is not None and not subcomponents:
-            groups, partition = group_leaf_clusters(cluster_results, self._naming_model)
+            groups, partition = group_leaf_clusters(cluster_results, self._naming_model, repo_root=self._repo_root)
             if groups:
                 logger.info(
                     "[Naming] %d components from names (%s half), %.0f%% of clusters placed",

@@ -71,6 +71,17 @@ class TestScopeOf:
     def test_a_root_level_file_has_no_scope(self):
         assert scope_of("Program.cs") == ""
 
+    def test_an_absolute_path_needs_the_repo_root(self):
+        """The engine's nodes carry absolute paths.
+
+        Without the root every file's outermost part is `/`, one scope covers the whole
+        repo, and the structural half can never lead -- which on eShop is the difference
+        between 0.9991 and 0.32.
+        """
+        absolute = "/home/me/checkouts/eShop/src/Catalog.API/Model/CatalogItem.cs"
+        assert scope_of(absolute, "/home/me/checkouts/eShop") == "Catalog.API"
+        assert scope_of(absolute) != "/"
+
 
 class TestUbiquitousWords:
     def test_a_shared_product_name_is_ubiquitous(self):
