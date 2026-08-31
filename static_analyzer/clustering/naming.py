@@ -37,6 +37,10 @@ _GENERIC_ARITY = re.compile(r"`\d+$")
 _INTERFACE_PREFIX = re.compile(r"^I(?=[A-Z])")
 _INFLECTIONS = ("ing", "ies", "es", "s")
 
+SCOPES_ARE_COMPONENTS_RATIO = 0.25
+"""How many scopes the components must name before the structural half leads. The measured
+gap is wide -- 0.00 against 0.50 -- so the exact value is not load-bearing."""
+
 
 def tokenize(identifier: str) -> tuple[str, ...]:
     """Split an identifier into its words.
@@ -79,7 +83,7 @@ def ubiquitous_words(scope_names: set[str]) -> frozenset[str]:
 
 
 @dataclass(frozen=True)
-class Component:
+class ComponentVocabulary:
     """A component the naming model proposes, and the vocabulary it owns."""
 
     name: str
@@ -90,14 +94,10 @@ class Component:
 class NamingModel:
     """The per-repo decision an incremental run reuses verbatim."""
 
-    components: tuple[Component, ...]
+    components: tuple[ComponentVocabulary, ...]
     machinery: frozenset[str]
     """Vocabulary naming how software is built rather than what this system is about. It
     never owns a component, so ``Handler`` cannot gather every handler into one box."""
-    scope_kinds: dict[str, str]
-    """Each top-level scope as ``"feature"`` or ``"layer"``. Asked per scope because "is
-    ``Beacon.Domain`` a feature or a layer" is checkable, where "how structural is this
-    repo, 0 to 1" is not -- and the latter moved between 0.3 and 0.8 across draws."""
 
     def owner_by_word(self) -> dict[str, str]:
         owner: dict[str, str] = {}
@@ -109,12 +109,23 @@ class NamingModel:
                     owner.setdefault(key, component.name)
         return owner
 
-    def scopes_are_features(self, scope_names: set[str]) -> bool:
-        named = [name for name in scope_names if name]
+    def scopes_are_components(self, scope_names: set[str]) -> bool:
+        """Whether this model's own components name the scopes.
+
+        The structural half leads only when they do. A model proposing Incidents,
+        Escalation and Analytics while the scopes are ``Beacon.Application`` and
+        ``Beacon.Infrastructure`` is contradicting itself, and grouping by scope there
+        reproduces the layering -- which scores below not partitioning at all. Measured
+        across rulers: 0.00 on a layered repo, 0.50 and 1.00 on feature-shaped ones.
+        """
+        named = {name for name in scope_names if name}
         if not named:
             return False
-        features = sum(1 for name in named if self.scope_kinds.get(name, "feature") == "feature")
-        return features / len(named) >= 0.5
+        owner = self.owner_by_word()
+        machinery = {word.casefold() for word in self.machinery}
+        ubiquitous = ubiquitous_words(named)
+        matched = sum(1 for name in named if _distinctive_word(name, machinery, ubiquitous) in owner)
+        return matched / len(named) >= SCOPES_ARE_COMPONENTS_RATIO
 
 
 @dataclass(frozen=True)
@@ -153,7 +164,7 @@ def partition_by_name(
 ) -> NamePartition:
     """Assign each unit to a component, by whichever half of its names carries the architecture."""
     scope_names = {scope_of(path) for unit in units.values() for path in unit.files}
-    if model.scopes_are_features(scope_names):
+    if model.scopes_are_components(scope_names):
         return _by_scope(units, model, scope_names)
     return _by_vocabulary(units, model, delimiter)
 
