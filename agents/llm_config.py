@@ -333,6 +333,24 @@ LLM_PROVIDERS = {
 }
 
 
+# Endpoint overrides that affect an already-selected provider rather than
+# selecting one themselves.
+_PROVIDER_ENDPOINT_OVERRIDE_ENV_VARS = frozenset(
+    {
+        "ANTHROPIC_BASE_URL",
+        "OPENROUTER_BASE_URL",
+        "ORCAROUTER_BASE_URL",
+    }
+)
+
+LLM_PROVIDER_ENV_VARS: frozenset[str] = (
+    frozenset(var for config in LLM_PROVIDERS.values() for var in config.selection_envs)
+    | frozenset(config.api_key_env for config in LLM_PROVIDERS.values() if config.api_key_env)
+    | _PROVIDER_ENDPOINT_OVERRIDE_ENV_VARS
+)
+LLM_ENV_VARS: frozenset[str] = LLM_PROVIDER_ENV_VARS | frozenset({"AGENT_MODEL", "PARSING_MODEL"})
+
+
 def _all_selection_envs() -> list[str]:
     return sorted({var for config in LLM_PROVIDERS.values() for var in config.selection_envs})
 

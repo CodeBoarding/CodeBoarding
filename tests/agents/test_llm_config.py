@@ -6,7 +6,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agents.llm_config import (
+    LLM_ENV_VARS,
     LLM_PROVIDERS,
+    LLM_PROVIDER_ENV_VARS,
     LLMConfigError,
     _model_accepts_temperature,
     initialize_agent_llm,
@@ -82,6 +84,19 @@ class TestValidateApiKeyProvided:
 
 
 class TestProviderSelection:
+    def test_provider_env_vars_cover_keys_selectors_and_endpoint_overrides(self):
+        config_env_vars = {
+            var for config in LLM_PROVIDERS.values() for var in [*config.selection_envs, config.api_key_env] if var
+        }
+
+        assert config_env_vars <= LLM_PROVIDER_ENV_VARS
+        assert {
+            "ANTHROPIC_BASE_URL",
+            "OPENROUTER_BASE_URL",
+            "ORCAROUTER_BASE_URL",
+        } <= LLM_PROVIDER_ENV_VARS
+        assert LLM_ENV_VARS == LLM_PROVIDER_ENV_VARS | {"AGENT_MODEL", "PARSING_MODEL"}
+
     def test_anthropic_defaults_to_sonnet_5_and_haiku_4_5(self):
         anthropic = LLM_PROVIDERS["anthropic"]
 
