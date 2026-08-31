@@ -26,6 +26,7 @@ from static_analyzer.clustering.grouping import (
     reindex_across_languages,
     reindex_cluster_result,
 )
+from static_analyzer.clustering.naming import NamingModel, file_leaf_clusters
 from static_analyzer.clustering.models import (
     METHOD_LEVEL_STRATEGY,
     ClusterConnectionEdge,
@@ -64,7 +65,16 @@ def _unseeded_scope(_scope_id: ScopeId, _graphs: Mapping[str, CallGraph]) -> Clu
 class ClusteringService:
     """Build deterministic clustering results and hierarchies."""
 
+    def __init__(self, naming_model: NamingModel | None = None, repo_root: str = "") -> None:
+        self._naming_model = naming_model
+        self._repo_root = repo_root
+
     def cluster(self, graph: CallGraph) -> ClusterResult:
+        # With a naming model the leaves are files: Leiden's communities are drawn from the
+        # call graph and cross the boundaries a name partition wants to keep, which caps any
+        # grouping over them far below what the same names reach on a file.
+        if self._naming_model is not None:
+            return file_leaf_clusters(graph)
         return cluster_graph(graph.to_networkx(DEFAULT_REFERENCE_KINDS), delimiter=graph.delimiter)
 
     def build_full_hierarchy(
@@ -252,7 +262,7 @@ class ClusteringService:
                     )[0]
 
         nx_graphs = {language: graph.to_networkx(DEFAULT_REFERENCE_KINDS) for language, graph in graphs.items()}
-        grouping_service = GroupingService()
+        grouping_service = GroupingService(self._naming_model, self._repo_root)
         subcomponents = scope_id != ROOT_SCOPE_ID
         if previous_owner:
             grouping = grouping_service.anchored_group(

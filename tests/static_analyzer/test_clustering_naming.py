@@ -4,13 +4,18 @@ Each case here is a failure that was measured on a real ruler before it was fixe
 scores are in the PR description.
 """
 
+from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering.grouping import GroupingService
 from static_analyzer.clustering.models import ClusterResult
+from static_analyzer.config import NodeType
+from static_analyzer.node import Node
 from static_analyzer.clustering.naming import (
+    FILE_STRATEGY,
     INFRASTRUCTURE,
     ComponentVocabulary,
     NamingModel,
     Unit,
+    file_leaf_clusters,
     group_leaf_clusters,
     partition_by_name,
     scope_of,
@@ -276,3 +281,39 @@ class TestGroupingServiceUsesTheModel:
         naming = model([("Incidents", ("Incident",))], ("Handler",))
         groups, _ = GroupingService(naming).group(self._results(), {}, subcomponents=True)
         assert sorted(cid for group in groups for cid in group) == [1, 2, 3]
+
+
+class TestFileLeafClusters:
+    """The leaves a name partition wants: one per file, crossing no component boundary."""
+
+    def _graph(self):
+        graph = CallGraph()
+        for line, (qname, path) in enumerate(
+            (
+                ("Beacon.Application.Incidents.OpenIncidentHandler", "Beacon.Application/Incidents/Open.cs"),
+                ("Beacon.Application.Incidents.OpenIncidentHandler.Handle", "Beacon.Application/Incidents/Open.cs"),
+                ("Beacon.Api.Endpoints.IncidentEndpoints", "Beacon.Api/Endpoints/Incident.cs"),
+            )
+        ):
+            graph.add_node(Node(qname, NodeType.CLASS, path, line * 10, line * 10 + 5))
+        return graph
+
+    def test_one_cluster_per_file(self):
+        result = file_leaf_clusters(self._graph())
+        assert len(result.clusters) == 2
+        assert result.strategy == FILE_STRATEGY
+
+    def test_every_symbol_in_a_file_lands_in_that_file_s_cluster(self):
+        result = file_leaf_clusters(self._graph())
+        by_file = {next(iter(files)): cid for cid, files in result.cluster_to_files.items()}
+        members = result.clusters[by_file["Beacon.Application/Incidents/Open.cs"]]
+        assert members == {
+            "Beacon.Application.Incidents.OpenIncidentHandler",
+            "Beacon.Application.Incidents.OpenIncidentHandler.Handle",
+        }
+
+    def test_cluster_ids_do_not_depend_on_node_order(self):
+        """Files are sorted, so the same tree yields the same ids run to run."""
+        first = file_leaf_clusters(self._graph())
+        second = file_leaf_clusters(self._graph())
+        assert first.clusters == second.clusters
