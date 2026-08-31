@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 import time
 from pathlib import Path
 
@@ -301,20 +302,32 @@ class CallGraphBuilder:
         if alias_self_edges:
             logger.info("Removed %d alias self-edges (same definition location)", alias_self_edges)
 
-        # Constructor expansion: when a class has real constructors in the
-        # symbol table, add edges to those constructors alongside the class edge.
+        # Constructor expansion: `Dog::new` resolves to the class, so the constructors are
+        # recovered from the class edge -- but only when the caller reaches nothing else
+        # inside that class. Why: a caller that already reaches a member holds an instance
+        # rather than making one, so its class edge is a type mention, and expanding that
+        # invents calls no line performs (`purr() -> Animal.__init__`, or a second overload
+        # credited to a call site that names one).
         constructor_edges: EdgeMap = {}
+        callers_reaching: dict[str, set[str]] = defaultdict(set)
+        for src, dst in edge_set:
+            callers_reaching[src].add(dst)
         for src, dst in edge_set:
             dst_sym = st.symbols.get(dst)
-            if dst_sym and self._adapter.is_class_like(dst_sym.kind):
-                ctors = st.class_to_ctors.get(dst)
-                if ctors:
-                    for ctor_name in ctors:
-                        ctor_key = (src, ctor_name)
-                        sites = constructor_edges.setdefault(ctor_key, list(edge_set.get(ctor_key, [])))
-                        for site in edge_set[(src, dst)]:
-                            if site not in sites:
-                                sites.append(site)
+            if not dst_sym or not self._adapter.is_class_like(dst_sym.kind):
+                continue
+            ctors = st.class_to_ctors.get(dst)
+            if not ctors:
+                continue
+            member_prefix = f"{dst}."
+            if any(other.startswith(member_prefix) for other in callers_reaching[src]):
+                continue
+            for ctor_name in ctors:
+                ctor_key = (src, ctor_name)
+                sites = constructor_edges.setdefault(ctor_key, list(edge_set.get(ctor_key, [])))
+                for site in edge_set[(src, dst)]:
+                    if site not in sites:
+                        sites.append(site)
         for edge, sites in constructor_edges.items():
             edge_set[edge] = sites
 

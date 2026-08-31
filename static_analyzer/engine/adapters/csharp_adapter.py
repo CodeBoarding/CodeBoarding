@@ -191,42 +191,29 @@ class CSharpAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        """Build namespace-based qualified names for C#.
+        """Build ``<directory>.<declaring types>.<symbol>`` for C#.
 
-        csharp-ls returns: File (kind=1) > Namespace (kind=3) > Class > Members.
-        The namespace's ``detail`` has the full namespace, but only the
-        namespace symbol itself receives it -- children get ``detail=""``.
+        Why the directory rather than the file stem: C# has no file scope, so a file may
+        declare any number of top-level types and the scope owning them is the namespace.
+        Prefixing with the stem made every other type in ``ICatalogFacade.cs`` read as a
+        member of the interface it sits beside, which ``is_self_or_container_edge`` then
+        deleted as containment. One type per file is unaffected.
 
-        Strategy: use namespace detail when available (for namespace
-        symbols themselves), otherwise reconstruct from file path,
-        skipping ``src/`` prefix and deduplicating filename/class.
+        csharp-ls nests File > Namespace > Class > Members, and only the namespace symbol
+        carries its full name in ``detail``.
         """
         # Namespace symbol itself — detail has the full namespace
         if detail and symbol_kind == NodeType.NAMESPACE:
             return detail
 
-        # Build from file path, stripping 'src' prefix
         rel = file_path.relative_to(project_root)
-        parts = [p for p in rel.with_suffix("").parts if p != "src"]
-        module = ".".join(parts)
+        module = ".".join(p for p in rel.parent.parts if p not in ("src", "."))
 
-        # Filter parents: skip File (kind=1) and Namespace (kind=3) —
-        # the namespace is already encoded in the file path for C#
+        # Skip File (kind=1) and Namespace (kind=3) — the namespace is already
+        # encoded in the directory prefix for C#.
         code_parents = [name for name, kind in parent_chain if kind not in (NodeType.FILE, NodeType.NAMESPACE)]
 
-        if code_parents:
-            # Deduplicate first parent if it matches filename
-            module_last = module.rsplit(".", 1)[-1] if "." in module else module
-            if code_parents[0] == module_last:
-                code_parents = code_parents[1:]
-            if code_parents:
-                return f"{module}.{'.'.join(code_parents)}.{symbol_name}"
-
-        # Deduplicate filename/class (one type per file convention)
-        module_last = module.rsplit(".", 1)[-1] if "." in module else module
-        if symbol_name == module_last:
-            return module
-        return f"{module}.{symbol_name}"
+        return ".".join(part for part in (module, *code_parents, symbol_name) if part)
 
     def extract_package(self, qualified_name: str) -> str:
         """Extract namespace as all-but-last-two dot-separated components.

@@ -90,11 +90,22 @@ class TestBuildQualifiedName:
         self.root = Path("/repo")
 
     def test_simple_symbol(self):
+        """A root-level file has no directory, so its type is a single segment."""
+        result = self.adapter.build_qualified_name(
+            file_path=Path("/repo/Program.cs"),
+            symbol_name="Program",
+            symbol_kind=NodeType.CLASS,
+            parent_chain=[],
+            project_root=self.root,
+        )
+        assert result == "Program"
+
+    def test_member_is_prefixed_by_its_declaring_type(self):
         result = self.adapter.build_qualified_name(
             file_path=Path("/repo/Program.cs"),
             symbol_name="Main",
-            symbol_kind=NodeType.FUNCTION,
-            parent_chain=[],
+            symbol_kind=NodeType.METHOD,
+            parent_chain=[("Program", NodeType.CLASS)],
             project_root=self.root,
         )
         assert result == "Program.Main"
@@ -122,8 +133,8 @@ class TestBuildQualifiedName:
         # User (parent) == User (file stem) -> deduplicated
         assert result == "Models.User.Name"
 
-    def test_no_deduplication_when_different(self):
-        """When the first parent differs from filename, keep all parents."""
+    def test_file_stem_is_not_a_scope(self):
+        """The file name never appears in a name: in C# it names no scope."""
         result = self.adapter.build_qualified_name(
             file_path=Path("/repo/Helpers.cs"),
             symbol_name="Validate",
@@ -131,8 +142,88 @@ class TestBuildQualifiedName:
             parent_chain=[("StringHelper", NodeType.CLASS)],
             project_root=self.root,
         )
-        # StringHelper != Helpers -> no deduplication
-        assert result == "Helpers.StringHelper.Validate"
+        assert result == "StringHelper.Validate"
+
+    def test_sibling_type_is_not_attributed_to_its_file_mate(self):
+        """A second top-level type in a file is a sibling, not a member.
+
+        ``ICatalogFacade.cs`` holding a companion record used to emit
+        ``Catalog.ICatalogFacade.CatalogTrackDto`` -- a top-level record named as
+        a member of the interface beside it. ``is_self_or_container_edge`` then
+        deleted the interface's real dependency on that record as a containment
+        edge, and ``CONTAINS``, which is prefix arithmetic, read the false nesting
+        as real. 24 of Modulify's 53 types were misparented this way, every one of
+        them onto an interface.
+        """
+        facade = self.adapter.build_qualified_name(
+            file_path=Path("/repo/Catalog/ICatalogFacade.cs"),
+            symbol_name="ICatalogFacade",
+            symbol_kind=NodeType.INTERFACE,
+            parent_chain=[("ICatalogFacade.cs", NodeType.FILE), ("Catalog", NodeType.NAMESPACE)],
+            project_root=self.root,
+        )
+        companion = self.adapter.build_qualified_name(
+            file_path=Path("/repo/Catalog/ICatalogFacade.cs"),
+            symbol_name="CatalogTrackDto",
+            symbol_kind=NodeType.CLASS,
+            parent_chain=[("ICatalogFacade.cs", NodeType.FILE), ("Catalog", NodeType.NAMESPACE)],
+            project_root=self.root,
+        )
+        assert facade == "Catalog.ICatalogFacade"
+        assert companion == "Catalog.CatalogTrackDto"
+        assert not companion.startswith(facade + ".")
+
+    def test_nested_type_keeps_its_real_owner_and_only_that(self):
+        """Genuine nesting is kept; the file-mate interface is not an ancestor."""
+        nested = self.adapter.build_qualified_name(
+            file_path=Path("/repo/Catalog/IThing.cs"),
+            symbol_name="Options",
+            symbol_kind=NodeType.CLASS,
+            parent_chain=[
+                ("IThing.cs", NodeType.FILE),
+                ("Catalog", NodeType.NAMESPACE),
+                ("ThingFactory", NodeType.CLASS),
+            ],
+            project_root=self.root,
+        )
+        assert nested == "Catalog.ThingFactory.Options"
+
+    def test_a_sibling_enum_does_not_collide_with_a_property_of_the_same_name(self):
+        """Two symbols in one file must not resolve to one name.
+
+        ``Task.cs`` declaring ``enum Priority`` beside ``class Task { Priority Priority }``
+        gave both the string ``Models.Task.Priority``, and ``SymbolTable`` assigns without
+        a guard, so whichever registered last destroyed the other.
+        """
+        file_path = Path("/repo/Models/Task.cs")
+        enum_type = self.adapter.build_qualified_name(
+            file_path=file_path,
+            symbol_name="Priority",
+            symbol_kind=NodeType.ENUM,
+            parent_chain=[],
+            project_root=self.root,
+        )
+        property_of_task = self.adapter.build_qualified_name(
+            file_path=file_path,
+            symbol_name="Priority",
+            symbol_kind=NodeType.PROPERTY,
+            parent_chain=[("Task", NodeType.CLASS)],
+            project_root=self.root,
+        )
+        assert enum_type == "Models.Priority"
+        assert property_of_task == "Models.Task.Priority"
+        assert enum_type != property_of_task
+
+    def test_generic_type_is_not_doubled(self):
+        """``Repository<T>`` in ``Repository.cs`` used to defeat the stem dedup."""
+        result = self.adapter.build_qualified_name(
+            file_path=Path("/repo/Models/Repository.cs"),
+            symbol_name="Repository<T>",
+            symbol_kind=NodeType.CLASS,
+            parent_chain=[],
+            project_root=self.root,
+        )
+        assert result == "Models.Repository<T>"
 
     def test_deeply_nested_parents(self):
         result = self.adapter.build_qualified_name(

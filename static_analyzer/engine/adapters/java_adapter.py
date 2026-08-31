@@ -139,23 +139,19 @@ class JavaAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
+        """Build ``<package directory>.<declaring types>.<symbol>`` for Java.
+
+        Why the directory rather than the file stem: prefixing with the stem doubled the
+        top-level type (``core.Animal.Animal``) while its own method kept one segment, so a
+        class was a *sibling* of its members and CONTAINS, which is prefix arithmetic, could
+        not link them. It also named a package-private sibling like a nested type. Members
+        are unaffected.
+        """
         rel = file_path.relative_to(project_root)
-        module = ".".join(rel.with_suffix("").parts)
-        clean_name = self._clean_symbol_name(symbol_name)
-
-        if parent_chain:
-            # In Java, the filename IS the top-level class name (e.g., Dog.java -> module "...Dog").
-            # Skip the first parent if it matches the last module component to avoid
-            # doubled names like "core.Dog.Dog.speak()" -> "core.Dog.speak()".
-            module_last = module.rsplit(".", 1)[-1] if "." in module else module
-            effective_parents = list(parent_chain)
-            if effective_parents and self._clean_symbol_name(effective_parents[0][0]) == module_last:
-                effective_parents = effective_parents[1:]
-
-            if effective_parents:
-                clean_parents = ".".join(self._clean_symbol_name(name) for name, _ in effective_parents)
-                return f"{module}.{clean_parents}.{clean_name}"
-        return f"{module}.{clean_name}"
+        module = ".".join(rel.parent.parts)
+        segments = [self._clean_symbol_name(name) for name, _ in parent_chain]
+        segments.append(self._clean_symbol_name(symbol_name))
+        return ".".join(part for part in (module, *segments) if part)
 
     @staticmethod
     def _clean_symbol_name(name: str) -> str:

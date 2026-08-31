@@ -44,6 +44,11 @@ class SymbolTable:
         return self._symbols
 
     @property
+    def class_to_ctors(self) -> dict[str, list[str]]:
+        """Class qualified name -> the qualified names of its constructors."""
+        return self._class_to_ctors
+
+    @property
     def primary_file_symbols(self) -> dict[str, list[SymbolInfo]]:
         """Primary symbols per file (no dual-registration aliases)."""
         return self._primary_file_symbols
@@ -53,17 +58,13 @@ class SymbolTable:
         """All symbols per file (including aliases)."""
         return self._file_symbols
 
-    @property
-    def class_to_ctors(self) -> dict[str, list[str]]:
-        """Class qualified name -> list of constructor qualified names."""
-        return self._class_to_ctors
-
     def register_symbols(
         self,
         file_path: Path,
         symbols: list[dict],
         parent_chain: list[tuple[str, int]],
         project_root: Path,
+        owner_qualified_name: str = "",
     ) -> None:
         """Recursively register symbols with dual registration."""
         for sym in symbols:
@@ -113,6 +114,7 @@ class SymbolTable:
                 promoted_from_variable=promoted,
             )
             info.parent_chain = list(parent_chain)
+            info.owner_qualified_name = owner_qualified_name
 
             self._symbols[qualified_name] = info
             ref_key = self._naming.build_reference_key(qualified_name)
@@ -169,7 +171,7 @@ class SymbolTable:
             children = sym.get("children", [])
             if children:
                 child_chain = parent_chain + [(name, kind)]
-                self.register_symbols(file_path, children, child_chain, project_root)
+                self.register_symbols(file_path, children, child_chain, project_root, qualified_name)
 
     def build_indices(self) -> None:
         """Build optimized lookup indices after symbol registration.
@@ -183,14 +185,13 @@ class SymbolTable:
                 idx_key = (file_key, sym.name)
                 self._file_name_index.setdefault(idx_key, []).append(sym)
 
-        # Build class -> constructor index
-        for qname, sym in self._symbols.items():
-            if sym.kind == NodeType.CONSTRUCTOR:
-                # Find the class this constructor belongs to by stripping the params
-                paren_idx = qname.find("(")
-                if paren_idx != -1:
-                    class_qname = qname[:paren_idx]
-                    self._class_to_ctors.setdefault(class_qname, []).append(qname)
+        # Class -> constructors, keyed on the declaring symbol recorded during the walk.
+        # Why not a slice of the qualified name at its first "(": that agrees with the real
+        # class only by luck of the naming scheme, and it cannot tell a primary symbol from
+        # a dual-registration alias, so it indexed a second node for the same constructor.
+        for sym in (s for syms in self._primary_file_symbols.values() for s in syms):
+            if sym.kind == NodeType.CONSTRUCTOR and sym.owner_qualified_name:
+                self._class_to_ctors.setdefault(sym.owner_qualified_name, []).append(sym.qualified_name)
 
     def find_containing_symbol(self, file_path: Path, line: int, character: int) -> SymbolInfo | None:
         """Find the innermost symbol whose range contains the given position.

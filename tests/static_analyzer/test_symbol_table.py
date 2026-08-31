@@ -179,25 +179,6 @@ class TestBuildIndices:
         assert ("mod.py", "foo") in st._file_name_index
         assert st._file_name_index[("mod.py", "foo")] == [sym]
 
-    def test_builds_class_to_ctor_index(self):
-        adapter = _make_adapter()
-        st = SymbolTable(adapter)
-        ctor_sym = _sym("__init__", "mod.MyClass(__init__)", NodeType.CONSTRUCTOR, start_line=5, end_line=10)
-        st._symbols["mod.MyClass(__init__)"] = ctor_sym
-
-        st.build_indices()
-        assert "mod.MyClass" in st._class_to_ctors
-        assert "mod.MyClass(__init__)" in st._class_to_ctors["mod.MyClass"]
-
-    def test_no_ctor_without_parens(self):
-        adapter = _make_adapter()
-        st = SymbolTable(adapter)
-        method_sym = _sym("do_stuff", "mod.MyClass.do_stuff", NodeType.METHOD)
-        st._symbols["mod.MyClass.do_stuff"] = method_sym
-
-        st.build_indices()
-        assert "mod.MyClass" not in st._class_to_ctors
-
 
 # ---- find_containing_symbol ----
 
