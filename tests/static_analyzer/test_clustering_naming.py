@@ -7,7 +7,7 @@ scores are in the PR description.
 from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.clustering.naming import (
     INFRASTRUCTURE,
-    Component,
+    ComponentVocabulary,
     NamingModel,
     Unit,
     group_leaf_clusters,
@@ -19,11 +19,10 @@ from static_analyzer.clustering.naming import (
 )
 
 
-def model(components, machinery=(), scope_kinds=None) -> NamingModel:
+def model(components, machinery=()) -> NamingModel:
     return NamingModel(
-        components=tuple(Component(name, tuple(owns)) for name, owns in components),
+        components=tuple(ComponentVocabulary(name, tuple(owns)) for name, owns in components),
         machinery=frozenset(machinery),
-        scope_kinds=scope_kinds or {},
     )
 
 
@@ -83,13 +82,7 @@ class TestUbiquitousWords:
 class TestPartitionByScope:
     """Where the scopes are features, the scope is the component."""
 
-    KINDS = {
-        "Catalog.API": "feature",
-        "Ordering.API": "feature",
-        "Ordering.Domain": "feature",
-        "OrderProcessor": "feature",
-        "PaymentProcessor": "feature",
-    }
+    COMPONENTS = [("Catalog", ("Catalog",)), ("Ordering", ("Order",)), ("Payments", ("Payment",))]
     MACHINERY = ("API", "Domain", "Processor", "Item", "Dto")
 
     def _units(self):
@@ -102,14 +95,14 @@ class TestPartitionByScope:
         }
 
     def test_scopes_sharing_their_own_word_merge(self):
-        result = partition_by_name(self._units(), model([], self.MACHINERY, self.KINDS))
+        result = partition_by_name(self._units(), model(self.COMPONENTS, self.MACHINERY))
         assert result.by_structure
         assert result.assignment["order-api"] == result.assignment["order-domain"]
         assert result.assignment["order-proc"] == result.assignment["order-api"]
 
     def test_a_scope_with_its_own_word_stays_separate(self):
         """`PaymentProcessor` must not be absorbed into ordering."""
-        result = partition_by_name(self._units(), model([], self.MACHINERY, self.KINDS))
+        result = partition_by_name(self._units(), model(self.COMPONENTS, self.MACHINERY))
         assert result.assignment["payment"] != result.assignment["order-api"]
         assert result.assignment["catalog"] != result.assignment["order-api"]
 
@@ -119,15 +112,14 @@ class TestPartitionByScope:
             "b": Unit(("Modulify.Player/Service.cs",), ("Modulify.Player.Service",)),
             "c": Unit(("Modulify.Library/Store.cs",), ("Modulify.Library.Store",)),
         }
-        kinds = {"Modulify.Catalog": "feature", "Modulify.Player": "feature", "Modulify.Library": "feature"}
-        result = partition_by_name(units, model([], ("Facade", "Service", "Store"), kinds))
+        components = [("Catalog", ("Catalog",)), ("Player", ("Player",)), ("Library", ("Library",))]
+        result = partition_by_name(units, model(components, ("Facade", "Service", "Store")))
         assert len(set(result.assignment.values())) == 3
 
 
 class TestPartitionByVocabulary:
-    """Where the scopes are layers, the feature is only in the identifiers."""
+    """Where the model's own components do not name the scopes, the identifiers lead."""
 
-    KINDS = {"Beacon.Api": "layer", "Beacon.Application": "layer", "Beacon.Infrastructure": "layer"}
     COMPONENTS = [
         ("Incidents", ("Incident", "Timeline")),
         ("Escalation", ("Escalation", "Policy")),
@@ -136,7 +128,17 @@ class TestPartitionByVocabulary:
     MACHINERY = ("Handler", "Repository", "Endpoints", "Get", "Create")
 
     def _partition(self, units):
-        return partition_by_name(units, model(self.COMPONENTS, self.MACHINERY, self.KINDS))
+        return partition_by_name(units, model(self.COMPONENTS, self.MACHINERY))
+
+    def test_a_layered_scope_does_not_lead(self):
+        """Grouping Beacon by Api/Application/Domain scores below not partitioning at all."""
+        assert not model(self.COMPONENTS, self.MACHINERY).scopes_are_components(
+            {"Beacon.Api", "Beacon.Application", "Beacon.Domain", "Beacon.Infrastructure"}
+        )
+
+    def test_a_feature_scope_does_lead(self):
+        components = [("Catalog", ("Catalog",)), ("Ordering", ("Order",))]
+        assert model(components, ("API",)).scopes_are_components({"Catalog.API", "Ordering.API", "EventBus"})
 
     def test_layers_are_not_used_as_components(self):
         units = {
@@ -171,7 +173,7 @@ class TestPartitionByVocabulary:
 
     def test_machinery_never_owns_a_component(self):
         """Otherwise every Handler in the system lands in one box, which is a layer."""
-        owned = model(self.COMPONENTS + [("Wrong", ("Handler",))], self.MACHINERY, self.KINDS).owner_by_word()
+        owned = model(self.COMPONENTS + [("Wrong", ("Handler",))], self.MACHINERY).owner_by_word()
         assert "handler" not in owned
 
 
@@ -199,8 +201,7 @@ class TestGroupLeafClusters:
     def _model(self):
         return model(
             [("Incidents", ("Incident",)), ("Escalation", ("Escalation",))],
-            ("Handler", "Endpoints", "Repository", "Ef", "Planner"),
-            {"Beacon.Application": "layer", "Beacon.Api": "layer", "Beacon.Platform": "layer"},
+            ("Handler", "Endpoints", "Repository", "Ef", "Planner", "Application", "Api", "Platform", "Beacon"),
         )
 
     def test_groups_are_exhaustive_and_disjoint(self):
