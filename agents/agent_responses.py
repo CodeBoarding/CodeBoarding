@@ -661,6 +661,28 @@ class MetaAnalysisInsights(LLMBaseModel):
         return title + content
 
 
+class ComponentNaming(LLMBaseModel):
+    """One component the naming model proposes, and the vocabulary it owns."""
+
+    name: str = Field(description="One responsibility, never two joined by 'and'")
+    owns: list[str] = Field(description="Domain words naming this component, as they appear in identifiers")
+
+    def llm_str(self):
+        return f"{self.name}: {', '.join(self.owns)}"
+
+
+class NamingModelInsights(LLMBaseModel):
+    """How a repo's own vocabulary divides it, decided once per full analysis."""
+
+    components: list[ComponentNaming] = Field(description="The top-level components the identifiers name")
+    machinery: list[str] = Field(description="Words naming how software is built rather than what this system is about")
+    notes: str = Field(default="", description="What the vocabulary says about the repo's shape")
+
+    def llm_str(self):
+        lines = [f"- {component.llm_str()}" for component in self.components]
+        return "# Naming model\n" + "\n".join(lines) + f"\n\nMachinery: {', '.join(self.machinery)}\n{self.notes}"
+
+
 class FileClassification(LLMBaseModel):
     """Classification of a file to a component."""
 

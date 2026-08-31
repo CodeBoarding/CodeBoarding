@@ -4,6 +4,7 @@ Each case here is a failure that was measured on a real ruler before it was fixe
 scores are in the PR description.
 """
 
+from static_analyzer.clustering.grouping import GroupingService
 from static_analyzer.clustering.models import ClusterResult
 from static_analyzer.clustering.naming import (
     INFRASTRUCTURE,
@@ -224,3 +225,43 @@ class TestGroupLeafClusters:
     def test_no_group_is_empty(self):
         groups, _ = group_leaf_clusters(self._results(), self._model())
         assert all(groups)
+
+
+class TestGroupingServiceUsesTheModel:
+    """The seam: a model present replaces the modularity peak, absent changes nothing."""
+
+    def _results(self):
+        return {
+            "CSharp": ClusterResult(
+                clusters={
+                    1: {"Beacon.Application.Incidents.OpenIncidentHandler"},
+                    2: {"Beacon.Api.Endpoints.IncidentEndpoints"},
+                    3: {"Beacon.Application.Escalation.EscalationPlanner"},
+                },
+                cluster_to_files={
+                    1: {"Beacon.Application/Incidents/OpenIncidentHandler.cs"},
+                    2: {"Beacon.Api/Endpoints/IncidentEndpoints.cs"},
+                    3: {"Beacon.Application/Escalation/EscalationPlanner.cs"},
+                },
+            )
+        }
+
+    def test_a_model_groups_by_name(self):
+        naming = model(
+            [("Incidents", ("Incident",)), ("Escalation", ("Escalation",))],
+            ("Handler", "Endpoints", "Planner", "Application", "Api", "Beacon"),
+        )
+        groups, _ = GroupingService(naming).group(self._results(), {})
+        owner = {cid: index for index, group in enumerate(groups) for cid in group}
+        assert owner[1] == owner[2]
+        assert owner[3] != owner[1]
+
+    def test_without_a_model_nothing_changes(self):
+        groups, _ = GroupingService().group(self._results(), {})
+        assert sorted(cid for group in groups for cid in group) == [1, 2, 3]
+
+    def test_sub_scopes_keep_the_graph_partitioner(self):
+        """Only the top level is name-driven; a sub-scope has no scopes to read."""
+        naming = model([("Incidents", ("Incident",))], ("Handler",))
+        groups, _ = GroupingService(naming).group(self._results(), {}, subcomponents=True)
+        assert sorted(cid for group in groups for cid in group) == [1, 2, 3]
