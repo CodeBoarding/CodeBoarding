@@ -13,6 +13,7 @@ from static_analyzer.config import (
     GroupingConfig,
 )
 from static_analyzer.clustering.models import AnchoredGrouping, ClusterResult
+from static_analyzer.clustering.naming import NamingModel, group_leaf_clusters
 from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,11 @@ logger = logging.getLogger(__name__)
 
 class GroupingService:
     """Group leaf clusters without retaining graph or partition state."""
+
+    def __init__(self, naming_model: NamingModel | None = None) -> None:
+        self._naming_model = naming_model
+        """What the repo's identifiers say its components are, decided once per full
+        analysis. Absent, grouping falls back to the modularity peak over the call graph."""
 
     def group(
         self,
@@ -32,6 +38,18 @@ class GroupingService:
         config = SUBCOMPONENT_GROUPING_CONFIG if subcomponents else DEFAULT_GROUPING_CONFIG
         combined = combine_cluster_results(cluster_results)
         combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
+        if self._naming_model is not None and not subcomponents:
+            groups, partition = group_leaf_clusters(cluster_results, self._naming_model)
+            if groups:
+                logger.info(
+                    "[Naming] %d components from names (%s half), %.0f%% of clusters placed",
+                    len(groups),
+                    "structural" if partition.by_structure else "lexical",
+                    partition.coverage * 100,
+                )
+                # Modularity over the same meta-graph the peak search uses, so the number a
+                # caller compares against is like for like.
+                return groups, _modularity(_build_meta_graph(combined, combined_cfg), groups)
         return _group_by_modularity_peak(combined, combined_cfg, config)
 
     def anchored_group(

@@ -181,3 +181,7 @@ def get_api_surfaces_message() -> str:
 
 def get_relation_analysis_message() -> str:
     return get_global_factory()._prompt_factory.get_relation_analysis_message()
+
+
+def get_naming_model_message() -> str:
+    return get_global_factory()._prompt_factory.get_naming_model_message()

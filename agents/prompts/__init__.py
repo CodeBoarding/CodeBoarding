@@ -29,6 +29,7 @@ from .prompt_factory import (
     get_scope_relations_message,
     get_api_surfaces_message,
     get_relation_analysis_message,
+    get_naming_model_message,
 )
 
 
