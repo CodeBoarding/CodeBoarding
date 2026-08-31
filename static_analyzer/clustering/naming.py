@@ -65,9 +65,19 @@ def stem(word: str) -> str:
     return lowered
 
 
-def scope_of(file_path: str) -> str:
-    """The outermost scope a file is declared under, ignoring build roots."""
-    parts = [part for part in PurePosixPath(file_path).parts[:-1] if part.casefold() not in BUILD_ROOTS]
+def scope_of(file_path: str, repo_root: str = "") -> str:
+    """The outermost scope a file is declared under, ignoring build roots.
+
+    *file_path* may be absolute -- the engine's nodes carry absolute paths -- in which case
+    *repo_root* is stripped first. Without it every file's outermost part is ``/``, one scope
+    covers the repo, and the structural half can never lead.
+    """
+    path = PurePosixPath(file_path)
+    if repo_root:
+        root = PurePosixPath(repo_root)
+        if path.is_relative_to(root):
+            path = path.relative_to(root)
+    parts = [part for part in path.parts[:-1] if part.casefold() not in BUILD_ROOTS and part != "/"]
     return parts[0] if parts else ""
 
 
@@ -161,11 +171,12 @@ def partition_by_name(
     model: NamingModel,
     *,
     delimiter: str = ".",
+    repo_root: str = "",
 ) -> NamePartition:
     """Assign each unit to a component, by whichever half of its names carries the architecture."""
-    scope_names = {scope_of(path) for unit in units.values() for path in unit.files}
+    scope_names = {scope_of(path, repo_root) for unit in units.values() for path in unit.files}
     if model.scopes_are_components(scope_names):
-        return _by_scope(units, model, scope_names)
+        return _by_scope(units, model, scope_names, repo_root)
     return _by_vocabulary(units, model, delimiter)
 
 
@@ -174,6 +185,7 @@ def group_leaf_clusters(
     model: NamingModel,
     *,
     delimiter: str = ".",
+    repo_root: str = "",
 ) -> tuple[list[set[ClusterId]], NamePartition]:
     """Group leaf clusters into components by name, for ``GroupingService``.
 
@@ -189,14 +201,14 @@ def group_leaf_clusters(
                 qualified_names=tuple(sorted(qualified_names)),
             )
 
-    partition = partition_by_name(units, model, delimiter=delimiter)
+    partition = partition_by_name(units, model, delimiter=delimiter, repo_root=repo_root)
     by_component: dict[str, set[ClusterId]] = {}
     for unit_id, component in partition.assignment.items():
         by_component.setdefault(component, set()).add(int(unit_id))
     return [members for _, members in sorted(by_component.items()) if members], partition
 
 
-def _by_scope(units: dict[str, Unit], model: NamingModel, scope_names: set[str]) -> NamePartition:
+def _by_scope(units: dict[str, Unit], model: NamingModel, scope_names: set[str], repo_root: str = "") -> NamePartition:
     """Group by the scope a unit sits in, merging scopes that share their own word.
 
     The scope is a grouping key, not a vocabulary lookup: a scope the model never enumerated
@@ -211,7 +223,7 @@ def _by_scope(units: dict[str, Unit], model: NamingModel, scope_names: set[str])
     placed = 0
 
     for unit_id, unit in units.items():
-        scopes = Counter(scope_of(path) for path in unit.files if scope_of(path))
+        scopes = Counter(s for path in unit.files if (s := scope_of(path, repo_root)))
         if not scopes:
             assignment[unit_id] = INFRASTRUCTURE
             continue
