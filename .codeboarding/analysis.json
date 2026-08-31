@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-08-28T11:26:26.354540+00:00",
-    "source_tree_hash": "8c3ef245f97c285a57b80e7a2ffdd879c72426676a97cbd6bbb342158fd111b8",
+    "generated_at": "2026-08-31T22:16:57.097919+00:00",
+    "source_tree_hash": "675878ab2861d32b8290d3f5a7460ebfc1a944a23d29557d6dfab8a1ff97ca7b",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -1198,8 +1198,8 @@
         "agents/llm_config.py|agents.llm_config.initialize_llms",
         "agents/llm_config.py|agents.llm_config.supports_prompt_caching"
       ],
-      "content_hash": "c1923c766a053bcd",
-      "module_hash": "0c78a5ed1a752a51"
+      "content_hash": "8ecfc2e42998e210",
+      "module_hash": "1dbf1316d1636919"
     },
     "agents/model_capabilities.py": {
       "method_keys": [
@@ -8935,151 +8935,151 @@
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfig",
       "start_line": 86,
-      "end_line": 142,
+      "end_line": 150,
       "type": "CLASS",
-      "content_hash": "6e04175b105877b9"
+      "content_hash": "1401e7d205e9364c"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfig.get_api_key": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfig.get_api_key",
-      "start_line": 121,
-      "end_line": 122,
+      "start_line": 125,
+      "end_line": 126,
       "type": "METHOD",
       "content_hash": "d09d758cfbc8c849"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfig.has_real_api_key": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfig.has_real_api_key",
-      "start_line": 124,
-      "end_line": 130,
+      "start_line": 128,
+      "end_line": 134,
       "type": "METHOD",
       "content_hash": "d4678d50d7c87f88"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfig.is_selected_by_env": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfig.is_selected_by_env",
-      "start_line": 132,
-      "end_line": 134,
+      "start_line": 136,
+      "end_line": 138,
       "type": "METHOD",
       "content_hash": "a215c72133bfc91a"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfig.get_resolved_extra_args": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfig.get_resolved_extra_args",
-      "start_line": 136,
-      "end_line": 142,
+      "start_line": 140,
+      "end_line": 150,
       "type": "METHOD",
-      "content_hash": "e6b250cfc8280ad2"
+      "content_hash": "684bdf7ec8c21d24"
     },
     "agents/llm_config.py|agents.llm_config._all_selection_envs": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._all_selection_envs",
-      "start_line": 336,
-      "end_line": 337,
+      "start_line": 357,
+      "end_line": 358,
       "type": "FUNCTION",
       "content_hash": "cd80e7d32c9c8da2"
     },
     "agents/llm_config.py|agents.llm_config._unselected_key_hints": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._unselected_key_hints",
-      "start_line": 340,
-      "end_line": 347,
+      "start_line": 361,
+      "end_line": 368,
       "type": "FUNCTION",
       "content_hash": "3b7a72d945b128e8"
     },
     "agents/llm_config.py|agents.llm_config.selected_providers": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.selected_providers",
-      "start_line": 350,
-      "end_line": 352,
+      "start_line": 371,
+      "end_line": 373,
       "type": "FUNCTION",
       "content_hash": "fffa8daecdd78b5a"
     },
     "agents/llm_config.py|agents.llm_config._initialize_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._initialize_llm",
-      "start_line": 355,
-      "end_line": 391,
+      "start_line": 376,
+      "end_line": 412,
       "type": "FUNCTION",
       "content_hash": "74b0bd64958af462"
     },
     "agents/llm_config.py|agents.llm_config._resolve_selected_provider": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._resolve_selected_provider",
-      "start_line": 394,
-      "end_line": 403,
+      "start_line": 415,
+      "end_line": 424,
       "type": "FUNCTION",
       "content_hash": "04eb6117a228f929"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfigError": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfigError",
-      "start_line": 406,
-      "end_line": 407,
+      "start_line": 427,
+      "end_line": 428,
       "type": "CLASS",
       "content_hash": "0d7294e6a41547e6"
     },
     "agents/llm_config.py|agents.llm_config.validate_api_key_provided": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.validate_api_key_provided",
-      "start_line": 410,
-      "end_line": 446,
+      "start_line": 431,
+      "end_line": 467,
       "type": "FUNCTION",
       "content_hash": "3e976c5f8b3d6f4d"
     },
     "agents/llm_config.py|agents.llm_config.initialize_agent_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.initialize_agent_llm",
-      "start_line": 449,
-      "end_line": 452,
+      "start_line": 470,
+      "end_line": 473,
       "type": "FUNCTION",
       "content_hash": "d4452d5c6613c001"
     },
     "agents/llm_config.py|agents.llm_config.get_current_agent_context_window": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.get_current_agent_context_window",
-      "start_line": 455,
-      "end_line": 469,
+      "start_line": 476,
+      "end_line": 490,
       "type": "FUNCTION",
       "content_hash": "5ae336e3eaf9be40"
     },
     "agents/llm_config.py|agents.llm_config.get_current_agent_model_ref": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.get_current_agent_model_ref",
-      "start_line": 472,
-      "end_line": 478,
+      "start_line": 493,
+      "end_line": 499,
       "type": "FUNCTION",
       "content_hash": "d32f768a1dde3576"
     },
     "agents/llm_config.py|agents.llm_config.current_provider_key_context": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.current_provider_key_context",
-      "start_line": 481,
-      "end_line": 495,
+      "start_line": 502,
+      "end_line": 516,
       "type": "FUNCTION",
       "content_hash": "9f65632e6800f2fa"
     },
     "agents/llm_config.py|agents.llm_config.initialize_parsing_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.initialize_parsing_llm",
-      "start_line": 498,
-      "end_line": 500,
+      "start_line": 519,
+      "end_line": 521,
       "type": "FUNCTION",
       "content_hash": "f2349fcb8ba98c51"
     },
     "agents/llm_config.py|agents.llm_config.initialize_llms": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.initialize_llms",
-      "start_line": 503,
-      "end_line": 506,
+      "start_line": 524,
+      "end_line": 527,
       "type": "FUNCTION",
       "content_hash": "883dc7c7adfadfd3"
     },
     "agents/llm_config.py|agents.llm_config.supports_prompt_caching": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.supports_prompt_caching",
-      "start_line": 509,
-      "end_line": 515,
+      "start_line": 530,
+      "end_line": 536,
       "type": "FUNCTION",
       "content_hash": "26a3423b70fff963"
     },
@@ -46060,7 +46060,7 @@
           "target": "agents/llm_config.py|agents.llm_config._resolve_selected_provider",
           "call_sites": [
             {
-              "line": 462,
+              "line": 483,
               "column": 16
             }
           ],
@@ -46114,7 +46114,7 @@
           "target": "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.initialize_global_factory",
           "call_sites": [
             {
-              "line": 371,
+              "line": 392,
               "column": 9
             }
           ],
@@ -46130,7 +46130,7 @@
           "target": "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.initialize_global_factory",
           "call_sites": [
             {
-              "line": 371,
+              "line": 392,
               "column": 9
             }
           ],
@@ -46178,7 +46178,7 @@
           "target": "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback.model_name",
           "call_sites": [
             {
-              "line": 451,
+              "line": 472,
               "column": 25
             }
           ],

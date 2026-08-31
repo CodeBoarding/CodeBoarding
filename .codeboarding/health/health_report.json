@@ -1,6 +1,6 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-08-28T10:58:13.738955+00:00",
+  "timestamp": "2026-08-31T22:16:46.034395+00:00",
   "overall_score": 0.8689692982456141,
   "check_summaries": [
     {
@@ -13,66 +13,6 @@
       "warning_count": 0,
       "score": 1.0,
       "finding_groups": []
-    },
-    {
-      "check_name": "circular_dependencies",
-      "description": "Detects circular dependencies between packages",
-      "languages": [],
-      "check_type": "circular_dependencies",
-      "cycles": [
-        "health.checks -> health -> health.checks",
-        "health.checks -> repo_utils -> agents -> diagram_analysis -> health -> health.checks",
-        "health.checks -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> agents -> agents.llm_renderers -> static_analyzer.clustering -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> agents -> agents.tools -> agents.llm_renderers -> static_analyzer.clustering -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> agents -> agents.tools -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> agents -> agents.tools -> static_analyzer.clustering -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> agents -> caching -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> agents -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> agents -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> agents -> static_analyzer.clustering -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> repo_utils -> agents -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> static_analyzer.clustering -> repo_utils -> agents -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> static_analyzer.clustering -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> static_analyzer.engine -> repo_utils -> agents -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> agents -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> agents -> diagram_analysis -> health -> health.checks",
-        "health.checks -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis -> health -> health.checks",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers -> static_analyzer.clustering -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers -> static_analyzer.clustering -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers -> static_analyzer.clustering -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers -> static_analyzer.clustering -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> agents.llm_renderers -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> agents.llm_renderers -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> agents.llm_renderers -> static_analyzer.clustering -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> agents.llm_renderers -> static_analyzer.clustering -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> agents.llm_renderers -> static_analyzer.clustering -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> agents.llm_renderers -> static_analyzer.clustering -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> static_analyzer.clustering -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> static_analyzer.clustering -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> static_analyzer.clustering -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> agents.tools -> static_analyzer.clustering -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> diagram_analysis -> health -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> diagram_analysis -> health -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> diagram_analysis -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> diagram_analysis -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> diagram_analysis -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> diagram_analysis -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> repo_utils -> agents -> diagram_analysis -> static_analyzer.clustering -> static_analyzer -> static_analyzer.engine"
-      ],
-      "packages_checked": 34,
-      "packages_in_cycles": 13
     },
     {
       "check_name": "unused_code_diagnostics",
@@ -101,20 +41,6 @@
               "file_path": "agents/validation.py",
               "line_start": 190,
               "line_end": 190,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 464,
-              "line_end": 464,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 477,
-              "line_end": 477,
               "metric_value": 0.0
             },
             {
@@ -1096,6 +1022,20 @@
               "line_start": 11,
               "line_end": 11,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 485,
+              "line_end": 485,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 498,
+              "line_end": 498,
+              "metric_value": 0.0
             }
           ]
         },
@@ -1885,12 +1825,6 @@
       "composite_risk_score": 25.0
     },
     {
-      "file_path": "agents/llm_config.py",
-      "total_findings": 2,
-      "warning_findings": 0,
-      "composite_risk_score": 20.0
-    },
-    {
       "file_path": "caching/cache.py",
       "total_findings": 2,
       "warning_findings": 0,
@@ -1898,6 +1832,12 @@
     },
     {
       "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+      "total_findings": 2,
+      "warning_findings": 0,
+      "composite_risk_score": 20.0
+    },
+    {
+      "file_path": "agents/llm_config.py",
       "total_findings": 2,
       "warning_findings": 0,
       "composite_risk_score": 20.0
