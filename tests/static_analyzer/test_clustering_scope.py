@@ -4,7 +4,6 @@ from unittest.mock import patch
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import NodeType
 from static_analyzer.clustering import (
-    METHOD_LEVEL_STRATEGY,
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
@@ -78,35 +77,24 @@ class TestClusteringScope(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate clustering scope ID '1.2'"):
             hierarchy.reroot_indexes(["1.1"])
 
-    def test_grouping_matches_the_existing_supercluster_result(self):
+    def test_leiden_clusters_become_scope_groups_directly(self):
         graph = graph_for("python", ["a", "b", "c"], [("a", "b"), ("b", "c")])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}})
 
-        expected, expected_modularity = GroupingService().group(
-            {"python": cluster_result}, {"python": graph.to_networkx(reference_kinds=())}
-        )
         result = ClusteringService()._cluster_scope(
             {"python": graph}, leaf_clusters_by_language={"python": cluster_result}
         )
 
         self.assertIs(result.graphs_by_language["python"], graph)
-        self.assertEqual(
-            sorted(sorted(group.cluster_ids) for group in result.groups),
-            sorted(sorted(group) for group in expected),
-        )
-        self.assertEqual(result.modularity, expected_modularity)
+        self.assertEqual([group.cluster_ids for group in result.groups], [[1], [2], [3]])
+        self.assertEqual(result.modularity, 0.0)
 
-    def test_symbol_members_are_a_complete_disjoint_cover_including_orphans(self):
+    def test_scope_rejects_symbols_omitted_by_the_partition(self):
         graph = graph_for("python", ["a", "b", "orphan"], [("a", "orphan"), ("orphan", "b")])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}})
 
-        result = ClusteringService()._cluster_scope(
-            {"python": graph}, leaf_clusters_by_language={"python": cluster_result}
-        )
-
-        assigned = [name for group in result.groups for name in group.symbol_members_by_language.get("python", set())]
-        self.assertEqual(set(assigned), set(graph.nodes))
-        self.assertEqual(len(assigned), len(set(assigned)))
+        with self.assertRaisesRegex(LeafClustersUnavailableError, "python"):
+            ClusteringService()._cluster_scope({"python": graph}, leaf_clusters_by_language={"python": cluster_result})
 
     def test_connections_retain_direction_and_concrete_call_evidence(self):
         graph = graph_for("python", ["caller", "callee"], [("caller", "callee")])
@@ -169,11 +157,15 @@ class TestClusteringScope(unittest.TestCase):
 
         self.assertEqual(group_ids, ["2", "3"])
 
-    def test_default_clustering_raises_when_nonempty_scope_has_no_leaf_clusters(self):
+    def test_default_leiden_clustering_keeps_singleton_communities(self):
         graph = graph_for("python", ["a", "b"])
 
-        with self.assertRaisesRegex(LeafClustersUnavailableError, "python"):
-            ClusteringService()._cluster_scope({"python": graph})
+        result = ClusteringService()._cluster_scope({"python": graph})
+
+        self.assertEqual(
+            {frozenset(members) for members in result.leaf_clusters_by_language["python"].clusters.values()},
+            {frozenset({"a"}), frozenset({"b"})},
+        )
 
     def test_empty_leaf_clusters_for_a_nonempty_language_raise(self):
         python = graph_for("python", ["py.a"])
@@ -213,58 +205,6 @@ class TestClusteringScope(unittest.TestCase):
             {"1": {"stable"}, "2": {"moved"}, "3": {"fresh"}},
         )
         self.assertEqual(result.modularity, 0.37)
-
-    def test_method_level_fallback_is_available_for_child_scopes(self):
-        graph = graph_for("python", ["a", "b", "c", "d", "e"])
-        cluster_result = cluster_result_for(graph, {1: set(graph.nodes)})
-
-        result = ClusteringService()._cluster_scope(
-            {"python": graph},
-            leaf_clusters_by_language={"python": cluster_result},
-            method_level_fallback=True,
-        )
-
-        expanded = result.leaf_clusters_by_language["python"]
-        self.assertEqual(expanded.strategy, METHOD_LEVEL_STRATEGY)
-        self.assertEqual(len(expanded.clusters), 5)
-        self.assertTrue(all(len(members) == 1 for members in expanded.clusters.values()))
-
-    def test_method_level_fallback_preserves_retained_cluster_ids(self):
-        graph = graph_for("python", ["a.new", "z.retained", "replacement"])
-        expanded = ClusteringService._expand_to_method_level(
-            graph,
-            cluster_result_for(graph, {4: {"a.new", "z.retained"}, 10: {"replacement"}}),
-            next_new_id=10,
-            retained_members_by_cluster={4: {"z.retained"}},
-        )
-
-        self.assertEqual(expanded.clusters, {4: {"z.retained"}, 10: {"replacement"}, 11: {"a.new"}})
-
-    def test_method_level_fallback_preserves_owners_by_member(self):
-        graph = graph_for("python", ["a", "b", "c", "d", "e", "new"])
-        cluster_result = cluster_result_for(
-            graph,
-            {
-                0: {"d", "e"},
-                4: {"a", "b", "c"},
-            },
-        )
-
-        result = ClusteringService()._cluster_scope(
-            {"python": graph},
-            scope_id="9",
-            leaf_clusters_by_language={"python": cluster_result},
-            previous_owner={0: "9.1", 4: "9.2"},
-            method_level_fallback=True,
-        )
-
-        owner_by_member = {
-            member: group.previous_component_id
-            for group in result.groups
-            for member in group.symbol_members_by_language.get("python", set())
-        }
-        self.assertTrue(all(owner_by_member[member] == "9.1" for member in {"d", "e"}))
-        self.assertTrue(all(owner_by_member[member] == "9.2" for member in {"a", "b", "c"}))
 
 
 if __name__ == "__main__":

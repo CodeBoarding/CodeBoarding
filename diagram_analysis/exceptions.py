@@ -2,15 +2,7 @@
 
 
 class IncrementalClusteringError(RuntimeError):
-    """Raised when a scope's clustering comes back empty but it still owns live methods.
-
-    Scoped clustering expands to one cluster per method whenever a
-    component has any live callable node, so an empty clustering means none of the methods
-    the scope claims exist in the live call graph. Continuing would save the scope's stale
-    membership and relations and hide the missed change; per the fail-fast rule the caller
-    must learn the incremental run could not represent this scope rather than get a
-    plausible-but-wrong result.
-    """
+    """Raised when incremental clustering cannot represent a scope's live methods."""
 
     def __init__(self, scope_id: str, component_ids: list[str]):
         super().__init__(

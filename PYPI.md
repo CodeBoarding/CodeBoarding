@@ -85,7 +85,7 @@ generator = DiagramGenerator(
     temp_folder=output_dir,
     repo_name="my-project",
     output_dir=output_dir,
-    depth_level=3,  # safety-valve cap; a component that outgrows the leaf ceiling is flagged expandable and can be expanded on demand
+    depth_level=3,  # recursive Leiden depth cap; partial analysis can continue a scoped community later
 )
 [analysis_path] = generator.generate_analysis()
 
@@ -149,7 +149,7 @@ codeboarding-render PATH/analysis.json --format FORMAT # render an existing anal
 |---|---|
 | `--local PATH` | Analyze a local repository (output: `PATH/.codeboarding/`) |
 | `--render {md,html,mdx,rst}` | Render overview and component files from the local `analysis.json` for full, incremental, or partial commands |
-| `--depth-level INT` | Safety-valve depth cap (default: 3) on how deep auto-expansion goes; a component that outgrows the leaf ceiling is flagged expandable regardless, and can be expanded on demand |
+| `--depth-level INT` | Recursive Leiden depth cap (default: 3); partial analysis can continue a non-singleton scoped community later |
 | `--force` | (full only) Force full reanalysis, skip cached static analysis |
 | `--base-ref REF` / `--target-ref REF` | (incremental only) Git refs to diff |
 | `--component-id ID` | (partial only) ID of the component to update |

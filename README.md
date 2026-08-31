@@ -154,9 +154,8 @@ Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOG
 # Analyze a local repository
 python main.py full --local ./my-project
 
-# Raise the depth ceiling to auto-expand deeper (rarely needed — a component that
-# outgrows the leaf ceiling is flagged expandable at whatever depth the run stops
-# and can be expanded on demand; --depth-level is a safety-valve cap, default 3)
+# Raise the recursive Leiden depth ceiling (default 3). Non-singleton communities
+# at the cap can be clustered further on demand with partial analysis.
 python main.py full --local ./my-project --depth-level 5
 
 # Re-analyze only changed parts when possible

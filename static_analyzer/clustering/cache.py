@@ -11,7 +11,8 @@ import copy
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field
 
-from static_analyzer.clustering.models import ClusterResult
+from clustering_ids import CodeBoardingClusterIds
+from static_analyzer.clustering.models import ClusterResult, ClusterScopeResult
 from static_analyzer.node import Node
 
 
@@ -102,3 +103,16 @@ class ClusterCache:
     @staticmethod
     def _scope_belongs_to(scope_id: str, root: str) -> bool:
         return not root or scope_id == root or scope_id.startswith(f"{root}.")
+
+
+def record_cluster_hierarchy(
+    cluster_caches: Mapping[str, ClusterCache],
+    scope: ClusterScopeResult,
+) -> None:
+    """Record one complete hierarchy in the supplied per-language caches."""
+    for language, partition in scope.leaf_clusters_by_language.items():
+        cache_scope_id = CodeBoardingClusterIds.prefix_for_scope(scope.scope_id)
+        cluster_caches[language].record_scope(partition, scope_id=cache_scope_id)
+    for group in scope.groups:
+        if group.children is not None:
+            record_cluster_hierarchy(cluster_caches, group.children)

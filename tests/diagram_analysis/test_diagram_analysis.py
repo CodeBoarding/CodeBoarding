@@ -955,13 +955,13 @@ class TestDiagramGenerator(unittest.TestCase):
         with (
             patch("diagram_analysis.diagram_generator.IncrementalAgent") as mock_incremental,
             patch(
-                "static_analyzer.clustering.service.ClusteringService.build_full_hierarchy", return_value=hierarchy
+                "static_analyzer.clustering.service.ClusteringService.build_hierarchy", return_value=hierarchy
             ) as mock_build_hierarchy,
         ):
             gen.prepare_analysis()
 
         # Verify agents were created
-        mock_build_hierarchy.assert_called_once_with(mock_analysis_results, 2, {})
+        mock_build_hierarchy.assert_called_once_with({}, 2)
         self.assertIs(gen.clustering_hierarchy, hierarchy)
         self.assertIsNotNone(gen.meta_agent)
         self.assertIsNotNone(gen.details_agent)

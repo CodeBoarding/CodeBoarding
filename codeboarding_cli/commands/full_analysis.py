@@ -48,9 +48,9 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
         type=int,
         default=DEFAULT_DEPTH_LEVEL,
         help=(
-            "Safety-valve ceiling on how deep components auto-expand (default: "
-            f"{DEFAULT_DEPTH_LEVEL}). A component that outgrows the leaf ceiling is flagged expandable "
-            "regardless and can be expanded on demand; raise this only to auto-expand deeper up front."
+            "Hard ceiling on recursive Leiden clustering (default: "
+            f"{DEFAULT_DEPTH_LEVEL}). Non-singleton communities at the cap can be clustered further "
+            "on demand with partial analysis."
         ),
     )
 

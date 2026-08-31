@@ -10,11 +10,6 @@ from clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
 from static_analyzer.cfg import CallGraph, CallSiteLocation
 from static_analyzer.node import Node
 
-# Marker on a ClusterResult whose clusters are synthetic one-method-per-cluster
-# groups, produced when a subgraph had too few natural clusters to assign methods
-# at a useful granularity. Its modularity is not comparable to a real clustering's.
-METHOD_LEVEL_STRATEGY = "method_level_expansion"
-
 
 @dataclass
 class ClusterResult:

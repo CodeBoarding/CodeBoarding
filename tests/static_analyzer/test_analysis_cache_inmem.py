@@ -324,7 +324,7 @@ class TestClusterCachePreservation(unittest.TestCase):
                     clusters={2: {"pkg.a.foo"}},
                     cluster_to_files={2: {str(source_file)}},
                     file_to_clusters={str(source_file): {2}},
-                    strategy="method_level_expansion",
+                    strategy="leiden",
                 ),
                 {"pkg.a.orphan"},
                 "1",

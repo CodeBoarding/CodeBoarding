@@ -82,6 +82,7 @@ from static_analyzer.clustering import (
     ClusterCache,
     ClusterResult,
     ClusterScopeResult,
+    record_cluster_hierarchy,
 )
 from static_analyzer.clustering.delta import ClusterDelta, compute_cluster_delta
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
@@ -631,9 +632,11 @@ class DiagramGenerator:
             }
             self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
         elif target_component is None:
-            self.clustering_hierarchy = ClusteringService().build_full_hierarchy(
-                static_analysis, depth, pending_cluster_caches
+            self.clustering_hierarchy = ClusteringService().build_hierarchy(
+                static_analysis.available_cfgs(),
+                depth,
             )
+            record_cluster_hierarchy(pending_cluster_caches, self.clustering_hierarchy)
         else:
             scope = self._build_component_scope(target_component, depth)
             self.clustering_hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
@@ -1109,13 +1112,12 @@ class DiagramGenerator:
             raise ClusteringScopeUnavailableError(component.component_id, "no owned CFG nodes")
 
         remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
-        scope = ClusteringService().build_scope_hierarchy(
-            self.static_analysis,
+        scope = ClusteringService().build_hierarchy(
             graphs,
             remaining_depth,
-            component.component_id,
-            self._pending_cluster_caches,
+            root_scope_id=component.component_id,
         )
+        record_cluster_hierarchy(self._stage_cluster_caches(), scope)
         return scope
 
     def _generate_subcomponents(

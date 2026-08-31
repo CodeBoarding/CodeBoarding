@@ -1,13 +1,12 @@
-"""Clustering of call graphs: the partition types, the search, and where results are kept.
+"""Clustering of call graphs: recursive scopes, Leiden partitions, and cached results.
 
-``service`` is the entry point; ``engine`` is the Leiden search over an exported
+``service`` is the entry point; ``engine`` runs Leiden over an exported
 ``nx.DiGraph``; ``models`` holds the result types; ``cache`` holds the per-language
 state that ``LanguageResults`` owns.
 """
 
-from static_analyzer.clustering.cache import ClusterCache, ClusterScopeLineage
+from static_analyzer.clustering.cache import ClusterCache, ClusterScopeLineage, record_cluster_hierarchy
 from static_analyzer.clustering.models import (
-    METHOD_LEVEL_STRATEGY,
     ClusterConnectionEdge,
     ClusterGroup,
     ClusterResult,
@@ -16,9 +15,9 @@ from static_analyzer.clustering.models import (
 )
 
 __all__ = [
-    "METHOD_LEVEL_STRATEGY",
     "ClusterCache",
     "ClusterScopeLineage",
+    "record_cluster_hierarchy",
     "ClusterConnectionEdge",
     "ClusterGroup",
     "ClusterResult",
