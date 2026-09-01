@@ -269,10 +269,14 @@ class CSharpAdapter(LanguageAdapter):
 
     def package_of(self, qualified_name: str, file_path: Path, project_root: Path) -> str:
         """The declared namespace this symbol sits in, not merely its file's first one."""
+        # A contested type carries an origin in front of its namespace (`ProjectA.N.C`), so
+        # the namespace is matched anywhere in the name rather than only at the front.
         holding = [
             namespace
             for namespace in self.declared_namespaces(file_path)
-            if qualified_name == namespace or qualified_name.startswith(f"{namespace}.")
+            if qualified_name == namespace
+            or qualified_name.startswith(f"{namespace}.")
+            or f".{namespace}." in qualified_name
         ]
         if holding:
             return max(holding, key=len)

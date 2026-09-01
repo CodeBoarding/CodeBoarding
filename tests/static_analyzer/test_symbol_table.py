@@ -654,3 +654,49 @@ class TestPartialTypesAreOneType(unittest.TestCase):
         table = self._build()
         assert "Shop.Domain.Order.Create()" in table.symbols
         assert "Shop.Domain.Order.Cancel()" in table.symbols
+
+
+class TestGeneratedNamesDoNotEvict(unittest.TestCase):
+    """Origins are unique among the claimants, not against the whole table."""
+
+    @staticmethod
+    def _register(table, source, name, cls):
+        table.register_symbols(
+            source,
+            [
+                {
+                    "name": name,
+                    "kind": NodeType.PACKAGE,
+                    "detail": "",
+                    "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 9}},
+                },
+                {
+                    "name": cls,
+                    "kind": NodeType.CLASS,
+                    "range": {"start": {"line": 1, "character": 0}, "end": {"line": 9, "character": 0}},
+                },
+            ],
+            [],
+            Path("/repo"),
+        )
+
+    def test_a_name_already_declared_elsewhere_is_not_taken(self):
+        """`ProjectA/N/C` and `ProjectB/N/C` contest `N.C`, but another file legitimately
+        declares `ProjectA.N.C` already; renaming onto it would lose that type."""
+        table = SymbolTable(JavaAdapter())
+        self._register(table, Path("/repo/ProjectA/N/C.java"), "N", "C")
+        self._register(table, Path("/repo/ProjectB/N/C.java"), "N", "C")
+        self._register(table, Path("/repo/Other/ProjectA/N/C.java"), "ProjectA.N", "C")
+        before = table.symbols["ProjectA.N.C"].file_path
+        table.build_indices()
+        assert table.symbols["ProjectA.N.C"].file_path == before
+
+
+class TestOutermostContestedOwner(unittest.TestCase):
+    def test_a_nested_class_inherits_its_outer_declaration(self):
+        """Scanning an unordered set could hand the nested class a different prefix from its
+        outer class, which breaks containment and varies with the hash seed."""
+        contested = {"N.Outer", "N.Outer.Inner"}
+        assert SymbolTable._contested_owner("N.Outer.Inner.go()", contested) == "N.Outer"
+        assert SymbolTable._contested_owner("N.Outer", contested) == "N.Outer"
+        assert SymbolTable._contested_owner("N.Unrelated", contested) is None

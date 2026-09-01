@@ -261,15 +261,29 @@ class SymbolTable:
         origins = {name: self._origins_for(claimants[name]) for name in contested}
         for file_key, syms in self._primary_file_symbols.items():
             for sym in syms:
-                owner = next(
-                    (c for c in contested if sym.qualified_name == c or sym.qualified_name.startswith(f"{c}.")), None
-                )
+                owner = self._contested_owner(sym.qualified_name, contested)
                 if owner is None:
                     continue
                 # The head is derived from the contested name, not from this symbol's, so a
                 # declaration and its members keep a shared prefix and CONTAINS still links.
                 head = self._head_for(origins[owner][sym.file_path], owner)
                 renamed[(file_key, sym.qualified_name)] = f"{head}.{sym.qualified_name}" if head else sym.qualified_name
+
+        # A generated name may land on a declaration that legitimately owns it already, and
+        # origins are only unique among the claimants. Taking a name that is spoken for would
+        # lose that symbol and rebind its edges, so those stay where they are.
+        moving = {old for _, old in renamed}
+        taken = {name for name in self._symbols if name not in moving}
+        occupied = {key: new for key, new in renamed.items() if new in taken}
+        if occupied:
+            for key in occupied:
+                renamed.pop(key)
+            logger.warning(
+                "[Naming] %d contested symbol(s) keep their name: the origin-qualified form is already "
+                "declared elsewhere (%s)",
+                len(occupied),
+                ", ".join(sorted(set(occupied.values()))[:3]),
+            )
 
         for (file_key, old_name), new_name in renamed.items():
             for sym in self._file_symbols.get(file_key, []):
@@ -288,6 +302,23 @@ class SymbolTable:
             len(contested),
             len(renamed),
         )
+
+    @staticmethod
+    def _contested_owner(qualified_name: str, contested: set[str]) -> str | None:
+        """The outermost contested declaration this symbol belongs to.
+
+        Walks the name's own prefixes rather than scanning every contested name: shortest
+        first, so a nested class inherits the discriminator of the outer declaration that
+        owns it, and the answer does not depend on set iteration order. Scanning was also
+        ``O(symbols x contested)``, which is quadratic on a workspace where most declarations
+        are duplicated -- exactly the workspaces this handling exists for.
+        """
+        parts = qualified_name.split(".")
+        for depth in range(1, len(parts) + 1):
+            candidate = ".".join(parts[:depth])
+            if candidate in contested:
+                return candidate
+        return None
 
     @staticmethod
     def _is_partial(sym: SymbolInfo, source_inspector: "SourceInspector | None") -> bool:
