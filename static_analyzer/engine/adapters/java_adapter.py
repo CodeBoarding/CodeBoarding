@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 
 class JavaAdapter(LanguageAdapter):
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._packages: dict[str, str] = {}
+        """Per file, the declared package, recorded when jdtls reports its symbol."""
+
     @property
     def wait_for_workspace_ready(self) -> bool:
         """JDTLS finishes project import asynchronously and only signals
@@ -139,17 +144,25 @@ class JavaAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        """Build ``<package directory>.<declaring types>.<symbol>`` for Java.
+        """Build ``<declared package>.<declaring types>.<symbol>`` for Java.
 
-        Why the directory rather than the file stem: prefixing with the stem doubled the
-        top-level type (``core.Animal.Animal``) while its own method kept one segment, so a
-        class was a *sibling* of its members and CONTAINS, which is prefix arithmetic, could
-        not link them. It also named a package-private sibling like a nested type. Members
-        are unaffected.
+        The package, not the directory: jdtls reports the package declaration as its own
+        symbol whose name is the full package, and that is the name the compiler and the
+        maintainer use. The directory carries the build layout with it -- every name under a
+        Maven tree was prefixed ``src.main.java.`` -- and Java does not require the two to
+        agree outside the source root.
+
+        Not the file stem either: prefixing with the stem doubled the top-level type
+        (``core.Animal.Animal``) while its own method kept one segment, so a class was a
+        *sibling* of its members and CONTAINS, which is prefix arithmetic, could not link
+        them. It also named a package-private sibling like a nested type.
         """
-        rel = file_path.relative_to(project_root)
-        module = ".".join(rel.parent.parts)
-        segments = [self._clean_symbol_name(name) for name, _ in parent_chain]
+        if symbol_kind == NodeType.PACKAGE and not parent_chain:
+            self._packages[str(file_path)] = symbol_name
+            return symbol_name
+
+        module = self._packages.get(str(file_path)) or ".".join(file_path.relative_to(project_root).parent.parts)
+        segments = [self._clean_symbol_name(name) for name, kind in parent_chain if kind != NodeType.PACKAGE]
         segments.append(self._clean_symbol_name(symbol_name))
         return ".".join(part for part in (module, *segments) if part)
 
