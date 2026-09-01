@@ -217,7 +217,9 @@ class CSharpAdapter(LanguageAdapter):
         The walk reaches the namespace before its children, so recording it there is enough.
         """
         if detail and symbol_kind == NodeType.NAMESPACE:
-            self._namespaces.setdefault(str(file_path), {})[detail.rsplit(".", 1)[-1]] = detail
+            known = self._namespaces.setdefault(str(file_path), {})
+            known[detail] = detail
+            known.setdefault(detail.rsplit(".", 1)[-1], detail)
             return detail
 
         module = self._module_for(file_path, parent_chain, project_root)
@@ -237,6 +239,8 @@ class CSharpAdapter(LanguageAdapter):
         declared = self._namespaces.get(str(file_path), {})
         for name, kind in reversed(parent_chain):
             if kind == NodeType.NAMESPACE and name in declared:
+                # `setdefault` on the last segment: a full name always wins over a segment
+                # that two namespaces in this file share.
                 return declared[name]
         # Alias forms arrive with the namespace stripped from the chain, so a file that
         # declares exactly one still resolves.
