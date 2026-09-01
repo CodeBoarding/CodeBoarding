@@ -12,6 +12,11 @@ from static_analyzer.engine.models import SymbolInfo
 
 logger = logging.getLogger(__name__)
 
+ORIGIN_SEPARATOR = " @ "
+"""Separates a contested name from the directory that declares it.
+
+Not a comma: a C# signature already puts ``, `` between parameters."""
+
 
 class SymbolTable:
     """Manages symbol discovery, registration, and lookup.
@@ -117,6 +122,7 @@ class SymbolTable:
             )
             info.parent_chain = list(parent_chain)
             info.owner_qualified_name = owner_qualified_name
+            info.is_primary = True
 
             qualified_name = self._claim(qualified_name, info, project_root)
             info.qualified_name = qualified_name
@@ -361,14 +367,19 @@ class SymbolTable:
         silently dropped whichever came first, taking its edges with it.
 
         The name is only qualified for the symbols that actually collide, so the vast
-        majority keep the exact name they had. The origin follows a comma, the separator C#
-        already uses for an assembly-qualified name, so the part before it stays the name a
-        maintainer can search for.
+        majority keep the exact name they had. The origin follows `` @ ``, which cannot occur
+        inside a qualified name -- a comma would read as a parameter separator -- so the part
+        before it stays the name a maintainer can search for.
         """
+        # A namespace or package declared across many files is one scope, not many rival
+        # declarations, so it is never contested.
+        if info.kind in (NodeType.NAMESPACE, NodeType.PACKAGE):
+            return qualified_name
         if qualified_name in self._contested:
             return self._scoped(qualified_name, info, project_root)
         existing = self._symbols.get(qualified_name)
-        if existing is None or existing.file_path == info.file_path:
+        # Aliases are deliberately ambiguous short forms; only two declarations contest.
+        if existing is None or not existing.is_primary or existing.file_path == info.file_path:
             return qualified_name
         # First collision on this name: move the incumbent too, so the outcome does not
         # depend on which file the walk reached first.
@@ -384,7 +395,9 @@ class SymbolTable:
             origin = info.file_path.relative_to(project_root).parent
         except ValueError:
             origin = info.file_path.parent
-        return f"{qualified_name}, {origin.as_posix()}" if str(origin) not in ("", ".") else qualified_name
+        return (
+            f"{qualified_name}{ORIGIN_SEPARATOR}{origin.as_posix()}" if str(origin) not in ("", ".") else qualified_name
+        )
 
     def is_local_variable(self, sym: SymbolInfo) -> bool:
         """Check whether a symbol is a local/parameter that should be excluded.
