@@ -250,10 +250,35 @@ class CSharpAdapter(LanguageAdapter):
         one package, hiding the call between them, while files in different directories
         sharing a namespace looked like a cross-package dependency.
         """
-        declared = self._namespaces.get(str(file_path))
+        declared = self.declared_namespaces(file_path)
         if declared:
-            return min(declared.values(), key=len)
+            # Sorted first so a tie on length does not resolve by set iteration order.
+            return min(sorted(declared), key=len)
         return super().get_package_for_file(file_path, project_root)
+
+    def package_of(self, qualified_name: str, file_path: Path, project_root: Path) -> str:
+        """The declared namespace this symbol sits in, not merely its file's first one."""
+        holding = [
+            namespace
+            for namespace in self.declared_namespaces(file_path)
+            if qualified_name == namespace or qualified_name.startswith(f"{namespace}.")
+        ]
+        if holding:
+            return max(holding, key=len)
+        # In none of them: a global type in a file that also declares namespaces. Handing it
+        # whichever namespace happens to be shortest would place it somewhere it is not, so
+        # it falls back to the directory, exactly as its name does.
+        return LanguageAdapter.get_package_for_file(self, file_path, project_root)
+
+    def declared_namespaces(self, file_path: Path) -> set[str]:
+        """Every namespace this file declares.
+
+        A file may declare more than one. ``get_package_for_file`` has to answer with a
+        single name, so it takes the shortest; anything that can carry them all -- the
+        package list, and edge classification, which knows the symbol -- should ask here
+        instead, or a call from ``Alpha`` to ``Beta`` in one file reads as internal.
+        """
+        return set(self._namespaces.get(str(file_path), {}).values())
 
     def extract_package(self, qualified_name: str) -> str:
         """Extract namespace as all-but-last-two dot-separated components.
@@ -423,9 +448,10 @@ class CSharpAdapter(LanguageAdapter):
         return super().is_reference_worthy(symbol_kind) or symbol_kind == NodeType.NAMESPACE
 
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
-        """Every prefix of each declared namespace, so a package matches the names built from it."""
+        """Every prefix of every declared namespace, so a package matches the names built from it."""
         packages: set[str] = set()
         for source in source_files:
-            parts = self.get_package_for_file(source, project_root).split(".")
-            packages.update(".".join(parts[:depth]) for depth in range(1, len(parts) + 1))
+            for namespace in self.declared_namespaces(source) or {self.get_package_for_file(source, project_root)}:
+                parts = namespace.split(".")
+                packages.update(".".join(parts[:depth]) for depth in range(1, len(parts) + 1))
         return packages - {""}

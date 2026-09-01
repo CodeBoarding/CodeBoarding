@@ -366,8 +366,8 @@ class CallGraphBuilder:
             dst_sym = st.symbols.get(dst)
             if not src_sym or not dst_sym:
                 continue
-            src_pkg = self._adapter.get_package_for_file(src_sym.file_path, self._root)
-            dst_pkg = self._adapter.get_package_for_file(dst_sym.file_path, self._root)
+            src_pkg = self._adapter.package_of(src, src_sym.file_path, self._root)
+            dst_pkg = self._adapter.package_of(dst, dst_sym.file_path, self._root)
             if src_pkg != dst_pkg:
                 if src_pkg in package_deps and dst_pkg not in package_deps[src_pkg]["imports"]:
                     package_deps[src_pkg]["imports"].append(dst_pkg)
