@@ -118,6 +118,15 @@ def _single_target_framework_env(project_root: Path) -> dict[str, str]:
 
 class CSharpAdapter(LanguageAdapter):
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._namespaces: dict[str, dict[str, str]] = {}
+        """Per file, the declared namespaces keyed by their last segment.
+
+        Why: csharp-ls gives a class only the last segment of its namespace, so the full
+        name has to be carried from the namespace symbol that was walked just before it.
+        """
+
     @property
     def include_references_on_declaration_line(self) -> bool:
         return True
@@ -191,29 +200,52 @@ class CSharpAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        """Build ``<directory>.<declaring types>.<symbol>`` for C#.
+        """Build ``<declared namespace>.<declaring types>.<symbol>`` for C#.
 
-        Why the directory rather than the file stem: C# has no file scope, so a file may
-        declare any number of top-level types and the scope owning them is the namespace.
-        Prefixing with the stem made every other type in ``ICatalogFacade.cs`` read as a
-        member of the interface it sits beside, which ``is_self_or_container_edge`` then
-        deleted as containment. One type per file is unaffected.
+        The namespace, not the directory: C# does not require the two to agree, so two files
+        in one directory may declare ``Alpha.Handler`` and ``Beta.Handler``, and a directory
+        prefix collapses them into one identity. It is also the name the compiler uses and
+        the one a maintainer searches for.
 
-        csharp-ls nests File > Namespace > Class > Members, and only the namespace symbol
-        carries its full name in ``detail``.
+        Not the file stem either: C# has no file scope, so a file may declare any number of
+        top-level types. Prefixing with the stem made every other type in
+        ``ICatalogFacade.cs`` read as a member of the interface it sits beside, which
+        ``is_self_or_container_edge`` then deleted as containment.
+
+        csharp-ls nests File > Namespace > Class > Members and gives the full namespace only
+        on the namespace symbol's ``detail``; a class's chain carries its last segment alone.
+        The walk reaches the namespace before its children, so recording it there is enough.
         """
-        # Namespace symbol itself — detail has the full namespace
         if detail and symbol_kind == NodeType.NAMESPACE:
+            self._namespaces.setdefault(str(file_path), {})[detail.rsplit(".", 1)[-1]] = detail
             return detail
 
-        rel = file_path.relative_to(project_root)
-        module = ".".join(p for p in rel.parent.parts if p not in ("src", "."))
+        module = self._module_for(file_path, parent_chain, project_root)
 
-        # Skip File (kind=1) and Namespace (kind=3) — the namespace is already
-        # encoded in the directory prefix for C#.
+        # Skip File (kind=1) and Namespace (kind=3) — the namespace is the prefix already.
         code_parents = [name for name, kind in parent_chain if kind not in (NodeType.FILE, NodeType.NAMESPACE)]
 
         return ".".join(part for part in (module, *code_parents, symbol_name) if part)
+
+    def _module_for(self, file_path: Path, parent_chain: list[tuple[str, int]], project_root: Path) -> str:
+        """The declared namespace this symbol sits in, or the directory when it has none.
+
+        A file may declare several namespaces, so the chain's own namespace segment selects
+        which one. The directory fallback covers the global namespace and any file whose
+        namespace symbol the server did not report.
+        """
+        declared = self._namespaces.get(str(file_path), {})
+        for name, kind in reversed(parent_chain):
+            if kind == NodeType.NAMESPACE and name in declared:
+                return declared[name]
+        # Alias forms arrive with the namespace stripped from the chain, so a file that
+        # declares exactly one still resolves.
+        if len(declared) == 1:
+            return next(iter(declared.values()))
+        # Nothing declared, or an ambiguous chain: the directory is the better guess than a
+        # bare last segment, and it is what the global namespace has to fall back on anyway.
+        rel = file_path.relative_to(project_root)
+        return ".".join(part for part in rel.parent.parts if part not in ("src", "."))
 
     def extract_package(self, qualified_name: str) -> str:
         """Extract namespace as all-but-last-two dot-separated components.
