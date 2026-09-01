@@ -75,18 +75,34 @@ class NamingModelAgent(CodeBoardingAgent):
         Why the root: nodes carry absolute paths, so without it every file's outermost part is
         the filesystem root and the model is shown one scope for the whole repo.
         """
-        scopes: set[str] = set()
         words: Counter[str] = Counter()
-        identifiers: set[str] = set()
+        by_scope: dict[str, set[str]] = {}
         for node in self.static_analysis.iter_reference_nodes():
             scope = scope_of(node.file_path, str(self.repo_dir))
-            if scope:
-                scopes.add(scope)
             name = node.fully_qualified_name.rsplit(".", 1)[-1]
-            identifiers.add(name)
+            by_scope.setdefault(scope, set()).add(name)
             words.update(tokenize(name))
         return (
-            sorted(scopes),
+            sorted(scope for scope in by_scope if scope),
             words.most_common(VOCABULARY_SAMPLE),
-            sorted(identifiers)[:IDENTIFIER_SAMPLE],
+            self._identifier_sample(by_scope),
         )
+
+    @staticmethod
+    def _identifier_sample(by_scope: dict[str, set[str]]) -> list[str]:
+        """A sample that reaches every scope, taken round-robin.
+
+        Why not the first N of a sorted set: that is an alphabetical slice. On eShop it showed
+        the model identifiers from A to C only -- nothing named Order, Payment or Webhook --
+        so the sample argued for components the repo does not have and stayed silent on the
+        ones it does.
+        """
+        queues = [sorted(names) for _, names in sorted(by_scope.items())]
+        sample: list[str] = []
+        for index in range(max((len(q) for q in queues), default=0)):
+            for queue in queues:
+                if index < len(queue):
+                    sample.append(queue[index])
+                    if len(sample) == IDENTIFIER_SAMPLE:
+                        return sample
+        return sample

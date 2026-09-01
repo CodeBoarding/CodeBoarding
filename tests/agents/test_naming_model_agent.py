@@ -50,6 +50,16 @@ class TestNamingModelAgentEvidence(unittest.TestCase):
         scopes, _, _ = self._agent()._evidence()
         self.assertEqual(scopes, ["Catalog.API", "Ordering.API"])
 
+    def test_the_identifier_sample_reaches_every_scope(self):
+        """An alphabetical slice showed eShop's model identifiers from A to C only, so it
+        argued for components the repo does not have and stayed silent on the ones it does."""
+        nodes = [
+            (f"Alpha.API.Aardvark{i}", str(self.repo_dir / f"src/Alpha.API/Aardvark{i}.cs")) for i in range(200)
+        ] + [("Zeta.API.ZuluApi", str(self.repo_dir / "src/Zeta.API/ZuluApi.cs"))]
+        agent = NamingModelAgent(self.repo_dir, _analysis(nodes), MagicMock(), MagicMock())
+        _, _, identifiers = agent._evidence()
+        self.assertIn("ZuluApi", identifiers)
+
     def test_evidence_carries_vocabulary_and_identifiers(self):
         scopes, vocabulary, identifiers = self._agent()._evidence()
         self.assertIn("OrdersApi", identifiers)
