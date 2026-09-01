@@ -125,7 +125,15 @@ class SymbolTable:
             # Dual registration: register unqualified form(s) for symbols with parents
             # Aliases go into _file_symbols but NOT _primary_file_symbols
             if parent_chain:
-                unqualified_name = self._naming.build_qualified_name(file_path, name, kind, [], project_root, detail)
+                # An alias drops the declaring types but stays in the scope that declares it.
+                # Why: a C# file may declare several namespaces, and an alias built from an
+                # empty chain cannot say which, so the adapter would fall back to the
+                # directory -- putting a directory-prefixed alias beside a namespace-prefixed
+                # primary. Definition lookup then picks whichever string is longer.
+                scope_chain = [(n, k) for n, k in parent_chain if k in (NodeType.NAMESPACE, NodeType.PACKAGE)]
+                unqualified_name = self._naming.build_qualified_name(
+                    file_path, name, kind, scope_chain, project_root, detail
+                )
                 if unqualified_name != qualified_name and unqualified_name not in self._symbols:
                     unq_info = SymbolInfo(
                         name=name,
@@ -147,8 +155,12 @@ class SymbolTable:
                 if len(parent_chain) >= 2:
                     for skip in range(1, len(parent_chain)):
                         partial_chain = parent_chain[skip:]
+                        # Same reason: keep the declaring scope on every partial form.
+                        scoped_partial = [entry for entry in scope_chain if entry not in partial_chain] + list(
+                            partial_chain
+                        )
                         partial_name = self._naming.build_qualified_name(
-                            file_path, name, kind, partial_chain, project_root, detail
+                            file_path, name, kind, scoped_partial, project_root, detail
                         )
                         if partial_name != qualified_name and partial_name not in self._symbols:
                             p_info = SymbolInfo(
