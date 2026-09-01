@@ -270,16 +270,20 @@ class CSharpAdapter(LanguageAdapter):
     def package_of(self, qualified_name: str, file_path: Path, project_root: Path) -> str:
         """The declared namespace this symbol sits in, not merely its file's first one."""
         # A contested type carries an origin in front of its namespace (`ProjectA.N.C`), so
-        # the namespace is matched anywhere in the name rather than only at the front.
-        holding = [
-            namespace
-            for namespace in self.declared_namespaces(file_path)
-            if qualified_name == namespace
-            or qualified_name.startswith(f"{namespace}.")
-            or f".{namespace}." in qualified_name
-        ]
+        # the namespace may start at a later segment. Matched on whole segments and anchored
+        # as early as possible: a substring test let `A.B.C.Run()` match a declared `B.C`,
+        # and `max` over a set then broke the tie with `A.B` by iteration order.
+        segments = qualified_name.split(".")
+        holding: list[tuple[int, int, str]] = []
+        for namespace in self.declared_namespaces(file_path):
+            parts = namespace.split(".")
+            for start in range(len(segments) - len(parts) + 1):
+                if segments[start : start + len(parts)] == parts:
+                    holding.append((start, -len(parts), namespace))
+                    break
         if holding:
-            return max(holding, key=len)
+            # Earliest start wins, then the longest namespace, then the name itself.
+            return min(holding)[2]
         # In none of them: a global type in a file that also declares namespaces. Handing it
         # whichever namespace happens to be shortest would place it somewhere it is not, so
         # it falls back to the directory, exactly as its name does.

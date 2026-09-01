@@ -254,6 +254,7 @@ class SymbolTable:
         walk reached first, and descendants move with the declaration that owns them.
         """
         claimants: dict[str, set[Path]] = {}
+        partial_projects: dict[str, set[Path]] = {}
         for sym in (s for syms in self._primary_file_symbols.values() for s in syms):
             # A namespace or package is one scope many files declare, not rival declarations.
             # Counting it made every file in a namespace contest it, and the descendant match
@@ -262,9 +263,20 @@ class SymbolTable:
                 continue
             # A `partial` type split across files is one type to the compiler, so its halves
             # are not rivals: keeping the shared name puts both sets of members on one node.
+            # Only within one assembly though -- two projects declaring the same partial type
+            # declare two types, and dropping both from the scan let one overwrite the other.
             if self._is_partial(sym, source_inspector):
+                partial_projects.setdefault(sym.qualified_name, set()).add(self._project_of(sym.file_path))
                 continue
             claimants.setdefault(sym.qualified_name, set()).add(sym.file_path)
+        # A partial type declared in more than one project is contested after all, and every
+        # file that declares it takes part.
+        for name, projects in partial_projects.items():
+            if len(projects) > 1:
+                for sym in (s for syms in self._primary_file_symbols.values() for s in syms):
+                    if sym.qualified_name == name:
+                        claimants.setdefault(name, set()).add(sym.file_path)
+
         contested = {name for name, files in claimants.items() if len(files) > 1}
         if not contested and not self._baseline_names:
             return
@@ -324,11 +336,19 @@ class SymbolTable:
     def _baseline_name_for(self, sym: SymbolInfo) -> str:
         """The origin-qualified name the baseline gave this symbol, if it gave it one.
 
-        Only an exact tail match counts, so a name the baseline left alone stays alone.
+        The prefix has to look like an origin, which is built only from the declaring file's
+        own path. Accepting any tail match froze real edits: renaming a namespace from
+        ``A.B.C`` to ``B.C`` still matches the cached ``A.B.C``, and the rename would never
+        reach the merged graph.
         """
         suffix = f".{sym.qualified_name}"
+        segments = {part.casefold() for part in self._relative_dir(sym.file_path)}
+        segments.add(sym.file_path.stem.casefold())
         for name in sorted(self._baseline_names.get(sym.file_path, ())):
-            if name.endswith(suffix):
+            if not name.endswith(suffix):
+                continue
+            prefix = name[: -len(suffix)]
+            if prefix and all(part.casefold() in segments for part in prefix.split(".")):
                 return name
         return ""
 
@@ -348,6 +368,20 @@ class SymbolTable:
             if candidate in contested:
                 return candidate
         return None
+
+    def _project_of(self, source: Path) -> Path:
+        """The nearest ancestor holding a project file, which is the assembly boundary."""
+        root = self._project_root
+        directory = source.parent
+        while True:
+            if any(directory.glob("*.csproj")) or any(directory.glob("*.fsproj")):
+                return directory
+            if root is not None and directory == root:
+                break
+            if directory.parent == directory:
+                break
+            directory = directory.parent
+        return root if root is not None else source.parent
 
     @staticmethod
     def _is_partial(sym: SymbolInfo, source_inspector: "SourceInspector | None") -> bool:

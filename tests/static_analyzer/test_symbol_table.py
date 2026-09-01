@@ -765,3 +765,87 @@ class TestWarmStartKeepsContestedIdentities(unittest.TestCase):
 
     def test_without_the_baseline_the_prefix_is_lost(self):
         assert self._build([self.changed]) == ["eShop.ClientApp.AppDelegate.CreateMauiApp()"]
+
+
+class TestBaselineReplayOnlyForOrigins(unittest.TestCase):
+    """A baseline name is replayed only when its prefix looks like an origin."""
+
+    def _table(self, cached):
+        table = SymbolTable.__new__(SymbolTable)
+        table._project_root = Path("/repo")
+        table._baseline_names = cached
+        return table
+
+    def test_a_namespace_rename_is_not_frozen(self):
+        """`A.B.C` -> `B.C` still ends with `.B.C`; replaying it would undo the edit."""
+        source = Path("/repo/src/X.cs")
+        table = self._table({source: {"A.B.C"}})
+        sym = SymbolInfo("C", "B.C", NodeType.CLASS, source, 0, 0, 9, 0)
+        assert table._baseline_name_for(sym) == ""
+
+    def test_a_real_origin_is_replayed(self):
+        source = Path("/repo/src/ClientApp/Platforms/iOS/AppDelegate.cs")
+        cached = "ClientApp.Platforms.iOS.eShop.ClientApp.AppDelegate"
+        table = self._table({source: {cached}})
+        sym = SymbolInfo("AppDelegate", "eShop.ClientApp.AppDelegate", NodeType.CLASS, source, 0, 0, 9, 0)
+        assert table._baseline_name_for(sym) == cached
+
+
+class TestPartialTypesAcrossAssemblies(unittest.TestCase):
+    """`partial` combines declarations inside one assembly, not across them."""
+
+    def setUp(self):
+        self.temp = tempfile.mkdtemp()
+        self.root = Path(self.temp)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp, ignore_errors=True)
+
+    def _classes(self, layout):
+        for project, files in layout.items():
+            folder = self.root / "src" / project
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / f"{project}.csproj").write_text("<Project/>")
+            for name in files:
+                (folder / name).write_text(
+                    "namespace Shop;\npublic partial class Order\n{\n    public void Go() {}\n}\n"
+                )
+        adapter = CSharpAdapter()
+        table = SymbolTable(adapter)
+        for project, files in layout.items():
+            for name in files:
+                source = self.root / "src" / project / name
+                chain: list[tuple[str, int]] = [(source.name, NodeType.FILE)]
+                adapter.build_qualified_name(source, "Shop", NodeType.NAMESPACE, chain, self.root, "Shop")
+                table.register_symbols(
+                    source,
+                    [
+                        {
+                            "name": "Shop",
+                            "kind": NodeType.NAMESPACE,
+                            "detail": "Shop",
+                            "range": {"start": {"line": 0, "character": 0}, "end": {"line": 5, "character": 0}},
+                            "children": [
+                                {
+                                    "name": "Order",
+                                    "kind": NodeType.CLASS,
+                                    "range": {"start": {"line": 1, "character": 0}, "end": {"line": 4, "character": 0}},
+                                }
+                            ],
+                        }
+                    ],
+                    chain,
+                    self.root,
+                )
+        table.build_indices(SourceInspector())
+        return sorted(n for n, s in table.symbols.items() if s.kind == NodeType.CLASS)
+
+    def test_halves_of_one_project_are_one_type(self):
+        assert self._classes({"ProjectA": ["Order.cs", "Order.Commands.cs"]}) == ["Shop.Order"]
+
+    def test_two_projects_declare_two_types(self):
+        """Skipping every partial declaration let one project's class overwrite the other."""
+        assert self._classes({"ProjectA": ["Order.cs"], "ProjectB": ["Order.cs"]}) == [
+            "ProjectA.Shop.Order",
+            "ProjectB.Shop.Order",
+        ]

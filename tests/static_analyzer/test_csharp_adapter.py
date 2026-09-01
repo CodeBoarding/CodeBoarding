@@ -795,3 +795,33 @@ class TestMultipleNamespacesInOneFile:
     def test_a_symbol_in_no_declared_namespace_falls_back_to_the_directory(self):
         """A global type is in neither namespace; handing it the shortest would misplace it."""
         assert self.adapter.package_of("Gamma.Thing", self.source, self.root) == "src.Shared"
+
+
+class TestOverlappingNamespaceSegments:
+    """A namespace is matched on whole segments, anchored as early as possible."""
+
+    def setup_method(self):
+        self.adapter = CSharpAdapter()
+        self.root = Path("/repo")
+        self.source = self.root / "src/N/F.cs"
+        for namespace in ("A.B", "B.C"):
+            self.adapter.build_qualified_name(
+                self.source,
+                namespace.rsplit(".", 1)[-1],
+                NodeType.NAMESPACE,
+                [(self.source.name, NodeType.FILE)],
+                self.root,
+                namespace,
+            )
+
+    def test_the_earliest_match_wins(self):
+        """A substring test matched the trailing `B.C`, and `max` over a set broke the
+        length tie by iteration order."""
+        assert self.adapter.package_of("A.B.C.Run()", self.source, self.root) == "A.B"
+
+    def test_an_origin_prefixed_name_still_finds_its_namespace(self):
+        adapter = CSharpAdapter()
+        source = self.root / "src/P/G.cs"
+        adapter.build_qualified_name(source, "N", NodeType.NAMESPACE, [(source.name, NodeType.FILE)], self.root, "N")
+        assert adapter.package_of("ProjectA.N.C", source, self.root) == "N"
+        assert adapter.package_of("N.C", source, self.root) == "N"
