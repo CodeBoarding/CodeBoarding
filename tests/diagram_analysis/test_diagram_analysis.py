@@ -52,7 +52,7 @@ from static_analyzer.clustering import (
     ClusterScopeResult,
 )
 from static_analyzer.clustering.delta import LanguageDelta
-from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
+from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, NamingModelUnavailableError
 from static_analyzer.clustering.naming import ComponentVocabulary, NamingModel
 from static_analyzer.clustering.service import ClusteringService
 from static_analyzer.node import Node
@@ -2480,3 +2480,50 @@ class TestSubScopeRelationsAreGloballyGated(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNamingModelResolution(unittest.TestCase):
+    """Which runs may re-read the naming model, and which must reuse what is on disk."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.output_dir = Path(self.temp_dir) / "out"
+        self.output_dir.mkdir(parents=True)
+        self.generator = DiagramGenerator.__new__(DiagramGenerator)
+        self.generator.output_dir = str(self.output_dir)
+        self.generator.repo_location = Path(self.temp_dir) / "repo"
+        self.generator._naming_llms = None
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _write_baseline(self, model: dict) -> None:
+        (self.output_dir / "analysis.json").write_text(
+            json.dumps({"metadata": {"naming_model": model}, "components": []}), encoding="utf-8"
+        )
+
+    def test_a_run_building_on_a_baseline_reuses_the_stored_model(self):
+        self._write_baseline({"components": [{"name": "Ordering", "owns": ["Order"]}], "machinery": ["Handler"]})
+        model = self.generator._resolve_naming_model(MagicMock(), reuse_stored=True)
+        self.assertEqual([c.name for c in model.components], ["Ordering"])
+        self.assertEqual(model.machinery, frozenset({"Handler"}))
+
+    def test_a_baseline_without_a_model_cannot_be_built_on(self):
+        self._write_baseline({})
+        with self.assertRaises(IncrementalCacheMissingError):
+            self.generator._resolve_naming_model(MagicMock(), reuse_stored=True)
+
+    def test_a_full_run_without_an_llm_fails_loudly(self):
+        with self.assertRaises(NamingModelUnavailableError):
+            self.generator._resolve_naming_model(MagicMock(), reuse_stored=False)
+
+    def test_a_partial_run_reuses_rather_than_re_reading(self):
+        """Re-reading would swap the vocabulary that produced the persisted partition for a
+        fresh, non-deterministic one, and then persist it over the baseline."""
+        self._write_baseline({"components": [{"name": "Catalog", "owns": ["Catalog"]}], "machinery": []})
+        agent = MagicMock()
+        self.generator._naming_llms = (MagicMock(), MagicMock())
+        with patch("diagram_analysis.diagram_generator.NamingModelAgent", return_value=agent):
+            model = self.generator._resolve_naming_model(MagicMock(), reuse_stored=True)
+        agent.read_naming_model.assert_not_called()
+        self.assertEqual([c.name for c in model.components], ["Catalog"])

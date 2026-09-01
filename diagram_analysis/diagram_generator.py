@@ -639,15 +639,18 @@ class DiagramGenerator:
             }
             # Resolved after the baseline check: a missing baseline is the more specific
             # complaint, and it is the one the caller can act on.
-            self.naming_model = self._resolve_naming_model(static_analysis, incremental)
+            self.naming_model = self._resolve_naming_model(static_analysis, reuse_stored=True)
             self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
         elif target_component is None:
-            self.naming_model = self._resolve_naming_model(static_analysis, incremental)
+            self.naming_model = self._resolve_naming_model(static_analysis, reuse_stored=False)
             self.clustering_hierarchy = ClusteringService(self.naming_model, repo_root).build_full_hierarchy(
                 static_analysis, depth, pending_cluster_caches
             )
         else:
-            self.naming_model = self._resolve_naming_model(static_analysis, incremental)
+            # A partial run expands one component of an existing analysis. Re-reading the
+            # model would swap the vocabulary that produced the persisted partition for a
+            # fresh, non-deterministic one, and then persist it over the baseline.
+            self.naming_model = self._resolve_naming_model(static_analysis, reuse_stored=True)
             scope = self._build_component_scope(target_component, depth)
             self.clustering_hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
             self.clustering_hierarchy.register_scope(target_component.component_id, scope)
@@ -678,20 +681,21 @@ class DiagramGenerator:
                 json.dump(static_stats, f, indent=2)
             logger.debug(f"Written code_stats.json to {code_stats_file}")
 
-    def _resolve_naming_model(self, static_analysis: StaticAnalysisResults, incremental: bool) -> NamingModel:
+    def _resolve_naming_model(self, static_analysis: StaticAnalysisResults, *, reuse_stored: bool) -> NamingModel:
         """The components this repo's identifiers name.
 
-        Read once on a full analysis and stored in the analysis metadata; an incremental run
-        reuses it verbatim, so the partition cannot move underneath unchanged code. There is
-        no graph-based fallback -- an LLM is required for the later stages anyway, so a
-        missing model means the run cannot produce an answer, not that it should produce a
-        worse one.
+        Read fresh only by a full analysis. Every run that builds on an existing one --
+        incremental, or a partial expansion of one component -- reads the stored model back,
+        so the vocabulary cannot move underneath a partition already on disk. There is no
+        graph-based fallback: an LLM is required for the later stages anyway, so a missing
+        model means the run cannot produce an answer, not that it should produce a worse one.
         """
-        if incremental:
+        if reuse_stored:
             stored = (load_analysis_metadata(Path(self.output_dir)) or {}).get("naming_model")
             if not stored:
-                # A baseline with no stored model cannot support an incremental run, which is
-                # what IncrementalCacheMissingError already means and what the CLI explains.
+                # A baseline with no stored model cannot support a run that builds on it,
+                # which is what IncrementalCacheMissingError already means and what the CLI
+                # explains.
                 raise IncrementalCacheMissingError(
                     Path(self.output_dir),
                     "the baseline analysis.json carries no naming model (written before it existed)",
