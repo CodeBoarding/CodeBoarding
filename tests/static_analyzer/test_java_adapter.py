@@ -149,3 +149,13 @@ class TestJavaDeclaredPackage:
             project_root=self.root,
         )
         assert result == "src.main.java.core.Animal"
+
+    def test_a_package_derived_name_yields_the_whole_package(self):
+        """Names no longer carry a src/main/java marker, so extraction cannot key on one."""
+        assert self.adapter.extract_package("org.mockito.internal.util.MockUtil.isMock(Object)") == (
+            "org.mockito.internal.util"
+        )
+        assert self.adapter.extract_package("core.Animal") == "core"
+
+    def test_a_directory_derived_name_still_strips_the_build_layout(self):
+        assert self.adapter.extract_package("src.main.java.core.Animal.speak()") == "core"

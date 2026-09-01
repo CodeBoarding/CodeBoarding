@@ -256,8 +256,10 @@ class JavaAdapter(LanguageAdapter):
             try:
                 java_idx = parts.index("java")
             except ValueError:
-                return parts[0]
+                java_idx = -1
 
+        # A name built from the declared package has no build-layout marker in it and already
+        # starts at the package, so the whole name is the candidate.
         after_root = parts[java_idx + 1 :]
         if not after_root:
             return parts[0]
