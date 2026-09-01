@@ -30,6 +30,8 @@ class SymbolInfo:
     # top-level symbol and for every alias. Why: indices that slice the qualified name
     # instead agree with the real owner only by luck of the naming scheme.
     owner_qualified_name: str = ""
+    is_primary: bool = False
+    """A declaration, not one of the short alias forms registered alongside it."""
 
     @property
     def definition_location(self) -> tuple[str, int, int]:

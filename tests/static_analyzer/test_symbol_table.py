@@ -1,11 +1,13 @@
 """Tests for static_analyzer.engine.symbol_table.SymbolTable."""
 
+import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.config import NodeType
 from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.symbol_table import SymbolTable
 
 
@@ -388,3 +390,117 @@ class TestIsLocalVariable:
         st._file_symbols["mod.py"] = [alias, parented]
 
         assert st.is_local_variable(alias) is True
+
+
+class TestAliasesStayInTheirNamespace(unittest.TestCase):
+    """A C# file may declare several namespaces; an alias must not fall back to the directory.
+
+    Why it matters: `_build_definition_lookups` picks the longest qualified name at a
+    position, so a directory-prefixed alias beside a namespace-prefixed primary can win.
+    """
+
+    def test_the_alias_keeps_the_declaring_namespace(self):
+        adapter = CSharpAdapter()
+        root = Path("/repo")
+        source = Path("/repo/src/A/Very/Long/Directory/Two.cs")
+        table = SymbolTable(adapter)
+        for namespace in ("Alpha", "Beta"):
+            adapter.build_qualified_name(
+                source, namespace, NodeType.NAMESPACE, [(source.name, NodeType.FILE)], root, namespace
+            )
+        table.register_symbols(
+            source,
+            [
+                {
+                    "name": "Alpha",
+                    "kind": NodeType.NAMESPACE,
+                    "detail": "Alpha",
+                    "range": {"start": {"line": 0, "character": 0}, "end": {"line": 9, "character": 0}},
+                    "children": [
+                        {
+                            "name": "Holder",
+                            "kind": NodeType.CLASS,
+                            "range": {"start": {"line": 1, "character": 0}, "end": {"line": 8, "character": 0}},
+                            "children": [
+                                {
+                                    "name": "Run()",
+                                    "kind": NodeType.METHOD,
+                                    "range": {"start": {"line": 2, "character": 4}, "end": {"line": 3, "character": 4}},
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+            [(source.name, NodeType.FILE)],
+            root,
+        )
+        names = set(table.symbols)
+        assert "Alpha.Holder.Run()" in names
+        directory_aliases = {n for n in names if n.startswith("A.Very.Long.Directory")}
+        assert not directory_aliases, f"alias fell back to the directory: {sorted(directory_aliases)}"
+
+
+class TestContestedNames(unittest.TestCase):
+    """Two files may legally declare the same fully-qualified type.
+
+    The compiler keeps them apart by assembly; without one, an unguarded write dropped
+    whichever was registered first along with all of its edges.
+    """
+
+    def _register(self, table, adapter, root, rel, namespace, cls):
+        source = root / rel
+        adapter.build_qualified_name(
+            source,
+            namespace.rsplit(".", 1)[-1],
+            NodeType.NAMESPACE,
+            [(source.name, NodeType.FILE)],
+            root,
+            namespace,
+        )
+        table.register_symbols(
+            source,
+            [
+                {
+                    "name": namespace,
+                    "kind": NodeType.NAMESPACE,
+                    "detail": namespace,
+                    "range": {"start": {"line": 0, "character": 0}, "end": {"line": 9, "character": 0}},
+                    "children": [
+                        {
+                            "name": cls,
+                            "kind": NodeType.CLASS,
+                            "range": {"start": {"line": 1, "character": 0}, "end": {"line": 8, "character": 0}},
+                        }
+                    ],
+                }
+            ],
+            [(source.name, NodeType.FILE)],
+            root,
+        )
+
+    def test_both_declarations_survive(self):
+        adapter, root = CSharpAdapter(), Path("/repo")
+        table = SymbolTable(adapter)
+        for platform in ("iOS", "MacCatalyst"):
+            self._register(
+                table,
+                adapter,
+                root,
+                f"src/ClientApp/Platforms/{platform}/AppDelegate.cs",
+                "eShop.ClientApp",
+                "AppDelegate",
+            )
+        # Both declarations keep a primary entry; neither overwrote the other.
+        assert "eShop.ClientApp.AppDelegate @ src/ClientApp/Platforms/iOS" in table.symbols
+        assert "eShop.ClientApp.AppDelegate @ src/ClientApp/Platforms/MacCatalyst" in table.symbols
+        # and the searchable name is the prefix of both
+        for platform in ("iOS", "MacCatalyst"):
+            key = f"eShop.ClientApp.AppDelegate @ src/ClientApp/Platforms/{platform}"
+            assert key.split(" @ ")[0] == "eShop.ClientApp.AppDelegate"
+
+    def test_an_uncontested_name_is_untouched(self):
+        adapter, root = CSharpAdapter(), Path("/repo")
+        table = SymbolTable(adapter)
+        self._register(table, adapter, root, "src/Catalog/Api.cs", "eShop.Catalog", "Api")
+        assert "eShop.Catalog.Api" in table.symbols
