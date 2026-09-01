@@ -57,6 +57,7 @@ from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from agents.naming_model_agent import NamingModelAgent
+from static_analyzer.clustering.exceptions import NamingModelUnavailableError
 from static_analyzer.clustering.naming import NamingModel
 from diagram_analysis.incremental_changes import compute_changed_members
 from repo_utils.path_utils import normalize_repo_path
@@ -628,7 +629,6 @@ class DiagramGenerator:
         self._pending_cluster_caches = None
         pending_cluster_caches = self._stage_cluster_caches()
         depth = hierarchy_depth if hierarchy_depth is not None else self.depth_level
-        self.naming_model = self._resolve_naming_model(static_analysis, incremental)
         repo_root = str(self.repo_location)
         if incremental:
             root_analysis = persisted_scopes.get(ROOT_SCOPE_ID)
@@ -637,12 +637,17 @@ class DiagramGenerator:
             sub_analyses = {
                 scope_id: analysis for scope_id, analysis in persisted_scopes.items() if scope_id != ROOT_SCOPE_ID
             }
+            # Resolved after the baseline check: a missing baseline is the more specific
+            # complaint, and it is the one the caller can act on.
+            self.naming_model = self._resolve_naming_model(static_analysis, incremental)
             self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
         elif target_component is None:
+            self.naming_model = self._resolve_naming_model(static_analysis, incremental)
             self.clustering_hierarchy = ClusteringService(self.naming_model, repo_root).build_full_hierarchy(
                 static_analysis, depth, pending_cluster_caches
             )
         else:
+            self.naming_model = self._resolve_naming_model(static_analysis, incremental)
             scope = self._build_component_scope(target_component, depth)
             self.clustering_hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
             self.clustering_hierarchy.register_scope(target_component.component_id, scope)
@@ -673,29 +678,35 @@ class DiagramGenerator:
                 json.dump(static_stats, f, indent=2)
             logger.debug(f"Written code_stats.json to {code_stats_file}")
 
-    def _resolve_naming_model(self, static_analysis: StaticAnalysisResults, incremental: bool) -> NamingModel | None:
+    def _resolve_naming_model(self, static_analysis: StaticAnalysisResults, incremental: bool) -> NamingModel:
         """The components this repo's identifiers name.
 
         Read once on a full analysis and stored in the analysis metadata; an incremental run
-        reuses it verbatim, so the partition cannot move underneath unchanged code. Returns
-        None when no LLM is configured or the read fails, and clustering falls back to the
-        graph partitioner.
+        reuses it verbatim, so the partition cannot move underneath unchanged code. There is
+        no graph-based fallback -- an LLM is required for the later stages anyway, so a
+        missing model means the run cannot produce an answer, not that it should produce a
+        worse one.
         """
         if incremental:
             stored = (load_analysis_metadata(Path(self.output_dir)) or {}).get("naming_model")
-            if stored:
-                return NamingModel.from_dict(stored)
-            logger.info("[Naming] No stored model on the baseline; keeping the graph partitioner")
-            return None
+            if not stored:
+                # A baseline with no stored model cannot support an incremental run, which is
+                # what IncrementalCacheMissingError already means and what the CLI explains.
+                raise IncrementalCacheMissingError(
+                    Path(self.output_dir),
+                    "the baseline analysis.json carries no naming model (written before it existed)",
+                )
+            return NamingModel.from_dict(stored)
         if self._naming_llms is None:
-            return None
+            raise NamingModelUnavailableError("no LLM was initialised before clustering")
         agent_llm, parsing_llm = self._naming_llms
-        try:
-            return NamingModelAgent(self.repo_location, static_analysis, agent_llm, parsing_llm).read_naming_model()
-        except Exception:
-            # A partition is better than no analysis: fall back rather than fail the run.
-            logger.exception("[Naming] Could not read a naming model; keeping the graph partitioner")
-            return None
+        return NamingModelAgent(self.repo_location, static_analysis, agent_llm, parsing_llm).read_naming_model()
+
+    def _required_naming_model(self) -> NamingModel:
+        """The model resolved by ``deterministic_analysis``, or a loud error if it never ran."""
+        if self.naming_model is None:
+            raise NamingModelUnavailableError("deterministic analysis has not run for this repository")
+        return self.naming_model
 
     def agent_init(self) -> None:
         """Initialize the LLM-backed agents after deterministic analysis."""
@@ -835,7 +846,7 @@ class DiagramGenerator:
         )
         baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
         self.clustering_hierarchy = ClusteringService(
-            self.naming_model, str(self.repo_location)
+            self._required_naming_model(), str(self.repo_location)
         ).build_incremental_hierarchy(
             self.static_analysis,
             hierarchy_depth,
@@ -1144,7 +1155,7 @@ class DiagramGenerator:
             raise ClusteringScopeUnavailableError(component.component_id, "no owned CFG nodes")
 
         remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
-        scope = ClusteringService(self.naming_model, str(self.repo_location)).build_scope_hierarchy(
+        scope = ClusteringService(self._required_naming_model(), str(self.repo_location)).build_scope_hierarchy(
             self.static_analysis,
             graphs,
             remaining_depth,

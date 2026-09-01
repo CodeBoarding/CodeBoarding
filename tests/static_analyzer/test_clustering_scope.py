@@ -11,8 +11,17 @@ from static_analyzer.clustering import (
 )
 from static_analyzer.clustering.grouping import GroupingService
 from static_analyzer.clustering.models import AnchoredGrouping
+from static_analyzer.clustering.naming import ComponentVocabulary, NamingModel
 from static_analyzer.clustering.service import ClusteringService, LeafClustersUnavailableError
 from static_analyzer.node import Node
+
+
+def naming_model(components=(("Core", ("core",)),), machinery=()) -> NamingModel:
+    """A minimal model, since clustering now requires one."""
+    return NamingModel(
+        components=tuple(ComponentVocabulary(name, tuple(owns)) for name, owns in components),
+        machinery=frozenset(machinery),
+    )
 
 
 def graph_for(language: str, names: list[str], edges: list[tuple[str, str]] = ()) -> CallGraph:
@@ -46,7 +55,7 @@ class TestClusteringScope(unittest.TestCase):
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}})
 
         with self.assertRaisesRegex(AssertionError, r"Leaf clusters have no group owner: \[2\]"):
-            ClusteringService()._assign_symbol_members(
+            ClusteringService(naming_model())._assign_symbol_members(
                 {"python": graph},
                 {"python": cluster_result},
                 [ClusterGroup(group_id="1", cluster_ids=[1])],
@@ -82,10 +91,11 @@ class TestClusteringScope(unittest.TestCase):
         graph = graph_for("python", ["a", "b", "c"], [("a", "b"), ("b", "c")])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}, 3: {"c"}})
 
-        expected, expected_modularity = GroupingService().group(
+        model = naming_model()
+        expected, expected_modularity = GroupingService(model).group(
             {"python": cluster_result}, {"python": graph.to_networkx(reference_kinds=())}
         )
-        result = ClusteringService()._cluster_scope(
+        result = ClusteringService(model)._cluster_scope(
             {"python": graph}, leaf_clusters_by_language={"python": cluster_result}
         )
 
@@ -100,7 +110,7 @@ class TestClusteringScope(unittest.TestCase):
         graph = graph_for("python", ["a", "b", "orphan"], [("a", "orphan"), ("orphan", "b")])
         cluster_result = cluster_result_for(graph, {1: {"a"}, 2: {"b"}})
 
-        result = ClusteringService()._cluster_scope(
+        result = ClusteringService(naming_model())._cluster_scope(
             {"python": graph}, leaf_clusters_by_language={"python": cluster_result}
         )
 
@@ -111,8 +121,10 @@ class TestClusteringScope(unittest.TestCase):
     def test_connections_retain_direction_and_concrete_call_evidence(self):
         graph = graph_for("python", ["caller", "callee"], [("caller", "callee")])
         cluster_result = cluster_result_for(graph, {1: {"caller"}, 2: {"callee"}})
+        # The two must land in different components for there to be a connection at all.
+        model = naming_model((("Calls", ("caller",)), ("Receives", ("callee",))))
 
-        result = ClusteringService()._cluster_scope(
+        result = ClusteringService(model)._cluster_scope(
             {"python": graph}, leaf_clusters_by_language={"python": cluster_result}
         )
 
@@ -128,7 +140,7 @@ class TestClusteringScope(unittest.TestCase):
         python = graph_for("python", ["py.a"])
         typescript = graph_for("typescript", ["ts.a"])
 
-        result = ClusteringService()._cluster_scope(
+        result = ClusteringService(naming_model())._cluster_scope(
             {"python": python, "typescript": typescript},
             leaf_clusters_by_language={
                 "python": cluster_result_for(python, {1: {"py.a"}}),
@@ -152,7 +164,7 @@ class TestClusteringScope(unittest.TestCase):
             {"python": graph.to_networkx(reference_kinds=())},
         )
 
-        result = ClusteringService()._cluster_scope(
+        result = ClusteringService(naming_model())._cluster_scope(
             {"python": graph},
             leaf_clusters_by_language={"python": cluster_result},
             previous_owner={1: "2", 2: "4", 3: "7", 4: "7"},
@@ -170,17 +182,20 @@ class TestClusteringScope(unittest.TestCase):
         self.assertEqual(group_ids, ["2", "3"])
 
     def test_default_clustering_raises_when_nonempty_scope_has_no_leaf_clusters(self):
-        graph = graph_for("python", ["a", "b"])
+        """Leaves come from file paths, so a language whose nodes carry none has none."""
+        graph = CallGraph(language="python")
+        for index, name in enumerate(("a", "b")):
+            graph.add_node(Node(name, NodeType.FUNCTION, "", index + 1, index + 2))
 
         with self.assertRaisesRegex(LeafClustersUnavailableError, "python"):
-            ClusteringService()._cluster_scope({"python": graph})
+            ClusteringService(naming_model())._cluster_scope({"python": graph})
 
     def test_empty_leaf_clusters_for_a_nonempty_language_raise(self):
         python = graph_for("python", ["py.a"])
         typescript = graph_for("typescript", ["ts.a"])
 
         with self.assertRaisesRegex(LeafClustersUnavailableError, "typescript"):
-            ClusteringService()._cluster_scope(
+            ClusteringService(naming_model())._cluster_scope(
                 {"python": python, "typescript": typescript},
                 leaf_clusters_by_language={
                     "python": cluster_result_for(python, {1: {"py.a"}}),
@@ -200,7 +215,7 @@ class TestClusteringScope(unittest.TestCase):
             unanchored_modularity=0.0,
         )
 
-        result = ClusteringService()._cluster_scope(
+        result = ClusteringService(naming_model())._cluster_scope(
             {"python": graph},
             leaf_clusters_by_language={"python": cluster_result},
             previous_owner={1: "1"},
@@ -218,7 +233,7 @@ class TestClusteringScope(unittest.TestCase):
         graph = graph_for("python", ["a", "b", "c", "d", "e"])
         cluster_result = cluster_result_for(graph, {1: set(graph.nodes)})
 
-        result = ClusteringService()._cluster_scope(
+        result = ClusteringService(naming_model())._cluster_scope(
             {"python": graph},
             leaf_clusters_by_language={"python": cluster_result},
             method_level_fallback=True,
@@ -250,7 +265,7 @@ class TestClusteringScope(unittest.TestCase):
             },
         )
 
-        result = ClusteringService()._cluster_scope(
+        result = ClusteringService(naming_model())._cluster_scope(
             {"python": graph},
             scope_id="9",
             leaf_clusters_by_language={"python": cluster_result},

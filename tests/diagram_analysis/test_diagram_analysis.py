@@ -53,8 +53,17 @@ from static_analyzer.clustering import (
 )
 from static_analyzer.clustering.delta import LanguageDelta
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
+from static_analyzer.clustering.naming import ComponentVocabulary, NamingModel
 from static_analyzer.clustering.service import ClusteringService
 from static_analyzer.node import Node
+
+
+def naming_model(components=(("Core", ("core",)),), machinery=()) -> NamingModel:
+    """A minimal model, since clustering now requires one."""
+    return NamingModel(
+        components=tuple(ComponentVocabulary(name, tuple(owns)) for name, owns in components),
+        machinery=frozenset(machinery),
+    )
 
 
 class TestComponentJson(unittest.TestCase):
@@ -1190,6 +1199,7 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
+        gen.naming_model = naming_model()
         graph = CallGraph(language="python")
         graph.add_node(Node("pkg.persisted.run", NodeType.FUNCTION, str(self.repo_location / "persisted.py"), 1, 4))
         graph.add_node(Node("pkg.other.run", NodeType.FUNCTION, str(self.repo_location / "other.py"), 1, 4))
@@ -1798,7 +1808,7 @@ class TestDiagramGenerator(unittest.TestCase):
         graph = CallGraph(language="typescript")
         graph.add_node(Node("pkg.live", NodeType.FUNCTION, "/repo/pkg.py", 1, 2))
 
-        partitions = ClusteringService()._incremental_scope_partitions(
+        partitions = ClusteringService(naming_model())._incremental_scope_partitions(
             baseline,
             "1",
             {"typescript": graph},
@@ -1808,7 +1818,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertTrue(partitions["typescript"].clusters)
         cache.record_scope(ClusterResult(), {"pkg.live"}, "1")
-        partitions = ClusteringService()._incremental_scope_partitions(
+        partitions = ClusteringService(naming_model())._incremental_scope_partitions(
             baseline,
             "1",
             {"typescript": graph},
@@ -1819,7 +1829,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         cache.record_scope(ClusterResult(), scope_id="1")
         with self.assertRaisesRegex(IncrementalCacheMissingError, "persisted scope '1'.*pkg.live"):
-            ClusteringService()._incremental_scope_partitions(
+            ClusteringService(naming_model())._incremental_scope_partitions(
                 baseline,
                 "1",
                 {"typescript": graph},
@@ -1854,7 +1864,7 @@ class TestDiagramGenerator(unittest.TestCase):
             ),
         )
 
-        partitions = ClusteringService()._incremental_scope_partitions(
+        partitions = ClusteringService(naming_model())._incremental_scope_partitions(
             baseline,
             "1",
             {"typescript": graph},
@@ -1892,6 +1902,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.incremental_agent = _mock_incremental_agent.return_value
         gen.static_analysis = Mock()
+        gen.naming_model = naming_model()
         gen.static_analysis.get_languages.return_value = []
         base_static_analysis = Mock()
         gen.static_analysis.incremental_base_results = base_static_analysis
@@ -1976,6 +1987,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.incremental_agent = _mock_incremental_agent.return_value
         gen.static_analysis = Mock()
+        gen.naming_model = naming_model()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = Mock()
         gen.static_analysis.available_cfgs.return_value = {}
@@ -2026,6 +2038,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.incremental_agent = Mock()
         gen.static_analysis = Mock()
+        gen.naming_model = naming_model()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = Mock()
         gen.static_analysis.available_cfgs.return_value = {}
@@ -2095,6 +2108,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.incremental_agent = Mock()
         gen.static_analysis = Mock()
+        gen.naming_model = naming_model()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = Mock()
         gen.static_analysis.available_cfgs.return_value = {}

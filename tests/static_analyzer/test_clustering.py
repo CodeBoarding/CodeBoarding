@@ -4,10 +4,19 @@ import networkx as nx
 
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterCache, ClusterResult
+from static_analyzer.clustering.naming import FILE_STRATEGY, ComponentVocabulary, NamingModel
 from static_analyzer.clustering.service import ClusteringService
 from static_analyzer.config import ClusteringConfig
 from static_analyzer.leiden_utils import find_partition
 from static_analyzer.node import Node
+
+
+def naming_model(components=(("Core", ("core",)),), machinery=()) -> NamingModel:
+    """A minimal model, since clustering now requires one."""
+    return NamingModel(
+        components=tuple(ComponentVocabulary(name, tuple(owns)) for name, owns in components),
+        machinery=frozenset(machinery),
+    )
 
 
 def _chain_graph(node_count: int, files: int = 3) -> CallGraph:
@@ -21,7 +30,7 @@ def _chain_graph(node_count: int, files: int = 3) -> CallGraph:
 
 class TestClusteringService(unittest.TestCase):
     def test_returns_cluster_result(self):
-        result = ClusteringService().cluster(_chain_graph(10))
+        result = ClusteringService(naming_model()).cluster(_chain_graph(10))
 
         self.assertIsInstance(result, ClusterResult)
         self.assertIsInstance(result.clusters, dict)
@@ -34,34 +43,32 @@ class TestClusteringService(unittest.TestCase):
         graph = _chain_graph(10)
         nodes_before, edges_before = dict(graph.nodes), list(graph.edges)
 
-        first = ClusteringService().cluster(graph)
-        second = ClusteringService().cluster(graph)
+        first = ClusteringService(naming_model()).cluster(graph)
+        second = ClusteringService(naming_model()).cluster(graph)
 
         self.assertIsNot(first, second)
         self.assertEqual(first.clusters, second.clusters)
         self.assertEqual(graph.nodes, nodes_before)
         self.assertEqual(graph.edges, edges_before)
 
-    def test_connected_components_fallback_keeps_every_component(self):
-        """No member may vanish from the partition just because Leiden scored 0."""
+    def test_every_member_lands_in_the_partition(self):
+        """No member may vanish from the partition, whatever the graph looks like."""
         graph = CallGraph()
-        target = ClusteringConfig.DEFAULT_TARGET_CLUSTERS
-        for component in range(target + 3):
+        for component in range(11):
             for i in range(2):
                 graph.add_node(Node(f"mod{component}.func{i}", 12, f"/file{component}.py", i * 10, i * 10 + 5))
             graph.add_edge(f"mod{component}.func0", f"mod{component}.func1")
 
-        result = ClusteringService().cluster(graph)
+        result = ClusteringService(naming_model()).cluster(graph)
 
-        self.assertEqual(result.strategy, "connected_components")
         clustered = {qname for members in result.clusters.values() for qname in members}
         self.assertEqual(clustered, set(graph.nodes))
 
     def test_empty_graph(self):
-        result = ClusteringService().cluster(CallGraph())
+        result = ClusteringService(naming_model()).cluster(CallGraph())
 
         self.assertEqual(result.clusters, {})
-        self.assertEqual(result.strategy, "empty")
+        self.assertEqual(result.strategy, FILE_STRATEGY)
 
     def test_builds_file_mappings(self):
         graph = CallGraph()
@@ -75,13 +82,13 @@ class TestClusteringService(unittest.TestCase):
         graph.add_edge("module.func1", "module.func2")
         graph.add_edge("module.func3", "module.func4")
 
-        result = ClusteringService().cluster(graph)
+        result = ClusteringService(naming_model()).cluster(graph)
 
         self.assertTrue(len(result.file_to_clusters) > 0 or result.strategy in ("empty", "none"))
 
     def test_is_deterministic(self):
-        first = ClusteringService().cluster(_chain_graph(15))
-        second = ClusteringService().cluster(_chain_graph(15))
+        first = ClusteringService(naming_model()).cluster(_chain_graph(15))
+        second = ClusteringService(naming_model()).cluster(_chain_graph(15))
 
         self.assertEqual(first.clusters.keys(), second.clusters.keys())
         for cid in first.clusters:
@@ -91,7 +98,7 @@ class TestClusteringService(unittest.TestCase):
         graph = _chain_graph(20, files=4)
         sub_graph = graph.filter_by_files({"/file0.py", "/file1.py"})
 
-        self.assertIsInstance(ClusteringService().cluster(sub_graph), ClusterResult)
+        self.assertIsInstance(ClusteringService(naming_model()).cluster(sub_graph), ClusterResult)
 
 
 class TestClusterCache(unittest.TestCase):

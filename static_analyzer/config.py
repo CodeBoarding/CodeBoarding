@@ -145,16 +145,6 @@ class ClusteringConfig:
     100-10,000 nodes. They balance clustering quality with computational efficiency.
     """
 
-    # Default clustering parameters - chosen to work well for typical codebases (500-2000 nodes)
-    DEFAULT_TARGET_CLUSTERS = 20  # Sweet spot for human comprehension and LLM context
-    DEFAULT_MIN_CLUSTER_SIZE = 2  # Avoid singleton clusters that don't show relationships
-
-    # Quality thresholds for determining "good" clustering
-    MIN_COVERAGE_RATIO = 0.75  # At least 75% of nodes should be in meaningful clusters
-
-    # Display limits
-    MAX_DISPLAY_CLUSTERS = 55  # Maximum clusters to show in output (readability limit)
-
     # Recursive hierarchy expansion thresholds
     MIN_METHODS_TO_EXPAND = 30
     MAX_LEAF_FILES = 12

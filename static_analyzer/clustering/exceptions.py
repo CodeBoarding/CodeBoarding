@@ -38,3 +38,20 @@ class PersistedOwnershipConflictError(RuntimeError):
             f"Persisted scope {scope_id!r} assigns {language} member {qualified_name!r} "
             f"to multiple components: {', '.join(sorted(owners))}"
         )
+
+
+class NamingModelUnavailableError(RuntimeError):
+    """Raised when clustering has no naming model to partition by.
+
+    Components come from what a repo's identifiers say, which is read once per full
+    analysis by an LLM. There is no graph-based fallback: an LLM is required for the later
+    stages anyway, so a missing model means the run cannot produce an answer, not that it
+    should produce a worse one.
+    """
+
+    def __init__(self, reason: str = ""):
+        super().__init__(
+            f"Clustering has no naming model{f': {reason}' if reason else ''}. "
+            "Configure an LLM provider and run a full analysis; see "
+            "https://github.com/CodeBoarding/CodeBoarding#authentication-and-providers."
+        )

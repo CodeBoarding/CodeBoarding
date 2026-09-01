@@ -10,9 +10,18 @@ from static_analyzer.clustering import (
     ClusterScopeResult,
 )
 from static_analyzer.clustering.models import ClusterScopeInput
+from static_analyzer.clustering.naming import ComponentVocabulary, NamingModel
 from static_analyzer.clustering.service import ClusteringService
 from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
+
+
+def naming_model(components=(("Core", ("core",)),), machinery=()) -> NamingModel:
+    """A minimal model, since clustering now requires one."""
+    return NamingModel(
+        components=tuple(ComponentVocabulary(name, tuple(owns)) for name, owns in components),
+        machinery=frozenset(machinery),
+    )
 
 
 def graph_for(names: list[str], *, one_file: bool = False, edges: list[tuple[str, str]] = ()) -> CallGraph:
@@ -65,7 +74,12 @@ class TestClusteringHierarchy(unittest.TestCase):
                 partition = split_partition(current)
             return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
 
-        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+        # The model has to keep the two apart, or both leaves land in one component and
+        # there is no pair of groups to compare induced graphs for.
+        model = naming_model(
+            (("A", tuple(sorted(members_a))), ("B", tuple(sorted(members_b)))),
+        )
+        result = ClusteringService(model)._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
 
         group_a = next(group for group in result.groups if group.qualified_names == members_a)
         group_b = next(group for group in result.groups if group.qualified_names == members_b)
@@ -94,7 +108,9 @@ class TestClusteringHierarchy(unittest.TestCase):
             )
             return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
 
-        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
+        result = ClusteringService(naming_model())._cluster_hierarchy(
+            {"python": graph}, max_depth=3, scope_input=scope_input
+        )
 
         root_group = result.groups[0]
         self.assertIsNotNone(root_group.children)
@@ -116,7 +132,9 @@ class TestClusteringHierarchy(unittest.TestCase):
             )
             return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
 
-        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=3, scope_input=scope_input)
+        result = ClusteringService(naming_model())._cluster_hierarchy(
+            {"python": graph}, max_depth=3, scope_input=scope_input
+        )
 
         self.assertFalse(result.groups[0].expandable)
         self.assertIsNone(result.groups[0].children)
@@ -137,7 +155,7 @@ class TestClusteringHierarchy(unittest.TestCase):
             )
 
         with patch("static_analyzer.clustering.service.scope_is_separable") as separable:
-            result = ClusteringService()._cluster_hierarchy(
+            result = ClusteringService(naming_model())._cluster_hierarchy(
                 {"python": graph},
                 max_depth=2,
                 scope_input=scope_input,
@@ -163,7 +181,7 @@ class TestClusteringHierarchy(unittest.TestCase):
             )
 
         with patch("static_analyzer.clustering.service.scope_is_separable", return_value=True):
-            result = ClusteringService()._cluster_hierarchy(
+            result = ClusteringService(naming_model())._cluster_hierarchy(
                 {"python": graph},
                 max_depth=2,
                 scope_input=scope_input,
@@ -187,7 +205,9 @@ class TestClusteringHierarchy(unittest.TestCase):
             return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
 
         with patch("static_analyzer.clustering.service.scope_is_separable", return_value=False) as separable:
-            ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+            ClusteringService(naming_model())._cluster_hierarchy(
+                {"python": graph}, max_depth=2, scope_input=scope_input
+            )
 
         self.assertEqual(separable.call_args.kwargs["method_count"], 31)
 
@@ -210,7 +230,9 @@ class TestClusteringHierarchy(unittest.TestCase):
             )
             return ClusterScopeInput(leaf_clusters_by_language={"python": partition})
 
-        result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+        result = ClusteringService(naming_model())._cluster_hierarchy(
+            {"python": graph}, max_depth=2, scope_input=scope_input
+        )
 
         self.assertTrue(result.groups[0].expandable)
         self.assertIsNotNone(result.groups[0].children)
@@ -230,14 +252,16 @@ class TestClusteringHierarchy(unittest.TestCase):
             )
 
         with patch("static_analyzer.clustering.service.scope_is_separable", return_value=False):
-            result = ClusteringService()._cluster_hierarchy({"python": graph}, max_depth=2, scope_input=scope_input)
+            result = ClusteringService(naming_model())._cluster_hierarchy(
+                {"python": graph}, max_depth=2, scope_input=scope_input
+            )
 
         self.assertTrue(result.groups[0].expandable)
         self.assertIsNotNone(result.groups[0].children)
 
     def test_rejects_a_depth_below_the_root_level(self):
         with self.assertRaisesRegex(ValueError, "max_depth must be at least 1"):
-            ClusteringService()._cluster_hierarchy({}, max_depth=0)
+            ClusteringService(naming_model())._cluster_hierarchy({}, max_depth=0)
 
     @patch.object(ClusteringService, "_build_leaf_clusters")
     @patch.object(ClusteringService, "_cluster_hierarchy")
@@ -291,7 +315,7 @@ class TestClusteringHierarchy(unittest.TestCase):
         build_root.return_value = {"python": root_partition}
         cluster_hierarchy.return_value = hierarchy
 
-        result = ClusteringService().build_full_hierarchy(static_analysis, max_depth=3)
+        result = ClusteringService(naming_model()).build_full_hierarchy(static_analysis, max_depth=3)
 
         self.assertIs(result, hierarchy)
         graphs, depth, scope_input = cluster_hierarchy.call_args.args
@@ -329,7 +353,7 @@ class TestClusteringHierarchy(unittest.TestCase):
         static_analysis.get_clusters.return_value = cache
         cluster_hierarchy.return_value = hierarchy
 
-        result = ClusteringService().build_scope_hierarchy(
+        result = ClusteringService(naming_model()).build_scope_hierarchy(
             static_analysis,
             {"python": graph},
             max_depth=2,
@@ -375,7 +399,7 @@ class TestClusteringHierarchy(unittest.TestCase):
         static_analysis.incremental_base_results = MagicMock()
         static_analysis.available_cfgs.return_value = {"python": graph}
 
-        hierarchy = ClusteringService().build_incremental_hierarchy(
+        hierarchy = ClusteringService(naming_model()).build_incremental_hierarchy(
             static_analysis,
             max_depth=1,
             root_leaf_clusters={"python": root_partition},
