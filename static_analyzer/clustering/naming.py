@@ -9,8 +9,13 @@ identifiers, and grouping by scope reproduces the layering.
 
 The components, the vocabulary each owns, the machinery vocabulary and the per-scope
 feature/layer call arrive as a :class:`NamingModel` decided once per full analysis.
-Everything here is arithmetic over names, so an incremental run reusing the model reproduces
-the same partition exactly.
+Everything here is arithmetic over names, so the same model over the same files always
+yields the same partition.
+
+Incremental runs do not re-run this. An existing scope keeps its components by ownership
+anchoring in ``grouping._anchored_group``, which never consults the model; only a scope with
+no previous owner is partitioned here. Extending the name path over the incremental one is
+still outstanding.
 """
 
 from __future__ import annotations
