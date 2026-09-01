@@ -303,15 +303,23 @@ class CallGraphBuilder:
             logger.info("Removed %d alias self-edges (same definition location)", alias_self_edges)
 
         # Constructor expansion: `Dog::new` resolves to the class, so the constructors are
-        # recovered from the class edge -- but only when the caller reaches nothing else
-        # inside that class. Why: a caller that already reaches a member holds an instance
-        # rather than making one, so its class edge is a type mention, and expanding that
-        # invents calls no line performs (`purr() -> Animal.__init__`, or a second overload
-        # credited to a call site that names one).
+        # recovered from the class edge -- but only at a call site that reaches nothing else
+        # inside that class. Why: a site that also reaches a member holds an instance rather
+        # than making one, so its class edge is a type mention, and expanding that invents
+        # calls no line performs (`purr() -> Animal.__init__`, or a second overload credited
+        # to a call site that names one).
+        #
+        # Per site, not per caller: one method may construct a Dog on one line and call
+        # `dog.speak()` on another, and a caller-wide test drops the real constructor edge.
         constructor_edges: EdgeMap = {}
-        callers_reaching: dict[str, set[str]] = defaultdict(set)
-        for src, dst in edge_set:
-            callers_reaching[src].add(dst)
+        # CallSite is an unfrozen dataclass, so index on its coordinates.
+        member_sites: dict[tuple[str, str], set[tuple[str, int, int]]] = defaultdict(set)
+        reaches_member: set[tuple[str, str]] = set()
+        for (src, dst), sites in edge_set.items():
+            owner = dst.rsplit(".", 1)[0] if "." in dst else ""
+            if owner:
+                reaches_member.add((src, owner))
+                member_sites[(src, owner)].update((s.file, s.line, s.column) for s in sites)
         for src, dst in edge_set:
             dst_sym = st.symbols.get(dst)
             if not dst_sym or not self._adapter.is_class_like(dst_sym.kind):
@@ -319,13 +327,24 @@ class CallGraphBuilder:
             ctors = st.class_to_ctors.get(dst)
             if not ctors:
                 continue
-            member_prefix = f"{dst}."
-            if any(other.startswith(member_prefix) for other in callers_reaching[src]):
+            class_sites = edge_set[(src, dst)]
+            if class_sites:
+                reached_here = member_sites.get((src, dst), set())
+                construction_sites = [
+                    site for site in class_sites if (site.file, site.line, site.column) not in reached_here
+                ]
+                if not construction_sites:
+                    continue
+            elif (src, dst) in reaches_member:
+                # No location to compare, so the site test cannot decide; fall back to asking
+                # whether this caller reaches the class at all.
                 continue
+            else:
+                construction_sites = []
             for ctor_name in ctors:
                 ctor_key = (src, ctor_name)
                 sites = constructor_edges.setdefault(ctor_key, list(edge_set.get(ctor_key, [])))
-                for site in edge_set[(src, dst)]:
+                for site in construction_sites:
                     if site not in sites:
                         sites.append(site)
         for edge, sites in constructor_edges.items():

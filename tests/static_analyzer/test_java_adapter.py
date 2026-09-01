@@ -106,3 +106,46 @@ class TestExtractPackage:
         """It builds a name with an empty symbol, so the stem must not leak in."""
         adapter = JavaAdapter()
         assert adapter.get_package_for_file(Path("/repo/src/main/java/com/example/Service.java"), ROOT) == "com.example"
+
+
+class TestJavaDeclaredPackage:
+    """The package, not the Maven directory, is the name the compiler uses."""
+
+    def setup_method(self):
+        self.adapter = JavaAdapter()
+        self.root = Path("/repo")
+
+    def _declare(self, source: Path, package: str) -> str:
+        return self.adapter.build_qualified_name(
+            file_path=source,
+            symbol_name=package,
+            symbol_kind=NodeType.PACKAGE,
+            parent_chain=[],
+            project_root=self.root,
+        )
+
+    def test_the_package_symbol_is_not_doubled(self):
+        source = Path("/repo/src/main/java/core/Animal.java")
+        assert self._declare(source, "core") == "core"
+
+    def test_the_build_layout_leaves_the_names(self):
+        source = Path("/repo/src/main/java/core/Animal.java")
+        self._declare(source, "core")
+        result = self.adapter.build_qualified_name(
+            file_path=source,
+            symbol_name="Animal",
+            symbol_kind=NodeType.CLASS,
+            parent_chain=[],
+            project_root=self.root,
+        )
+        assert result == "core.Animal"
+
+    def test_a_file_with_no_package_symbol_falls_back_to_the_directory(self):
+        result = self.adapter.build_qualified_name(
+            file_path=Path("/repo/src/main/java/core/Animal.java"),
+            symbol_name="Animal",
+            symbol_kind=NodeType.CLASS,
+            parent_chain=[],
+            project_root=self.root,
+        )
+        assert result == "src.main.java.core.Animal"

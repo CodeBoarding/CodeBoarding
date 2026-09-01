@@ -239,6 +239,61 @@ class TestBuildQualifiedName:
         # UserController matches file stem -> stripped, InnerClass kept
         assert result == "Controllers.UserController.InnerClass.GetById"
 
+    def test_the_declared_namespace_becomes_the_prefix(self):
+        """C# does not require the namespace to match the directory, and the compiler name
+        is the one a maintainer searches for."""
+        source = Path("/repo/src/Anything/Animal.cs")
+        self.adapter.build_qualified_name(
+            file_path=source,
+            symbol_name="Models",
+            symbol_kind=NodeType.NAMESPACE,
+            parent_chain=[("Animal.cs", NodeType.FILE)],
+            project_root=self.root,
+            detail="EdgeCases.Models",
+        )
+        result = self.adapter.build_qualified_name(
+            file_path=source,
+            symbol_name="Animal",
+            symbol_kind=NodeType.CLASS,
+            parent_chain=[("Animal.cs", NodeType.FILE), ("Models", NodeType.NAMESPACE)],
+            project_root=self.root,
+        )
+        assert result == "EdgeCases.Models.Animal"
+
+    def test_two_namespaces_in_one_directory_keep_separate_identities(self):
+        """The collision a directory prefix cannot represent: same folder, same type name."""
+        names = []
+        for index, namespace in enumerate(("Alpha", "Beta")):
+            source = Path(f"/repo/src/Shared/Handler{index}.cs")
+            self.adapter.build_qualified_name(
+                file_path=source,
+                symbol_name=namespace,
+                symbol_kind=NodeType.NAMESPACE,
+                parent_chain=[(source.name, NodeType.FILE)],
+                project_root=self.root,
+                detail=namespace,
+            )
+            names.append(
+                self.adapter.build_qualified_name(
+                    file_path=source,
+                    symbol_name="Handler",
+                    symbol_kind=NodeType.CLASS,
+                    parent_chain=[(source.name, NodeType.FILE), (namespace, NodeType.NAMESPACE)],
+                    project_root=self.root,
+                )
+            )
+        assert names == ["Alpha.Handler", "Beta.Handler"]
+
+    def test_a_file_with_no_namespace_falls_back_to_the_directory(self):
+        result = self.adapter.build_qualified_name(
+            file_path=Path("/repo/src/Legacy/Global.cs"),
+            symbol_name="Widget",
+            symbol_kind=NodeType.CLASS,
+            parent_chain=[("Global.cs", NodeType.FILE)],
+            project_root=self.root,
+        )
+        assert result == "Legacy.Widget"
+
     def test_csharp_ls_hierarchy_skips_file_and_namespace(self):
         """csharp-ls: File(kind=1) -> Namespace(kind=3) -> Class -> Method."""
         result = self.adapter.build_qualified_name(
