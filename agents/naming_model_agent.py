@@ -23,8 +23,8 @@ IDENTIFIER_SAMPLE = 120
 class NamingModelAgent(CodeBoardingAgent):
     """Decides which components a repo's vocabulary names, and which words are machinery.
 
-    Run on a full analysis only. An incremental run reuses the stored answer, so the
-    partition cannot move underneath unchanged code.
+    Run on a full analysis only; an incremental run reads the stored answer back rather than
+    re-asking, so the vocabulary cannot move underneath unchanged code.
     """
 
     def __init__(
@@ -70,12 +70,16 @@ class NamingModelAgent(CodeBoardingAgent):
         return model
 
     def _evidence(self) -> tuple[list[str], list[tuple[str, int]], list[str]]:
-        """The scopes, the commonest words, and a sample of identifiers. Never the answer."""
+        """The scopes, the commonest words, and a sample of identifiers. Never the answer.
+
+        Why the root: nodes carry absolute paths, so without it every file's outermost part is
+        the filesystem root and the model is shown one scope for the whole repo.
+        """
         scopes: set[str] = set()
         words: Counter[str] = Counter()
         identifiers: set[str] = set()
         for node in self.static_analysis.iter_reference_nodes():
-            scope = scope_of(node.file_path)
+            scope = scope_of(node.file_path, str(self.repo_dir))
             if scope:
                 scopes.add(scope)
             name = node.fully_qualified_name.rsplit(".", 1)[-1]
