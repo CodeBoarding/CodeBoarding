@@ -239,6 +239,11 @@ class SymbolTable:
         """
         claimants: dict[str, set[Path]] = {}
         for sym in (s for syms in self._primary_file_symbols.values() for s in syms):
+            # A namespace or package is one scope many files declare, not rival declarations.
+            # Counting it made every file in a namespace contest it, and the descendant match
+            # below then moved that whole namespace under a directory.
+            if sym.kind in (NodeType.NAMESPACE, NodeType.PACKAGE):
+                continue
             claimants.setdefault(sym.qualified_name, set()).add(sym.file_path)
         contested = {name for name, files in claimants.items() if len(files) > 1}
         if not contested:
