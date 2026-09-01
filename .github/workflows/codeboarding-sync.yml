@@ -25,7 +25,7 @@ on:
 
 permissions:
   contents: write   # commit the generated baseline + docs to the branch
-  id-token: write   # mint a GitHub OIDC token for the free hosted tier (omit if you set a key/license)
+  id-token: write   # mint a GitHub OIDC token; required by llm: license as well as the free tier
 
 concurrency:
   # Serialize against itself so a push landing mid-run can't make two commits.
@@ -112,11 +112,12 @@ jobs:
           # Desired analysis depth for this repo. Sync is the baseline writer, so
           # setting it here re-seeds .codeboarding/analysis.json at depth 4 on the
           # next sync; review then inherits depth 4 from the committed baseline.
-          # Requires the licensed tier (license_key/llm_api_key) — the free tier
-          # caps depth at 3.
+          # Requires anything other than the free tier, which caps depth at 3.
           depth_level: 4
-          # Free tier needs no secret — these fall through to the hosted OIDC tier when
-          # unset. Add either repo secret (Settings → Secrets and variables → Actions)
-          # for more/unmetered usage; no YAML edit required.
-          llm_api_key: ${{ secrets.OPENROUTER_API_KEY }}   # BYO LLM provider key (OpenRouter)
-          license_key: ${{ secrets.CODEBOARDING_LICENSE }}  # CodeBoarding paid plan
+          # Named, not inferred: the action requires `llm` and fails rather than falling
+          # back to anything. CodeBoarding's own repositories run on the CodeBoarding
+          # plan, which is also what lifts the free tier's depth cap off `depth_level: 4`.
+          # Both secrets used to be wired here at once and OPENROUTER_API_KEY silently
+          # won, so the plan was never actually spent; this is the deliberate choice.
+          llm: license
+          license_key: ${{ secrets.CODEBOARDING_LICENSE }}

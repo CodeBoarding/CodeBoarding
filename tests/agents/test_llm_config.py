@@ -6,7 +6,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agents.llm_config import (
+    LLM_ENV_VARS,
     LLM_PROVIDERS,
+    LLM_PROVIDER_ENV_VARS,
     LLMConfigError,
     _model_accepts_temperature,
     initialize_agent_llm,
@@ -82,6 +84,46 @@ class TestValidateApiKeyProvided:
 
 
 class TestProviderSelection:
+    def test_provider_env_vars_are_derived_from_config(self):
+        config_env_vars = {
+            var
+            for config in LLM_PROVIDERS.values()
+            for var in [*config.selection_envs, config.api_key_env, config.base_url_env]
+            if var
+        }
+
+        assert config_env_vars == LLM_PROVIDER_ENV_VARS
+        assert LLM_ENV_VARS == LLM_PROVIDER_ENV_VARS | {"AGENT_MODEL", "PARSING_MODEL"}
+
+    @pytest.mark.parametrize(
+        ("provider_name", "env_var", "default_url"),
+        [
+            ("openai", "OPENAI_BASE_URL", None),
+            ("vercel", "VERCEL_BASE_URL", "https://ai-gateway.vercel.sh/v1"),
+            ("anthropic", "ANTHROPIC_BASE_URL", None),
+            ("ollama", "OLLAMA_BASE_URL", None),
+            ("deepseek", "DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+            ("glm", "GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
+            ("kimi", "KIMI_BASE_URL", "https://api.moonshot.cn/v1"),
+            ("openrouter", "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+            ("orcarouter", "ORCAROUTER_BASE_URL", "https://api.orcarouter.ai/v1"),
+            ("litellm", "LITELLM_BASE_URL", None),
+        ],
+    )
+    def test_base_url_metadata_resolves_provider_defaults(self, provider_name, env_var, default_url):
+        config = LLM_PROVIDERS[provider_name]
+        assert config.base_url_env == env_var
+
+        with patch.dict(os.environ, {}, clear=True):
+            resolved = config.get_resolved_extra_args()
+            if default_url is None:
+                assert "base_url" not in resolved
+            else:
+                assert resolved["base_url"] == default_url
+
+        with patch.dict(os.environ, {env_var: "https://custom.example/v1"}, clear=True):
+            assert config.get_resolved_extra_args()["base_url"] == "https://custom.example/v1"
+
     def test_anthropic_defaults_to_sonnet_5_and_haiku_4_5(self):
         anthropic = LLM_PROVIDERS["anthropic"]
 
