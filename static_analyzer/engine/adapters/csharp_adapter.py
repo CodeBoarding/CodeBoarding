@@ -157,6 +157,25 @@ class CSharpAdapter(LanguageAdapter):
         self._ensure_csharp_ls_installed(project_root, resolution.dotnet_path, resolution.env)
         return super().get_lsp_command(project_root)
 
+    def _module_for(self, file_path: Path, parent_chain: list[tuple[str, int]], project_root: Path) -> str:
+        """The declared namespace this symbol sits in, or the directory when it has none.
+
+        A file may declare several namespaces, so the chain's own namespace segment selects
+        which one. The directory fallback covers the global namespace and any file whose
+        namespace symbol the server did not report.
+        """
+        declared = self._namespaces.get(str(file_path), {})
+        for name, kind in reversed(parent_chain):
+            if kind == NodeType.NAMESPACE and name in declared:
+                # `setdefault` on the last segment: a full name always wins over a segment
+                # that two namespaces in this file share.
+                return declared[name]
+        # No namespace in the chain means the symbol is not inside one -- a global type in a
+        # file that also declares a namespace, or a file with none at all. Borrowing the
+        # file's other namespace would put a global type inside it.
+        rel = file_path.relative_to(project_root)
+        return ".".join(part for part in rel.parent.parts if part not in ("src", "."))
+
     def _ensure_csharp_ls_installed(self, project_root: Path, dotnet_path: str, dotnet_env: dict[str, str]) -> None:
         dep = next((d for d in TOOL_REGISTRY if d.key == "csharp" and d.kind is ToolKind.PACKAGE_MANAGER), None)
         if dep is None:
@@ -202,19 +221,13 @@ class CSharpAdapter(LanguageAdapter):
     ) -> str:
         """Build ``<declared namespace>.<declaring types>.<symbol>`` for C#.
 
-        The namespace, not the directory: C# does not require the two to agree, so two files
-        in one directory may declare ``Alpha.Handler`` and ``Beta.Handler``, and a directory
-        prefix collapses them into one identity. It is also the name the compiler uses and
-        the one a maintainer searches for.
+        Why the namespace: C# does not require it to match the directory, and it is the name
+        the compiler uses. Why not the file stem: C# has no file scope, so a file may declare
+        several top-level types and the stem would nest them under each other.
 
-        Not the file stem either: C# has no file scope, so a file may declare any number of
-        top-level types. Prefixing with the stem made every other type in
-        ``ICatalogFacade.cs`` read as a member of the interface it sits beside, which
-        ``is_self_or_container_edge`` then deleted as containment.
-
-        csharp-ls nests File > Namespace > Class > Members and gives the full namespace only
-        on the namespace symbol's ``detail``; a class's chain carries its last segment alone.
-        The walk reaches the namespace before its children, so recording it there is enough.
+        csharp-ls gives the full namespace only on the namespace symbol's ``detail``; a
+        class's chain carries the last segment, so the full name is recorded here for
+        ``_module_for`` to read back.
         """
         if detail and symbol_kind == NodeType.NAMESPACE:
             known = self._namespaces.setdefault(str(file_path), {})
@@ -229,27 +242,18 @@ class CSharpAdapter(LanguageAdapter):
 
         return ".".join(part for part in (module, *code_parents, symbol_name) if part)
 
-    def _module_for(self, file_path: Path, parent_chain: list[tuple[str, int]], project_root: Path) -> str:
-        """The declared namespace this symbol sits in, or the directory when it has none.
+    def get_package_for_file(self, file_path: Path, project_root: Path) -> str:
+        """The namespace this file declares, so packages and qualified names agree.
 
-        A file may declare several namespaces, so the chain's own namespace segment selects
-        which one. The directory fallback covers the global namespace and any file whose
-        namespace symbol the server did not report.
+        The inherited default is the directory. Since a name is now the declared namespace,
+        that split the two apart: sibling files declaring ``Alpha`` and ``Beta`` counted as
+        one package, hiding the call between them, while files in different directories
+        sharing a namespace looked like a cross-package dependency.
         """
-        declared = self._namespaces.get(str(file_path), {})
-        for name, kind in reversed(parent_chain):
-            if kind == NodeType.NAMESPACE and name in declared:
-                # `setdefault` on the last segment: a full name always wins over a segment
-                # that two namespaces in this file share.
-                return declared[name]
-        # Alias forms arrive with the namespace stripped from the chain, so a file that
-        # declares exactly one still resolves.
-        if len(declared) == 1:
-            return next(iter(declared.values()))
-        # Nothing declared, or an ambiguous chain: the directory is the better guess than a
-        # bare last segment, and it is what the global namespace has to fall back on anyway.
-        rel = file_path.relative_to(project_root)
-        return ".".join(part for part in rel.parent.parts if part not in ("src", "."))
+        declared = self._namespaces.get(str(file_path))
+        if declared:
+            return min(declared.values(), key=len)
+        return super().get_package_for_file(file_path, project_root)
 
     def extract_package(self, qualified_name: str) -> str:
         """Extract namespace as all-but-last-two dot-separated components.
@@ -419,5 +423,9 @@ class CSharpAdapter(LanguageAdapter):
         return super().is_reference_worthy(symbol_kind) or symbol_kind == NodeType.NAMESPACE
 
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
-        """Get all directory prefixes as packages (namespace-based, like PHP)."""
-        return self._get_hierarchical_packages(source_files, project_root)
+        """Every prefix of each declared namespace, so a package matches the names built from it."""
+        packages: set[str] = set()
+        for source in source_files:
+            parts = self.get_package_for_file(source, project_root).split(".")
+            packages.update(".".join(parts[:depth]) for depth in range(1, len(parts) + 1))
+        return packages - {""}
