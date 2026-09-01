@@ -23,7 +23,7 @@ jobs:
       actions: read         # download the analysis an earlier run published, instead of re-deriving this PR every push
       pull-requests: write  # post the architecture-diff PR comment
       issues: write         # the /codeboarding issue_comment trigger + comment API
-      id-token: write       # mint a GitHub OIDC token for the free hosted tier (write is the only level for id-token)
+      id-token: write       # mint a GitHub OIDC token; both hosted tiers, free and licensed, need it
     if: >
       (github.event_name == 'pull_request' && github.event.action != 'closed' &&
        github.event.pull_request.draft == false &&
@@ -39,8 +39,10 @@ jobs:
           # that runs before the first depth-4 sync still analyzes at depth 4.
           # Requires the licensed tier (the free tier caps depth at 3).
           depth_level: 4
-          # Free tier needs no secret — these fall through to the hosted OIDC tier when
-          # unset. Add either repo secret (Settings → Secrets and variables → Actions)
-          # for more/unmetered usage; no YAML edit required.
-          llm_api_key: ${{ secrets.OPENROUTER_API_KEY }}   # BYO LLM provider key (OpenRouter)
-          license_key: ${{ secrets.CODEBOARDING_LICENSE }}  # CodeBoarding paid plan
+          # Named, not inferred: the action requires `llm` and fails rather than falling
+          # back to anything. CodeBoarding's own repositories run on the CodeBoarding
+          # plan, which is also what lifts the free tier's depth cap off `depth_level: 4`.
+          # Both secrets used to be wired here at once and OPENROUTER_API_KEY silently
+          # won, so the plan was never actually spent; this is the deliberate choice.
+          llm: license
+          license_key: ${{ secrets.CODEBOARDING_LICENSE }}

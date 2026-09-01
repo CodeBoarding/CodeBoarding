@@ -196,6 +196,31 @@ class TestFileMethodMaterialization(unittest.TestCase):
         self.assertEqual(len(groups[0].methods), 1)
         self.assertEqual(groups[0].methods[0].qualified_name, duplicate_specific.fully_qualified_name)
 
+    def test_preserves_same_line_callbacks_at_different_columns(self):
+        outer_callback = Node(
+            "src.components.DiffViewer.existingByLine.groupByLine() callback",
+            NodeType.FUNCTION,
+            "/repo/src/components/DiffViewer.tsx",
+            606,
+            606,
+            col_start=81,
+        )
+        inner_callback = Node(
+            "src.components.DiffViewer.DiffViewer.existingByLine.groupByLine() callback",
+            NodeType.FUNCTION,
+            "/repo/src/components/DiffViewer.tsx",
+            606,
+            606,
+            col_start=97,
+        )
+
+        groups = build_file_methods_from_nodes([outer_callback, inner_callback], Path("/repo"))
+
+        self.assertCountEqual(
+            [method.qualified_name for method in groups[0].methods],
+            [outer_callback.fully_qualified_name, inner_callback.fully_qualified_name],
+        )
+
 
 class TestClusterConnectionRendering(unittest.TestCase):
     def test_group_description_includes_members_assigned_outside_leaf_clusters(self):

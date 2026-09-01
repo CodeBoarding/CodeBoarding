@@ -27,7 +27,7 @@ def build_file_methods_from_nodes(
     source_cache: SourceCache | None = None,
 ) -> list[FileMethodGroup]:
     """Build sorted file/method groups from assigned CFG nodes."""
-    by_file: dict[str, dict[tuple[int, int, str, str], MethodEntry]] = defaultdict(dict)
+    by_file: dict[str, dict[tuple[int, int, int, str, str], MethodEntry]] = defaultdict(dict)
     file_cache = source_cache if source_cache is not None else {}
 
     for node in nodes:
@@ -35,7 +35,7 @@ def build_file_methods_from_nodes(
             continue
         file_path = normalize_repo_path(node.file_path, repo_dir)
         method_name = node.fully_qualified_name.split(".")[-1]
-        dedupe_key = (node.line_start, node.line_end, node.type.name, method_name)
+        dedupe_key = (node.line_start, node.line_end, node.col_start, node.type.name, method_name)
         candidate = MethodEntry(
             qualified_name=node.fully_qualified_name,
             start_line=node.line_start,
