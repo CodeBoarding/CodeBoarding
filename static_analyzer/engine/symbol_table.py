@@ -31,6 +31,8 @@ class SymbolTable:
         self._primary_file_symbols: dict[str, list[SymbolInfo]] = {}
         # Reference key (lowercase) -> symbol info
         self._ref_key_to_symbol: dict[str, SymbolInfo] = {}
+        # Names two different files both declare; every claimant of one is qualified by origin.
+        self._contested: set[str] = set()
 
         # --- Lookup indices built after registration ---
         # (file_key, name) -> list of symbols with that name in that file
@@ -116,6 +118,8 @@ class SymbolTable:
             info.parent_chain = list(parent_chain)
             info.owner_qualified_name = owner_qualified_name
 
+            qualified_name = self._claim(qualified_name, info, project_root)
+            info.qualified_name = qualified_name
             self._symbols[qualified_name] = info
             ref_key = self._naming.build_reference_key(qualified_name)
             self._ref_key_to_symbol[ref_key] = info
@@ -347,6 +351,40 @@ class SymbolTable:
             return qualified_name
         all_names = [qualified_name] + equivalents
         return min(all_names, key=len)
+
+    def _claim(self, qualified_name: str, info: SymbolInfo, project_root: Path) -> str:
+        """The key this symbol owns, made unique when another file already declares the name.
+
+        Two files may legally declare the same fully-qualified type: the same C# namespace in
+        two projects, or one namespace across platform folders. The compiler keeps them apart
+        by assembly; we have no assembly, so an unguarded ``self._symbols[name] = info``
+        silently dropped whichever came first, taking its edges with it.
+
+        The name is only qualified for the symbols that actually collide, so the vast
+        majority keep the exact name they had. The origin follows a comma, the separator C#
+        already uses for an assembly-qualified name, so the part before it stays the name a
+        maintainer can search for.
+        """
+        if qualified_name in self._contested:
+            return self._scoped(qualified_name, info, project_root)
+        existing = self._symbols.get(qualified_name)
+        if existing is None or existing.file_path == info.file_path:
+            return qualified_name
+        # First collision on this name: move the incumbent too, so the outcome does not
+        # depend on which file the walk reached first.
+        self._contested.add(qualified_name)
+        self._symbols.pop(qualified_name, None)
+        existing.qualified_name = self._scoped(qualified_name, existing, project_root)
+        self._symbols[existing.qualified_name] = existing
+        return self._scoped(qualified_name, info, project_root)
+
+    @staticmethod
+    def _scoped(qualified_name: str, info: SymbolInfo, project_root: Path) -> str:
+        try:
+            origin = info.file_path.relative_to(project_root).parent
+        except ValueError:
+            origin = info.file_path.parent
+        return f"{qualified_name}, {origin.as_posix()}" if str(origin) not in ("", ".") else qualified_name
 
     def is_local_variable(self, sym: SymbolInfo) -> bool:
         """Check whether a symbol is a local/parameter that should be excluded.

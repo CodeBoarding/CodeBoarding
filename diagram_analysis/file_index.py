@@ -34,10 +34,14 @@ def build_file_methods_from_nodes(
         if node.type not in CALLABLE_TYPES | CLASS_TYPES:
             continue
         file_path = normalize_repo_path(node.file_path, repo_dir)
-        method_name = node.fully_qualified_name.split(".")[-1]
+        # A name contested by two files carries its origin after a comma. These groups are
+        # keyed by file already, so the origin is redundant here and the entry shows the
+        # plain name a maintainer would search for.
+        qualified_name = node.fully_qualified_name.split(", ", 1)[0]
+        method_name = qualified_name.split(".")[-1]
         dedupe_key = (node.line_start, node.line_end, node.col_start, node.type.name, method_name)
         candidate = MethodEntry(
-            qualified_name=node.fully_qualified_name,
+            qualified_name=qualified_name,
             start_line=node.line_start,
             end_line=node.line_end,
             node_type=node.type.name,
