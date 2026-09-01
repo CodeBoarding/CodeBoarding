@@ -152,7 +152,13 @@ class _AnalysisFileStore:
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
         # Preserve existing metadata fields from disk when not explicitly provided
-        if sub_analyses is None or file_coverage_summary is None or not repo_name or depth_cap is None:
+        if (
+            sub_analyses is None
+            or file_coverage_summary is None
+            or not repo_name
+            or depth_cap is None
+            or naming_model is None
+        ):
             existing = self.read()
             if existing:
                 _, existing_subs, existing_data = existing
@@ -161,6 +167,10 @@ class _AnalysisFileStore:
                 metadata = existing_data.get("metadata", {})
                 if not repo_name:
                     repo_name = metadata.get("repo_name", "")
+                if naming_model is None:
+                    # Dropping it would strand every later incremental run, which requires
+                    # the model the persisted partition was built from.
+                    naming_model = metadata.get("naming_model")
                 if file_coverage_summary is None:
                     raw_summary = metadata.get("file_coverage_summary")
                     if raw_summary:
