@@ -439,3 +439,75 @@ class TestAliasesStayInTheirNamespace(unittest.TestCase):
         assert "Alpha.Holder.Run()" in names
         directory_aliases = {n for n in names if n.startswith("A.Very.Long.Directory")}
         assert not directory_aliases, f"alias fell back to the directory: {sorted(directory_aliases)}"
+
+
+class TestContestedDeclarations(unittest.TestCase):
+    """Two files may legally declare the same fully-qualified type."""
+
+    def _register(self, table, adapter, root, rel, namespace, cls):
+        source = root / rel
+        adapter.build_qualified_name(
+            source,
+            namespace.rsplit(".", 1)[-1],
+            NodeType.NAMESPACE,
+            [(source.name, NodeType.FILE)],
+            root,
+            namespace,
+        )
+        table.register_symbols(
+            source,
+            [
+                {
+                    "name": namespace,
+                    "kind": NodeType.NAMESPACE,
+                    "detail": namespace,
+                    "range": {"start": {"line": 0, "character": 0}, "end": {"line": 9, "character": 0}},
+                    "children": [
+                        {
+                            "name": cls,
+                            "kind": NodeType.CLASS,
+                            "range": {"start": {"line": 1, "character": 0}, "end": {"line": 8, "character": 0}},
+                            "children": [
+                                {
+                                    "name": "CreateMauiApp()",
+                                    "kind": NodeType.METHOD,
+                                    "range": {"start": {"line": 2, "character": 4}, "end": {"line": 3, "character": 4}},
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+            [(source.name, NodeType.FILE)],
+            root,
+        )
+
+    def test_both_declarations_survive_with_their_members(self):
+        adapter, root = CSharpAdapter(), Path("/repo")
+        table = SymbolTable(adapter)
+        for platform in ("iOS", "MacCatalyst"):
+            self._register(
+                table,
+                adapter,
+                root,
+                f"src/ClientApp/Platforms/{platform}/AppDelegate.cs",
+                "eShop.ClientApp",
+                "AppDelegate",
+            )
+        table.build_indices()
+        classes = sorted(n for n in table.symbols if n.endswith("AppDelegate"))
+        assert classes == [
+            "ClientApp.Platforms.MacCatalyst.eShop.ClientApp.AppDelegate",
+            "ClientApp.Platforms.iOS.eShop.ClientApp.AppDelegate",
+        ], classes
+        # the member moved with its class, so it is still a dot-prefix match
+        for cls in classes:
+            assert f"{cls}.CreateMauiApp()" in table.symbols, cls
+
+    def test_an_uncontested_name_is_untouched(self):
+        adapter, root = CSharpAdapter(), Path("/repo")
+        table = SymbolTable(adapter)
+        self._register(table, adapter, root, "src/Catalog/Api.cs", "eShop.Catalog", "Api")
+        table.build_indices()
+        assert "eShop.Catalog.Api" in table.symbols
+        assert "eShop.Catalog.Api.CreateMauiApp()" in table.symbols
