@@ -1,10 +1,4 @@
-"""Tests for the Java language adapter's naming rules.
-
-There was no unit coverage for any of this: `build_qualified_name`,
-`_clean_symbol_name`, `_strip_generics`, `_split_params` and `extract_package`
-were pinned only by an integration fixture that lives in a private repo and is
-skipped on fork PRs.
-"""
+"""Tests for the Java language adapter's naming rules."""
 
 from pathlib import Path
 
