@@ -165,6 +165,11 @@ class CSharpAdapter(LanguageAdapter):
         namespace symbol the server did not report.
         """
         declared = self._namespaces.get(str(file_path), {})
+        # A nested declaration reaches its children as several namespace entries; joining
+        # them is the resolved name, and it wins over any single segment.
+        nested = ".".join(part for part, kind in parent_chain if kind == NodeType.NAMESPACE)
+        if nested in declared:
+            return declared[nested]
         for name, kind in reversed(parent_chain):
             if kind == NodeType.NAMESPACE and name in declared:
                 # `setdefault` on the last segment: a full name always wins over a segment
@@ -230,10 +235,16 @@ class CSharpAdapter(LanguageAdapter):
         ``_module_for`` to read back.
         """
         if detail and symbol_kind == NodeType.NAMESPACE:
+            # csharp-ls reports the *declared* name, not the resolved one: a namespace nested
+            # inside another gives only its own segment, so `namespace Outer { namespace
+            # Shared { ... } }` arrives as "Shared" and the outer prefix has to come from the
+            # chain.
+            enclosing = ".".join(part for part, kind in parent_chain if kind == NodeType.NAMESPACE)
+            full = f"{enclosing}.{detail}" if enclosing else detail
             known = self._namespaces.setdefault(str(file_path), {})
-            known[detail] = detail
-            known.setdefault(detail.rsplit(".", 1)[-1], detail)
-            return detail
+            known[full] = full
+            known.setdefault(full.rsplit(".", 1)[-1], full)
+            return full
 
         module = self._module_for(file_path, parent_chain, project_root)
 

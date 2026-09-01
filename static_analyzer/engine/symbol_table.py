@@ -7,8 +7,9 @@ from pathlib import Path
 
 from static_analyzer.engine.protocols import SymbolNaming
 from static_analyzer.config import ANONYMOUS_SYMBOL_MARKERS, NodeType
-from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
+from static_analyzer.engine.lsp_constants import CALLABLE_KINDS, CLASS_LIKE_KINDS
 from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.source_inspector import SourceInspector
 
 logger = logging.getLogger(__name__)
 
@@ -198,13 +199,16 @@ class SymbolTable:
                 child_chain = parent_chain + [(chain_name, kind)]
                 self.register_symbols(file_path, children, child_chain, project_root, qualified_name)
 
-    def build_indices(self) -> None:
+    def build_indices(self, source_inspector: "SourceInspector | None" = None) -> None:
         """Build optimized lookup indices after symbol registration.
 
         Called once after all symbols are registered. Provides O(1)
         name-based equivalent lookups and class-to-constructor mappings.
+
+        *source_inspector* lets the contest scan read a declaration line, which is the only
+        place C# says a type is ``partial``.
         """
-        self._separate_contested_declarations()
+        self._separate_contested_declarations(source_inspector)
 
         # Build (file, name) -> symbols index for equivalent name lookup
         for file_key, syms in self._file_symbols.items():
@@ -220,7 +224,7 @@ class SymbolTable:
             if sym.kind == NodeType.CONSTRUCTOR and sym.owner_qualified_name:
                 self._class_to_ctors.setdefault(sym.owner_qualified_name, []).append(sym.qualified_name)
 
-    def _separate_contested_declarations(self) -> None:
+    def _separate_contested_declarations(self, source_inspector: "SourceInspector | None" = None) -> None:
         """Give each file its own name where two files declare the same one.
 
         Two files may legally declare the same fully-qualified type: one C# namespace across
@@ -243,6 +247,10 @@ class SymbolTable:
             # Counting it made every file in a namespace contest it, and the descendant match
             # below then moved that whole namespace under a directory.
             if sym.kind in (NodeType.NAMESPACE, NodeType.PACKAGE):
+                continue
+            # A `partial` type split across files is one type to the compiler, so its halves
+            # are not rivals: keeping the shared name puts both sets of members on one node.
+            if self._is_partial(sym, source_inspector):
                 continue
             claimants.setdefault(sym.qualified_name, set()).add(sym.file_path)
         contested = {name for name, files in claimants.items() if len(files) > 1}
@@ -280,6 +288,14 @@ class SymbolTable:
             len(contested),
             len(renamed),
         )
+
+    @staticmethod
+    def _is_partial(sym: SymbolInfo, source_inspector: "SourceInspector | None") -> bool:
+        """Whether this declaration carries C#'s ``partial`` modifier."""
+        if source_inspector is None or sym.kind not in CLASS_LIKE_KINDS:
+            return False
+        line = source_inspector.get_source_line(sym.file_path, sym.start_line)
+        return line is not None and " partial " in f" {line.strip()} "
 
     @staticmethod
     def _head_for(origin: str, contested_name: str) -> str:

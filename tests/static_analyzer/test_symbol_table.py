@@ -1,5 +1,9 @@
 """Tests for static_analyzer.engine.symbol_table.SymbolTable."""
 
+from static_analyzer.engine.source_inspector import SourceInspector
+import tempfile
+import shutil
+
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -581,3 +585,72 @@ class TestContestedOriginsAreUnique(unittest.TestCase):
         assert len(classes) == 3, classes
         for cls in classes:
             assert f"{cls}.handle()" in table.symbols, cls
+
+
+class TestPartialTypesAreOneType(unittest.TestCase):
+    """A C# `partial` type split across files is one type to the compiler."""
+
+    def setUp(self):
+        self.temp = tempfile.mkdtemp()
+        self.root = Path(self.temp)
+        for folder, member in (("Model", "Create()"), ("Generated", "Cancel()")):
+            (self.root / "src" / folder).mkdir(parents=True)
+        (self.root / "src/Model/Order.cs").write_text(
+            "namespace Shop.Domain;\npublic partial class Order\n{\n    public void Create() {}\n}\n"
+        )
+        (self.root / "src/Generated/Order.g.cs").write_text(
+            "namespace Shop.Domain;\npublic partial class Order\n{\n    public void Cancel() {}\n}\n"
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.temp, ignore_errors=True)
+
+    def _build(self):
+        adapter = CSharpAdapter()
+        table = SymbolTable(adapter)
+        for rel, member in (("src/Model/Order.cs", "Create()"), ("src/Generated/Order.g.cs", "Cancel()")):
+            source = self.root / rel
+            chain: list[tuple[str, int]] = [(source.name, NodeType.FILE)]
+            adapter.build_qualified_name(source, "Domain", NodeType.NAMESPACE, chain, self.root, "Shop.Domain")
+            table.register_symbols(
+                source,
+                [
+                    {
+                        "name": "Shop.Domain",
+                        "kind": NodeType.NAMESPACE,
+                        "detail": "Shop.Domain",
+                        "range": {"start": {"line": 0, "character": 0}, "end": {"line": 5, "character": 0}},
+                        "children": [
+                            {
+                                "name": "Order",
+                                "kind": NodeType.CLASS,
+                                "range": {"start": {"line": 1, "character": 0}, "end": {"line": 4, "character": 0}},
+                                "children": [
+                                    {
+                                        "name": member,
+                                        "kind": NodeType.METHOD,
+                                        "range": {
+                                            "start": {"line": 3, "character": 4},
+                                            "end": {"line": 3, "character": 30},
+                                        },
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+                chain,
+                self.root,
+            )
+        table.build_indices(SourceInspector())
+        return table
+
+    def test_both_halves_share_one_class_node(self):
+        table = self._build()
+        classes = [n for n, s in table.symbols.items() if s.kind == NodeType.CLASS]
+        assert classes == ["Shop.Domain.Order"], classes
+
+    def test_members_of_both_halves_land_under_it(self):
+        table = self._build()
+        assert "Shop.Domain.Order.Create()" in table.symbols
+        assert "Shop.Domain.Order.Cancel()" in table.symbols

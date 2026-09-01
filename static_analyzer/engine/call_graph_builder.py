@@ -61,7 +61,7 @@ class CallGraphBuilder:
         t_symbols_done = time.monotonic()
         logger.info("Phase 1 total (discover symbols): %.1fs", t_symbols_done - t_pipeline)
 
-        self._symbol_table.build_indices()
+        self._symbol_table.build_indices(self._source_inspector)
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
