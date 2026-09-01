@@ -82,6 +82,10 @@ def update_cfg_for_changed_files(
 
     if changed_source_files:
         builder = CallGraphBuilder(engine_client, adapter, project_path)
+        # Rebuilding only the changed files hides any unchanged file that claims the same
+        # qualified name, so the contest scan would drop the origin from this side while the
+        # cached side keeps it. Replay what the baseline already chose.
+        builder.symbol_table.adopt_baseline_names(_baseline_names_for(cached_analysis, changed_source_files))
         engine_result = builder.build(changed_source_files)
         new_analysis = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
     else:
@@ -630,3 +634,17 @@ def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
     merged_analysis.package_relations = filtered_packages
 
     return merged_analysis
+
+
+def _baseline_names_for(cached_analysis: dict, files: list[Path]) -> dict[Path, set[str]]:
+    """What the cached graph calls the symbols declared in each of *files*."""
+    graph = cached_analysis.get("call_graph")
+    if graph is None:
+        return {}
+    wanted = {str(f): f for f in files}
+    names: dict[Path, set[str]] = {}
+    for name, node in graph.nodes.items():
+        source = wanted.get(str(node.file_path))
+        if source is not None:
+            names.setdefault(source, set()).add(name)
+    return names

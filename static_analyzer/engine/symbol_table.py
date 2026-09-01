@@ -39,6 +39,8 @@ class SymbolTable:
         self._ref_key_to_symbol: dict[str, SymbolInfo] = {}
         self._project_root: Path | None = None
         """Recorded during registration so an origin can be made project-relative."""
+        self._baseline_names: dict[Path, set[str]] = {}
+        """What a warm start's baseline already calls the symbols in each changed file."""
 
         # --- Lookup indices built after registration ---
         # (file_key, name) -> list of symbols with that name in that file
@@ -199,6 +201,16 @@ class SymbolTable:
                 child_chain = parent_chain + [(chain_name, kind)]
                 self.register_symbols(file_path, children, child_chain, project_root, qualified_name)
 
+    def adopt_baseline_names(self, names_by_file: dict[Path, set[str]]) -> None:
+        """Tell the table what the baseline already calls the symbols in these files.
+
+        A warm start rebuilds only the changed files, so the contest scan cannot see an
+        unchanged file that claims the same name and would emit the changed side without its
+        origin while the cached side keeps one. Replaying the name the baseline chose keeps
+        both halves of a collision speaking about the same node.
+        """
+        self._baseline_names = names_by_file
+
     def build_indices(self, source_inspector: "SourceInspector | None" = None) -> None:
         """Build optimized lookup indices after symbol registration.
 
@@ -254,13 +266,19 @@ class SymbolTable:
                 continue
             claimants.setdefault(sym.qualified_name, set()).add(sym.file_path)
         contested = {name for name, files in claimants.items() if len(files) > 1}
-        if not contested:
+        if not contested and not self._baseline_names:
             return
 
         renamed: dict[tuple[str, str], str] = {}
         origins = {name: self._origins_for(claimants[name]) for name in contested}
         for file_key, syms in self._primary_file_symbols.items():
             for sym in syms:
+                # A warm start sees only the changed files, so nothing here looks contested
+                # even when the baseline knows it is. Its name wins.
+                inherited = self._baseline_name_for(sym)
+                if inherited:
+                    renamed[(file_key, sym.qualified_name)] = inherited
+                    continue
                 owner = self._contested_owner(sym.qualified_name, contested)
                 if owner is None:
                     continue
@@ -302,6 +320,17 @@ class SymbolTable:
             len(contested),
             len(renamed),
         )
+
+    def _baseline_name_for(self, sym: SymbolInfo) -> str:
+        """The origin-qualified name the baseline gave this symbol, if it gave it one.
+
+        Only an exact tail match counts, so a name the baseline left alone stays alone.
+        """
+        suffix = f".{sym.qualified_name}"
+        for name in sorted(self._baseline_names.get(sym.file_path, ())):
+            if name.endswith(suffix):
+                return name
+        return ""
 
     @staticmethod
     def _contested_owner(qualified_name: str, contested: set[str]) -> str | None:

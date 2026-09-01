@@ -700,3 +700,68 @@ class TestOutermostContestedOwner(unittest.TestCase):
         assert SymbolTable._contested_owner("N.Outer.Inner.go()", contested) == "N.Outer"
         assert SymbolTable._contested_owner("N.Outer", contested) == "N.Outer"
         assert SymbolTable._contested_owner("N.Unrelated", contested) is None
+
+
+class TestWarmStartKeepsContestedIdentities(unittest.TestCase):
+    """A warm start rebuilds only the changed files, so nothing there looks contested."""
+
+    def _build(self, files, baseline=None):
+        adapter = CSharpAdapter()
+        table = SymbolTable(adapter)
+        root = Path("/repo")
+        if baseline:
+            table.adopt_baseline_names(baseline)
+        for rel in files:
+            source = root / rel
+            chain: list[tuple[str, int]] = [(source.name, NodeType.FILE)]
+            adapter.build_qualified_name(source, "ClientApp", NodeType.NAMESPACE, chain, root, "eShop.ClientApp")
+            table.register_symbols(
+                source,
+                [
+                    {
+                        "name": "eShop.ClientApp",
+                        "kind": NodeType.NAMESPACE,
+                        "detail": "eShop.ClientApp",
+                        "range": {"start": {"line": 0, "character": 0}, "end": {"line": 9, "character": 0}},
+                        "children": [
+                            {
+                                "name": "AppDelegate",
+                                "kind": NodeType.CLASS,
+                                "range": {"start": {"line": 1, "character": 0}, "end": {"line": 8, "character": 0}},
+                                "children": [
+                                    {
+                                        "name": "CreateMauiApp()",
+                                        "kind": NodeType.METHOD,
+                                        "range": {
+                                            "start": {"line": 2, "character": 4},
+                                            "end": {"line": 3, "character": 4},
+                                        },
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+                chain,
+                root,
+            )
+        table.build_indices()
+        return sorted(n for n in table.symbols if "AppDelegate.CreateMauiApp" in n)
+
+    def setUp(self):
+        self.changed = "src/ClientApp/Platforms/MacCatalyst/AppDelegate.cs"
+        self.full = self._build([self.changed, "src/ClientApp/Platforms/iOS/AppDelegate.cs"])
+
+    def test_a_full_run_separates_both_platforms(self):
+        assert len(self.full) == 2, self.full
+
+    def test_the_changed_side_keeps_the_name_the_baseline_gave_it(self):
+        """Without this the edited half emits unprefixed while its cached twin stays
+        prefixed, and the merged graph holds two names for one declaration."""
+        baseline = {Path("/repo") / self.changed: {n for n in self.full if "MacCatalyst" in n}}
+        assert self._build([self.changed], baseline) == [
+            "ClientApp.Platforms.MacCatalyst.eShop.ClientApp.AppDelegate.CreateMauiApp()"
+        ]
+
+    def test_without_the_baseline_the_prefix_is_lost(self):
+        assert self._build([self.changed]) == ["eShop.ClientApp.AppDelegate.CreateMauiApp()"]
