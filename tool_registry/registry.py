@@ -235,6 +235,27 @@ TOOL_REGISTRY: list[ToolDependency] = [
         ),
         archive_subdir="csharp-ls",
     ),
+    # FsAutoComplete ships only as a NuGet dotnet-tool, same as csharp-ls.
+    ToolDependency(
+        key="fsharp",
+        binary_name="fsautocomplete",
+        kind=ToolKind.PACKAGE_MANAGER,
+        config_section=ConfigSection.LSP_SERVERS,
+        source=PackageManagerToolSource(
+            tag="0.84.0",
+            manager_binary="dotnet",
+            install_args=(
+                "tool",
+                "install",
+                "fsautocomplete",
+                "--version",
+                "{tag}",
+                "--tool-path",
+                "{tool_path}",
+            ),
+        ),
+        archive_subdir="fsautocomplete",
+    ),
     ToolDependency(
         key="java",
         binary_name="java",

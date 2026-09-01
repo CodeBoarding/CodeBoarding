@@ -24,6 +24,7 @@ class Language(StrEnum):
     PHP = "php"
     RUST = "rust"
     CSHARP = "csharp"
+    FSHARP = "fsharp"
     CPP = "cpp"
 
 
@@ -34,6 +35,7 @@ class AdapterName(StrEnum):
     TYPESCRIPT = "TypeScript"
     JAVASCRIPT = "JavaScript"
     CSHARP = "CSharp"
+    FSHARP = "FSharp"
     GO = "Go"
     JAVA = "Java"
     PHP = "PHP"
@@ -57,6 +59,7 @@ class SourceSuffix(StrEnum):
     PHP = ".php"
     RS = ".rs"
     CS = ".cs"
+    FS = ".fs"
     CPP = ".cpp"
     CC = ".cc"
     CXX = ".cxx"
@@ -100,6 +103,10 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[SourceSuffix, ...]] = {
     Language.PHP: (SourceSuffix.PHP,),
     Language.RUST: (SourceSuffix.RS,),
     Language.CSHARP: (SourceSuffix.CS,),
+    # Implementation files only. A ``.fsi`` signature file redeclares the symbols of its
+    # ``.fs`` sibling, so indexing both would double every public symbol; ``.fsx`` scripts
+    # belong to no ``.fsproj`` and would reach the server without a project context.
+    Language.FSHARP: (SourceSuffix.FS,),
     Language.CPP: (
         SourceSuffix.CPP,
         SourceSuffix.CC,
