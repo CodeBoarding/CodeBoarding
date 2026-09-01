@@ -709,3 +709,59 @@ class TestPrepareProject:
             lambda _root: _dotnet_resolution(),
         )
         CSharpAdapter().prepare_project(tmp_path)  # no exception
+
+
+class TestCSharpPackages:
+    """Packages follow the declared namespace, so they agree with the qualified names."""
+
+    def setup_method(self):
+        self.adapter = CSharpAdapter()
+        self.root = Path("/repo")
+
+    def _declare(self, source: Path, namespace: str) -> None:
+        self.adapter.build_qualified_name(
+            source,
+            namespace.rsplit(".", 1)[-1],
+            NodeType.NAMESPACE,
+            [(source.name, NodeType.FILE)],
+            self.root,
+            namespace,
+        )
+
+    def test_siblings_in_one_directory_are_separate_packages(self):
+        """A directory-keyed package hid the call between them."""
+        alpha, beta = Path("/repo/src/Shared/A.cs"), Path("/repo/src/Shared/B.cs")
+        self._declare(alpha, "Alpha")
+        self._declare(beta, "Beta")
+        assert self.adapter.get_package_for_file(alpha, self.root) == "Alpha"
+        assert self.adapter.get_package_for_file(beta, self.root) == "Beta"
+
+    def test_a_file_with_no_namespace_falls_back_to_the_directory(self):
+        source = Path("/repo/src/Legacy/Global.cs")
+        assert self.adapter.get_package_for_file(source, self.root) != ""
+
+    def test_all_packages_are_namespace_prefixes(self):
+        source = Path("/repo/src/Ordering/Api.cs")
+        self._declare(source, "eShop.Ordering.API")
+        assert self.adapter.get_all_packages([source], self.root) == {
+            "eShop",
+            "eShop.Ordering",
+            "eShop.Ordering.API",
+        }
+
+
+class TestGlobalTypes:
+    def setup_method(self):
+        self.adapter = CSharpAdapter()
+        self.root = Path("/repo")
+
+    def test_a_global_type_does_not_join_the_files_namespace(self):
+        """`namespace N { class Inner {} } class Global {}` — Global is not in N."""
+        source = Path("/repo/src/Legacy/Both.cs")
+        self.adapter.build_qualified_name(
+            source, "N", NodeType.NAMESPACE, [(source.name, NodeType.FILE)], self.root, "N"
+        )
+        result = self.adapter.build_qualified_name(
+            source, "Global", NodeType.CLASS, [(source.name, NodeType.FILE)], self.root
+        )
+        assert result == "Legacy.Global", result
