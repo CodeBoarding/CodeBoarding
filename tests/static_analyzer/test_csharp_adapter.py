@@ -260,6 +260,33 @@ class TestBuildQualifiedName:
         )
         assert result == "EdgeCases.Models.Animal"
 
+    def test_two_namespaces_in_one_file_ending_in_the_same_segment(self):
+        """csharp-ls gives a class only its namespace's last segment, and two namespaces in
+        one file may share it. Resolution must come from the chain, not from walk order."""
+        source = Path("/repo/src/Handlers/Both.cs")
+        for full in ("X.Shared", "Y.Shared"):
+            self.adapter.build_qualified_name(
+                source,
+                full.rsplit(".", 1)[-1],
+                NodeType.NAMESPACE,
+                [(source.name, NodeType.FILE)],
+                self.root,
+                full,
+            )
+
+        def name_in(namespace: str) -> str:
+            return self.adapter.build_qualified_name(
+                source,
+                "Handler",
+                NodeType.CLASS,
+                [(source.name, NodeType.FILE), (namespace, NodeType.NAMESPACE)],
+                self.root,
+            )
+
+        # Both namespaces are already declared, so this is the order-independent case.
+        assert name_in("X.Shared") == "X.Shared.Handler"
+        assert name_in("Y.Shared") == "Y.Shared.Handler"
+
     def test_two_namespaces_in_one_directory_keep_separate_identities(self):
         """The collision a directory prefix cannot represent: same folder, same type name."""
         names = []

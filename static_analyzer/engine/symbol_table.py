@@ -182,7 +182,12 @@ class SymbolTable:
 
             children = sym.get("children", [])
             if children:
-                child_chain = parent_chain + [(name, kind)]
+                # A namespace carries its full dotted name in `detail`, while its own symbol
+                # name is only the last segment. Push the full one so a child can resolve its
+                # scope from the chain alone: two namespaces in one file may end in the same
+                # segment, and then the segment does not identify either.
+                chain_name = detail if kind in (NodeType.NAMESPACE, NodeType.PACKAGE) and detail else name
+                child_chain = parent_chain + [(chain_name, kind)]
                 self.register_symbols(file_path, children, child_chain, project_root, qualified_name)
 
     def build_indices(self) -> None:
