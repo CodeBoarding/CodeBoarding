@@ -765,3 +765,33 @@ class TestGlobalTypes:
             source, "Global", NodeType.CLASS, [(source.name, NodeType.FILE)], self.root
         )
         assert result == "Legacy.Global", result
+
+
+class TestMultipleNamespacesInOneFile:
+    """One file may declare several namespaces; a package is not a property of the file."""
+
+    def setup_method(self):
+        self.adapter = CSharpAdapter()
+        self.root = Path("/repo")
+        self.source = self.root / "src/Shared/Both.cs"
+        for namespace in ("Alpha", "Beta"):
+            self.adapter.build_qualified_name(
+                self.source,
+                namespace,
+                NodeType.NAMESPACE,
+                [(self.source.name, NodeType.FILE)],
+                self.root,
+                namespace,
+            )
+
+    def test_every_declared_namespace_is_a_package(self):
+        assert self.adapter.get_all_packages([self.source], self.root) == {"Alpha", "Beta"}
+
+    def test_a_symbol_is_classified_by_its_own_namespace(self):
+        """Keyed on the file, an Alpha-to-Beta call inside one file read as internal."""
+        assert self.adapter.package_of("Alpha.Handler.Run()", self.source, self.root) == "Alpha"
+        assert self.adapter.package_of("Beta.Handler.Run()", self.source, self.root) == "Beta"
+
+    def test_a_symbol_in_no_declared_namespace_falls_back_to_the_directory(self):
+        """A global type is in neither namespace; handing it the shortest would misplace it."""
+        assert self.adapter.package_of("Gamma.Thing", self.source, self.root) == "src.Shared"

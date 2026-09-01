@@ -17,9 +17,6 @@ BUILD_ROOT_DIRS = frozenset(
 )
 """Directories that name a build layout rather than the code, so they distinguish nothing."""
 
-MAX_ORIGIN_SEGMENTS = 3
-"""Enough of the path to separate two declarations without restating the whole tree."""
-
 
 class SymbolTable:
     """Manages symbol discovery, registration, and lookup.
@@ -39,6 +36,8 @@ class SymbolTable:
         self._primary_file_symbols: dict[str, list[SymbolInfo]] = {}
         # Reference key (lowercase) -> symbol info
         self._ref_key_to_symbol: dict[str, SymbolInfo] = {}
+        self._project_root: Path | None = None
+        """Recorded during registration so an origin can be made project-relative."""
 
         # --- Lookup indices built after registration ---
         # (file_key, name) -> list of symbols with that name in that file
@@ -75,6 +74,7 @@ class SymbolTable:
         owner_qualified_name: str = "",
     ) -> None:
         """Recursively register symbols with dual registration."""
+        self._project_root = project_root
         for sym in symbols:
             name = sym.get("name", "")
             kind = sym.get("kind", 0)
@@ -250,6 +250,7 @@ class SymbolTable:
             return
 
         renamed: dict[tuple[str, str], str] = {}
+        origins = {name: self._origins_for(claimants[name]) for name in contested}
         for file_key, syms in self._primary_file_symbols.items():
             for sym in syms:
                 owner = next(
@@ -257,7 +258,10 @@ class SymbolTable:
                 )
                 if owner is None:
                     continue
-                renamed[(file_key, sym.qualified_name)] = f"{self._origin_of(sym)}.{sym.qualified_name}"
+                # The head is derived from the contested name, not from this symbol's, so a
+                # declaration and its members keep a shared prefix and CONTAINS still links.
+                head = self._head_for(origins[owner][sym.file_path], owner)
+                renamed[(file_key, sym.qualified_name)] = f"{head}.{sym.qualified_name}" if head else sym.qualified_name
 
         for (file_key, old_name), new_name in renamed.items():
             for sym in self._file_symbols.get(file_key, []):
@@ -277,10 +281,51 @@ class SymbolTable:
             len(renamed),
         )
 
-    def _origin_of(self, sym: SymbolInfo) -> str:
-        """The declaring directory, as dotted segments, with build roots dropped."""
-        parts = [p for p in sym.file_path.parent.parts if p not in BUILD_ROOT_DIRS]
-        return ".".join(parts[-MAX_ORIGIN_SEGMENTS:]) if parts else sym.file_path.stem
+    @staticmethod
+    def _head_for(origin: str, contested_name: str) -> str:
+        """The origin with any tail the contested name already states removed.
+
+        A Java origin ends in the package the name starts with, so joining them verbatim gave
+        ``service-a.com.acme.shared.com.acme.shared.X``.
+        """
+        segments = origin.split(".") if origin else []
+        for cut in range(len(segments), 0, -1):
+            tail = ".".join(segments[-cut:])
+            if contested_name == tail or contested_name.startswith(f"{tail}."):
+                return ".".join(segments[:-cut])
+        return ".".join(segments)
+
+    def _origins_for(self, files: set[Path]) -> dict[Path, str]:
+        """One distinct origin per file that claims the same name.
+
+        Tried in order of how much they say, stopping at the first that separates every
+        claimant: the declaring directory without build roots, then with them, then with the
+        file name. The last cannot collide -- two files do not share a full path -- which
+        matters because a shorter form can tie in ways that are easy to miss: two Maven
+        modules put their distinguishing segment in front of ``src/main/java``, and
+        ``src/main/java/com/acme`` and ``src/test/java/com/acme`` are the same directory once
+        build roots are gone.
+        """
+        relative = {source: self._relative_dir(source) for source in files}
+        candidates = (
+            {source: [p for p in parts if p not in BUILD_ROOT_DIRS] for source, parts in relative.items()},
+            dict(relative),
+            {source: [*relative[source], source.stem] for source in files},
+        )
+        for level in candidates:
+            origins = {source: ".".join(parts) for source, parts in level.items()}
+            if len(set(origins.values())) == len(files) and all(origins.values()):
+                return origins
+        return {source: ".".join([*relative[source], source.stem]) for source in files}
+
+    def _relative_dir(self, source: Path) -> list[str]:
+        directory = source.parent
+        if self._project_root:
+            try:
+                directory = directory.relative_to(self._project_root)
+            except ValueError:
+                pass
+        return [part for part in directory.parts if part != "/"]
 
     def find_containing_symbol(self, file_path: Path, line: int, character: int) -> SymbolInfo | None:
         """Find the innermost symbol whose range contains the given position.

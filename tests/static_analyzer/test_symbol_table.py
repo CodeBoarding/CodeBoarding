@@ -8,6 +8,7 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.config import NodeType
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
+from static_analyzer.engine.adapters.java_adapter import JavaAdapter
 from static_analyzer.engine.symbol_table import SymbolTable
 
 
@@ -511,3 +512,72 @@ class TestContestedDeclarations(unittest.TestCase):
         table.build_indices()
         assert "eShop.Catalog.Api" in table.symbols
         assert "eShop.Catalog.Api.CreateMauiApp()" in table.symbols
+
+
+class TestContestedOriginsAreUnique(unittest.TestCase):
+    """The origin has to separate every claimant, or a declaration is still lost."""
+
+    @staticmethod
+    def _register(table, source, package, cls="X"):
+        table.register_symbols(
+            source,
+            [
+                {
+                    "name": package,
+                    "kind": NodeType.PACKAGE,
+                    "detail": "",
+                    "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 9}},
+                },
+                {
+                    "name": cls,
+                    "kind": NodeType.CLASS,
+                    "range": {"start": {"line": 1, "character": 0}, "end": {"line": 9, "character": 0}},
+                    "children": [
+                        {
+                            "name": "handle()",
+                            "kind": NodeType.METHOD,
+                            "range": {"start": {"line": 2, "character": 2}, "end": {"line": 3, "character": 2}},
+                        }
+                    ],
+                },
+            ],
+            [],
+            Path("/repo"),
+        )
+
+    def _classes(self, files, package="com.acme"):
+        table = SymbolTable(JavaAdapter())
+        for source in files:
+            self._register(table, Path(f"/repo/{source}"), package)
+        table.build_indices()
+        return table, sorted(n for n, s in table.symbols.items() if s.kind == NodeType.CLASS)
+
+    def test_two_maven_modules_sharing_a_package(self):
+        """The segment that separates them sits in front of src/main/java."""
+        table, classes = self._classes(
+            ["service-a/src/main/java/com/acme/X.java", "service-b/src/main/java/com/acme/X.java"]
+        )
+        assert classes == ["service-a.com.acme.X", "service-b.com.acme.X"], classes
+        for cls in classes:
+            assert f"{cls}.handle()" in table.symbols
+
+    def test_directories_differing_only_in_build_roots(self):
+        """src/main/java/com/acme and src/test/java/com/acme are one directory once build
+        roots are dropped, so the origin has to keep them."""
+        table, classes = self._classes(["src/main/java/com/acme/X.java", "src/test/java/com/acme/X.java"])
+        assert len(classes) == 2, classes
+        assert len(set(classes)) == 2
+        for cls in classes:
+            assert f"{cls}.handle()" in table.symbols
+
+    def test_three_claimants_where_two_share_a_directory(self):
+        table, classes = self._classes(
+            [
+                "service-a/src/main/java/com/acme/X.java",
+                "service-b/src/main/java/com/acme/X.java",
+                "service-b/src/main/java/com/acme/X2.java",
+            ]
+        )
+        assert len(classes) == 3, classes
+        for cls in classes:
+            assert f"{cls}.handle()" in table.symbols, cls

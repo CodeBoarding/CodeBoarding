@@ -386,6 +386,14 @@ class LanguageAdapter(ABC):
         """Build the name used in call graph edges. Defaults to qualified_name."""
         return self.build_qualified_name(file_path, symbol_name, symbol_kind, parent_chain, project_root, detail)
 
+    def package_of(self, qualified_name: str, file_path: Path, project_root: Path) -> str:
+        """The package a single symbol belongs to.
+
+        Defaults to the file's package. Override where one file can hold symbols from more
+        than one package, so a call between them is not read as internal.
+        """
+        return self.get_package_for_file(file_path, project_root)
+
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
         """Get all packages that should appear in package dependencies.
 
