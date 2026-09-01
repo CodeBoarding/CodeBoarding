@@ -42,6 +42,8 @@ def _make_adapter() -> MagicMock:
         NodeType.VARIABLE,
     )
     adapter.is_reference_worthy.return_value = True
+    # Mirror the base adapter: a symbol's package is its file's unless a language overrides.
+    adapter.package_of.side_effect = lambda qn, fp, root: adapter.get_package_for_file(fp, root)
     adapter.build_reference_key.side_effect = lambda qn: qn
     adapter.build_qualified_name.side_effect = lambda fp, name, kind, chain, root, detail="": (
         ".".join(n for n, _ in chain) + "." + name if chain else f"{fp.stem}.{name}"
