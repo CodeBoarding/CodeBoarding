@@ -492,12 +492,12 @@ class TestContestedNames(unittest.TestCase):
                 "AppDelegate",
             )
         # Both declarations keep a primary entry; neither overwrote the other.
-        assert "eShop.ClientApp.AppDelegate, src/ClientApp/Platforms/iOS" in table.symbols
-        assert "eShop.ClientApp.AppDelegate, src/ClientApp/Platforms/MacCatalyst" in table.symbols
+        assert "eShop.ClientApp.AppDelegate @ src/ClientApp/Platforms/iOS" in table.symbols
+        assert "eShop.ClientApp.AppDelegate @ src/ClientApp/Platforms/MacCatalyst" in table.symbols
         # and the searchable name is the prefix of both
         for platform in ("iOS", "MacCatalyst"):
-            key = f"eShop.ClientApp.AppDelegate, src/ClientApp/Platforms/{platform}"
-            assert key.split(", ")[0] == "eShop.ClientApp.AppDelegate"
+            key = f"eShop.ClientApp.AppDelegate @ src/ClientApp/Platforms/{platform}"
+            assert key.split(" @ ")[0] == "eShop.ClientApp.AppDelegate"
 
     def test_an_uncontested_name_is_untouched(self):
         adapter, root = CSharpAdapter(), Path("/repo")
