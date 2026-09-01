@@ -12,6 +12,14 @@ from static_analyzer.engine.models import SymbolInfo
 
 logger = logging.getLogger(__name__)
 
+BUILD_ROOT_DIRS = frozenset(
+    {"src", "lib", "source", "sources", "packages", "apps", "modules", "pkg", "main", "java", "test", "tests"}
+)
+"""Directories that name a build layout rather than the code, so they distinguish nothing."""
+
+MAX_ORIGIN_SEGMENTS = 3
+"""Enough of the path to separate two declarations without restating the whole tree."""
+
 
 class SymbolTable:
     """Manages symbol discovery, registration, and lookup.
@@ -196,6 +204,8 @@ class SymbolTable:
         Called once after all symbols are registered. Provides O(1)
         name-based equivalent lookups and class-to-constructor mappings.
         """
+        self._separate_contested_declarations()
+
         # Build (file, name) -> symbols index for equivalent name lookup
         for file_key, syms in self._file_symbols.items():
             for sym in syms:
@@ -209,6 +219,63 @@ class SymbolTable:
         for sym in (s for syms in self._primary_file_symbols.values() for s in syms):
             if sym.kind == NodeType.CONSTRUCTOR and sym.owner_qualified_name:
                 self._class_to_ctors.setdefault(sym.owner_qualified_name, []).append(sym.qualified_name)
+
+    def _separate_contested_declarations(self) -> None:
+        """Give each file its own name where two files declare the same one.
+
+        Two files may legally declare the same fully-qualified type: one C# namespace across
+        platform folders, or the same namespace in two projects. The compiler tells them
+        apart by assembly; without one, the later registration replaced the earlier and took
+        its edges with it.
+
+        The declaring directory goes in front, not behind, because the qualified name is not
+        just a label -- ``result_converter`` finds a member's class by joining dot-separated
+        prefixes of its name. A suffix leaves ``N.C.M @ dir`` searching for ``N.C`` while the
+        class is ``N.C @ dir``, and every member loses its containment edge. A leading
+        segment is just another segment, so the arithmetic still holds.
+
+        Run after every file is registered, so the outcome does not depend on which file the
+        walk reached first, and descendants move with the declaration that owns them.
+        """
+        claimants: dict[str, set[Path]] = {}
+        for sym in (s for syms in self._primary_file_symbols.values() for s in syms):
+            claimants.setdefault(sym.qualified_name, set()).add(sym.file_path)
+        contested = {name for name, files in claimants.items() if len(files) > 1}
+        if not contested:
+            return
+
+        renamed: dict[tuple[str, str], str] = {}
+        for file_key, syms in self._primary_file_symbols.items():
+            for sym in syms:
+                owner = next(
+                    (c for c in contested if sym.qualified_name == c or sym.qualified_name.startswith(f"{c}.")), None
+                )
+                if owner is None:
+                    continue
+                renamed[(file_key, sym.qualified_name)] = f"{self._origin_of(sym)}.{sym.qualified_name}"
+
+        for (file_key, old_name), new_name in renamed.items():
+            for sym in self._file_symbols.get(file_key, []):
+                if sym.qualified_name != old_name:
+                    continue
+                self._symbols.pop(old_name, None)
+                sym.qualified_name = new_name
+                self._symbols[new_name] = sym
+                self._ref_key_to_symbol[self._naming.build_reference_key(new_name)] = sym
+            for sym in self._primary_file_symbols.get(file_key, []):
+                if sym.owner_qualified_name == old_name:
+                    sym.owner_qualified_name = new_name
+
+        logger.info(
+            "[Naming] %d name(s) declared by more than one file; %d symbol(s) moved under their origin",
+            len(contested),
+            len(renamed),
+        )
+
+    def _origin_of(self, sym: SymbolInfo) -> str:
+        """The declaring directory, as dotted segments, with build roots dropped."""
+        parts = [p for p in sym.file_path.parent.parts if p not in BUILD_ROOT_DIRS]
+        return ".".join(parts[-MAX_ORIGIN_SEGMENTS:]) if parts else sym.file_path.stem
 
     def find_containing_symbol(self, file_path: Path, line: int, character: int) -> SymbolInfo | None:
         """Find the innermost symbol whose range contains the given position.
