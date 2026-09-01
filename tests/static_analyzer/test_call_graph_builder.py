@@ -332,6 +332,42 @@ class TestPostprocessEdges:
 
         assert ("app.main", "app.Dog.__init__()") in result
 
+    def test_constructing_on_one_line_and_calling_on_another_keeps_the_constructor(self):
+        """The suppression is per call site, not per caller.
+
+        A method may well do ``dog = Dog()`` on one line and ``dog.speak()`` on the next; a
+        caller-wide test reads the second as proof the first never happened.
+        """
+        builder = CallGraphBuilder(_make_lsp(), _make_adapter(), Path("/project"))
+        self._dog_symbols(builder)
+        construction = CallSite(file="/project/app.py", line=10, column=4)
+        member_call = CallSite(file="/project/app.py", line=11, column=4)
+
+        result = builder._postprocess_edges(
+            {
+                ("app.main", "app.Dog"): [construction],
+                ("app.main", "app.Dog.speak()"): [member_call],
+            }
+        )
+
+        assert ("app.main", "app.Dog.__init__()") in result
+        assert result[("app.main", "app.Dog.__init__()")] == [construction]
+
+    def test_a_type_mention_on_the_same_line_as_a_member_call_does_not_expand(self):
+        """A site that also reaches a member holds an instance rather than making one."""
+        builder = CallGraphBuilder(_make_lsp(), _make_adapter(), Path("/project"))
+        self._dog_symbols(builder)
+        site = CallSite(file="/project/app.py", line=10, column=4)
+
+        result = builder._postprocess_edges(
+            {
+                ("app.main", "app.Dog"): [site],
+                ("app.main", "app.Dog.speak()"): [site],
+            }
+        )
+
+        assert ("app.main", "app.Dog.__init__()") not in result
+
     def test_a_caller_already_inside_the_class_does_not_expand(self):
         """A caller reaching a member holds an instance; its class edge is a type mention.
 
