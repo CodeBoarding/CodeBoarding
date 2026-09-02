@@ -965,7 +965,7 @@ class TestDiagramGenerator(unittest.TestCase):
             gen.prepare_analysis()
 
         # Verify agents were created
-        mock_build_hierarchy.assert_called_once_with(mock_analysis_results, 2, {})
+        mock_build_hierarchy.assert_called_once_with(mock_analysis_results, 2)
         self.assertIs(gen.clustering_hierarchy, hierarchy)
         self.assertIsNotNone(gen.meta_agent)
         self.assertIsNotNone(gen.details_agent)
