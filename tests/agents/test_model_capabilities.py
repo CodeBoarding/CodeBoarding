@@ -1,4 +1,4 @@
-"""Hermetic unit tests for the context-window resolver. Catalogs are mocked — no network."""
+"""Hermetic unit tests for model-capability resolution. Catalogs are mocked — no network."""
 
 import io
 import json
@@ -11,6 +11,7 @@ from agents.model_capabilities import (
     _parse_num_ctx,
     _resolve_ollama,
     get_context_window,
+    model_accepts_sampling_parameters,
 )
 from utils import CODEBOARDING_DIR_NAME
 
@@ -50,6 +51,45 @@ _FAKE_OPENROUTER = {
         "top_provider": {"max_completion_tokens": 128_000},
     },
 }
+
+
+class TestSamplingParameters:
+    @pytest.mark.parametrize(
+        "provider,model_name",
+        [
+            ("anthropic", "claude-opus-4-7"),
+            ("anthropic", "claude-opus-4-8"),
+            ("anthropic", "claude-opus-5"),
+            ("anthropic", "claude-sonnet-5"),
+            ("anthropic", "claude-haiku-5"),
+            ("anthropic", "claude-fable-5"),
+            ("anthropic", "claude-mythos-5"),
+            ("anthropic", "CLAUDE-OPUS-4-8"),
+            ("anthropic", "unknown-deployment"),
+            ("aws", "anthropic.claude-opus-4-8"),
+            ("aws", "us.anthropic.claude-opus-4-8-v1:0"),
+            ("aws", "claude-opus-5"),
+        ],
+    )
+    def test_anthropic_models_without_sampling_capability(self, provider: str, model_name: str) -> None:
+        assert model_accepts_sampling_parameters(provider, model_name) is False
+
+    @pytest.mark.parametrize(
+        "provider,model_name",
+        [
+            ("anthropic", "claude-2.1"),
+            ("anthropic", "claude-3-5-sonnet-20241022"),
+            ("anthropic", "claude-3.5-sonnet-20241022"),
+            ("anthropic", "claude-opus-4-1-20250805"),
+            ("anthropic", "claude-sonnet-4-6"),
+            ("anthropic", "claude-haiku-4-5"),
+            ("aws", "anthropic.claude-sonnet-4-6"),
+            ("openai", "gpt-4o"),
+            ("google", "gemini-3-flash"),
+        ],
+    )
+    def test_models_with_sampling_capability(self, provider: str, model_name: str) -> None:
+        assert model_accepts_sampling_parameters(provider, model_name) is True
 
 
 @pytest.fixture
