@@ -64,6 +64,7 @@ class SymbolTable:
         symbols: list[dict],
         parent_chain: list[tuple[str, int]],
         project_root: Path,
+        owner_qualified_name: str = "",
     ) -> None:
         """Recursively register symbols with dual registration."""
         for sym in symbols:
@@ -113,6 +114,7 @@ class SymbolTable:
                 promoted_from_variable=promoted,
             )
             info.parent_chain = list(parent_chain)
+            info.owner_qualified_name = owner_qualified_name
 
             self._symbols[qualified_name] = info
             ref_key = self._naming.build_reference_key(qualified_name)
@@ -169,7 +171,7 @@ class SymbolTable:
             children = sym.get("children", [])
             if children:
                 child_chain = parent_chain + [(name, kind)]
-                self.register_symbols(file_path, children, child_chain, project_root)
+                self.register_symbols(file_path, children, child_chain, project_root, qualified_name)
 
     def build_indices(self) -> None:
         """Build optimized lookup indices after symbol registration.
@@ -183,14 +185,12 @@ class SymbolTable:
                 idx_key = (file_key, sym.name)
                 self._file_name_index.setdefault(idx_key, []).append(sym)
 
-        # Build class -> constructor index
-        for qname, sym in self._symbols.items():
-            if sym.kind == NodeType.CONSTRUCTOR:
-                # Find the class this constructor belongs to by stripping the params
-                paren_idx = qname.find("(")
-                if paren_idx != -1:
-                    class_qname = qname[:paren_idx]
-                    self._class_to_ctors.setdefault(class_qname, []).append(qname)
+        # Class -> constructors, keyed on the declaring symbol.
+        # Why not a slice at the first "(": that names the class only where the scheme
+        # doubles it, and it cannot tell a primary symbol from an alias.
+        for sym in (s for syms in self._primary_file_symbols.values() for s in syms):
+            if sym.kind == NodeType.CONSTRUCTOR and sym.owner_qualified_name:
+                self._class_to_ctors.setdefault(sym.owner_qualified_name, []).append(sym.qualified_name)
 
     def find_containing_symbol(self, file_path: Path, line: int, character: int) -> SymbolInfo | None:
         """Find the innermost symbol whose range contains the given position.

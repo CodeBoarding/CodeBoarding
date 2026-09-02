@@ -94,6 +94,58 @@ class TestIsInvocation:
         assert si.is_invocation(f, 0, 7) is False
 
 
+class TestIsConstructionSite:
+    """Which call sites run a constructor, for constructor expansion."""
+
+    def _site(self, source: Path, line: int, column: int) -> CallSite:
+        return CallSite.from_lsp_position(file=str(source), line=line, column=column)
+
+    def test_java_new(self, tmp_path: Path):
+        f = tmp_path / "Main.java"
+        f.write_text("class Main {\n    void run() {\n        Dog dog = new Dog();\n    }\n}\n")
+        assert SourceInspector().is_construction_site(self._site(f, 2, 22)) is True
+
+    def test_a_member_call_is_not_a_construction(self, tmp_path: Path):
+        f = tmp_path / "Main.java"
+        f.write_text("class Main {\n    void run() {\n        dog.speak();\n    }\n}\n")
+        assert SourceInspector().is_construction_site(self._site(f, 2, 12)) is False
+
+    def test_an_argument_inside_a_construction_is_not_itself_one(self, tmp_path: Path):
+        """The position has to be the type being constructed, not merely inside the `new`."""
+        f = tmp_path / "Main.java"
+        f.write_text("class Main {\n    void run() {\n        new Dog(cat.name());\n    }\n}\n")
+        assert SourceInspector().is_construction_site(self._site(f, 2, 20)) is False
+
+    def test_java_super_call(self, tmp_path: Path):
+        f = tmp_path / "Cat.java"
+        f.write_text("class Cat extends Animal {\n    Cat(String n) {\n        super(n);\n    }\n}\n")
+        assert SourceInspector().is_construction_site(self._site(f, 2, 8)) is True
+
+    def test_java_constructor_reference(self, tmp_path: Path):
+        f = tmp_path / "Main.java"
+        f.write_text("class Main {\n    void run() {\n        make(Dog::new);\n    }\n}\n")
+        assert SourceInspector().is_construction_site(self._site(f, 2, 13)) is True
+
+    def test_java_method_reference_is_not_a_construction(self, tmp_path: Path):
+        f = tmp_path / "Main.java"
+        f.write_text("class Main {\n    void run() {\n        each(Dog::speak);\n    }\n}\n")
+        assert SourceInspector().is_construction_site(self._site(f, 2, 18)) is False
+
+    def test_csharp_target_typed_new(self, tmp_path: Path):
+        f = tmp_path / "Holder.cs"
+        f.write_text("class Holder\n{\n    private Settings s = new(5);\n}\n")
+        assert SourceInspector().is_construction_site(self._site(f, 2, 25)) is True
+
+    def test_csharp_base_initializer(self, tmp_path: Path):
+        f = tmp_path / "Derived.cs"
+        f.write_text("class Derived : Settings\n{\n    public Derived(int n) : base(n) { }\n}\n")
+        assert SourceInspector().is_construction_site(self._site(f, 2, 28)) is True
+
+    def test_conservative_on_missing_file(self):
+        site = CallSite.from_lsp_position(file="/nonexistent.java", line=0, column=0)
+        assert SourceInspector().is_construction_site(site) is False
+
+
 class TestIsCallableUsage:
     def test_direct_invocation(self, tmp_path: Path):
         f = tmp_path / "test.py"

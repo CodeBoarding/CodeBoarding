@@ -54,6 +54,19 @@ def _sym(
     return info
 
 
+def _class_with_child(child_name: str, child_kind: int) -> list[dict]:
+    """A ``MyClass`` declaring one member, in the document-symbol shape the LSP returns."""
+    span = {"start": {"line": 0, "character": 0}, "end": {"line": 20, "character": 0}}
+    return [
+        {
+            "name": "MyClass",
+            "kind": NodeType.CLASS,
+            "range": span,
+            "children": [{"name": child_name, "kind": child_kind, "range": span}],
+        }
+    ]
+
+
 # ---- register_symbols ----
 
 
@@ -182,21 +195,27 @@ class TestBuildIndices:
     def test_builds_class_to_ctor_index(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        ctor_sym = _sym("__init__", "mod.MyClass(__init__)", NodeType.CONSTRUCTOR, start_line=5, end_line=10)
-        st._symbols["mod.MyClass(__init__)"] = ctor_sym
+        st.register_symbols(Path("mod.py"), _class_with_child("__init__", NodeType.CONSTRUCTOR), [], Path("/root"))
 
         st.build_indices()
-        assert "mod.MyClass" in st._class_to_ctors
-        assert "mod.MyClass(__init__)" in st._class_to_ctors["mod.MyClass"]
+        assert st._class_to_ctors["mod.MyClass"] == ["MyClass.__init__"]
 
-    def test_no_ctor_without_parens(self):
+    def test_indexes_only_constructors(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        method_sym = _sym("do_stuff", "mod.MyClass.do_stuff", NodeType.METHOD)
-        st._symbols["mod.MyClass.do_stuff"] = method_sym
+        st.register_symbols(Path("mod.py"), _class_with_child("do_stuff", NodeType.METHOD), [], Path("/root"))
 
         st.build_indices()
         assert "mod.MyClass" not in st._class_to_ctors
+
+    def test_does_not_index_the_alias_beside_its_constructor(self):
+        """The unqualified alias shares the constructor's kind but declares no owner."""
+        adapter = _make_adapter()
+        st = SymbolTable(adapter)
+        st.register_symbols(Path("mod.py"), _class_with_child("__init__", NodeType.CONSTRUCTOR), [], Path("/root"))
+
+        st.build_indices()
+        assert sum(len(ctors) for ctors in st._class_to_ctors.values()) == 1
 
 
 # ---- find_containing_symbol ----

@@ -303,18 +303,39 @@ class CallGraphBuilder:
 
         # Constructor expansion: when a class has real constructors in the
         # symbol table, add edges to those constructors alongside the class edge.
+        if not self._adapter.expands_constructors:
+            return edge_set
+
         constructor_edges: EdgeMap = {}
         for src, dst in edge_set:
             dst_sym = st.symbols.get(dst)
-            if dst_sym and self._adapter.is_class_like(dst_sym.kind):
-                ctors = st.class_to_ctors.get(dst)
-                if ctors:
-                    for ctor_name in ctors:
-                        ctor_key = (src, ctor_name)
-                        sites = constructor_edges.setdefault(ctor_key, list(edge_set.get(ctor_key, [])))
-                        for site in edge_set[(src, dst)]:
-                            if site not in sites:
-                                sites.append(site)
+            if not dst_sym or not self._adapter.is_class_like(dst_sym.kind):
+                continue
+            ctors = st.class_to_ctors.get(dst)
+            if not ctors:
+                continue
+            # Only where the source constructs, and only where the server has not already
+            # named the constructor itself. A definition query resolves `dog.speak()` to the
+            # class as well as the method, and expanding there would invent a call for a line
+            # that runs none; where the server did resolve `new Dog("Rex", 5)` to
+            # `Dog(String, int)`, fanning the class edge out would add every other overload
+            # beside it. Judged per site: one caller can construct on one line and call a
+            # member on the next.
+            resolved = {(site.file, site.line, site.column) for ctor in ctors for site in edge_set.get((src, ctor), [])}
+            construction_sites = [
+                site
+                for site in edge_set[(src, dst)]
+                if (site.file, site.line, site.column) not in resolved
+                and self._source_inspector.is_construction_site(site)
+            ]
+            if not construction_sites:
+                continue
+            for ctor_name in ctors:
+                ctor_key = (src, ctor_name)
+                sites = constructor_edges.setdefault(ctor_key, list(edge_set.get(ctor_key, [])))
+                for site in construction_sites:
+                    if site not in sites:
+                        sites.append(site)
         for edge, sites in constructor_edges.items():
             edge_set[edge] = sites
 

@@ -26,6 +26,9 @@ class SymbolInfo:
     # Promoted to CLASS for having callable children: a namespace object, or a
     # `const raw = await fn(() => ...)` wrapper that is a scope rather than a name.
     promoted_from_variable: bool = False
+    # Empty for a top-level symbol and for every alias.
+    # Why: slicing a qualified name finds the real owner only by luck of the naming scheme.
+    owner_qualified_name: str = ""
 
     @property
     def definition_location(self) -> tuple[str, int, int]:

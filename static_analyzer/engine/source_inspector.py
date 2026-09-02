@@ -74,6 +74,15 @@ _OBJECT_INITIALIZER_NODE_TYPES = frozenset({"assignment_expression"})
 # Loops whose ``right`` field is a value whose type gets enumerated.
 _ITERATION_NODE_TYPES = frozenset({"foreach_statement", "for_each_statement", "enhanced_for_statement"})
 _METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference"})
+# Nodes that run a constructor. Java's `super(...)`/`this(...)` is a call node rather than a
+# creation one, and `Dog::new` is a method reference that has to be told from `Dog::speak`.
+_CONSTRUCTION_NODE_TYPES = (
+    _CONSTRUCTOR_NODE_TYPES
+    | _IMPLICIT_CONSTRUCTOR_NODE_TYPES
+    | _CONSTRUCTOR_INITIALIZER_NODE_TYPES
+    | _ATTRIBUTE_NODE_TYPES
+    | frozenset({"explicit_constructor_invocation"})
+)
 _CALLABLE_USAGE_ANCESTORS = frozenset({"argument_list", "arguments"})
 _NAME_NODE_TYPES = frozenset(
     {
@@ -148,6 +157,7 @@ class ParsedSource:
 class SourceUsageIndex:
     invocation_end_positions: set[tuple[int, int]]
     callable_ranges: set[tuple[int, int, int]]
+    construction_start_positions: set[tuple[int, int]]
 
 
 class SourceInspector:
@@ -203,6 +213,18 @@ class SourceInspector:
         if usage_index is None:
             return True
         return (ref_line, ref_end_char) in usage_index.invocation_end_positions
+
+    def is_construction_site(self, site: CallSite) -> bool:
+        """Whether the call at *site* runs a constructor.
+
+        Why not permissive when the file cannot be parsed, as ``is_invocation`` is: this
+        gates *synthesising* constructor edges, so an unreadable file should add none rather
+        than one for every class a caller merely mentions.
+        """
+        usage_index = self._usage_index(Path(site.file))
+        if usage_index is None:
+            return False
+        return (site.line - 1, site.column - 1) in usage_index.construction_start_positions
 
     def is_callable_usage(self, file_path: Path, ref_line: int, ref_start_char: int, ref_end_char: int) -> bool:
         """Check whether a variable/constant reference is used in a callable context."""
@@ -451,11 +473,14 @@ class SourceInspector:
 
         invocation_end_positions: set[tuple[int, int]] = set()
         callable_ranges: set[tuple[int, int, int]] = set()
+        construction_start_positions: set[tuple[int, int]] = set()
         for node in self._walk(parsed.tree.root_node):
             target = self._call_target_node(node)
             if target is not None:
                 invocation_end_positions.add((target.end_point.row, target.end_point.column))
                 callable_ranges.add((target.start_point.row, target.start_point.column, target.end_point.column))
+                if self._runs_a_constructor(node):
+                    construction_start_positions.add((target.start_point.row, target.start_point.column))
                 continue
 
             if not node.is_named:
@@ -466,6 +491,7 @@ class SourceInspector:
         usage_index = SourceUsageIndex(
             invocation_end_positions=invocation_end_positions,
             callable_ranges=callable_ranges,
+            construction_start_positions=construction_start_positions,
         )
         self._usage_index_cache[file_key] = usage_index
         return usage_index
@@ -480,6 +506,15 @@ class SourceInspector:
             parser.language = TreeSitterLanguage(factory())
             self._parser_by_suffix[suffix] = parser
         return self._parser_by_suffix[suffix]
+
+    def _runs_a_constructor(self, node: TreeSitterNode) -> bool:
+        """Whether this call node constructs, rather than merely naming, a type."""
+        if node.type in _CONSTRUCTION_NODE_TYPES:
+            return True
+        # `Dog::new` constructs; `Dog::speak` does not.
+        if node.type in _METHOD_REFERENCE_NODE_TYPES:
+            return any(child.type == "new" for child in node.children)
+        return False
 
     def _call_target_node(self, node: TreeSitterNode) -> TreeSitterNode | None:
         if node.type in _CALL_NODE_TYPES:

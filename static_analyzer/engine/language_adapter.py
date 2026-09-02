@@ -357,6 +357,14 @@ class LanguageAdapter(ABC):
         return False
 
     @property
+    def expands_constructors(self) -> bool:
+        """Whether an edge to a class should also reach that class's constructors.
+
+        Why: only where the server resolves ``new Foo()`` to the type, not the constructor.
+        """
+        return False
+
+    @property
     def extra_client_capabilities(self) -> dict:
         """Vendor-specific keys to shallow-merge into the LSP ``initialize``
         capabilities (e.g. ``{"experimental": {...}}``). Default ``{}`` keeps

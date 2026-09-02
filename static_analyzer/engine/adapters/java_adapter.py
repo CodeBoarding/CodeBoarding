@@ -285,6 +285,11 @@ class JavaAdapter(LanguageAdapter):
         """Use definition-based edges — JDTLS serializes references requests."""
         return EdgeStrategy.DEFINITIONS
 
+    @property
+    def expands_constructors(self) -> bool:
+        """JDTLS resolves ``new Dog()`` to the class, so the constructor needs adding."""
+        return True
+
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 
