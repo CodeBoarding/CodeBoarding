@@ -199,6 +199,119 @@ class TestBuildQualifiedName:
         assert result == "Contoso.Core.Models.Media"
 
 
+class TestFilesDeclaringSeveralTypes:
+    """A C# file may declare several top-level types; the stem then names none of them."""
+
+    root = Path("/repo")
+
+    def _adapter_for(self, *type_names: str) -> CSharpAdapter:
+        adapter = CSharpAdapter()
+        adapter.record_document_symbols(
+            Path("/repo/Models/Animal.cs"),
+            [
+                {
+                    "name": "Zoo",
+                    "kind": NodeType.NAMESPACE,
+                    "children": [{"name": name, "kind": NodeType.CLASS} for name in type_names],
+                }
+            ],
+            self.root,
+        )
+        return adapter
+
+    def test_a_sibling_is_not_named_as_a_member_of_the_file_named_type(self):
+        adapter = self._adapter_for("Animal", "Dog")
+        source = Path("/repo/Models/Animal.cs")
+
+        animal = adapter.build_qualified_name(source, "Animal", NodeType.CLASS, [], self.root)
+        dog = adapter.build_qualified_name(source, "Dog", NodeType.CLASS, [], self.root)
+
+        assert animal == "Models.Animal.Animal"
+        assert dog == "Models.Animal.Dog"
+        assert not dog.startswith(animal + ".")
+
+    def test_a_sibling_no_longer_collides_with_a_nested_type(self):
+        """`Models.Animal.Inner` named both, and the second registration destroyed the first."""
+        adapter = self._adapter_for("Animal", "Inner")
+        source = Path("/repo/Models/Animal.cs")
+
+        nested = adapter.build_qualified_name(source, "Inner", NodeType.CLASS, [("Animal", NodeType.CLASS)], self.root)
+        sibling = adapter.build_qualified_name(source, "Inner", NodeType.CLASS, [], self.root)
+
+        assert nested == "Models.Animal.Animal.Inner"
+        assert sibling == "Models.Animal.Inner"
+        assert nested != sibling
+
+    def test_a_member_still_shares_a_prefix_with_its_class(self):
+        """CONTAINS is dot-prefix arithmetic, so the class must remain a prefix of its members."""
+        adapter = self._adapter_for("Animal", "Dog")
+        source = Path("/repo/Models/Animal.cs")
+
+        dog = adapter.build_qualified_name(source, "Dog", NodeType.CLASS, [], self.root)
+        speak = adapter.build_qualified_name(source, "Speak", NodeType.METHOD, [("Dog", NodeType.CLASS)], self.root)
+
+        assert speak == "Models.Animal.Dog.Speak"
+        assert speak.startswith(dog + ".")
+
+    def test_one_type_per_file_is_unchanged(self):
+        adapter = self._adapter_for("Animal")
+        source = Path("/repo/Models/Animal.cs")
+
+        assert adapter.build_qualified_name(source, "Animal", NodeType.CLASS, [], self.root) == "Models.Animal"
+        assert (
+            adapter.build_qualified_name(source, "Speak", NodeType.METHOD, [("Animal", NodeType.CLASS)], self.root)
+            == "Models.Animal.Speak"
+        )
+
+    def test_an_enum_beside_a_class_counts_as_a_second_type(self):
+        adapter = CSharpAdapter()
+        source = Path("/repo/Models/Task.cs")
+        adapter.record_document_symbols(
+            source,
+            [
+                {"name": "Task", "kind": NodeType.CLASS},
+                {"name": "Priority", "kind": NodeType.ENUM},
+            ],
+            self.root,
+        )
+
+        enum_name = adapter.build_qualified_name(source, "Priority", NodeType.ENUM, [], self.root)
+        property_name = adapter.build_qualified_name(
+            source, "Priority", NodeType.PROPERTY, [("Task", NodeType.CLASS)], self.root
+        )
+
+        assert enum_name == "Models.Task.Priority"
+        assert property_name == "Models.Task.Task.Priority"
+
+    def test_a_file_that_loses_a_sibling_goes_back_to_the_collapsed_name(self):
+        """The same adapter can re-analyse a file, and must agree with a cold run."""
+        adapter = self._adapter_for("Animal", "Dog")
+        source = Path("/repo/Models/Animal.cs")
+        assert adapter.build_qualified_name(source, "Animal", NodeType.CLASS, [], self.root) == "Models.Animal.Animal"
+
+        adapter.record_document_symbols(source, [{"name": "Animal", "kind": NodeType.CLASS}], self.root)
+
+        assert adapter.build_qualified_name(source, "Animal", NodeType.CLASS, [], self.root) == "Models.Animal"
+
+    def test_two_engine_configs_do_not_share_a_file_classification(self):
+        """One adapter serves every C# config, and the bounded pass can run them together."""
+        adapter = CSharpAdapter()
+        source = Path("/repo/Models/Animal.cs")
+        other_root = Path("/other")
+        adapter.record_document_symbols(
+            source, [{"name": "Animal", "kind": NodeType.CLASS}, {"name": "Dog", "kind": NodeType.CLASS}], self.root
+        )
+        adapter.record_document_symbols(source, [{"name": "Animal", "kind": NodeType.CLASS}], other_root)
+
+        assert adapter.build_qualified_name(source, "Animal", NodeType.CLASS, [], self.root) == "Models.Animal.Animal"
+
+    def test_a_file_never_seen_keeps_the_single_type_naming(self):
+        adapter = CSharpAdapter()
+        source = Path("/repo/Models/Animal.cs")
+
+        assert adapter.build_qualified_name(source, "Animal", NodeType.CLASS, [], self.root) == "Models.Animal"
+
+
 class TestExtractPackage:
     """Tests for namespace/package extraction."""
 

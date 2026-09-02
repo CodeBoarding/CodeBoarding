@@ -118,9 +118,26 @@ def _single_target_framework_env(project_root: Path) -> dict[str, str]:
 
 class CSharpAdapter(LanguageAdapter):
 
+    def __init__(self) -> None:
+        super().__init__()
+        # Files declaring more than one top-level type, keyed by (project root, path). Why:
+        # the file stem names a single type or none, and only these files need it kept as a
+        # segment. Why the root: this one adapter serves every C# engine config, which the
+        # bounded pass can run concurrently, and two roots can hold the same file.
+        self._files_with_sibling_types: set[tuple[str, str]] = set()
+
     @property
     def include_references_on_declaration_line(self) -> bool:
         return True
+
+    def record_document_symbols(self, file_path: Path, symbols: list[dict], project_root: Path) -> None:
+        # Discarded as well as added: the same adapter can re-analyse a file after a sibling
+        # was deleted, and it must then name it the way a cold run would.
+        key = (str(project_root), str(file_path))
+        if len(self._top_level_types(symbols)) > 1:
+            self._files_with_sibling_types.add(key)
+        else:
+            self._files_with_sibling_types.discard(key)
 
     @property
     def language(self) -> str:
@@ -191,42 +208,28 @@ class CSharpAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        """Build namespace-based qualified names for C#.
+        """Build ``<directory>.<file stem>.<declaring types>.<symbol>``.
 
-        csharp-ls returns: File (kind=1) > Namespace (kind=3) > Class > Members.
-        The namespace's ``detail`` has the full namespace, but only the
-        namespace symbol itself receives it -- children get ``detail=""``.
-
-        Strategy: use namespace detail when available (for namespace
-        symbols themselves), otherwise reconstruct from file path,
-        skipping ``src/`` prefix and deduplicating filename/class.
+        C# has no file scope, so a file may declare several top-level types. The stem then
+        names none of them and stays a plain segment. Folding it in, as a file declaring one
+        type can, would give a sibling the same name as a type nested inside the one the
+        file is named after -- and the two would overwrite each other.
         """
-        # Namespace symbol itself — detail has the full namespace
+        # The namespace symbol itself is the only one csharp-ls gives the full name to.
         if detail and symbol_kind == NodeType.NAMESPACE:
             return detail
 
-        # Build from file path, stripping 'src' prefix
         rel = file_path.relative_to(project_root)
-        parts = [p for p in rel.with_suffix("").parts if p != "src"]
-        module = ".".join(parts)
-
-        # Filter parents: skip File (kind=1) and Namespace (kind=3) —
-        # the namespace is already encoded in the file path for C#
+        module = ".".join(p for p in rel.with_suffix("").parts if p != "src")
+        # Skip File and Namespace: the namespace is encoded in the path for C#.
         code_parents = [name for name, kind in parent_chain if kind not in (NodeType.FILE, NodeType.NAMESPACE)]
 
-        if code_parents:
-            # Deduplicate first parent if it matches filename
-            module_last = module.rsplit(".", 1)[-1] if "." in module else module
-            if code_parents[0] == module_last:
+        if (str(project_root), str(file_path)) not in self._files_with_sibling_types:
+            if code_parents and code_parents[0] == rel.stem:
                 code_parents = code_parents[1:]
-            if code_parents:
-                return f"{module}.{'.'.join(code_parents)}.{symbol_name}"
-
-        # Deduplicate filename/class (one type per file convention)
-        module_last = module.rsplit(".", 1)[-1] if "." in module else module
-        if symbol_name == module_last:
-            return module
-        return f"{module}.{symbol_name}"
+            if not code_parents and symbol_name == rel.stem:
+                return module
+        return ".".join((module, *code_parents, symbol_name))
 
     def extract_package(self, qualified_name: str) -> str:
         """Extract namespace as all-but-last-two dot-separated components.
@@ -398,3 +401,14 @@ class CSharpAdapter(LanguageAdapter):
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
         """Get all directory prefixes as packages (namespace-based, like PHP)."""
         return self._get_hierarchical_packages(source_files, project_root)
+
+    def _top_level_types(self, symbols: list[dict]) -> list[str]:
+        """The type declarations a file makes outside any other type."""
+        found: list[str] = []
+        for sym in symbols:
+            kind = sym.get("kind", 0)
+            if kind in (NodeType.FILE, NodeType.NAMESPACE):
+                found.extend(self._top_level_types(sym.get("children", [])))
+            elif self.is_class_like(kind):
+                found.append(sym.get("name", ""))
+        return found
