@@ -356,6 +356,14 @@ class LanguageAdapter(ABC):
         once per element, rather than only constructing the type."""
         return False
 
+    def record_document_symbols(self, file_path: Path, symbols: list[dict], project_root: Path) -> None:
+        """Take note of a file's symbol tree before its names are built.
+
+        Why: a name is built one symbol at a time and cannot see the rest of the file. Keyed
+        by *project_root* as well, since one adapter instance serves every engine config and
+        two of them can hold the same file with different symbols.
+        """
+
     @property
     def expands_constructors(self) -> bool:
         """Whether an edge to a class should also reach that class's constructors.
