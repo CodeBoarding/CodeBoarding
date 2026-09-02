@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-02T13:30:39.322059+00:00",
-  "overall_score": 0.8691844553913519,
+  "timestamp": "2026-09-02T13:42:34.189725+00:00",
+  "overall_score": 0.868995633187773,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1588,
+      "total_entities_checked": 1592,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -19,8 +19,8 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 239,
-      "findings_count": 239,
+      "total_entities_checked": 240,
+      "findings_count": 240,
       "warning_count": 89,
       "score": 0.0,
       "finding_groups": [
@@ -856,13 +856,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
-              "line_start": 238,
-              "line_end": 238,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
               "file_path": "static_analyzer/engine/adapters/go_adapter.py",
               "line_start": 124,
@@ -961,6 +954,20 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 140,
+              "line_end": 140,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 143,
+              "line_end": 143,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"Node\" is not accessed",
               "file_path": "static_analyzer/analysis_cache.py",
               "line_start": 37,
@@ -1024,17 +1031,17 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 140,
-              "line_end": 140,
+              "entity_name": "[unused_variable] \"file_path\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 359,
+              "line_end": 359,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 143,
-              "line_end": 143,
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
+              "line_start": 241,
+              "line_end": 241,
               "metric_value": 0.0
             }
           ]
@@ -1766,7 +1773,7 @@
     },
     {
       "file_path": "static_analyzer/engine/language_adapter.py",
-      "total_findings": 8,
+      "total_findings": 9,
       "warning_findings": 0,
       "composite_risk_score": 50.0
     },
