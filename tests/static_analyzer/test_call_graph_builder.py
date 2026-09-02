@@ -308,56 +308,115 @@ class TestBuildEdges:
 class TestPostprocessEdges:
     """Tests for _postprocess_edges on CallGraphBuilder (constructor expansion, dedup)."""
 
-    def test_constructor_expansion(self):
-        """When an edge targets a class, constructor edges should be added."""
-        lsp = _make_lsp()
+    SOURCE = """package app;
+
+class Main {
+    static void main() {
+        Dog dog = new Dog("Rex");
+        System.out.println(dog.speak());
+    }
+}
+"""
+    CONSTRUCTION = CallSite(file="", line=5, column=23)
+    MEMBER_ACCESS = CallSite(file="", line=6, column=32)
+
+    def _builder(self, tmp_path: Path, expands_constructors: bool = True) -> tuple[CallGraphBuilder, Path]:
+        """A builder over a real Java file, so the AST can say which site constructs."""
+        source = tmp_path / "Main.java"
+        source.write_text(self.SOURCE)
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        adapter.expands_constructors = expands_constructors
+        builder = CallGraphBuilder(_make_lsp(), adapter, tmp_path)
 
-        caller = SymbolInfo("main", "app.main", NodeType.FUNCTION, Path("/project/app.py"), 0, 0, 20, 0)
-        cls = SymbolInfo("Dog", "app.Dog", NodeType.CLASS, Path("/project/app.py"), 25, 0, 50, 0)
-        ctor = SymbolInfo("__init__", "app.Dog(__init__)", NodeType.CONSTRUCTOR, Path("/project/app.py"), 30, 4, 40, 0)
+        caller = SymbolInfo("main", "app.main", NodeType.FUNCTION, source, 3, 4, 7, 0)
+        cls = SymbolInfo("Dog", "app.Dog", NodeType.CLASS, source, 25, 0, 50, 0)
+        ctor = SymbolInfo("Dog", "app.Dog.Dog(String)", NodeType.CONSTRUCTOR, source, 30, 4, 40, 0)
+        ctor.owner_qualified_name = "app.Dog"
         st = builder._symbol_table
-        st._symbols["app.main"] = caller
-        st._symbols["app.Dog"] = cls
-        st._symbols["app.Dog(__init__)"] = ctor
-        file_key = str(Path("/project/app.py"))
-        st._file_symbols[file_key] = [caller, cls, ctor]
-        st._primary_file_symbols[file_key] = [caller, cls, ctor]
+        for symbol in (caller, cls, ctor):
+            st._symbols[symbol.qualified_name] = symbol
+        st._file_symbols[str(source)] = [caller, cls, ctor]
+        st._primary_file_symbols[str(source)] = [caller, cls, ctor]
         st.build_indices()
+        return builder, source
 
-        edge_set: EdgeMap = {("app.main", "app.Dog"): []}
-        result = builder._postprocess_edges(edge_set)
+    def _site(self, template: CallSite, source: Path) -> CallSite:
+        return CallSite(file=str(source), line=template.line, column=template.column)
+
+    def test_a_construction_site_reaches_the_constructor(self, tmp_path: Path):
+        builder, source = self._builder(tmp_path)
+        construction = self._site(self.CONSTRUCTION, source)
+
+        result = builder._postprocess_edges({("app.main", "app.Dog"): [construction]})
 
         assert ("app.main", "app.Dog") in result
-        assert ("app.main", "app.Dog(__init__)") in result
+        assert result[("app.main", "app.Dog.Dog(String)")] == [construction]
 
-    def test_constructor_expansion_preserves_existing_ctor_call_sites(self):
-        lsp = _make_lsp()
-        adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+    def test_a_member_access_site_is_not_a_construction(self, tmp_path: Path):
+        """`dog.speak()` resolves to the class as well as the method, and runs no constructor."""
+        builder, source = self._builder(tmp_path)
+        construction = self._site(self.CONSTRUCTION, source)
+        member_access = self._site(self.MEMBER_ACCESS, source)
 
-        caller = SymbolInfo("main", "app.main", NodeType.FUNCTION, Path("/project/app.py"), 0, 0, 20, 0)
-        cls = SymbolInfo("Dog", "app.Dog", NodeType.CLASS, Path("/project/app.py"), 25, 0, 50, 0)
-        ctor = SymbolInfo("__init__", "app.Dog(__init__)", NodeType.CONSTRUCTOR, Path("/project/app.py"), 30, 4, 40, 0)
+        result = builder._postprocess_edges({("app.main", "app.Dog"): [construction, member_access]})
+
+        assert result[("app.main", "app.Dog.Dog(String)")] == [construction]
+
+    def test_a_caller_that_only_touches_members_constructs_nothing(self, tmp_path: Path):
+        builder, source = self._builder(tmp_path)
+
+        result = builder._postprocess_edges({("app.main", "app.Dog"): [self._site(self.MEMBER_ACCESS, source)]})
+
+        assert ("app.main", "app.Dog.Dog(String)") not in result
+
+    def test_constructor_expansion_preserves_existing_ctor_call_sites(self, tmp_path: Path):
+        builder, source = self._builder(tmp_path)
+        construction = self._site(self.CONSTRUCTION, source)
+        direct = CallSite(file=str(source), line=2, column=5)
+
+        result = builder._postprocess_edges(
+            {
+                ("app.main", "app.Dog.Dog(String)"): [direct],
+                ("app.main", "app.Dog"): [construction],
+            }
+        )
+
+        assert result[("app.main", "app.Dog.Dog(String)")] == [direct, construction]
+
+    def test_a_constructor_the_server_already_named_is_not_fanned_out(self, tmp_path: Path):
+        """`new Dog("Rex")` resolved to one overload must not gain the others beside it."""
+        builder, source = self._builder(tmp_path)
+        construction = self._site(self.CONSTRUCTION, source)
+        other_overload = SymbolInfo("Dog", "app.Dog.Dog()", NodeType.CONSTRUCTOR, source, 33, 4, 35, 0)
+        other_overload.owner_qualified_name = "app.Dog"
         st = builder._symbol_table
-        st._symbols["app.main"] = caller
-        st._symbols["app.Dog"] = cls
-        st._symbols["app.Dog(__init__)"] = ctor
-        file_key = str(Path("/project/app.py"))
-        st._file_symbols[file_key] = [caller, cls, ctor]
-        st._primary_file_symbols[file_key] = [caller, cls, ctor]
+        st._symbols["app.Dog.Dog()"] = other_overload
+        st._primary_file_symbols[str(source)].append(other_overload)
+        st._class_to_ctors.clear()
         st.build_indices()
 
-        direct_site = CallSite(file="/project/app.py", line=2, column=5)
-        class_site = CallSite(file="/project/app.py", line=3, column=9)
-        edge_set: EdgeMap = {
-            ("app.main", "app.Dog(__init__)"): [direct_site],
-            ("app.main", "app.Dog"): [class_site],
-        }
-        result = builder._postprocess_edges(edge_set)
+        result = builder._postprocess_edges(
+            {
+                ("app.main", "app.Dog"): [construction],
+                ("app.main", "app.Dog.Dog(String)"): [construction],
+            }
+        )
 
-        assert result[("app.main", "app.Dog(__init__)")] == [direct_site, class_site]
+        assert ("app.main", "app.Dog.Dog()") not in result
+
+    def test_a_class_edge_with_no_call_site_expands_to_nothing(self, tmp_path: Path):
+        builder, _ = self._builder(tmp_path)
+
+        result = builder._postprocess_edges({("app.main", "app.Dog"): []})
+
+        assert ("app.main", "app.Dog.Dog(String)") not in result
+
+    def test_an_adapter_that_does_not_ask_for_expansion_gets_none(self, tmp_path: Path):
+        builder, source = self._builder(tmp_path, expands_constructors=False)
+
+        result = builder._postprocess_edges({("app.main", "app.Dog"): [self._site(self.CONSTRUCTION, source)]})
+
+        assert ("app.main", "app.Dog.Dog(String)") not in result
 
 
 class TestBuildPackageDeps:
