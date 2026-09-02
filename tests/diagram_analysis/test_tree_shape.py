@@ -306,6 +306,7 @@ class TestAbsorbedTreeSurvivesTheStore(unittest.TestCase):
 class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
     def test_a_degenerate_level_does_not_survive_to_the_save(self):
         generator = DiagramGenerator.__new__(DiagramGenerator)
+        generator.tree_spec = None
         generator.static_analysis = None
         generator.clustering_hierarchy = None
         generator._pending_cluster_caches = None
@@ -326,6 +327,7 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
 
     def test_relations_are_rebuilt_against_the_pre_absorption_ids(self):
         generator = DiagramGenerator.__new__(DiagramGenerator)
+        generator.tree_spec = None
         generator.static_analysis = None
         generator.clustering_hierarchy = None
         generator._pending_cluster_caches = None
@@ -493,6 +495,7 @@ class TestAbsorptionKeepsTheDocumentRenderable(unittest.TestCase):
 class TestAbsorptionNeverHidesAContainmentViolation(unittest.TestCase):
     def test_a_child_owning_what_its_parent_does_not_fails_before_the_collapse(self):
         generator = DiagramGenerator.__new__(DiagramGenerator)
+        generator.tree_spec = None
         generator.static_analysis = None
         generator.clustering_hierarchy = None
         generator._pending_cluster_caches = None

@@ -1935,7 +1935,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.static_analysis = Mock()
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
-        gen.static_analysis.incremental_base_results = Mock()
+        gen.static_analysis.incremental_base_results = StaticAnalysisResults()
         gen.static_analysis.available_cfgs.return_value = {}
         gen._generate_subcomponents = Mock()
         gen._persist_static_analysis_artifact = Mock()
@@ -1981,7 +1981,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.static_analysis = Mock()
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
-        gen.static_analysis.incremental_base_results = Mock()
+        gen.static_analysis.incremental_base_results = StaticAnalysisResults()
         gen.static_analysis.available_cfgs.return_value = {}
 
         existing = Component(name="Existing", description="", key_entities=[], component_id="1")
@@ -2045,7 +2045,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.static_analysis = Mock()
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
-        gen.static_analysis.incremental_base_results = Mock()
+        gen.static_analysis.incremental_base_results = StaticAnalysisResults()
         gen.static_analysis.available_cfgs.return_value = {}
         gen._persist_static_analysis_artifact = Mock()
 
