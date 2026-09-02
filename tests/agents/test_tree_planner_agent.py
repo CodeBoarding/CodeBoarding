@@ -49,7 +49,7 @@ class TestTreePlannerAgent(unittest.TestCase):
         items = candidates(BUDGET + 3)
         answer = TreePlanInsights(
             groups=[
-                PlannedGroup(name="Customer experiences", members=["G1", "G2", "G3"], owns=["customer"]),
+                PlannedGroup(name="Customer experiences", members=["G1", "G2", "G3"], owns=["Customers", "Loyalty"]),
                 PlannedGroup(name="Everything else", members=[f"G{i}" for i in range(4, BUDGET + 4)]),
             ]
         )
@@ -57,7 +57,7 @@ class TestTreePlannerAgent(unittest.TestCase):
             groups = self._agent().group(items, context(items))
         self.assertEqual([group.name for group in groups], ["Customer experiences", "Everything else"])
         self.assertEqual(groups[0].keys, ("box:Feature0", "box:Feature1", "box:Feature2"))
-        self.assertIn("customer", groups[0].terms)
+        self.assertEqual(groups[0].terms[-2:], ("customer", "loyalty"), "owned words vote as the stems replay looks up")
         prompt = parse.call_args.args[0]
         self.assertIn("G1: Feature0 [Feature0] (3 files) e.g. Feature0Service, Feature0Repository", prompt)
 

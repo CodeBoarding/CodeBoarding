@@ -14,6 +14,7 @@ from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering.names import CandidateGroup, GroupingContext, KinshipGrouper
 from static_analyzer.clustering.names.frontier import Candidate
+from static_analyzer.clustering.names.tokens import stems
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +24,7 @@ the partition enforces: budgets are measured to refuse correct answers."""
 
 
 class TreePlannerAgent(CodeBoardingAgent):
-    """A ``Grouper`` that lets the model merge across words, after kinship has merged namesakes.
-
-    It sees candidate groups with their sizes and a few identifiers, never a unit, so a
-    wrong answer can only merge boxes. A scope already within the budget is not sent to the
-    model at all.
-    """
+    """A ``Grouper`` that lets the model merge kinship groups across words; it never sees a unit."""
 
     name = "planner"
 
@@ -87,7 +83,7 @@ class TreePlannerAgent(CodeBoardingAgent):
                     name=planned.name.strip() or labelled[members[0]].name,
                     keys=tuple(key for label in members for key in labelled[label].keys),
                     terms=tuple(dict.fromkeys(term for label in members for term in labelled[label].terms))
-                    + tuple(word for word in planned.owns if word),
+                    + tuple(stem for word in planned.owns for stem in stems(word)),
                 )
             )
         folded.extend(group for label, group in labelled.items() if label not in taken)

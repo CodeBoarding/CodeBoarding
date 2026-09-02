@@ -162,12 +162,35 @@ class TestIncrementalHierarchy(unittest.TestCase):
 
     def _incremental(self, layout: dict[str, list[str]]) -> tuple[ClusteringService, ClusterScopeResult]:
         analysis = analysis_for(graph("csharp", layout))
-        analysis.incremental_base_results = StaticAnalysisResults()
+        analysis.incremental_base_results = analysis_for(graph("csharp", self.layout))
         service = ClusteringService()
         hierarchy = service.build_incremental_hierarchy(
             analysis, 2, self.spec, self.persisted, REPO, REPO / ".codeboarding"
         )
         return service, hierarchy
+
+    def test_data_only_files_a_layer_falls_back_to_are_not_a_new_scope(self):
+        layout: dict[str, list[str]] = {}
+        for layer in ("Application", "Domain", "Infrastructure"):
+            for feature in ("Incidents", "Teams"):
+                for index in range(2):
+                    layout[f"src/Beacon.{layer}/{feature}/{feature}{index}.cs"] = [
+                        f"Beacon.{layer}.{feature}.{feature}Thing{index}",
+                        f"Beacon.{layer}.{feature}.{feature}Thing{index}.Run()",
+                    ]
+        layout["src/Beacon.Application/Constants/Limits.cs"] = ["Beacon.Application.Constants.Limits.max_var"]
+        layout["src/Beacon.Application/Constants/Defaults.cs"] = ["Beacon.Application.Constants.Defaults.min_var"]
+        first = ClusteringService()
+        baseline = first.build_full_hierarchy(analysis_for(graph("csharp", layout)), max_depth=1)
+        analysis = analysis_for(graph("csharp", layout))
+        analysis.incremental_base_results = analysis_for(graph("csharp", layout))
+        service = ClusteringService()
+        hierarchy = service.build_incremental_hierarchy(
+            analysis, 1, TreeSpec.from_dict(first.spec.to_dict()), persisted_from(baseline), REPO, REPO
+        )
+        root = scope_of(service.spec, ROOT_SCOPE_ID)
+        self.assertEqual([rule.name for rule in root.rules if rule.origin == NEW_SCOPE], [])
+        self.assertFalse(hierarchy_differs(hierarchy, persisted_from(baseline)))
 
     def test_unchanged_names_replay_to_the_same_components(self):
         _, hierarchy = self._incremental(self.layout)

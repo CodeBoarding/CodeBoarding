@@ -7,7 +7,9 @@ import unittest
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component
+from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
+from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
 
 
 class TestTreeSpecPersistence(unittest.TestCase):
@@ -49,6 +51,21 @@ class TestTreeSpecPersistence(unittest.TestCase):
         self._save(self.spec)
         self._save(None)
         self.assertEqual(self._metadata()["tree_spec"], self.spec)
+
+    def test_a_specification_of_another_version_is_not_replayed(self):
+        """Why: the tokenizer, stemmer and role words behind a version would move units silently."""
+        self._save(self.spec | {"version": self.spec["version"] + 1})
+        generator = DiagramGenerator(
+            repo_location=self.temp_dir,
+            temp_folder=self.temp_dir,
+            repo_name="repo",
+            output_dir=self.temp_dir,
+            depth_level=1,
+            run_id="run",
+            log_path="log",
+        )
+        with self.assertRaisesRegex(IncrementalCacheMissingError, "version"):
+            generator._stored_tree_spec()
 
     def test_an_analysis_written_before_the_specification_has_an_empty_one(self):
         self._save(None)

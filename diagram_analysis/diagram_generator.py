@@ -85,6 +85,7 @@ from static_analyzer.clustering import (
 )
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.names import Grouper, KinshipGrouper, TreeSpec
+from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
 from agents.tree_planner_agent import TreePlannerAgent
 from user_config import GROUPER_ENV, GROUPERS
@@ -680,6 +681,11 @@ class DiagramGenerator:
                 Path(self.output_dir),
                 "the baseline analysis.json carries no tree specification (written before it existed)",
             )
+        if stored.get("version") != SPEC_VERSION:
+            raise IncrementalCacheMissingError(
+                Path(self.output_dir),
+                f"the baseline tree specification is version {stored.get('version')}; this build replays {SPEC_VERSION}",
+            )
         return TreeSpec.from_dict(stored)
 
     def _grouper(self) -> Grouper:
@@ -692,7 +698,9 @@ class DiagramGenerator:
         if self._llms is None or self.static_analysis is None:
             raise PlannerUnavailableError("no LLM was initialised before clustering")
         agent_llm, parsing_llm = self._llms
-        return TreePlannerAgent(self.repo_location, self.static_analysis, agent_llm, parsing_llm)
+        planner = TreePlannerAgent(self.repo_location, self.static_analysis, agent_llm, parsing_llm)
+        self._monitoring_agents["TreePlannerAgent"] = planner
+        return planner
 
     def _tree_spec_dict(self) -> dict | None:
         return self.tree_spec.to_dict() if self.tree_spec is not None else None
@@ -1366,6 +1374,8 @@ class DiagramGenerator:
         absorbed_ids = absorb_single_child_components(root_analysis, sub_analyses, cluster_caches)
         if self.clustering_hierarchy is not None:
             self.clustering_hierarchy.reroot_indexes(absorbed_ids)
+        if self.tree_spec is not None:
+            self.tree_spec.reroot(absorbed_ids)
         assert_scope_containment(root_analysis, sub_analyses)
 
     def finalize_and_save(

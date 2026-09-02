@@ -37,6 +37,31 @@ class TestTreeSpecRoundTrip:
         assert scope.is_leaf
 
 
+class TestTreeSpecReroot:
+    def test_an_absorbed_child_hands_its_rules_to_its_parent_and_moves_every_id_up(self):
+        spec = TreeSpec(
+            scopes={
+                ROOT_SCOPE_ID: ScopeSpec(ROOT_SCOPE_ID, [ComponentRule("1", "Only", prefixes=(("a",),))]),
+                "1": ScopeSpec("1", [ComponentRule("1.1", "A"), ComponentRule("1.2", "B")], rung="segment"),
+                "1.1": ScopeSpec("1.1", [ComponentRule("1.1.1", "AA"), ComponentRule("1.1.2", "AB")]),
+                "1.2": ScopeSpec("1.2", rung="leaf", leaf_reason="cohesive"),
+            }
+        )
+        spec.reroot(["1"])
+        assert set(spec.scopes) == {ROOT_SCOPE_ID, "1", "2"}
+        root = spec.scopes[ROOT_SCOPE_ID]
+        assert [rule.component_id for rule in root.rules] == ["1", "2"]
+        assert root.rung == "segment"
+        assert spec.scopes["1"].scope_id == "1"
+        assert [rule.component_id for rule in spec.scopes["1"].rules] == ["1.1", "1.2"]
+        assert spec.scopes["2"].is_leaf
+
+    def test_a_child_never_drafted_changes_nothing(self):
+        spec = TreeSpec(scopes={ROOT_SCOPE_ID: ScopeSpec(ROOT_SCOPE_ID, [ComponentRule("1", "Only")])})
+        spec.reroot(["1"])
+        assert [rule.component_id for rule in spec.scopes[ROOT_SCOPE_ID].rules] == ["1"]
+
+
 class TestScopeSpec:
     def test_next_id_is_fresh_never_a_refilled_gap(self):
         scope = ScopeSpec("2", [ComponentRule("2.1", "a"), ComponentRule("2.3", "b")])

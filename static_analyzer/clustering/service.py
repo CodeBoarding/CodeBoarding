@@ -107,14 +107,17 @@ class ClusteringService:
         cluster_caches: Mapping[str, ClusterCache] | None = None,
     ) -> ClusterScopeResult:
         """Replay ``spec`` over the live names; a new scope becomes a new rule, nothing else moves."""
-        if static_analysis.incremental_base_results is None:
+        base = static_analysis.incremental_base_results
+        if base is None:
             raise IncrementalCacheMissingError(artifact_dir)
         if spec.scope(ROOT_SCOPE_ID) is None:
             raise IncrementalCacheMissingError(artifact_dir, "the baseline carries no tree specification")
         self.spec = spec
         graphs = static_analysis.available_cfgs()
         units = units_from_graphs(graphs)
-        baseline = _Baseline(persisted_scopes, repo_dir)
+        baseline = _Baseline(
+            persisted_scopes, repo_dir, [unit.unit_id for unit in units_from_graphs(base.available_cfgs())]
+        )
         hierarchy = self._materialize(graphs, units, ROOT_SCOPE_ID, 1, max_depth, baseline=baseline)
         hierarchy.index_hierarchy()
         self._record_scopes(static_analysis, hierarchy, cluster_caches)
@@ -329,20 +332,20 @@ class ClusteringService:
 
 
 class _Baseline:
-    """What the previous run persisted: component ids per scope and the files it placed."""
+    """What the previous run knew: component ids per scope, and every file its graph declared.
 
-    def __init__(self, persisted_scopes: Mapping[ScopeId, Any], repo_dir: Path) -> None:
+    Why the graph and not the persisted members: a file declaring only data is a unit the
+    partition places but never a member the agents describe, so it is absent from
+    ``file_methods`` and would look new on every run.
+    """
+
+    def __init__(self, persisted_scopes: Mapping[ScopeId, Any], repo_dir: Path, files: Iterable[str]) -> None:
         self._repo_dir = repo_dir
-        self._ids_by_scope: dict[ScopeId, frozenset[ComponentId]] = {}
-        files: set[str] = set()
-        for scope_id, scope in persisted_scopes.items():
-            self._ids_by_scope[scope_id] = frozenset(
-                component.component_id for component in scope.components if component.component_id
-            )
-            for component in scope.components:
-                for group in component.file_methods:
-                    files.add(normalize_repo_path(group.file_path, repo_dir))
-        self._files = files
+        self._ids_by_scope = {
+            scope_id: frozenset(component.component_id for component in scope.components if component.component_id)
+            for scope_id, scope in persisted_scopes.items()
+        }
+        self._files = {normalize_repo_path(path, repo_dir) for path in files}
 
     def component_ids(self, scope_id: ScopeId) -> frozenset[ComponentId]:
         return self._ids_by_scope.get(scope_id, frozenset())

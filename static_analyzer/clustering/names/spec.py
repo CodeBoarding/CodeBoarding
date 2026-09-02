@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Collection, Iterable, Mapping
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from clustering_ids import ROOT_SCOPE_ID, CodeBoardingClusterIds, ScopeId
@@ -137,6 +137,36 @@ class TreeSpec:
 
     def set_scope(self, scope: ScopeSpec) -> None:
         self.scopes[scope.scope_id] = scope
+
+    def reroot(self, absorbed_ids: Iterable[ScopeId]) -> None:
+        """Follow the save-time absorption of a single child: its rules become its parent's, ids below move up."""
+        for child_id in absorbed_ids:
+            parent_id = child_id.rpartition(".")[0]
+            child = self.scopes.pop(child_id, None)
+            if child is None:
+                continue
+            prefix = f"{child_id}."
+
+            def moved(identifier: str) -> str:
+                if not identifier.startswith(prefix):
+                    return identifier
+                tail = identifier.removeprefix(prefix)
+                return f"{parent_id}.{tail}" if parent_id else tail
+
+            scopes: dict[ScopeId, ScopeSpec] = {}
+            for scope_id, scope in self.scopes.items():
+                scope.scope_id = moved(scope_id)
+                scope.rules = [replace(rule, component_id=moved(rule.component_id)) for rule in scope.rules]
+                scopes[scope.scope_id] = scope
+            parent_scope_id = parent_id or ROOT_SCOPE_ID
+            scopes[parent_scope_id] = ScopeSpec(
+                parent_scope_id,
+                [replace(rule, component_id=moved(rule.component_id)) for rule in child.rules],
+                child.axis,
+                child.rung,
+                child.leaf_reason,
+            )
+            self.scopes = scopes
 
     def to_dict(self) -> dict[str, Any]:
         return {
