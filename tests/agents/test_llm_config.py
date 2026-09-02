@@ -130,6 +130,12 @@ class TestProviderSelection:
         assert anthropic.agent_model == "claude-sonnet-5"
         assert anthropic.parsing_model == "claude-haiku-4-5"
 
+    def test_gemini_defaults_to_3_8_flash(self):
+        assert LLM_PROVIDERS["vercel"].agent_model == "google/gemini-3.8-flash"
+        assert LLM_PROVIDERS["google"].agent_model == "gemini-3.8-flash"
+        assert LLM_PROVIDERS["openrouter"].agent_model == "google/gemini-3.8-flash"
+        assert LLM_PROVIDERS["openrouter"].parsing_model == "google/gemini-3.8-flash"
+
     def test_kimi_defaults_to_k2_6(self):
         kimi = LLM_PROVIDERS["kimi"]
 

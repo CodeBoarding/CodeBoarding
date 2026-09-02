@@ -138,7 +138,7 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 # litellm_api_key           = "sk-..."           # LiteLLM proxy server key (optional)
 
 [llm]
-# agent_model   = "gemini-3.7-flash"
+# agent_model   = "gemini-3.8-flash"
 # parsing_model = "gemini-3.1-flash-lite"
 ```
 
