@@ -14,6 +14,13 @@ from utils import get_cache_dir
 logger = logging.getLogger(__name__)
 
 _BEDROCK_REGION = re.compile(r"^(us|eu|apac|global|au|ca|us-gov)\.")
+# Known Anthropic families that retain sampling controls; unknown models omit them to avoid HTTP 400 responses.
+_ANTHROPIC_SAMPLING_MODEL_PATTERNS = (
+    re.compile(r"^claude-(?:instant|v?[12])(?:[.-]|$)"),
+    re.compile(r"^claude-3(?:[.-]\d+)?-(?:haiku|sonnet|opus)(?:-|$)"),
+    re.compile(r"^claude-(?:haiku|sonnet)-4(?:-|$)"),
+    re.compile(r"^claude-opus-4(?:$|-(?:[0-6](?:-|$)|20\d{6}(?:-|$)))"),
+)
 
 # Why: cached by hand (not via @lru_cache) so a transient Ollama outage -- user starts the
 # app before `ollama serve` is up -- doesn't memoize None for the rest of the process.
@@ -25,6 +32,22 @@ class ContextWindow:
     input_tokens: int
     output_tokens: int
     is_fallback: bool = False
+
+
+def model_accepts_sampling_parameters(provider: str, model_name: str) -> bool:
+    """Return whether the provider/model combination accepts sampling parameters."""
+    lowered = model_name.lower()
+    is_anthropic = provider == "anthropic" or (
+        provider == "aws" and ("anthropic." in lowered or lowered.startswith("claude-"))
+    )
+    if not is_anthropic:
+        return True
+
+    claude_start = lowered.find("claude-")
+    if claude_start == -1:
+        return False
+    canonical_name = lowered[claude_start:]
+    return any(pattern.match(canonical_name) for pattern in _ANTHROPIC_SAMPLING_MODEL_PATTERNS)
 
 
 def get_context_window(provider: str, model_name: str) -> ContextWindow:

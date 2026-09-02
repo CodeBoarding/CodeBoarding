@@ -10,7 +10,6 @@ from agents.llm_config import (
     LLM_PROVIDERS,
     LLM_PROVIDER_ENV_VARS,
     LLMConfigError,
-    _model_accepts_temperature,
     initialize_agent_llm,
     initialize_llms,
     initialize_parsing_llm,
@@ -639,30 +638,6 @@ class TestEnvironmentVariables:
 
 class TestTemperatureGating:
     """temperature must be omitted for Anthropic models that reject sampling params."""
-
-    @pytest.mark.parametrize(
-        "model_name",
-        [
-            "claude-opus-4-7",
-            "claude-opus-4-8",
-            "claude-opus-5",
-            "claude-sonnet-5",
-            "claude-fable-5",
-            "claude-mythos-5",
-            "anthropic.claude-opus-4-8",  # Bedrock prefix
-            "us.anthropic.claude-opus-4-8-v1:0",  # Bedrock with region
-            "CLAUDE-OPUS-4-8",  # case-insensitive
-        ],
-    )
-    def test_sampling_param_free_models_omit_temperature(self, model_name):
-        assert _model_accepts_temperature(model_name) is False
-
-    @pytest.mark.parametrize(
-        "model_name",
-        ["claude-sonnet-4-6", "claude-haiku-4-5", "anthropic.claude-sonnet-4-6", "gpt-4o", "gemini-3-flash"],
-    )
-    def test_other_models_accept_temperature(self, model_name):
-        assert _model_accepts_temperature(model_name) is True
 
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     @patch("agents.agent.MONITORING_CALLBACK")

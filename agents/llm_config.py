@@ -12,7 +12,7 @@ from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 
 from agents.constants import LLMDefaults, ModelCapabilities
-from agents.model_capabilities import ContextWindow, get_context_window
+from agents.model_capabilities import ContextWindow, get_context_window, model_accepts_sampling_parameters
 from agents.prompts.prompt_factory import LLMType, initialize_global_factory
 from monitoring.callbacks import MonitoringCallback
 
@@ -24,24 +24,6 @@ MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_FALLBACK_CONTEXT_WINDOW = ContextWindow(1_048_576, 65_536, is_fallback=True)
-
-# Model families that reject sampling params (temperature/top_p/top_k) with HTTP 400.
-# Why: newer Anthropic models deprecate them; sending temperature (even 0) 400s.
-# Substrings match bare IDs and Bedrock-prefixed forms (e.g. us.anthropic.claude-opus-4-8-v1:0).
-_SAMPLING_PARAM_FREE_MODEL_SUBSTRINGS = (
-    "claude-opus-4-7",
-    "claude-opus-4-8",
-    "claude-opus-5",
-    "claude-sonnet-5",
-    "claude-fable-5",
-    "claude-mythos-5",
-)
-
-
-def _model_accepts_temperature(model_name: str) -> bool:
-    """False for models that reject sampling params; temperature must be omitted for those."""
-    lowered = model_name.lower()
-    return not any(s in lowered for s in _SAMPLING_PARAM_FREE_MODEL_SUBSTRINGS)
 
 
 # ---------------------------------------------------------------------------
@@ -398,7 +380,7 @@ def _initialize_llm(
     logger.info(f"Using {name.title()} {log_prefix}LLM with model: {model_name}")
 
     kwargs: dict[str, Any] = {"model": model_name}
-    if _model_accepts_temperature(model_name):
+    if model_accepts_sampling_parameters(name, model_name):
         kwargs["temperature"] = getattr(config, temperature_attr)
     kwargs.update(config.get_resolved_extra_args())
 
