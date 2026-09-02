@@ -60,8 +60,11 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # .tsx is no longer parsed as type assertions; one engine owns the family, so the degraded
 # second bucket is gone; calls are credited to the enclosing declaration; and a call in a
 # declaration's body or initialiser counts as an edge.
+# v6: every Java qualified name changes. The Maven/Gradle source root no longer prefixes
+# a name, and the file stem is gone, so a top-level type is no longer doubled and its
+# members can reach it.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v5"
+_TAG_VERSION = "v6"
 
 
 class StaticAnalysisCache:

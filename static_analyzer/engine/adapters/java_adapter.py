@@ -21,6 +21,9 @@ from utils import CODEBOARDING_DIR_NAME, get_config
 
 logger = logging.getLogger(__name__)
 
+# The languages a JVM source root can be named for, in ``src/<source set>/<language>``.
+JVM_SOURCE_LANGUAGES = frozenset({"java", "kotlin", "groovy", "scala"})
+
 
 class JavaAdapter(LanguageAdapter):
 
@@ -139,23 +142,29 @@ class JavaAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        rel = file_path.relative_to(project_root)
-        module = ".".join(rel.with_suffix("").parts)
-        clean_name = self._clean_symbol_name(symbol_name)
+        """Build ``<module>.<source set>.<package>.<declaring types>.<symbol>``.
 
-        if parent_chain:
-            # In Java, the filename IS the top-level class name (e.g., Dog.java -> module "...Dog").
-            # Skip the first parent if it matches the last module component to avoid
-            # doubled names like "core.Dog.Dog.speak()" -> "core.Dog.speak()".
-            module_last = module.rsplit(".", 1)[-1] if "." in module else module
-            effective_parents = list(parent_chain)
-            if effective_parents and self._clean_symbol_name(effective_parents[0][0]) == module_last:
-                effective_parents = effective_parents[1:]
+        Why no file stem: Java requires it to equal the top-level type, so folding it in
+        made that type a sibling of its own members and CONTAINS could not link them.
+        """
+        segments = [self._clean_symbol_name(name) for name, _ in parent_chain]
+        segments.append(self._clean_symbol_name(symbol_name))
+        return ".".join(part for part in (self.get_package_for_file(file_path, project_root), *segments) if part)
 
-            if effective_parents:
-                clean_parents = ".".join(self._clean_symbol_name(name) for name, _ in effective_parents)
-                return f"{module}.{clean_parents}.{clean_name}"
-        return f"{module}.{clean_name}"
+    def get_package_for_file(self, file_path: Path, project_root: Path) -> str:
+        """The directory holding the file, without the Maven or Gradle source root.
+
+        Why: ``src/main/java`` names no package, and prefixed every symbol in a Maven tree
+        with three segments the compiler does not recognise. The source set itself is kept
+        unless it is ``main``, because ``src/test/java`` and ``src/main/java`` can hold the
+        same package and the same type name.
+        """
+        parts = file_path.relative_to(project_root).parent.parts
+        for i in range(len(parts) - 2):
+            if parts[i] == "src" and parts[i + 2] in JVM_SOURCE_LANGUAGES:
+                source_set = () if parts[i + 1] == "main" else (parts[i + 1],)
+                return ".".join(parts[:i] + source_set + parts[i + 3 :])
+        return ".".join(parts)
 
     @staticmethod
     def _clean_symbol_name(name: str) -> str:
@@ -234,38 +243,6 @@ class JavaAdapter(LanguageAdapter):
             params.append("".join(current))
         return params
 
-    def extract_package(self, qualified_name: str) -> str:
-        parts = qualified_name.split(".")
-
-        java_idx = None
-        for i, part in enumerate(parts):
-            if part == "java" and i >= 1 and parts[i - 1] == "main":
-                java_idx = i
-                break
-
-        if java_idx is None:
-            try:
-                java_idx = parts.index("java")
-            except ValueError:
-                return parts[0]
-
-        after_root = parts[java_idx + 1 :]
-        if not after_root:
-            return parts[0]
-
-        pkg_parts = []
-        for part in after_root:
-            clean = part.split("(")[0]
-            if clean in ("package-info", "module-info"):
-                break
-            if clean and clean[0].isupper():
-                break
-            pkg_parts.append(part)
-
-        if pkg_parts:
-            return ".".join(pkg_parts)
-        return after_root[0]
-
     def get_workspace_settings(self) -> dict | None:
         # JDTLS defaults these to "ignore"; raising to "warning" is required
         # for unused-code diagnostics.
@@ -292,11 +269,6 @@ class JavaAdapter(LanguageAdapter):
 
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
-
-    def get_package_for_file(self, file_path: Path, project_root: Path) -> str:
-        """Get Java package from file path by stripping src/main/java/ prefix."""
-        qname = self.build_qualified_name(file_path, "", 0, [], project_root)
-        return self.extract_package(qname)
 
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
         packages: set[str] = set()
