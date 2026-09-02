@@ -34,9 +34,11 @@ class Partition:
     unplaced: list[Unit] = field(default_factory=list)
     """Units no rule claimed, whether or not the scope has a bucket to draw them in."""
     new_scopes: dict[Prefix, list[Unit]] = field(default_factory=dict)
-    """Units no prefix or word claimed, by the prefix at which their position leaves every
-    prefix a rule owns. A group of two or more whose units are all new to the analysis is a
-    new scope; a group under a prefix some rule already falls back to is that rule's residue."""
+    """Units no prefix claimed, whether a word, a fallback or nothing placed them, by the
+    prefix at which their position leaves every prefix a rule owns. A group of two or more
+    whose units are all new to the analysis is a new scope; a group under a prefix some rule
+    already falls back to is that rule's residue. Why words do not exempt a unit: a new
+    directory whose names happen to carry a word some rule owns is still a new directory."""
 
     def size(self, component_id: str) -> int:
         return len(self.members.get(component_id, ()))
@@ -56,8 +58,8 @@ def replay(units: Iterable[Unit], scope: ScopeSpec, role_words: frozenset[str]) 
     bucket = scope.unplaced_rule
     for unit in units:
         component_id, how = _place(unit, primary, fallback, owner_by_term, rank, role_words)
-        if how in (FALLBACK, UNPLACED):
-            partition.new_scopes.setdefault(_divergence(unit.position, known), []).append(unit)
+        if how != PREFIX:
+            partition.new_scopes.setdefault(divergence(unit.position, known), []).append(unit)
         if component_id is None:
             partition.unplaced.append(unit)
             partition.placed_by[unit.unit_id] = UNPLACED
@@ -121,7 +123,7 @@ def _longest_match(position: Prefix, prefixes: list[tuple[Prefix, str]]) -> str 
     return best
 
 
-def _divergence(position: Prefix, known: set[Prefix]) -> Prefix:
+def divergence(position: Prefix, known: set[Prefix]) -> Prefix:
     """The first prefix of *position* that no known prefix passes through."""
     ancestors = {prefix[:length] for prefix in known for length in range(len(prefix) + 1)}
     for length in range(1, len(position) + 1):

@@ -11,7 +11,7 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.cfg.edge import EdgeKind, ReferenceEdge
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
-from static_analyzer.clustering.names import TreeSpec
+from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec
 from static_analyzer.clustering.service import NEW_SCOPE, ClusteringService, hierarchy_differs, unit_links
 from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
@@ -239,11 +239,46 @@ class TestIncrementalHierarchy(unittest.TestCase):
         self.assertEqual(bucket.qualified_names, {"Shipping.Ship"})
         self.assertEqual([rule.origin for rule in root.rules if rule.origin == NEW_SCOPE], [])
 
-    def test_a_retired_directory_leaves_no_group(self):
+    def test_a_retired_directory_leaves_no_group_and_no_rule(self):
         layout = {path: names for path, names in self.layout.items() if "Payment" not in path}
-        _, hierarchy = self._incremental(layout)
+        self.assertIn("5", self.spec.scopes, "the baseline drafted the retired component's scope")
+        service, hierarchy = self._incremental(layout)
         self.assertEqual([group.group_id for group in hierarchy.groups], ["1", "2", "3", "4"])
         self.assertTrue(hierarchy_differs(hierarchy, self.persisted))
+        self.assertIsNone(scope_of(service.spec, ROOT_SCOPE_ID).rule("5"))
+        self.assertNotIn("5", service.spec.scopes)
+
+    def test_a_new_directory_in_a_scope_drawn_from_words_is_still_a_new_component(self):
+        """No rule owns a prefix here, so the new files must be keyed by where they leave the old units."""
+        rules = [ComponentRule("1", "Sink", terms=("sink",)), ComponentRule("2", "Logger", terms=("logger",))]
+        spec = TreeSpec(scopes={ROOT_SCOPE_ID: ScopeSpec(ROOT_SCOPE_ID, rules, rung="vocabulary")})
+        old = {
+            f"src/Serilog/Core/{name}.cs": [f"Serilog.Core.{name}", f"Serilog.Core.{name}.Emit()"]
+            for name in ("FileSink", "ConsoleSink", "Logger", "LoggerConfiguration")
+        }
+        new = old | {
+            f"src/Serilog/Sampling/{name}.cs": [f"Serilog.Sampling.{name}", f"Serilog.Sampling.{name}.IsEnabled()"]
+            for name in ("LevelSampler", "SinkSampler", "LoggerSampler")
+        }
+        analysis = analysis_for(graph("csharp", new))
+        analysis.incremental_base_results = analysis_for(graph("csharp", old))
+        service = ClusteringService()
+        hierarchy = service.build_incremental_hierarchy(analysis, 1, spec, {}, REPO, REPO)
+        sampling = rule_of(scope_of(service.spec, ROOT_SCOPE_ID), "3")
+        self.assertEqual((sampling.origin, sampling.prefixes), (NEW_SCOPE, (("Serilog", "Sampling"),)))
+        self.assertEqual(len(next(group for group in hierarchy.groups if group.group_id == "3").qualified_names), 6)
+
+    def test_a_new_directory_whose_names_vote_elsewhere_is_still_a_new_component(self):
+        """Its names carry ``Order``, which the Ordering rule owns; the directory still wins."""
+        layout = self.layout | {
+            f"src/Shipping/OrderShipment{i}.cs": [f"Shipping.OrderShipment{i}", f"Shipping.OrderShipment{i}.Run()"]
+            for i in range(3)
+        }
+        service, hierarchy = self._incremental(layout)
+        shipping = next(group for group in hierarchy.groups if group.previous_component_id == "")
+        self.assertEqual(len(shipping.qualified_names), 6)
+        rule = rule_of(scope_of(service.spec, ROOT_SCOPE_ID), shipping.group_id)
+        self.assertEqual((rule.origin, rule.prefixes), (NEW_SCOPE, (("Shipping",),)))
 
     def test_a_baseline_without_a_specification_cannot_be_built_on(self):
         analysis = analysis_for(graph("csharp", self.layout))

@@ -111,9 +111,17 @@ class TestNewScopes:
         assert [u.unit_id for u in result.new_scopes[("Shipping",)]] == ["s0", "s1", "s2"]
         assert [u.unit_id for u in result.new_scopes[()]] == ["p"]
 
-    def test_a_unit_a_prefix_or_word_claims_is_not_a_new_scope(self):
+    def test_a_unit_a_word_claims_outside_every_prefix_is_still_a_new_scope_candidate(self):
+        """A new directory is a new directory, whatever its names happen to say."""
+        result = replay([unit("s0", "Shipping.OrderShipment.Run()")], scope(ORDER), ROLE_WORDS)
+        assert result.assignment["s0"] == "2"
+        assert [u.unit_id for u in result.new_scopes[("Shipping",)]] == ["s0"]
+
+    def test_a_unit_a_prefix_claims_is_not_a_new_scope(self):
         result = replay(
-            [unit("f", "Catalog.API.Item"), unit("g", "Shared.OrderTotals")], scope(CATALOG, ORDER, LOOSE), ROLE_WORDS
+            [unit("f", "Catalog.API.Item"), unit("g", "OrderProcessor.Totals")],
+            scope(CATALOG, ORDER, LOOSE),
+            ROLE_WORDS,
         )
         assert result.new_scopes == {}
 
