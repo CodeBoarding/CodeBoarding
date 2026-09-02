@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Protocol
 
 from clustering_ids import ROOT_SCOPE_ID, ScopeId
@@ -51,10 +51,15 @@ LEAF = "leaf"
 
 @dataclass(frozen=True)
 class GroupingContext:
+    """What a grouper may know beyond the candidates: the scope, and per candidate its size
+    and a few identifiers, so a planner can judge without ever seeing a unit."""
+
     scope_id: ScopeId
     role_words: frozenset[str]
     unit_count: int
     rung: str
+    sizes: dict[str, int] = field(default_factory=dict)
+    samples: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -103,7 +108,8 @@ class KinshipGrouper:
 
 def candidate_name(candidate: Candidate) -> str:
     if candidate.kind == LOOSE:
-        return "Loose files"
+        where = ".".join(candidate.fallback_prefixes[0]) if candidate.fallback_prefixes else ""
+        return f"Loose files in {where}" if where else "Loose files"
     if candidate.kind == RESIDUAL:
         return f"{candidate.label} (residual)"
     if candidate.kind == WORD:
@@ -211,7 +217,7 @@ def _frontier_rules(
     candidates = sorted(frontier.candidates, key=lambda candidate: candidate.key)
     if not candidates:
         return [], frontier.axis
-    context = GroupingContext(scope_id, role_words, len(units), rung)
+    context = _context(scope_id, units, candidates, role_words, rung)
     return _rules_from_groups(grouper.group(candidates, context), candidates), frontier.axis
 
 
@@ -230,8 +236,38 @@ def _vocabulary_rules(
     candidates = [Candidate(f"{WORD}:{key}", WORD, key, terms=(key,)) for key in keys]
     if len(candidates) < 2:
         return [], VOCABULARY
-    context = GroupingContext(scope_id, role_words, len(units), VOCABULARY)
+    context = _context(scope_id, units, candidates, role_words, VOCABULARY)
     return _rules_from_groups(grouper.group(candidates, context), candidates), VOCABULARY
+
+
+SAMPLE_IDENTIFIERS = 6
+
+
+def _context(
+    scope_id: ScopeId,
+    units: list[Unit],
+    candidates: Sequence[Candidate],
+    role_words: frozenset[str],
+    rung: str,
+) -> GroupingContext:
+    """Size and a few identifiers per candidate, from a replay of the candidates as rules."""
+    provisional = ScopeSpec(
+        scope_id, [replace(_candidate_rule(candidate), component_id=candidate.key) for candidate in candidates]
+    )
+    partition = replay(units, provisional, role_words)
+    samples: dict[str, tuple[str, ...]] = {}
+    for candidate in candidates:
+        seen: dict[str, None] = {}
+        for unit in partition.members.get(candidate.key, []):
+            for name in unit.names:
+                seen.setdefault(segments(name, ClusteringConfig.QUALIFIED_NAME_DELIMITER)[-1], None)
+                if len(seen) >= SAMPLE_IDENTIFIERS:
+                    break
+            if len(seen) >= SAMPLE_IDENTIFIERS:
+                break
+        samples[candidate.key] = tuple(seen)
+    sizes = {candidate.key: partition.size(candidate.key) for candidate in candidates}
+    return GroupingContext(scope_id, role_words, len(units), rung, sizes, samples)
 
 
 def _unit_stems(unit: Unit) -> set[str]:

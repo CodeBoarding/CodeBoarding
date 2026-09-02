@@ -83,10 +83,11 @@ from static_analyzer.clustering import (
     ClusterResult,
     ClusterScopeResult,
 )
-from static_analyzer.clustering.delta import ClusterDelta, compute_cluster_delta
-from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
-from static_analyzer.clustering.service import ClusteringService
-from static_analyzer.clustering.snapshot import snapshot_from_static_analysis
+from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
+from static_analyzer.clustering.names import Grouper, KinshipGrouper, TreeSpec
+from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
+from agents.tree_planner_agent import TreePlannerAgent
+from user_config import GROUPER_ENV, GROUPERS
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
@@ -254,13 +255,13 @@ class _MembershipBaseline:
 class _IncrementalPreparation:
     """Clustering inputs prepared before incremental agents initialize."""
 
-    delta: ClusterDelta
+    structure_changed: bool
     baseline_membership: _MembershipBaseline
     has_membership_changes: bool = False
 
     @property
     def has_changes(self) -> bool:
-        return self.delta.has_changes or self.has_membership_changes
+        return self.structure_changed or self.has_membership_changes
 
 
 def _iter_incremental_scopes(
@@ -535,10 +536,8 @@ class DiagramGenerator:
         self.log_path = log_path
         self.monitoring_enabled = monitoring_enabled
         self.force_full_analysis = False  # Set to True to skip incremental updates
-        # Source-tree changeset for the iterative path. When set, the cluster
-        # delta drops drift qnames whose file is outside the diff AND outside
-        # the prior analysis (see ``compute_cluster_delta``). ``None`` runs
-        # unscoped (no drift filtering).
+        # Source-tree changeset for the iterative path: the files the warm-start re-LSPs and
+        # the members whose bodies changed. ``None`` is a full run.
         self.changes: ChangeSet | None = changes
         # Qnames whose method body changed vs the baseline, derived once per incremental run.
         # Ownership repair is independent of this signal; it drives metadata refresh and lets
@@ -572,6 +571,10 @@ class DiagramGenerator:
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.clustering_hierarchy: ClusterScopeResult | None = None
+        # The tree specification the components are drawn from: drafted by a full analysis,
+        # read back by every run that builds on one, persisted with every save.
+        self.tree_spec: TreeSpec | None = None
+        self._llms: tuple[BaseChatModel, BaseChatModel] | None = None
         self._pending_cluster_caches: dict[str, ClusterCache] | None = None
         self._incremental_preparation: _IncrementalPreparation | None = None
         self.abstraction_agent: AbstractionAgent | None = None
@@ -629,12 +632,16 @@ class DiagramGenerator:
             sub_analyses = {
                 scope_id: analysis for scope_id, analysis in persisted_scopes.items() if scope_id != ROOT_SCOPE_ID
             }
+            self.tree_spec = self._stored_tree_spec()
             self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
         elif target_component is None:
-            self.clustering_hierarchy = ClusteringService().build_full_hierarchy(
-                static_analysis, depth, pending_cluster_caches
-            )
+            service = ClusteringService(self._grouper())
+            self.clustering_hierarchy = service.build_full_hierarchy(static_analysis, depth, pending_cluster_caches)
+            self.tree_spec = service.spec
         else:
+            # A partial run expands one component of an existing analysis, so it replays the
+            # specification that analysis was drawn from rather than drafting a new one.
+            self.tree_spec = self._stored_tree_spec()
             scope = self._build_component_scope(target_component, depth)
             self.clustering_hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
             self.clustering_hierarchy.register_scope(target_component.component_id, scope)
@@ -665,10 +672,36 @@ class DiagramGenerator:
                 json.dump(static_stats, f, indent=2)
             logger.debug(f"Written code_stats.json to {code_stats_file}")
 
+    def _stored_tree_spec(self) -> TreeSpec:
+        """The specification the baseline analysis.json was drawn from."""
+        stored = (load_analysis_metadata(Path(self.output_dir)) or {}).get("tree_spec")
+        if not stored:
+            raise IncrementalCacheMissingError(
+                Path(self.output_dir),
+                "the baseline analysis.json carries no tree specification (written before it existed)",
+            )
+        return TreeSpec.from_dict(stored)
+
+    def _grouper(self) -> Grouper:
+        """The configured grouper: kinship unless the planner was asked for, which needs an LLM."""
+        choice = os.getenv(GROUPER_ENV, GROUPERS[0])
+        if choice not in GROUPERS:
+            raise ValueError(f"{GROUPER_ENV} must be one of {', '.join(GROUPERS)}, not {choice!r}")
+        if choice == "kinship":
+            return KinshipGrouper()
+        if self._llms is None or self.static_analysis is None:
+            raise PlannerUnavailableError("no LLM was initialised before clustering")
+        agent_llm, parsing_llm = self._llms
+        return TreePlannerAgent(self.repo_location, self.static_analysis, agent_llm, parsing_llm)
+
+    def _tree_spec_dict(self) -> dict | None:
+        return self.tree_spec.to_dict() if self.tree_spec is not None else None
+
     def agent_init(self) -> None:
         """Initialize the LLM-backed agents after deterministic analysis."""
         assert self.static_analysis is not None
         agent_llm, parsing_llm = initialize_llms()
+        self._llms = (agent_llm, parsing_llm)
         self._initialize_meta_agent(agent_llm, parsing_llm)
         assert self.meta_agent is not None
         meta_context = self.meta_agent.analyze_project_metadata(skip_cache=self.force_full_analysis)
@@ -695,6 +728,7 @@ class DiagramGenerator:
             return
 
         agent_llm, parsing_llm = initialize_llms()
+        self._llms = (agent_llm, parsing_llm)
         self._initialize_meta_agent(agent_llm, parsing_llm)
         assert self.meta_agent is not None
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -747,15 +781,9 @@ class DiagramGenerator:
         sub_analyses: dict[str, AnalysisInsights],
         hierarchy_depth: int,
     ) -> _IncrementalPreparation:
-        """Build the seeded hierarchy and change context before agent initialization."""
+        """Replay the stored specification and capture the change context before agents initialize."""
         assert self.static_analysis is not None
-        snapshot_source = self.static_analysis.incremental_base_results
-        if snapshot_source is None:
-            error = IncrementalCacheMissingError(self.output_dir)
-            logger.error("%s", error)
-            raise error
-        old_snapshot = snapshot_from_static_analysis(snapshot_source)
-        if not old_snapshot.all_cluster_ids():
+        if self.static_analysis.incremental_base_results is None:
             error = IncrementalCacheMissingError(self.output_dir)
             logger.error("%s", error)
             raise error
@@ -794,24 +822,24 @@ class DiagramGenerator:
         self._changed_members = changed_members.members if changed_members is not None else set()
         self._changed_unattributed_files = changed_members.unattributed_files if changed_members is not None else set()
 
-        delta = compute_cluster_delta(
-            old_snapshot,
-            self.static_analysis,
-            changes=self.changes,
-            repo_dir=self.repo_location,
-        )
         baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
-        self.clustering_hierarchy = ClusteringService().build_incremental_hierarchy(
+        assert self.tree_spec is not None
+        persisted = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
+        # Scopes the specification never reached are drafted without a model here: the
+        # agents, and any LLM, come up only after clustering on an incremental run.
+        service = ClusteringService()
+        self.clustering_hierarchy = service.build_incremental_hierarchy(
             self.static_analysis,
             hierarchy_depth,
-            delta.cluster_results(),
-            {ROOT_SCOPE_ID: root_analysis, **sub_analyses},
+            self.tree_spec,
+            persisted,
             self.repo_location,
             self.output_dir,
             self._stage_cluster_caches(),
         )
+        self.tree_spec = service.spec
         return _IncrementalPreparation(
-            delta=delta,
+            structure_changed=hierarchy_differs(self.clustering_hierarchy, persisted),
             baseline_membership=baseline_membership,
             has_membership_changes=changed_members.has_membership_changes if changed_members is not None else False,
         )
@@ -1109,13 +1137,22 @@ class DiagramGenerator:
             raise ClusteringScopeUnavailableError(component.component_id, "no owned CFG nodes")
 
         remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
-        scope = ClusteringService().build_scope_hierarchy(
+        assert self.tree_spec is not None
+        service = ClusteringService(self._grouper())
+        scope = service.build_scope_hierarchy(
             self.static_analysis,
             graphs,
             remaining_depth,
             component.component_id,
+            self.tree_spec,
             self._pending_cluster_caches,
         )
+        self.tree_spec = service.spec
+        if not scope.groups:
+            decided = self.tree_spec.scope(component.component_id)
+            raise ClusteringScopeUnavailableError(
+                component.component_id, decided.leaf_reason if decided is not None else "no rules"
+            )
         return scope
 
     def _generate_subcomponents(
@@ -1185,6 +1222,7 @@ class DiagramGenerator:
                                 expandable_component_ids=expandable_ids,
                                 sub_expandable_ids=sub_expandable_ids,
                                 depth_cap=self.depth_level,
+                                tree_spec=self._tree_spec_dict(),
                             )
 
                         if new_components and level + 1 < self.depth_level:
@@ -1370,6 +1408,7 @@ class DiagramGenerator:
                 expandable_component_ids=expandable_component_ids,
                 sub_expandable_ids=sub_expandable_ids,
                 depth_cap=self.depth_level,
+                tree_spec=self._tree_spec_dict(),
             ).resolve()
         except Exception:
             self._pending_cluster_caches = None
@@ -1476,7 +1515,7 @@ class DiagramGenerator:
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
     ) -> Path:
-        """Update an existing analysis from one upfront, recursively anchored hierarchy."""
+        """Update an existing analysis by replaying its tree specification over the live names."""
         persisted_scopes = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
         if self.static_analysis is None:
             self.prepare_analysis(incremental=True, persisted_scopes=persisted_scopes)
@@ -1495,7 +1534,6 @@ class DiagramGenerator:
         preparation = self._incremental_preparation
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
-            delta = preparation.delta
             if not preparation.has_changes:
                 logger.info("Cluster and group membership deltas are empty; rewriting without re-detailing.")
                 # No structural change, but a body-only edit still moves content

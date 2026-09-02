@@ -23,8 +23,11 @@ from static_analyzer.clustering.names.tokens import (
     ubiquitous_words,
 )
 
-SHARE = 0.25
-"""A feature-named child is opened only while it holds this share of the scope's units."""
+SHARE = 0.5
+"""A feature-named child is opened only while it holds at least this share of the scope's
+units: half the scope is the scope's structure, less is one of its parts. Measured identical
+to 0.25 on seven rulers and better on the eighth; 0.25 opens both of a repository's two big
+packages and scatters their contents across the root."""
 
 NEARLY_ALL = 0.8
 """A child holding this share of its parent is stepped through whatever it is called."""

@@ -101,6 +101,7 @@ class _AnalysisFileStore:
         file_coverage_summary: FileCoverageSummary | None = None,
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
+        tree_spec: dict | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -120,6 +121,7 @@ class _AnalysisFileStore:
                 file_coverage_summary,
                 sub_expandable_ids,
                 depth_cap,
+                tree_spec,
             )
 
     def _write_with_lock_held(
@@ -133,6 +135,7 @@ class _AnalysisFileStore:
         file_coverage_summary: FileCoverageSummary | None = None,
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
+        tree_spec: dict | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # A caller-provided set is authoritative: it already reflects the run's expansion
@@ -149,7 +152,13 @@ class _AnalysisFileStore:
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
         # Preserve existing metadata fields from disk when not explicitly provided
-        if sub_analyses is None or file_coverage_summary is None or not repo_name or depth_cap is None:
+        if (
+            sub_analyses is None
+            or file_coverage_summary is None
+            or not repo_name
+            or depth_cap is None
+            or tree_spec is None
+        ):
             existing = self.read()
             if existing:
                 _, existing_subs, existing_data = existing
@@ -158,6 +167,10 @@ class _AnalysisFileStore:
                 metadata = existing_data.get("metadata", {})
                 if not repo_name:
                     repo_name = metadata.get("repo_name", "")
+                if tree_spec is None:
+                    # Dropping it would strand every later incremental and partial run, which
+                    # replay the specification the persisted partition was drawn from.
+                    tree_spec = metadata.get("tree_spec")
                 if file_coverage_summary is None:
                     raw_summary = metadata.get("file_coverage_summary")
                     if raw_summary:
@@ -219,6 +232,7 @@ class _AnalysisFileStore:
             depth_cap=depth_cap,
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
+            tree_spec=tree_spec or {},
         )
         write_text_atomic(self._analysis_path, payload)
         return self._analysis_path
@@ -341,6 +355,7 @@ def save_analysis(
     file_coverage_summary: FileCoverageSummary | None = None,
     sub_expandable_ids: dict[str, list[str]] | None = None,
     depth_cap: int | None = None,
+    tree_spec: dict | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 
@@ -359,4 +374,5 @@ def save_analysis(
         file_coverage_summary,
         sub_expandable_ids,
         depth_cap,
+        tree_spec,
     )

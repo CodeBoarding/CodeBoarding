@@ -1,8 +1,7 @@
 """Translate deterministic clustering scopes into incremental component operations.
 
-Every surviving component keeps what it owned, genuinely new groups are created, and only
-a component left holding nothing is deleted. The hierarchy builder anchors each scope on
-the previous run's methods rather than its unstable local cluster IDs.
+Every surviving component keeps what it owned, genuinely new groups are created under the
+id the tree specification gave them, and only a component left holding nothing is deleted.
 """
 
 import logging
@@ -37,7 +36,6 @@ def plan_scope_result_update(
         clustering.leaf_clusters_by_language,
         clustering.groups,
         changed_members,
-        clustering.regrouped,
     )
 
 
@@ -47,7 +45,6 @@ def _plan_scope_operations(
     cluster_results: dict[str, ClusterResult],
     groups: list[ClusterGroup],
     changed_members: set[str],
-    regrouped: bool,
 ) -> ScopeUpdateDecision:
     combined = combine_cluster_results(cluster_results)
     if not combined.clusters:
@@ -128,6 +125,9 @@ def _plan_scope_operations(
                 ScopeOperation(
                     action=ScopeOperationAction.CREATE_COMPONENT,
                     cluster_refs=refs,
+                    # The specification allocated this id; the component must keep it or the
+                    # next replay would not recognise its own rule.
+                    component_id=cluster_group.group_id,
                     name=_provisional_name(group, combined),
                     description=_provisional_description(group, combined),
                     rationale="clusters with no predecessor in this scope",
@@ -147,7 +147,7 @@ def _plan_scope_operations(
 
     logger.info(
         f"[ScopePlan] {scope_id}: {len(groups)} groups, {untouched} unchanged (no operation), "
-        f"{len(operations)} operation(s)" + (" (structure re-derived: drift past budget)" if regrouped else "")
+        f"{len(operations)} operation(s)"
     )
     return ScopeUpdateDecision(operations=operations)
 

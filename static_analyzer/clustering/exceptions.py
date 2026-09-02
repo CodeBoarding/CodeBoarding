@@ -38,3 +38,17 @@ class PersistedOwnershipConflictError(RuntimeError):
             f"Persisted scope {scope_id!r} assigns {language} member {qualified_name!r} "
             f"to multiple components: {', '.join(sorted(owners))}"
         )
+
+
+class PlannerUnavailableError(RuntimeError):
+    """Raised when the planner grouper is configured but no LLM can serve it.
+
+    There is no silent fallback to the deterministic grouper: the tree would differ from
+    the one the configuration asked for, and every later run would replay that difference.
+    """
+
+    def __init__(self, reason: str = ""):
+        super().__init__(
+            f"The planner grouper needs an LLM{f': {reason}' if reason else ''}. "
+            "Configure a provider, or set CODEBOARDING_GROUPER=kinship for the deterministic tree."
+        )
