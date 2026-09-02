@@ -335,16 +335,14 @@ class RepoIgnoreManager:
             return "other"
 
 
-def initialize_codeboardingignore(output_dir: Path) -> None:
-    """Initialize .codeboardingignore file in the .codeboarding directory if it doesn't exist.
-
-    Args:
-        output_dir: Path to the .codeboarding directory
-    """
-    codeboardingignore_path = output_dir / CODEBOARDINGIGNORE_FILENAME
+def initialize_codeboardingignore(repo_root: Path) -> None:
+    """Initialize the repository's .codeboardingignore file if it doesn't exist."""
+    codeboarding_dir = repo_root / CODEBOARDING_DIR_NAME
+    codeboardingignore_path = codeboarding_dir / CODEBOARDINGIGNORE_FILENAME
 
     if not codeboardingignore_path.exists():
         try:
+            codeboarding_dir.mkdir(parents=True, exist_ok=True)
             codeboardingignore_path.write_text(CODEBOARDINGIGNORE_TEMPLATE, encoding="utf-8")
             logger.debug(f"Created .codeboardingignore file at {codeboardingignore_path}")
         except Exception as e:

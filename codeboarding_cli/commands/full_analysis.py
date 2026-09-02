@@ -96,7 +96,7 @@ def _run_local(args: argparse.Namespace) -> None:
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
     run_paths.output_dir.mkdir(parents=True, exist_ok=True)
-    initialize_codeboardingignore(run_paths.output_dir)
+    initialize_codeboardingignore(run_paths.repo_path)
 
     def scope(src: SourceContext, run_context: RunContext) -> None:
         run_full(
@@ -172,7 +172,7 @@ def _process_one_remote(
     def scope(src: SourceContext, run_context: RunContext) -> None:
         repo_output_dir = workspace_root / src.project_name / CODEBOARDING_DIR_NAME
         repo_output_dir.mkdir(parents=True, exist_ok=True)
-        initialize_codeboardingignore(repo_output_dir)
+        initialize_codeboardingignore(src.repo_path)
 
         monitoring_dir = get_monitoring_run_dir(run_context.log_path, create=should_monitor)
         with monitor_execution(
