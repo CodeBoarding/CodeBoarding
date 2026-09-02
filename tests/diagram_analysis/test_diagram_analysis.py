@@ -46,7 +46,6 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import (
-    ClusterCache,
     ClusterGroup,
     ClusterResult,
     ClusterScopeResult,
@@ -2156,7 +2155,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNot(root_analysis.files["sub.py"].methods[0], sub_only_method)
         self.assertIs(mock_build_index.call_args_list[0].args[2], mock_build_index.call_args_list[1].args[2])
 
-    def test_persist_static_analysis_artifact_saves_cluster_cache_with_injected_analyzer(self):
+    def test_persist_static_analysis_artifact_saves_the_graph_with_injected_analyzer(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -2181,14 +2180,6 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         results = StaticAnalysisResults()
         results.add_cfg(Language.PYTHON, cfg)
-        results.get_clusters(Language.PYTHON).record_scope(
-            ClusterResult(
-                clusters={1: {"test.fn"}},
-                cluster_to_files={1: {str(self.repo_location / "test.py")}},
-                file_to_clusters={str(self.repo_location / "test.py"): {1}},
-                strategy="test",
-            )
-        )
         gen.static_analysis = results
 
         gen._persist_static_analysis_artifact()
@@ -2199,7 +2190,7 @@ class TestDiagramGenerator(unittest.TestCase):
             return
         loaded_results, cached_sha = loaded
         self.assertEqual(cached_sha, "sha-current")
-        self.assertEqual(loaded_results.get_clusters(Language.PYTHON).get_partition().clusters, {1: {"test.fn"}})
+        self.assertEqual(set(loaded_results.get_cfg(Language.PYTHON).nodes), {"test.fn"})
 
     def _finalize_gen(self):
         gen = DiagramGenerator(
@@ -2242,64 +2233,6 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_save.assert_called_once()
         gen._write_file_coverage.assert_not_called()
         gen._persist_static_analysis_artifact.assert_not_called()
-
-    @patch("diagram_analysis.diagram_generator.save_analysis", side_effect=OSError("write failed"))
-    def test_failed_authoritative_save_discards_pending_cache_without_flushing_live_cache(self, mock_save):
-        gen = self._finalize_gen()
-        results = StaticAnalysisResults()
-        results.get_clusters(Language.PYTHON).record_scope(ClusterResult(), {"baseline"})
-        live_cache = results.get_clusters(Language.PYTHON)
-        gen.static_analysis = results
-        gen._pending_cluster_caches = {"python": live_cache.detached_copy()}
-        gen._pending_cluster_caches["python"].record_scope(ClusterResult(), {"prepared"})
-        analysis = AnalysisInsights(description="d", components=[], components_relations=[])
-
-        with self.assertRaisesRegex(OSError, "write failed"):
-            gen.finalize_and_save(analysis, {})
-
-        self.assertEqual(live_cache.get_unclustered_members(), {"baseline"})
-        self.assertIsNone(gen._pending_cluster_caches)
-        gen._persist_static_analysis_artifact.assert_not_called()
-
-    @patch("diagram_analysis.diagram_generator.save_analysis")
-    def test_successful_authoritative_save_installs_pending_lineage_before_persistence(self, mock_save):
-        mock_save.return_value = self.output_dir / "analysis.json"
-        gen = self._finalize_gen()
-        results = StaticAnalysisResults()
-        live_cache = results.get_clusters(Language.PYTHON)
-        gen.static_analysis = results
-        pending = live_cache.detached_copy()
-        pending.record_scope(ClusterResult(), {"committed"}, "1")
-        gen._pending_cluster_caches = {"python": pending}
-        gen._persist_static_analysis_artifact.side_effect = lambda: self.assertIs(
-            results.get_clusters(Language.PYTHON), pending
-        )
-        analysis = AnalysisInsights(description="d", components=[], components_relations=[])
-
-        gen.finalize_and_save(analysis, {})
-
-        self.assertIs(results.get_clusters(Language.PYTHON), pending)
-        self.assertEqual(results.get_clusters(Language.PYTHON).get_unclustered_members("1"), {"committed"})
-        gen._persist_static_analysis_artifact.assert_called_once()
-
-    @patch("diagram_analysis.diagram_generator.assert_scope_containment")
-    @patch("diagram_analysis.diagram_generator.absorb_single_child_components", return_value=[])
-    def test_absorption_receives_pending_cache_not_live_cache(self, mock_absorb, _mock_containment):
-        gen = self._finalize_gen()
-        gen.finalize_for_save = DiagramGenerator.finalize_for_save.__get__(gen)
-        gen._strip_ignored = Mock()
-        gen.rebuild_global_relations = Mock()
-        results = StaticAnalysisResults()
-        live_cache = results.get_clusters(Language.PYTHON)
-        pending = live_cache.detached_copy()
-        gen.static_analysis = results
-        gen._pending_cluster_caches = {"python": pending}
-        analysis = AnalysisInsights(description="d", components=[], components_relations=[])
-
-        gen.finalize_for_save(analysis, {})
-
-        self.assertEqual(mock_absorb.call_args.args[2], [pending])
-        self.assertIsNot(mock_absorb.call_args.args[2][0], live_cache)
 
 
 class TestSubScopeRelationsAreGloballyGated(unittest.TestCase):

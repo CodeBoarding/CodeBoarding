@@ -144,13 +144,6 @@ class TestFullHierarchy(unittest.TestCase):
         self.assertEqual([(c.source_group_id, c.target_group_id) for c in hierarchy.connections], [("2", "1")])
         self.assertEqual(hierarchy.connections[0].edges[0].call_sites, [{"file": "x.cs", "line": 1}])
 
-    def test_lineage_is_recorded_per_scope(self):
-        analysis = analysis_for(self.graph)
-        ClusteringService().build_full_hierarchy(analysis, max_depth=2)
-        cache = analysis.get_clusters(Language.CSHARP)
-        self.assertTrue(cache.get_partition("").clusters)
-        self.assertTrue(cache.get_partition("1").clusters)
-
 
 class TestIncrementalHierarchy(unittest.TestCase):
     def setUp(self):
@@ -254,7 +247,7 @@ class TestScopeHierarchy(unittest.TestCase):
     def _scope(self, component_id: str) -> ClusterScopeResult:
         members = next(group for group in self.hierarchy.groups if group.group_id == component_id).qualified_names
         graphs = {"csharp": self.graph.filter_by_nodes(members)}
-        return ClusteringService().build_scope_hierarchy(analysis_for(self.graph), graphs, 1, component_id, self.spec)
+        return ClusteringService().build_scope_hierarchy(graphs, 1, component_id, self.spec)
 
     def test_a_grouped_component_replays_its_parts(self):
         scope = self._scope("1")

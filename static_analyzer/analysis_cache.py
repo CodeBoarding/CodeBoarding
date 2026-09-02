@@ -65,8 +65,10 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # its members can reach it; for C# a file declaring more than one top-level type keeps the
 # stem as a segment, so a sibling is no longer named as a member of the type the file is
 # named after.
+# v7: the pickle no longer carries cluster lineage; components come from the tree
+# specification in analysis.json, replayed over the graph.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v6"
+_TAG_VERSION = "v7"
 
 
 class StaticAnalysisCache:

@@ -11,7 +11,6 @@ from diagram_analysis.analysis_json import build_unified_analysis_json, parse_un
 from diagram_analysis.diagram_generator import DiagramGenerator, _member_keys, _reconcile_child_scope
 from diagram_analysis.exceptions import ScopeContainmentError
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterCache, ClusterResult
 from diagram_analysis.tree_shape import absorb_single_child_components
 
 
@@ -77,15 +76,6 @@ class TestChildlessOnlyChild(unittest.TestCase):
             {("b.py", "b.one"), ("b.py", "b.two")},
         )
         self.assertEqual(absorbed, ["2.1"])
-
-    def test_the_parent_cache_scope_is_removed_when_it_becomes_a_leaf(self):
-        root, subs = self._tree()
-        cache = ClusterCache()
-        cache.record_scope(ClusterResult(clusters={1: {"b.one", "b.two"}}), scope_id="2")
-
-        absorb_single_child_components(root, subs, [cache])
-
-        self.assertNotIn("2", cache.scopes)
 
 
 class TestGrandchildrenArePromoted(unittest.TestCase):
@@ -309,7 +299,6 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
         generator.tree_spec = None
         generator.static_analysis = None
         generator.clustering_hierarchy = None
-        generator._pending_cluster_caches = None
         generator.repo_location = Path(".")
         generator._baseline_global_relations = None
         root = analysis(
@@ -330,7 +319,6 @@ class TestFinalizeForSaveEnforcesTheInvariant(unittest.TestCase):
         generator.tree_spec = None
         generator.static_analysis = None
         generator.clustering_hierarchy = None
-        generator._pending_cluster_caches = None
         generator.repo_location = Path(".")
         root = analysis(component("1", "Kept", {"a.py": ["a.one"]}), component("2", "Parent", {}))
         subs = {"2": analysis(component("2.1", "Child", {}))}
@@ -387,78 +375,6 @@ class TestMembershipReconciliation(unittest.TestCase):
         self.assertEqual(child.source_cluster_ids, [])
 
 
-class TestClusterLineageMovesWithTheTree(unittest.TestCase):
-    def test_the_absorbed_scopes_clusters_take_the_parents_path(self):
-        cache = ClusterCache()
-        cache.record_scope(ClusterResult(clusters={3: {"pkg.one"}, 7: {"pkg.one"}}), scope_id="1.2")
-        cache.record_scope(ClusterResult(clusters={1: {"pkg.two"}}), scope_id="4")
-
-        cache.reroot_scope("1.2", "1")
-
-        self.assertEqual(set(cache.scopes), {"1", "4"})
-        self.assertEqual(cache.get_partition("1").clusters, {3: {"pkg.one"}, 7: {"pkg.one"}})
-        self.assertEqual(cache.get_partition("4").clusters, {1: {"pkg.two"}})
-
-    def test_the_parents_own_partition_is_dropped_rather_than_merged(self):
-        cache = ClusterCache()
-        cache.record_scope(ClusterResult(clusters={0: {"a"}}), scope_id="1")
-        cache.record_scope(ClusterResult(clusters={0: {"b"}}), scope_id="1.1")
-
-        cache.reroot_scope("1.1", "1")
-
-        self.assertEqual(cache.get_partition("1").clusters, {0: {"b"}})
-
-    def test_a_descendant_scope_keeps_its_depth_below_the_new_path(self):
-        cache = ClusterCache()
-        cache.record_scope(ClusterResult(clusters={4: {"deep"}}), scope_id="1.2.5")
-
-        cache.reroot_scope("1.2", "1")
-
-        self.assertEqual(set(cache.scopes), {"1.5"})
-        self.assertEqual(cache.get_partition("1.5").clusters, {4: {"deep"}})
-
-    def test_root_absorption_replaces_the_root_with_child_lineage(self):
-        cache = ClusterCache()
-        cache.record_scope(ClusterResult(clusters={1: {"root.member"}}), {"root.orphan"})
-        cache.record_scope(ClusterResult(clusters={3: {"child.member"}}), {"child.orphan"}, "1")
-        cache.record_scope(ClusterResult(clusters={4: {"grandchild.member"}}), scope_id="1.2")
-
-        cache.reroot_scope("1", "")
-
-        self.assertEqual(set(cache.scopes), {"", "2"})
-        self.assertEqual(cache.get_partition().clusters, {3: {"child.member"}})
-        self.assertEqual(cache.get_unclustered_members(), {"child.orphan"})
-        self.assertEqual(cache.get_partition("2").clusters, {4: {"grandchild.member"}})
-
-    def test_absorption_rejects_a_child_without_lineage(self):
-        cache = ClusterCache()
-        root = ClusterResult(clusters={1: {"root.member"}})
-        cache.record_scope(root)
-
-        with self.assertRaisesRegex(ValueError, "no lineage exists"):
-            cache.reroot_scope("1", "")
-
-        self.assertIs(cache.get_partition(), root)
-
-    def test_absorption_carries_the_lineage_with_it(self):
-        root = analysis(component("1", "Top", {"a.py": ["a.one"]}), component("9", "Sib", {"z.py": ["z.one"]}))
-        subs = {
-            "1": analysis(component("1.1", "Only child", {"a.py": ["a.one"]})),
-            "1.1": analysis(
-                component("1.1.1", "G", {"a.py": ["a.one"]}), component("1.1.2", "G2", {"a.py": ["a.one"]})
-            ),
-        }
-        clusters = ClusterCache()
-        clusters.record_scope(ClusterResult(clusters={0: {"a.one"}}), {"parent.orphan"}, "1")
-        clusters.record_scope(ClusterResult(clusters={4: {"a.one"}}), {"child.orphan"}, "1.1")
-
-        absorb_single_child_components(root, subs, [clusters])
-
-        self.assertEqual(set(clusters.scopes), {"1"})
-        self.assertEqual(clusters.get_partition("1").clusters, {4: {"a.one"}})
-        self.assertEqual(clusters.get_unclustered_members("1"), {"child.orphan"})
-
-
 class TestAbsorptionKeepsTheDocumentRenderable(unittest.TestCase):
     def test_a_relation_naming_the_absorbed_child_takes_the_parents_name(self):
         root = analysis(
@@ -498,7 +414,6 @@ class TestAbsorptionNeverHidesAContainmentViolation(unittest.TestCase):
         generator.tree_spec = None
         generator.static_analysis = None
         generator.clustering_hierarchy = None
-        generator._pending_cluster_caches = None
         generator.repo_location = Path(".")
         generator._baseline_global_relations = None
         root = analysis(component("1", "Parent", {"a.py": ["a.one"]}))

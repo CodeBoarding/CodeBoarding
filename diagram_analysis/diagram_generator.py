@@ -79,7 +79,6 @@ from static_analyzer.cluster_relations import (
 )
 from static_analyzer.config import Language
 from static_analyzer.clustering import (
-    ClusterCache,
     ClusterResult,
     ClusterScopeResult,
 )
@@ -576,7 +575,6 @@ class DiagramGenerator:
         # read back by every run that builds on one, persisted with every save.
         self.tree_spec: TreeSpec | None = None
         self._llms: tuple[BaseChatModel, BaseChatModel] | None = None
-        self._pending_cluster_caches: dict[str, ClusterCache] | None = None
         self._incremental_preparation: _IncrementalPreparation | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
@@ -623,8 +621,6 @@ class DiagramGenerator:
             static_analysis = self._get_static_with_new_analyzer()
 
         self.static_analysis = static_analysis
-        self._pending_cluster_caches = None
-        pending_cluster_caches = self._stage_cluster_caches()
         depth = hierarchy_depth if hierarchy_depth is not None else self.depth_level
         if incremental:
             root_analysis = persisted_scopes.get(ROOT_SCOPE_ID)
@@ -637,7 +633,7 @@ class DiagramGenerator:
             self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
         elif target_component is None:
             service = ClusteringService(self._grouper())
-            self.clustering_hierarchy = service.build_full_hierarchy(static_analysis, depth, pending_cluster_caches)
+            self.clustering_hierarchy = service.build_full_hierarchy(static_analysis, depth)
             self.tree_spec = service.spec
         else:
             # A partial run expands one component of an existing analysis, so it replays the
@@ -773,16 +769,6 @@ class DiagramGenerator:
                 start_time=self._analysis_start_time,
             )
 
-    def _stage_cluster_caches(self) -> dict[str, ClusterCache]:
-        """Copy clustering state so preparation cannot advance the live cache."""
-        assert self.static_analysis is not None
-        if self._pending_cluster_caches is None:
-            self._pending_cluster_caches = {
-                str(language): self.static_analysis.get_clusters(language).detached_copy()
-                for language in self.static_analysis.get_languages()
-            }
-        return self._pending_cluster_caches
-
     def _prepare_incremental_clustering(
         self,
         root_analysis: AnalysisInsights,
@@ -843,7 +829,6 @@ class DiagramGenerator:
             persisted,
             self.repo_location,
             self.output_dir,
-            self._stage_cluster_caches(),
         )
         self.tree_spec = service.spec
         return _IncrementalPreparation(
@@ -1147,14 +1132,7 @@ class DiagramGenerator:
         remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
         assert self.tree_spec is not None
         service = ClusteringService(self._grouper())
-        scope = service.build_scope_hierarchy(
-            self.static_analysis,
-            graphs,
-            remaining_depth,
-            component.component_id,
-            self.tree_spec,
-            self._pending_cluster_caches,
-        )
+        scope = service.build_scope_hierarchy(graphs, remaining_depth, component.component_id, self.tree_spec)
         self.tree_spec = service.spec
         if not scope.groups:
             decided = self.tree_spec.scope(component.component_id)
@@ -1370,8 +1348,7 @@ class DiagramGenerator:
         # Absorption must not erase the evidence of an invalid parent-child boundary.
         assert_scope_containment(root_analysis, sub_analyses)
         self.rebuild_global_relations(root_analysis, sub_analyses)
-        cluster_caches = list(self._pending_cluster_caches.values()) if self._pending_cluster_caches else []
-        absorbed_ids = absorb_single_child_components(root_analysis, sub_analyses, cluster_caches)
+        absorbed_ids = absorb_single_child_components(root_analysis, sub_analyses)
         if self.clustering_hierarchy is not None:
             self.clustering_hierarchy.reroot_indexes(absorbed_ids)
         if self.tree_spec is not None:
@@ -1394,39 +1371,31 @@ class DiagramGenerator:
         ``fingerprint.json``. The partial flow leaves source-state sidecars
         unchanged and persists its updated lineage after this save.
         """
-        try:
-            self.finalize_for_save(root_analysis, sub_analyses)
-            if persist_side_artifacts:
-                source_tree_hash = self._source_tree_hash()
-            else:
-                # Partial keeps the prior hash so metadata matches the unchanged fingerprint.
-                prior_metadata = load_analysis_metadata(Path(self.output_dir)) or {}
-                source_tree_hash = prior_metadata.get("source_tree_hash", "") or self._source_tree_hash()
-            expandable_component_ids, sub_expandable_ids = self._expandable_ids_for_tree(
-                root_analysis,
-                sub_analyses,
-                preserved_expandable_ids,
-            )
-            analysis_path = save_analysis(
-                analysis=root_analysis,
-                output_dir=Path(self.output_dir),
-                sub_analyses=sub_analyses,
-                repo_name=self.repo_name,
-                file_coverage_summary=self._build_file_coverage_summary(),
-                repo_dir=self.repo_location,
-                source_tree_hash=source_tree_hash,
-                expandable_component_ids=expandable_component_ids,
-                sub_expandable_ids=sub_expandable_ids,
-                depth_cap=self.depth_level,
-                tree_spec=self._tree_spec_dict(),
-            ).resolve()
-        except Exception:
-            self._pending_cluster_caches = None
-            raise
-        if self.static_analysis is not None and self._pending_cluster_caches is not None:
-            for language, cache in self._pending_cluster_caches.items():
-                self.static_analysis.set_clusters(Language(language), cache)
-        self._pending_cluster_caches = None
+        self.finalize_for_save(root_analysis, sub_analyses)
+        if persist_side_artifacts:
+            source_tree_hash = self._source_tree_hash()
+        else:
+            # Partial keeps the prior hash so metadata matches the unchanged fingerprint.
+            prior_metadata = load_analysis_metadata(Path(self.output_dir)) or {}
+            source_tree_hash = prior_metadata.get("source_tree_hash", "") or self._source_tree_hash()
+        expandable_component_ids, sub_expandable_ids = self._expandable_ids_for_tree(
+            root_analysis,
+            sub_analyses,
+            preserved_expandable_ids,
+        )
+        analysis_path = save_analysis(
+            analysis=root_analysis,
+            output_dir=Path(self.output_dir),
+            sub_analyses=sub_analyses,
+            repo_name=self.repo_name,
+            file_coverage_summary=self._build_file_coverage_summary(),
+            repo_dir=self.repo_location,
+            source_tree_hash=source_tree_hash,
+            expandable_component_ids=expandable_component_ids,
+            sub_expandable_ids=sub_expandable_ids,
+            depth_cap=self.depth_level,
+            tree_spec=self._tree_spec_dict(),
+        ).resolve()
         if persist_side_artifacts:
             self._write_file_coverage()
             self._persist_static_analysis_artifact()
