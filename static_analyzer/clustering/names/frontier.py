@@ -63,27 +63,41 @@ class Frontier:
     notes: list[str] = field(default_factory=list)
 
 
-def walk(trie: Trie, role_words: frozenset[str], *, share: float = SHARE) -> Frontier:
+def walk(trie: Trie, role_words: frozenset[str], *, share: float = SHARE, transpose: bool = True) -> Frontier:
+    """The candidates of a trie.
+
+    A layered node whose features recur is transposed onto them only with ``transpose``, else
+    kept as one box; one whose features do not recur is drawn layer by layer. Why the switch:
+    below the leaf cap a transposition leaves a residual per layer, which reads as a grab bag;
+    layers are directories a reader can name.
+    """
     frontier = Frontier()
     top = trie.root
     while len(top.children) == 1 and not top.units:
         top = next(iter(top.children.values()))
-    _visit(top, top.count, role_words, share, frontier, top=True)
+    _visit(top, top.count, role_words, share, frontier, transpose, top=True)
     return frontier
 
 
 def _visit(
-    node: TrieNode, total: int, role_words: frozenset[str], share: float, out: Frontier, *, top: bool = False
+    node: TrieNode,
+    total: int,
+    role_words: frozenset[str],
+    share: float,
+    out: Frontier,
+    transpose: bool,
+    *,
+    top: bool = False,
 ) -> None:
     children = sorted(node.children.items())
     if len(children) == 1 and not node.units:
-        _visit(children[0][1], total, role_words, share, out, top=top)
+        _visit(children[0][1], total, role_words, share, out, transpose, top=top)
         return
     ubiquitous = ubiquitous_words(name for name, _ in children)
     stepped = {name for name, child in children if _stepped_through(name, child, node)}
     role_units = sum(child.count for name, child in children if is_role_named(name, role_words, ubiquitous))
     if not stepped and len(children) >= MIN_LAYERS and node.count and role_units / node.count >= ROLE_SHARE:
-        _layered(node, ubiquitous, role_words, out, top=top)
+        _layered(node, ubiquitous, role_words, out, transpose, top=top)
         return
     if top:
         out.axis = "structural"
@@ -95,7 +109,7 @@ def _visit(
             continue
         scopes += 1
         if name in stepped:
-            _visit(child, total, role_words, share, out)
+            _visit(child, total, role_words, share, out, transpose)
             continue
         if is_role_named(name, role_words, ubiquitous):
             out.candidates.append(_box(child))
@@ -111,9 +125,9 @@ def _visit(
         dominant = total > 0 and child.count / total >= share
         if dominant and child_names and child_role_share < ROLE_SHARE:
             out.notes.append(f"opened {_dotted(child.path)} ({child.count} units)")
-            _visit(child, total, role_words, share, out)
+            _visit(child, total, role_words, share, out, transpose)
         elif dominant and len(child_names) >= MIN_LAYERS and child_role_share >= ROLE_SHARE:
-            _layered(child, child_ubiquitous, role_words, out)
+            _layered(child, child_ubiquitous, role_words, out, transpose)
         else:
             out.candidates.append(_box(child))
     if not scopes:
@@ -132,10 +146,12 @@ def _layered(
     ubiquitous: frozenset[str],
     role_words: frozenset[str],
     out: Frontier,
+    transpose: bool,
     *,
     top: bool = False,
 ) -> None:
-    """A node whose children are layers: transpose onto the features recurring under two of them."""
+    """A node whose children are layers: transpose onto the features recurring under two of
+    them, else draw the layers, the only structure there is."""
     layers = sorted(node.children.items())
     ubiquitous = ubiquitous | ubiquitous_words(name for _, layer in layers for name in layer.children)
     layers_by_feature: dict[str, set[str]] = {}
@@ -146,11 +162,21 @@ def _layered(
             layers_by_feature.setdefault(feature, set()).add(layer_name)
             display.setdefault(feature, name)
     features = sorted(feature for feature, feature_layers in layers_by_feature.items() if len(feature_layers) >= 2)
+    if len(features) >= 2 and not transpose:
+        out.notes.append(f"{_dotted(node.path) or '<root>'}: layered, kept as one box")
+        out.candidates.append(_box(node))
+        return
     if len(features) < 2:
-        out.notes.append(f"{_dotted(node.path) or '<root>'}: role-named children, no recurring features; one box")
         if top:
             out.axis = "structural"
-        out.candidates.append(_box(node))
+        out.notes.append(
+            f"{_dotted(node.path) or '<root>'}: role-named children, no recurring features; layers as boxes"
+        )
+        for _, layer in sorted(node.children.items()):
+            if layer.count > 1:
+                out.candidates.append(_box(layer))
+        if node.units or any(layer.count == 1 for layer in node.children.values()):
+            out.candidates.append(_loose(node))
         return
     if top:
         out.axis = "transposed"

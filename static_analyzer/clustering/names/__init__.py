@@ -4,6 +4,7 @@ See ``docs/design/name-tree.md``.
 """
 
 from static_analyzer.clustering.names.draft import (
+    AffinityGrouper,
     CandidateGroup,
     Grouper,
     GroupingContext,
@@ -21,6 +22,7 @@ from static_analyzer.clustering.names.tokens import LAYOUT_WORDS, ROLE_WORDS, st
 __all__ = [
     "LAYOUT_WORDS",
     "ROLE_WORDS",
+    "AffinityGrouper",
     "Candidate",
     "CandidateGroup",
     "ComponentRule",

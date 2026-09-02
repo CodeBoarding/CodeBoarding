@@ -1,17 +1,18 @@
 """The ladder: how a scope's rules are drafted one rung at a time, and where it stops.
 
 The root reads the frontier of its trie, then its units' words if that gave one box. A
-component splits back into the candidates that were grouped into it; only a component above
-``LEAF_CAP`` goes on to the frontier of its own sub-trie and then to its units' words. A rung
-counts when at least two children each clear the guard; a scope no rung can split is a leaf
-that says why. Every rung is candidates in, rules out: ``replay`` places the units, at draft
-time as on every later run.
+component splits back into the candidates that were grouped into it; from ``NEST_FLOOR``
+units it goes on to the frontier of its own sub-trie, and above ``LEAF_CAP`` it also draws a
+layered sub-tree layer by layer and then reads its units' words. A rung counts when at least
+two children each clear the guard; a scope no rung can split is a leaf that says why. Every
+rung is candidates in, rules out: ``replay`` places the units, at draft time as on every
+later run.
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Protocol
 
@@ -38,9 +39,20 @@ from static_analyzer.config import ClusteringConfig
 
 MIN_UNITS = 2
 GUARD_SHARE = 0.05
+NEST_FLOOR = 40
+"""Units from which a component reads the frontier of its own sub-tree."""
 LEAF_CAP = 135
-"""Units a component may hold and still be a leaf without reading its sub-tree or its words."""
+"""Units above which a component draws a layered sub-tree layer by layer and reads its words."""
+BUDGET = 9
+"""Components a rung is folded toward; the guard, not the budget, is what a rung must clear."""
+MIN_LINKS = 2
+"""Graph links two candidates must exchange before they count as affine: one is noise."""
+CAP_SHARE = 0.6
+"""No fold may grow a component past this share of its scope."""
 UNPLACED_NAME = "Unassigned"
+
+Links = Mapping[tuple[str, str], int]
+"""Weight of the graph edges between two units, keyed by the unit ids in sorted order."""
 
 UNMERGE = "unmerge"
 FRONTIER = "frontier"
@@ -51,8 +63,9 @@ LEAF = "leaf"
 
 @dataclass(frozen=True)
 class GroupingContext:
-    """What a grouper may know beyond the candidates: the scope, and per candidate its size
-    and a few identifiers, so a planner can judge without ever seeing a unit."""
+    """What a grouper may know beyond the candidates: the scope, and per candidate its size,
+    a few identifiers and the graph links it exchanges with each sibling, so a grouper can
+    judge without ever seeing a unit."""
 
     scope_id: ScopeId
     role_words: frozenset[str]
@@ -60,6 +73,10 @@ class GroupingContext:
     rung: str
     sizes: dict[str, int] = field(default_factory=dict)
     samples: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    links: dict[tuple[str, str], int] = field(default_factory=dict)
+    """Graph edges between two candidates' units, keyed by their keys in sorted order."""
+    floor: int = MIN_UNITS
+    """Units a candidate must hold to stand on its own in this scope."""
 
 
 @dataclass(frozen=True)
@@ -106,6 +123,79 @@ class KinshipGrouper:
         return groups
 
 
+class AffinityGrouper:
+    """Kinship, then fold the rung along the graph: a candidate below the floor, and the
+    smallest candidate while the rung is over budget, joins the sibling it exchanges the most
+    links with against what their sizes predict.
+
+    Why observed over expected: a hub (``utils``, ``core``) talks to everyone, so raw counts
+    would fold every small box into it; against its degree it is nobody's closest sibling.
+    """
+
+    name = "affinity"
+
+    def group(self, candidates: Sequence[Candidate], context: GroupingContext) -> list[CandidateGroup]:
+        groups = KinshipGrouper().group(candidates, context)
+        members = [list(group.keys) for group in groups]
+        terms = [group.terms for group in groups]
+        sizes = [sum(context.sizes.get(key, 0) for key in group.keys) for group in groups]
+        links = [
+            [sum(context.links.get((min(a, b), max(a, b)), 0) for a in left for b in right) for right in members]
+            for left in members
+        ]
+        for index in range(len(members)):
+            links[index][index] = 0
+        while True:
+            live = sorted((index for index in range(len(members)) if sizes[index]), key=lambda i: (sizes[i], i))
+            sources = [index for index in live if sizes[index] < context.floor]
+            if len(live) > BUDGET:
+                sources = live
+            chosen = self._fold(sources, live, sizes, links, context)
+            if chosen is None:
+                break
+            source, target = chosen
+            members[target].extend(members[source])
+            terms[target] = _dedupe(terms[target] + terms[source])
+            sizes[target] += sizes[source]
+            sizes[source] = 0
+            for other in range(len(members)):
+                links[target][other] += links[source][other]
+                links[other][target] += links[other][source]
+            links[target][target] = 0
+            members[source] = []
+        by_key = {candidate.key: candidate for candidate in candidates}
+        groups = []
+        for index, keys in enumerate(members):
+            if not keys:
+                continue
+            # The biggest member names a fold: the box a reader already recognises.
+            biggest = max(context.sizes.get(key, 0) for key in keys)
+            name = _plainest([by_key[key] for key in keys if context.sizes.get(key, 0) == biggest])
+            groups.append(CandidateGroup(name, tuple(keys), terms[index]))
+        return groups
+
+    @staticmethod
+    def _fold(
+        sources: list[int], live: list[int], sizes: list[int], links: list[list[int]], context: GroupingContext
+    ) -> tuple[int, int] | None:
+        """The smallest source with an affine sibling, and that sibling: ``(source, target)``."""
+        degree = [sum(row) for row in links]
+        total = sum(degree) / 2 or 1.0
+        cap = CAP_SHARE * context.unit_count
+        for source in sources:
+            best: tuple[float, int, int] | None = None
+            for target in live:
+                count = links[source][target]
+                if target == source or count < MIN_LINKS or sizes[source] + sizes[target] > cap:
+                    continue
+                affinity = count * total / (degree[source] * degree[target])
+                if best is None or (affinity, -sizes[target], -target) > best:
+                    best = (affinity, -sizes[target], -target)
+            if best is not None:
+                return source, -best[2]
+        return None
+
+
 def candidate_name(candidate: Candidate) -> str:
     if candidate.kind == LOOSE:
         where = ".".join(candidate.fallback_prefixes[0]) if candidate.fallback_prefixes else ""
@@ -130,8 +220,13 @@ def draft_tree(
     *,
     machinery: Iterable[str] = (),
     share: float = SHARE,
+    links: Links | None = None,
 ) -> TreeSpec:
-    """Draft the root and every scope below it down to ``max_depth``."""
+    """Draft the root and every scope below it down to ``max_depth``.
+
+    ``links`` are the graph's edges between units; they reach the grouper as affinities
+    between candidates and never place a unit.
+    """
     if max_depth < 1:
         raise ValueError("max_depth must be at least 1")
     machinery = frozenset(machinery)
@@ -139,7 +234,9 @@ def draft_tree(
     role_words = role_words_for(machinery)
 
     def build(scope_id: ScopeId, scope_units: list[Unit], parts: tuple[ComponentRule, ...], depth: int) -> None:
-        scope, partition = draft_scope(scope_id, scope_units, role_words, grouper, parts=parts, share=share)
+        scope, partition = draft_scope(
+            scope_id, scope_units, role_words, grouper, parts=parts, share=share, links=links
+        )
         spec.set_scope(scope)
         if depth >= max_depth:
             return
@@ -158,18 +255,28 @@ def draft_scope(
     *,
     parts: tuple[ComponentRule, ...] = (),
     share: float = SHARE,
+    links: Links | None = None,
 ) -> tuple[ScopeSpec, Partition]:
     """Draft one scope's rules from its units: the first rung that splits it wins."""
     scope_units = list(units)
+    links = links or {}
     rungs: list[tuple[str, Callable[[], tuple[list[ComponentRule], str]]]] = []
+
+    def frontier(rung: str, transpose: bool) -> tuple[list[ComponentRule], str]:
+        return _frontier_rules(scope_id, scope_units, role_words, grouper, share, rung, links, transpose)
+
+    def vocabulary() -> tuple[list[ComponentRule], str]:
+        return _vocabulary_rules(scope_id, scope_units, role_words, grouper, links)
+
     if len(parts) >= 2:
         rungs.append((UNMERGE, lambda: (list(parts), "structural")))
     if is_root(scope_id):
-        rungs.append((FRONTIER, lambda: _frontier_rules(scope_id, scope_units, role_words, grouper, share, FRONTIER)))
-        rungs.append((VOCABULARY, lambda: _vocabulary_rules(scope_id, scope_units, role_words, grouper)))
-    elif len(scope_units) > LEAF_CAP:
-        rungs.append((SEGMENT, lambda: _frontier_rules(scope_id, scope_units, role_words, grouper, share, SEGMENT)))
-        rungs.append((VOCABULARY, lambda: _vocabulary_rules(scope_id, scope_units, role_words, grouper)))
+        rungs.append((FRONTIER, lambda: frontier(FRONTIER, True)))
+        rungs.append((VOCABULARY, vocabulary))
+    elif len(scope_units) >= NEST_FLOOR:
+        rungs.append((SEGMENT, lambda: frontier(SEGMENT, len(scope_units) > LEAF_CAP)))
+        if len(scope_units) > LEAF_CAP:
+            rungs.append((VOCABULARY, vocabulary))
     produced: dict[str, tuple[list[ComponentRule], str]] = {}
     for rung, produce in rungs:
         produced[rung] = rules, axis = produce()
@@ -200,8 +307,10 @@ def _leaf_reason(
     if is_root(scope_id):
         return f"no rung ({', '.join(rung for rung, _ in rungs)}) yields two children of {unit_count} units"
     unmerge = "un-merge failed the guard" if len(parts) >= 2 else "nothing to un-merge"
+    if unit_count < NEST_FLOOR:
+        return f"cohesive: {unit_count} units, under {NEST_FLOOR}; {unmerge}"
     if unit_count <= LEAF_CAP:
-        return f"cohesive: {unit_count} units, at most {LEAF_CAP}; {unmerge}"
+        return f"cohesive: {unit_count} units, at most {LEAF_CAP}; {unmerge}; the sub-tree yields no two children"
     return f"exhausted: {unmerge}; neither the sub-tree nor the words yield two children of {unit_count} units"
 
 
@@ -212,12 +321,14 @@ def _frontier_rules(
     grouper: Grouper,
     share: float,
     rung: str,
+    links: Links,
+    transpose: bool,
 ) -> tuple[list[ComponentRule], str]:
-    frontier = walk(Trie(units), role_words, share=share)
+    frontier = walk(Trie(units), role_words, share=share, transpose=transpose)
     candidates = sorted(frontier.candidates, key=lambda candidate: candidate.key)
     if not candidates:
         return [], frontier.axis
-    context = _context(scope_id, units, candidates, role_words, rung)
+    context = _context(scope_id, units, candidates, role_words, rung, links)
     return _rules_from_groups(grouper.group(candidates, context), candidates), frontier.axis
 
 
@@ -226,6 +337,7 @@ def _vocabulary_rules(
     units: list[Unit],
     role_words: frozenset[str],
     grouper: Grouper,
+    links: Links,
 ) -> tuple[list[ComponentRule], str]:
     """One candidate per word the units' own names elect, head noun weighing most."""
     counts: Counter[str] = Counter()
@@ -236,7 +348,7 @@ def _vocabulary_rules(
     candidates = [Candidate(f"{WORD}:{key}", WORD, key, terms=(key,)) for key in keys]
     if len(candidates) < 2:
         return [], VOCABULARY
-    context = _context(scope_id, units, candidates, role_words, VOCABULARY)
+    context = _context(scope_id, units, candidates, role_words, VOCABULARY, links)
     return _rules_from_groups(grouper.group(candidates, context), candidates), VOCABULARY
 
 
@@ -249,12 +361,18 @@ def _context(
     candidates: Sequence[Candidate],
     role_words: frozenset[str],
     rung: str,
+    links: Links,
 ) -> GroupingContext:
-    """Size and a few identifiers per candidate, from a replay of the candidates as rules."""
+    """Size, a few identifiers and links per candidate, from a replay of the candidates as rules."""
     provisional = ScopeSpec(
         scope_id, [replace(_candidate_rule(candidate), component_id=candidate.key) for candidate in candidates]
     )
     partition = replay(units, provisional, role_words)
+    between: Counter[tuple[str, str]] = Counter()
+    for (left, right), weight in links.items():
+        left_owner, right_owner = partition.assignment.get(left), partition.assignment.get(right)
+        if left_owner and right_owner and left_owner != right_owner:
+            between[(min(left_owner, right_owner), max(left_owner, right_owner))] += weight
     samples: dict[str, tuple[str, ...]] = {}
     for candidate in candidates:
         seen: dict[str, None] = {}
@@ -267,7 +385,8 @@ def _context(
                 break
         samples[candidate.key] = tuple(seen)
     sizes = {candidate.key: partition.size(candidate.key) for candidate in candidates}
-    return GroupingContext(scope_id, role_words, len(units), rung, sizes, samples)
+    floor = MIN_UNITS if rung == FRONTIER else _floor(len(units))
+    return GroupingContext(scope_id, role_words, len(units), rung, sizes, samples, dict(between), floor)
 
 
 def _unit_stems(unit: Unit) -> set[str]:
@@ -346,9 +465,11 @@ def _settle(
     """Replay the rules, apply the guard, number the survivors, and bucket what is left.
 
     The guard: at least ``min_rules`` rules with a prefix or a word must each hold
-    ``max(MIN_UNITS, int(GUARD_SHARE * parent))`` units; a smaller one is absorbed by the
-    largest. A fallback-only rule (loose files, a layer's residue) is neither counted nor
-    absorbed: it is the scope's last resort and stays its own box however small.
+    ``max(MIN_UNITS, int(GUARD_SHARE * parent))`` units, else the rung does not count. A
+    smaller rule the grouper found no sibling for stays its own small box: the names drew
+    it, and folding it into the largest rule was measured to make a grab bag of that rule.
+    A fallback-only rule (loose files, a layer's residue) is not counted: it is the scope's
+    last resort and stays its own box however small.
     """
     if len(rules) < min_rules:
         return None
@@ -356,16 +477,11 @@ def _settle(
     partition = replay(units, ScopeSpec(scope_id, provisional), role_words)
     sizes = {rule.component_id: partition.size(rule.component_id) for rule in provisional}
     floor = _floor(len(units)) if guard else 1
-    claimants = [rule for rule in provisional if not rule.is_fallback_only]
-    strong = [rule for rule in claimants if sizes[rule.component_id] >= floor]
+    strong = [rule for rule in provisional if not rule.is_fallback_only and sizes[rule.component_id] >= floor]
     if len(strong) < min_rules:
         return None
-    kept = {rule.component_id: rule for rule in provisional if rule in strong or rule.is_fallback_only}
-    largest = max(strong, key=lambda rule: sizes[rule.component_id]).component_id
-    for weak in (rule for rule in claimants if rule not in strong and sizes[rule.component_id]):
-        kept[largest] = _merge_rules(kept[largest], weak)
-        sizes[largest] += sizes[weak.component_id]
-    ordered = sorted(kept.values(), key=lambda rule: (-sizes[rule.component_id], rule.name))
+    kept = [rule for rule in provisional if sizes[rule.component_id] or rule.is_fallback_only]
+    ordered = sorted(kept, key=lambda rule: (-sizes[rule.component_id], rule.name))
     scope = ScopeSpec(scope_id)
     for rule in ordered:
         scope.rules.append(replace(rule, component_id=scope.next_id()))
@@ -378,20 +494,6 @@ def _settle(
 
 def _floor(unit_count: int) -> int:
     return max(MIN_UNITS, int(GUARD_SHARE * unit_count))
-
-
-def _merge_rules(target: ComponentRule, weak: ComponentRule) -> ComponentRule:
-    return replace(
-        target,
-        prefixes=target.prefixes + weak.prefixes,
-        terms=_dedupe(target.terms + weak.terms),
-        fallback_prefixes=target.fallback_prefixes + weak.fallback_prefixes,
-        parts=(target.parts or (_as_part(target),)) + (weak.parts or (_as_part(weak),)),
-    )
-
-
-def _as_part(rule: ComponentRule) -> ComponentRule:
-    return replace(rule, component_id="", parts=())
 
 
 def _dedupe(terms: tuple[str, ...]) -> tuple[str, ...]:

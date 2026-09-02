@@ -83,7 +83,7 @@ from static_analyzer.clustering import (
     ClusterScopeResult,
 )
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
-from static_analyzer.clustering.names import Grouper, KinshipGrouper, TreeSpec
+from static_analyzer.clustering.names import AffinityGrouper, Grouper, KinshipGrouper, TreeSpec
 from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
 from agents.tree_planner_agent import TreePlannerAgent
@@ -685,10 +685,12 @@ class DiagramGenerator:
         return TreeSpec.from_dict(stored)
 
     def _grouper(self) -> Grouper:
-        """The configured grouper: kinship unless the planner was asked for, which needs an LLM."""
+        """The configured grouper: affinity unless another was asked for; the planner needs an LLM."""
         choice = os.getenv(GROUPER_ENV, GROUPERS[0])
         if choice not in GROUPERS:
             raise ValueError(f"{GROUPER_ENV} must be one of {', '.join(GROUPERS)}, not {choice!r}")
+        if choice == "affinity":
+            return AffinityGrouper()
         if choice == "kinship":
             return KinshipGrouper()
         if self._llms is None or self.static_analysis is None:
