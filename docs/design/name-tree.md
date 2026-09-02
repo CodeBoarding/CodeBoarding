@@ -118,7 +118,16 @@ implementations behind one protocol, switchable by configuration (`CODEBOARDING_
   answer is folded deterministically (every label lands in exactly one component, the first
   to name it; a forgotten label keeps its own group) and replayed verbatim. No silent
   fallback: asking for the planner without an LLM is an error. Measured against the
-  affinity fold it is no better on the rulers and moves between draws (grouper study).
+  affinity fold it is no better on the rulers and moves between draws (grouper study): the
+  model is not deterministic at temperature 0 (its hidden reasoning is sampled; 0.5–0.7 pair
+  agreement between two draws of one prompt on markitdown and serilog). So the planner asks
+  in one JSON call with no tools, lists the groups largest first with the scope's floor, draws
+  three answers concurrently and folds the medoid (the draw the other two agree with most), and
+  keeps an `owns` word only when it is a lowercase stem found in the component's own identifiers
+  and nobody else's, because replay votes on owned words at full weight and a package-wide word
+  had pulled 35 of markitdown's 40 files into one box. Measured: markitdown draws agree at
+  0.62 instead of 0.27–0.66 with 6–7 boxes instead of 2–7, serilog 0.69–0.79; three times the
+  planner's tokens, the wall clock of one call.
 
 ### 3.4 The specification (`spec.py`)
 
