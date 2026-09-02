@@ -17,6 +17,7 @@ from static_analyzer.clustering.names.inventory import Trie, TrieNode
 from static_analyzer.clustering.names.spec import Prefix
 from static_analyzer.clustering.names.tokens import (
     LAYOUT_WORDS,
+    distinctive_word,
     is_role_named,
     stems,
     ubiquitous_words,
@@ -132,15 +133,16 @@ def _layered(
     top: bool = False,
 ) -> None:
     """A node whose children are layers: transpose onto the features recurring under two of them."""
+    layers = sorted(node.children.items())
+    ubiquitous = ubiquitous | ubiquitous_words(name for _, layer in layers for name in layer.children)
     layers_by_feature: dict[str, set[str]] = {}
     display: dict[str, str] = {}
-    for layer_name, layer in sorted(node.children.items()):
-        for grandchild_name in sorted(layer.children):
-            if not is_role_named(grandchild_name, role_words, ubiquitous):
-                feature = _first_stem(grandchild_name)
-                layers_by_feature.setdefault(feature, set()).add(layer_name)
-                display.setdefault(feature, grandchild_name)
-    features = sorted(feature for feature, layers in layers_by_feature.items() if len(layers) >= 2)
+    for layer_name, layer in layers:
+        for name, _ in _feature_directories(layer, role_words, ubiquitous):
+            feature = _feature_stem(name, role_words, ubiquitous)
+            layers_by_feature.setdefault(feature, set()).add(layer_name)
+            display.setdefault(feature, name)
+    features = sorted(feature for feature, feature_layers in layers_by_feature.items() if len(feature_layers) >= 2)
     if len(features) < 2:
         out.notes.append(f"{_dotted(node.path) or '<root>'}: role-named children, no recurring features; one box")
         if top:
@@ -151,7 +153,7 @@ def _layered(
         out.axis = "transposed"
     out.notes.append(f"transposed {_dotted(node.path) or '<root>'} onto {', '.join(features)}")
     prefixes_by_feature: dict[str, list[Prefix]] = {feature: [] for feature in features}
-    for _, layer in sorted(node.children.items()):
+    for _, layer in layers:
         _collect_feature_prefixes(layer, set(features), role_words, ubiquitous, prefixes_by_feature)
     for feature in features:
         out.candidates.append(
@@ -165,7 +167,7 @@ def _layered(
         )
     if node.units:
         out.candidates.append(_loose(node))
-    for name, layer in sorted(node.children.items()):
+    for name, layer in layers:
         out.candidates.append(
             Candidate(
                 key=f"{RESIDUAL}:{_dotted(layer.path)}",
@@ -174,6 +176,19 @@ def _layered(
                 fallback_prefixes=(layer.path,),
             )
         )
+
+
+def _feature_directories(
+    node: TrieNode, role_words: frozenset[str], ubiquitous: frozenset[str]
+) -> list[tuple[str, TrieNode]]:
+    """The shallowest feature-named directories under a layer, looking through its role-named ones."""
+    found: list[tuple[str, TrieNode]] = []
+    for name, child in sorted(node.children.items()):
+        if is_role_named(name, role_words, ubiquitous):
+            found.extend(_feature_directories(child, role_words, ubiquitous))
+        else:
+            found.append((name, child))
+    return found
 
 
 def _collect_feature_prefixes(
@@ -185,7 +200,7 @@ def _collect_feature_prefixes(
 ) -> None:
     """The shallowest node under a layer whose first word is a feature keys its subtree."""
     for name, child in sorted(node.children.items()):
-        feature = _first_stem(name)
+        feature = _feature_stem(name, role_words, ubiquitous)
         if not is_role_named(name, role_words, ubiquitous) and feature in features:
             prefixes_by_feature[feature].append(child.path)
             continue
@@ -202,9 +217,10 @@ def _loose(node: TrieNode) -> Candidate:
     return Candidate(key=f"{LOOSE}:{_dotted(node.path)}", kind=LOOSE, label="", fallback_prefixes=(node.path,))
 
 
-def _first_stem(name: str) -> str:
+def _feature_stem(name: str, role_words: frozenset[str], ubiquitous: frozenset[str]) -> str:
+    """The word a directory is about: its first word that is neither a role nor the product's name."""
     words = stems(name)
-    return words[0] if words else name.casefold()
+    return distinctive_word(name, role_words, ubiquitous) or (words[0] if words else name.casefold())
 
 
 def _dotted(path: Prefix) -> str:

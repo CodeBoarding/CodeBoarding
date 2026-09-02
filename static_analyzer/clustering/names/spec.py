@@ -146,10 +146,6 @@ class TreeSpec:
             "scopes": {scope_id: self.scopes[scope_id].to_dict() for scope_id in self._tree_order()},
         }
 
-    def _tree_order(self) -> list[ScopeId]:
-        rest = CodeBoardingClusterIds.sort({scope_id for scope_id in self.scopes if not is_root(scope_id)})
-        return [ROOT_SCOPE_ID, *rest] if ROOT_SCOPE_ID in self.scopes else rest
-
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> TreeSpec:
         return cls(
@@ -160,6 +156,10 @@ class TreeSpec:
             grouper=str(raw.get("grouper", "")),
             version=int(raw.get("version", SPEC_VERSION)),
         )
+
+    def _tree_order(self) -> list[ScopeId]:
+        rest = CodeBoardingClusterIds.sort({scope_id for scope_id in self.scopes if not is_root(scope_id)})
+        return [ROOT_SCOPE_ID, *rest] if ROOT_SCOPE_ID in self.scopes else rest
 
 
 def is_root(scope_id: ScopeId) -> bool:

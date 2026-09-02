@@ -8,6 +8,8 @@ from collections.abc import Iterable
 
 _TOKEN = re.compile(r"[A-Z]+(?![a-z])|[A-Z][a-z0-9]*|[a-z0-9]+")
 _GENERIC_ARITY = re.compile(r"`\d+$")
+_GENERIC_ARGUMENTS = re.compile(r"<[^<>]*>")
+_SUFFIXES = (("ies", "y"), ("ing", ""), ("ions", "ion"), ("ed", ""), ("es", ""), ("s", ""))
 _INTERFACE_PREFIX = re.compile(r"^I(?=[A-Z][a-z])")
 
 
@@ -19,7 +21,8 @@ def tokenize(identifier: str) -> tuple[str, ...]:
     """
     name = identifier.split("(", 1)[0]
     name = _GENERIC_ARITY.sub("", name)
-    name = re.sub(r"<[^<>]*>", "", name)
+    while (stripped := _GENERIC_ARGUMENTS.sub("", name)) != name:
+        name = stripped
     name = _INTERFACE_PREFIX.sub("", name.strip())
     return tuple(word for word in _TOKEN.findall(name) if not word.isdigit())
 
@@ -31,24 +34,20 @@ def stem(word: str) -> str:
     """
     lowered = word.casefold()
     while True:
-        stripped = _strip_one_suffix(lowered)
+        stripped = lowered
+        for suffix, replacement in _SUFFIXES:
+            if len(lowered) <= len(suffix) + 2 or not lowered.endswith(suffix):
+                continue
+            if suffix == "es" and lowered[-3] not in "sxzh":
+                # ``services``, ``types``, ``nodes``: the ``e`` is part of the word.
+                stripped = lowered[:-1]
+            elif suffix != "s" or lowered[-2] not in "sui":
+                # ``class``, ``status``, ``analysis`` are singular.
+                stripped = lowered[: -len(suffix)] + replacement
+            break
         if stripped == lowered:
             return lowered
         lowered = stripped
-
-
-def _strip_one_suffix(lowered: str) -> str:
-    for suffix, replacement in (("ies", "y"), ("ing", ""), ("ions", "ion"), ("ed", ""), ("es", ""), ("s", "")):
-        if len(lowered) <= len(suffix) + 2 or not lowered.endswith(suffix):
-            continue
-        if suffix == "es" and lowered[-3] not in "sxzh":
-            # ``services``, ``types``, ``nodes``: the ``e`` is part of the word.
-            return lowered[:-1]
-        if suffix == "s" and lowered[-2] in "sui":
-            # ``class``, ``status``, ``analysis`` are singular.
-            return lowered
-        return lowered[: -len(suffix)] + replacement
-    return lowered
 
 
 def stems(identifier: str) -> tuple[str, ...]:

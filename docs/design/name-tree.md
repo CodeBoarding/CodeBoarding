@@ -32,8 +32,8 @@ per scope, from the same names, writes them down once, and replays them everywhe
   of the trie a component owns, the words it owns, a last-resort prefix, and the candidates
   it was grouped from), or no rules and a reason, meaning the scope is a leaf. Persisted in
   `analysis.json` metadata as `tree_spec`.
-- **The one function.** `replay(units, scope_rules) -> Partition` assigns every unit of a
-  scope to exactly one rule by: the longest matching prefix, then a head-noun-weighted vote
+- **The one function.** `replay(units, scope, role_words) -> Partition` (the role words
+  being `role_words_for(spec.machinery)`) assigns every unit of a scope to exactly one rule by: the longest matching prefix, then a head-noun-weighted vote
   over the words the rules own, then the longest matching fallback prefix. What no rule
   claims is *unplaced*: drawn in a reserved bucket, reported, never invented into a
   neighbour. Replay is used at draft time, on every incremental run, and on every partial

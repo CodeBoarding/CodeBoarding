@@ -15,7 +15,7 @@ class TestUnitPosition:
         assert unit_position(["pkg.mod.only"], ".") == ("pkg", "mod")
 
     def test_csharp_single_type_file_sits_in_its_directory(self):
-        """#545 collapses the stem into the type, so the position is the directory."""
+        """Why: the adapter folds a single-type file's stem into the type, so the directory is the position."""
         names = ["Basket.API.Model.CustomerBasket", "Basket.API.Model.CustomerBasket.CustomerBasket()"]
         assert unit_position(names, ".") == ("Basket", "API", "Model")
 

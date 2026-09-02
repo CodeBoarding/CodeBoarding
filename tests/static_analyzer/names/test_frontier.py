@@ -181,6 +181,30 @@ class TestLayeredRoot:
             f"residual:Beacon.{layer}" for layer in ("Application", "Contracts", "Domain", "Infrastructure")
         ]
 
+    def test_features_recur_through_role_named_directories(self):
+        layout: dict[str, list[str]] = {}
+        for layer, role in (("Application", "Handlers"), ("Infrastructure", "Repositories"), ("Domain", "Entities")):
+            for feature in ("Orders", "Customers"):
+                for index in range(2):
+                    layout[f"Shop.{layer}/{role}/{feature}/{feature}{index}.cs"] = [
+                        f"Shop.{layer}.{role}.{feature}.{feature}Thing{index}"
+                    ]
+        frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
+        features = {candidate.label: candidate for candidate in frontier.candidates if candidate.kind == FEATURE}
+        assert set(features) == {"Orders", "Customers"}
+        assert ("Shop", "Application", "Handlers", "Orders") in features["Orders"].prefixes
+
+    def test_a_product_name_on_every_feature_directory_is_not_the_feature(self):
+        layout: dict[str, list[str]] = {}
+        for layer in self.LAYERS[:3]:
+            for feature in ("BeaconIncidents", "BeaconEscalation", "BeaconTeams"):
+                for index in range(2):
+                    layout[f"Beacon.{layer}/{feature}/{feature}{index}.cs"] = [f"Beacon.{layer}.{feature}.Thing{index}"]
+        frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
+        assert frontier.axis == "transposed"
+        features = sorted(candidate.terms[0] for candidate in frontier.candidates if candidate.kind == FEATURE)
+        assert features == ["escalation", "incident", "team"]
+
     def test_a_feature_under_one_layer_only_is_not_a_feature(self):
         """Two same-stem directories under one layer are not a grid."""
         layout = self._beacon()

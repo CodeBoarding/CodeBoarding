@@ -1,10 +1,6 @@
 """Partition a repository by what its qualified names say: one tree, replayed everywhere.
 
-``inventory`` reads units (files) and their positions off the call graph's names; ``frontier``
-walks the trie of those positions and emits candidate rules; ``draft`` groups candidates into
-components rung by rung and writes the result as a ``spec``; ``replay`` is the one pure
-function from units and a scope's rules to a partition, used at draft time and on every
-incremental and partial run after it. See ``docs/design/name-tree.md``.
+See ``docs/design/name-tree.md``.
 """
 
 from static_analyzer.clustering.names.draft import (
@@ -23,6 +19,8 @@ from static_analyzer.clustering.names.spec import ComponentRule, ScopeSpec, Tree
 from static_analyzer.clustering.names.tokens import LAYOUT_WORDS, ROLE_WORDS, stem, tokenize
 
 __all__ = [
+    "LAYOUT_WORDS",
+    "ROLE_WORDS",
     "Candidate",
     "CandidateGroup",
     "ComponentRule",
@@ -30,9 +28,7 @@ __all__ = [
     "Grouper",
     "GroupingContext",
     "KinshipGrouper",
-    "LAYOUT_WORDS",
     "Partition",
-    "ROLE_WORDS",
     "ScopeSpec",
     "TreeSpec",
     "Trie",

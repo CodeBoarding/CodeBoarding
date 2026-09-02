@@ -35,6 +35,7 @@ class TestTokenize:
     def test_parameter_list_generics_and_arity_are_dropped(self):
         assert tokenize("Add(int value)") == ("Add",)
         assert tokenize("Repository<TEntity>") == ("Repository",)
+        assert tokenize("Handler<Dictionary<string, Order>>") == ("Handler",)
         assert tokenize("Repository`1") == ("Repository",)
 
 
