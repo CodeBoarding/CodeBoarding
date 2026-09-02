@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-08-31T23:13:40.549891+00:00",
-  "overall_score": 0.8689692982456141,
+  "timestamp": "2026-09-02T13:30:39.322059+00:00",
+  "overall_score": 0.8691844553913519,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1585,
+      "total_entities_checked": 1588,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -807,13 +807,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"Node\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 37,
-              "line_end": 37,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"_cached_sites\" is not accessed",
               "file_path": "static_analyzer/incremental_orchestrator.py",
               "line_start": 160,
@@ -856,62 +849,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 76,
-              "line_end": 76,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 99,
-              "line_end": 99,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 102,
-              "line_end": 102,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 149,
-              "line_end": 149,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"client\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 230,
-              "line_end": 230,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"client\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 247,
-              "line_end": 247,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 251,
-              "line_end": 251,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 255,
-              "line_end": 255,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
               "file_path": "static_analyzer/engine/lsp_client.py",
               "line_start": 109,
@@ -944,20 +881,6 @@
               "file_path": "static_analyzer/engine/adapters/go_adapter.py",
               "line_start": 193,
               "line_end": 193,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 137,
-              "line_end": 137,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 140,
-              "line_end": 140,
               "metric_value": 0.0
             },
             {
@@ -1035,6 +958,83 @@
               "file_path": "agents/llm_config.py",
               "line_start": 498,
               "line_end": 498,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Node\" is not accessed",
+              "file_path": "static_analyzer/analysis_cache.py",
+              "line_start": 37,
+              "line_end": 37,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 76,
+              "line_end": 76,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 99,
+              "line_end": 99,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 102,
+              "line_end": 102,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 149,
+              "line_end": 149,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"client\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 230,
+              "line_end": 230,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"client\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 247,
+              "line_end": 247,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 251,
+              "line_end": 251,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 255,
+              "line_end": 255,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 140,
+              "line_end": 140,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 143,
+              "line_end": 143,
               "metric_value": 0.0
             }
           ]
@@ -1633,13 +1633,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"Node\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 37,
-              "line_end": 37,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_import] Import \"DiagnosticPosition\" is not accessed",
               "file_path": "static_analyzer/lsp_client/__init__.py",
               "line_start": 8,
@@ -1665,6 +1658,13 @@
               "file_path": "static_analyzer/lsp_client/__init__.py",
               "line_start": 11,
               "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Node\" is not accessed",
+              "file_path": "static_analyzer/analysis_cache.py",
+              "line_start": 37,
+              "line_end": 37,
               "metric_value": 0.0
             }
           ]
@@ -1831,13 +1831,13 @@
       "composite_risk_score": 20.0
     },
     {
-      "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+      "file_path": "agents/llm_config.py",
       "total_findings": 2,
       "warning_findings": 0,
       "composite_risk_score": 20.0
     },
     {
-      "file_path": "agents/llm_config.py",
+      "file_path": "static_analyzer/engine/adapters/java_adapter.py",
       "total_findings": 2,
       "warning_findings": 0,
       "composite_risk_score": 20.0
