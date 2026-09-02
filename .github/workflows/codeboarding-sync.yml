@@ -4,16 +4,16 @@ on:
   push:
     branches: ['main']
     # Loop guard: don't re-trigger on the files this workflow itself commits.
-    # Listed explicitly (not '.codeboarding/**') so editing your own
-    # .codeboarding/.codeboardingignore still regenerates the baseline.
+    # List generated files only: user-authored scope configuration must still trigger
+    # regeneration, while a merged sync PR must not trigger a loop.
     paths-ignore:
       - '.codeboarding/*.md'
       - '.codeboarding/analysis.json'
       - '.codeboarding/fingerprint.json'
-      - '.codeboarding/codeboarding_version.json'
       - '.codeboarding/static_analysis.pkl'
       - '.codeboarding/static_analysis.sha'
-      - '.codeboarding/health/**'
+      - '.codeboarding/codeboarding_version.json'
+      - '.codeboarding/health/health_report.json'
       - 'docs/development/architecture.md'
   workflow_dispatch:
     inputs:
@@ -25,7 +25,8 @@ on:
 
 permissions:
   contents: write   # commit the generated baseline + docs to the branch
-  id-token: write   # mint a GitHub OIDC token; required by llm: license as well as the free tier
+  id-token: write   # identifies this repo to CodeBoarding's hosted tier, used by the free
+                    # tier AND a license, and as the fallback until your own key exists
 
 concurrency:
   # Serialize against itself so a push landing mid-run can't make two commits.
@@ -37,87 +38,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      # Mint the CodeBoarding GitHub App token so the baseline commit lands as
-      # codeboarding[bot] (App avatar = the CodeBoarding logo) instead of the
-      # generic github-actions[bot]. Mirrors the review workflow's token flow.
-      # The baseline commit must use the App token: pushes made with
-      # github.token do not trigger the CodeBoarding-tests workflow.
-      - name: Detect CodeBoarding GitHub App credentials
-        id: codeboarding-app-config
-        shell: bash
-        env:
-          CLIENT_ID: ${{ vars.CODEBOARDING_APP_CLIENT_ID }}
-          APP_ID: ${{ vars.CODEBOARDING_APP_ID }}
-          PRIVATE_KEY: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
-        run: |
-          client_id="${CLIENT_ID:-}"
-          app_id="${APP_ID:-}"
-
-          # GitHub App client IDs start with "Iv". If that value was stored in
-          # CODEBOARDING_APP_ID, use it as a client ID to avoid the deprecated
-          # app-id input path.
-          if [ -z "$client_id" ] && [ "${app_id#Iv}" != "$app_id" ]; then
-            client_id="$app_id"
-            app_id=""
-          fi
-
-          has_private_key=false
-          private_key_valid=false
-          if [ -n "$PRIVATE_KEY" ]; then
-            has_private_key=true
-            if printf '%s' "$PRIVATE_KEY" | openssl pkey -noout >/dev/null 2>&1; then
-              private_key_valid=true
-            else
-              echo "::warning::CODEBOARDING_APP_PRIVATE_KEY is not a valid PEM private key, so the sync commit will fall back to github-actions[bot]."
-              if printf '%b' "$PRIVATE_KEY" | openssl pkey -noout >/dev/null 2>&1; then
-                printf '%s\n' "::warning::CODEBOARDING_APP_PRIVATE_KEY looks like it contains literal \\n escapes. Store the downloaded PEM as multi-line secret text instead."
-              fi
-            fi
-          fi
-
-          {
-            [ -n "$client_id" ] && echo "has_client_id=true" || echo "has_client_id=false"
-            [ -n "$app_id" ] && echo "has_app_id=true" || echo "has_app_id=false"
-            echo "client_id=$client_id"
-            echo "has_private_key=$has_private_key"
-            echo "private_key_valid=$private_key_valid"
-          } >> "$GITHUB_OUTPUT"
-      - uses: actions/create-github-app-token@v3
-        id: codeboarding-app-token-client
-        if: steps.codeboarding-app-config.outputs.has_client_id == 'true' && steps.codeboarding-app-config.outputs.private_key_valid == 'true'
-        continue-on-error: true
-        with:
-          client-id: ${{ steps.codeboarding-app-config.outputs.client_id }}
-          private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
-      - uses: actions/create-github-app-token@v3
-        id: codeboarding-app-token-app
-        if: steps.codeboarding-app-config.outputs.has_client_id != 'true' && steps.codeboarding-app-config.outputs.has_app_id == 'true' && steps.codeboarding-app-config.outputs.private_key_valid == 'true'
-        continue-on-error: true
-        with:
-          app-id: ${{ vars.CODEBOARDING_APP_ID }}
-          private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
-      - name: Require a CodeBoarding App token for the baseline push
-        if: steps.codeboarding-app-token-client.outputs.token == '' && steps.codeboarding-app-token-app.outputs.token == ''
-        shell: bash
-        run: |
-          echo "::error::CodeBoarding GitHub App token is required so the baseline push triggers CodeBoarding-tests. Check CODEBOARDING_APP_CLIENT_ID (or CODEBOARDING_APP_ID) and CODEBOARDING_APP_PRIVATE_KEY formatting."
-          exit 1
       - uses: CodeBoarding/CodeBoarding-action@v1
         with:
           mode: sync
           force_full: ${{ inputs.force_full || false }}
-          # The App token both attributes the commit to CodeBoarding and emits a
-          # push event, which triggers the CodeBoarding-tests workflow.
-          push_token: ${{ steps.codeboarding-app-token-client.outputs.token || steps.codeboarding-app-token-app.outputs.token }}
-          # Desired analysis depth for this repo. Sync is the baseline writer, so
-          # setting it here re-seeds .codeboarding/analysis.json at depth 4 on the
-          # next sync; review then inherits depth 4 from the committed baseline.
-          # Requires anything other than the free tier, which caps depth at 3.
-          depth_level: 4
-          # Named, not inferred: the action requires `llm` and fails rather than falling
-          # back to anything. CodeBoarding's own repositories run on the CodeBoarding
-          # plan, which is also what lifts the free tier's depth cap off `depth_level: 4`.
-          # Both secrets used to be wired here at once and OPENROUTER_API_KEY silently
-          # won, so the plan was never actually spent; this is the deliberate choice.
+          target_branch: 'main'
+          # Your CodeBoarding plan, on CodeBoarding's hosted tier. The run fails with
+          # a message naming this secret if CODEBOARDING_LICENSE is not set.
           llm: license
           license_key: ${{ secrets.CODEBOARDING_LICENSE }}
