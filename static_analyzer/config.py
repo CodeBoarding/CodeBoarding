@@ -4,7 +4,6 @@ This module contains all language and configuration constants used throughout
 the static analyzer to avoid hardcoded strings and ensure consistency.
 """
 
-from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 
 
@@ -139,27 +138,7 @@ LANGUAGE_ID_BY_SUFFIX: dict[str, str] = {
 
 
 class ClusteringConfig:
-    """Configuration constants for graph clustering algorithms.
-
-    These values are based on empirical testing with codebases ranging from
-    100-10,000 nodes. They balance clustering quality with computational efficiency.
-    """
-
-    # Default clustering parameters - chosen to work well for typical codebases (500-2000 nodes)
-    DEFAULT_TARGET_CLUSTERS = 20  # Sweet spot for human comprehension and LLM context
-    DEFAULT_MIN_CLUSTER_SIZE = 2  # Avoid singleton clusters that don't show relationships
-
-    # Quality thresholds for determining "good" clustering
-    MIN_COVERAGE_RATIO = 0.75  # At least 75% of nodes should be in meaningful clusters
-
-    # Display limits
-    MAX_DISPLAY_CLUSTERS = 55  # Maximum clusters to show in output (readability limit)
-
-    # Recursive hierarchy expansion thresholds
-    MIN_METHODS_TO_EXPAND = 30
-    MAX_LEAF_FILES = 12
-    MAX_LEAF_METHODS = 120
-    EXPAND_MODULARITY_THRESHOLD = 0.15
+    """Constants the qualified-name partition and the call graph share."""
 
     # Separator used by every ``LanguageAdapter.build_qualified_name``.
     # A future per-language switch (e.g. Rust to ``::``) would need both a
@@ -167,22 +146,6 @@ class ClusteringConfig:
     # ``.split(".")`` (``language_adapter.extract_package``,
     # ``static_analysis_enricher_mixin.py``, ``diagnose_relations.py``).
     QUALIFIED_NAME_DELIMITER = "."
-
-    # Deterministic seed for clustering algorithms
-    CLUSTERING_SEED = 42
-
-
-@dataclass(frozen=True)
-class GroupingConfig:
-    min_components: int
-    max_components: int
-    seed: int = ClusteringConfig.CLUSTERING_SEED
-    drift_budget: float = 0.10
-    resolutions: tuple[float, ...] = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0)
-
-
-DEFAULT_GROUPING_CONFIG = GroupingConfig(min_components=5, max_components=8)
-SUBCOMPONENT_GROUPING_CONFIG = GroupingConfig(min_components=3, max_components=8)
 
 
 class NodeType(IntEnum):

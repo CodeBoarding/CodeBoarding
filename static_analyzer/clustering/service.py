@@ -7,11 +7,10 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
-from clustering_ids import ROOT_SCOPE_ID, ClusterId, CodeBoardingClusterIds, ComponentId, ScopeId
+from clustering_ids import ROOT_SCOPE_ID, ClusterId, ComponentId, ScopeId
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering.cache import ClusterCache
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
 from static_analyzer.clustering.models import (
     ClusterConnectionEdge,
@@ -36,7 +35,7 @@ from static_analyzer.clustering.names import (
 )
 from static_analyzer.clustering.names.draft import UNPLACED_NAME
 from static_analyzer.clustering.names.spec import UNPLACED
-from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES, Language
+from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
 
 FILE_STRATEGY = "file_leaves"
 """Recorded on a ``ClusterResult`` whose leaves are files: the unit the names partition."""
@@ -81,19 +80,13 @@ class ClusteringService:
         self.grouper: Grouper = grouper if grouper is not None else KinshipGrouper()
         self.spec = TreeSpec(grouper=self.grouper.name)
 
-    def build_full_hierarchy(
-        self,
-        static_analysis: StaticAnalysisResults,
-        max_depth: int,
-        cluster_caches: Mapping[str, ClusterCache] | None = None,
-    ) -> ClusterScopeResult:
+    def build_full_hierarchy(self, static_analysis: StaticAnalysisResults, max_depth: int) -> ClusterScopeResult:
         """Draft the specification from every language's names and materialize the tree."""
         graphs = static_analysis.available_cfgs()
         units = units_from_graphs(graphs)
         self.spec = draft_tree(units, self.grouper, max_depth + 1)
         hierarchy = self._materialize(graphs, units, ROOT_SCOPE_ID, 1, max_depth)
         hierarchy.index_hierarchy()
-        self._record_scopes(static_analysis, hierarchy, cluster_caches)
         return hierarchy
 
     def build_incremental_hierarchy(
@@ -104,7 +97,6 @@ class ClusteringService:
         persisted_scopes: Mapping[ScopeId, Any],
         repo_dir: Path,
         artifact_dir: Path,
-        cluster_caches: Mapping[str, ClusterCache] | None = None,
     ) -> ClusterScopeResult:
         """Replay ``spec`` over the live names; a new scope becomes a new rule, nothing else moves."""
         base = static_analysis.incremental_base_results
@@ -120,17 +112,14 @@ class ClusteringService:
         )
         hierarchy = self._materialize(graphs, units, ROOT_SCOPE_ID, 1, max_depth, baseline=baseline)
         hierarchy.index_hierarchy()
-        self._record_scopes(static_analysis, hierarchy, cluster_caches)
         return hierarchy
 
     def build_scope_hierarchy(
         self,
-        static_analysis: StaticAnalysisResults,
         graphs: Mapping[str, CallGraph],
         max_depth: int,
         root_scope_id: ScopeId,
         spec: TreeSpec,
-        cluster_caches: Mapping[str, ClusterCache] | None = None,
     ) -> ClusterScopeResult:
         """Replay or draft one existing component's scope and the tree below it.
 
@@ -143,7 +132,6 @@ class ClusteringService:
         units = units_from_graphs(graphs)
         hierarchy = self._materialize(graphs, units, root_scope_id, 1, max_depth)
         hierarchy.index_hierarchy()
-        self._record_scopes(static_analysis, hierarchy, cluster_caches)
         return hierarchy
 
     def _materialize(
@@ -268,23 +256,6 @@ class ClusteringService:
             )
             offset += len(partition.clusters)
         return leaves
-
-    @staticmethod
-    def _record_scopes(
-        static_analysis: StaticAnalysisResults,
-        scope: ClusterScopeResult,
-        cluster_caches: Mapping[str, ClusterCache] | None = None,
-    ) -> None:
-        for language, partition in scope.leaf_clusters_by_language.items():
-            cache = (
-                cluster_caches[language]
-                if cluster_caches is not None
-                else static_analysis.get_clusters(Language(language))
-            )
-            cache.record_scope(partition, (), CodeBoardingClusterIds.prefix_for_scope(scope.scope_id))
-        for group in scope.groups:
-            if group.children is not None:
-                ClusteringService._record_scopes(static_analysis, group.children, cluster_caches)
 
     @staticmethod
     def _induced_graphs(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> dict[str, CallGraph]:

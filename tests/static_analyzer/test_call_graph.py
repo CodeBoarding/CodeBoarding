@@ -3,11 +3,8 @@ import unittest
 import networkx as nx
 
 from static_analyzer.config import NodeType
-from static_analyzer.leiden_utils import find_partition
 from static_analyzer.node import Node
 from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS, Edge
-from static_analyzer.clustering import ClusterResult
-from static_analyzer.clustering.service import ClusteringService
 
 
 class TestNode(unittest.TestCase):

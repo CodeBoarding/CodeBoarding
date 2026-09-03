@@ -1,10 +1,8 @@
 """Collapse component scopes that contain exactly one child."""
 
 import logging
-from collections.abc import Sequence
 
 from agents.agent_responses import AnalysisInsights, Relation
-from static_analyzer.clustering import ClusterCache
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +12,11 @@ ROOT_SCOPE = ""
 def absorb_single_child_components(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
-    cluster_caches: Sequence[ClusterCache] = (),
 ) -> list[str]:
     """Collapse all single-child scopes to a fixpoint."""
     absorbed: list[str] = []
     while scopes := single_child_scopes(root_analysis, sub_analyses):
-        absorbed.append(_absorb(scopes[0], root_analysis, sub_analyses, cluster_caches))
+        absorbed.append(_absorb(scopes[0], root_analysis, sub_analyses))
     return absorbed
 
 
@@ -45,7 +42,6 @@ def _absorb(
     parent_id: str,
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
-    cluster_caches: Sequence[ClusterCache] = (),
 ) -> str:
     scope = root_analysis if parent_id == ROOT_SCOPE else sub_analyses[parent_id]
     child = scope.components[0]
@@ -53,12 +49,8 @@ def _absorb(
     grandchildren = sub_analyses.get(child_id)
 
     if grandchildren is None or not grandchildren.components:
-        for cache in cluster_caches:
-            cache.discard_scope(parent_id)
         del sub_analyses[parent_id]
     else:
-        for cache in cluster_caches:
-            cache.reroot_scope(child_id, parent_id)
         scope.components = grandchildren.components
         if parent_id != ROOT_SCOPE:
             scope.components_relations = grandchildren.components_relations

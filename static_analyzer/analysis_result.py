@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from static_analyzer.cfg import CallGraph, CallSiteLocation
-from static_analyzer.clustering import ClusterCache
 from static_analyzer.config import FAMILY_OWNER, SOURCE_EXTENSION_TO_LANGUAGE, Language
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -223,19 +222,6 @@ class StaticAnalysisResults:
         """References by qualified name for *language*, resolving through its family."""
         bucket = self._get_bucket(language)
         return {} if bucket is None else (bucket.references.by_qualified_name or {})
-
-    def get_clusters(self, language: Language) -> ClusterCache:
-        """Return the clustering state for ``language``, creating an empty one if absent.
-
-        Unlike ``get_cfg`` this never raises: an unclustered language has an empty
-        cache, and callers write their partition straight into it.
-        """
-        bucket = self._get_bucket(language)
-        return self._bucket(language).clusters if bucket is None else bucket.clusters
-
-    def set_clusters(self, language: Language, clusters: ClusterCache) -> None:
-        """Replace the clustering state for ``language`` wholesale."""
-        self._bucket(language).clusters = clusters
 
     def available_cfgs(self) -> dict[str, CallGraph]:
         """Return every language CFG that is already present."""

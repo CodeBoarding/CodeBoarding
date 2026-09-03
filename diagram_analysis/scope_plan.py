@@ -15,10 +15,6 @@ from agents.agent_responses import (
 )
 from diagram_analysis.exceptions import IncrementalClusteringError
 from clustering_ids import CodeBoardingClusterIds
-from static_analyzer.clustering.grouping import (
-    combine_cluster_results,
-    group_symbols,
-)
 from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 
 logger = logging.getLogger(__name__)
@@ -46,7 +42,7 @@ def _plan_scope_operations(
     groups: list[ClusterGroup],
     changed_members: set[str],
 ) -> ScopeUpdateDecision:
-    combined = combine_cluster_results(cluster_results)
+    combined = _combine_cluster_results(cluster_results)
     if not combined.clusters:
         still_populated = [
             component.component_id
@@ -152,9 +148,26 @@ def _plan_scope_operations(
     return ScopeUpdateDecision(operations=operations)
 
 
+def _combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> ClusterResult:
+    """Union per-language leaf clusters; their ids are disjoint across languages."""
+    combined = ClusterResult(strategy="combined")
+    for result in cluster_results.values():
+        combined.clusters.update(result.clusters)
+        combined.cluster_to_files.update(result.cluster_to_files)
+        for file_path, cluster_ids in result.file_to_clusters.items():
+            combined.file_to_clusters.setdefault(file_path, set()).update(cluster_ids)
+    return combined
+
+
+def _group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> list[str]:
+    """Qualified names in a group, most top-level first (fewest name segments)."""
+    names = {qname for cid in cluster_ids for qname in node_lookup.get(cid, set())}
+    return sorted(names, key=lambda qname: (qname.count("."), qname))
+
+
 def _provisional_name(group: set[int], combined: ClusterResult) -> str:
     """A stable placeholder for a component the LLM has not named yet."""
-    symbols = group_symbols(sorted(group), combined.clusters)
+    symbols = _group_symbols(sorted(group), combined.clusters)
     return symbols[0].split(".")[-1] if symbols else "New Component"
 
 
@@ -167,7 +180,7 @@ def _provisional_description(group: set[int], combined: ClusterResult) -> str:
     the code it owns rather than nothing.
     """
     files = sorted({path for cluster_id in group for path in combined.cluster_to_files.get(cluster_id, set())})
-    symbols = group_symbols(sorted(group), combined.clusters)
+    symbols = _group_symbols(sorted(group), combined.clusters)
     if not files and not symbols:
         return "New component with no resolved source files."
     named = ", ".join(symbols[:3])

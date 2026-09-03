@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 import logging
 
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering import ClusterCache
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -161,7 +160,6 @@ class LanguageResults:
     references: References = field(default_factory=References)
     dependencies: PackageDependencies = field(default_factory=PackageDependencies)
     source_files: SourceFiles = field(default_factory=SourceFiles)
-    clusters: ClusterCache = field(default_factory=ClusterCache)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         self.cfg.visit_paths(fn)
@@ -169,4 +167,3 @@ class LanguageResults:
         self.references.visit_paths(fn)
         self.dependencies.visit_paths(fn)
         self.source_files.visit_paths(fn)
-        self.clusters.visit_paths(fn)

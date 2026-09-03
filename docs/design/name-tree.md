@@ -265,8 +265,10 @@ perfect grouping) is the planner's to reach.
    the id the spec allocated. The service tests of the old internals go with the internals;
    the modules they exercised stay until the next PR. Companion `CodeBoarding-tests` branch of
    the same name.
-3. **`feat/name-tree-cleanup`.** Everything in §6 marked delete, the pickle tag bump, the
-   dependency removal, and the tests that only exercised the deleted code.
+3. **`feat/name-tree-cleanup`.** Everything in §6 marked delete, the pickle tag bump to v7
+   (the pickle no longer carries cluster lineage), the removal of `igraph` and `leidenalg`,
+   and the tests that only exercised the deleted code. `ClusteringService` no longer takes or
+   records cluster caches; `absorb_single_child_components` no longer reroots them.
 
 ## 10. Open items
 

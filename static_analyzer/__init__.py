@@ -814,8 +814,7 @@ class StaticAnalyzer:
         Per language: determine the changed-file list, hand it to
         ``update_cfg_for_changed_files`` along with the language's portion of the
         cached state, and put the merged result back into a fresh
-        ``StaticAnalysisResults``. The cached ``ClusterCache`` is grafted on either
-        way, so a language that fell back to a full re-LSP still leaves a baseline.
+        ``StaticAnalysisResults``.
 
         Changed-file source: ``self.changed_files`` when set at construction
         (git-free — e.g. the wrapper's fingerprint diff), else ``git diff`` via
@@ -841,14 +840,6 @@ class StaticAnalyzer:
                 )
 
             self._absorb_into_results(results, language, analysis)
-            # Both branches, including the full re-LSP: the partition describes cached_sha,
-            # which stays a valid delta baseline however the graph was rebuilt. select()
-            # drops whatever the re-LSP no longer has.
-            try:
-                surviving = results.get_cfg(language).nodes
-            except ValueError:
-                surviving = {}
-            results.set_clusters(language, cached_results.get_clusters(language).select(surviving))
             self._collect_diagnostics_for(adapter, engine_client, analysis)
             track_lsp_result(
                 language=adapter.language_enum.value,
