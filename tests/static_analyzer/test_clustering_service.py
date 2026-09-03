@@ -129,6 +129,16 @@ class TestFullHierarchy(unittest.TestCase):
             len({node.file_path for name, node in self.graph.nodes.items() if name.startswith("Order")}),
         )
 
+    def test_a_child_scope_replays_over_the_units_its_parent_placed_data_only_files_included(self):
+        ordering = self.hierarchy.groups[0]
+        assert ordering.children is not None
+        consts = next(
+            cluster_id
+            for cluster_id, files in ordering.children.leaf_clusters_by_language["csharp"].cluster_to_files.items()
+            if any(path.endswith("consts.cs") for path in files)
+        )
+        self.assertIn(consts, [cluster_id for group in ordering.children.groups for cluster_id in group.cluster_ids])
+
     def test_children_follow_the_ladder_and_expandable_is_a_decision(self):
         ordering, catalog = self.hierarchy.groups[0], self.hierarchy.groups[1]
         self.assertTrue(ordering.expandable)
@@ -247,6 +257,20 @@ class TestIncrementalHierarchy(unittest.TestCase):
         self.assertTrue(hierarchy_differs(hierarchy, self.persisted))
         self.assertIsNone(scope_of(service.spec, ROOT_SCOPE_ID).rule("5"))
         self.assertNotIn("5", service.spec.scopes)
+
+    def test_the_scopes_the_baseline_never_reached_are_drafted_by_the_grouper_that_drew_it(self):
+        spec = TreeSpec.from_dict(self.spec.to_dict() | {"grouper": "kinship"})
+        analysis = analysis_for(graph("csharp", self.layout))
+        analysis.incremental_base_results = analysis_for(graph("csharp", self.layout))
+        service = ClusteringService()
+        service.build_incremental_hierarchy(analysis, 2, spec, self.persisted, REPO, REPO)
+        self.assertEqual(service.grouper.name, "kinship")
+
+    def test_a_baseline_without_a_call_graph_cannot_be_built_on(self):
+        analysis = analysis_for(graph("csharp", self.layout))
+        analysis.incremental_base_results = StaticAnalysisResults()
+        with self.assertRaisesRegex(IncrementalCacheMissingError, "call graph"):
+            ClusteringService().build_incremental_hierarchy(analysis, 2, self.spec, self.persisted, REPO, REPO)
 
     def test_a_new_directory_in_a_scope_drawn_from_words_is_still_a_new_component(self):
         """No rule owns a prefix here, so the new files must be keyed by where they leave the old units."""

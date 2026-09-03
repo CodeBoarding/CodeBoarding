@@ -6,13 +6,15 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate
 
-from agents.agent import CodeBoardingAgent
+from agents.agent import CodeBoardingAgent, _raise_if_auth_error
+from agents.llm_errors import LLMAuthError
 from agents.agent_responses import PlannedGroup, TreePlanInsights
 from agents.llm_config import MONITORING_CALLBACK, supports_json_mode
 from agents.prompts import get_tree_plan_message
@@ -101,16 +103,25 @@ class TreePlannerAgent(CodeBoardingAgent):
 
     def _draw(self, prompt: str, labelled: dict[str, CandidateGroup]) -> list[TreePlanInsights]:
         """``draws`` answers to one prompt, drawn concurrently; a draw that fails is dropped."""
-        with ThreadPoolExecutor(max_workers=self.draws) as pool:
-            futures = [pool.submit(self._ask, prompt, labelled) for _ in range(self.draws)]
-            answers = []
+        # Not ``with``: its ``__exit__`` waits for a stalled draw; a copied context carries the
+        # monitoring step into each worker.
+        pool = ThreadPoolExecutor(max_workers=self.draws)
+        answers: list[TreePlanInsights] = []
+        failures: list[Exception] = []
+        try:
+            futures = [pool.submit(copy_context().run, self._ask, prompt, labelled) for _ in range(self.draws)]
             for future in futures:
                 try:
                     answers.append(future.result(timeout=DRAW_TIMEOUT_SECONDS))
+                except LLMAuthError:
+                    raise
                 except Exception as exc:
+                    failures.append(exc)
                     logger.warning("[Planner] draw failed: %s", exc)
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
         if not answers:
-            raise RuntimeError("the planner got no answer from the model")
+            raise RuntimeError("the planner got no answer from the model") from failures[-1]
         return answers
 
     def _ask(self, prompt: str, labelled: dict[str, CandidateGroup]) -> TreePlanInsights:
@@ -123,7 +134,8 @@ class TreePlannerAgent(CodeBoardingAgent):
             insights = self._read(text, labelled)
             return insights if insights is not None else self._parse_response(prompt, text, TreePlanInsights)
 
-        def classify(_exc: Exception, attempt: int) -> RetryDecision:
+        def classify(exc: Exception, attempt: int) -> RetryDecision:
+            _raise_if_auth_error(exc)
             return RetryDecision(
                 action=RetryAction.RETRY, backoff_s=default_backoff(attempt, initial_s=10.0, multiplier=2.0, max_s=60.0)
             )
@@ -205,14 +217,17 @@ class TreePlannerAgent(CodeBoardingAgent):
             if members:
                 taken.update(members)
                 members_of.append((planned, members))
-        stems_of = [_stems(labelled, members, context) for _, members in members_of]
+        stems_of = {label: _stems(labelled, [label], context) for label in labelled}
         folded: list[CandidateGroup] = []
-        for index, (planned, members) in enumerate(members_of):
-            elsewhere = set().union(*(stems for other, stems in enumerate(stems_of) if other != index))
+        for planned, members in members_of:
+            # Exclusive against every label, the forgotten ones included: a word shared with a
+            # box the model left alone would still move that box's files.
+            own = set().union(*(stems_of[label] for label in members))
+            elsewhere = set().union(*(stems_of[label] for label in labelled if label not in members))
             owns = [
                 word
                 for word in dict.fromkeys(word.strip().casefold() for word in planned.owns)
-                if tokenize(word) == (word,) and stem(word) == word and word in stems_of[index] - elsewhere
+                if tokenize(word) == (word,) and stem(word) == word and word in own - elsewhere
             ][:MAX_OWNS]
             folded.append(
                 CandidateGroup(

@@ -146,6 +146,22 @@ class TestTreePlannerAgent(unittest.TestCase):
         for word in ("Apple", "service", "feature", "stream", "a b", "client"):
             self.assertNotIn(word, groups[0].terms + groups[1].terms)
 
+    def test_a_word_shared_with_a_forgotten_label_is_not_owned(self):
+        items = candidates(BUDGET + 2)
+        ctx = context(items)
+        shared = {key: samples + ("SharedThing",) for key, samples in ctx.samples.items()}
+        ctx = GroupingContext(ctx.scope_id, ctx.role_words, ctx.unit_count, ctx.rung, ctx.sizes, shared)
+        planned = TreePlanInsights(
+            groups=[
+                PlannedGroup(name="Most", members=[f"G{i}" for i in range(1, BUDGET + 2)], owns=["shared", "apple"])
+            ]
+        )
+        with patch.object(TreePlannerAgent, "_ask", return_value=planned):
+            groups = self._agent().group(items, ctx)
+        most = next(group for group in groups if group.name == "Most")
+        self.assertNotIn("shared", most.terms, "the forgotten last label carries the word too")
+        self.assertIn("apple", most.terms)
+
     def test_the_answer_is_read_from_json_with_names_as_labels(self):
         items = candidates(BUDGET + 1)
         labelled = {f"G{i + 1}": MagicMock(name=c.label) for i, c in enumerate(items)}

@@ -34,7 +34,7 @@ class Partition:
     unplaced: list[Unit] = field(default_factory=list)
     """Units no rule claimed, whether or not the scope has a bucket to draw them in."""
     new_scopes: dict[Prefix, list[Unit]] = field(default_factory=dict)
-    """Units no prefix claimed, whether a word, a fallback or nothing placed them, by the
+    """Units no named prefix claimed, whether a word, a fallback or nothing placed them, by the
     prefix at which their position leaves every prefix a rule owns. A group of two or more
     whose units are all new to the analysis is a new scope; a group under a prefix some rule
     already falls back to is that rule's residue. Why words do not exempt a unit: a new
@@ -54,11 +54,14 @@ def replay(units: Iterable[Unit], scope: ScopeSpec, role_words: frozenset[str]) 
     for rule in components:
         for term in rule.terms:
             owner_by_term.setdefault(term, rule.component_id)
-    known = {prefix for prefix, _ in primary}
+    # An empty prefix (a root drawn as one box) claims every position; it must not hide the
+    # directories added after it, so only a named prefix settles a unit.
+    named = [(prefix, component_id) for prefix, component_id in primary if prefix]
+    known = {prefix for prefix, _ in named}
     bucket = scope.unplaced_rule
     for unit in units:
         component_id, how = _place(unit, primary, fallback, owner_by_term, rank, role_words)
-        if how != PREFIX:
+        if how != PREFIX or _longest_match(unit.position, named) is None:
             partition.new_scopes.setdefault(divergence(unit.position, known), []).append(unit)
         if component_id is None:
             partition.unplaced.append(unit)

@@ -420,6 +420,18 @@ class TestAffinityGrouper:
         assert next(group.terms for group in folded if group.name == "Ordering") == ("order",)
 
 
+class TestGroupingContractErrors:
+    def test_an_empty_group_is_refused_like_a_missing_key(self):
+        class Empty:
+            name = "empty"
+
+            def group(self, candidates, context):
+                return [CandidateGroup("all", tuple(c.key for c in candidates)), CandidateGroup("none", ())]
+
+        with pytest.raises(ValueError, match="empty=\\['none'\\]"):
+            draft_tree(units_from_layout(eshop(), "csharp"), Empty(), 1)
+
+
 class TestDeterminism:
     def test_the_same_names_draft_the_same_tree(self):
         units = units_from_layout(eshop(), "csharp")

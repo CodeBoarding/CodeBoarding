@@ -95,8 +95,9 @@ def _visit(
         return
     ubiquitous = ubiquitous_words(name for name, _ in children)
     stepped = {name for name, child in children if _stepped_through(name, child, node)}
-    role_units = sum(child.count for name, child in children if is_role_named(name, role_words, ubiquitous))
-    if not stepped and len(children) >= MIN_LAYERS and node.count and role_units / node.count >= ROLE_SHARE:
+    layers = [child for name, child in children if is_role_named(name, role_words, ubiquitous)]
+    role_units = sum(layer.count for layer in layers)
+    if not stepped and len(layers) >= MIN_LAYERS and node.count and role_units / node.count >= ROLE_SHARE:
         _layered(node, ubiquitous, role_words, out, transpose, top=top)
         return
     if top:
@@ -116,17 +117,17 @@ def _visit(
             continue
         child_names = sorted(child.children)
         child_ubiquitous = ubiquitous_words(child_names)
-        child_role_units = sum(
-            grandchild.count
+        child_layers = [
+            grandchild
             for grandchild_name, grandchild in child.children.items()
             if is_role_named(grandchild_name, role_words, child_ubiquitous)
-        )
-        child_role_share = child_role_units / child.count if child.count else 1.0
+        ]
+        child_role_share = sum(layer.count for layer in child_layers) / child.count if child.count else 1.0
         dominant = total > 0 and child.count / total >= share
         if dominant and child_names and child_role_share < ROLE_SHARE:
             out.notes.append(f"opened {_dotted(child.path)} ({child.count} units)")
             _visit(child, total, role_words, share, out, transpose)
-        elif dominant and len(child_names) >= MIN_LAYERS and child_role_share >= ROLE_SHARE:
+        elif dominant and len(child_layers) >= MIN_LAYERS and child_role_share >= ROLE_SHARE:
             _layered(child, child_ubiquitous, role_words, out, transpose)
         else:
             out.candidates.append(_box(child))
@@ -153,7 +154,14 @@ def _layered(
     """A node whose children are layers: transpose onto the features recurring under two of
     them, else draw the layers, the only structure there is."""
     layers = sorted(node.children.items())
-    ubiquitous = ubiquitous | ubiquitous_words(name for _, layer in layers for name in layer.children)
+    while True:
+        # The product's name may sit on the feature directories themselves, behind the layers'
+        # role-named containers; widen until no more of them read as ubiquitous.
+        found = [name for _, layer in layers for name, _ in _feature_directories(layer, role_words, ubiquitous)]
+        widened = ubiquitous | ubiquitous_words(found)
+        if widened == ubiquitous:
+            break
+        ubiquitous = widened
     layers_by_feature: dict[str, set[str]] = {}
     display: dict[str, str] = {}
     for layer_name, layer in layers:
@@ -183,7 +191,10 @@ def _layered(
     out.notes.append(f"transposed {_dotted(node.path) or '<root>'} onto {', '.join(features)}")
     prefixes_by_feature: dict[str, list[Prefix]] = {feature: [] for feature in features}
     for _, layer in layers:
-        _collect_feature_prefixes(layer, set(features), role_words, ubiquitous, prefixes_by_feature)
+        for name, child in _feature_directories(layer, role_words, ubiquitous):
+            feature = _feature_stem(name, role_words, ubiquitous)
+            if feature in prefixes_by_feature:
+                prefixes_by_feature[feature].append(child.path)
     for feature in features:
         out.candidates.append(
             Candidate(
@@ -210,7 +221,11 @@ def _layered(
 def _feature_directories(
     node: TrieNode, role_words: frozenset[str], ubiquitous: frozenset[str]
 ) -> list[tuple[str, TrieNode]]:
-    """The shallowest feature-named directories under a layer, looking through its role-named ones."""
+    """The shallowest feature-named directories under a layer, looking through its role-named ones.
+
+    Why the walk stops there: a feature nested inside another (``Billing.Orders``) belongs to the
+    outer one, whatever the inner name recurs with elsewhere.
+    """
     found: list[tuple[str, TrieNode]] = []
     for name, child in sorted(node.children.items()):
         if is_role_named(name, role_words, ubiquitous):
@@ -218,22 +233,6 @@ def _feature_directories(
         else:
             found.append((name, child))
     return found
-
-
-def _collect_feature_prefixes(
-    node: TrieNode,
-    features: set[str],
-    role_words: frozenset[str],
-    ubiquitous: frozenset[str],
-    prefixes_by_feature: dict[str, list[Prefix]],
-) -> None:
-    """The shallowest node under a layer whose first word is a feature keys its subtree."""
-    for name, child in sorted(node.children.items()):
-        feature = _feature_stem(name, role_words, ubiquitous)
-        if not is_role_named(name, role_words, ubiquitous) and feature in features:
-            prefixes_by_feature[feature].append(child.path)
-            continue
-        _collect_feature_prefixes(child, features, role_words, ubiquitous, prefixes_by_feature)
 
 
 def _box(node: TrieNode) -> Candidate:

@@ -56,6 +56,20 @@ class TestTreeSpecReroot:
         assert [rule.component_id for rule in spec.scopes["1"].rules] == ["1.1", "1.2"]
         assert spec.scopes["2"].is_leaf
 
+    def test_a_retired_sibling_of_the_absorbed_child_is_dropped(self):
+        spec = TreeSpec(
+            scopes={
+                ROOT_SCOPE_ID: ScopeSpec(ROOT_SCOPE_ID, [ComponentRule("1", "Only")]),
+                "1": ScopeSpec("1", [ComponentRule("1.1", "A")], last_id=2),
+                "1.1": ScopeSpec("1.1", [ComponentRule("1.1.1", "AA"), ComponentRule("1.1.2", "AB")]),
+                "1.2": ScopeSpec("1.2", rung="leaf", leaf_reason="retired"),
+                "2": ScopeSpec("2", rung="leaf"),
+            }
+        )
+        spec.reroot(["1.1"])
+        assert set(spec.scopes) == {ROOT_SCOPE_ID, "1", "2"}
+        assert [rule.component_id for rule in spec.scopes["1"].rules] == ["1.1", "1.2"]
+
     def test_a_child_never_drafted_changes_nothing(self):
         spec = TreeSpec(scopes={ROOT_SCOPE_ID: ScopeSpec(ROOT_SCOPE_ID, [ComponentRule("1", "Only")])})
         spec.reroot(["1"])
@@ -63,6 +77,13 @@ class TestTreeSpecReroot:
 
 
 class TestScopeSpec:
+    def test_a_retired_id_is_never_reissued_even_after_a_round_trip(self):
+        scope = ScopeSpec("root", [ComponentRule("1", "A"), ComponentRule("2", "B"), ComponentRule("3", "C")])
+        assert scope.next_id() == "4"
+        scope.rules = scope.rules[:2]
+        scope = ScopeSpec.from_dict("root", scope.to_dict())
+        assert scope.next_id() == "5"
+
     def test_next_id_is_fresh_never_a_refilled_gap(self):
         scope = ScopeSpec("2", [ComponentRule("2.1", "a"), ComponentRule("2.3", "b")])
         assert scope.next_id() == "2.4"

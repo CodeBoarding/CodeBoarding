@@ -1,13 +1,4 @@
-"""The ladder: how a scope's rules are drafted one rung at a time, and where it stops.
-
-The root reads the frontier of its trie, then its units' words if that gave one box. A
-component splits back into the candidates that were grouped into it; from ``NEST_FLOOR``
-units it goes on to the frontier of its own sub-trie, and above ``LEAF_CAP`` it also draws a
-layered sub-tree layer by layer and then reads its units' words. A rung counts when at least
-two children each clear the guard; a scope no rung can split is a leaf that says why. Every
-rung is candidates in, rules out: ``replay`` places the units, at draft time as on every
-later run.
-"""
+"""The ladder: a scope's rules drafted one rung at a time, the grouper its one judgement."""
 
 from __future__ import annotations
 
@@ -161,6 +152,7 @@ class AffinityGrouper:
             for other in range(len(members)):
                 links[target][other] += links[source][other]
                 links[other][target] += links[other][source]
+                links[source][other] = links[other][source] = 0
             links[target][target] = 0
             members[source] = []
         by_key = {candidate.key: candidate for candidate in candidates}
@@ -194,6 +186,13 @@ class AffinityGrouper:
             if best is not None:
                 return source, -best[2]
         return None
+
+
+DETERMINISTIC_GROUPERS: dict[str, type[Grouper]] = {
+    KinshipGrouper.name: KinshipGrouper,
+    AffinityGrouper.name: AffinityGrouper,
+}
+"""The groupers a run can construct without a model, by the name a specification records."""
 
 
 def candidate_name(candidate: Candidate) -> str:
@@ -421,9 +420,11 @@ def _rules_from_groups(groups: list[CandidateGroup], candidates: Sequence[Candid
     missing = sorted(set(by_key) - set(seen))
     unknown = sorted(set(seen) - set(by_key))
     repeated = sorted(key for key, count in seen.items() if count > 1)
-    if missing or unknown or repeated:
+    empty = [group.name for group in groups if not group.keys]
+    if missing or unknown or repeated or empty:
         raise ValueError(
-            f"grouping must cover every candidate once: missing={missing} unknown={unknown} repeated={repeated}"
+            "grouping must cover every candidate once and name no empty group: "
+            f"missing={missing} unknown={unknown} repeated={repeated} empty={empty}"
         )
     rules: list[ComponentRule] = []
     for group in groups:

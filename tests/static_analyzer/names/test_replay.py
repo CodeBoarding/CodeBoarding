@@ -117,6 +117,14 @@ class TestNewScopes:
         assert result.assignment["s0"] == "2"
         assert [u.unit_id for u in result.new_scopes[("Shipping",)]] == ["s0"]
 
+    def test_a_root_drawn_as_one_box_does_not_hide_the_directories_added_after_it(self):
+        everything = ComponentRule("1", "All files", prefixes=((),))
+        result = replay(
+            [unit("s0", "Shipping.Ship.Run()"), unit("s1", "Shipping.Dock.Run()")], scope(everything), ROLE_WORDS
+        )
+        assert result.assignment == {"s0": "1", "s1": "1"}
+        assert [u.unit_id for u in result.new_scopes[("Shipping",)]] == ["s0", "s1"]
+
     def test_a_unit_a_prefix_claims_is_not_a_new_scope(self):
         result = replay(
             [unit("f", "Catalog.API.Item"), unit("g", "OrderProcessor.Totals")],
