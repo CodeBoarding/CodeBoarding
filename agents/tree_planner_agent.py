@@ -17,8 +17,7 @@ from agents.agent import CodeBoardingAgent, _raise_if_auth_error
 from agents.llm_errors import LLMAuthError
 from agents.agent_responses import PlannedGroup, TreePlanInsights
 from agents.llm_config import MONITORING_CALLBACK, supports_json_mode
-from agents.prompts import get_tree_plan_message
-from agents.prompts.abstract_prompt_factory import TREE_PLAN_SYSTEM_MESSAGE
+from agents.prompts import TREE_PLAN_SYSTEM_MESSAGE, get_tree_plan_message
 from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults

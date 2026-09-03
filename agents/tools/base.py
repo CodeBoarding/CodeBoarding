@@ -20,7 +20,6 @@ class RepoContext(BaseModel):
     static_analysis: Optional[StaticAnalysisResults] = None
     changes: ChangeSet | None = None
     clustering: ClusterScopeResult = Field(default_factory=lambda: ClusterScopeResult(scope_id=""))
-    group_ids_by_name: dict[str, str] = Field(default_factory=dict)
     cluster_results: dict[str, ClusterResult] = Field(default_factory=dict)
     cfg_graphs: dict[str, CallGraph] = Field(default_factory=dict)
     # Shared caches to prevent redundant filesystem walks

@@ -27,7 +27,7 @@ def should_expand_component(
     Args:
         component: The component to evaluate
         parent_had_clusters: Whether the parent component had source_cluster_ids.
-                            True for top-level components (from AbstractionAgent).
+                            True for top-level deterministic components.
         min_files: Minimum number of assigned files required (default: 1)
 
     Returns:

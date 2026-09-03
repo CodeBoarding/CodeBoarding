@@ -13,7 +13,6 @@ from langchain_openai import ChatOpenAI
 
 from agents.constants import LLMDefaults, ModelCapabilities
 from agents.model_capabilities import ContextWindow, get_context_window
-from agents.prompts.prompt_factory import LLMType, initialize_global_factory
 from monitoring.callbacks import MonitoringCallback
 
 # Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
@@ -100,14 +99,12 @@ class LLMConfig:
                           which is crucial for code understanding and reasoning.
         parsing_temperature: Temperature for the parsing model. Defaults to 0 for deterministic behavior
                           which is crucial for structured output extraction.
-        llm_type: The LLMType enum value for prompt factory selection.
     """
 
     chat_class: Type[BaseChatModel]
     selection_envs: list[str]
     agent_model: str
     parsing_model: str
-    llm_type: LLMType
     agent_temperature: float = LLMDefaults.DEFAULT_AGENT_TEMPERATURE
     parsing_temperature: float = LLMDefaults.DEFAULT_PARSING_TEMPERATURE
     extra_args: dict[str, Any] = field(default_factory=dict)
@@ -159,7 +156,6 @@ LLM_PROVIDERS = {
         api_key_env="OPENAI_API_KEY",
         agent_model="gpt-4o",
         parsing_model="gpt-4o-mini",
-        llm_type=LLMType.GPT4,
         keyless_capable=True,
         base_url_env="OPENAI_BASE_URL",
         extra_args={
@@ -174,7 +170,6 @@ LLM_PROVIDERS = {
         api_key_env="VERCEL_API_KEY",
         agent_model="google/gemini-3.8-flash",
         parsing_model="google/gemini-3.5-flash-lite",
-        llm_type=LLMType.GEMINI_FLASH,
         base_url_env="VERCEL_BASE_URL",
         default_base_url="https://ai-gateway.vercel.sh/v1",
         extra_args={
@@ -189,7 +184,6 @@ LLM_PROVIDERS = {
         api_key_env="ANTHROPIC_API_KEY",
         agent_model="claude-sonnet-5",
         parsing_model="claude-haiku-4-5",
-        llm_type=LLMType.CLAUDE,
         base_url_env="ANTHROPIC_BASE_URL",
         extra_args={
             "thinking": {"type": "disabled"},
@@ -204,7 +198,6 @@ LLM_PROVIDERS = {
         api_key_env="GOOGLE_API_KEY",
         agent_model="gemini-3.8-flash",
         parsing_model="gemini-3.5-flash-lite",
-        llm_type=LLMType.GEMINI_FLASH,
         extra_args={
             "max_tokens": None,
             "timeout": None,
@@ -217,7 +210,6 @@ LLM_PROVIDERS = {
         selection_envs=["AWS_BEARER_TOKEN_BEDROCK"],
         agent_model="anthropic.claude-sonnet-4-6",
         parsing_model="claude-haiku-4-5",
-        llm_type=LLMType.CLAUDE_SONNET,
         extra_args={
             "max_tokens": 4096,
             "region_name": lambda: os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
@@ -230,7 +222,6 @@ LLM_PROVIDERS = {
         api_key_env="CEREBRAS_API_KEY",
         agent_model="zai-glm-4.7",
         parsing_model="gpt-oss-120b",
-        llm_type=LLMType.KIMI,
         extra_args={
             "max_tokens": None,
             "timeout": None,
@@ -246,7 +237,6 @@ LLM_PROVIDERS = {
         keyless_capable=True,
         agent_model="qwen3:30b",
         parsing_model="qwen2.5:7b",
-        llm_type=LLMType.GEMINI_FLASH,
         agent_temperature=LLMDefaults.DEFAULT_AGENT_TEMPERATURE,
         parsing_temperature=LLMDefaults.DEFAULT_PARSING_TEMPERATURE,
         base_url_env="OLLAMA_BASE_URL",
@@ -257,7 +247,6 @@ LLM_PROVIDERS = {
         api_key_env="DEEPSEEK_API_KEY",
         agent_model="deepseek-v4-flash",
         parsing_model="deepseek-v4-flash",
-        llm_type=LLMType.DEEPSEEK,
         base_url_env="DEEPSEEK_BASE_URL",
         default_base_url="https://api.deepseek.com/v1",
         extra_args={
@@ -272,7 +261,6 @@ LLM_PROVIDERS = {
         api_key_env="GLM_API_KEY",
         agent_model="glm-4.7-flash",
         parsing_model="glm-4.7-flash",
-        llm_type=LLMType.GLM,
         base_url_env="GLM_BASE_URL",
         default_base_url="https://open.bigmodel.cn/api/paas/v4",
         extra_args={
@@ -287,7 +275,6 @@ LLM_PROVIDERS = {
         api_key_env="KIMI_API_KEY",
         agent_model="kimi-k2.6",
         parsing_model="kimi-k2.6",
-        llm_type=LLMType.KIMI,
         base_url_env="KIMI_BASE_URL",
         default_base_url="https://api.moonshot.cn/v1",
         extra_args={
@@ -302,7 +289,6 @@ LLM_PROVIDERS = {
         api_key_env="OPENROUTER_API_KEY",
         agent_model="google/gemini-3.8-flash",
         parsing_model="google/gemini-3.5-flash-lite",
-        llm_type=LLMType.GEMINI_FLASH,
         base_url_env="OPENROUTER_BASE_URL",
         default_base_url="https://openrouter.ai/api/v1",
         extra_args={
@@ -317,7 +303,6 @@ LLM_PROVIDERS = {
         api_key_env="ORCAROUTER_API_KEY",
         agent_model="openai/gpt-5.4-mini",
         parsing_model="openai/gpt-5.4-mini",
-        llm_type=LLMType.GPT4,
         base_url_env="ORCAROUTER_BASE_URL",
         default_base_url="https://api.orcarouter.ai/v1",
         extra_args={
@@ -334,7 +319,6 @@ LLM_PROVIDERS = {
         api_key_env="LITELLM_API_KEY",
         agent_model="gpt-4o",
         parsing_model="gpt-4o-mini",
-        llm_type=LLMType.GPT4,
         keyless_capable=True,
         base_url_env="LITELLM_BASE_URL",
         extra_args={
@@ -379,7 +363,6 @@ def _initialize_llm(
     model_attr: str,
     temperature_attr: str,
     log_prefix: str,
-    init_factory: bool = False,
 ) -> tuple[BaseChatModel, str]:
     resolved = _resolve_selected_provider(model_override, model_attr)
     if resolved is None:
@@ -387,14 +370,6 @@ def _initialize_llm(
         raise ValueError(" ".join([message, *_unselected_key_hints()]))
 
     name, config, model_name = resolved
-
-    if init_factory:
-        detected_llm_type = LLMType.from_model_name(model_name)
-        initialize_global_factory(detected_llm_type)
-        logger.info(
-            f"Initialized prompt factory for {name} provider with model '{model_name}' "
-            f"-> {detected_llm_type.value} prompt factory"
-        )
 
     logger.info(f"Using {name.title()} {log_prefix}LLM with model: {model_name}")
 
@@ -469,7 +444,7 @@ def validate_api_key_provided() -> None:
 
 
 def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
-    model, model_name = _initialize_llm(model_override, "agent_model", "agent_temperature", "", init_factory=True)
+    model, model_name = _initialize_llm(model_override, "agent_model", "agent_temperature", "")
     MONITORING_CALLBACK.model_name = model_name
     return model
 

@@ -38,9 +38,9 @@ ANALYSIS_KEY_ENTITIES: list[tuple[str, str]] = [
     ("agents.dependency_discovery.DependencyDiscovery", "agents/dependency_discovery.py"),
     ("agents.tools.read_cfg.ReadCFG", "agents/tools/read_cfg.py"),
     ("static_analyzer.clustering.names.spec.TreeSpec", "static_analyzer/clustering/names/spec.py"),
-    ("agents.abstraction_agent.AbstractionAgent", "agents/abstraction_agent.py"),
+    ("diagram_analysis.scope_assembly.ScopeAssembler", "diagram_analysis/scope_assembly.py"),
     ("agents.meta_agent.MetaAgent", "agents/meta_agent.py"),
-    ("agents.validation.ValidationContext", "agents/validation.py"),
+    ("agents.validation.ValidationResult", "agents/validation.py"),
     ("diagram_analysis.analysis_json.UnifiedAnalysisJson", "diagram_analysis/analysis_json.py"),
     ("diagram_analysis.diagram_generator.DiagramGenerator", "diagram_analysis/diagram_generator.py"),
     ("diagram_analysis.manifest.Manifest", "diagram_analysis/manifest.py"),
@@ -177,8 +177,8 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
 
     def test_loose_match_resolves(self):
         """Loose match should work when exact match fails."""
-        qname = "agents.abstraction_agent.AbstractionAgent"
-        expected_file = "agents/abstraction_agent.py"
+        qname = "diagram_analysis.scope_assembly.ScopeAssembler"
+        expected_file = "diagram_analysis/scope_assembly.py"
         node = _make_node(self.tmp, qname, expected_file)
 
         self.sa.get_reference.side_effect = ValueError("not found")
@@ -376,9 +376,9 @@ class TestMultiComponentAnalysis(unittest.TestCase):
                 ),
             ],
             "AI Agentic Layer": [
-                ("agents.abstraction_agent.AbstractionAgent", "agents/abstraction_agent.py"),
+                ("diagram_analysis.scope_assembly.ScopeAssembler", "diagram_analysis/scope_assembly.py"),
                 ("agents.meta_agent.MetaAgent", "agents/meta_agent.py"),
-                ("agents.validation.ValidationContext", "agents/validation.py"),
+                ("agents.validation.ValidationResult", "agents/validation.py"),
             ],
             "Output & Visualization Engine": [
                 ("diagram_analysis.analysis_json.UnifiedAnalysisJson", "diagram_analysis/analysis_json.py"),

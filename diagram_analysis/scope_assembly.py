@@ -1,13 +1,12 @@
-"""Apply deterministic static-analysis scope data to LLM analysis models."""
+"""Build diagram scopes from deterministic clustering results."""
 
 import logging
 from collections.abc import Callable
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Component, ComponentArchitecture, Relation, RelationEdge
+from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge
 from agents.component_ownership import ComponentOwnershipIndex
 from agents.content_hash import SourceCache
-from agents.llm_renderers import cluster_group_descriptions, cluster_group_ids
 from agents.relation_edges import (
     append_or_merge_relation,
     drop_internal_self_relations,
@@ -16,62 +15,51 @@ from agents.relation_edges import (
     ground_relation_edges,
     prune_ungrounded_edges,
 )
+from agents.scope_ids import ROOT_SCOPE_ID
 from clustering_ids import CodeBoardingClusterIds
 from constants import DEFAULT_STATIC_RELATION_LABEL
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
+from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.cfg import Edge
-from static_analyzer.clustering import ClusterScopeResult, GroupConnection
+from static_analyzer.clustering import ClusterGroup, ClusterScopeResult, GroupConnection
 
 logger = logging.getLogger(__name__)
 
 
-class StaticAnalysisEnricherMixin:
-    """Enrich LLM output from one authoritative clustering scope."""
+class ScopeAssembler:
+    """Materialize authoritative component membership and static relations."""
 
-    repo_dir: Path
+    def __init__(self, repo_dir: Path) -> None:
+        self.repo_dir = repo_dir
 
-    @staticmethod
-    def assemble_one_component_per_group(
-        architecture: ComponentArchitecture,
-        scope: ClusterScopeResult,
-    ) -> None:
-        """Reconcile LLM metadata to exactly one component per fixed group."""
-        rendered_group_ids = cluster_group_ids(scope.groups)
-        descriptions = cluster_group_descriptions(scope)
+    def build(self, scope: ClusterScopeResult) -> AnalysisInsights:
+        """Build a complete deterministic analysis for one scope."""
+        if scope.scope_id == ROOT_SCOPE_ID and not scope.groups:
+            raise StaticAnalysisFatalError(
+                "No component groups found: static analysis produced no callable structure "
+                "to build an architecture from."
+            )
 
-        used: set[int] = set()
         components: list[Component] = []
-        for group_name, group in zip(rendered_group_ids, scope.groups, strict=True):
-            component = next(
-                (
-                    candidate
-                    for candidate in architecture.components
-                    if any(name.lower() == group_name.lower() for name in candidate.source_group_names)
-                ),
-                None,
-            )
-            if component is None or id(component) in used:
-                symbols = sorted(group.qualified_names)
-                component = Component(
-                    name=symbols[0].split(".")[-1] if symbols else group_name,
-                    description=descriptions[group_name],
+        for group in scope.groups:
+            components.append(
+                Component(
+                    name=f"Component {group.group_id}",
+                    description=self._fallback_description(scope, group),
                     key_entities=[],
+                    source_cluster_ids=CodeBoardingClusterIds.from_graph_ids(set(group.cluster_ids)),
+                    component_id=group.group_id,
                 )
-            else:
-                used.add(id(component))
-                component = component.model_copy(deep=True)
-            component.source_group_names = [group_name]
-            component.source_cluster_ids = CodeBoardingClusterIds.from_graph_ids(set(group.cluster_ids))
-            component.component_id = group.group_id
-            components.append(component)
-
-        if len(components) != len(architecture.components):
-            logger.info(
-                "[StaticAnalysisEnricher] Reconciled %d LLM components to %d fixed groups",
-                len(architecture.components),
-                len(components),
             )
-        architecture.components = components
+
+        analysis = AnalysisInsights(
+            description=f"Deterministic component structure for scope {scope.scope_id}.",
+            components=components,
+            components_relations=[],
+        )
+        self.populate_file_methods(analysis, scope)
+        self.merge_scope_relations(analysis, scope)
+        return analysis
 
     def populate_file_methods(
         self,
@@ -101,7 +89,7 @@ class StaticAnalysisEnricherMixin:
 
     @staticmethod
     def merge_scope_relations(analysis: AnalysisInsights, scope: ClusterScopeResult) -> None:
-        """Merge LLM relations with precomputed scope connection evidence."""
+        """Merge existing relation metadata with precomputed scope connections."""
         merged: list[Relation] = []
         matched_pairs: set[tuple[str, str]] = set()
         ownership = ComponentOwnershipIndex.from_analysis(analysis)
@@ -112,7 +100,7 @@ class StaticAnalysisEnricherMixin:
             src_id = source.component_id if source is not None else ""
             dst_id = target.component_id if target is not None else ""
             connection = scope.connection_between(src_id, dst_id)
-            static_edges = StaticAnalysisEnricherMixin._connection_edges(scope, connection)
+            static_edges = ScopeAssembler._connection_edges(scope, connection)
             key_edges = [
                 edge
                 for edge in llm_relation.key_edges
@@ -128,7 +116,7 @@ class StaticAnalysisEnricherMixin:
                 continue
             if not static_edges and not key_edges:
                 logger.warning(
-                    "Keeping LLM-only relation without static or key-edge backing: %s -> %s (%s). Evidence: %s",
+                    "Keeping semantic relation without static or key-edge backing: %s -> %s (%s). Evidence: %s",
                     llm_relation.src_name,
                     llm_relation.dst_name,
                     llm_relation.relation,
@@ -157,7 +145,7 @@ class StaticAnalysisEnricherMixin:
             pair = (connection.source_group_id, connection.target_group_id)
             if pair in matched_pairs:
                 continue
-            edges = StaticAnalysisEnricherMixin._connection_edges(scope, connection)
+            edges = ScopeAssembler._connection_edges(scope, connection)
             if not edges:
                 continue
             source = analysis.component_by_id(connection.source_group_id)
@@ -177,7 +165,7 @@ class StaticAnalysisEnricherMixin:
 
         analysis.components_relations = drop_reverse_duplicates(drop_internal_self_relations(merged))
         logger.info(
-            "Merged relations: %d total (%d static-backed, %d LLM-only)",
+            "Merged relations: %d total (%d static-backed, %d semantic-only)",
             len(analysis.components_relations),
             sum(1 for relation in analysis.components_relations if relation.is_static),
             sum(1 for relation in analysis.components_relations if not relation.is_static),
@@ -206,6 +194,21 @@ class StaticAnalysisEnricherMixin:
                 component.source_cluster_ids,
                 CodeBoardingClusterIds.prefix_for_scope(scope_id),
             )
+
+    @staticmethod
+    def _fallback_description(scope: ClusterScopeResult, group: ClusterGroup) -> str:
+        files = sorted(
+            {
+                scope.graphs_by_language[language].nodes[qualified_name].file_path
+                for language, qualified_names in group.symbol_members_by_language.items()
+                if language in scope.graphs_by_language
+                for qualified_name in qualified_names
+                if qualified_name in scope.graphs_by_language[language].nodes
+            }
+        )
+        shown = ", ".join(files[:8])
+        suffix = ", ..." if len(files) > 8 else ""
+        return f"Owns {len(group.qualified_names)} symbols across {len(files)} files: {shown}{suffix}."
 
     @staticmethod
     def _connection_edges(scope: ClusterScopeResult, connection: GroupConnection | None) -> list[RelationEdge]:

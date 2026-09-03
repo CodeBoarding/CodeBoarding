@@ -20,7 +20,7 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from agents.incremental_agent import prune_empty_components, remove_deleted_files
+from diagram_analysis.incremental_update import prune_empty_components, remove_deleted_files
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.diagram_generator import (
     DiagramGenerator,
@@ -601,7 +601,6 @@ class TestAnalysedSubtreeSurvivesTheSaveTimeVerdict(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        generator.details_agent = MagicMock()
         generator.clustering_hierarchy = ClusterScopeResult(
             scope_id=ROOT_SCOPE_ID,
             groups=[ClusterGroup(group_id="1", cluster_ids=[1], expandable=False)],

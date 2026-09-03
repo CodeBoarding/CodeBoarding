@@ -5,7 +5,6 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from threading import Event
 from unittest.mock import MagicMock, Mock, patch
 
 from agents.agent_responses import (
@@ -877,9 +876,8 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(gen.repo_name, "test_repo")
         self.assertEqual(gen.output_dir, self.output_dir)
         self.assertEqual(gen.depth_level, 2)
-        self.assertIsNone(gen.details_agent)
-        self.assertIsNone(gen.abstraction_agent)
-        self.assertIsNone(gen.incremental_agent)
+        self.assertIsNotNone(gen.scope_assembler)
+        self.assertIsNone(gen.incremental_updater)
 
     @patch("diagram_analysis.diagram_generator.get_static_analysis")
     def test_new_analyzer_honors_cache_reuse_override(self, mock_get_static_analysis):
@@ -902,44 +900,14 @@ class TestDiagramGenerator(unittest.TestCase):
 
     @patch("diagram_analysis.diagram_generator.ProjectScanner")
     @patch("diagram_analysis.diagram_generator.get_static_analysis")
-    @patch("diagram_analysis.diagram_generator.initialize_llms")
-    @patch("diagram_analysis.diagram_generator.MetaAgent")
-    @patch("diagram_analysis.diagram_generator.DetailsAgent")
-    @patch("diagram_analysis.diagram_generator.AbstractionAgent")
     def test_prepare_analysis(
         self,
-        mock_abstraction,
-        mock_details,
-        mock_meta,
-        mock_initialize_llms,
         mock_get_static_analysis,
         mock_scanner,
     ):
-        # Test prepare_analysis method
-        # Return a proper StaticAnalysisResults object
         mock_analysis_results = StaticAnalysisResults()
         mock_analysis_results.diagnostics = {}
         mock_get_static_analysis.return_value = mock_analysis_results
-
-        # Mock LLM initialization
-        mock_agent_llm = Mock()
-        mock_parsing_llm = Mock()
-        mock_initialize_llms.return_value = (mock_agent_llm, mock_parsing_llm)
-
-        mock_meta_instance = Mock()
-        mock_meta_instance.analyze_project_metadata.return_value = {"meta": "context"}
-        mock_meta_instance.agent_monitoring_callback = Mock(model_name=None)
-        mock_meta.return_value = mock_meta_instance
-
-        mock_details_instance = Mock()
-        mock_details_instance.agent_monitoring_callback = Mock(model_name=None)
-        mock_details.return_value = mock_details_instance
-
-        mock_abstraction_instance = Mock()
-        mock_abstraction_instance.agent_monitoring_callback = Mock(model_name=None)
-        mock_abstraction.return_value = mock_abstraction_instance
-
-        # Mock ProjectScanner to avoid tokei dependency
         mock_scanner_instance = Mock()
         mock_scanner_instance.scan.return_value = []
         mock_scanner_instance.all_text_files = []
@@ -957,60 +925,17 @@ class TestDiagramGenerator(unittest.TestCase):
 
         hierarchy = ClusterScopeResult(scope_id="root")
         with (
-            patch("diagram_analysis.diagram_generator.IncrementalAgent") as mock_incremental,
             patch(
                 "static_analyzer.clustering.service.ClusteringService.build_full_hierarchy", return_value=hierarchy
             ) as mock_build_hierarchy,
+            patch("diagram_analysis.diagram_generator.initialize_llms") as mock_initialize_llms,
         ):
             gen.prepare_analysis()
 
-        # Verify agents were created
         mock_build_hierarchy.assert_called_once_with(mock_analysis_results, 2)
+        mock_initialize_llms.assert_not_called()
         self.assertIs(gen.clustering_hierarchy, hierarchy)
-        self.assertIsNotNone(gen.meta_agent)
-        self.assertIsNotNone(gen.details_agent)
-        self.assertIsNotNone(gen.abstraction_agent)
-        self.assertIs(gen.incremental_agent, mock_incremental.return_value)
-        mock_meta_instance.analyze_project_metadata.assert_called_once_with(skip_cache=False)
-
-    def test_prepare_analysis_overlaps_metadata_with_deterministic_analysis(self):
-        gen = DiagramGenerator(
-            repo_location=self.repo_location,
-            temp_folder=self.temp_folder,
-            repo_name="test_repo",
-            output_dir=self.output_dir,
-            depth_level=2,
-            run_id="test-run-id",
-            log_path="test_repo/test-run-log",
-        )
-        metadata_started = Event()
-        deterministic_finished = Event()
-        meta_context = MagicMock()
-        meta_agent = Mock()
-
-        def analyze_metadata(**_kwargs):
-            metadata_started.set()
-            self.assertTrue(deterministic_finished.wait(timeout=1))
-            return meta_context
-
-        def deterministic_analysis(**_kwargs):
-            self.assertTrue(metadata_started.wait(timeout=1))
-            deterministic_finished.set()
-
-        meta_agent.analyze_project_metadata.side_effect = analyze_metadata
-        gen.deterministic_analysis = Mock(side_effect=deterministic_analysis)
-        gen._initialize_meta_agent = Mock(side_effect=lambda *_args: setattr(gen, "meta_agent", meta_agent))
-        gen._complete_agent_initialization = Mock()
-
-        with patch("diagram_analysis.diagram_generator.initialize_llms", return_value=(Mock(), Mock())):
-            gen.prepare_analysis(hierarchy_depth=3)
-
-        gen.deterministic_analysis.assert_called_once_with(
-            hierarchy_depth=3,
-            target_component=None,
-            persisted_scopes={},
-        )
-        gen._complete_agent_initialization.assert_called_once()
+        self.assertIsNotNone(gen.incremental_updater)
 
     def test_prepare_analysis_skips_llms_for_empty_incremental_delta(self):
         gen = DiagramGenerator(
@@ -1033,7 +958,7 @@ class TestDiagramGenerator(unittest.TestCase):
             gen.prepare_analysis(incremental=True)
 
         initialize_llms.assert_not_called()
-        gen.agent_init.assert_not_called()
+        gen.agent_init.assert_called_once()
 
     def test_prepare_analysis_initializes_agents_for_group_membership_change(self):
         gen = DiagramGenerator(
@@ -1082,8 +1007,6 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_build_hierarchy.assert_not_called()
 
     def test_process_component_with_exception(self):
-        # Test processing a component that raises an exception
-
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -1093,14 +1016,7 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-
-        # Setup agents
-        gen.details_agent = Mock()
-
-        # Mock to raise exception
-        gen.details_agent.run.side_effect = Exception("Test error")
-
-        # Create test component
+        gen.scope_assembler.build = Mock(side_effect=Exception("Test error"))
         component = Component(name="TestComponent", description="Test", key_entities=[], component_id="1")
         scope = ClusterScopeResult(scope_id="1")
         gen.clustering_hierarchy = ClusterScopeResult(
@@ -1110,7 +1026,6 @@ class TestDiagramGenerator(unittest.TestCase):
 
         result_name, result_analysis, new_components = gen.process_component(component)
 
-        # Should return None and empty list on exception
         self.assertIsNone(result_name)
         self.assertIsNone(result_analysis)
         self.assertEqual(new_components, [])
@@ -1125,7 +1040,6 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        gen.details_agent = Mock()
         gen.clustering_hierarchy = ClusterScopeResult(scope_id="root")
         component = Component(name="Missing", description="", key_entities=[], component_id="4")
 
@@ -1148,8 +1062,7 @@ class TestDiagramGenerator(unittest.TestCase):
         with self.assertRaisesRegex(ClusteringScopeUnavailableError, "no owned CFG nodes"):
             gen._build_component_scope(component, hierarchy_depth=3)
 
-    @patch("diagram_analysis.diagram_generator.get_expandable_components")
-    def test_hierarchy_component_traverses_the_preclustered_scope(self, mock_get_expandable_components):
+    def test_hierarchy_component_traverses_the_preclustered_scope(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -1171,16 +1084,14 @@ class TestDiagramGenerator(unittest.TestCase):
             scope_id="root",
             groups=[ClusterGroup(group_id="1", cluster_ids=[1], children=scope)],
         )
-        gen.details_agent = Mock()
-        gen.details_agent.run.return_value = (child_analysis, scope.leaf_clusters_by_language)
+        gen.scope_assembler.build = Mock(return_value=child_analysis)
 
         component_id, result, new_components = gen._process_component(component)
 
         self.assertEqual(component_id, "1")
         self.assertIs(result, child_analysis)
         self.assertEqual(new_components, [child])
-        gen.details_agent.run.assert_called_once_with(scope, component)
-        mock_get_expandable_components.assert_not_called()
+        gen.scope_assembler.build.assert_called_once_with(scope)
 
     def test_build_component_scope_uses_persisted_absorbed_id(self):
         gen = DiagramGenerator(
@@ -1265,8 +1176,7 @@ class TestDiagramGenerator(unittest.TestCase):
         with self.assertRaisesRegex(ClusteringScopeUnavailableError, "cohesive: 1 units"):
             gen._build_component_scope(component, hierarchy_depth=4)
 
-    @patch("diagram_analysis.diagram_generator.get_expandable_components")
-    def test_preclustered_expansion_flags_are_reused_when_saving(self, mock_get_expandable_components):
+    def test_preclustered_expansion_flags_are_reused_when_saving(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -1290,7 +1200,6 @@ class TestDiagramGenerator(unittest.TestCase):
             components=[expandable, leaf, ignored],
             components_relations=[],
         )
-        gen.details_agent = Mock()
         gen.clustering_hierarchy = ClusterScopeResult(
             scope_id="root",
             groups=[
@@ -1304,10 +1213,8 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertEqual(root_ids, ["1"])
         self.assertEqual(sub_ids, {})
-        mock_get_expandable_components.assert_not_called()
 
-    @patch("diagram_analysis.diagram_generator.get_expandable_components")
-    def test_preclustered_save_preserves_generated_subtree_owner(self, mock_get_expandable_components):
+    def test_preclustered_save_preserves_generated_subtree_owner(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -1321,7 +1228,6 @@ class TestDiagramGenerator(unittest.TestCase):
         child = Component(name="A child", description="", key_entities=[], component_id="1.1")
         root_analysis = AnalysisInsights(description="root", components=[owner], components_relations=[])
         sub_analyses = {"1": AnalysisInsights(description="child scope", components=[child], components_relations=[])}
-        gen.details_agent = Mock()
         gen.clustering_hierarchy = ClusterScopeResult(scope_id="root")
         gen.clustering_hierarchy.register_scope(
             "1",
@@ -1335,10 +1241,8 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertEqual(root_ids, ["1"])
         self.assertEqual(sub_ids, {"1": []})
-        mock_get_expandable_components.assert_not_called()
 
-    @patch("diagram_analysis.diagram_generator.get_expandable_components")
-    def test_partial_hierarchy_preserves_uncomputed_sibling_expansion(self, mock_get_expandable_components):
+    def test_partial_hierarchy_preserves_uncomputed_sibling_expansion(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -1374,7 +1278,6 @@ class TestDiagramGenerator(unittest.TestCase):
         sub_analyses = {
             "1": AnalysisInsights(description="target", components=children, components_relations=[]),
         }
-        gen.details_agent = Mock()
         gen.clustering_hierarchy = ClusterScopeResult(scope_id="root")
         gen.clustering_hierarchy.register_scope(
             "1",
@@ -1395,7 +1298,6 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertEqual(root_ids, ["1", "2"])
         self.assertEqual(sub_ids, {"1": []})
-        mock_get_expandable_components.assert_not_called()
 
     def test_absorbed_ids_reroot_preclustered_expansion_flags(self):
         hierarchy = ClusterScopeResult(
@@ -1427,8 +1329,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertTrue(hierarchy.clustering_groups["1.2"].expandable)
         self.assertEqual(hierarchy.clustering_groups["1.2"].group_id, "1.2")
 
-    @patch("diagram_analysis.diagram_generator.get_expandable_components")
-    def test_full_analysis_consumes_the_precomputed_hierarchy(self, mock_get_expandable_components):
+    def test_full_analysis_consumes_the_precomputed_hierarchy(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -1448,9 +1349,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.static_analysis = MagicMock(spec=StaticAnalysisResults)
         gen.static_analysis.available_cfgs.return_value = {}
         gen.clustering_hierarchy = hierarchy
-        gen.details_agent = Mock()
-        gen.abstraction_agent = Mock()
-        gen.abstraction_agent.run.return_value = analysis
+        gen.scope_assembler.build = Mock(return_value=analysis)
         gen._generate_subcomponents = Mock(return_value=([], {}))
         expected_path = self.output_dir / "analysis.json"
         gen.finalize_and_save = Mock(return_value=expected_path)
@@ -1458,9 +1357,8 @@ class TestDiagramGenerator(unittest.TestCase):
         result = gen.generate_analysis()
 
         self.assertEqual(result, expected_path)
-        gen.abstraction_agent.run.assert_called_once_with(hierarchy)
+        gen.scope_assembler.build.assert_called_once_with(hierarchy)
         gen._generate_subcomponents.assert_called_once_with(analysis, [component])
-        mock_get_expandable_components.assert_not_called()
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     def test_generate_analysis_frontier_submits_child_before_slow_sibling_finishes(self, mock_save_analysis):
@@ -1501,7 +1399,6 @@ class TestDiagramGenerator(unittest.TestCase):
         sub_analysis_b = AnalysisInsights(description="B sub", components=[], components_relations=[])
         sub_analysis_child = AnalysisInsights(description="Child sub", components=[], components_relations=[])
 
-        gen.details_agent = Mock()
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
         timestamps: dict[str, float] = {}
@@ -1546,9 +1443,6 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
 
-        # Prevent prepare_analysis from running.
-        gen.abstraction_agent = Mock()
-        gen.details_agent = Mock()
         gen.static_analysis = StaticAnalysisResults()
 
         comp1 = Component(
@@ -1599,7 +1493,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.clustering_hierarchy = hierarchy
         gen.source_sha = "source-sha"
-        gen.abstraction_agent.run.return_value = analysis
+        gen.scope_assembler.build = Mock(return_value=analysis)
         captured: dict[str, list[Component]] = {}
 
         def _capture_build(
@@ -1674,9 +1568,6 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        gen.details_agent = Mock()
-        gen.abstraction_agent = Mock()
-        gen.incremental_agent = Mock()
         gen.static_analysis = StaticAnalysisResults()
         hierarchy = ClusterScopeResult(
             scope_id="root",
@@ -1687,7 +1578,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.clustering_hierarchy = hierarchy
         gen.source_sha = "source-sha"
-        gen.abstraction_agent.run.return_value = analysis
+        gen.scope_assembler.build = Mock(return_value=analysis)
 
         gen.generate_analysis()
 
@@ -1704,9 +1595,6 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        gen.details_agent = Mock()
-        gen.abstraction_agent = Mock()
-        gen.incremental_agent = Mock()
         # Empty static analysis -> snapshot has no cluster ids -> incremental
         # path must refuse rather than silently re-deriving from scratch.
         gen.static_analysis = StaticAnalysisResults()
@@ -1750,8 +1638,6 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        gen.details_agent = Mock()
-
         root_analysis = AnalysisInsights(description="root", components=[], components_relations=[])
         depth_two = Component(name="Depth two", description="", key_entities=[], component_id="1.1")
         max_depth_leaf = Component(name="Leaf", description="", key_entities=[], component_id="1.1.3")
@@ -1767,11 +1653,11 @@ class TestDiagramGenerator(unittest.TestCase):
             scope_id="root",
             groups=[ClusterGroup(group_id="1.1", cluster_ids=[1], children=scope)],
         )
-        gen.details_agent.run.return_value = (child_analysis, {})
+        gen.scope_assembler.build = Mock(return_value=child_analysis)
 
         expanded_components, sub_analyses = gen._generate_subcomponents(root_analysis, [depth_two, max_depth_leaf])
 
-        gen.details_agent.run.assert_called_once_with(scope, depth_two)
+        gen.scope_assembler.build.assert_called_once_with(scope)
         self.assertEqual([component.component_id for component in expanded_components], ["1.1"])
         self.assertEqual(set(sub_analyses), {"1.1"})
         self.assertEqual(mock_save_analysis.call_count, 1)
@@ -1789,12 +1675,12 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         clustering = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
         relation_context = ScopeRelationContext(clustering=clustering)
-        incremental_agent = MagicMock()
-        incremental_agent.update_scope.return_value = ScopeUpdateResult(
+        incremental_updater = MagicMock()
+        incremental_updater.update_scope.return_value = ScopeUpdateResult(
             relation_context=relation_context,
             removed_ids={"2"},
         )
-        gen.incremental_agent = incremental_agent
+        gen.incremental_updater = incremental_updater
         plan_update.return_value = ScopeUpdateDecision(operations=[])
         scope = AnalysisInsights(description="root", components=[], components_relations=[])
 
@@ -1815,12 +1701,12 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         root_context = ScopeRelationContext(clustering=ClusterScopeResult(scope_id=ROOT_SCOPE_ID))
         child_context = ScopeRelationContext(clustering=ClusterScopeResult(scope_id="1"))
-        incremental_agent = MagicMock()
-        incremental_agent.update_scope.side_effect = [
+        incremental_updater = MagicMock()
+        incremental_updater.update_scope.side_effect = [
             ScopeUpdateResult(relation_context=root_context, refresh_ids={"1"}),
             ScopeUpdateResult(relation_context=child_context, refresh_ids={"1.1"}),
         ]
-        gen.incremental_agent = incremental_agent
+        gen.incremental_updater = incremental_updater
         root = AnalysisInsights(description="root", components=[], components_relations=[])
         hierarchy = ClusterScopeResult(
             scope_id=ROOT_SCOPE_ID,
@@ -1830,19 +1716,19 @@ class TestDiagramGenerator(unittest.TestCase):
 
         result = gen._apply_incremental_hierarchy(hierarchy, root, {"1": root.model_copy()})
 
-        self.assertEqual(incremental_agent.update_scope.call_count, 2)
-        self.assertEqual([call.args[0] for call in incremental_agent.update_scope.call_args_list], ["root", "1"])
+        self.assertEqual(incremental_updater.update_scope.call_count, 2)
+        self.assertEqual([call.args[0] for call in incremental_updater.update_scope.call_args_list], ["root", "1"])
         self.assertEqual(result.relation_contexts, {"root": root_context, "1": child_context})
 
     @patch.object(ClusteringService, "build_incremental_hierarchy")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
-    @patch("diagram_analysis.diagram_generator.IncrementalAgent")
+    @patch("diagram_analysis.diagram_generator.IncrementalUpdater")
     @patch("diagram_analysis.diagram_generator.hierarchy_differs", return_value=True)
     def test_incremental_refresh_updates_existing_parent_scope(
         self,
         _mock_differs,
-        _mock_incremental_agent,
+        _mock_incremental_updater,
         _mock_prune,
         mock_save_analysis,
         mock_build_hierarchy,
@@ -1856,8 +1742,7 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        gen.details_agent = Mock()
-        gen.incremental_agent = _mock_incremental_agent.return_value
+        gen.incremental_updater = _mock_incremental_updater.return_value
         gen.static_analysis = Mock()
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
@@ -1895,7 +1780,7 @@ class TestDiagramGenerator(unittest.TestCase):
             scope_id=ROOT_SCOPE_ID,
             groups=[ClusterGroup(group_id="1", cluster_ids=[])],
         )
-        _mock_incremental_agent.return_value.update_scope.return_value = ScopeUpdateResult(
+        _mock_incremental_updater.return_value.update_scope.return_value = ScopeUpdateResult(
             relation_context=ScopeRelationContext(clustering=mock_build_hierarchy.return_value),
             refresh_ids={"1"},
             new_component_ids=set(),
@@ -1904,9 +1789,9 @@ class TestDiagramGenerator(unittest.TestCase):
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
 
-        self.assertIs(gen.incremental_agent, _mock_incremental_agent.return_value)
-        _mock_incremental_agent.return_value.update_scope.assert_called_once()
-        scope_id, scope, decision, _clusters = _mock_incremental_agent.return_value.update_scope.call_args.args
+        self.assertIs(gen.incremental_updater, _mock_incremental_updater.return_value)
+        _mock_incremental_updater.return_value.update_scope.assert_called_once()
+        scope_id, scope, decision, _clusters = _mock_incremental_updater.return_value.update_scope.call_args.args
         self.assertEqual(scope_id, "root")
         self.assertIs(scope, root_analysis)
         self.assertIsInstance(decision, ScopeUpdateDecision)
@@ -1916,12 +1801,12 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch.object(ClusteringService, "build_incremental_hierarchy")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
-    @patch("diagram_analysis.diagram_generator.IncrementalAgent")
+    @patch("diagram_analysis.diagram_generator.IncrementalUpdater")
     @patch("diagram_analysis.diagram_generator.hierarchy_differs", return_value=True)
     def test_incremental_refresh_skips_child_scope_absent_from_hierarchy(
         self,
         _mock_differs,
-        _mock_incremental_agent,
+        _mock_incremental_updater,
         _mock_prune,
         mock_save_analysis,
         mock_build_hierarchy,
@@ -1935,8 +1820,7 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        gen.details_agent = Mock()
-        gen.incremental_agent = _mock_incremental_agent.return_value
+        gen.incremental_updater = _mock_incremental_updater.return_value
         gen.static_analysis = Mock()
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
@@ -1953,7 +1837,7 @@ class TestDiagramGenerator(unittest.TestCase):
             scope_id=ROOT_SCOPE_ID,
             groups=[ClusterGroup(group_id="1", cluster_ids=[])],
         )
-        _mock_incremental_agent.return_value.update_scope.return_value = ScopeUpdateResult(
+        _mock_incremental_updater.return_value.update_scope.return_value = ScopeUpdateResult(
             relation_context=ScopeRelationContext(clustering=mock_build_hierarchy.return_value),
             refresh_ids={"1"},
             new_component_ids=set(),
@@ -1962,7 +1846,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
 
-        self.assertEqual(_mock_incremental_agent.return_value.update_scope.call_count, 1)
+        self.assertEqual(_mock_incremental_updater.return_value.update_scope.call_count, 1)
         gen._generate_subcomponents.assert_not_called()
 
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
@@ -1981,8 +1865,7 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        gen.details_agent = Mock()
-        gen.incremental_agent = Mock()
+        gen.incremental_updater = Mock()
         gen.static_analysis = Mock()
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
@@ -2025,7 +1908,6 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(call_order, ["generate"])
         gen._apply_incremental_hierarchy.assert_called_once_with(hierarchy, root_analysis, sub_analyses)
         gen._generate_subcomponents.assert_called_once_with(root_analysis, [created], sub_analyses)
-        gen.incremental_agent.detail_new_components.assert_called_once_with([created])
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components")
@@ -2045,8 +1927,6 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        gen.details_agent = Mock()
-        gen.incremental_agent = Mock()
         gen.static_analysis = Mock()
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
@@ -2088,7 +1968,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         mock_prune.assert_not_called()
         self.assertEqual(sub_analyses["1.1"].components[0].name, "Stable Leaf")
-        self.assertIsNone(gen.abstraction_agent)
+        self.assertIsNotNone(gen.scope_assembler)
         self.assertEqual(mock_build_index.call_count, 1 + len(sub_analyses))
 
     def test_group_membership_change_applies_hierarchy_when_cluster_delta_is_empty(self):
@@ -2103,8 +1983,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
         gen.static_analysis = Mock()
-        gen.details_agent = Mock()
-        gen.incremental_agent = Mock()
+        gen.incremental_updater = Mock()
         gen.clustering_hierarchy = hierarchy
         gen._incremental_preparation = _IncrementalPreparation(
             structure_changed=False,

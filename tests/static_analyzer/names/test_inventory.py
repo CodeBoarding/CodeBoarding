@@ -8,8 +8,11 @@ class TestUnitPosition:
         assert unit_position(names, ".") == ("agents", "agent")
 
     def test_a_file_declaring_one_class_sits_in_its_module_not_its_class(self):
-        names = ["agents.abstraction_agent.AbstractionAgent", "agents.abstraction_agent.AbstractionAgent.run"]
-        assert unit_position(names, ".") == ("agents", "abstraction_agent")
+        names = [
+            "diagram_analysis.scope_assembly.ScopeAssembler",
+            "diagram_analysis.scope_assembly.ScopeAssembler.build",
+        ]
+        assert unit_position(names, ".") == ("diagram_analysis", "scope_assembly")
 
     def test_a_file_with_one_symbol(self):
         assert unit_position(["pkg.mod.only"], ".") == ("pkg", "mod")

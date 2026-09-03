@@ -124,7 +124,7 @@ def _plan_scope_operations(
                     # The specification allocated this id; the component must keep it or the
                     # next replay would not recognise its own rule.
                     component_id=cluster_group.group_id,
-                    name=_provisional_name(group, combined),
+                    name=f"Component {cluster_group.group_id}",
                     description=_provisional_description(group, combined),
                     rationale="clusters with no predecessor in this scope",
                 )
@@ -167,20 +167,8 @@ def _group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> 
     return sorted(names, key=lambda qname: (qname.count("."), qname))
 
 
-def _provisional_name(group: set[int], combined: ClusterResult) -> str:
-    """A stable placeholder for a component the LLM has not named yet."""
-    symbols = _group_symbols(sorted(group), combined.clusters)
-    return symbols[0].split(".")[-1] if symbols else "New Component"
-
-
 def _provisional_description(group: set[int], combined: ClusterResult) -> str:
-    """Say what the component holds, so a created component never ships blank.
-
-    Only the create path sets a new component's metadata — the re-detail pass that follows
-    analyses its children, not its own wording — so an empty string here reaches the saved
-    diagram. Naming it properly is the LLM's job and still to come; until then this states
-    the code it owns rather than nothing.
-    """
+    """Say what a newly created component holds."""
     files = sorted({path for cluster_id in group for path in combined.cluster_to_files.get(cluster_id, set())})
     symbols = _group_symbols(sorted(group), combined.clusters)
     if not files and not symbols:

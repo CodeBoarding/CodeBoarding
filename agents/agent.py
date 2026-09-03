@@ -110,10 +110,6 @@ class CodeBoardingAgent(MonitoringMixin):
         return self.toolkit.read_method_invocations
 
     @property
-    def component_bridge_edges_tool(self):
-        return self.toolkit.component_bridge_edges
-
-    @property
     def read_file_tool(self):
         return self.toolkit.read_file
 
