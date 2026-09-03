@@ -95,6 +95,7 @@ packages = [
     "static_analyzer",
     "static_analyzer.cfg",
     "static_analyzer.clustering",
+    "static_analyzer.clustering.names",
     "static_analyzer.engine",
     "static_analyzer.engine.adapters",
     "static_analyzer.lsp_client",
