@@ -4,6 +4,8 @@ import pytest
 
 from clustering_ids import ROOT_SCOPE_ID
 from static_analyzer.clustering.names import (
+    AffinityGrouper,
+    Candidate,
     CandidateGroup,
     KinshipGrouper,
     ROLE_WORDS,
@@ -12,15 +14,21 @@ from static_analyzer.clustering.names import (
     replay,
 )
 from static_analyzer.clustering.names.draft import (
+    BUDGET,
+    CAP_SHARE,
     FRONTIER,
     GUARD_SHARE,
     LEAF,
     LEAF_CAP,
+    MIN_LINKS,
     MIN_UNITS,
+    NEST_FLOOR,
     SEGMENT,
     UNMERGE,
     VOCABULARY,
+    GroupingContext,
 )
+from static_analyzer.clustering.names.frontier import BOX
 from static_analyzer.clustering.names.spec import UNPLACED
 from tests.static_analyzer.names.conftest import rule_of, scope_of, units_from_layout
 
@@ -128,6 +136,13 @@ class TestRootDraft:
         assert partition.assignment["converters/base.py"] == bucket.component_id
         assert [unit.unit_id for unit in partition.unplaced] == ["converters/base.py"]
 
+    def test_a_layered_root_without_a_grid_draws_its_layers_before_reading_words(self):
+        """serilog's shape: every top-level directory is role-named and no feature recurs."""
+        layout = project("Serilog", 40, "Core", "Events", "Configuration", "Parsing")
+        scope, _ = draft_scope(ROOT_SCOPE_ID, units_from_layout(layout, "csharp"), ROLE_WORDS, AffinityGrouper())
+        assert scope.rung == FRONTIER
+        assert sorted(names_of(scope)) == ["Configuration", "Core", "Events", "Parsing"]
+
     def test_a_root_nothing_splits_is_one_box_never_a_refusal(self):
         layout = {f"{d}/x.py": [f"{d}.x.run"] for d in ("alpha", "beta", "gamma")}
         scope, partition = draft_scope(ROOT_SCOPE_ID, units_from_layout(layout), ROLE_WORDS, KinshipGrouper())
@@ -205,6 +220,47 @@ class TestLadder:
             "Ordering",
         ]
         assert scope_of(spec, "1").is_leaf
+
+    def test_a_weak_rule_with_no_sibling_stands_as_its_own_box(self):
+        """Two files under a floor of three, linked to nothing: drawn, not folded into the largest."""
+        layout = project("Big", 60, "One", "Two") | project("Mid", 6) | project("Tiny", 2)
+        layout |= project("Beta", 100) | project("Gamma", 100)
+        spec = draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 2)
+        assert names_of(scope_of(spec, ROOT_SCOPE_ID)) == ["Beta", "Gamma", "Big", "Mid", "Tiny"]
+        big = scope_of(spec, "3")
+        assert big.rung == SEGMENT and names_of(big) == ["One", "Two"]
+
+    def test_nesting_starts_at_the_floor(self):
+        def component(count: int):
+            layout = project("Alpha", count, "One", "Two") | project("Beta", 30) | project("Gamma", 30)
+            return scope_of(draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 2), "1")
+
+        nested = component(NEST_FLOOR)
+        assert nested.rung == SEGMENT and names_of(nested) == ["One", "Two"]
+        leaf = component(NEST_FLOOR - 1)
+        assert leaf.is_leaf and leaf.leaf_reason.startswith(f"cohesive: {NEST_FLOOR - 1} units, under {NEST_FLOOR}")
+
+    def test_a_layered_component_without_a_grid_draws_its_layers(self):
+        layout = project("Ordering", 60, "API", "Domain", "Infrastructure") | project("Beta", 40) | project("Gamma", 40)
+        ordering = scope_of(draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 2), "1")
+        assert ordering.rung == SEGMENT
+        assert names_of(ordering) == ["API", "Domain", "Infrastructure"]
+
+    def test_a_layered_component_with_a_grid_transposes_only_above_the_cap(self):
+        """A client app organised by layers over features: one box while it can be read whole."""
+
+        def client_app(count: int):
+            layout = project(
+                "ClientApp", count, "Models.Orders", "Services.Order", "Models.Basket", "Services.Basket", "Views"
+            )
+            layout |= project("Beta", 40) | project("Gamma", 40)
+            return scope_of(draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 2), "1")
+
+        whole = client_app(LEAF_CAP)
+        assert whole.is_leaf and whole.leaf_reason.startswith(f"cohesive: {LEAF_CAP} units, at most {LEAF_CAP}")
+        transposed = client_app(LEAF_CAP + 1)
+        assert transposed.rung == SEGMENT and transposed.axis == "transposed"
+        assert {"Orders", "Basket"} <= set(names_of(transposed))
 
     def test_a_large_component_reads_its_own_frontier(self):
         layout = {
@@ -295,6 +351,73 @@ class TestGrouperContract:
 
     def test_the_spec_records_which_grouper_drew_it(self):
         assert draft_tree(units_from_layout(eshop(), "csharp"), KinshipGrouper(), 1).grouper == "kinship"
+        assert draft_tree(units_from_layout(eshop(), "csharp"), AffinityGrouper(), 1).grouper == "affinity"
+
+
+def boxes(*names: str) -> list[Candidate]:
+    return [Candidate(f"box:{name}", BOX, name, prefixes=((name,),)) for name in names]
+
+
+def context(
+    sizes: dict[str, int], links: dict[tuple[str, str], int], *, floor: int = MIN_UNITS, unit_count: int = 0
+) -> GroupingContext:
+    return GroupingContext(
+        ROOT_SCOPE_ID,
+        ROLE_WORDS,
+        unit_count or sum(sizes.values()),
+        FRONTIER,
+        sizes={f"box:{name}": size for name, size in sizes.items()},
+        links={tuple(sorted((f"box:{a}", f"box:{b}"))): count for (a, b), count in links.items()},  # type: ignore[misc]
+        floor=floor,
+    )
+
+
+def members_of(groups: list[CandidateGroup]) -> dict[str, tuple[str, ...]]:
+    return {group.name: tuple(key.removeprefix("box:") for key in group.keys) for group in groups}
+
+
+class TestAffinityGrouper:
+    BIG = tuple(f"box{index}" for index in range(10))
+
+    def test_over_budget_the_smallest_joins_its_closest_sibling_until_nothing_affine_is_left(self):
+        sizes = dict.fromkeys(self.BIG, 5) | {"tiny": 2, "small": 3}
+        links = {("tiny", "box0"): 3, ("small", "box1"): 3}
+        groups = AffinityGrouper().group(boxes(*sizes), context(sizes, links))
+        assert len(groups) == BUDGET + 1, "ten big boxes share no link: the fold stops short of the budget"
+        assert members_of(groups)["box0"] == ("box0", "tiny")
+        assert members_of(groups)["box1"] == ("box1", "small")
+
+    def test_within_budget_only_a_candidate_below_the_floor_folds(self):
+        sizes = {"alpha": 5, "beta": 5, "tiny": 2}
+        links = {("tiny", "alpha"): 2, ("alpha", "beta"): 9}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links))) == 3
+        folded = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=3))
+        assert members_of(folded) == {"alpha": ("alpha", "tiny"), "beta": ("beta",)}
+
+    def test_a_hub_is_nobody_s_closest_sibling(self):
+        sizes = {"utils": 9, "billing": 5, "tiny": 2} | dict.fromkeys(self.BIG, 5)
+        links = {("tiny", "utils"): 3, ("tiny", "billing"): 3} | {("utils", name): 10 for name in self.BIG}
+        folded = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=3))
+        assert members_of(folded)["billing"] == ("billing", "tiny")
+
+    def test_one_link_is_noise(self):
+        sizes = {"alpha": 5, "tiny": 2}
+        links = {("tiny", "alpha"): MIN_LINKS - 1}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=3))) == 2
+
+    def test_the_cap_sends_a_fold_to_the_next_sibling(self):
+        sizes = {"big": 6, "mid": 3, "tiny": 2}
+        links = {("tiny", "big"): 3, ("tiny", "mid"): 2}
+        assert 6 + 2 > CAP_SHARE * 11 >= 3 + 2
+        folded = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=3))
+        assert members_of(folded) == {"big": ("big",), "mid": ("mid", "tiny")}
+
+    def test_kinship_comes_first_and_a_fold_keeps_every_word(self):
+        sizes = {"Ordering": 8, "OrderProcessor": 2, "Basket": 5, "tiny": 2}
+        links = {("tiny", "Basket"): 2}
+        folded = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=3))
+        assert members_of(folded) == {"Ordering": ("Ordering", "OrderProcessor"), "Basket": ("Basket", "tiny")}
+        assert next(group.terms for group in folded if group.name == "Ordering") == ("order",)
 
 
 class TestDeterminism:
@@ -304,3 +427,12 @@ class TestDeterminism:
             draft_tree(units, KinshipGrouper(), 3).to_dict()
             == draft_tree(list(reversed(units)), KinshipGrouper(), 3).to_dict()
         )
+
+    def test_the_same_names_and_links_fold_the_same_tree(self):
+        layout = eshop() | project("Tiny.API", 2)
+        units = units_from_layout(layout, "csharp")
+        paths = sorted(layout)
+        links = {(paths[index], paths[-1 - index]): 2 + index % 3 for index in range(len(paths) // 2)}
+        forward = draft_tree(units, AffinityGrouper(), 3, links=links).to_dict()
+        backward = draft_tree(list(reversed(units)), AffinityGrouper(), 3, links=dict(reversed(links.items())))
+        assert forward == backward.to_dict()

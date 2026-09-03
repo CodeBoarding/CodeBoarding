@@ -8,10 +8,11 @@ from agents.file_index_models import FileMethodGroup, MethodEntry
 from clustering_ids import ROOT_SCOPE_ID
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg.edge import EdgeKind, ReferenceEdge
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
 from static_analyzer.clustering.names import TreeSpec
-from static_analyzer.clustering.service import NEW_SCOPE, ClusteringService, hierarchy_differs
+from static_analyzer.clustering.service import NEW_SCOPE, ClusteringService, hierarchy_differs, unit_links
 from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
 from tests.static_analyzer.names.conftest import rule_of, scope_of
@@ -137,6 +138,26 @@ class TestFullHierarchy(unittest.TestCase):
         self.assertIsNone(catalog.children)
         self.assertIn("1.1", self.service.spec.scopes, "the spec is drafted one level deeper than the tree")
         self.assertTrue(scope_of(self.service.spec, "1.1").is_leaf)
+
+    def test_the_default_grouper_folds_along_the_graph(self):
+        """Fifteen root boxes, Tiny.API calling Ordering: the smallest box joins the one it calls."""
+        self.assertEqual(self.service.spec.grouper, "affinity")
+        layout = eshop() | project("Tiny.API", 2)
+        for name in ("Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota"):
+            layout |= project(name, 3)
+        edges = [(f"Tiny.API.TinyType{i}.Run()", "Ordering.API.Apis.OrderingType0.Run()") for i in range(2)]
+        service = ClusteringService()
+        service.build_full_hierarchy(analysis_for(graph("csharp", layout, edges)), max_depth=1)
+        ordering = rule_of(scope_of(service.spec, ROOT_SCOPE_ID), "1")
+        self.assertIn(("Tiny",), ordering.prefixes)
+        self.assertEqual([part.name for part in ordering.parts], ["OrderProcessor", "Ordering", "Tiny"])
+
+    def test_unit_links_count_calls_and_reference_edges_between_files(self):
+        csharp = graph("csharp", {"a.cs": ["A", "A.Run()"], "b.cs": ["B", "B.Run()"]}, [("A.Run()", "B.Run()")])
+        csharp.add_edge("A.Run()", "A", call_sites=[{"file": "a.cs", "line": 2}])
+        csharp.add_reference_edge(ReferenceEdge("A", "B", EdgeKind.INHERITS))
+        csharp.add_reference_edge(ReferenceEdge("B", "B.Run()", EdgeKind.CONTAINS))
+        self.assertEqual(unit_links({"csharp": csharp}), {(str(REPO / "a.cs"), str(REPO / "b.cs")): 2})
 
     def test_connections_come_from_the_graph(self):
         edges = [("Catalog.API.Model.CatalogType0.Run()", "Ordering.API.Apis.OrderingType0.Run()")]

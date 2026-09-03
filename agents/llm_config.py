@@ -534,3 +534,8 @@ def supports_prompt_caching(llm: BaseChatModel) -> bool:
     today; other providers either cache transparently or not at all.
     """
     return llm.__class__.__module__.startswith("langchain_anthropic")
+
+
+def supports_json_mode(llm: BaseChatModel) -> bool:
+    """True when *llm* takes OpenAI's ``response_format={"type": "json_object"}``."""
+    return isinstance(llm, ChatOpenAI)

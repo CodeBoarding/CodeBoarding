@@ -235,15 +235,20 @@ class TestLayeredRoot:
         backward = walk(Trie(list(reversed(units))), ROLE_WORDS)
         assert forward.candidates == backward.candidates
 
-    def test_layers_without_a_grid_are_one_box(self):
+    def test_layers_without_a_grid_are_the_boxes(self):
         layout = {
             f"Beacon.{layer}/{layer}Thing{i}.cs": [f"Beacon.{layer}.{layer}Thing{i}"]
             for layer in self.LAYERS
             for i in range(3)
         }
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
-        assert keys(frontier) == ["box:Beacon"]
+        assert keys(frontier) == [f"box:Beacon.{layer}" for layer in sorted(self.LAYERS)]
         assert frontier.axis == "structural"
+
+    def test_a_grid_is_one_box_when_the_walk_may_not_transpose(self):
+        frontier = walk(Trie(units_from_layout(self._beacon(), "csharp")), ROLE_WORDS, transpose=False)
+        assert keys(frontier) == ["box:Beacon"]
+        assert any(note.endswith("kept as one box") for note in frontier.notes)
 
     def test_the_shallowest_feature_directory_keys_its_subtree(self):
         layout = self._beacon()

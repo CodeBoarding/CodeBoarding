@@ -56,9 +56,10 @@ _PROVIDER_ENDPOINT_OVERRIDES: dict[str, str] = {
 _PROVIDER_KEY_TO_ENV: dict[str, str] = _PROVIDER_SECRETS | _PROVIDER_ENDPOINTS | _PROVIDER_ENDPOINT_OVERRIDES
 
 GROUPER_ENV = "CODEBOARDING_GROUPER"
-GROUPERS = ("kinship", "planner")
-"""How frontier candidates become components: ``kinship`` merges scopes sharing a word with no
-model; ``planner`` lets an LLM group across words toward a 5-9 preference."""
+GROUPERS = ("affinity", "kinship", "planner")
+"""How frontier candidates become components: ``affinity`` merges scopes sharing a word, then
+folds a scope toward nine components along the call graph, with no model; ``kinship`` stops
+after the shared words; ``planner`` lets an LLM group across words toward a 5-9 preference."""
 
 # Template written to ~/.codeboarding/config.toml on first install.
 CONFIG_TEMPLATE = """\
@@ -96,10 +97,11 @@ CONFIG_TEMPLATE = """\
 # context_window = 272000   # override if needed
 
 # Optional: how top-level components are grouped from the repository's names.
-# "kinship" (default) merges scopes that share a word, with no model call;
+# "affinity" (default) merges scopes that share a word, then folds toward 9 components
+# along the call graph, with no model call; "kinship" stops after the shared words;
 # "planner" asks the LLM to group across words toward 5-9 components.
 [clustering]
-# grouper = "kinship"
+# grouper = "affinity"
 """
 
 

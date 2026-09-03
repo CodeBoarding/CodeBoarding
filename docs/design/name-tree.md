@@ -66,7 +66,7 @@ Per node, in order:
 |---|---|
 | one child, no units | pass through |
 | child is a layout word (`src`, `packages`, `pkg`, …) or holds ≥ 80% of the parent | step through, whatever it is called; this is decided before the layered test below |
-| children mostly (≥ 60%) role-named, ≥ 3 of them | **layered**: if a feature name recurs under ≥ 2 distinct layer children, **transpose** onto those features; else one box |
+| children mostly (≥ 60%) role-named, ≥ 3 of them | **layered**: if a feature name recurs under ≥ 2 distinct layer children, **transpose** onto those features (at the root and above the leaf cap; below it the node is one box, because a transposition leaves a residual per layer); else the layers are the boxes, the only structure there is |
 | child is role-named | a box, never a way in |
 | feature-named child holding ≥ 50% of the scope, with mostly feature-named children | open it: half the scope is the scope's structure, less is one of its parts |
 | feature-named child holding ≥ 50% of the scope, with ≥ 3 mostly role-named children | layered, as above |
@@ -89,22 +89,45 @@ box, and a unit it catches is still reported as a new-scope candidate (§4).
 
 ### 3.3 The grouper (`draft.py`, `Grouper`)
 
-The one judgement in the tree: turn the candidates of a rung into named components. Two
-implementations behind one protocol, switchable by configuration and kept side by side:
+The one judgement in the tree: turn the candidates of a rung into named components. Three
+implementations behind one protocol, switchable by configuration (`CODEBOARDING_GROUPER`,
+`[clustering] grouper`):
 
-- `KinshipGrouper` (deterministic, this PR): merge candidates sharing their distinctive
-  word (`Ordering` + `OrderProcessor`, `Webhooks` + `WebhookClient`, `EventBus` +
-  `EventBusRabbitMQ`). Recovers eShop's depth-1 drawing at 1.000 with no model.
+- `KinshipGrouper`: merge candidates sharing their distinctive word (`Ordering` +
+  `OrderProcessor`, `Webhooks` + `WebhookClient`, `EventBus` + `EventBusRabbitMQ`).
+  Recovers eShop's depth-1 drawing at 1.000 with no model.
+- `AffinityGrouper` (default): kinship, then fold the rung along the call graph. The
+  context hands every grouper, per candidate, its size and the graph links (call edges plus
+  `INHERITS`/`TYPEREF` reference edges, cross-file only) it exchanges with each sibling;
+  the service computes them once per run and they never reach `replay`. A candidate below
+  the scope's floor, and then the smallest candidate while the scope holds more than nine,
+  joins the sibling with the highest *observed over expected* link count
+  (`links × total / (degree × degree)`, at least two links, never past 60% of the scope).
+  Why that ratio and not the raw count: a hub (`utils`, `core`) talks to everyone, so raw
+  counts fold every small box into it; against its degree it is nobody's closest sibling.
+  Measured on django it recovers what the LLM planner folded (`http` → `views`,
+  `templatetags` → `template`, `conf`/`apps` → `core`, `urls`/`middleware` together) and
+  agrees with the planner's root grouping at 0.96 pair-F1, with no model and byte-identical
+  across runs. A candidate with no affine sibling stays its own box; the fold only ever
+  merges. The persisted rules are still prefixes and words: a fold is one rule with the
+  members' prefixes and the union of their words, so replay stays graph-free.
 - `TreePlannerAgent` (LLM): runs kinship first and, only when a scope is left with more
   than nine groups, shows the model those groups with their sizes and a few identifiers and
   lets it fold them into components toward the budget. It may merge across words
   (`apiserver` + `apimachinery`; django's docs themes), which no formula over names can. Its
   answer is folded deterministically (every label lands in exactly one component, the first
   to name it; a forgotten label keeps its own group) and replayed verbatim. No silent
-  fallback: asking for the planner without an LLM is an error. Selected with
-  `CODEBOARDING_GROUPER` or `[clustering] grouper` in `config.toml`; `kinship` is the default
-  until the planner's variance across draws has been measured on the rulers. The machinery
-  tail is not yet planner-supplied.
+  fallback: asking for the planner without an LLM is an error. Measured against the
+  affinity fold it is no better on the rulers and moves between draws (grouper study): the
+  model is not deterministic at temperature 0 (its hidden reasoning is sampled; 0.5–0.7 pair
+  agreement between two draws of one prompt on markitdown and serilog). So the planner asks
+  in one JSON call with no tools, lists the groups largest first with the scope's floor, draws
+  three answers concurrently and folds the medoid (the draw the other two agree with most), and
+  keeps an `owns` word only when it is a lowercase stem found in the component's own identifiers
+  and nobody else's, because replay votes on owned words at full weight and a package-wide word
+  had pulled 35 of markitdown's 40 files into one box. Measured: markitdown draws agree at
+  0.62 instead of 0.27–0.66 with 6–7 boxes instead of 2–7, serilog 0.69–0.79; three times the
+  planner's tokens, the wall clock of one call.
 
 ### 3.4 The specification (`spec.py`)
 
@@ -120,23 +143,32 @@ of an older version is redrafted by the next full run.
 ### 3.5 The ladder (`draft.py`, `draft_scope`)
 
 The first rung that yields two children wins; a rung yields children only if at least two
-rules with a prefix or a word each hold `max(2, int(5% of the parent))` units, and a smaller
-one is absorbed by the largest (the measured guard; fallback-only rules are exempt). The
-root takes no guard on its frontier: a box the names draw is a box, and small ones are the
-grouper's to merge. Ties in the word vote go to the rule that comes first in the scope,
-never to an id's spelling, so ordering and numbering cannot move a unit.
+rules with a prefix or a word each hold `max(2, int(5% of the parent))` units. A smaller
+rule the grouper found no sibling for stays its own small box: folding it into the largest
+rule was measured to turn django's `contrib` into a `gis` grab bag of twelve packages, and
+the graph fold already sends everything that has a neighbour to that neighbour. The root
+takes no guard on its frontier: a box the names draw is a box, and small ones are the
+grouper's to fold. Fallback-only rules are exempt everywhere. Ties in the word vote go to
+the rule that comes first in the scope, never to an id's spelling, so ordering and
+numbering cannot move a unit.
 
 | scope | rungs, in order |
 |---|---|
-| root | frontier of the trie → words of the units (only if the frontier gave one box) |
-| component ≤ 135 units | un-merge: the candidates the grouper merged into it → leaf ("cohesive") |
-| component > 135 units | un-merge → frontier of its own sub-trie → words of its units → leaf ("exhausted") |
+| root | frontier of the trie (layers transposed or drawn) → words of the units (only if the frontier gave one box) |
+| component < 40 units | un-merge: the candidates the grouper folded into it → leaf ("cohesive") |
+| component 40–135 units | un-merge → frontier of its own sub-trie, layered nodes with a grid kept whole → leaf ("cohesive") |
+| component > 135 units | un-merge → frontier of its sub-trie, transposed where a grid recurs → words of its units → leaf ("exhausted") |
 
-Why the cap: on the one maintainer-drawn depth-2 ruler, un-merge alone scores 0.999 and
-over-splits 1 of 7 leaf parents; the next-segment and vocabulary rungs score 0.50 and 0.55
-and over-split all 7. 135 units is the largest box any maintainer has left unsplit
-(eShop's client app). Above it a box is too large to read, so every name coordinate is
-tried before it becomes a leaf. There is no graph tier: Leiden is retired at every depth.
+Why two thresholds: the floor (40) is the size below which a box reads whole in a listing,
+and above which a reader wants to click; the cap (135, the largest box any maintainer has
+left unsplit, eShop's client app) is where the aggressive coordinates start, because on the
+one maintainer-drawn depth-2 ruler a transposition below it over-splits every leaf parent
+(eShop depth 2: 0.974 whole, 0.59 transposed at 40 units, 0.67 at 70). The structural
+rungs below the cap cost that ruler 0.974 → 0.934 (Identity.API opens into Quickstart,
+Models, Services, Data) and buy django eight expandable components at depth 2 where there
+was one. The un-merge rung gives nesting for free: a root box folded from several
+candidates opens into them at depth 2, and each of those opens its own sub-trie at depth 3.
+There is no graph tier: Leiden is retired at every depth.
 
 ## 4. Full, incremental, partial: one function, three entry points
 
@@ -227,6 +259,30 @@ zero-LLM probe the design was drawn from. Pair-F1 at file granularity / boxes.
 | mermaid (TypeScript) | 0.670 / 33 | 0.670 / 33 | 0.624 / 30 | 0.661 | |
 | spring-framework (Java) | 1.000 / 22 | 1.000 / 23 | 0.974 / 21 | 0.974 | |
 
+The fold and the nesting, on six real static analyses (pickles, zero LLM; kinship at depth 2
+is what the grouper study shipped). Expandable is per level; pair-F1 against the eShop
+README diagram and the django/mermaid docs areas, which are floors rather than truths at any
+depth but 1 for eShop.
+
+| repo (units) | root boxes | expandable L1 / L2 | largest root box | F1 depth 1 | F1 depth 2 | F1 depth 3 |
+|---|---|---|---|---|---|---|
+| eShop (475) | 14 → **9** | 2/0 → **7/1** | 28% → 28% | 0.986 → 0.985 | 0.974 → 0.934 | 0.974 → 0.861 |
+| django (635) | 18 → **9** | 1/1 → **7/8** | 46% → 47% | 0.423 → 0.410 | 0.545 → **0.709** | 0.662 → 0.434 |
+| mermaid (386) | 12 → **9** | 2/1 → **4/2** | 44% → 47% | 0.086 → 0.075 | 0.099 → 0.087 | 0.142 → **0.229** |
+| markitdown (40) | 3 → 3 | 0/0 → 0/0 | **88% → 57%** | | | |
+| serilog (109) | 7 → **9** | 1/0 → **3/1** | **69% → 43%** | | | |
+| fzf (42) | 5 → 5 | 0/0 → 0/0 | 57% → 57% | | | |
+
+eShop's nine root boxes are the maintainers' nine at 0.985: the fold merges what the ruler
+does not draw (WebAppComponents and HybridApp into WebApp, IntegrationEventLogEF into
+Catalog) and one thing it does (PaymentProcessor and the AppHost into Basket, the only
+cost). The maintainers' depth-1 boxes are recovered from the union of depth-2 boxes at 0.915.
+markitdown and serilog no longer reach the vocabulary rung: their root is layered without a
+grid, and the layers (`converters`; `Core`, `Events`, `Configuration`, `Parsing`, …) are
+what the planner had folded the words into. Agreement with the planner's root grouping:
+django 0.96, eShop 0.85, mermaid 0.83, unchanged from kinship. Every spec is byte-identical
+across two runs and across unit order.
+
 The probe opened a feature-named child at a quarter of the scope; this implementation opens
 it at half, which the probe's own sweep showed identical on seven rulers and better on
 kubernetes, and which keeps a repository with two large packages (CodeBoarding's
@@ -244,13 +300,20 @@ perfect grouping) is the planner's to reach.
   follow-up.
 - **Full qualified names vote.** Every segment of every name a unit declares (module,
   class, method) contributes to the word vote, head noun heaviest.
-- **Two groupers, one interface**, selected by configuration; both stay until one is
-  chosen on evidence. The deterministic one is the draft the planner edits.
+- **Three groupers, one interface**, selected by configuration. The affinity fold is the
+  default: it reaches the planner's root grouping without a model and without variance; the
+  planner stays as the escape hatch for what no formula over names and links can group.
 - **Only static-analysis names are partitioned.** No support-scope carve-out.
 - **Never refuse.** One box at the root falls through to the words; nothing splits it,
   one box is drawn and the structure diagnostics say so.
-- **Aggressive rungs only above the leaf cap** (§3.5), because both over-split every
-  maintainer-drawn leaf on the only depth-2 ruler.
+- **Structure from 40 units, aggressive rungs only above the leaf cap** (§3.5): the
+  sub-trie of a component is drawn from 40 units, transposition and words only above 135,
+  because a transposition below the cap over-splits every maintainer-drawn leaf on the only
+  depth-2 ruler while a directory split costs it 0.04.
+- **The guard never folds into the largest rule.** A weak rule with no neighbour in the
+  graph stands; the fold, not the guard, decides where a small box goes.
+- **The graph folds, never places.** Links between candidates reach the grouper as a
+  context; the persisted rules stay prefixes and words, and replay never sees an edge.
 
 ## 9. The stack
 
@@ -274,8 +337,15 @@ perfect grouping) is the planner's to reach.
 
 - Kubernetes-scale repos over-produce root boxes (44–53 against 16 sigs); grouping them
   is the planner's job and its variance must be measured across draws before it ships.
-- The vocabulary rung without a model over-splits; a planner-owned vocabulary (as in the
-  measurements) would make it usable below the leaf cap. Not attempted here.
+- The vocabulary rung without a model collapses onto the commonest word (markitdown 88%,
+  serilog 69% in the grouper study). After the layered root draws its layers no repository
+  in the set reaches the rung, so the co-occurrence grouping of its words the study proposed
+  is unmeasured and not attempted; the affinity fold applies to word candidates as to any
+  other, which is all the rung has today.
+- The fold is measured on repositories of at most 635 units; kubernetes-scale roots (44–53
+  candidates) need links the synthesised ruler harness does not carry.
+- A unit the parent placed by a word has no home among the un-merged parts and lands in
+  the unplaced bucket (eShop's Basket, serilog's Core: two and three files).
 - The stemmer is crude (`spring` → `spr`); it is consistent with the measurements and
   ubiquity absorbs most of the damage, but it should be replaced when a ruler shows it
   costing something.

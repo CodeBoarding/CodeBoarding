@@ -11,6 +11,7 @@ from clustering_ids import ROOT_SCOPE_ID, ClusterId, ComponentId, ScopeId
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg.edge import EdgeKind
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
 from static_analyzer.clustering.models import (
     ClusterConnectionEdge,
@@ -20,9 +21,9 @@ from static_analyzer.clustering.models import (
     GroupConnection,
 )
 from static_analyzer.clustering.names import (
+    AffinityGrouper,
     ComponentRule,
     Grouper,
-    KinshipGrouper,
     Partition,
     ScopeSpec,
     TreeSpec,
@@ -33,9 +34,13 @@ from static_analyzer.clustering.names import (
     role_words_for,
     units_from_graphs,
 )
-from static_analyzer.clustering.names.draft import UNPLACED_NAME
+from static_analyzer.clustering.names.draft import UNPLACED_NAME, Links
 from static_analyzer.clustering.names.spec import UNPLACED
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
+
+AFFINE_REFERENCE_KINDS = frozenset({EdgeKind.INHERITS, EdgeKind.TYPEREF})
+"""Reference edges that count as links between files, with the call edges. CONTAINS never
+crosses a file; IMPORT is not emitted yet and would be too dense to weigh."""
 
 FILE_STRATEGY = "file_leaves"
 """Recorded on a ``ClusterResult`` whose leaves are files: the unit the names partition."""
@@ -66,6 +71,22 @@ def file_leaf_clusters(graph: CallGraph) -> ClusterResult:
     )
 
 
+def unit_links(graphs: Mapping[str, CallGraph]) -> Links:
+    """Edges between files: call edges plus the reference kinds that cross a file."""
+    links: dict[tuple[str, str], int] = {}
+    for graph in graphs.values():
+        pairs = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
+        pairs.extend((ref.src, ref.dst) for ref in graph.reference_edges if ref.kind in AFFINE_REFERENCE_KINDS)
+        for source, target in pairs:
+            left, right = graph.nodes.get(source), graph.nodes.get(target)
+            if left is None or right is None or not left.file_path or not right.file_path:
+                continue
+            if left.file_path != right.file_path:
+                key = (min(left.file_path, right.file_path), max(left.file_path, right.file_path))
+                links[key] = links.get(key, 0) + 1
+    return links
+
+
 class ClusteringService:
     """Build the component hierarchy from what the qualified names say.
 
@@ -77,14 +98,16 @@ class ClusteringService:
     """
 
     def __init__(self, grouper: Grouper | None = None) -> None:
-        self.grouper: Grouper = grouper if grouper is not None else KinshipGrouper()
+        self.grouper: Grouper = grouper if grouper is not None else AffinityGrouper()
         self.spec = TreeSpec(grouper=self.grouper.name)
+        self._links: Links = {}
 
     def build_full_hierarchy(self, static_analysis: StaticAnalysisResults, max_depth: int) -> ClusterScopeResult:
         """Draft the specification from every language's names and materialize the tree."""
         graphs = static_analysis.available_cfgs()
         units = units_from_graphs(graphs)
-        self.spec = draft_tree(units, self.grouper, max_depth + 1)
+        self._links = unit_links(graphs)
+        self.spec = draft_tree(units, self.grouper, max_depth + 1, links=self._links)
         hierarchy = self._materialize(graphs, units, ROOT_SCOPE_ID, 1, max_depth)
         hierarchy.index_hierarchy()
         return hierarchy
@@ -107,6 +130,7 @@ class ClusteringService:
         self.spec = spec
         graphs = static_analysis.available_cfgs()
         units = units_from_graphs(graphs)
+        self._links = unit_links(graphs)
         baseline = _Baseline(
             persisted_scopes, repo_dir, [unit.unit_id for unit in units_from_graphs(base.available_cfgs())]
         )
@@ -130,6 +154,7 @@ class ClusteringService:
             raise ValueError("max_depth must be at least 1")
         self.spec = spec
         units = units_from_graphs(graphs)
+        self._links = unit_links(graphs)
         hierarchy = self._materialize(graphs, units, root_scope_id, 1, max_depth)
         hierarchy.index_hierarchy()
         return hierarchy
@@ -201,7 +226,9 @@ class ClusteringService:
         if parent is not None:
             rule = parent.rule(scope_id)
             parts = rule.parts if rule is not None else ()
-        scope, _ = draft_scope(scope_id, units, role_words_for(self.spec.machinery), self.grouper, parts=parts)
+        scope, _ = draft_scope(
+            scope_id, units, role_words_for(self.spec.machinery), self.grouper, parts=parts, links=self._links
+        )
         self.spec.set_scope(scope)
         return scope
 
