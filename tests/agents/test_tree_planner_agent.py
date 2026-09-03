@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from agents.agent_responses import PlannedGroup, TreePlanInsights
 from agents.tree_planner_agent import BUDGET, TreePlannerAgent
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.clustering.names import ROLE_WORDS, GroupingContext
+from static_analyzer.clustering.names import ROLE_WORDS, CandidateGroup, GroupingContext
 from static_analyzer.clustering.names.frontier import BOX, Candidate
 
 
@@ -164,12 +164,10 @@ class TestTreePlannerAgent(unittest.TestCase):
 
     def test_the_answer_is_read_from_json_with_names_as_labels(self):
         items = candidates(BUDGET + 1)
-        labelled = {f"G{i + 1}": MagicMock(name=c.label) for i, c in enumerate(items)}
-        for label, group in labelled.items():
-            group.name = items[int(label[1:]) - 1].label
+        labelled = {f"G{i + 1}": CandidateGroup(c.label, (c.key,)) for i, c in enumerate(items)}
         text = 'Sure:\n{"groups": [{"name": "A", "members": ["G1", "feature1", "G3"], "owns": ["x"]}], "notes": ""}'
         insights = TreePlannerAgent._read(text, labelled)
-        self.assertIsNotNone(insights)
+        assert insights is not None
         self.assertEqual(insights.groups[0].members, ["G1", "G2", "G3"])
         self.assertIsNone(TreePlannerAgent._read("no json here", labelled))
         self.assertIsNone(TreePlannerAgent._read('{"components": []}', labelled))

@@ -1112,28 +1112,14 @@ class DiagramGenerator:
     def _build_component_scope(self, component: Component, hierarchy_depth: int) -> ClusterScopeResult:
         """Precompute an exact hierarchy rooted at one persisted component ID."""
         assert self.static_analysis is not None
-        member_keys = {
-            (normalize_repo_path(file_path, self.repo_location), qualified_name)
-            for file_path, qualified_name in _member_keys(component)
-        }
-        graphs: dict[str, CallGraph] = {}
-        for language, graph in self.static_analysis.available_cfgs().items():
-            owned_names = {
-                qualified_name
-                for qualified_name, node in graph.nodes.items()
-                if (normalize_repo_path(node.file_path, self.repo_location), qualified_name) in member_keys
-            }
-            if not owned_names:
-                continue
-            scoped_graph = graph.filter_by_nodes(owned_names)
-            if scoped_graph.nodes:
-                graphs[language] = scoped_graph
+        graphs = self.static_analysis.available_cfgs()
         if not graphs:
             raise ClusteringScopeUnavailableError(component.component_id, "no owned CFG nodes")
-
         remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
         assert self.tree_spec is not None
         service = ClusteringService(self._grouper())
+        # The service replays the specification from the root down to this component, so the
+        # scope holds the units a full run placed in it, data-only files included.
         scope = service.build_scope_hierarchy(graphs, remaining_depth, component.component_id, self.tree_spec)
         self.tree_spec = service.spec
         if not scope.groups:

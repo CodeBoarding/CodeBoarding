@@ -63,8 +63,12 @@ class TreePlannerAgent(CodeBoardingAgent):
         )
         self.draws = draws
         self._kinship = KinshipGrouper()
+        # The request itself is bounded, not only the wait for it: an abandoned draw thread must
+        # not hold a connection open past the scope's deadline.
         self._model = (
-            agent_llm.bind(response_format={"type": "json_object"}) if supports_json_mode(agent_llm) else agent_llm
+            agent_llm.bind(response_format={"type": "json_object"}, timeout=DRAW_TIMEOUT_SECONDS)
+            if supports_json_mode(agent_llm)
+            else agent_llm
         )
 
     @trace

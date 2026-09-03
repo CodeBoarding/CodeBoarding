@@ -10,6 +10,7 @@ from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
+from static_analyzer.clustering.names.spec import SPEC_VERSION
 
 
 class TestTreeSpecPersistence(unittest.TestCase):
@@ -20,7 +21,7 @@ class TestTreeSpecPersistence(unittest.TestCase):
             components=[Component(name="A", description="", key_entities=[], component_id="1")],
             components_relations=[],
         )
-        self.spec = {"version": 1, "grouper": "kinship", "machinery": [], "scopes": {"root": {"rules": []}}}
+        self.spec = {"version": SPEC_VERSION, "grouper": "kinship", "machinery": [], "scopes": {"root": {"rules": []}}}
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
@@ -54,7 +55,7 @@ class TestTreeSpecPersistence(unittest.TestCase):
 
     def test_a_specification_of_another_version_is_not_replayed(self):
         """Why: the tokenizer, stemmer and role words behind a version would move units silently."""
-        self._save(self.spec | {"version": self.spec["version"] + 1})
+        self._save(self.spec | {"version": SPEC_VERSION + 1})
         generator = DiagramGenerator(
             repo_location=self.temp_dir,
             temp_folder=self.temp_dir,

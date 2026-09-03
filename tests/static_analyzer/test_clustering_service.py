@@ -10,7 +10,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
 from static_analyzer.cfg.edge import EdgeKind, ReferenceEdge
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
-from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
+from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec
 from static_analyzer.clustering.service import NEW_SCOPE, ClusteringService, hierarchy_differs, unit_links
 from static_analyzer.config import Language, NodeType
@@ -325,13 +325,29 @@ class TestScopeHierarchy(unittest.TestCase):
         self.spec = first.spec
 
     def _scope(self, component_id: str) -> ClusterScopeResult:
-        members = next(group for group in self.hierarchy.groups if group.group_id == component_id).qualified_names
-        graphs = {"csharp": self.graph.filter_by_nodes(members)}
-        return ClusteringService().build_scope_hierarchy(graphs, 1, component_id, self.spec)
+        return ClusteringService().build_scope_hierarchy({"csharp": self.graph}, 1, component_id, self.spec)
 
     def test_a_grouped_component_replays_its_parts(self):
         scope = self._scope("1")
         self.assertEqual([group.group_id for group in scope.groups], ["1.1", "1.2"])
+
+    def test_a_partial_run_holds_the_units_a_full_run_placed_data_only_files_included(self):
+        graph_with_consts = graph(
+            "csharp", eshop() | {"src/Ordering.API/Apis/consts.cs": ["Ordering.API.Apis.limits_var"]}
+        )
+        first = ClusteringService()
+        full = first.build_full_hierarchy(analysis_for(graph_with_consts), max_depth=2)
+        partial = ClusteringService().build_scope_hierarchy({"csharp": graph_with_consts}, 1, "1", first.spec)
+        assert full.groups[0].children is not None
+        self.assertEqual(
+            [(g.group_id, sorted(g.cluster_ids)) for g in partial.groups],
+            [(g.group_id, sorted(g.cluster_ids)) for g in full.groups[0].children.groups],
+        )
+
+    def test_a_scope_the_planner_never_drew_is_not_drawn_by_another_grouper(self):
+        spec = TreeSpec.from_dict(self.spec.to_dict() | {"grouper": "planner"})
+        with self.assertRaisesRegex(PlannerUnavailableError, "never drafted"):
+            ClusteringService().build_scope_hierarchy({"csharp": self.graph}, 2, "1", spec)
 
     def test_a_cohesive_component_comes_back_without_groups(self):
         self.assertEqual(self._scope("2").groups, [])

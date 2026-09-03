@@ -124,7 +124,8 @@ class ScopeSpec:
         )
 
 
-SPEC_VERSION = 1
+SPEC_VERSION = 2
+"""2: ``last_id`` per scope; a spec without it cannot keep a retired id from being reissued."""
 
 
 @dataclass

@@ -1,6 +1,6 @@
 from clustering_ids import ROOT_SCOPE_ID
 from static_analyzer.clustering.names import ComponentRule, KinshipGrouper, ScopeSpec, TreeSpec, draft_tree
-from static_analyzer.clustering.names.spec import UNPLACED
+from static_analyzer.clustering.names.spec import SPEC_VERSION, UNPLACED
 from tests.static_analyzer.names.conftest import units_from_layout
 
 
@@ -16,7 +16,7 @@ class TestTreeSpecRoundTrip:
     def test_a_drafted_tree_survives_json(self):
         spec = draft_tree(units_from_layout(layout(), "csharp"), KinshipGrouper(), 2, machinery=("Handler",))
         raw = spec.to_dict()
-        assert raw["version"] == 1 and raw["grouper"] == "kinship" and raw["machinery"] == ["Handler"]
+        assert raw["version"] == SPEC_VERSION and raw["grouper"] == "kinship" and raw["machinery"] == ["Handler"]
         assert TreeSpec.from_dict(raw).to_dict() == raw
 
     def test_parts_prefixes_and_terms_are_preserved(self):
