@@ -1,19 +1,42 @@
 import unittest
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
-from langchain_core.language_models import BaseChatModel
+from langchain_core.language_models import BaseChatModel, LanguageModelInput
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
+from langchain_core.runnables import Runnable
+from langchain_core.tools import BaseTool
 
 from agents.agent_responses import AnalysisInsights, Component
-from agents.scope_analysis_agent import MAX_SCOPE_MODEL_CALLS, MAX_SCOPE_TOOL_CALLS, ScopeAnalysisAgent
+from agents.scope_analysis_agent import (
+    MAX_SCOPE_MODEL_CALLS,
+    MAX_SCOPE_TOOL_CALLS,
+    SCOPE_RECURSION_LIMIT,
+    ScopeAnalysisAgent,
+)
 from agents.tools import MethodCallsTool, ReadFileTool
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
 from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
+
+
+class ToolCallingFakeModel(FakeMessagesListChatModel):
+    """Script tool calls while accepting LangChain's tool binding."""
+
+    def bind_tools(
+        self,
+        tools: Sequence[dict[str, Any] | type | Callable | BaseTool],
+        *,
+        tool_choice: str | None = None,
+        **kwargs: Any,
+    ) -> Runnable[LanguageModelInput, AIMessage]:
+        return self
 
 
 def _inputs() -> tuple[StaticAnalysisResults, ClusterScopeResult, AnalysisInsights]:
@@ -74,7 +97,36 @@ class TestScopeAnalysisAgent(unittest.TestCase):
         model_limit = next(item for item in middleware if isinstance(item, ModelCallLimitMiddleware))
         self.assertEqual(tool_limit.run_limit, MAX_SCOPE_TOOL_CALLS)
         self.assertEqual(model_limit.run_limit, MAX_SCOPE_MODEL_CALLS)
-        self.assertEqual(runtime.invoke.call_args.kwargs["config"]["recursion_limit"], 20)
+        self.assertEqual(runtime.invoke.call_args.kwargs["config"]["recursion_limit"], SCOPE_RECURSION_LIMIT)
+
+    @patch.object(ReadFileTool, "_run", return_value="source")
+    def test_graph_ceiling_allows_tool_budget_to_terminate_the_run(self, read_file):
+        static_analysis, scope, analysis = _inputs()
+        tool_requests = [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "readFile",
+                        "args": {"file_path": "pkg.py", "line_number": 1},
+                        "id": f"read-{index}",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            for index in range(MAX_SCOPE_TOOL_CALLS + 1)
+        ]
+        final_response = AIMessage(
+            content='{"description":"scope","components":['
+            '{"group_id":"1","name":"Runner","description":"Runs work","key_entities":[]}],'
+            '"relations":[]}'
+        )
+        model = ToolCallingFakeModel(responses=[*tool_requests, final_response])
+
+        result = ScopeAnalysisAgent(Path("/repo"), static_analysis, model).analyze(scope, analysis, {"1"})
+
+        self.assertIsNotNone(result)
+        self.assertEqual(read_file.call_count, MAX_SCOPE_TOOL_CALLS)
 
     @patch("agents.scope_analysis_agent.create_agent")
     def test_returns_none_for_malformed_model_output(self, create_agent):

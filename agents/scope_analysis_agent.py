@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 MAX_SCOPE_TOOL_CALLS = 6
 MAX_SCOPE_MODEL_CALLS = 8
+SCOPE_RECURSION_LIMIT = 40
 
 
 class ScopeComponentSemantics(LLMBaseModel):
@@ -135,7 +136,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
             {"messages": [HumanMessage(content=SCOPE_ANALYSIS_MESSAGE.format(scope_context=scope_context))]},
             config={
                 "callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback],
-                "recursion_limit": 20,
+                "recursion_limit": SCOPE_RECURSION_LIMIT,
             },
         )
         text = self._last_response_text(response.get("messages", []))
