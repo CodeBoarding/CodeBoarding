@@ -175,6 +175,24 @@ class TestFullHierarchy(unittest.TestCase):
         self.assertEqual([(c.source_group_id, c.target_group_id) for c in hierarchy.connections], [("2", "1")])
         self.assertEqual(hierarchy.connections[0].edges[0].call_sites, [{"file": "x.cs", "line": 1}])
 
+    def test_materialized_groups_explain_every_file_placement(self):
+        hierarchy = ClusteringService().build_full_hierarchy(analysis_for(graph("csharp", eshop())), max_depth=1)
+        clustered_files = {
+            file_path
+            for clusters in hierarchy.leaf_clusters_by_language.values()
+            for file_path in clusters.file_to_clusters
+        }
+        reasons = {file_path: reason for group in hierarchy.groups for file_path, reason in group.file_reasons.items()}
+
+        self.assertEqual(set(reasons), clustered_files)
+        self.assertTrue(all(reason for reason in reasons.values()))
+        self.assertTrue(
+            all(
+                reason.startswith(("matches namespace prefix", "qualified names match", "falls under", "not claimed"))
+                for reason in reasons.values()
+            )
+        )
+
 
 class TestIncrementalHierarchy(unittest.TestCase):
     def setUp(self):

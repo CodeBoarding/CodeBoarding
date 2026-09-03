@@ -106,8 +106,8 @@ class CodeBoardingAgent(MonitoringMixin):
         return self.toolkit.read_cfg
 
     @property
-    def read_method_invocations_tool(self):
-        return self.toolkit.read_method_invocations
+    def method_calls_tool(self):
+        return self.toolkit.method_calls
 
     @property
     def read_file_tool(self):

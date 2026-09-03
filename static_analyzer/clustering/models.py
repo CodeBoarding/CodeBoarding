@@ -54,6 +54,7 @@ class ClusterGroup:
     group_id: GroupId
     cluster_ids: list[ClusterId]
     symbol_members_by_language: dict[str, set[str]] = field(default_factory=dict)
+    file_reasons: dict[str, str] = field(default_factory=dict)
     previous_component_id: ComponentId = ""
     expandable: bool = False
     children: ClusterScopeResult | None = None

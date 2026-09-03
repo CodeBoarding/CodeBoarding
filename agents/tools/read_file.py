@@ -3,6 +3,7 @@ from pathlib import Path
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
 from agents.tools.base import BaseRepoTool
+from repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +39,22 @@ class ReadFileTool(BaseRepoTool):
         """
         logger.info(f"[ReadFile Tool] Reading file {file_path} around line {line_number}")
 
+        normalized_path = normalize_repo_path(file_path, self.repo_dir)
+        if self.context.scope_restricted:
+            if normalized_path not in self.context.scope_files:
+                logger.warning("[ReadFile Tool] Rejected out-of-scope file %s", file_path)
+                return f"Error: File '{file_path}' is outside the current analysis scope."
+            candidate = (self.repo_dir / normalized_path).resolve()
+            try:
+                candidate.relative_to(self.repo_dir.resolve())
+            except ValueError:
+                return f"Error: File '{file_path}' is outside the repository."
+            read_file = candidate if candidate.is_file() else None
+        else:
+            read_file = None
+
         file_path_obj = Path(file_path)
-        read_file: Path | None = None
-        if self.cached_files:
+        if read_file is None and not self.context.scope_restricted and self.cached_files:
             for cached_file in self.cached_files:
                 if self.is_subsequence(file_path_obj, cached_file):
                     read_file = cached_file
@@ -48,10 +62,12 @@ class ReadFileTool(BaseRepoTool):
 
         common_prefix = str(self.repo_dir) if self.repo_dir else ""
         if read_file is None:
-            if self.cached_files and self.repo_dir:
+            if not self.context.scope_restricted and self.cached_files and self.repo_dir:
                 files_str = "\n".join(
                     [str(f.relative_to(self.repo_dir)) for f in self.cached_files if f.suffix == file_path_obj.suffix]
                 )
+            elif self.context.scope_restricted:
+                files_str = "Allowed files:\n" + "\n".join(sorted(self.context.scope_files))
             else:
                 files_str = "No files cached"
             logger.error(f"[ReadFile Tool] File {file_path} not found in cached files.")

@@ -7,7 +7,7 @@ from .read_structure import CodeStructureTool
 from .read_packages import PackageRelationsTool
 from .read_file_structure import FileStructureTool
 from .read_cfg import GetCFGTool
-from .get_method_invocations import MethodInvocationsTool
+from .get_method_calls import MethodCallsTool
 from .read_file import ReadFileTool
 from .read_docs import ReadDocsTool
 from .get_external_deps import ExternalDepsTool
@@ -58,10 +58,10 @@ class CodeBoardingToolkit:
         return cast(GetCFGTool, self._tools["read_cfg"])
 
     @property
-    def read_method_invocations(self) -> MethodInvocationsTool:
-        if "read_method_invocations" not in self._tools:
-            self._tools["read_method_invocations"] = MethodInvocationsTool(context=self.context)
-        return cast(MethodInvocationsTool, self._tools["read_method_invocations"])
+    def method_calls(self) -> MethodCallsTool:
+        if "method_calls" not in self._tools:
+            self._tools["method_calls"] = MethodCallsTool(context=self.context)
+        return cast(MethodCallsTool, self._tools["method_calls"])
 
     @property
     def read_file(self) -> ReadFileTool:
@@ -109,7 +109,7 @@ class CodeBoardingToolkit:
             self.read_structure,
             self.read_file_structure,
             self.read_cfg,
-            self.read_method_invocations,
+            self.method_calls,
             self.read_file,
             self.read_docs,
             self.external_deps,

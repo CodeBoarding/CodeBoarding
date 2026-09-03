@@ -471,7 +471,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIsNotNone(agent.read_structure_tool)
         self.assertIsNotNone(agent.read_file_structure)
         self.assertIsNotNone(agent.read_cfg_tool)
-        self.assertIsNotNone(agent.read_method_invocations_tool)
+        self.assertIsNotNone(agent.method_calls_tool)
         self.assertIsNotNone(agent.read_file_tool)
         self.assertIsNotNone(agent.read_docs)
         self.assertIsNotNone(agent.external_deps_tool)

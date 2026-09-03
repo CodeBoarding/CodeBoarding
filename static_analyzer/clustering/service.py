@@ -35,7 +35,7 @@ from static_analyzer.clustering.names import (
     units_from_graphs,
 )
 from static_analyzer.clustering.names.draft import DETERMINISTIC_GROUPERS, UNPLACED_NAME, Links
-from static_analyzer.clustering.names.replay import divergence
+from static_analyzer.clustering.names.replay import FALLBACK, PREFIX, TERM, divergence
 from static_analyzer.clustering.names.spec import Prefix, is_root
 from static_analyzer.clustering.names.spec import UNPLACED
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
@@ -209,6 +209,11 @@ class ClusteringService:
                 nodes = graphs[unit.language].nodes
                 owned = {name for name in unit.names if nodes[name].type in CALLABLE_TYPES | CLASS_TYPES}
                 group.symbol_members_by_language.setdefault(unit.language, set()).update(owned)
+                group.file_reasons[unit.unit_id] = self._placement_reason(
+                    unit,
+                    rule,
+                    partition.placed_by[unit.unit_id],
+                )
             result.groups.append(group)
         result.connections = self._build_connections(graphs, result.groups)
         for group in result.groups:
@@ -314,6 +319,21 @@ class ClusteringService:
             ]:
                 del self.spec.scopes[scope_id]
             logger.info("[Names] %s: retired %s (%s), it claims nothing", scope.scope_id, rule.component_id, rule.name)
+
+    @staticmethod
+    def _placement_reason(unit: Unit, rule: ComponentRule, placed_by: str) -> str:
+        """Explain the deterministic rule that assigned one file to a group."""
+        if placed_by == PREFIX:
+            matches = [prefix for prefix in rule.prefixes if unit.position[: len(prefix)] == prefix]
+            prefix = max(matches, key=len, default=())
+            return f"matches namespace prefix {'.'.join(prefix) or '<root>'}"
+        if placed_by == TERM:
+            return f"qualified names match group terms: {', '.join(rule.terms)}"
+        if placed_by == FALLBACK:
+            matches = [prefix for prefix in rule.fallback_prefixes if unit.position[: len(prefix)] == prefix]
+            prefix = max(matches, key=len, default=())
+            return f"falls under fallback prefix {'.'.join(prefix) or '<root>'}"
+        return "not claimed by a named grouping rule"
 
     @staticmethod
     def _leaf_clusters(graphs: Mapping[str, CallGraph]) -> dict[str, ClusterResult]:

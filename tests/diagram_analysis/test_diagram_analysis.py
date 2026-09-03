@@ -33,6 +33,7 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.diagram_generator import (
     DiagramGenerator,
+    _ComponentBaseline,
     _IncrementalPreparation,
     _MembershipBaseline,
     _component_depth,
@@ -1085,6 +1086,7 @@ class TestDiagramGenerator(unittest.TestCase):
             groups=[ClusterGroup(group_id="1", cluster_ids=[1], children=scope)],
         )
         gen.scope_assembler.build = Mock(return_value=child_analysis)
+        gen._enrich_scope = Mock()
 
         component_id, result, new_components = gen._process_component(component)
 
@@ -1092,6 +1094,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIs(result, child_analysis)
         self.assertEqual(new_components, [child])
         gen.scope_assembler.build.assert_called_once_with(scope)
+        gen._enrich_scope.assert_called_once_with(scope, child_analysis, {"1.1"})
 
     def test_build_component_scope_uses_persisted_absorbed_id(self):
         gen = DiagramGenerator(
@@ -1350,6 +1353,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.static_analysis.available_cfgs.return_value = {}
         gen.clustering_hierarchy = hierarchy
         gen.scope_assembler.build = Mock(return_value=analysis)
+        gen._enrich_scope = Mock()
         gen._generate_subcomponents = Mock(return_value=([], {}))
         expected_path = self.output_dir / "analysis.json"
         gen.finalize_and_save = Mock(return_value=expected_path)
@@ -1358,6 +1362,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertEqual(result, expected_path)
         gen.scope_assembler.build.assert_called_once_with(hierarchy)
+        gen._enrich_scope.assert_called_once_with(hierarchy, analysis, {"1"})
         gen._generate_subcomponents.assert_called_once_with(analysis, [component])
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
@@ -1983,6 +1988,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
         gen.static_analysis = Mock()
+        gen.static_analysis.available_cfgs.return_value = {}
         gen.incremental_updater = Mock()
         gen.clustering_hierarchy = hierarchy
         gen._incremental_preparation = _IncrementalPreparation(
@@ -2000,6 +2006,130 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(result, self.output_dir / "analysis.json")
         gen._apply_incremental_hierarchy.assert_called_once_with(hierarchy, root_analysis, {})
         gen.finalize_and_save.assert_called_once_with(root_analysis, {})
+
+    def test_source_changes_make_incremental_preparation_actionable(self):
+        preparation = _IncrementalPreparation(
+            structure_changed=False,
+            baseline_membership=_MembershipBaseline(),
+            has_source_changes=True,
+        )
+
+        self.assertTrue(preparation.has_changes)
+
+    def test_incremental_semantics_visit_only_affected_scopes_and_lock_stable_names(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("pkg.changed", NodeType.FUNCTION, "changed.py", 1, 5))
+        graph.add_node(Node("pkg.stable", NodeType.FUNCTION, "stable.py", 1, 5))
+        child_scope = ClusterScopeResult(
+            scope_id="1",
+            graphs_by_language={"python": graph},
+            groups=[
+                ClusterGroup(
+                    group_id="1.1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {"pkg.changed"}},
+                )
+            ],
+        )
+        hierarchy = ClusterScopeResult(
+            scope_id=ROOT_SCOPE_ID,
+            graphs_by_language={"python": graph},
+            groups=[
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {"pkg.changed"}},
+                    children=child_scope,
+                ),
+                ClusterGroup(
+                    group_id="2",
+                    cluster_ids=[2],
+                    symbol_members_by_language={"python": {"pkg.stable"}},
+                ),
+            ],
+        )
+        static_analysis = StaticAnalysisResults()
+        static_analysis.add_cfg(Language.PYTHON, graph)
+        gen.static_analysis = static_analysis
+        gen._changed_members = {"pkg.changed"}
+        root_analysis = AnalysisInsights(
+            description="root",
+            components=[
+                Component(name="Stable Root Name", description="", key_entities=[], component_id="1"),
+                Component(name="Untouched", description="", key_entities=[], component_id="2"),
+            ],
+            components_relations=[],
+            files={
+                "changed.py": FileEntry(
+                    methods=[MethodEntry(qualified_name="pkg.changed", start_line=1, end_line=5, node_type="FUNCTION")]
+                ),
+                "stable.py": FileEntry(
+                    methods=[MethodEntry(qualified_name="pkg.stable", start_line=1, end_line=5, node_type="FUNCTION")]
+                ),
+            },
+        )
+        child_analysis = AnalysisInsights(
+            description="child",
+            components=[Component(name="Stable Child Name", description="", key_entities=[], component_id="1.1")],
+            components_relations=[],
+        )
+        baseline = _MembershipBaseline(
+            meta_by_id={
+                component_id: _ComponentBaseline(
+                    name=name,
+                    description="",
+                    key_entities=[],
+                    source_cluster_ids=[],
+                    member_keys=frozenset({("changed.py", "pkg.changed")}),
+                    member_qnames=frozenset({"pkg.changed"}),
+                )
+                for component_id, name in (("1", "Stable Root Name"), ("1.1", "Stable Child Name"))
+            }
+        )
+        gen._enrich_scope = Mock()
+
+        gen._enrich_incremental_scopes(
+            hierarchy,
+            root_analysis,
+            {"1": child_analysis},
+            {"1", "1.1"},
+            baseline,
+        )
+
+        self.assertEqual(gen._enrich_scope.call_count, 2)
+        root_call, child_call = gen._enrich_scope.call_args_list
+        self.assertEqual(root_call.args[:4], (hierarchy, root_analysis, {"1"}, frozenset({"1"})))
+        self.assertEqual(child_call.args[:4], (child_scope, child_analysis, {"1.1"}, frozenset({"1.1"})))
+        self.assertEqual(root_call.args[4], frozenset({"changed.py"}))
+        self.assertTrue(root_call.kwargs["incremental"])
+        self.assertEqual(root_analysis.components[1].name, "Untouched")
+
+        gen._enrich_scope.reset_mock()
+        gen._enrich_incremental_scopes(
+            hierarchy,
+            root_analysis,
+            {"1": child_analysis},
+            {"1", "1.1"},
+            baseline,
+            skip_scope_ids=frozenset({"1"}),
+        )
+        gen._enrich_scope.assert_called_once_with(
+            hierarchy,
+            root_analysis,
+            {"1"},
+            frozenset({"1"}),
+            frozenset({"changed.py"}),
+            incremental=True,
+        )
 
     def test_refresh_files_index_reuses_sources_and_copies_sub_entries(self):
         gen = DiagramGenerator(

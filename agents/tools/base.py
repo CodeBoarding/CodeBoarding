@@ -22,6 +22,9 @@ class RepoContext(BaseModel):
     clustering: ClusterScopeResult = Field(default_factory=lambda: ClusterScopeResult(scope_id=""))
     cluster_results: dict[str, ClusterResult] = Field(default_factory=dict)
     cfg_graphs: dict[str, CallGraph] = Field(default_factory=dict)
+    scope_restricted: bool = False
+    scope_files: frozenset[str] = frozenset()
+    scope_methods: frozenset[str] = frozenset()
     # Shared caches to prevent redundant filesystem walks
     _file_cache: List[Path] = PrivateAttr(default_factory=list)
     _dir_cache: List[Path] = PrivateAttr(default_factory=list)

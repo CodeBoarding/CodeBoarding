@@ -6,7 +6,11 @@ about the graph, the graph knows nothing about prompts.
 """
 
 from agents.llm_renderers.call_graph import render_call_graph
+from agents.llm_renderers.scope import render_scope_context, scope_file_paths, scope_method_names
 
 __all__ = [
     "render_call_graph",
+    "render_scope_context",
+    "scope_file_paths",
+    "scope_method_names",
 ]

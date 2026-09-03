@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 from agents.agent_responses import Component
 from agents.file_index_models import FileMethodGroup
-from agents.tools import GetCFGTool, MethodInvocationsTool
+from agents.tools import GetCFGTool, MethodCallsTool
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
@@ -26,7 +26,7 @@ class TestCFGTools(unittest.TestCase):
         ignore_manager = RepoIgnoreManager(test_repo)
         self.context = RepoContext(repo_dir=test_repo, ignore_manager=ignore_manager, static_analysis=static_analysis)
         self.read_cfg = GetCFGTool(context=self.context)
-        self.method_tool = MethodInvocationsTool(context=self.context)
+        self.method_tool = MethodCallsTool(context=self.context)
         self.static_analysis = static_analysis
 
     def test_get_cfg_with_valid_data(self):
@@ -95,7 +95,7 @@ class TestCFGTools(unittest.TestCase):
         result = self.read_cfg.component_cfg(component)
         self.assertIn("No control flow graph data available for this component", result)
 
-    def test_method_invocations_with_valid_method(self):
+    def test_method_calls_with_valid_method(self):
         # Find a method that exists in the CFG
         method_name = None
         for lang in self.static_analysis.get_languages():
@@ -107,23 +107,23 @@ class TestCFGTools(unittest.TestCase):
                 break
 
         if method_name:
-            content = self.method_tool._run(method_name)
+            content = self.method_tool._run(method_name, "outgoing")
             self.assertIsInstance(content, str)
             self.assertTrue(len(content) > 0)
 
-    def test_method_invocations_with_nonexistent_method(self):
+    def test_method_calls_with_nonexistent_method(self):
         # Test with a method that doesn't exist
-        content = self.method_tool._run("nonexistent.method.name")
-        self.assertIn("No method invocations found", content)
+        content = self.method_tool._run("nonexistent.method.name", "outgoing")
+        self.assertIn("No outgoing calls found", content)
 
-    def test_method_invocations_without_static_analysis(self):
+    def test_method_calls_without_static_analysis(self):
         # Test when static_analysis is None
         context = RepoContext(repo_dir=Path("."), ignore_manager=MagicMock(), static_analysis=None)
-        tool = MethodInvocationsTool(context=context)
-        result = tool._run("some.method")
+        tool = MethodCallsTool(context=context)
+        result = tool._run("some.method", "outgoing")
         self.assertEqual(result, "No static analysis data available.")
 
-    def test_method_invocations_as_callee(self):
+    def test_method_calls_as_callee(self):
         # Test finding methods that are called by others
         method_name = None
         for lang in self.static_analysis.get_languages():
@@ -135,11 +135,38 @@ class TestCFGTools(unittest.TestCase):
                 break
 
         if method_name:
-            content = self.method_tool._run(method_name)
+            content = self.method_tool._run(method_name, "incoming")
             self.assertIsInstance(content, str)
-            # Should contain "is called by" somewhere
-            if "No method invocations found" not in content:
-                self.assertTrue("is calling" in content or "is called by" in content)
+            if "No incoming calls found" not in content:
+                self.assertIn("->", content)
+
+
+class TestMethodCallsScoping(unittest.TestCase):
+    def setUp(self):
+        graph = CallGraph(language="python")
+        graph.add_node(Node("pkg.a", NodeType.FUNCTION, "a.py", 1, 2))
+        graph.add_node(Node("pkg.b", NodeType.FUNCTION, "b.py", 1, 2))
+        graph.add_node(Node("pkg.outside", NodeType.FUNCTION, "outside.py", 1, 2))
+        graph.add_edge("pkg.a", "pkg.b")
+        graph.add_edge("pkg.a", "pkg.outside")
+        static_analysis = StaticAnalysisResults()
+        static_analysis.add_cfg(Language.PYTHON, graph)
+        context = RepoContext(
+            repo_dir=Path("."),
+            ignore_manager=RepoIgnoreManager(Path(".")),
+            static_analysis=static_analysis,
+            scope_restricted=True,
+            scope_methods=frozenset({"pkg.a", "pkg.b"}),
+            cfg_graphs={"python": graph},
+        )
+        self.tool = MethodCallsTool(context=context)
+
+    def test_filters_out_of_scope_endpoints_in_both_directions(self):
+        self.assertEqual(self.tool._run("pkg.a", "outgoing"), "pkg.a -> pkg.b")
+        self.assertEqual(self.tool._run("pkg.b", "incoming"), "pkg.a -> pkg.b")
+
+    def test_rejects_an_out_of_scope_query(self):
+        self.assertIn("outside the current analysis scope", self.tool._run("pkg.outside", "incoming"))
 
 
 class TestComponentCFGScoping(unittest.TestCase):
