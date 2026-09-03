@@ -87,7 +87,7 @@ CONFIG_TEMPLATE = """\
 # If omitted, each provider's built-in defaults are used.
 [llm]
 # agent_model    = "google/gemini-3.8-flash"
-# parsing_model  = "google/gemini-3.1-flash-lite"
+# parsing_model  = "google/gemini-3.5-flash-lite"
 # context_window = 272000   # override if needed
 """
 

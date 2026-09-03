@@ -139,7 +139,7 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 
 [llm]
 # agent_model   = "gemini-3.8-flash"
-# parsing_model = "gemini-3.1-flash-lite"
+# parsing_model = "gemini-3.5-flash-lite"
 ```
 
 `openai_base_url` points CodeBoarding at any OpenAI-compatible gateway. Set the gateway API key as `openai_api_key`, then choose its model IDs with `agent_model` and `parsing_model`. The equivalent shell variables are `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `AGENT_MODEL`, and `PARSING_MODEL`.

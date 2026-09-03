@@ -125,7 +125,7 @@ LLM provider keys and model overrides are stored in `~/.codeboarding/config.toml
 [llm]
 # Optional: override the default model for your active provider
 # agent_model   = "gemini-3.8-flash"
-# parsing_model = "gemini-3.1-flash-lite"
+# parsing_model = "gemini-3.5-flash-lite"
 ```
 
 Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) always take precedence over the config file, so CI/CD pipelines need no changes. For private repositories, set `GITHUB_TOKEN` in your environment.
