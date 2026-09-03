@@ -205,6 +205,39 @@ class TestLayeredRoot:
         features = sorted(candidate.terms[0] for candidate in frontier.candidates if candidate.kind == FEATURE)
         assert features == ["escalation", "incident", "team"]
 
+    def test_two_layers_and_a_feature_are_not_a_layered_node(self):
+        layout = {
+            f"Beacon.{layer}/{layer}Thing{i}.cs": [f"Beacon.{layer}.{layer}Thing{i}"]
+            for layer in ("Domain", "Infrastructure")
+            for i in range(3)
+        }
+        layout |= {f"Beacon.Billing/Invoice{i}.cs": [f"Beacon.Billing.Invoice{i}"] for i in range(2)}
+        frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
+        assert not any("role-named children" in note for note in frontier.notes)
+        assert {"box:Beacon.Domain", "box:Beacon.Infrastructure", "box:Beacon.Billing"} <= set(keys(frontier))
+
+    def test_a_product_name_behind_the_layers_role_containers_is_not_the_feature(self):
+        layout: dict[str, list[str]] = {}
+        for layer, role in (("Application", "Handlers"), ("Infrastructure", "Repositories"), ("Domain", "Entities")):
+            for feature in ("BeaconOrders", "BeaconCustomers", "BeaconPayments"):
+                for index in range(2):
+                    layout[f"Shop.{layer}/{role}/{feature}/{feature}{index}.cs"] = [
+                        f"Shop.{layer}.{role}.{feature}.Thing{index}"
+                    ]
+        frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
+        features = sorted(candidate.terms[0] for candidate in frontier.candidates if candidate.kind == FEATURE)
+        assert features == ["customer", "order", "payment"]
+
+    def test_a_feature_nested_in_another_stays_with_the_outer_one(self):
+        layout = self._beacon()
+        layout["Beacon.Application/Billing/Incidents/BilledIncident.cs"] = [
+            "Beacon.Application.Billing.Incidents.BilledIncident"
+        ]
+        layout["Beacon.Application/Billing/Bill.cs"] = ["Beacon.Application.Billing.Bill"]
+        frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
+        incidents = next(candidate for candidate in frontier.candidates if candidate.label == "Incidents")
+        assert ("Beacon", "Application", "Billing", "Incidents") not in incidents.prefixes
+
     def test_a_feature_under_one_layer_only_is_not_a_feature(self):
         """Two same-stem directories under one layer are not a grid."""
         layout = self._beacon()

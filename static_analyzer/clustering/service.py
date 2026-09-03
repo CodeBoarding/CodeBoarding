@@ -12,7 +12,7 @@ from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
 from static_analyzer.cfg.edge import EdgeKind
-from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
+from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.models import (
     ClusterConnectionEdge,
     ClusterGroup,
@@ -34,9 +34,9 @@ from static_analyzer.clustering.names import (
     role_words_for,
     units_from_graphs,
 )
-from static_analyzer.clustering.names.draft import UNPLACED_NAME, Links
+from static_analyzer.clustering.names.draft import DETERMINISTIC_GROUPERS, UNPLACED_NAME, Links
 from static_analyzer.clustering.names.replay import divergence
-from static_analyzer.clustering.names.spec import Prefix
+from static_analyzer.clustering.names.spec import Prefix, is_root
 from static_analyzer.clustering.names.spec import UNPLACED
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
 
@@ -103,6 +103,7 @@ class ClusteringService:
         self.grouper: Grouper = grouper if grouper is not None else AffinityGrouper()
         self.spec = TreeSpec(grouper=self.grouper.name)
         self._links: Links = {}
+        self._baseline: _Baseline | None = None
 
     def build_full_hierarchy(self, static_analysis: StaticAnalysisResults, max_depth: int) -> ClusterScopeResult:
         """Draft the specification from every language's names and materialize the tree."""
@@ -125,17 +126,18 @@ class ClusteringService:
     ) -> ClusterScopeResult:
         """Replay ``spec`` over the live names; a new scope becomes a new rule, nothing else moves."""
         base = static_analysis.incremental_base_results
+        graphs = static_analysis.available_cfgs()
         if base is None:
             raise IncrementalCacheMissingError(artifact_dir)
         if spec.scope(ROOT_SCOPE_ID) is None:
             raise IncrementalCacheMissingError(artifact_dir, "the baseline carries no tree specification")
-        self.spec = spec
-        graphs = static_analysis.available_cfgs()
+        if graphs and not base.available_cfgs():
+            raise IncrementalCacheMissingError(artifact_dir, "the baseline static analysis carries no call graph")
+        self._adopt(spec)
         units = units_from_graphs(graphs)
         self._links = unit_links(graphs)
-        baseline = _Baseline(
-            persisted_scopes, repo_dir, [unit.unit_id for unit in units_from_graphs(base.available_cfgs())]
-        )
+        baseline = _Baseline(persisted_scopes, repo_dir, units_from_graphs(base.available_cfgs()))
+        self._baseline = baseline
         hierarchy = self._materialize(graphs, units, ROOT_SCOPE_ID, 1, max_depth, baseline=baseline)
         hierarchy.index_hierarchy()
         return hierarchy
@@ -154,8 +156,13 @@ class ClusteringService:
         """
         if max_depth < 1:
             raise ValueError("max_depth must be at least 1")
-        self.spec = spec
-        units = units_from_graphs(graphs)
+        self._adopt(spec)
+        role_words = role_words_for(spec.machinery)
+        units = self._scope_units(units_from_graphs(graphs), root_scope_id, role_words)
+        if not is_root(root_scope_id):
+            # The scope's own graphs, induced by the files its ancestors' replay placed in it, so a
+            # partial run sees the units a full run would have handed it, data-only files included.
+            graphs = self._induced_graphs(units, graphs)
         self._links = unit_links(graphs)
         hierarchy = self._materialize(graphs, units, root_scope_id, 1, max_depth)
         hierarchy.index_hierarchy()
@@ -205,9 +212,7 @@ class ClusteringService:
             result.groups.append(group)
         result.connections = self._build_connections(graphs, result.groups)
         for group in result.groups:
-            # The child scope reads its own graphs: the members' files, so a file that only
-            # declares data voted above but is nobody's member below.
-            child_graphs = self._induced_graphs(group, graphs)
+            child_graphs = self._induced_graphs(partition.members.get(group.group_id, []), graphs)
             child_units = units_from_graphs(child_graphs)
             child = self._scope_rules(group.group_id, child_units)
             group.expandable = not child.is_leaf and bool(child_units)
@@ -218,11 +223,33 @@ class ClusteringService:
             )
         return result
 
+    def _adopt(self, spec: TreeSpec) -> None:
+        """Replay ``spec`` with the grouper that drew it, so a scope it never reached is drafted the same way."""
+        self.spec = spec
+        if spec.grouper in DETERMINISTIC_GROUPERS:
+            self.grouper = DETERMINISTIC_GROUPERS[spec.grouper]()
+
+    def _scope_units(self, units: list[Unit], scope_id: ScopeId, role_words: frozenset[str]) -> list[Unit]:
+        """The units a scope holds: every unit at the root, else its rule's members in the parent's replay."""
+        if is_root(scope_id):
+            return units
+        parent_id = scope_id.rpartition(".")[0] or ROOT_SCOPE_ID
+        parent = self.spec.scope(parent_id)
+        if parent is None:
+            return []
+        return replay(self._scope_units(units, parent_id, role_words), parent, role_words).members.get(scope_id, [])
+
     def _scope_rules(self, scope_id: ScopeId, units: list[Unit]) -> ScopeSpec:
         """The scope's rules from the specification, drafted now if it was never reached."""
         scope = self.spec.scope(scope_id)
         if scope is not None:
             return scope
+        if self.spec.grouper and self.spec.grouper != self.grouper.name:
+            # No silent fallback: a scope the planner never drew must not be drawn by another grouper.
+            raise PlannerUnavailableError(
+                f"scope {scope_id} was never drafted and the baseline was drawn by the {self.spec.grouper} grouper; "
+                "run a full analysis"
+            )
         parts: tuple[ComponentRule, ...] = ()
         parent_id = scope_id.rpartition(".")[0] or ROOT_SCOPE_ID
         parent = self.spec.scope(parent_id) if scope_id != ROOT_SCOPE_ID else None
@@ -243,16 +270,17 @@ class ClusteringService:
         role_words: frozenset[str],
         baseline: _Baseline,
     ) -> Partition:
-        """Append a rule for every group of new units that leaves the tree of the units before it.
+        """Append a rule for every group of new units that leaves the tree of the baseline's units in this scope.
 
-        Why the tree of units and not of owned prefixes: a scope drawn from words owns no prefix
-        at all, and every unit would diverge at the first segment. Why new units only: a unit the
-        baseline already placed is a rule's residue, not a new directory. Why prefix only: a new
-        rule with words could re-vote an existing unit.
+        Why the baseline's tree, of this scope only: a scope drawn from words owns no prefix at
+        all; a directory whose every file was replaced in one update is not a new directory; and
+        a sibling's directories must not decide where this scope's new files diverge. Why new
+        units only: a unit the baseline already placed is a rule's residue. Why prefix only: a
+        new rule with words could re-vote an existing unit.
         """
         taken = baseline.component_ids(scope.scope_id)
         owned = {prefix for rule in scope.rules for prefix in rule.prefixes + rule.fallback_prefixes}
-        settled = {unit.position for unit in units if not baseline.is_new(unit)}
+        settled = {unit.position for unit in self._scope_units(baseline.units, scope.scope_id, role_words)}
         fresh: dict[Prefix, list[Unit]] = {}
         for unit in (unit for members in partition.new_scopes.values() for unit in members if baseline.is_new(unit)):
             fresh.setdefault(divergence(unit.position, settled), []).append(unit)
@@ -309,16 +337,18 @@ class ClusteringService:
         return leaves
 
     @staticmethod
-    def _induced_graphs(group: ClusterGroup, graphs: Mapping[str, CallGraph]) -> dict[str, CallGraph]:
-        """The exact per-language subgraphs owned by ``group``."""
+    def _induced_graphs(members: Iterable[Unit], graphs: Mapping[str, CallGraph]) -> dict[str, CallGraph]:
+        """The per-language subgraphs of the members' files, every declaration included.
+
+        Why files and not the agents' symbol members: the child scope was drafted over the units
+        its parent placed, data-only files among them, and must replay over the same.
+        """
+        files = {(unit.language, unit.unit_id) for unit in members}
         child_graphs: dict[str, CallGraph] = {}
         for language, graph in graphs.items():
-            members = group.symbol_members_by_language.get(language, set())
-            if not members:
-                continue
-            child = graph.filter_by_nodes(members)
-            if child.nodes:
-                child_graphs[language] = child
+            names = {name for name, node in graph.nodes.items() if (language, node.file_path) in files}
+            if names:
+                child_graphs[language] = graph.filter_by_nodes(names)
         return child_graphs
 
     @staticmethod
@@ -361,13 +391,15 @@ class _Baseline:
     ``file_methods`` and would look new on every run.
     """
 
-    def __init__(self, persisted_scopes: Mapping[ScopeId, Any], repo_dir: Path, files: Iterable[str]) -> None:
+    def __init__(self, persisted_scopes: Mapping[ScopeId, Any], repo_dir: Path, units: Iterable[Unit]) -> None:
         self._repo_dir = repo_dir
         self._ids_by_scope = {
             scope_id: frozenset(component.component_id for component in scope.components if component.component_id)
             for scope_id, scope in persisted_scopes.items()
         }
-        self._files = {normalize_repo_path(path, repo_dir) for path in files}
+        self.units = list(units)
+        """The baseline's units, for the tree a new directory must leave to be one."""
+        self._files = {normalize_repo_path(unit.unit_id, repo_dir) for unit in self.units}
 
     def component_ids(self, scope_id: ScopeId) -> frozenset[ComponentId]:
         return self._ids_by_scope.get(scope_id, frozenset())

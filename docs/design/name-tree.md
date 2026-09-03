@@ -189,11 +189,14 @@ clustering. Per scope, walking the tree top-down:
    UPDATE only where members or bodies changed, and nothing else moves. Measured: 0.00%
    of unchanged files move across 27 repositories and four edit types.
 2. **New components.** Every unit that no prefix claims, whether a word vote, a fallback
-   rule or nothing placed it, is reported in `Partition.new_scopes` under the prefix at
+   rule or nothing placed it (an empty catch-all prefix does not count), is reported in
+   `Partition.new_scopes` under the prefix at
    which its position first leaves every prefix a rule owns: a new top-level directory
    diverges at that directory; a new file deep inside a known one is claimed by its
-   ancestor's rule and never gets here. A group of ≥ 2 units whose members are all new to
-   the analysis (absent from the baseline membership) becomes a new rule appended to the
+   ancestor's rule and never gets here. A group of ≥ 2 new units (absent from the
+   baseline's graph), keyed by the prefix at which they leave the tree of the baseline's
+   units (a scope drawn from words owns no prefix, and a directory whose every file was
+   replaced is not new), becomes a new rule appended to the
    scope, prefix only and without words so no existing unit can be re-voted, with a fresh id
    above every id the scope has ever used; the scope plan then emits CREATE and the
    incremental agent names it. A group that also holds units the baseline knew is a rule's

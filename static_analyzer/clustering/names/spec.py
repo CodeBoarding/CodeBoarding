@@ -77,6 +77,8 @@ class ScopeSpec:
     axis: str = ""
     rung: str = ""
     leaf_reason: str = ""
+    last_id: int = 0
+    """The highest local id this scope ever allocated, so a retired component's id is never reissued."""
 
     @property
     def is_leaf(self) -> bool:
@@ -98,14 +100,15 @@ class ScopeSpec:
         prefix = CodeBoardingClusterIds.prefix_for_scope(self.scope_id)
         used = {rule.component_id for rule in self.rules} | set(taken)
         local = [component_id.rpartition(".")[2] for component_id in used]
-        index = max((int(part) for part in local if part.isdigit()), default=0) + 1
-        return CodeBoardingClusterIds.qualify_local_id(str(index), prefix)
+        self.last_id = max(self.last_id, max((int(part) for part in local if part.isdigit()), default=0)) + 1
+        return CodeBoardingClusterIds.qualify_local_id(str(self.last_id), prefix)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "axis": self.axis,
             "rung": self.rung,
             "leaf_reason": self.leaf_reason,
+            "last_id": self.last_id,
             "rules": [rule.to_dict() for rule in self.rules],
         }
 
@@ -117,10 +120,12 @@ class ScopeSpec:
             axis=str(raw.get("axis", "")),
             rung=str(raw.get("rung", "")),
             leaf_reason=str(raw.get("leaf_reason", "")),
+            last_id=int(raw.get("last_id", 0)),
         )
 
 
-SPEC_VERSION = 1
+SPEC_VERSION = 2
+"""2: ``last_id`` per scope; a spec without it cannot keep a retired id from being reissued."""
 
 
 @dataclass
@@ -155,6 +160,10 @@ class TreeSpec:
 
             scopes: dict[ScopeId, ScopeSpec] = {}
             for scope_id, scope in self.scopes.items():
+                under_parent = scope_id.startswith(f"{parent_id}.") if parent_id else scope_id != ROOT_SCOPE_ID
+                if under_parent and not scope_id.startswith(prefix):
+                    # A retired sibling of the absorbed child: its id may be reissued, so its scope must go.
+                    continue
                 scope.scope_id = moved(scope_id)
                 scope.rules = [replace(rule, component_id=moved(rule.component_id)) for rule in scope.rules]
                 scopes[scope.scope_id] = scope
@@ -165,6 +174,7 @@ class TreeSpec:
                 child.axis,
                 child.rung,
                 child.leaf_reason,
+                child.last_id,
             )
             self.scopes = scopes
 

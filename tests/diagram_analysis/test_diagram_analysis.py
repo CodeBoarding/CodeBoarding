@@ -1197,8 +1197,14 @@ class TestDiagramGenerator(unittest.TestCase):
         graph.add_node(Node("pkg.other.run", NodeType.FUNCTION, str(self.repo_location / "other.py"), 1, 4))
         gen.static_analysis = StaticAnalysisResults()
         gen.static_analysis.add_cfg(Language.PYTHON, graph)
+        # The service replays from the root down, so the spec carries the root that places pkg.persisted in 2.
         gen.tree_spec = TreeSpec(
-            scopes={"2": ScopeSpec("2", [ComponentRule("2.1", "Persisted", prefixes=(("pkg", "persisted"),))])}
+            scopes={
+                ROOT_SCOPE_ID: ScopeSpec(
+                    ROOT_SCOPE_ID, [ComponentRule("2", "Persisted", prefixes=(("pkg", "persisted"),))]
+                ),
+                "2": ScopeSpec("2", [ComponentRule("2.1", "Persisted", prefixes=(("pkg", "persisted"),))]),
+            }
         )
         component = Component(
             name="Persisted child",
