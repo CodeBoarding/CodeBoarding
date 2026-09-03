@@ -638,7 +638,7 @@ class TestEnvironmentVariables:
 
 
 class TestTemperatureGating:
-    """temperature must be omitted for Anthropic models that reject sampling params."""
+    """Models requiring provider sampling defaults must omit temperature."""
 
     @pytest.mark.parametrize(
         "model_name",
@@ -652,6 +652,9 @@ class TestTemperatureGating:
             "anthropic.claude-opus-4-8",  # Bedrock prefix
             "us.anthropic.claude-opus-4-8-v1:0",  # Bedrock with region
             "CLAUDE-OPUS-4-8",  # case-insensitive
+            "gemini-3.8-flash",
+            "google/gemini-3.8-flash",
+            "google/gemini-3.5-flash-lite",
         ],
     )
     def test_sampling_param_free_models_omit_temperature(self, model_name):
@@ -659,10 +662,18 @@ class TestTemperatureGating:
 
     @pytest.mark.parametrize(
         "model_name",
-        ["claude-sonnet-4-6", "claude-haiku-4-5", "anthropic.claude-sonnet-4-6", "gpt-4o", "gemini-3-flash"],
+        ["claude-sonnet-4-6", "claude-haiku-4-5", "anthropic.claude-sonnet-4-6", "gpt-4o", "gemini-2.5-flash"],
     )
     def test_other_models_accept_temperature(self, model_name):
         assert _model_accepts_temperature(model_name) is True
+
+    def test_gemini_3_request_omits_temperature(self):
+        google = LLM_PROVIDERS["google"]
+        with patch.dict(os.environ, {"GOOGLE_API_KEY": "test-key"}, clear=True):
+            with patch.object(google, "chat_class", return_value=MagicMock()) as mock_chat_class:
+                initialize_agent_llm()
+
+        assert "temperature" not in mock_chat_class.call_args.kwargs
 
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     @patch("agents.agent.MONITORING_CALLBACK")

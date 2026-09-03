@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 _OPENROUTER_FALLBACK_CONTEXT_WINDOW = ContextWindow(1_048_576, 65_536, is_fallback=True)
 
-# Model families that reject sampling params (temperature/top_p/top_k) with HTTP 400.
-# Why: newer Anthropic models deprecate them; sending temperature (even 0) 400s.
-# Substrings match bare IDs and Bedrock-prefixed forms (e.g. us.anthropic.claude-opus-4-8-v1:0).
+# Model families that must use their provider's default temperature.
+# Why: newer Anthropic models reject it, while Gemini 3 degrades below its default of 1.
+# Substrings match bare IDs and provider-prefixed forms.
 _SAMPLING_PARAM_FREE_MODEL_SUBSTRINGS = (
     "claude-opus-4-7",
     "claude-opus-4-8",
@@ -35,11 +35,12 @@ _SAMPLING_PARAM_FREE_MODEL_SUBSTRINGS = (
     "claude-sonnet-5",
     "claude-fable-5",
     "claude-mythos-5",
+    "gemini-3",
 )
 
 
 def _model_accepts_temperature(model_name: str) -> bool:
-    """False for models that reject sampling params; temperature must be omitted for those."""
+    """Whether the model accepts an explicit temperature."""
     lowered = model_name.lower()
     return not any(s in lowered for s in _SAMPLING_PARAM_FREE_MODEL_SUBSTRINGS)
 
