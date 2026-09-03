@@ -55,6 +55,11 @@ _PROVIDER_ENDPOINT_OVERRIDES: dict[str, str] = {
 
 _PROVIDER_KEY_TO_ENV: dict[str, str] = _PROVIDER_SECRETS | _PROVIDER_ENDPOINTS | _PROVIDER_ENDPOINT_OVERRIDES
 
+GROUPER_ENV = "CODEBOARDING_GROUPER"
+GROUPERS = ("kinship", "planner")
+"""How frontier candidates become components: ``kinship`` merges scopes sharing a word with no
+model; ``planner`` lets an LLM group across words toward a 5-9 preference."""
+
 # Template written to ~/.codeboarding/config.toml on first install.
 CONFIG_TEMPLATE = """\
 # CodeBoarding user configuration
@@ -89,6 +94,12 @@ CONFIG_TEMPLATE = """\
 # agent_model    = "google/gemini-3.7-flash"
 # parsing_model  = "google/gemini-3.1-flash-lite"
 # context_window = 272000   # override if needed
+
+# Optional: how top-level components are grouped from the repository's names.
+# "kinship" (default) merges scopes that share a word, with no model call;
+# "planner" asks the LLM to group across words toward 5-9 components.
+[clustering]
+# grouper = "kinship"
 """
 
 
@@ -123,9 +134,15 @@ class LLMUserConfig:
 
 
 @dataclass
+class ClusteringUserConfig:
+    grouper: str | None = None
+
+
+@dataclass
 class UserConfig:
     provider: ProviderUserConfig = field(default_factory=ProviderUserConfig)
     llm: LLMUserConfig = field(default_factory=LLMUserConfig)
+    clustering: ClusteringUserConfig = field(default_factory=ClusteringUserConfig)
 
     def apply_to_env(self) -> None:
         """Inject config values into os.environ, without overriding existing shell vars."""
@@ -133,6 +150,8 @@ class UserConfig:
             value = getattr(self.provider, config_key, None)
             if value and not os.environ.get(env_var):
                 os.environ[env_var] = value
+        if self.clustering.grouper and not os.environ.get(GROUPER_ENV):
+            os.environ[GROUPER_ENV] = self.clustering.grouper
 
 
 def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
@@ -145,6 +164,10 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
 
     provider_data = data.get("provider", {})
     llm_data = data.get("llm", {})
+    clustering_data = data.get("clustering", {})
+    grouper = clustering_data.get("grouper") or None
+    if grouper is not None and grouper not in GROUPERS:
+        raise ValueError(f"[clustering] grouper must be one of {', '.join(GROUPERS)}, not {grouper!r}")
 
     return UserConfig(
         provider=ProviderUserConfig(
@@ -171,6 +194,7 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
             parsing_model=llm_data.get("parsing_model") or None,
             context_window=llm_data.get("context_window"),
         ),
+        clustering=ClusteringUserConfig(grouper=grouper),
     )
 
 

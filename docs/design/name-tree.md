@@ -68,8 +68,8 @@ Per node, in order:
 | child is a layout word (`src`, `packages`, `pkg`, …) or holds ≥ 80% of the parent | step through, whatever it is called; this is decided before the layered test below |
 | children mostly (≥ 60%) role-named, ≥ 3 of them | **layered**: if a feature name recurs under ≥ 2 distinct layer children, **transpose** onto those features; else one box |
 | child is role-named | a box, never a way in |
-| feature-named child holding ≥ 25% of the scope, with mostly feature-named children | open it |
-| feature-named child holding ≥ 25% of the scope, with ≥ 3 mostly role-named children | layered, as above |
+| feature-named child holding ≥ 50% of the scope, with mostly feature-named children | open it: half the scope is the scope's structure, less is one of its parts |
+| feature-named child holding ≥ 50% of the scope, with ≥ 3 mostly role-named children | layered, as above |
 | anything else | a box; a one-unit child is a loose unit of its parent |
 | a node the walk entered that has only units and one-unit children | one box (a flat scope) |
 
@@ -95,11 +95,16 @@ implementations behind one protocol, switchable by configuration and kept side b
 - `KinshipGrouper` (deterministic, this PR): merge candidates sharing their distinctive
   word (`Ordering` + `OrderProcessor`, `Webhooks` + `WebhookClient`, `EventBus` +
   `EventBusRabbitMQ`). Recovers eShop's depth-1 drawing at 1.000 with no model.
-- The planner (LLM, next PR): reads the kinship-merged candidates (names, unit counts, a
-  sample of identifiers) and returns groups toward a 5–9 preference, names, and machinery
-  words. It may merge across words (`apiserver` + `apimachinery`; django's docs themes),
-  which no formula over names can. Its answer is validated (every candidate in exactly one
-  group) and replayed verbatim. No silent fallback: a failed call fails the run.
+- `TreePlannerAgent` (LLM): runs kinship first and, only when a scope is left with more
+  than nine groups, shows the model those groups with their sizes and a few identifiers and
+  lets it fold them into components toward the budget. It may merge across words
+  (`apiserver` + `apimachinery`; django's docs themes), which no formula over names can. Its
+  answer is folded deterministically (every label lands in exactly one component, the first
+  to name it; a forgotten label keeps its own group) and replayed verbatim. No silent
+  fallback: asking for the planner without an LLM is an error. Selected with
+  `CODEBOARDING_GROUPER` or `[clustering] grouper` in `config.toml`; `kinship` is the default
+  until the planner's variance across draws has been measured on the rulers. The machinery
+  tail is not yet planner-supplied.
 
 ### 3.4 The specification (`spec.py`)
 
@@ -143,7 +148,9 @@ naming and describing components; nothing in the agent contract changes.
 
 **Incremental run.** No anchoring, no seeded Leiden, no drift budget. The frozen spec is
 replayed over the live graph's names (the incremental engine carries the same keys for
-changed and unchanged files). Per scope, walking the tree top-down:
+changed and unchanged files); a scope the spec never reached is drafted with the kinship
+grouper, because on an incremental run the agents, and any LLM, come up only after
+clustering. Per scope, walking the tree top-down:
 
 1. `replay(units, scope)`. A component whose rule still claims units keeps its id and
    membership; `previous_component_id` is the rule id, so the existing scope plan emits
@@ -165,7 +172,9 @@ changed and unchanged files). Per scope, walking the tree top-down:
 3. **Retired components.** A rule that claims nothing is deleted by the existing scope
    plan (DELETE), and its child scope with it.
 4. A component whose child scope was never drafted (the depth cap was raised) is drafted
-   now with the configured grouper; its membership at its own level is unchanged.
+   now; its membership at its own level is unchanged.
+5. Whether anything changed is read off the replayed tree against the persisted one: a
+   component gained, lost or re-membered. Only then do the agents initialise.
 
 A baseline without a `tree_spec` cannot support an incremental run and raises
 `IncrementalCacheMissingError` (run a full analysis first), as today for a missing cluster
@@ -175,10 +184,10 @@ baseline. The cluster lineage in the pickle is no longer read.
 scope is absent, draft it from the component's units. A leaf by decision stays a leaf: the
 API reports it as not expandable with its reason.
 
-**Depth.** `--depth-level` is the cap on how many scopes are drafted up front, never a
-target. `expandable` on a group is "its scope has rules" (drafted and split) or "its scope
-is absent and it exceeds the leaf cap or has parts to un-merge" (would split if drafted).
-The modularity expansion gate and the size-based `scope_load` are retired.
+**Depth.** `--depth-level` is the cap on how many scopes are materialised up front, never a
+target. The spec is drafted one level deeper than the tree is materialised, so `expandable`
+on a group is a recorded decision: its child scope has rules. The modularity expansion gate
+and the size-based `scope_load` are retired.
 
 ## 5. What the graph does
 
@@ -214,12 +223,16 @@ zero-LLM probe the design was drawn from. Pair-F1 at file granularity / boxes.
 | eShop depth 2 | 0.999 / 12 | 0.999 / 12 | 0.980 / 9 | 0.980 | **0.999 / 12** |
 | modulify | 1.000 / 4 | 1.000 / 4 | 1.000 / 4 | 1.000 | |
 | django (Python) | 0.714 / 28 | 0.714 / 26 | 0.714 / 26 | 0.714 | |
-| kubernetes (Go) | 0.240 / 74 | 0.240 / 75 | 0.252 / 64 | 0.273 | |
+| kubernetes (Go) | 0.240 / 74 | **0.432 / 53** | 0.441 / 44 | 0.273 | |
 | mermaid (TypeScript) | 0.670 / 33 | 0.670 / 33 | 0.624 / 30 | 0.661 | |
 | spring-framework (Java) | 1.000 / 22 | 1.000 / 23 | 0.974 / 21 | 0.974 | |
 
-Shipped pipeline on the same rulers: eShop 0.667, django 0.235, mermaid 0.083 (both below
-the all-in-one floor), Beacon 0.351. Phase-1 exit criteria from the artifact (django ≥ 0.70,
+The probe opened a feature-named child at a quarter of the scope; this implementation opens
+it at half, which the probe's own sweep showed identical on seven rulers and better on
+kubernetes, and which keeps a repository with two large packages (CodeBoarding's
+`static_analyzer` and `agents`) at its 13 top-level packages instead of scattering their
+sub-packages across the root. Shipped pipeline on the same rulers: eShop 0.667, django 0.235,
+mermaid 0.083 (both below the all-in-one floor), Beacon 0.351. Phase-1 exit criteria from the artifact (django ≥ 0.70,
 mermaid ≥ 0.65, spring 1.00, Beacon ≥ 0.85, eShop and modulify unchanged, eShop depth 2
 ≥ 0.99) are all met by the deterministic path alone; kubernetes (ceiling 0.88 after a
 perfect grouping) is the planner's to reach.
@@ -246,16 +259,18 @@ perfect grouping) is the planner's to reach.
    pipeline change; nothing is wired.
 2. **`feat/name-tree-pipeline`.** `ClusteringService` on the partition for full, partial
    and incremental runs (file leaves, spec drafting, replay, new-scope detection, expansion
-   from the ladder); the planner agent as the LLM `Grouper` with #539's prompt and
-   evidence sampling; the `grouper` configuration switch; `tree_spec` in `analysis.json`
-   with the read-back rules of #539/#542 (a run building on a baseline reuses the stored
-   spec, never re-reads). Companion `CodeBoarding-tests` branch of the same name.
+   from the ladder); the planner agent as the LLM `Grouper`; the `grouper` configuration
+   switch; `tree_spec` in `analysis.json` with the read-back rules of #539/#542 (a run
+   building on a baseline reuses the stored spec, never re-reads); a created component keeps
+   the id the spec allocated. The service tests of the old internals go with the internals;
+   the modules they exercised stay until the next PR. Companion `CodeBoarding-tests` branch of
+   the same name.
 3. **`feat/name-tree-cleanup`.** Everything in §6 marked delete, the pickle tag bump, the
    dependency removal, and the tests that only exercised the deleted code.
 
 ## 10. Open items
 
-- Kubernetes-scale repos over-produce root boxes (64–75 against 16 sigs); grouping them
+- Kubernetes-scale repos over-produce root boxes (44–53 against 16 sigs); grouping them
   is the planner's job and its variance must be measured across draws before it ships.
 - The vocabulary rung without a model over-splits; a planner-owned vocabulary (as in the
   measurements) would make it usable below the leaf cap. Not attempted here.

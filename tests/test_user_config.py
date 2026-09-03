@@ -1,4 +1,7 @@
 import os
+from unittest.mock import patch
+
+import pytest
 
 from agents.llm_config import LLM_PROVIDERS
 from user_config import (
@@ -266,3 +269,31 @@ class TestProviderEnvContract:
                 key in ProviderUserConfig.__dataclass_fields__
             ), f"'{key}' is mapped but not a ProviderUserConfig field - apply_to_env would silently skip it."
             assert key in CONFIG_TEMPLATE, f"'{key}' is missing from CONFIG_TEMPLATE - users cannot discover it."
+
+
+class TestClusteringUserConfig:
+    def test_grouper_reaches_the_environment(self, tmp_path):
+        from user_config import GROUPER_ENV, load_user_config
+
+        path = tmp_path / "config.toml"
+        path.write_text('[clustering]\ngrouper = "planner"\n')
+        with patch.dict(os.environ, {}, clear=True):
+            load_user_config(path).apply_to_env()
+            assert os.environ[GROUPER_ENV] == "planner"
+
+    def test_the_shell_wins_over_the_file(self, tmp_path):
+        from user_config import GROUPER_ENV, load_user_config
+
+        path = tmp_path / "config.toml"
+        path.write_text('[clustering]\ngrouper = "planner"\n')
+        with patch.dict(os.environ, {GROUPER_ENV: "kinship"}, clear=True):
+            load_user_config(path).apply_to_env()
+            assert os.environ[GROUPER_ENV] == "kinship"
+
+    def test_an_unknown_grouper_is_refused(self, tmp_path):
+        from user_config import load_user_config
+
+        path = tmp_path / "config.toml"
+        path.write_text('[clustering]\ngrouper = "leiden"\n')
+        with pytest.raises(ValueError, match="grouper"):
+            load_user_config(path)

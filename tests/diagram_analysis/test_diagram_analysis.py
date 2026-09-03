@@ -51,10 +51,15 @@ from static_analyzer.clustering import (
     ClusterResult,
     ClusterScopeResult,
 )
-from static_analyzer.clustering.delta import LanguageDelta
+from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
 from static_analyzer.clustering.service import ClusteringService
 from static_analyzer.node import Node
+
+
+def _root_spec() -> TreeSpec:
+    """A specification whose root claims everything: enough to replay against a mock analysis."""
+    return TreeSpec(scopes={ROOT_SCOPE_ID: ScopeSpec(ROOT_SCOPE_ID, [ComponentRule("1", "Parent", prefixes=((),))])})
 
 
 class TestComponentJson(unittest.TestCase):
@@ -1041,10 +1046,8 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        delta = MagicMock()
-        delta.has_changes = False
         preparation = _IncrementalPreparation(
-            delta=delta,
+            structure_changed=False,
             baseline_membership=_MembershipBaseline(),
             has_membership_changes=True,
         )
@@ -1195,6 +1198,9 @@ class TestDiagramGenerator(unittest.TestCase):
         graph.add_node(Node("pkg.other.run", NodeType.FUNCTION, str(self.repo_location / "other.py"), 1, 4))
         gen.static_analysis = StaticAnalysisResults()
         gen.static_analysis.add_cfg(Language.PYTHON, graph)
+        gen.tree_spec = TreeSpec(
+            scopes={"2": ScopeSpec("2", [ComponentRule("2.1", "Persisted", prefixes=(("pkg", "persisted"),))])}
+        )
         component = Component(
             name="Persisted child",
             description="",
@@ -1219,7 +1225,40 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertEqual(scope.scope_id, "2")
         self.assertEqual(set(scope.graphs_by_language["python"].nodes), {"pkg.persisted.run"})
-        self.assertTrue(all(group.group_id.startswith("2.") for group in scope.groups))
+        self.assertEqual([group.group_id for group in scope.groups], ["2.1"])
+
+    def test_build_component_scope_reports_a_leaf_by_decision(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=3,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("pkg.only.run", NodeType.FUNCTION, str(self.repo_location / "only.py"), 1, 4))
+        gen.static_analysis = StaticAnalysisResults()
+        gen.static_analysis.add_cfg(Language.PYTHON, graph)
+        gen.tree_spec = TreeSpec(scopes={"2": ScopeSpec("2", rung="leaf", leaf_reason="cohesive: 1 units")})
+        component = Component(
+            name="Leaf",
+            description="",
+            key_entities=[],
+            component_id="2",
+            file_methods=[
+                FileMethodGroup(
+                    file_path="only.py",
+                    methods=[
+                        MethodEntry(qualified_name="pkg.only.run", start_line=1, end_line=4, node_type="FUNCTION")
+                    ],
+                )
+            ],
+        )
+
+        with self.assertRaisesRegex(ClusteringScopeUnavailableError, "cohesive: 1 units"):
+            gen._build_component_scope(component, hierarchy_depth=4)
 
     @patch("diagram_analysis.diagram_generator.get_expandable_components")
     def test_preclustered_expansion_flags_are_reused_when_saving(self, mock_get_expandable_components):
@@ -1568,6 +1607,7 @@ class TestDiagramGenerator(unittest.TestCase):
             depth_cap,
             sub_analyses,
             file_coverage_summary,
+            tree_spec,
         ):
             captured["expandable_components"] = expandable_components
             return "{}"
@@ -1789,91 +1829,14 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual([call.args[0] for call in incremental_agent.update_scope.call_args_list], ["root", "1"])
         self.assertEqual(result.relation_contexts, {"root": root_context, "1": child_context})
 
-    def test_incremental_lineage_check_is_scoped_by_language(self):
-        baseline = MagicMock()
-        baseline.get_languages.return_value = [Language.TYPESCRIPT]
-        cache = ClusterCache()
-        baseline.get_clusters.return_value = cache
-        graph = CallGraph(language="typescript")
-        graph.add_node(Node("pkg.live", NodeType.FUNCTION, "/repo/pkg.py", 1, 2))
-
-        partitions = ClusteringService()._incremental_scope_partitions(
-            baseline,
-            "1",
-            {"typescript": graph},
-            {"python": {"pkg.live": "1"}},
-            self.output_dir,
-        )
-
-        self.assertTrue(partitions["typescript"].clusters)
-        cache.record_scope(ClusterResult(), {"pkg.live"}, "1")
-        partitions = ClusteringService()._incremental_scope_partitions(
-            baseline,
-            "1",
-            {"typescript": graph},
-            {"typescript": {"pkg.live": "1"}},
-            self.output_dir,
-        )
-        self.assertTrue(partitions["typescript"].clusters)
-
-        cache.record_scope(ClusterResult(), scope_id="1")
-        with self.assertRaisesRegex(IncrementalCacheMissingError, "persisted scope '1'.*pkg.live"):
-            ClusteringService()._incremental_scope_partitions(
-                baseline,
-                "1",
-                {"typescript": graph},
-                {"typescript": {"pkg.live": "1"}},
-                self.output_dir,
-            )
-
-    @patch("static_analyzer.clustering.service.delta_for_language")
-    def test_incremental_child_scope_reserves_ids_from_removed_languages(self, delta_for_language):
-        baseline = MagicMock()
-        baseline.get_languages.return_value = [Language.PYTHON, Language.TYPESCRIPT]
-        baseline_caches = {Language.PYTHON: ClusterCache(), Language.TYPESCRIPT: ClusterCache()}
-        baseline_caches[Language.PYTHON].record_scope(
-            ClusterResult(clusters={9: {"py.deleted"}}),
-            scope_id="1",
-        )
-        baseline_caches[Language.TYPESCRIPT].record_scope(
-            ClusterResult(clusters={2: {"ts.live"}}),
-            scope_id="1",
-        )
-        baseline.get_clusters.side_effect = lambda language: baseline_caches[language]
-        graph = CallGraph(language="typescript")
-        graph.add_node(Node("ts.live", NodeType.FUNCTION, "/repo/live.ts", 1, 2))
-        graph.add_node(Node("ts.replacement", NodeType.FUNCTION, "/repo/new.ts", 6, 7))
-        delta_for_language.return_value = LanguageDelta(
-            language="typescript",
-            cluster_results=ClusterResult(
-                clusters={
-                    2: {"ts.live"},
-                    10: {"ts.replacement"},
-                }
-            ),
-        )
-
-        partitions = ClusteringService()._incremental_scope_partitions(
-            baseline,
-            "1",
-            {"typescript": graph},
-            {"typescript": {"ts.live": "1"}},
-            self.output_dir,
-        )
-
-        self.assertEqual(delta_for_language.call_args.kwargs["next_new_id"], 10)
-        self.assertEqual(set(partitions["typescript"].clusters), {2, 10})
-
     @patch.object(ClusteringService, "build_incremental_hierarchy")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
     @patch("diagram_analysis.diagram_generator.IncrementalAgent")
-    @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
-    @patch("diagram_analysis.diagram_generator.snapshot_from_static_analysis")
+    @patch("diagram_analysis.diagram_generator.hierarchy_differs", return_value=True)
     def test_incremental_refresh_updates_existing_parent_scope(
         self,
-        mock_snapshot,
-        mock_delta,
+        _mock_differs,
         _mock_incremental_agent,
         _mock_prune,
         mock_save_analysis,
@@ -1891,6 +1854,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.incremental_agent = _mock_incremental_agent.return_value
         gen.static_analysis = Mock()
+        gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
         base_static_analysis = Mock()
         gen.static_analysis.incremental_base_results = base_static_analysis
@@ -1922,9 +1886,6 @@ class TestDiagramGenerator(unittest.TestCase):
             )
         }
 
-        mock_snapshot.return_value.all_cluster_ids.return_value = {1}
-        mock_delta.return_value.has_changes = True
-        mock_delta.return_value.cluster_results.return_value = {}
         mock_build_hierarchy.return_value = ClusterScopeResult(
             scope_id=ROOT_SCOPE_ID,
             groups=[ClusterGroup(group_id="1", cluster_ids=[])],
@@ -1939,7 +1900,6 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
 
         self.assertIs(gen.incremental_agent, _mock_incremental_agent.return_value)
-        mock_snapshot.assert_called_once_with(base_static_analysis)
         _mock_incremental_agent.return_value.update_scope.assert_called_once()
         scope_id, scope, decision, _clusters = _mock_incremental_agent.return_value.update_scope.call_args.args
         self.assertEqual(scope_id, "root")
@@ -1952,12 +1912,10 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
     @patch("diagram_analysis.diagram_generator.IncrementalAgent")
-    @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
-    @patch("diagram_analysis.diagram_generator.snapshot_from_static_analysis")
+    @patch("diagram_analysis.diagram_generator.hierarchy_differs", return_value=True)
     def test_incremental_refresh_skips_child_scope_absent_from_hierarchy(
         self,
-        mock_snapshot,
-        mock_delta,
+        _mock_differs,
         _mock_incremental_agent,
         _mock_prune,
         mock_save_analysis,
@@ -1975,8 +1933,9 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.incremental_agent = _mock_incremental_agent.return_value
         gen.static_analysis = Mock()
+        gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
-        gen.static_analysis.incremental_base_results = Mock()
+        gen.static_analysis.incremental_base_results = StaticAnalysisResults()
         gen.static_analysis.available_cfgs.return_value = {}
         gen._generate_subcomponents = Mock()
         gen._persist_static_analysis_artifact = Mock()
@@ -1985,9 +1944,6 @@ class TestDiagramGenerator(unittest.TestCase):
         root_analysis = AnalysisInsights(description="root", components=[root_component], components_relations=[])
         sub_analyses = {"1": AnalysisInsights(description="sub", components=[], components_relations=[])}
 
-        mock_snapshot.return_value.all_cluster_ids.return_value = {1}
-        mock_delta.return_value.has_changes = True
-        mock_delta.return_value.cluster_results.return_value = {}
         mock_build_hierarchy.return_value = ClusterScopeResult(
             scope_id=ROOT_SCOPE_ID,
             groups=[ClusterGroup(group_id="1", cluster_ids=[])],
@@ -2005,12 +1961,10 @@ class TestDiagramGenerator(unittest.TestCase):
         gen._generate_subcomponents.assert_not_called()
 
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
-    @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
-    @patch("diagram_analysis.diagram_generator.snapshot_from_static_analysis")
+    @patch("diagram_analysis.diagram_generator.hierarchy_differs", return_value=True)
     def test_incremental_new_component_uses_precomputed_scope_before_subcomponent_generation(
         self,
-        mock_snapshot,
-        mock_delta,
+        _mock_differs,
         _mock_prune,
     ):
         gen = DiagramGenerator(
@@ -2025,18 +1979,15 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.incremental_agent = Mock()
         gen.static_analysis = Mock()
+        gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
-        gen.static_analysis.incremental_base_results = Mock()
+        gen.static_analysis.incremental_base_results = StaticAnalysisResults()
         gen.static_analysis.available_cfgs.return_value = {}
 
         existing = Component(name="Existing", description="", key_entities=[], component_id="1")
         created = Component(name="Created", description="", key_entities=[], component_id="2")
         root_analysis = AnalysisInsights(description="root", components=[existing], components_relations=[])
         sub_analyses: dict[str, AnalysisInsights] = {}
-
-        mock_snapshot.return_value.all_cluster_ids.return_value = {1}
-        mock_delta.return_value.has_changes = True
-        mock_delta.return_value.cluster_results.return_value = {}
 
         def apply_incremental(*_args):
             root_analysis.components.append(created)
@@ -2073,12 +2024,10 @@ class TestDiagramGenerator(unittest.TestCase):
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components")
-    @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
-    @patch("diagram_analysis.diagram_generator.snapshot_from_static_analysis")
+    @patch("diagram_analysis.diagram_generator.hierarchy_differs", return_value=False)
     def test_empty_incremental_delta_does_not_prune_stable_leaf_components(
         self,
-        mock_snapshot,
-        mock_delta,
+        _mock_differs,
         mock_prune,
         mock_save_analysis,
     ):
@@ -2094,8 +2043,9 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.incremental_agent = Mock()
         gen.static_analysis = Mock()
+        gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
-        gen.static_analysis.incremental_base_results = Mock()
+        gen.static_analysis.incremental_base_results = StaticAnalysisResults()
         gen.static_analysis.available_cfgs.return_value = {}
         gen._persist_static_analysis_artifact = Mock()
 
@@ -2126,8 +2076,6 @@ class TestDiagramGenerator(unittest.TestCase):
             ),
         }
 
-        mock_snapshot.return_value.all_cluster_ids.return_value = {1}
-        mock_delta.return_value.has_changes = False
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
         with patch("diagram_analysis.diagram_generator.build_files_index", return_value={}) as mock_build_index:
@@ -2148,16 +2096,13 @@ class TestDiagramGenerator(unittest.TestCase):
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        delta = MagicMock()
-        delta.has_changes = False
-        delta.cluster_results.return_value = {}
         hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
         gen.static_analysis = Mock()
         gen.details_agent = Mock()
         gen.incremental_agent = Mock()
         gen.clustering_hierarchy = hierarchy
         gen._incremental_preparation = _IncrementalPreparation(
-            delta=delta,
+            structure_changed=False,
             baseline_membership=_MembershipBaseline(),
             has_membership_changes=True,
         )

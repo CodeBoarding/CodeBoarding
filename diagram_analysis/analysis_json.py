@@ -111,6 +111,13 @@ class AnalysisMetadata(BaseModel):
         ),
         description="Lightweight file coverage counts.",
     )
+    tree_spec: dict = Field(
+        default_factory=dict,
+        description="The tree specification the components were drawn from: per scope, the prefixes "
+        "and words each component owns. Drafted on a full analysis; incremental and partial runs "
+        "replay it, so the partition cannot move underneath unchanged code. Empty on an analysis "
+        "written before it existed.",
+    )
 
 
 class ComponentFileMethodGroupJson(BaseModel):
@@ -453,6 +460,7 @@ def build_unified_analysis_json(
     depth_cap: int,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
+    tree_spec: dict | None = None,
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -488,6 +496,7 @@ def build_unified_analysis_json(
             depth_level=_compute_depth_level(sub_analyses),
             depth_cap=depth_cap,
             file_coverage_summary=summary,
+            tree_spec=tree_spec or {},
         ),
         description=analysis.description,
         files=_build_file_entry_json_from_files(files_index),

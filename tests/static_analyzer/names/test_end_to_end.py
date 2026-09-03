@@ -37,10 +37,11 @@ def test_a_two_language_repo_drafts_replays_and_survives_json():
             "/repo/frontend/orders/OrderRow.tsx": [("frontend.orders.OrderRow.OrderRow", NodeType.FUNCTION)],
             "/repo/frontend/catalog/ItemPage.tsx": [("frontend.catalog.ItemPage.ItemPage", NodeType.FUNCTION)],
             "/repo/frontend/catalog/ItemCard.tsx": [("frontend.catalog.ItemCard.ItemCard", NodeType.FUNCTION)],
+            "/repo/frontend/catalog/ItemList.tsx": [("frontend.catalog.ItemList.ItemList", NodeType.FUNCTION)],
         },
     )
     units = units_from_graphs({"python": python, "typescript": typescript})
-    assert [unit.language for unit in units] == ["python"] * 5 + ["typescript"] * 4
+    assert [unit.language for unit in units] == ["python"] * 5 + ["typescript"] * 5
 
     spec = draft_tree(units, KinshipGrouper(), 2)
     root = scope_of(spec, ROOT_SCOPE_ID)
@@ -52,7 +53,7 @@ def test_a_two_language_repo_drafts_replays_and_survives_json():
     by_unit = {unit_id: rule_of(root, component_id).name for unit_id, component_id in partition.assignment.items()}
     assert by_unit["/repo/frontend/orders/OrderRow.tsx"] == "orders"
     assert by_unit["/repo/backend/catalog/views.py"] == "catalog"
-    assert by_unit["/repo/backend/main.py"] == "Loose files"
+    assert by_unit["/repo/backend/main.py"] == "Loose files in backend"
 
     reloaded = spec.__class__.from_dict(spec.to_dict())
     again = replay(units, scope_of(reloaded, ROOT_SCOPE_ID), role_words_for(reloaded.machinery))

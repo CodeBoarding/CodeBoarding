@@ -190,12 +190,14 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             )
             return
 
+        requested = operation.component_id or ""
         component = Component(
             name=operation.name or "New Component",
             description=operation.description or "",
             key_entities=operation.key_entities,
             source_group_names=[operation.name or "New Component"],
             source_cluster_ids=source_cluster_ids,
+            component_id=requested if requested not in components_by_id else "",
         )
         scope.components.append(component)
         assign_component_ids(scope, parent_id=_component_id_parent(scope_id), only_new=True)

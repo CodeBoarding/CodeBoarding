@@ -661,6 +661,29 @@ class MetaAnalysisInsights(LLMBaseModel):
         return title + content
 
 
+class PlannedGroup(LLMBaseModel):
+    """One component the planner proposes, as the candidate groups it gathers."""
+
+    name: str = Field(description="One responsibility; never two joined by 'and' or '&'")
+    members: list[str] = Field(description="Labels of the candidate groups this component gathers, e.g. ['G1', 'G4']")
+    owns: list[str] = Field(
+        default_factory=list, description="Domain words this component owns, as they appear in identifiers"
+    )
+
+    def llm_str(self):
+        return f"{self.name}: {', '.join(self.members)}"
+
+
+class TreePlanInsights(LLMBaseModel):
+    """How the candidate groups of one scope fold into components."""
+
+    groups: list[PlannedGroup] = Field(description="The components, each gathering one or more candidate groups")
+    notes: str = Field(default="", description="What the names say about this scope's shape")
+
+    def llm_str(self):
+        return "# Tree plan\n" + "\n".join(f"- {group.llm_str()}" for group in self.groups)
+
+
 class FileClassification(LLMBaseModel):
     """Classification of a file to a component."""
 
@@ -712,7 +735,8 @@ class ScopeOperation(LLMBaseModel):
     cluster_refs: list[ScopedClusterRef] = Field(description="New-side clusters this operation accounts for.")
     component_id: str | None = Field(
         default=None,
-        description="Existing component id for update/delete/noop; null when creating a component.",
+        description="Existing component id for update/delete/noop; the id the tree specification "
+        "allocated when creating a component, or null to allocate the next sibling index.",
     )
     name: str | None = Field(default=None, description="Component name for create/update operations.")
     description: str | None = Field(default=None, description="Component description for create/update operations.")
