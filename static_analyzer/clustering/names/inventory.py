@@ -24,25 +24,30 @@ class Unit:
     language: str
     names: tuple[str, ...]
     position: tuple[str, ...]
+    key: tuple[str, ...]
+    """``position`` plus the one symbol the file declares, when it declares one: what a rule owns
+    to claim this file and not a sibling declared in the same module."""
+
+
+def unit_key(names: Iterable[str], delimiter: str) -> tuple[str, ...]:
+    """The longest prefix the names share."""
+    shared: list[str] = []
+    for parts in zip(*(tuple(segments(name, delimiter)) for name in names)):
+        if len(set(parts)) != 1:
+            break
+        shared.append(parts[0])
+    return tuple(shared)
 
 
 def unit_position(names: Iterable[str], delimiter: str) -> tuple[str, ...]:
-    """The longest prefix the names share, less a trailing symbol.
+    """The unit key less a trailing symbol.
 
     A file declaring one class shares that class's name across every member, so the bare
     prefix would name the class rather than the module it sits in.
     """
-    split = [tuple(segments(name, delimiter)) for name in names]
-    if not split:
-        return ()
-    shared: list[str] = []
-    for parts in zip(*split):
-        if len(set(parts)) != 1:
-            break
-        shared.append(parts[0])
-    if tuple(shared) in split:
-        shared.pop()
-    return tuple(shared)
+    listed = list(names)
+    key = unit_key(listed, delimiter)
+    return key[:-1] if any(tuple(segments(name, delimiter)) == key for name in listed) else key
 
 
 def units_from_graph(graph: CallGraph, language: str) -> list[Unit]:
@@ -51,7 +56,13 @@ def units_from_graph(graph: CallGraph, language: str) -> list[Unit]:
         if node.file_path:
             by_file.setdefault(node.file_path, []).append(qualified_name)
     return [
-        Unit(file_path, language, tuple(sorted(names)), unit_position(names, graph.delimiter))
+        Unit(
+            file_path,
+            language,
+            tuple(sorted(names)),
+            unit_position(names, graph.delimiter),
+            unit_key(names, graph.delimiter),
+        )
         for file_path, names in sorted(by_file.items())
     ]
 

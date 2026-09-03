@@ -16,13 +16,17 @@ from static_analyzer.clustering.names import (
 from static_analyzer.clustering.names.draft import (
     BUDGET,
     CAP_SHARE,
+    FILES,
     FRONTIER,
     GUARD_SHARE,
+    LAYERS,
     LEAF,
     LEAF_CAP,
+    LEAF_UNITS,
+    LOOSE_NAME,
     MIN_LINKS,
     MIN_UNITS,
-    NEST_FLOOR,
+    ROLE,
     SEGMENT,
     UNMERGE,
     VOCABULARY,
@@ -204,11 +208,15 @@ class TestLadder:
         assert [rule.component_id for rule in child.rules] == ["1.1", "1.2"]
         assert rule_of(scope_of(spec, "1"), "1.1").prefixes == (("Ordering",),)
 
-    def test_a_cohesive_component_is_a_leaf_that_says_why(self):
+    def test_a_small_component_is_a_leaf_that_says_why(self):
         spec = draft_tree(units_from_layout(eshop(), "csharp"), KinshipGrouper(), 2)
-        catalog = scope_of(spec, "2")
-        assert catalog.is_leaf and catalog.rung == LEAF
-        assert catalog.leaf_reason.startswith("cohesive: 8 units")
+        basket = scope_of(spec, "4")
+        assert basket.is_leaf and basket.rung == LEAF
+        assert basket.leaf_reason.startswith(f"small: 4 units, at most {LEAF_UNITS}")
+
+    def test_a_component_above_the_leaf_units_reads_its_own_sub_tree(self):
+        catalog = scope_of(draft_tree(units_from_layout(eshop(), "csharp"), KinshipGrouper(), 2), "2")
+        assert catalog.rung == SEGMENT and names_of(catalog) == ["Apis", "Model"]
 
     def test_the_guard_absorbs_a_part_too_small_to_stand(self):
         """Two files against fifty-eight: below max(2, 5%), so the un-merge does not fire."""
@@ -230,15 +238,17 @@ class TestLadder:
         big = scope_of(spec, "3")
         assert big.rung == SEGMENT and names_of(big) == ["One", "Two"]
 
-    def test_nesting_starts_at_the_floor(self):
+    def test_nesting_starts_above_the_leaf_units(self):
         def component(count: int):
             layout = project("Alpha", count, "One", "Two") | project("Beta", 30) | project("Gamma", 30)
-            return scope_of(draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 2), "1")
+            spec = draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 2)
+            alpha = next(rule for rule in scope_of(spec, ROOT_SCOPE_ID).rules if rule.name == "Alpha")
+            return scope_of(spec, alpha.component_id)
 
-        nested = component(NEST_FLOOR)
+        nested = component(LEAF_UNITS + 1)
         assert nested.rung == SEGMENT and names_of(nested) == ["One", "Two"]
-        leaf = component(NEST_FLOOR - 1)
-        assert leaf.is_leaf and leaf.leaf_reason.startswith(f"cohesive: {NEST_FLOOR - 1} units, under {NEST_FLOOR}")
+        leaf = component(LEAF_UNITS)
+        assert leaf.is_leaf and leaf.leaf_reason.startswith(f"small: {LEAF_UNITS} units, at most {LEAF_UNITS}")
 
     def test_a_layered_component_without_a_grid_draws_its_layers(self):
         layout = project("Ordering", 60, "API", "Domain", "Infrastructure") | project("Beta", 40) | project("Gamma", 40)
@@ -246,8 +256,8 @@ class TestLadder:
         assert ordering.rung == SEGMENT
         assert names_of(ordering) == ["API", "Domain", "Infrastructure"]
 
-    def test_a_layered_component_with_a_grid_transposes_only_above_the_cap(self):
-        """A client app organised by layers over features: one box while it can be read whole."""
+    def test_a_layered_component_with_a_grid_draws_its_layers_below_the_cap_and_transposes_above_it(self):
+        """A client app organised by layers over features: the layers are its boxes while it reads whole."""
 
         def client_app(count: int):
             layout = project(
@@ -256,11 +266,77 @@ class TestLadder:
             layout |= project("Beta", 40) | project("Gamma", 40)
             return scope_of(draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 2), "1")
 
-        whole = client_app(LEAF_CAP)
-        assert whole.is_leaf and whole.leaf_reason.startswith(f"cohesive: {LEAF_CAP} units, at most {LEAF_CAP}")
+        layered = client_app(LEAF_CAP)
+        assert layered.rung == LAYERS and names_of(layered) == ["Models", "Services", "Views"]
         transposed = client_app(LEAF_CAP + 1)
         assert transposed.rung == SEGMENT and transposed.axis == "transposed"
         assert {"Orders", "Basket"} <= set(names_of(transposed))
+
+    def _flat_feature(self, *class_names: str) -> dict[str, list[str]]:
+        layout = {f"pkg/feat/{name.lower()}.py": [f"pkg.feat.{name.lower()}.{name}"] for name in class_names}
+        return layout | {f"pkg/other/{index}.py": [f"pkg.other.m{index}.f"] for index in range(3)}
+
+    def test_a_flat_component_groups_its_files_by_their_words(self):
+        """What no directory separates, the file names do; what shares no word is loose, never a one-file box."""
+        layout = self._flat_feature(
+            "RetryPolicy",
+            "RetryBuilder",
+            "RetryOptions",
+            "TimeoutPolicy",
+            "TimeoutBuilder",
+            "TimeoutOptions",
+            "Hedging",
+            "Fallback",
+            "Misc",
+            "Other",
+        )
+        units = units_from_layout(layout)
+        feature = scope_of(draft_tree(units, KinshipGrouper(), 2), "1")
+        assert feature.rung == FILES
+        assert names_of(feature) == [LOOSE_NAME, "RetryBuilder", "TimeoutBuilder"]
+        retry = rule_of(feature, "1.2")
+        assert retry.terms == ("retry",) and len(retry.prefixes) == 3
+        assert ("pkg", "feat", "retrypolicy", "RetryPolicy") in retry.prefixes
+        loose = rule_of(feature, "1.1")
+        assert loose.is_fallback_only and loose.fallback_prefixes == (("pkg", "feat"),)
+        placed = replay(units, feature, ROLE_WORDS)
+        assert placed.size("1.1") == 4 and placed.size("1.2") == 3 and placed.size("1.3") == 3
+
+    def test_a_file_added_to_a_flat_component_follows_its_word(self):
+        layout = self._flat_feature("RetryPolicy", "RetryBuilder", "RetryOptions", "TimeoutPolicy", "TimeoutBuilder")
+        layout |= self._flat_feature("TimeoutOptions", "Hedging", "Fallback", "Misc", "Other")
+        feature = scope_of(draft_tree(units_from_layout(layout), KinshipGrouper(), 2), "1")
+        added = units_from_layout({"pkg/feat/retry_extra.py": ["pkg.feat.retry_extra.RetryExtra"]})
+        placed = replay(added, feature, ROLE_WORDS)
+        assert placed.assignment == {"pkg/feat/retry_extra.py": "1.2"} and placed.placed_by == {
+            "pkg/feat/retry_extra.py": "term"
+        }
+
+    def test_inside_a_feature_the_roles_are_the_boxes(self):
+        """Nine files sharing no word: their head words, a role word each, draw the boxes; one owns its word."""
+        layout = self._flat_feature(
+            "AlphaStrategy",
+            "BetaStrategy",
+            "GammaStrategy",
+            "DeltaOptions",
+            "EpsOptions",
+            "ZetaOptions",
+            "EtaHandler",
+            "ThetaHandler",
+            "Iota",
+        )
+        feature = scope_of(draft_tree(units_from_layout(layout), KinshipGrouper(), 2), "1")
+        assert feature.rung == ROLE
+        assert names_of(feature) == ["Option", "Strategy", "Handler", LOOSE_NAME]
+        assert rule_of(feature, "1.2").terms == ("strategy",)
+        added = units_from_layout({"pkg/feat/kappa_strategy.py": ["pkg.feat.kappa_strategy.KappaStrategy"]})
+        assert replay(added, feature, ROLE_WORDS).assignment == {"pkg/feat/kappa_strategy.py": "1.2"}
+
+    def test_the_ladder_stops_at_the_leaf_units(self):
+        layout = self._flat_feature("AlphaStrategy", "BetaStrategy", "GammaStrategy", "DeltaOptions", "EpsOptions")
+        layout |= self._flat_feature("ZetaOptions", "EtaHandler")
+        feature = scope_of(draft_tree(units_from_layout(layout), KinshipGrouper(), 2), "1")
+        assert feature.is_leaf and feature.leaf_reason.startswith(f"small: {LEAF_UNITS} units")
 
     def test_a_large_component_reads_its_own_frontier(self):
         layout = {
@@ -302,7 +378,7 @@ class TestLadder:
 
         assert 3 * 2 * 22 + 3 == LEAF_CAP
         at_cap = big_scope(3)
-        assert at_cap.is_leaf and at_cap.leaf_reason.startswith(f"cohesive: {LEAF_CAP} units")
+        assert at_cap.rung == FILES and names_of(at_cap) == ["DocxCodec", "PdfCodec", "PptxCodec", LOOSE_NAME]
         assert big_scope(4).rung == VOCABULARY
 
     def test_a_large_component_nothing_splits_is_an_exhausted_leaf(self):

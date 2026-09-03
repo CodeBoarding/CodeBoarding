@@ -283,6 +283,11 @@ class TestLayeredRoot:
         assert keys(frontier) == ["box:Beacon"]
         assert any(note.endswith("kept as one box") for note in frontier.notes)
 
+    def test_a_grid_is_drawn_layer_by_layer_when_asked(self):
+        frontier = walk(Trie(units_from_layout(self._beacon(), "csharp")), ROLE_WORDS, transpose=False, layers=True)
+        assert keys(frontier) == [f"box:Beacon.{layer}" for layer in sorted(self.LAYERS[:3])] + ["loose:Beacon"]
+        assert any("a grid drawn layer by layer" in note for note in frontier.notes)
+
     def test_the_shallowest_feature_directory_keys_its_subtree(self):
         layout = self._beacon()
         layout["Beacon.Domain/Incidents/Metrics/IncidentMetric.cs"] = ["Beacon.Domain.Incidents.Metrics.IncidentMetric"]

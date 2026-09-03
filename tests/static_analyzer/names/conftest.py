@@ -1,14 +1,14 @@
 """Builders shared by the names tests: units straight from qualified names, no engine."""
 
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec, Trie, Unit, unit_position
+from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec, Trie, Unit, unit_key, unit_position
 from static_analyzer.clustering.names.inventory import TrieNode
 from static_analyzer.config import NodeType
 from static_analyzer.node import Node
 
 
 def unit(file_path: str, *names: str, language: str = "python") -> Unit:
-    return Unit(file_path, language, tuple(sorted(names)), unit_position(names, "."))
+    return Unit(file_path, language, tuple(sorted(names)), unit_position(names, "."), unit_key(names, "."))
 
 
 def units_from_layout(layout: dict[str, list[str]], language: str = "python") -> list[Unit]:

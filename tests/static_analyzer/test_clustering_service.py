@@ -140,14 +140,14 @@ class TestFullHierarchy(unittest.TestCase):
         self.assertIn(consts, [cluster_id for group in ordering.children.groups for cluster_id in group.cluster_ids])
 
     def test_children_follow_the_ladder_and_expandable_is_a_decision(self):
-        ordering, catalog = self.hierarchy.groups[0], self.hierarchy.groups[1]
+        ordering, basket = self.hierarchy.groups[0], self.hierarchy.groups[3]
         self.assertTrue(ordering.expandable)
         assert ordering.children is not None
         self.assertEqual([group.group_id for group in ordering.children.groups], ["1.1", "1.2"])
-        self.assertFalse(catalog.expandable)
-        self.assertIsNone(catalog.children)
+        self.assertFalse(basket.expandable)
+        self.assertIsNone(basket.children)
         self.assertIn("1.1", self.service.spec.scopes, "the spec is drafted one level deeper than the tree")
-        self.assertTrue(scope_of(self.service.spec, "1.1").is_leaf)
+        self.assertTrue(scope_of(self.service.spec, "4").is_leaf)
 
     def test_the_default_grouper_folds_along_the_graph(self):
         """Fifteen root boxes, Tiny.API calling Ordering: the smallest box joins the one it calls."""
@@ -349,8 +349,8 @@ class TestScopeHierarchy(unittest.TestCase):
         with self.assertRaisesRegex(PlannerUnavailableError, "never drafted"):
             ClusteringService().build_scope_hierarchy({"csharp": self.graph}, 2, "1", spec)
 
-    def test_a_cohesive_component_comes_back_without_groups(self):
-        self.assertEqual(self._scope("2").groups, [])
+    def test_a_small_component_comes_back_without_groups(self):
+        self.assertEqual(self._scope("4").groups, [])
 
 
 class TestRerootIndexes(unittest.TestCase):

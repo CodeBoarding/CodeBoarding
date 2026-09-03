@@ -53,9 +53,14 @@ class TestTerms:
         result = replay([unit("f", *names)], scope(catalog, basket), ROLE_WORDS)
         assert result.assignment == {"f": "2"}
 
-    def test_role_words_never_vote(self):
+    def test_a_role_word_votes_only_for_a_rule_that_owns_it(self):
+        """The role rung draws boxes by role inside a feature; nowhere else does a rule own one."""
         service = ComponentRule("1", "Services", terms=("service",))
         result = replay([unit("f", "X.OrderService")], scope(service, ORDER), ROLE_WORDS)
+        assert result.assignment == {"f": "1"}
+        result = replay(
+            [unit("f", "X.OrderService")], scope(ComponentRule("1", "A", terms=("zzz",)), ORDER), ROLE_WORDS
+        )
         assert result.assignment == {"f": "2"}
 
     def test_a_term_owned_twice_belongs_to_the_first_rule(self):
