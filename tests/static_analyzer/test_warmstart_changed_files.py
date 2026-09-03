@@ -77,6 +77,29 @@ class TestWarmStartChangedFiles(unittest.TestCase):
         )
         self.assertEqual(passed, {inside})
 
+    @patch("static_analyzer.get_changed_files_since")
+    def test_engine_configs_of_one_language_thread_one_dict_and_absorb_once(self, mock_git) -> None:
+        """Why: a config that copies the cache hands back the nodes another config invalidated."""
+        analyzer = _analyzer_with_one_engine(self.project, changed_files={self.project / "a.py"})
+        ((config, client),) = analyzer._engine_clients
+        analyzer._engine_clients.append(
+            (EngineConfig(adapter=config.adapter, project_path=self.project / "sub"), client)
+        )
+        first, second = {"call_graph": "first"}, {"call_graph": "second"}
+        with (
+            patch("static_analyzer.update_cfg_for_changed_files", side_effect=[first, second]) as mock_update,
+            patch.object(analyzer, "_extract_language_dict", return_value={"call_graph": "cached"}) as extract,
+            patch.object(analyzer, "_absorb_into_results") as absorb,
+            patch.object(analyzer, "_collect_diagnostics_for"),
+            patch("static_analyzer.track_lsp_result"),
+        ):
+            analyzer._update_cached_results(self.cached, cached_sha="deadbeef")
+        mock_git.assert_not_called()
+        extract.assert_called_once()
+        self.assertIs(mock_update.call_args_list[1].args[0], first)
+        absorb.assert_called_once()
+        self.assertIs(absorb.call_args.args[2], second)
+
     @patch("static_analyzer.update_cfg_for_changed_files", return_value={})
     @patch("static_analyzer.get_changed_files_since", return_value={Path("/proj/x.py")})
     def test_none_falls_back_to_git(self, mock_git, mock_update) -> None:

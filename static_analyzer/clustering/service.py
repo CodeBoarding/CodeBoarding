@@ -35,6 +35,8 @@ from static_analyzer.clustering.names import (
     units_from_graphs,
 )
 from static_analyzer.clustering.names.draft import UNPLACED_NAME, Links
+from static_analyzer.clustering.names.replay import divergence
+from static_analyzer.clustering.names.spec import Prefix
 from static_analyzer.clustering.names.spec import UNPLACED
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
 
@@ -177,6 +179,7 @@ class ClusteringService:
         partition = replay(units, scope, role_words)
         if baseline is not None:
             partition = self._admit_new_scopes(scope, units, partition, role_words, baseline)
+            self._retire_empty_rules(scope, partition)
         result.leaf_clusters_by_language = self._leaf_clusters(graphs)
         leaf_by_unit = {
             file_path: cluster_id
@@ -240,16 +243,22 @@ class ClusteringService:
         role_words: frozenset[str],
         baseline: _Baseline,
     ) -> Partition:
-        """Append a rule for every group of new units that diverges under a prefix no rule owns.
+        """Append a rule for every group of new units that leaves the tree of the units before it.
 
-        Why all-new: a group with a unit the baseline already placed is a rule's residue, not a
-        new directory. Why prefix only: a new rule with words could re-vote an existing unit.
+        Why the tree of units and not of owned prefixes: a scope drawn from words owns no prefix
+        at all, and every unit would diverge at the first segment. Why new units only: a unit the
+        baseline already placed is a rule's residue, not a new directory. Why prefix only: a new
+        rule with words could re-vote an existing unit.
         """
         taken = baseline.component_ids(scope.scope_id)
         owned = {prefix for rule in scope.rules for prefix in rule.prefixes + rule.fallback_prefixes}
+        settled = {unit.position for unit in units if not baseline.is_new(unit)}
+        fresh: dict[Prefix, list[Unit]] = {}
+        for unit in (unit for members in partition.new_scopes.values() for unit in members if baseline.is_new(unit)):
+            fresh.setdefault(divergence(unit.position, settled), []).append(unit)
         added = False
-        for key, members in sorted(partition.new_scopes.items()):
-            if len(members) < 2 or key in owned or not all(baseline.is_new(unit) for unit in members):
+        for key, members in sorted(fresh.items()):
+            if len(members) < 2 or key in owned:
                 continue
             scope.rules.append(
                 ComponentRule(scope.next_id(taken), key[-1] if key else "New scope", prefixes=(key,), origin=NEW_SCOPE)
@@ -262,6 +271,21 @@ class ClusteringService:
             scope.rules.append(ComponentRule(scope.next_id(taken), UNPLACED_NAME, origin=UNPLACED, kind=UNPLACED))
             partition = replay(units, scope, role_words)
         return partition
+
+    def _retire_empty_rules(self, scope: ScopeSpec, partition: Partition) -> None:
+        """Drop a rule that claims nothing, and the scopes below it, so the spec matches the tree.
+
+        A fallback-only rule stays: it is the scope's last resort and legitimately empty.
+        """
+        for rule in list(scope.rules):
+            if rule.is_fallback_only or rule.kind == UNPLACED or partition.size(rule.component_id):
+                continue
+            scope.rules.remove(rule)
+            for scope_id in [
+                s for s in self.spec.scopes if s == rule.component_id or s.startswith(f"{rule.component_id}.")
+            ]:
+                del self.spec.scopes[scope_id]
+            logger.info("[Names] %s: retired %s (%s), it claims nothing", scope.scope_id, rule.component_id, rule.name)
 
     @staticmethod
     def _leaf_clusters(graphs: Mapping[str, CallGraph]) -> dict[str, ClusterResult]:

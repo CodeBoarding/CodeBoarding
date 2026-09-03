@@ -145,6 +145,8 @@ def _plan_scope_operations(
         f"[ScopePlan] {scope_id}: {len(groups)} groups, {untouched} unchanged (no operation), "
         f"{len(operations)} operation(s)"
     )
+    for operation in operations:
+        logger.info(f"[ScopePlan] {scope_id}: {operation.action.value} {operation.component_id}: {operation.rationale}")
     return ScopeUpdateDecision(operations=operations)
 
 

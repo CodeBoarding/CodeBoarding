@@ -824,22 +824,28 @@ class StaticAnalyzer:
         output.
         """
         results = StaticAnalysisResults()
+        # One dict per language, threaded through every engine config of that language and
+        # absorbed once. Why: each config re-LSPs only the changed files under its own root,
+        # so a config that took its own copy of the cache would hand back the nodes another
+        # config had just invalidated, and the merge would resurrect deleted files.
+        carried: dict[Language, dict] = {}
         for engine_config, engine_client in self._live_clients("warm-start"):
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
-            cached_lang_dict = self._extract_language_dict(cached_results, language)
             t_lang_start = time.monotonic()
             changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
 
             if changed_files is None:
                 analysis = self._run_full_analysis(engine_config, engine_client)
+                self._absorb_into_results(results, language, analysis)
             else:
                 logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
+                cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
                 analysis = update_cfg_for_changed_files(
                     cached_lang_dict, changed_files, adapter, project_path, engine_client, self.ignore_manager
                 )
+                carried[language] = analysis
 
-            self._absorb_into_results(results, language, analysis)
             self._collect_diagnostics_for(adapter, engine_client, analysis)
             track_lsp_result(
                 language=adapter.language_enum.value,
@@ -849,6 +855,8 @@ class StaticAnalyzer:
                 analysis=analysis,
                 diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
             )
+        for language, analysis in carried.items():
+            self._absorb_into_results(results, language, analysis)
         results.incremental_base_results = cached_results
         return results
 

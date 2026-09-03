@@ -188,8 +188,8 @@ clustering. Per scope, walking the tree top-down:
    membership; `previous_component_id` is the rule id, so the existing scope plan emits
    UPDATE only where members or bodies changed, and nothing else moves. Measured: 0.00%
    of unchanged files move across 27 repositories and four edit types.
-2. **New components.** Every unit that no prefix and no word claims, whether a fallback
-   rule caught it or nothing did, is reported in `Partition.new_scopes` under the prefix at
+2. **New components.** Every unit that no prefix claims, whether a word vote, a fallback
+   rule or nothing placed it, is reported in `Partition.new_scopes` under the prefix at
    which its position first leaves every prefix a rule owns: a new top-level directory
    diverges at that directory; a new file deep inside a known one is claimed by its
    ancestor's rule and never gets here. A group of ≥ 2 units whose members are all new to
@@ -201,8 +201,10 @@ clustering. Per scope, walking the tree top-down:
    unplaced bucket, which is created on demand. This is the same at every depth: a new
    sub-directory inside component `3` surfaces in scope `3` on the next run, as a new `3.k`;
    today it needed ≥ 16 files to isolate two Leiden clusters before it could appear at all.
-3. **Retired components.** A rule that claims nothing is deleted by the existing scope
-   plan (DELETE), and its child scope with it.
+3. **Retired components.** A rule that claims nothing is retired from the specification
+   with the scopes below it, and the existing scope plan emits DELETE for its component; a
+   directory that comes back is a new scope with a fresh id. (Fallback-only rules stay: they
+   are legitimately empty.)
 4. A component whose child scope was never drafted (the depth cap was raised) is drafted
    now; its membership at its own level is unchanged.
 5. Whether anything changed is read off the replayed tree against the persisted one: a
