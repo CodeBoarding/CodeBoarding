@@ -1,4 +1,4 @@
-"""Prompts for metadata, tree planning, and deterministic scope analysis."""
+"""Prompts for tree planning and deterministic scope analysis."""
 
 TREE_PLAN_SYSTEM_MESSAGE = (
     "You group the candidate groups of one scope of a codebase into the components a maintainer "
@@ -25,27 +25,6 @@ Rules:
 Answer with JSON only, no prose, in this shape:
 {{"groups": [{{"name": "Customer experiences", "members": ["G1", "G4"], "owns": ["customer"]}}]}}
 """
-
-SYSTEM_META_ANALYSIS_MESSAGE = """You extract high-level project metadata for architecture documentation.
-
-Use project documentation, repository structure, and dependency metadata as the primary evidence.
-Identify the project type, domain, technology stack, and broad architectural patterns. Focus on
-facts that help a maintainer understand the project rather than implementation details."""
-
-META_INFORMATION_PROMPT = """Analyze project '{project_name}' and return its project type, domain,
-technology stack, architectural patterns, expected component categories, and concise architectural
-guidance. Read documentation and dependency metadata first and use at most two targeted tool calls."""
-
-VALIDATION_FEEDBACK_MESSAGE = """Correct the output below without regenerating correct parts.
-
-Previous output:
-{original_output}
-
-Issues to fix:
-{feedback_list}
-
-Original task context:
-{original_prompt}"""
 
 SCOPE_ANALYSIS_SYSTEM_MESSAGE = """You name and describe fixed, deterministic component groups in one code scope.
 
@@ -98,3 +77,28 @@ For incremental input, return component metadata only for groups whose status is
 true, repeat its existing name exactly. Relations may be returned for any pair touching a changed group; leave
 relations between two unchanged groups alone. Include one component entry per editable group. Do not invent group
 IDs, file membership, source symbols, or calls."""
+
+STRICT_TREE_PLAN_SYSTEM_SUFFIX = """
+
+Follow every constraint literally. Do not explain your reasoning or emit markdown."""
+
+STRICT_TREE_PLAN_MESSAGE_SUFFIX = """
+
+Before answering, verify that every supplied G-label appears exactly once, no unknown label appears,
+and the result has no more than {budget} groups. Emit one JSON object and nothing else."""
+
+STRICT_SCOPE_ANALYSIS_SYSTEM_SUFFIX = """
+
+Mandatory execution order:
+1. Read all supplied group and boundary context before deciding whether a tool is needed.
+2. Use a tool only to answer one unresolved question about a named file or symbol.
+3. Check every component, relation direction, and source symbol against the supplied context.
+4. Emit one JSON object and nothing else. Do not explain your reasoning or use markdown."""
+
+STRICT_SCOPE_ANALYSIS_MESSAGE_SUFFIX = """
+
+Final checklist before answering:
+- `components` contains exactly one entry for every editable group and no other group.
+- Every group ID and qualified name is copied exactly from the input.
+- Every relation is directed from source to target and has concrete evidence unless it is already known.
+- The response is one valid JSON object with no prose before or after it."""

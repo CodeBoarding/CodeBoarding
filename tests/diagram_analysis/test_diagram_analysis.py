@@ -19,6 +19,7 @@ from agents.agent_responses import (
 )
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.incremental_results import RecursiveScopeUpdateResult, ScopeRelationContext, ScopeUpdateResult
+from agents.llm_errors import LLMAuthError
 from agents.relation_edges import index_relation_endpoints
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.analysis_json import (
@@ -47,7 +48,6 @@ from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import (
     ClusterGroup,
-    ClusterResult,
     ClusterScopeResult,
 )
 from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec
@@ -880,6 +880,34 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNotNone(gen.scope_assembler)
         self.assertIsNone(gen.incremental_updater)
 
+    def test_enrich_scope_propagates_authentication_failures(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        error = LLMAuthError(
+            "key rejected",
+            provider="openai",
+            key_tail="1234",
+            telemetry_properties={"error_type": "auth"},
+        )
+        gen.scope_analysis_agent = MagicMock()
+        gen.scope_analysis_agent.analyze.side_effect = error
+
+        with self.assertRaises(LLMAuthError) as caught:
+            gen._enrich_scope(
+                ClusterScopeResult(scope_id="root"),
+                AnalysisInsights(description="", components=[], components_relations=[]),
+                {"1"},
+            )
+
+        self.assertIs(caught.exception, error)
+
     @patch("diagram_analysis.diagram_generator.get_static_analysis")
     def test_new_analyzer_honors_cache_reuse_override(self, mock_get_static_analysis):
         gen = DiagramGenerator(
@@ -929,12 +957,12 @@ class TestDiagramGenerator(unittest.TestCase):
             patch(
                 "static_analyzer.clustering.service.ClusteringService.build_full_hierarchy", return_value=hierarchy
             ) as mock_build_hierarchy,
-            patch("diagram_analysis.diagram_generator.initialize_llms") as mock_initialize_llms,
+            patch("diagram_analysis.diagram_generator.initialize_agent_llm") as mock_initialize_agent_llm,
         ):
             gen.prepare_analysis()
 
         mock_build_hierarchy.assert_called_once_with(mock_analysis_results, 2)
-        mock_initialize_llms.assert_not_called()
+        mock_initialize_agent_llm.assert_not_called()
         self.assertIs(gen.clustering_hierarchy, hierarchy)
         self.assertIsNotNone(gen.incremental_updater)
 
@@ -955,10 +983,10 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.agent_init = Mock()
 
-        with patch("diagram_analysis.diagram_generator.initialize_llms") as initialize_llms:
+        with patch("diagram_analysis.diagram_generator.initialize_agent_llm") as initialize_agent_llm:
             gen.prepare_analysis(incremental=True)
 
-        initialize_llms.assert_not_called()
+        initialize_agent_llm.assert_not_called()
         gen.agent_init.assert_called_once()
 
     def test_prepare_analysis_initializes_agents_for_group_membership_change(self):

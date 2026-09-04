@@ -52,7 +52,6 @@ dependencies = [
     "regex>=2024.11",
     "requests>=2.32",
     "rich>=12.6",
-    "sqlalchemy>=2.0",
     "tqdm>=4.67",
     "tree-sitter==0.25.2",
     "tree-sitter-c-sharp==0.23.5",
@@ -63,7 +62,6 @@ dependencies = [
     "tree-sitter-python==0.25.0",
     "tree-sitter-rust==0.24.2",
     "tree-sitter-typescript==0.23.2",
-    "trustcall>=0.0.39",
     "uvicorn>=0.23",
 ]
 
@@ -97,7 +95,6 @@ packages = [
     "static_analyzer.engine",
     "static_analyzer.engine.adapters",
     "static_analyzer.lsp_client",
-    "caching",
     "tool_registry",
     "codeboarding_cli",
     "codeboarding_cli.commands",

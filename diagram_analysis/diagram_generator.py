@@ -28,7 +28,8 @@ from diagram_analysis.incremental_update import (
 )
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
-from agents.llm_config import initialize_agent_llm, initialize_llms
+from agents.llm_config import initialize_agent_llm
+from agents.llm_errors import LLMAuthError
 from agents.relation_edges import (
     drop_misattributed_edges,
     index_relation_endpoints,
@@ -63,7 +64,6 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
-from static_analyzer.cfg import CallGraph
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -72,10 +72,8 @@ from static_analyzer.cluster_relations import (
     build_global_relations,
     is_self_or_descendant,
 )
-from static_analyzer.config import Language
 from static_analyzer.clustering import (
     ClusterGroup,
-    ClusterResult,
     ClusterScopeResult,
 )
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
@@ -567,7 +565,7 @@ class DiagramGenerator:
         # The tree specification the components are drawn from: drafted by a full analysis,
         # read back by every run that builds on one, persisted with every save.
         self.tree_spec: TreeSpec | None = None
-        self._llms: tuple[BaseChatModel, BaseChatModel] | None = None
+        self._agent_llm: BaseChatModel | None = None
         self._incremental_preparation: _IncrementalPreparation | None = None
         self.scope_assembler = ScopeAssembler(repo_location)
         self.scope_analysis_agent: ScopeAnalysisAgent | None = None
@@ -685,12 +683,11 @@ class DiagramGenerator:
             return AffinityGrouper()
         if choice == "kinship":
             return KinshipGrouper()
-        if self._llms is None:
-            self._llms = initialize_llms()
         if self.static_analysis is None:
             raise PlannerUnavailableError("no LLM was initialised before clustering")
-        agent_llm, parsing_llm = self._llms
-        planner = TreePlannerAgent(self.repo_location, self.static_analysis, agent_llm, parsing_llm)
+        if self._agent_llm is None:
+            self._agent_llm = initialize_agent_llm()
+        planner = TreePlannerAgent(self._agent_llm)
         self._monitoring_agents["TreePlannerAgent"] = planner
         return planner
 
@@ -698,8 +695,9 @@ class DiagramGenerator:
         """Initialize the shared semantic agent only when a scope needs analysis."""
         if self.scope_analysis_agent is None:
             assert self.static_analysis is not None
-            agent_llm = self._llms[0] if self._llms is not None else initialize_agent_llm()
-            self.scope_analysis_agent = ScopeAnalysisAgent(self.repo_location, self.static_analysis, agent_llm)
+            if self._agent_llm is None:
+                self._agent_llm = initialize_agent_llm()
+            self.scope_analysis_agent = ScopeAnalysisAgent(self.repo_location, self.static_analysis, self._agent_llm)
             self._monitoring_agents["ScopeAnalysisAgent"] = self.scope_analysis_agent
         return self.scope_analysis_agent
 
@@ -724,6 +722,8 @@ class DiagramGenerator:
                 changed_files,
                 incremental,
             )
+        except LLMAuthError:
+            raise
         except Exception:
             logger.exception("Semantic analysis failed for scope %s; retaining deterministic output", scope.scope_id)
             return

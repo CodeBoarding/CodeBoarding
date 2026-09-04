@@ -122,12 +122,10 @@ class TestWithRetries(unittest.TestCase):
 
     @patch("agents.retry.time.sleep")
     def test_fn_is_invoked_fresh_each_attempt(self, mock_sleep):
-        """fn() is a closure; callers relying on per-attempt construction (e.g. recreating
-        an LLM extractor on retry) depend on this being called fresh each time."""
-        state = {"constructions": 0, "attempts": 0}
+        state = {"invocations": 0, "attempts": 0}
 
         def fn():
-            state["constructions"] += 1  # simulating "construct extractor" here
+            state["invocations"] += 1
             state["attempts"] += 1
             if state["attempts"] < 3:
                 raise ValueError("not yet")
@@ -138,7 +136,7 @@ class TestWithRetries(unittest.TestCase):
             max_attempts=5,
             classify=lambda _e, _a: RetryDecision(RetryAction.RETRY, backoff_s=0.1),
         )
-        self.assertEqual(state["constructions"], 3)
+        self.assertEqual(state["invocations"], 3)
 
 
 if __name__ == "__main__":

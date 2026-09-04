@@ -15,7 +15,12 @@ dashboard's structured ``error`` columns — populate instead of staying null.
 
 from __future__ import annotations
 
+import logging
 import re
+
+from agents.llm_config import current_provider_key_context
+
+logger = logging.getLogger(__name__)
 
 # Process exit code for a rejected key. Distinct from 1 (generic failure) so the
 # OSS CLI and the wrapper subprocess both signal "fix your key" the same way, and
@@ -123,3 +128,12 @@ def detect_auth_error(exc: BaseException, *, provider: str, key_tail: str) -> LL
         key_tail=key_tail,
         telemetry_properties=telemetry_properties,
     )
+
+
+def raise_if_auth_error(exc: Exception) -> None:
+    """Raise a typed terminal error when a provider rejected its credentials."""
+    provider, key_tail = current_provider_key_context()
+    auth_error = detect_auth_error(exc, provider=provider, key_tail=key_tail)
+    if auth_error is not None:
+        logger.error("LLM auth failure — not retrying: %s", auth_error)
+        raise auth_error from exc

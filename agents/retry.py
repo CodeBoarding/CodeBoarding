@@ -1,28 +1,4 @@
-"""Generic retry helper for LLM-layer calls.
-
-Three call sites across this repo wrap a callable in a retry/backoff loop,
-each with slightly different exception taxonomies and terminal behavior:
-
-- ``tracer._invoke_extractor_with_retry``: retries any exception, returns
-  ``None`` on exhaustion.
-- ``agent._invoke``: classifies ``TimeoutError`` / ``ResourceExhausted`` /
-  HTTP 404 / generic, uses different backoff formulas per class, returns
-  a fallback string on generic-exception exhaustion and raises on the
-  typed-exception exhaustion paths.
-- ``agent._parse_response``: mixes retry-with-backoff (for
-  ``ResourceExhausted``) with retry-without-sleep (for parse errors);
-  raises on exhaustion.
-
-The helper here owns the loop structure. Callers supply:
-
-- ``fn``: the callable to invoke. Called fresh on every attempt, so if it
-  constructs short-lived state (e.g. an LLM extractor), that construction
-  lives inside the closure and is repeated on retry.
-- ``classify``: maps an exception to a :class:`RetryDecision`. This is
-  where per-exception backoff and "give up immediately" policies live.
-- ``on_exhausted``: what to return if every attempt fails. Default re-raises
-  the last exception.
-"""
+"""Retry policy primitives for LLM calls."""
 
 from __future__ import annotations
 

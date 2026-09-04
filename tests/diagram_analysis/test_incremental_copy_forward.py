@@ -8,7 +8,6 @@ crash, so each helper is driven directly on hand-built trees.
 
 import tempfile
 import unittest
-from unittest.mock import MagicMock
 from pathlib import Path
 
 from agents.agent_responses import (

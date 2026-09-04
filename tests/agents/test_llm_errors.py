@@ -3,8 +3,10 @@
 import os
 from unittest.mock import patch
 
+import pytest
+
 from agents.llm_config import current_provider_key_context
-from agents.llm_errors import LLMAuthError, detect_auth_error
+from agents.llm_errors import LLMAuthError, detect_auth_error, raise_if_auth_error
 
 
 class _FakeStatusError(Exception):
@@ -107,3 +109,12 @@ class TestCurrentProviderKeyContext:
             name, tail = current_provider_key_context()
         assert name == "openai"
         assert tail == "unknown"
+
+
+def test_raise_if_auth_error_uses_current_provider_context():
+    error = _FakeStatusError("invalid api key", status_code=401)
+    with patch("agents.llm_errors.current_provider_key_context", return_value=("google", "1234")):
+        with pytest.raises(LLMAuthError, match="google") as caught:
+            raise_if_auth_error(error)
+
+    assert caught.value.key_tail == "1234"

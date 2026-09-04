@@ -14,13 +14,13 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import Field, ValidationError
 
 from agents.agent_responses import AnalysisInsights, LLMBaseModel, RelationEdge, SourceCodeReference
-from agents.llm_config import MONITORING_CALLBACK
+from agents.llm_config import MONITORING_CALLBACK, get_current_prompt_profile
+from agents.llm_errors import raise_if_auth_error
 from agents.llm_renderers import render_scope_context, scope_file_paths, scope_method_names
-from agents.prompts import SCOPE_ANALYSIS_MESSAGE, SCOPE_ANALYSIS_SYSTEM_MESSAGE
+from agents.prompts import get_scope_analysis_prompts
 from agents.tools import MethodCallsTool, ReadFileTool
 from agents.tools.base import RepoContext
 from monitoring.mixin import MonitoringMixin
-from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterScopeResult
 
@@ -91,7 +91,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
         self.repo_dir = repo_dir
         self.static_analysis = static_analysis
         self.agent_llm = agent_llm
-        self.ignore_manager = RepoIgnoreManager(repo_dir)
+        self.system_prompt, self.analysis_prompt = get_scope_analysis_prompts(get_current_prompt_profile(agent_llm))
 
     def analyze(
         self,
@@ -105,7 +105,6 @@ class ScopeAnalysisAgent(MonitoringMixin):
         """Run one bounded semantic analysis, returning no result for malformed output."""
         context = RepoContext(
             repo_dir=self.repo_dir,
-            ignore_manager=self.ignore_manager,
             static_analysis=self.static_analysis,
             scope_restricted=True,
             scope_files=scope_file_paths(scope, self.repo_dir),
@@ -120,7 +119,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
         agent: CompiledStateGraph = create_agent(
             model=self.agent_llm,
             tools=tools,
-            system_prompt=SCOPE_ANALYSIS_SYSTEM_MESSAGE,
+            system_prompt=self.system_prompt,
             middleware=middleware,
         )
         scope_context = render_scope_context(
@@ -132,13 +131,17 @@ class ScopeAnalysisAgent(MonitoringMixin):
             changed_files,
             incremental,
         )
-        response = agent.invoke(
-            {"messages": [HumanMessage(content=SCOPE_ANALYSIS_MESSAGE.format(scope_context=scope_context))]},
-            config={
-                "callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback],
-                "recursion_limit": SCOPE_RECURSION_LIMIT,
-            },
-        )
+        try:
+            response = agent.invoke(
+                {"messages": [HumanMessage(content=self.analysis_prompt.format(scope_context=scope_context))]},
+                config={
+                    "callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback],
+                    "recursion_limit": SCOPE_RECURSION_LIMIT,
+                },
+            )
+        except Exception as error:
+            raise_if_auth_error(error)
+            raise
         text = self._last_response_text(response.get("messages", []))
         try:
             return ScopeAnalysisResult.model_validate_json(self._json_object(text))

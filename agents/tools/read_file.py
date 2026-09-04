@@ -1,7 +1,8 @@
 import logging
-from pathlib import Path
+
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
+
 from agents.tools.base import BaseRepoTool
 from repo_utils.path_utils import normalize_repo_path
 
@@ -28,55 +29,24 @@ class ReadFileTool(BaseRepoTool):
     args_schema: ArgsSchema | None = ReadFileInput
     return_direct: bool = False
 
-    @property
-    def cached_files(self) -> list[Path]:
-        files = self.context.get_files()
-        return sorted(files, key=lambda x: len(x.parts))
-
     def _run(self, file_path: str, line_number: int) -> str:
-        """
-        Run the tool with the given input.
-        """
+        """Read an exact repository-relative file path around one line."""
         logger.info(f"[ReadFile Tool] Reading file {file_path} around line {line_number}")
 
         normalized_path = normalize_repo_path(file_path, self.repo_dir)
-        if self.context.scope_restricted:
-            if normalized_path not in self.context.scope_files:
-                logger.warning("[ReadFile Tool] Rejected out-of-scope file %s", file_path)
-                return f"Error: File '{file_path}' is outside the current analysis scope."
-            candidate = (self.repo_dir / normalized_path).resolve()
-            try:
-                candidate.relative_to(self.repo_dir.resolve())
-            except ValueError:
-                return f"Error: File '{file_path}' is outside the repository."
-            read_file = candidate if candidate.is_file() else None
-        else:
-            read_file = None
+        if self.context.scope_restricted and normalized_path not in self.context.scope_files:
+            logger.warning("[ReadFile Tool] Rejected out-of-scope file %s", file_path)
+            return f"Error: File '{file_path}' is outside the current analysis scope."
 
-        file_path_obj = Path(file_path)
-        if read_file is None and not self.context.scope_restricted and self.cached_files:
-            for cached_file in self.cached_files:
-                if self.is_subsequence(file_path_obj, cached_file):
-                    read_file = cached_file
-                    break
+        read_file = (self.repo_dir / normalized_path).resolve()
+        try:
+            read_file.relative_to(self.repo_dir.resolve())
+        except ValueError:
+            return f"Error: File '{file_path}' is outside the repository."
+        if not read_file.is_file():
+            logger.error("[ReadFile Tool] File %s does not exist.", file_path)
+            return f"Error: The specified file '{file_path}' was not found in the indexed source files."
 
-        common_prefix = str(self.repo_dir) if self.repo_dir else ""
-        if read_file is None:
-            if not self.context.scope_restricted and self.cached_files and self.repo_dir:
-                files_str = "\n".join(
-                    [str(f.relative_to(self.repo_dir)) for f in self.cached_files if f.suffix == file_path_obj.suffix]
-                )
-            elif self.context.scope_restricted:
-                files_str = "Allowed files:\n" + "\n".join(sorted(self.context.scope_files))
-            else:
-                files_str = "No files cached"
-            logger.error(f"[ReadFile Tool] File {file_path} not found in cached files.")
-            return (
-                f"Error: The specified file '{file_path}' was not found in the indexed source files. "
-                f"Please ensure the path is correct and points to an existing file: {common_prefix}/\n{files_str}."
-            )
-
-        # Read the file content
         with open(read_file, "r", encoding="utf-8") as file:
             lines = file.readlines()
 
@@ -85,7 +55,6 @@ class ReadFileTool(BaseRepoTool):
             logger.error(f"[ReadFile Tool] Line number {line_number} is out of range. Total lines: {total_lines}")
             return f"Error: Line number {line_number} is out of range (0-{total_lines - 1})"
 
-        # Calculate start and end line numbers
         if line_number < 150:
             start_line = 0
             end_line = min(total_lines, 300)

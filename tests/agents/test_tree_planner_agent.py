@@ -1,12 +1,10 @@
-import shutil
-import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+from langchain_core.messages import AIMessage
 
 from agents.agent_responses import PlannedGroup, TreePlanInsights
 from agents.tree_planner_agent import BUDGET, TreePlannerAgent
-from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering.names import ROLE_WORDS, CandidateGroup, GroupingContext
 from static_analyzer.clustering.names.frontier import BOX, Candidate
 
@@ -53,16 +51,10 @@ def answer(*groups: tuple[str, list[str]]) -> TreePlanInsights:
 
 
 class TestTreePlannerAgent(unittest.TestCase):
-    def setUp(self):
-        self.repo_dir = Path(tempfile.mkdtemp())
-
-    def tearDown(self):
-        shutil.rmtree(self.repo_dir, ignore_errors=True)
-
     def _agent(self, draws: int = 1) -> TreePlannerAgent:
         llm = MagicMock()
         llm.model_name = "test-model"
-        return TreePlannerAgent(self.repo_dir, StaticAnalysisResults(), llm, llm, draws=draws)
+        return TreePlannerAgent(llm, draws=draws)
 
     def test_a_scope_within_the_budget_never_reaches_the_model(self):
         items = candidates(BUDGET)
@@ -171,6 +163,20 @@ class TestTreePlannerAgent(unittest.TestCase):
         self.assertEqual(insights.groups[0].members, ["G1", "G2", "G3"])
         self.assertIsNone(TreePlannerAgent._read("no json here", labelled))
         self.assertIsNone(TreePlannerAgent._read('{"components": []}', labelled))
+
+    def test_malformed_json_retries_with_the_same_model(self):
+        items = candidates(BUDGET + 1)
+        labelled = {f"G{i + 1}": CandidateGroup(c.label, (c.key,)) for i, c in enumerate(items)}
+        llm = MagicMock()
+        llm.invoke.side_effect = [
+            AIMessage(content="not json"),
+            AIMessage(content='{"groups":[{"name":"All","members":["G1"]}]}'),
+        ]
+
+        result = TreePlannerAgent(llm, draws=1)._ask("prompt", labelled)
+
+        self.assertEqual(result.groups[0].name, "All")
+        self.assertEqual(llm.invoke.call_count, 2)
 
     def test_three_draws_fold_to_the_one_the_others_agree_with(self):
         items = candidates(BUDGET + 3)

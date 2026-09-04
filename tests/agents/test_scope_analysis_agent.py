@@ -12,6 +12,7 @@ from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 
 from agents.agent_responses import AnalysisInsights, Component
+from agents.llm_errors import LLMAuthError
 from agents.scope_analysis_agent import (
     MAX_SCOPE_MODEL_CALLS,
     MAX_SCOPE_TOOL_CALLS,
@@ -98,6 +99,22 @@ class TestScopeAnalysisAgent(unittest.TestCase):
         self.assertEqual(tool_limit.run_limit, MAX_SCOPE_TOOL_CALLS)
         self.assertEqual(model_limit.run_limit, MAX_SCOPE_MODEL_CALLS)
         self.assertEqual(runtime.invoke.call_args.kwargs["config"]["recursion_limit"], SCOPE_RECURSION_LIMIT)
+
+    @patch("agents.scope_analysis_agent.create_agent")
+    def test_converts_provider_authentication_failures(self, create_agent):
+        class AuthenticationError(Exception):
+            status_code = 401
+
+        static_analysis, scope, analysis = _inputs()
+        runtime = MagicMock()
+        runtime.invoke.side_effect = AuthenticationError("invalid API key")
+        create_agent.return_value = runtime
+        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, MagicMock(spec=BaseChatModel))
+
+        with self.assertRaises(LLMAuthError):
+            agent.analyze(scope, analysis, {"1"})
+
+        runtime.invoke.assert_called_once()
 
     @patch.object(ReadFileTool, "_run", return_value="source")
     def test_graph_ceiling_allows_tool_budget_to_terminate_the_run(self, read_file):

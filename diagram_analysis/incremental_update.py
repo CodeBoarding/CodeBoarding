@@ -143,7 +143,6 @@ class IncrementalUpdater:
         for scope_id, scope in tasks:
             self._generate_scope_relations(
                 scope,
-                scope_id,
                 relation_contexts[scope_id],
                 changed_members,
                 unattributed_files,
@@ -253,7 +252,6 @@ class IncrementalUpdater:
     def _generate_scope_relations(
         self,
         scope: AnalysisInsights,
-        scope_name: str,
         context: ScopeRelationContext,
         changed_members: set[str] | None = None,
         unattributed_files: Collection[str] = (),

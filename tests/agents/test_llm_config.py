@@ -2,27 +2,24 @@
 
 import logging
 import os
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.agent import CodeBoardingAgent
 from agents.llm_config import (
     LLM_ENV_VARS,
     LLM_PROVIDERS,
     LLM_PROVIDER_ENV_VARS,
     LLMConfigError,
+    MONITORING_CALLBACK,
     _model_accepts_temperature,
     get_current_agent_context_window,
+    get_current_prompt_profile,
     initialize_agent_llm,
-    initialize_llms,
-    initialize_parsing_llm,
     validate_api_key_provided,
 )
 from agents.model_capabilities import ContextWindow
-from static_analyzer.analysis_result import StaticAnalysisResults
+from agents.prompts import PromptProfile
 
 
 class TestValidateApiKeyProvided:
@@ -92,7 +89,24 @@ class TestProviderSelection:
         }
 
         assert config_env_vars == LLM_PROVIDER_ENV_VARS
-        assert LLM_ENV_VARS == LLM_PROVIDER_ENV_VARS | {"AGENT_MODEL", "PARSING_MODEL"}
+        assert LLM_ENV_VARS == LLM_PROVIDER_ENV_VARS | {"AGENT_MODEL"}
+
+    def test_agent_model_defaults_remain_unchanged(self):
+        assert {name: config.agent_model for name, config in LLM_PROVIDERS.items()} == {
+            "openai": "gpt-4o",
+            "vercel": "google/gemini-3.8-flash",
+            "anthropic": "claude-sonnet-5",
+            "google": "gemini-3.8-flash",
+            "aws": "anthropic.claude-sonnet-4-6",
+            "cerebras": "zai-glm-4.7",
+            "ollama": "qwen3:30b",
+            "deepseek": "deepseek-v4-flash",
+            "glm": "glm-4.7-flash",
+            "kimi": "kimi-k2.6",
+            "openrouter": "google/gemini-3.8-flash",
+            "orcarouter": "openai/gpt-5.4-mini",
+            "litellm": "gpt-4o",
+        }
 
     @pytest.mark.parametrize(
         ("provider_name", "env_var", "default_url"),
@@ -123,17 +137,15 @@ class TestProviderSelection:
         with patch.dict(os.environ, {env_var: "https://custom.example/v1"}, clear=True):
             assert config.get_resolved_extra_args()["base_url"] == "https://custom.example/v1"
 
-    def test_anthropic_defaults_to_sonnet_5_and_haiku_4_5(self):
+    def test_anthropic_defaults_to_sonnet_5(self):
         anthropic = LLM_PROVIDERS["anthropic"]
 
         assert anthropic.agent_model == "claude-sonnet-5"
-        assert anthropic.parsing_model == "claude-haiku-4-5"
 
     def test_kimi_defaults_to_k2_6(self):
         kimi = LLM_PROVIDERS["kimi"]
 
         assert kimi.agent_model == "kimi-k2.6"
-        assert kimi.parsing_model == "kimi-k2.6"
 
     def test_ollama_activates_via_ollama_host(self):
         ollama = LLM_PROVIDERS["ollama"]
@@ -249,8 +261,7 @@ class TestAgentContextWindow:
 class TestLiteLLMProvider:
     """The litellm provider proxies an OpenAI-compatible server via base_url."""
 
-    @patch("agents.agent.MONITORING_CALLBACK")
-    def test_uses_proxy_base_url_and_key(self, mock_monitoring_callback):
+    def test_uses_proxy_base_url_and_key(self):
         env = {
             "LITELLM_API_KEY": "sk-litellm-test",
             "LITELLM_BASE_URL": "http://localhost:4000",
@@ -260,50 +271,46 @@ class TestLiteLLMProvider:
             litellm_config = LLM_PROVIDERS["litellm"]
             mock_llm = MagicMock()
             with patch.object(litellm_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                initialize_llms()
+                initialize_agent_llm()
 
-                agent_kwargs = mock_chat_class.call_args_list[0][1]
+                agent_kwargs = mock_chat_class.call_args.kwargs
                 assert agent_kwargs["model"] == "my-proxy-model"
                 assert agent_kwargs["base_url"] == "http://localhost:4000"
                 assert agent_kwargs["api_key"] == "sk-litellm-test"
 
-    @patch("agents.agent.MONITORING_CALLBACK")
-    def test_keyless_proxy_uses_placeholder_key(self, mock_monitoring_callback):
+    def test_keyless_proxy_uses_placeholder_key(self):
         # Base URL alone activates the proxy; a placeholder key is sent when none is set.
         env = {"LITELLM_BASE_URL": "http://localhost:4000", "AGENT_MODEL": "my-proxy-model"}
         with patch.dict(os.environ, env, clear=True):
             litellm_config = LLM_PROVIDERS["litellm"]
             mock_llm = MagicMock()
             with patch.object(litellm_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                initialize_llms()
+                initialize_agent_llm()
 
-                agent_kwargs = mock_chat_class.call_args_list[0][1]
+                agent_kwargs = mock_chat_class.call_args.kwargs
                 assert agent_kwargs["base_url"] == "http://localhost:4000"
                 assert agent_kwargs["api_key"] == "no-key-required"
 
-    @patch("agents.agent.MONITORING_CALLBACK")
-    def test_key_without_base_url_raises(self, mock_monitoring_callback):
+    def test_key_without_base_url_raises(self):
         # A key alone must not select litellm and fall through to the default OpenAI endpoint.
         env = {"LITELLM_API_KEY": "sk-litellm-test", "AGENT_MODEL": "my-proxy-model"}
         with patch.dict(os.environ, env, clear=True):
             with pytest.raises(ValueError, match="is selected by LITELLM_BASE_URL"):
-                initialize_llms()
+                initialize_agent_llm()
 
 
 class TestEnvironmentVariables:
-    """Test that AGENT_MODEL and PARSING_MODEL environment variables are respected."""
+    """Test that agent model overrides are respected."""
 
-    @patch("agents.agent.MONITORING_CALLBACK")
-    def test_agent_model_env_var_respected(self, mock_monitoring_callback):
-        """Test that AGENT_MODEL environment variable is used by initialize_llms()."""
+    def test_agent_model_env_var_respected(self):
         with patch.dict(os.environ, {"AGENT_MODEL": "gpt-4-turbo", "OPENAI_API_KEY": "test-key"}):
             original_openai_config = LLM_PROVIDERS["openai"]
             mock_llm = MagicMock()
             with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                initialize_llms()
+                initialize_agent_llm()
 
-        assert mock_chat_class.call_count == 2
-        assert mock_chat_class.call_args_list[0][1]["model"] == "gpt-4-turbo"
+        assert mock_chat_class.call_count == 1
+        assert mock_chat_class.call_args.kwargs["model"] == "gpt-4-turbo"
 
     @patch("agents.llm_config.LLM_PROVIDERS")
     def test_agent_model_override_takes_precedence(self, mock_providers):
@@ -322,56 +329,54 @@ class TestEnvironmentVariables:
 
         assert mock_config.chat_class.call_args[1]["model"] == "gpt-4o-mini"
 
-    @patch("agents.agent.MONITORING_CALLBACK")
-    def test_agent_model_defaults_when_no_env_var(self, mock_monitoring_callback):
-        """Test that default model is used when AGENT_MODEL env var is not set in initialize_llms()."""
+    def test_agent_model_defaults_when_no_env_var(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True):
             original_openai_config = LLM_PROVIDERS["openai"]
             mock_llm = MagicMock()
             with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                initialize_llms()
+                initialize_agent_llm()
 
-        assert mock_chat_class.call_args_list[0][1]["model"] == "gpt-4o"
+        assert mock_chat_class.call_args.kwargs["model"] == "gpt-4o"
 
-    @patch("agents.agent.MONITORING_CALLBACK")
-    def test_parsing_model_env_var_respected(self, mock_monitoring_callback):
-        """Test that PARSING_MODEL environment variable is used by initialize_llms()."""
-        with patch.dict(os.environ, {"PARSING_MODEL": "gpt-3.5-turbo", "OPENAI_API_KEY": "test-key"}):
+    def test_configured_model_is_used_when_environment_has_no_override(self):
+        with (
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True),
+            patch("agents.llm_config._agent_model_override", "configured-model"),
+        ):
             original_openai_config = LLM_PROVIDERS["openai"]
             mock_llm = MagicMock()
             with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                initialize_llms()
+                initialize_agent_llm()
 
-        assert mock_chat_class.call_count == 2
-        assert mock_chat_class.call_args_list[1][1]["model"] == "gpt-3.5-turbo"
+        assert mock_chat_class.call_args.kwargs["model"] == "configured-model"
 
-    @patch("agents.llm_config.LLM_PROVIDERS")
-    def test_parsing_model_override_takes_precedence(self, mock_providers):
-        """Test that model_override parameter takes precedence over default in initialize_parsing_llm()."""
-        mock_config = MagicMock()
-        mock_config.is_selected_by_env.return_value = True
-        mock_config.parsing_model = "gpt-4o-mini"
-        mock_config.parsing_temperature = 0
-        mock_config.get_api_key.return_value = "test-key"
-        mock_config.get_resolved_extra_args.return_value = {}
-        mock_config.chat_class = MagicMock(return_value=MagicMock())
-        mock_providers.__getitem__.return_value = mock_config
-        mock_providers.items.return_value = [("openai", mock_config)]
-
-        initialize_parsing_llm(model_override="gpt-4o")
-
-        assert mock_config.chat_class.call_args[1]["model"] == "gpt-4o"
-
-    @patch("agents.agent.MONITORING_CALLBACK")
-    def test_parsing_model_defaults_when_no_env_var(self, mock_monitoring_callback):
-        """Test that default parsing model is used when PARSING_MODEL env var is not set in initialize_llms()."""
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True):
+    def test_shell_model_wins_over_configured_model(self):
+        with (
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", "AGENT_MODEL": "shell-model"}, clear=True),
+            patch("agents.llm_config._agent_model_override", "configured-model"),
+        ):
             original_openai_config = LLM_PROVIDERS["openai"]
             mock_llm = MagicMock()
             with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                initialize_llms()
+                initialize_agent_llm()
 
-        assert mock_chat_class.call_args_list[1][1]["model"] == "gpt-4o-mini"
+        assert mock_chat_class.call_args.kwargs["model"] == "shell-model"
+
+
+class TestPromptProfiles:
+    def test_qwen_automatically_uses_strict_prompts(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test", "AGENT_MODEL": "qwen3-coder"}, clear=True):
+            assert get_current_prompt_profile() is PromptProfile.STRICT
+
+    def test_actual_model_override_controls_prompt_profile(self):
+        model = MagicMock()
+        model.model_name = "qwen3-coder"
+
+        assert get_current_prompt_profile(model) is PromptProfile.STRICT
+
+    def test_strong_model_uses_standard_prompts(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test", "AGENT_MODEL": "gpt-5"}, clear=True):
+            assert get_current_prompt_profile() is PromptProfile.STANDARD
 
 
 class TestTemperatureGating:
@@ -412,16 +417,14 @@ class TestTemperatureGating:
 
         assert "temperature" not in mock_chat_class.call_args.kwargs
 
-    @patch("agents.agent.MONITORING_CALLBACK")
-    def test_opus_built_without_temperature_attr(self, mock_monitoring_callback: MagicMock) -> None:
+    def test_opus_built_without_temperature_attr(self) -> None:
         # Offline: ChatAnthropic built without temperature exposes .temperature == None.
         env = {"ANTHROPIC_API_KEY": "sk-ant-test", "AGENT_MODEL": "claude-opus-4-8"}
         with patch.dict(os.environ, env, clear=True):
             agent_llm = initialize_agent_llm("claude-opus-4-8")
             assert getattr(agent_llm, "temperature") is None
 
-    @patch("agents.agent.MONITORING_CALLBACK")
-    def test_sonnet_built_with_zero_temperature(self, mock_monitoring_callback: MagicMock) -> None:
+    def test_sonnet_built_with_zero_temperature(self) -> None:
         # Offline: a sampling-capable model keeps the deterministic temperature=0.
         env = {"ANTHROPIC_API_KEY": "sk-ant-test", "AGENT_MODEL": "claude-sonnet-4-6"}
         with patch.dict(os.environ, env, clear=True):
@@ -433,9 +436,7 @@ class TestMonitoringIntegration:
     """Test that model names are properly passed to monitoring callbacks."""
 
     @patch("agents.llm_config.LLM_PROVIDERS")
-    def test_agent_monitoring_callback_gets_model_name(self, mock_providers):
-        """Test that agent's monitoring callback gets the correct model name."""
-        # Setup mock provider
+    def test_global_monitoring_callback_gets_model_name(self, mock_providers):
         mock_config = MagicMock()
         mock_config.is_selected_by_env.return_value = True
         mock_config.agent_model = "gpt-4o"
@@ -448,28 +449,6 @@ class TestMonitoringIntegration:
         mock_providers.items.return_value = [("openai", mock_config)]
 
         with patch.dict(os.environ, {"AGENT_MODEL": "gpt-4-turbo"}, clear=False):
-            agent_llm, parsing_llm = initialize_llms()
+            initialize_agent_llm()
 
-            # Create an agent
-            with tempfile.TemporaryDirectory() as tmpdir:
-                mock_static_analysis = MagicMock(spec=StaticAnalysisResults)
-                mock_static_analysis.call_graph = MagicMock()
-                mock_static_analysis.class_hierarchies = {}
-                mock_static_analysis.package_relations = {}
-                mock_static_analysis.references = []
-
-                with patch("agents.agent.create_agent"):
-                    agent = CodeBoardingAgent(
-                        repo_dir=Path(tmpdir),
-                        static_analysis=mock_static_analysis,
-                        system_message="Test",
-                        agent_llm=agent_llm,
-                        parsing_llm=parsing_llm,
-                    )
-
-                    # Simulate what DiagramGenerator does: set model name on agent's callback
-                    agent.agent_monitoring_callback.model_name = "gpt-4-turbo"
-
-                    # Verify the agent's monitoring callback has the correct model name
-                    results = agent.get_monitoring_results()
-                    assert results["model_name"] == "gpt-4-turbo"
+        assert MONITORING_CALLBACK.model_name == "gpt-4-turbo"
