@@ -22,10 +22,11 @@ SEGMENT = "segment"
 LAYERS = "layers"
 FILES = "files"
 ROLE = "role"
+ISLAND = "island"
 LEAF = "leaf"
 """The rungs of the ladder, recorded on the scope they drew."""
 
-KEYED_RUNGS = frozenset({FILES, ROLE})
+KEYED_RUNGS = frozenset({FILES, ROLE, ISLAND})
 """Rungs whose rules own files by their key rather than directories by their position: replay
 matches the key only there, so a class named like a sibling directory moves nothing above."""
 

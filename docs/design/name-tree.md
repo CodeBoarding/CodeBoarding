@@ -156,8 +156,8 @@ numbering cannot move a unit.
 |---|---|
 | root | frontier of the trie (layers transposed or drawn) → words of the units (only if the frontier gave one box) |
 | component ≤ 7 units | un-merge: the candidates the grouper folded into it → leaf ("small") |
-| component 8–135 units | un-merge → frontier of its own sub-trie, a layered grid kept whole → the same frontier with the grid drawn layer by layer → files → roles → leaf ("cohesive") |
-| component > 135 units | un-merge → frontier of its sub-trie, transposed where a grid recurs → words of its units → layers → files → roles → leaf ("exhausted") |
+| component 8–135 units | un-merge → frontier of its own sub-trie, a layered grid kept whole → the same frontier with the grid drawn layer by layer → files → roles → island → leaf ("cohesive") |
+| component > 135 units | un-merge → frontier of its sub-trie, transposed where a grid recurs → words of its units → layers → files → roles → island → leaf ("exhausted") |
 
 The two rungs below the trie read the files themselves, since below a leaf the trie is
 flat. **Files**: every file is a candidate labelled by its own name (its key: the position
@@ -167,6 +167,14 @@ bucket, a fallback-only rule on the scope's own prefix, so a one-file box is nev
 **Roles**: the same over the head word of each file's name (`Strategy`, `Options`,
 `Converter`); inside a feature the roles are the structure, so this is the one rung where a
 rule may own a role word, and replay lets a role word vote only for a rule that owns it.
+**Island**: the last resort, for a fan of parallel implementations. The files rung wants two
+families; a fan usually has one at most, the siblings that route through a shared sibling
+(markitdown's nine HTML-based converters), beside siblings that share nothing. That family is
+drawn against "Other converters" only when it holds a third of the scope and no link crosses to
+the rest. Why the link test: without it the fold cuts a hub's neighbours in two by how many
+links each exchanges with the hub, and every such cut measured (CodeBoarding's adapters, mem0's
+loaders, Polly's benchmarks) was arbitrary; with it the rung fires on two leaves in nine
+repositories and both are right.
 Measured on nine repositories with no model (study "The Leaf Ladder", Sep 2026): the files
 rung resolves every leaf the trie cannot, with cross-child call leakage of 0.35 against 0.79
 for a random partition of the same shape; name kinship without the graph fold does not
