@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import threading
 import time
 from collections import Counter, defaultdict
 from collections.abc import Collection, Iterable, Iterator, Mapping
@@ -569,6 +570,12 @@ class DiagramGenerator:
         self._incremental_preparation: _IncrementalPreparation | None = None
         self.scope_assembler = ScopeAssembler(repo_location)
         self.scope_analysis_agent: ScopeAnalysisAgent | None = None
+        # Semantic analysis degrades to the deterministic names rather than failing the run, so
+        # count the scopes that took that path: nothing else in the output says it happened.
+        # Child scopes are enriched on the expansion pool, hence the lock.
+        self._naming_counts_lock = threading.Lock()
+        self._scopes_enriched = 0
+        self._scopes_unnamed = 0
         self.incremental_updater: IncrementalUpdater | None = None
         self.file_coverage_data: dict | None = None
 
@@ -713,6 +720,8 @@ class DiagramGenerator:
         """Apply bounded semantic enrichment while preserving deterministic scope structure."""
         if not editable_group_ids:
             return
+        with self._naming_counts_lock:
+            self._scopes_enriched += 1
         try:
             semantics = self._scope_agent().analyze(
                 scope,
@@ -726,8 +735,12 @@ class DiagramGenerator:
             raise
         except Exception:
             logger.exception("Semantic analysis failed for scope %s; retaining deterministic output", scope.scope_id)
+            with self._naming_counts_lock:
+                self._scopes_unnamed += 1
             return
         if semantics is None:
+            with self._naming_counts_lock:
+                self._scopes_unnamed += 1
             return
         assert self.static_analysis is not None
         self.scope_assembler.apply_semantics(
@@ -985,6 +998,10 @@ class DiagramGenerator:
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
+        except LLMAuthError:
+            # A rejected key fails every component identically; don't swallow it
+            # per-component and grind through the rest - abort the whole run.
+            raise
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
             return None, None, []
@@ -1373,6 +1390,12 @@ class DiagramGenerator:
         unchanged and persists its updated lineage after this save.
         """
         self.finalize_for_save(root_analysis, sub_analyses)
+        if self._scopes_unnamed:
+            logger.warning(
+                "Semantic naming fell back to deterministic names for %d of %d scopes",
+                self._scopes_unnamed,
+                self._scopes_enriched,
+            )
         if persist_side_artifacts:
             source_tree_hash = self._source_tree_hash()
         else:

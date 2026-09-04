@@ -1059,6 +1059,35 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNone(result_analysis)
         self.assertEqual(new_components, [])
 
+    def test_process_component_propagates_authentication_failures(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen._enrich_scope = Mock(
+            side_effect=LLMAuthError(
+                "key rejected",
+                provider="openai",
+                key_tail="1234",
+                telemetry_properties={"error_type": "auth"},
+            )
+        )
+        component = Component(name="TestComponent", description="Test", key_entities=[], component_id="1")
+        scope = ClusterScopeResult(scope_id="1")
+        gen.clustering_hierarchy = ClusterScopeResult(
+            scope_id="root",
+            groups=[ClusterGroup(group_id="1", cluster_ids=[1], children=scope)],
+        )
+        gen.clustering_hierarchy.index_hierarchy()
+
+        with self.assertRaises(LLMAuthError):
+            gen.process_component(component)
+
     def test_process_component_propagates_missing_scope(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,

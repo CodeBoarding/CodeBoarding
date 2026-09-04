@@ -43,10 +43,11 @@ class ScopeAssembler:
             )
 
         components: list[Component] = []
+        taken: set[str] = set()
         for group in scope.groups:
             components.append(
                 Component(
-                    name=f"Component {group.group_id}",
+                    name=self._deterministic_name(group, taken),
                     description=self._fallback_description(scope, group),
                     key_entities=[],
                     source_cluster_ids=CodeBoardingClusterIds.from_graph_ids(set(group.cluster_ids)),
@@ -103,7 +104,9 @@ class ScopeAssembler:
         semantics_by_id = {item.group_id: item for item in result.components if item.group_id in components}
         used_names = {component.name for component in analysis.components}
         updated_ids: set[str] = set()
-        for group_id in editable_group_ids:
+        # Scope order, not set order: a duplicate name proposed for two groups must resolve the
+        # same way on every run.
+        for group_id in (group.group_id for group in scope.groups if group.group_id in editable_group_ids):
             component = components.get(group_id)
             component_semantics = semantics_by_id.get(group_id)
             if component is None or component_semantics is None:
@@ -119,8 +122,11 @@ class ScopeAssembler:
                 used_names.add(proposed_name)
             if component_semantics.description.strip():
                 component.description = component_semantics.description.strip()
-            component.key_entities = [reference.model_copy(deep=True) for reference in component_semantics.key_entities]
-            updated_ids.add(group_id)
+            if component_semantics.key_entities:
+                component.key_entities = [
+                    reference.model_copy(deep=True) for reference in component_semantics.key_entities
+                ]
+                updated_ids.add(group_id)
 
         if updated_ids:
             reference_resolver.fix_key_entities_refs(analysis, updated_ids)
@@ -133,6 +139,8 @@ class ScopeAssembler:
             for relation in analysis.components_relations
             if relation.src_id not in editable_group_ids and relation.dst_id not in editable_group_ids
         ]
+        preserved_pairs = {(relation.src_id, relation.dst_id) for relation in preserved}
+        existing_by_pair = {(relation.src_id, relation.dst_id): relation for relation in analysis.components_relations}
         for relation in preserved:
             source = components.get(relation.src_id)
             target = components.get(relation.dst_id)
@@ -182,7 +190,27 @@ class ScopeAssembler:
                 )
             )
 
-        analysis.components_relations = [*preserved, *semantic_relations]
+        # A group the model was asked about drops every relation it touches. Where the model did
+        # not label one back, keep the label the previous run gave it rather than resetting a
+        # still-connected edge to the generic default.
+        carried = [
+            relation.model_copy(deep=True)
+            for pair, relation in existing_by_pair.items()
+            if pair not in seen_pairs
+            and pair not in preserved_pairs
+            and relation.relation.strip()
+            and relation.relation != DEFAULT_STATIC_RELATION_LABEL
+            and scope.connection_between(*pair) is not None
+        ]
+        for relation in carried:
+            source = components.get(relation.src_id)
+            target = components.get(relation.dst_id)
+            if source is not None:
+                relation.src_name = source.name
+            if target is not None:
+                relation.dst_name = target.name
+
+        analysis.components_relations = [*preserved, *carried, *semantic_relations]
         self.merge_scope_relations(analysis, scope)
 
     @staticmethod
@@ -292,6 +320,19 @@ class ScopeAssembler:
                 component.source_cluster_ids,
                 CodeBoardingClusterIds.prefix_for_scope(scope_id),
             )
+
+    @staticmethod
+    def _deterministic_name(group: ClusterGroup, taken: set[str]) -> str:
+        """Name a group from the clustering rule that claimed it.
+
+        Why: the rule name is the only name a scope has before semantic analysis runs, and the
+        one it keeps when that analysis fails.
+        """
+        name = group.name.strip() or f"Component {group.group_id}"
+        if name in taken:
+            name = f"{name} {group.group_id}"
+        taken.add(name)
+        return name
 
     @staticmethod
     def _fallback_description(scope: ClusterScopeResult, group: ClusterGroup) -> str:

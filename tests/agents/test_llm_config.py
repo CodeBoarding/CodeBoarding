@@ -137,6 +137,14 @@ class TestProviderSelection:
         with patch.dict(os.environ, {env_var: "https://custom.example/v1"}, clear=True):
             assert config.get_resolved_extra_args()["base_url"] == "https://custom.example/v1"
 
+    def test_every_provider_declaring_a_timeout_gives_its_client_a_real_one(self):
+        """A ``None`` here disables the SDK default, so a stalled request hangs the whole run."""
+        assert [
+            name
+            for name, config in LLM_PROVIDERS.items()
+            if "timeout" in config.extra_args and not config.extra_args["timeout"]
+        ] == []
+
     def test_anthropic_defaults_to_sonnet_5(self):
         anthropic = LLM_PROVIDERS["anthropic"]
 

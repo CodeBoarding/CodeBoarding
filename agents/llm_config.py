@@ -149,7 +149,7 @@ LLM_PROVIDERS = {
         base_url_env="OPENAI_BASE_URL",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -162,7 +162,7 @@ LLM_PROVIDERS = {
         default_base_url="https://ai-gateway.vercel.sh/v1",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -175,7 +175,7 @@ LLM_PROVIDERS = {
         extra_args={
             "thinking": {"type": "disabled"},
             "max_tokens": 8192,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -186,7 +186,7 @@ LLM_PROVIDERS = {
         agent_model="gemini-3.8-flash",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -208,7 +208,7 @@ LLM_PROVIDERS = {
         agent_model="zai-glm-4.7",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -232,7 +232,7 @@ LLM_PROVIDERS = {
         default_base_url="https://api.deepseek.com/v1",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -245,7 +245,7 @@ LLM_PROVIDERS = {
         default_base_url="https://open.bigmodel.cn/api/paas/v4",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -258,7 +258,7 @@ LLM_PROVIDERS = {
         default_base_url="https://api.moonshot.cn/v1",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -271,7 +271,7 @@ LLM_PROVIDERS = {
         default_base_url="https://openrouter.ai/api/v1",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -284,7 +284,7 @@ LLM_PROVIDERS = {
         default_base_url="https://api.orcarouter.ai/v1",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -299,7 +299,7 @@ LLM_PROVIDERS = {
         base_url_env="LITELLM_BASE_URL",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),

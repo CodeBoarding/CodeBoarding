@@ -4,6 +4,9 @@
 class LLMDefaults:
     DEFAULT_AGENT_TEMPERATURE = 0
     AWS_MAX_TOKENS = 4096
+    # Why: the provider configs below pass this straight to the client. ``None`` there disables the
+    # SDK's own default, so a stalled socket hangs the whole analysis with nothing to interrupt it.
+    REQUEST_TIMEOUT_SECONDS = 300.0
 
 
 class ModelCapabilities:
