@@ -53,6 +53,7 @@ class ClusterGroup:
 
     group_id: GroupId
     cluster_ids: list[ClusterId]
+    name: str = ""
     symbol_members_by_language: dict[str, set[str]] = field(default_factory=dict)
     file_reasons: dict[str, str] = field(default_factory=dict)
     previous_component_id: ComponentId = ""
@@ -66,6 +67,21 @@ class ClusterGroup:
             for language_qualified_names in self.symbol_members_by_language.values()
             for qualified_name in language_qualified_names
         }
+
+    def unique_name(self, taken: set[str]) -> str:
+        """The rule name that claimed this group, made unique among ``taken`` and reserved there.
+
+        Why: it is the only name a scope has before semantic analysis runs, and the one a
+        group keeps when that analysis fails or skips it.
+        """
+        base = self.name.strip() or f"Component {self.group_id}"
+        name = base
+        suffix = 1
+        while name in taken:
+            suffix += 1
+            name = f"{base} {self.group_id}" if suffix == 2 else f"{base} {self.group_id} {suffix - 1}"
+        taken.add(name)
+        return name
 
 
 @dataclass

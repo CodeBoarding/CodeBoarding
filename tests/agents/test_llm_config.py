@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from agents.constants import LLMDefaults
 from agents.llm_config import (
     LLM_ENV_VARS,
     LLM_PROVIDERS,
@@ -136,6 +137,23 @@ class TestProviderSelection:
 
         with patch.dict(os.environ, {env_var: "https://custom.example/v1"}, clear=True):
             assert config.get_resolved_extra_args()["base_url"] == "https://custom.example/v1"
+
+    def test_every_provider_bounds_its_requests(self):
+        """A stalled request must time out on every provider, whichever knob its client exposes."""
+
+        def bound(config):
+            args = config.get_resolved_extra_args()
+            if "timeout" in args:
+                return args["timeout"]
+            if "client_kwargs" in args:
+                return args["client_kwargs"].get("timeout")
+            if "config" in args:
+                return args["config"].read_timeout
+            return None
+
+        assert {name: bound(config) for name, config in LLM_PROVIDERS.items()} == {
+            name: LLMDefaults.REQUEST_TIMEOUT_SECONDS for name in LLM_PROVIDERS
+        }
 
     def test_anthropic_defaults_to_sonnet_5(self):
         anthropic = LLM_PROVIDERS["anthropic"]

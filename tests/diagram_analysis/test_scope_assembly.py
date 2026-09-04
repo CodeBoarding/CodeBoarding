@@ -22,8 +22,9 @@ def _component(component_id: str, name: str) -> Component:
     return Component(name=name, description=name, key_entities=[], component_id=component_id)
 
 
-def _scope(*pairs: tuple[str, str]) -> ClusterScopeResult:
+def _scope(*pairs: tuple[str, str], names: dict[str, str] | None = None) -> ClusterScopeResult:
     symbols = {"1": "a.run", "2": "b.load", "3": "c.save"}
+    names = names or {}
     graph = CallGraph(language="python")
     for index, (group_id, qualified_name) in enumerate(symbols.items(), start=1):
         graph.add_node(Node(qualified_name, NodeType.FUNCTION, f"src/{group_id}.py", index, index + 1))
@@ -33,6 +34,7 @@ def _scope(*pairs: tuple[str, str]) -> ClusterScopeResult:
         groups=[
             ClusterGroup(
                 group_id=group_id,
+                name=names.get(group_id, ""),
                 cluster_ids=[int(group_id)],
                 symbol_members_by_language={"python": {qualified_name}},
             )
@@ -53,6 +55,13 @@ def _scope(*pairs: tuple[str, str]) -> ClusterScopeResult:
             for source_id, target_id in pairs
         ],
     )
+
+
+def _resolver(scope: ClusterScopeResult) -> StaticReferenceResolver:
+    static_analysis = StaticAnalysisResults()
+    static_analysis.add_cfg(Language.PYTHON, scope.graphs_by_language["python"])
+    static_analysis.add_references(Language.PYTHON, list(scope.graphs_by_language["python"].nodes.values()))
+    return StaticReferenceResolver(Path("/repo"), static_analysis)
 
 
 class TestScopeAssembler(unittest.TestCase):
@@ -159,6 +168,133 @@ class TestScopeAssembler(unittest.TestCase):
         self.assertEqual(
             [(relation.src_id, relation.dst_id, relation.relation) for relation in analysis.components_relations],
             [("2", "3", "calls")],
+        )
+
+    def test_names_components_from_the_clustering_rule_that_claimed_them(self) -> None:
+        scope = _scope(names={"1": "Ingestion", "2": "Storage"})
+
+        analysis = ScopeAssembler(Path("/repo")).build(scope)
+
+        self.assertEqual(
+            [component.name for component in analysis.components],
+            ["Ingestion", "Storage", "Component 3"],
+        )
+
+    def test_disambiguates_two_groups_claiming_the_same_rule_name(self) -> None:
+        scope = _scope(names={"1": "Storage", "2": "Storage"})
+
+        analysis = ScopeAssembler(Path("/repo")).build(scope)
+
+        self.assertEqual(
+            [component.name for component in analysis.components],
+            ["Storage", "Storage 2", "Component 3"],
+        )
+
+    def test_keeps_suffixing_until_the_name_is_free(self) -> None:
+        scope = _scope(names={"1": "Storage", "2": "Storage 3", "3": "Storage"})
+
+        analysis = ScopeAssembler(Path("/repo")).build(scope)
+
+        self.assertEqual(
+            [component.name for component in analysis.components],
+            ["Storage", "Storage 3", "Storage 3 2"],
+        )
+
+    def test_keeps_existing_key_entities_when_semantics_omit_them(self) -> None:
+        scope = _scope()
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        analysis.components[0].key_entities = [SourceCodeReference(qualified_name="a.run")]
+        result = ScopeAnalysisResult(
+            components=[ScopeComponentSemantics(group_id="1", name="Runner", description="Runs.")],
+        )
+
+        assembler.apply_semantics(analysis, scope, result, {"1"}, set(), _resolver(scope))
+
+        self.assertEqual([entity.qualified_name for entity in analysis.components[0].key_entities], ["a.run"])
+
+    def test_an_explicit_empty_key_entity_list_clears_them(self) -> None:
+        scope = _scope()
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        analysis.components[0].key_entities = [SourceCodeReference(qualified_name="a.run")]
+        result = ScopeAnalysisResult.model_validate_json(
+            '{"components": [{"group_id": "1", "name": "Runner", "description": "Runs.", "key_entities": []}]}'
+        )
+
+        assembler.apply_semantics(analysis, scope, result, {"1"}, set(), _resolver(scope))
+
+        self.assertEqual(analysis.components[0].key_entities, [])
+
+    def test_names_are_allocated_against_final_siblings_so_a_swap_is_valid(self) -> None:
+        scope = _scope(names={"1": "API", "2": "Storage"})
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        result = ScopeAnalysisResult(
+            components=[
+                ScopeComponentSemantics(group_id="1", name="Storage", description="Stores."),
+                ScopeComponentSemantics(group_id="2", name="Persistence", description="Persists."),
+            ],
+        )
+
+        unnamed = assembler.apply_semantics(analysis, scope, result, {"1", "2"}, set(), _resolver(scope))
+
+        self.assertEqual([component.name for component in analysis.components[:2]], ["Storage", "Persistence"])
+        self.assertEqual(unnamed, frozenset())
+
+    def test_a_losing_duplicate_proposal_falls_back_to_its_rule_name_and_is_reported(self) -> None:
+        scope = _scope(names={"1": "API", "2": "Storage", "3": "Cache"})
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        result = ScopeAnalysisResult(
+            components=[
+                ScopeComponentSemantics(group_id="1", name="Storage", description="Stores."),
+                ScopeComponentSemantics(group_id="2", name="Storage", description="Also stores."),
+                ScopeComponentSemantics(group_id="3", name="", description="Blank name."),
+            ],
+        )
+
+        unnamed = assembler.apply_semantics(analysis, scope, result, {"1", "2", "3"}, set(), _resolver(scope))
+
+        self.assertEqual([component.name for component in analysis.components], ["Storage", "Storage 2", "Cache"])
+        self.assertEqual(unnamed, frozenset({"2", "3"}))
+
+    def test_a_proposal_cannot_take_a_name_held_by_a_group_that_cannot_move(self) -> None:
+        scope = _scope(names={"1": "API", "2": "Storage"})
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        result = ScopeAnalysisResult(
+            components=[ScopeComponentSemantics(group_id="1", name="Storage", description="Stores.")],
+        )
+
+        unnamed = assembler.apply_semantics(analysis, scope, result, {"1"}, set(), _resolver(scope))
+
+        self.assertEqual([component.name for component in analysis.components[:2]], ["API", "Storage"])
+        self.assertEqual(unnamed, frozenset({"1"}))
+
+    def test_keeps_the_previous_label_when_semantics_omit_a_still_connected_pair(self) -> None:
+        scope = _scope(("1", "2"))
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        analysis.components_relations = [
+            Relation(
+                relation="dispatches to",
+                src_name=analysis.components[0].name,
+                dst_name=analysis.components[1].name,
+                src_id="1",
+                dst_id="2",
+                is_static=True,
+            )
+        ]
+        result = ScopeAnalysisResult(
+            components=[ScopeComponentSemantics(group_id="1", name="Runner", description="Runs.", key_entities=[])],
+        )
+
+        assembler.apply_semantics(analysis, scope, result, {"1"}, set(), _resolver(scope))
+
+        self.assertEqual(
+            [(relation.src_id, relation.dst_id, relation.relation) for relation in analysis.components_relations],
+            [("1", "2", "dispatches to")],
         )
 
     def test_semantics_cannot_change_fixed_ids_membership_or_a_locked_name(self) -> None:

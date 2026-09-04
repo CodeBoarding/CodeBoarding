@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
+from botocore.config import Config as BotoConfig
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
 from langchain_cerebras import ChatCerebras
@@ -149,7 +150,7 @@ LLM_PROVIDERS = {
         base_url_env="OPENAI_BASE_URL",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -162,7 +163,7 @@ LLM_PROVIDERS = {
         default_base_url="https://ai-gateway.vercel.sh/v1",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -175,7 +176,7 @@ LLM_PROVIDERS = {
         extra_args={
             "thinking": {"type": "disabled"},
             "max_tokens": 8192,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -186,7 +187,7 @@ LLM_PROVIDERS = {
         agent_model="gemini-3.8-flash",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -197,6 +198,10 @@ LLM_PROVIDERS = {
         agent_model="anthropic.claude-sonnet-4-6",
         extra_args={
             "max_tokens": 4096,
+            "config": lambda: BotoConfig(
+                read_timeout=LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+                connect_timeout=LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+            ),
             "region_name": lambda: os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
             "credentials_profile_name": None,
         },
@@ -208,7 +213,7 @@ LLM_PROVIDERS = {
         agent_model="zai-glm-4.7",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -221,6 +226,7 @@ LLM_PROVIDERS = {
         keyless_capable=True,
         agent_model="qwen3:30b",
         agent_temperature=LLMDefaults.DEFAULT_AGENT_TEMPERATURE,
+        extra_args={"client_kwargs": {"timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS}},
         base_url_env="OLLAMA_BASE_URL",
     ),
     "deepseek": LLMConfig(
@@ -232,7 +238,7 @@ LLM_PROVIDERS = {
         default_base_url="https://api.deepseek.com/v1",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -245,7 +251,7 @@ LLM_PROVIDERS = {
         default_base_url="https://open.bigmodel.cn/api/paas/v4",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -258,7 +264,7 @@ LLM_PROVIDERS = {
         default_base_url="https://api.moonshot.cn/v1",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -271,7 +277,7 @@ LLM_PROVIDERS = {
         default_base_url="https://openrouter.ai/api/v1",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -284,7 +290,7 @@ LLM_PROVIDERS = {
         default_base_url="https://api.orcarouter.ai/v1",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -299,7 +305,7 @@ LLM_PROVIDERS = {
         base_url_env="LITELLM_BASE_URL",
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),

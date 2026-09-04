@@ -28,8 +28,6 @@ def render_scope_context(
     for group in scope.groups:
         component = components.get(group.group_id)
         file_reasons = _group_file_reasons(group, scope, repo_dir)
-        for file_path in file_reasons.keys() & changed_files:
-            boundary_reasons[group.group_id][file_path].add("changed in incremental analysis")
         groups.append(
             {
                 "group_id": group.group_id,

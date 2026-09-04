@@ -83,6 +83,8 @@ def _plan_scope_operations(
     operations: list[ScopeOperation] = []
     kept: set[str] = set()
     untouched = 0
+    surviving = {group.previous_component_id for group in groups if group.previous_component_id}
+    sibling_names = {component.name for component in scope.components if component.component_id in surviving}
     for cluster_group in groups:
         group = set(cluster_group.cluster_ids)
         owner = cluster_group.previous_component_id
@@ -124,7 +126,7 @@ def _plan_scope_operations(
                     # The specification allocated this id; the component must keep it or the
                     # next replay would not recognise its own rule.
                     component_id=cluster_group.group_id,
-                    name=f"Component {cluster_group.group_id}",
+                    name=cluster_group.unique_name(sibling_names),
                     description=_provisional_description(group, combined),
                     rationale="clusters with no predecessor in this scope",
                 )

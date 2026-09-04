@@ -43,10 +43,11 @@ class ScopeAssembler:
             )
 
         components: list[Component] = []
+        taken: set[str] = set()
         for group in scope.groups:
             components.append(
                 Component(
-                    name=f"Component {group.group_id}",
+                    name=group.unique_name(taken),
                     description=self._fallback_description(scope, group),
                     key_entities=[],
                     source_cluster_ids=CodeBoardingClusterIds.from_graph_ids(set(group.cluster_ids)),
@@ -97,30 +98,56 @@ class ScopeAssembler:
         editable_group_ids: set[str],
         locked_name_ids: set[str],
         reference_resolver: StaticReferenceResolver,
-    ) -> None:
-        """Apply valid semantic fields without changing deterministic structure."""
+    ) -> frozenset[str]:
+        """Apply valid semantic fields without changing deterministic structure.
+
+        Returns the editable groups that ended up without a semantic name, so the caller can
+        report a scope the model only partly named.
+        """
         components = {component.component_id: component for component in analysis.components}
+        groups_by_id = {group.group_id: group for group in scope.groups}
         semantics_by_id = {item.group_id: item for item in result.components if item.group_id in components}
-        used_names = {component.name for component in analysis.components}
+        ordered_ids = [group.group_id for group in scope.groups if group.group_id in editable_group_ids]
+
+        # Names are allocated against the final set, not the current one: a swap between two
+        # siblings is valid, while a name already held by a component that cannot move is not.
+        proposals = {
+            group_id: semantics_by_id[group_id].name.strip()
+            for group_id in ordered_ids
+            if group_id in semantics_by_id
+            and group_id not in locked_name_ids
+            and semantics_by_id[group_id].name.strip()
+        }
+        taken = {component.name for group_id, component in components.items() if group_id not in proposals}
+        named: set[str] = set()
+        for group_id in ordered_ids:
+            component = components.get(group_id)
+            proposed = proposals.get(group_id)
+            if component is None or proposed is None:
+                continue
+            if proposed not in taken:
+                component.name = proposed
+                named.add(group_id)
+            elif component.name in taken:
+                # Its previous name went to an accepted proposal; fall back to the rule name.
+                component.name = groups_by_id[group_id].unique_name(taken)
+                continue
+            taken.add(component.name)
+
         updated_ids: set[str] = set()
-        for group_id in editable_group_ids:
+        for group_id in ordered_ids:
             component = components.get(group_id)
             component_semantics = semantics_by_id.get(group_id)
             if component is None or component_semantics is None:
                 continue
-            proposed_name = component_semantics.name.strip()
-            if (
-                group_id not in locked_name_ids
-                and proposed_name
-                and (proposed_name == component.name or proposed_name not in used_names)
-            ):
-                used_names.discard(component.name)
-                component.name = proposed_name
-                used_names.add(proposed_name)
             if component_semantics.description.strip():
                 component.description = component_semantics.description.strip()
-            component.key_entities = [reference.model_copy(deep=True) for reference in component_semantics.key_entities]
-            updated_ids.add(group_id)
+            # An explicit empty list clears the entities; an absent key keeps them.
+            if "key_entities" in component_semantics.model_fields_set:
+                component.key_entities = [
+                    reference.model_copy(deep=True) for reference in component_semantics.key_entities
+                ]
+                updated_ids.add(group_id)
 
         if updated_ids:
             reference_resolver.fix_key_entities_refs(analysis, updated_ids)
@@ -133,6 +160,8 @@ class ScopeAssembler:
             for relation in analysis.components_relations
             if relation.src_id not in editable_group_ids and relation.dst_id not in editable_group_ids
         ]
+        preserved_pairs = {(relation.src_id, relation.dst_id) for relation in preserved}
+        existing_by_pair = {(relation.src_id, relation.dst_id): relation for relation in analysis.components_relations}
         for relation in preserved:
             source = components.get(relation.src_id)
             target = components.get(relation.dst_id)
@@ -182,8 +211,29 @@ class ScopeAssembler:
                 )
             )
 
-        analysis.components_relations = [*preserved, *semantic_relations]
+        # A group the model was asked about drops every relation it touches. Where the model did
+        # not label one back, keep the label the previous run gave it rather than resetting a
+        # still-connected edge to the generic default.
+        carried = [
+            relation.model_copy(deep=True)
+            for pair, relation in existing_by_pair.items()
+            if pair not in seen_pairs
+            and pair not in preserved_pairs
+            and relation.relation.strip()
+            and relation.relation != DEFAULT_STATIC_RELATION_LABEL
+            and scope.connection_between(*pair) is not None
+        ]
+        for relation in carried:
+            source = components.get(relation.src_id)
+            target = components.get(relation.dst_id)
+            if source is not None:
+                relation.src_name = source.name
+            if target is not None:
+                relation.dst_name = target.name
+
+        analysis.components_relations = [*preserved, *carried, *semantic_relations]
         self.merge_scope_relations(analysis, scope)
+        return frozenset(editable_group_ids - named - locked_name_ids)
 
     @staticmethod
     def merge_scope_relations(analysis: AnalysisInsights, scope: ClusterScopeResult) -> None:

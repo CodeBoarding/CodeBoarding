@@ -201,6 +201,7 @@ class ClusteringService:
                 continue
             group = ClusterGroup(
                 group_id=rule.component_id,
+                name=rule.name,
                 cluster_ids=sorted(leaf_by_unit[unit.unit_id] for unit in members),
                 previous_component_id=rule.component_id if rule.component_id in previous_ids else "",
             )
