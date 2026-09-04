@@ -28,7 +28,8 @@ from diagram_analysis.incremental_update import (
 )
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
-from agents.llm_config import initialize_llms
+from agents.llm_config import initialize_agent_llm
+from agents.llm_errors import LLMAuthError
 from agents.relation_edges import (
     drop_misattributed_edges,
     index_relation_endpoints,
@@ -36,6 +37,7 @@ from agents.relation_edges import (
     prune_ungrounded_edges,
 )
 from agents.scope_ids import ROOT_SCOPE_ID
+from agents.scope_analysis_agent import ScopeAnalysisAgent
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
@@ -62,7 +64,6 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
-from static_analyzer.cfg import CallGraph
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -71,9 +72,8 @@ from static_analyzer.cluster_relations import (
     build_global_relations,
     is_self_or_descendant,
 )
-from static_analyzer.config import Language
 from static_analyzer.clustering import (
-    ClusterResult,
+    ClusterGroup,
     ClusterScopeResult,
 )
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
@@ -251,10 +251,11 @@ class _IncrementalPreparation:
     structure_changed: bool
     baseline_membership: _MembershipBaseline
     has_membership_changes: bool = False
+    has_source_changes: bool = False
 
     @property
     def has_changes(self) -> bool:
-        return self.structure_changed or self.has_membership_changes
+        return self.structure_changed or self.has_membership_changes or self.has_source_changes
 
 
 def _iter_incremental_scopes(
@@ -564,9 +565,10 @@ class DiagramGenerator:
         # The tree specification the components are drawn from: drafted by a full analysis,
         # read back by every run that builds on one, persisted with every save.
         self.tree_spec: TreeSpec | None = None
-        self._llms: tuple[BaseChatModel, BaseChatModel] | None = None
+        self._agent_llm: BaseChatModel | None = None
         self._incremental_preparation: _IncrementalPreparation | None = None
         self.scope_assembler = ScopeAssembler(repo_location)
+        self.scope_analysis_agent: ScopeAnalysisAgent | None = None
         self.incremental_updater: IncrementalUpdater | None = None
         self.file_coverage_data: dict | None = None
 
@@ -681,14 +683,151 @@ class DiagramGenerator:
             return AffinityGrouper()
         if choice == "kinship":
             return KinshipGrouper()
-        if self._llms is None:
-            self._llms = initialize_llms()
         if self.static_analysis is None:
             raise PlannerUnavailableError("no LLM was initialised before clustering")
-        agent_llm, parsing_llm = self._llms
-        planner = TreePlannerAgent(self.repo_location, self.static_analysis, agent_llm, parsing_llm)
+        if self._agent_llm is None:
+            self._agent_llm = initialize_agent_llm()
+        planner = TreePlannerAgent(self._agent_llm)
         self._monitoring_agents["TreePlannerAgent"] = planner
         return planner
+
+    def _scope_agent(self) -> ScopeAnalysisAgent:
+        """Initialize the shared semantic agent only when a scope needs analysis."""
+        if self.scope_analysis_agent is None:
+            assert self.static_analysis is not None
+            if self._agent_llm is None:
+                self._agent_llm = initialize_agent_llm()
+            self.scope_analysis_agent = ScopeAnalysisAgent(self.repo_location, self.static_analysis, self._agent_llm)
+            self._monitoring_agents["ScopeAnalysisAgent"] = self.scope_analysis_agent
+        return self.scope_analysis_agent
+
+    def _enrich_scope(
+        self,
+        scope: ClusterScopeResult,
+        analysis: AnalysisInsights,
+        editable_group_ids: set[str],
+        locked_name_ids: frozenset[str] = frozenset(),
+        changed_files: frozenset[str] = frozenset(),
+        incremental: bool = False,
+    ) -> None:
+        """Apply bounded semantic enrichment while preserving deterministic scope structure."""
+        if not editable_group_ids:
+            return
+        try:
+            semantics = self._scope_agent().analyze(
+                scope,
+                analysis,
+                editable_group_ids,
+                locked_name_ids,
+                changed_files,
+                incremental,
+            )
+        except LLMAuthError:
+            raise
+        except Exception:
+            logger.exception("Semantic analysis failed for scope %s; retaining deterministic output", scope.scope_id)
+            return
+        if semantics is None:
+            return
+        assert self.static_analysis is not None
+        self.scope_assembler.apply_semantics(
+            analysis,
+            scope,
+            semantics,
+            editable_group_ids,
+            set(locked_name_ids),
+            StaticReferenceResolver(self.repo_location, self.static_analysis),
+        )
+
+    def _enrich_incremental_scopes(
+        self,
+        hierarchy: ClusterScopeResult,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+        refreshed_ids: set[str],
+        baseline_membership: _MembershipBaseline,
+        skip_scope_ids: frozenset[str] = frozenset(),
+    ) -> None:
+        """Re-run semantic analysis only for scopes containing changed groups or files."""
+        changed_files = self._incremental_changed_files(root_analysis)
+        for scope in self._cluster_scopes(hierarchy):
+            if scope.scope_id in skip_scope_ids:
+                continue
+            analysis = root_analysis if scope.scope_id == ROOT_SCOPE_ID else sub_analyses.get(scope.scope_id)
+            if analysis is None:
+                continue
+            editable_ids = {
+                group.group_id
+                for group in scope.groups
+                if group.group_id in refreshed_ids
+                or bool(self._group_files(group, scope) & changed_files)
+                or bool(group.qualified_names & self._changed_members)
+            }
+            if not editable_ids:
+                continue
+            locked_ids = frozenset(
+                group.group_id
+                for group in scope.groups
+                if group.group_id in editable_ids
+                and group.group_id in baseline_membership.meta_by_id
+                and self._group_member_keys(group, scope) == baseline_membership.meta_by_id[group.group_id].member_keys
+            )
+            self._enrich_scope(
+                scope,
+                analysis,
+                editable_ids,
+                locked_ids,
+                frozenset(changed_files),
+                incremental=True,
+            )
+
+    def _incremental_changed_files(self, root_analysis: AnalysisInsights) -> set[str]:
+        """Map changed live and removed members back to repository-relative files."""
+        changed_files = set(self._changed_unattributed_files)
+        for graph in self.static_analysis.available_cfgs().values() if self.static_analysis is not None else ():
+            for qualified_name in self._changed_members:
+                node = graph.nodes.get(qualified_name)
+                if node is not None and node.file_path:
+                    changed_files.add(normalize_repo_path(node.file_path, self.repo_location))
+        for file_path, entry in root_analysis.files.items():
+            if any(method.qualified_name in self._changed_members for method in entry.methods):
+                changed_files.add(normalize_repo_path(file_path, self.repo_location))
+        return changed_files
+
+    def _group_files(self, group: ClusterGroup, scope: ClusterScopeResult) -> set[str]:
+        """Return normalized files containing a deterministic group's symbols."""
+        files: set[str] = set()
+        for language, qualified_names in group.symbol_members_by_language.items():
+            graph = scope.graphs_by_language.get(language)
+            if graph is None:
+                continue
+            for qualified_name in qualified_names:
+                node = graph.nodes.get(qualified_name)
+                if node is not None and node.file_path:
+                    files.add(normalize_repo_path(node.file_path, self.repo_location))
+        return files
+
+    def _group_member_keys(self, group: ClusterGroup, scope: ClusterScopeResult) -> frozenset[tuple[str, str]]:
+        """Return current file and qualified-name keys for one group."""
+        keys: set[tuple[str, str]] = set()
+        for language, qualified_names in group.symbol_members_by_language.items():
+            graph = scope.graphs_by_language.get(language)
+            if graph is None:
+                continue
+            for qualified_name in qualified_names:
+                node = graph.nodes.get(qualified_name)
+                if node is not None and node.file_path:
+                    keys.add((normalize_repo_path(node.file_path, self.repo_location), qualified_name))
+        return frozenset(keys)
+
+    @staticmethod
+    def _cluster_scopes(hierarchy: ClusterScopeResult) -> list[ClusterScopeResult]:
+        """Return every deterministic scope in hierarchy order."""
+        scopes = [hierarchy]
+        for group in hierarchy.groups:
+            if group.children is not None:
+                scopes.extend(DiagramGenerator._cluster_scopes(group.children))
+        return scopes
 
     def _tree_spec_dict(self) -> dict | None:
         return self.tree_spec.to_dict() if self.tree_spec is not None else None
@@ -793,6 +932,7 @@ class DiagramGenerator:
             structure_changed=hierarchy_differs(self.clustering_hierarchy, persisted),
             baseline_membership=baseline_membership,
             has_membership_changes=changed_members.has_membership_changes if changed_members is not None else False,
+            has_source_changes=bool(self._changed_members or self._changed_unattributed_files),
         )
 
     def _expandable_ids_for_tree(
@@ -841,6 +981,7 @@ class DiagramGenerator:
         try:
             analysis = self.scope_assembler.build(scope)
             self.scope_assembler.qualify_source_cluster_ids(analysis, component.component_id)
+            self._enrich_scope(scope, analysis, {group.group_id for group in scope.groups})
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
@@ -1115,6 +1256,11 @@ class DiagramGenerator:
 
             assert self.clustering_hierarchy is not None
             analysis = self.scope_assembler.build(self.clustering_hierarchy)
+            self._enrich_scope(
+                self.clustering_hierarchy,
+                analysis,
+                {group.group_id for group in self.clustering_hierarchy.groups},
+            )
             root_components = [
                 component
                 for component in analysis.components
@@ -1424,9 +1570,12 @@ class DiagramGenerator:
                 if component.component_id in hierarchy.preclustered_scopes
                 and _component_depth(component.component_id) < self.depth_level
             ]
+            generated_scope_ids: frozenset[str] = frozenset()
             if new_components:
+                existing_scope_ids = set(sub_analyses)
                 _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components, sub_analyses)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
+                generated_scope_ids = frozenset(set(redetailed_subs) - existing_scope_ids)
 
             if apply_result.relation_contexts:
                 # Each context froze its changed set when its scope was planned, before the
@@ -1444,6 +1593,15 @@ class DiagramGenerator:
                     self._changed_members,
                     self._changed_unattributed_files,
                 )
+
+            self._enrich_incremental_scopes(
+                hierarchy,
+                root_analysis,
+                sub_analyses,
+                apply_result.refresh_ids | apply_result.new_component_ids,
+                baseline_membership,
+                generated_scope_ids,
+            )
 
             self._refresh_files_index(root_analysis, sub_analyses)
 

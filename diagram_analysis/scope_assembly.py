@@ -15,6 +15,7 @@ from agents.relation_edges import (
     ground_relation_edges,
     prune_ungrounded_edges,
 )
+from agents.scope_analysis_agent import ScopeAnalysisResult
 from agents.scope_ids import ROOT_SCOPE_ID
 from clustering_ids import CodeBoardingClusterIds
 from constants import DEFAULT_STATIC_RELATION_LABEL
@@ -22,6 +23,7 @@ from diagram_analysis.file_index import build_file_methods_from_nodes, build_fil
 from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.cfg import Edge
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult, GroupConnection
+from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +88,102 @@ class ScopeAssembler:
         analysis.files = build_files_index(analysis, self.repo_dir, source_cache)
         total = sum(len(group.qualified_names) for group in scope.groups)
         logger.info("Component symbol coverage: %d/%d assigned", assigned, total)
+
+    def apply_semantics(
+        self,
+        analysis: AnalysisInsights,
+        scope: ClusterScopeResult,
+        result: ScopeAnalysisResult,
+        editable_group_ids: set[str],
+        locked_name_ids: set[str],
+        reference_resolver: StaticReferenceResolver,
+    ) -> None:
+        """Apply valid semantic fields without changing deterministic structure."""
+        components = {component.component_id: component for component in analysis.components}
+        semantics_by_id = {item.group_id: item for item in result.components if item.group_id in components}
+        used_names = {component.name for component in analysis.components}
+        updated_ids: set[str] = set()
+        for group_id in editable_group_ids:
+            component = components.get(group_id)
+            component_semantics = semantics_by_id.get(group_id)
+            if component is None or component_semantics is None:
+                continue
+            proposed_name = component_semantics.name.strip()
+            if (
+                group_id not in locked_name_ids
+                and proposed_name
+                and (proposed_name == component.name or proposed_name not in used_names)
+            ):
+                used_names.discard(component.name)
+                component.name = proposed_name
+                used_names.add(proposed_name)
+            if component_semantics.description.strip():
+                component.description = component_semantics.description.strip()
+            component.key_entities = [reference.model_copy(deep=True) for reference in component_semantics.key_entities]
+            updated_ids.add(group_id)
+
+        if updated_ids:
+            reference_resolver.fix_key_entities_refs(analysis, updated_ids)
+        if result.description.strip():
+            analysis.description = result.description.strip()
+
+        ownership = ComponentOwnershipIndex.from_analysis(analysis)
+        preserved = [
+            relation.model_copy(deep=True)
+            for relation in analysis.components_relations
+            if relation.src_id not in editable_group_ids and relation.dst_id not in editable_group_ids
+        ]
+        for relation in preserved:
+            source = components.get(relation.src_id)
+            target = components.get(relation.dst_id)
+            if source is not None:
+                relation.src_name = source.name
+            if target is not None:
+                relation.dst_name = target.name
+
+        semantic_relations: list[Relation] = []
+        seen_pairs: set[tuple[str, str]] = set()
+        for relation_semantics in result.relations:
+            pair = (relation_semantics.source_group_id, relation_semantics.target_group_id)
+            if (
+                pair in seen_pairs
+                or pair[0] == pair[1]
+                or pair[0] not in components
+                or pair[1] not in components
+                or not editable_group_ids.intersection(pair)
+                or not relation_semantics.relation.strip()
+            ):
+                continue
+            seen_pairs.add(pair)
+            key_edges = self._resolve_semantic_edges(
+                relation_semantics.key_edges,
+                components[pair[0]],
+                components[pair[1]],
+                ownership,
+                reference_resolver,
+            )
+            has_static_connection = scope.connection_between(*pair) is not None
+            if not has_static_connection and (not relation_semantics.evidence.strip() or not key_edges):
+                logger.warning(
+                    "Dropping unsupported semantic relation %s -> %s",
+                    pair[0],
+                    pair[1],
+                )
+                continue
+            semantic_relations.append(
+                Relation(
+                    relation=relation_semantics.relation.strip(),
+                    src_name=components[pair[0]].name,
+                    dst_name=components[pair[1]].name,
+                    evidence=relation_semantics.evidence.strip(),
+                    key_edges=key_edges,
+                    src_id=pair[0],
+                    dst_id=pair[1],
+                )
+            )
+
+        analysis.components_relations = [*preserved, *semantic_relations]
+        self.merge_scope_relations(analysis, scope)
 
     @staticmethod
     def merge_scope_relations(analysis: AnalysisInsights, scope: ClusterScopeResult) -> None:
@@ -209,6 +307,30 @@ class ScopeAssembler:
         shown = ", ".join(files[:8])
         suffix = ", ..." if len(files) > 8 else ""
         return f"Owns {len(group.qualified_names)} symbols across {len(files)} files: {shown}{suffix}."
+
+    @staticmethod
+    def _resolve_semantic_edges(
+        edges: list[RelationEdge],
+        source_component: Component,
+        target_component: Component,
+        ownership: ComponentOwnershipIndex,
+        reference_resolver: StaticReferenceResolver,
+    ) -> list[RelationEdge]:
+        """Keep exact, resolvable edges whose endpoints belong to the declared groups."""
+        resolved: list[RelationEdge] = []
+        for original in edges:
+            edge = original.model_copy(deep=True)
+            source_ok = reference_resolver.resolve_reference(edge.source, source_component.file_paths())
+            target_ok = reference_resolver.resolve_reference(edge.target, target_component.file_paths())
+            if not source_ok or not target_ok:
+                continue
+            if ownership.owner_of(edge.source) != source_component.component_id:
+                continue
+            if ownership.owner_of(edge.target) != target_component.component_id:
+                continue
+            reference_resolver.attach_static_call_sites(edge)
+            resolved.append(edge)
+        return Relation.unique_edges(resolved)
 
     @staticmethod
     def _connection_edges(scope: ClusterScopeResult, connection: GroupConnection | None) -> list[RelationEdge]:

@@ -1,7 +1,7 @@
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Type
+from typing import Any
 
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
@@ -13,6 +13,7 @@ from langchain_openai import ChatOpenAI
 
 from agents.constants import LLMDefaults, ModelCapabilities
 from agents.model_capabilities import ContextWindow, get_context_window
+from agents.prompts import PromptProfile, resolve_prompt_profile
 from monitoring.callbacks import MonitoringCallback
 
 # Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
@@ -45,17 +46,14 @@ def _model_accepts_temperature(model_name: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Module-level model overrides – set once by the orchestrator (main.py) and
-# consumed by initialize_llms() without needing to thread the values through
-# every intermediate function signature.
+# Module-level overrides set once by the orchestrator without threading them
+# through every intermediate function signature.
 # ---------------------------------------------------------------------------
 _agent_model_override: str | None = None
-_parsing_model_override: str | None = None
 
 
 def configure_models(
     agent_model: str | None = None,
-    parsing_model: str | None = None,
     api_keys: dict[str, str] | None = None,
 ) -> None:
     """Set process-wide model and provider overrides.  Call this once at startup.
@@ -67,15 +65,12 @@ def configure_models(
     Keys already present in the shell environment are never overwritten, so
     CI/CD pipelines that export keys directly retain full control.
 
-    Priority (highest to lowest):
-      1. Shell environment variables (set before the process starts)
-      2. ``api_keys`` passed here  /  values from ~/.codeboarding/config.toml
-      3. AGENT_MODEL / PARSING_MODEL environment variables (for model names)
-      4. Provider defaults defined in LLM_PROVIDERS
+    Existing shell environment variables take precedence over values loaded
+    from ``~/.codeboarding/config.toml``. Explicit ``model_override`` arguments
+    to ``initialize_agent_llm`` remain the highest-priority library API.
     """
-    global _agent_model_override, _parsing_model_override
+    global _agent_model_override
     _agent_model_override = agent_model
-    _parsing_model_override = parsing_model
     if api_keys:
         for env_var, value in api_keys.items():
             if value and not os.environ.get(env_var):
@@ -94,19 +89,14 @@ class LLMConfig:
         base_url_env: Env var that overrides the provider endpoint, or an empty string when unsupported.
         default_base_url: Built-in endpoint used when base_url_env is unset, or an empty string for the SDK default.
         agent_model: The "agent" model used for complex reasoning and agentic tasks.
-        parsing_model: The "parsing" model used for fast, cost-effective extraction and parsing tasks.
         agent_temperature: Temperature for the agent model. Defaults to 0 for deterministic behavior
                           which is crucial for code understanding and reasoning.
-        parsing_temperature: Temperature for the parsing model. Defaults to 0 for deterministic behavior
-                          which is crucial for structured output extraction.
     """
 
-    chat_class: Type[BaseChatModel]
+    chat_class: type[BaseChatModel]
     selection_envs: list[str]
     agent_model: str
-    parsing_model: str
     agent_temperature: float = LLMDefaults.DEFAULT_AGENT_TEMPERATURE
-    parsing_temperature: float = LLMDefaults.DEFAULT_PARSING_TEMPERATURE
     extra_args: dict[str, Any] = field(default_factory=dict)
     api_key_env: str | None = None
     base_url_env: str = ""
@@ -155,7 +145,6 @@ LLM_PROVIDERS = {
         selection_envs=["OPENAI_API_KEY", "OPENAI_BASE_URL"],
         api_key_env="OPENAI_API_KEY",
         agent_model="gpt-4o",
-        parsing_model="gpt-4o-mini",
         keyless_capable=True,
         base_url_env="OPENAI_BASE_URL",
         extra_args={
@@ -169,7 +158,6 @@ LLM_PROVIDERS = {
         selection_envs=["VERCEL_API_KEY", "VERCEL_BASE_URL"],
         api_key_env="VERCEL_API_KEY",
         agent_model="google/gemini-3.8-flash",
-        parsing_model="google/gemini-3.5-flash-lite",
         base_url_env="VERCEL_BASE_URL",
         default_base_url="https://ai-gateway.vercel.sh/v1",
         extra_args={
@@ -183,7 +171,6 @@ LLM_PROVIDERS = {
         selection_envs=["ANTHROPIC_API_KEY"],
         api_key_env="ANTHROPIC_API_KEY",
         agent_model="claude-sonnet-5",
-        parsing_model="claude-haiku-4-5",
         base_url_env="ANTHROPIC_BASE_URL",
         extra_args={
             "thinking": {"type": "disabled"},
@@ -197,7 +184,6 @@ LLM_PROVIDERS = {
         selection_envs=["GOOGLE_API_KEY"],
         api_key_env="GOOGLE_API_KEY",
         agent_model="gemini-3.8-flash",
-        parsing_model="gemini-3.5-flash-lite",
         extra_args={
             "max_tokens": None,
             "timeout": None,
@@ -209,7 +195,6 @@ LLM_PROVIDERS = {
         # No api_key_env: botocore reads AWS_BEARER_TOKEN_BEDROCK from the environment itself.
         selection_envs=["AWS_BEARER_TOKEN_BEDROCK"],
         agent_model="anthropic.claude-sonnet-4-6",
-        parsing_model="claude-haiku-4-5",
         extra_args={
             "max_tokens": 4096,
             "region_name": lambda: os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
@@ -221,7 +206,6 @@ LLM_PROVIDERS = {
         selection_envs=["CEREBRAS_API_KEY"],
         api_key_env="CEREBRAS_API_KEY",
         agent_model="zai-glm-4.7",
-        parsing_model="gpt-oss-120b",
         extra_args={
             "max_tokens": None,
             "timeout": None,
@@ -236,9 +220,7 @@ LLM_PROVIDERS = {
         api_key_env="OLLAMA_API_KEY",
         keyless_capable=True,
         agent_model="qwen3:30b",
-        parsing_model="qwen2.5:7b",
         agent_temperature=LLMDefaults.DEFAULT_AGENT_TEMPERATURE,
-        parsing_temperature=LLMDefaults.DEFAULT_PARSING_TEMPERATURE,
         base_url_env="OLLAMA_BASE_URL",
     ),
     "deepseek": LLMConfig(
@@ -246,7 +228,6 @@ LLM_PROVIDERS = {
         selection_envs=["DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"],
         api_key_env="DEEPSEEK_API_KEY",
         agent_model="deepseek-v4-flash",
-        parsing_model="deepseek-v4-flash",
         base_url_env="DEEPSEEK_BASE_URL",
         default_base_url="https://api.deepseek.com/v1",
         extra_args={
@@ -260,7 +241,6 @@ LLM_PROVIDERS = {
         selection_envs=["GLM_API_KEY", "GLM_BASE_URL"],
         api_key_env="GLM_API_KEY",
         agent_model="glm-4.7-flash",
-        parsing_model="glm-4.7-flash",
         base_url_env="GLM_BASE_URL",
         default_base_url="https://open.bigmodel.cn/api/paas/v4",
         extra_args={
@@ -274,7 +254,6 @@ LLM_PROVIDERS = {
         selection_envs=["KIMI_API_KEY", "KIMI_BASE_URL"],
         api_key_env="KIMI_API_KEY",
         agent_model="kimi-k2.6",
-        parsing_model="kimi-k2.6",
         base_url_env="KIMI_BASE_URL",
         default_base_url="https://api.moonshot.cn/v1",
         extra_args={
@@ -288,7 +267,6 @@ LLM_PROVIDERS = {
         selection_envs=["OPENROUTER_API_KEY"],
         api_key_env="OPENROUTER_API_KEY",
         agent_model="google/gemini-3.8-flash",
-        parsing_model="google/gemini-3.5-flash-lite",
         base_url_env="OPENROUTER_BASE_URL",
         default_base_url="https://openrouter.ai/api/v1",
         extra_args={
@@ -302,7 +280,6 @@ LLM_PROVIDERS = {
         selection_envs=["ORCAROUTER_API_KEY"],
         api_key_env="ORCAROUTER_API_KEY",
         agent_model="openai/gpt-5.4-mini",
-        parsing_model="openai/gpt-5.4-mini",
         base_url_env="ORCAROUTER_BASE_URL",
         default_base_url="https://api.orcarouter.ai/v1",
         extra_args={
@@ -318,7 +295,6 @@ LLM_PROVIDERS = {
         selection_envs=["LITELLM_BASE_URL"],
         api_key_env="LITELLM_API_KEY",
         agent_model="gpt-4o",
-        parsing_model="gpt-4o-mini",
         keyless_capable=True,
         base_url_env="LITELLM_BASE_URL",
         extra_args={
@@ -336,7 +312,7 @@ LLM_PROVIDER_ENV_VARS: frozenset[str] = frozenset(
     for var in [*config.selection_envs, config.api_key_env, config.base_url_env]
     if var
 )
-LLM_ENV_VARS: frozenset[str] = LLM_PROVIDER_ENV_VARS | frozenset({"AGENT_MODEL", "PARSING_MODEL"})
+LLM_ENV_VARS: frozenset[str] = LLM_PROVIDER_ENV_VARS | frozenset({"AGENT_MODEL"})
 
 
 def _all_selection_envs() -> list[str]:
@@ -360,22 +336,19 @@ def selected_providers() -> list[str]:
 
 def _initialize_llm(
     model_override: str | None,
-    model_attr: str,
-    temperature_attr: str,
-    log_prefix: str,
 ) -> tuple[BaseChatModel, str]:
-    resolved = _resolve_selected_provider(model_override, model_attr)
+    resolved = _resolve_selected_provider(model_override)
     if resolved is None:
         message = f"No valid LLM configuration found. Please set one of: {', '.join(_all_selection_envs())}."
         raise ValueError(" ".join([message, *_unselected_key_hints()]))
 
     name, config, model_name = resolved
 
-    logger.info(f"Using {name.title()} {log_prefix}LLM with model: {model_name}")
+    logger.info(f"Using {name.title()} LLM with model: {model_name}")
 
     kwargs: dict[str, Any] = {"model": model_name}
     if _model_accepts_temperature(model_name):
-        kwargs["temperature"] = getattr(config, temperature_attr)
+        kwargs["temperature"] = config.agent_temperature
     kwargs.update(config.get_resolved_extra_args())
 
     # ChatBedrockConverse and ChatOllama take no api_key kwarg; their SDKs read
@@ -390,13 +363,12 @@ def _initialize_llm(
 
 def _resolve_selected_provider(
     model_override: str | None,
-    model_attr: str,
 ) -> tuple[str, LLMConfig, str] | None:
     """Return the selected provider, config, and resolved model name."""
     for name, config in LLM_PROVIDERS.items():
         if not config.is_selected_by_env():
             continue
-        return name, config, model_override or getattr(config, model_attr)
+        return name, config, model_override or config.agent_model
     return None
 
 
@@ -444,7 +416,8 @@ def validate_api_key_provided() -> None:
 
 
 def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
-    model, model_name = _initialize_llm(model_override, "agent_model", "agent_temperature", "")
+    selected_model = model_override or os.getenv("AGENT_MODEL") or _agent_model_override
+    model, model_name = _initialize_llm(selected_model)
     MONITORING_CALLBACK.model_name = model_name
     return model
 
@@ -456,7 +429,7 @@ def get_current_agent_context_window() -> ContextWindow:
     every call. ``get_context_window`` handles its own caching, so this is
     cheap enough to call without a module-level cache.
     """
-    resolved = _resolve_selected_provider(_agent_model_override or os.getenv("AGENT_MODEL"), "agent_model")
+    resolved = _resolve_selected_provider(os.getenv("AGENT_MODEL") or _agent_model_override)
     if resolved is not None:
         name, _config, model_name = resolved
         ctx = get_context_window(name, model_name)
@@ -468,11 +441,20 @@ def get_current_agent_context_window() -> ContextWindow:
 
 def get_current_agent_model_ref() -> str:
     """``provider/model`` for the currently active agent LLM, or ``"unknown"``."""
-    resolved = _resolve_selected_provider(_agent_model_override or os.getenv("AGENT_MODEL"), "agent_model")
+    resolved = _resolve_selected_provider(os.getenv("AGENT_MODEL") or _agent_model_override)
     if resolved is None:
         return "unknown"
     name, _config, model_name = resolved
     return f"{name}/{model_name}"
+
+
+def get_current_prompt_profile(llm: BaseChatModel | None = None) -> PromptProfile:
+    """Choose prompts for the active model without changing model defaults."""
+    if llm is not None:
+        model_name = getattr(llm, "model_name", None) or getattr(llm, "model", None)
+        if model_name:
+            return resolve_prompt_profile(str(model_name))
+    return resolve_prompt_profile(get_current_agent_model_ref())
 
 
 def current_provider_key_context() -> tuple[str, str]:
@@ -490,17 +472,6 @@ def current_provider_key_context() -> tuple[str, str]:
     key = LLM_PROVIDERS[name].get_api_key()
     key_tail = key[-4:] if key and len(key) >= 4 else "unknown"
     return name, key_tail
-
-
-def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
-    model, _ = _initialize_llm(model_override, "parsing_model", "parsing_temperature", "Extractor ")
-    return model
-
-
-def initialize_llms() -> tuple[BaseChatModel, BaseChatModel]:
-    agent_llm = initialize_agent_llm(_agent_model_override or os.getenv("AGENT_MODEL"))
-    parsing_llm = initialize_parsing_llm(_parsing_model_override or os.getenv("PARSING_MODEL"))
-    return agent_llm, parsing_llm
 
 
 def supports_prompt_caching(llm: BaseChatModel) -> bool:

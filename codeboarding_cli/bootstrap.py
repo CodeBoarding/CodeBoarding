@@ -31,7 +31,7 @@ def bootstrap_environment(output_dir: Path, binary_location: Path | None) -> Non
     ensure_config_template()
     user_cfg = load_user_config()
     user_cfg.apply_to_env()
-    configure_models(agent_model=user_cfg.llm.agent_model, parsing_model=user_cfg.llm.parsing_model)
+    configure_models(agent_model=user_cfg.llm.agent_model)
     validate_api_key_provided()
     load_plugins(get_registries())
     if binary_location is not None:

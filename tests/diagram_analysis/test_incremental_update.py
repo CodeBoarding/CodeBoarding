@@ -183,7 +183,6 @@ class TestIncrementalUpdater(unittest.TestCase):
 
         updater._generate_scope_relations.assert_called_once_with(
             root,
-            "root",
             context,
             {"pkg.changed"},
             {"settings.py"},

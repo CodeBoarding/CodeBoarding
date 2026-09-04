@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
+from agents.agent_responses import AnalysisInsights, SourceCodeReference
 
 
 @dataclass(frozen=True)

@@ -7,20 +7,18 @@ from collections import Counter
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
-from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate
 
-from agents.agent import CodeBoardingAgent, _raise_if_auth_error
-from agents.llm_errors import LLMAuthError
 from agents.agent_responses import PlannedGroup, TreePlanInsights
-from agents.llm_config import MONITORING_CALLBACK, supports_json_mode
-from agents.prompts import TREE_PLAN_SYSTEM_MESSAGE, get_tree_plan_message
+from agents.llm_config import MONITORING_CALLBACK, get_current_prompt_profile, supports_json_mode
+from agents.llm_errors import LLMAuthError, raise_if_auth_error
+from agents.prompts import get_tree_plan_prompts
 from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries
 from monitoring import trace
-from static_analyzer.analysis_result import StaticAnalysisResults
+from monitoring.mixin import MonitoringMixin
 from static_analyzer.clustering.names import CandidateGroup, GroupingContext, KinshipGrouper, stem, tokenize
 from static_analyzer.clustering.names.draft import GUARD_SHARE, MIN_UNITS
 from static_analyzer.clustering.names.frontier import Candidate
@@ -43,22 +41,20 @@ DRAW_TIMEOUT_SECONDS = 600
 _LABEL = re.compile(r"^G\d+$")
 
 
-class TreePlannerAgent(CodeBoardingAgent):
+class TreePlannerAgent(MonitoringMixin):
     """A ``Grouper`` that folds kinship groups across words on the medoid of several JSON draws; it never sees a unit."""
 
     name = "planner"
 
     def __init__(
         self,
-        repo_dir: Path,
-        static_analysis: StaticAnalysisResults,
         agent_llm: BaseChatModel,
-        parsing_llm: BaseChatModel,
         draws: int = DRAWS,
     ):
-        super().__init__(repo_dir, static_analysis, TREE_PLAN_SYSTEM_MESSAGE, agent_llm, parsing_llm)
+        super().__init__()
+        self.system_message, task_prompt = get_tree_plan_prompts(get_current_prompt_profile(agent_llm))
         self.prompt = PromptTemplate(
-            template=get_tree_plan_message(), input_variables=["scope", "units", "count", "budget", "floor", "groups"]
+            template=task_prompt, input_variables=["scope", "units", "count", "budget", "floor", "groups"]
         )
         self.draws = draws
         self._kinship = KinshipGrouper()
@@ -130,15 +126,19 @@ class TreePlannerAgent(CodeBoardingAgent):
     def _ask(self, prompt: str, labelled: dict[str, CandidateGroup]) -> TreePlanInsights:
         def once() -> TreePlanInsights:
             message = self._model.invoke(
-                [SystemMessage(content=self.system_message.content), HumanMessage(content=prompt)],
+                [SystemMessage(content=self.system_message), HumanMessage(content=prompt)],
                 config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
             )
             text = message.content if isinstance(message.content, str) else json.dumps(message.content)
             insights = self._read(text, labelled)
-            return insights if insights is not None else self._parse_response(prompt, text, TreePlanInsights)
+            if insights is None:
+                raise ValueError("planner returned malformed JSON")
+            return insights
 
         def classify(exc: Exception, attempt: int) -> RetryDecision:
-            _raise_if_auth_error(exc)
+            raise_if_auth_error(exc)
+            if isinstance(exc, ValueError):
+                return RetryDecision(action=RetryAction.RETRY_NOW)
             return RetryDecision(
                 action=RetryAction.RETRY, backoff_s=default_backoff(attempt, initial_s=10.0, multiplier=2.0, max_s=60.0)
             )

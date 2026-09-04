@@ -249,7 +249,7 @@ Responsible for processing and formatting the structured analysis results produc
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent.AbstractionAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/diagram_analysis/scope_assembly.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.scope_assembly.ScopeAssembler`</a>
 
 
 ### Unclassified
@@ -440,4 +440,3 @@ Component for all unclassified files and utility functions (Utility functions/Ex
 
 
 ### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
-

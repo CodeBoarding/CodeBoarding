@@ -4,8 +4,12 @@ from tests.static_analyzer.names.conftest import graph_from_layout, node_of, uni
 
 class TestUnitPosition:
     def test_python_module_with_several_symbols(self):
-        names = ["agents.agent.CodeBoardingAgent", "agents.agent.CodeBoardingAgent.run", "agents.agent.helper"]
-        assert unit_position(names, ".") == ("agents", "agent")
+        names = [
+            "agents.scope_analysis_agent.ScopeAnalysisAgent",
+            "agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
+            "agents.scope_analysis_agent.helper",
+        ]
+        assert unit_position(names, ".") == ("agents", "scope_analysis_agent")
 
     def test_a_file_declaring_one_class_sits_in_its_module_not_its_class(self):
         names = [

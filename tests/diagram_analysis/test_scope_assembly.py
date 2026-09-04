@@ -2,9 +2,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Component, Relation
+from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge, SourceCodeReference
+from agents.scope_analysis_agent import ScopeAnalysisResult, ScopeComponentSemantics, ScopeRelationSemantics
 from diagram_analysis.scope_assembly import ScopeAssembler
-from static_analyzer import StaticAnalysisFatalError
+from static_analyzer import StaticAnalysisFatalError, StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import (
     ClusterConnectionEdge,
@@ -12,8 +13,9 @@ from static_analyzer.clustering import (
     ClusterScopeResult,
     GroupConnection,
 )
-from static_analyzer.config import NodeType
+from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
+from static_analyzer.reference_resolver import StaticReferenceResolver
 
 
 def _component(component_id: str, name: str) -> Component:
@@ -158,6 +160,120 @@ class TestScopeAssembler(unittest.TestCase):
             [(relation.src_id, relation.dst_id, relation.relation) for relation in analysis.components_relations],
             [("2", "3", "calls")],
         )
+
+    def test_semantics_cannot_change_fixed_ids_membership_or_a_locked_name(self) -> None:
+        scope = _scope(("1", "2"))
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        analysis.components[0].name = "Stable"
+        original_membership = {
+            component.component_id: [
+                (group.file_path, [method.qualified_name for method in group.methods])
+                for group in component.file_methods
+            ]
+            for component in analysis.components
+        }
+        result = ScopeAnalysisResult(
+            description="Named scope",
+            components=[
+                ScopeComponentSemantics(
+                    group_id="1",
+                    name="Renamed",
+                    description="Updated responsibility.",
+                    key_entities=[],
+                ),
+                ScopeComponentSemantics(
+                    group_id="unknown",
+                    name="Invented",
+                    description="Must be ignored.",
+                    key_entities=[],
+                ),
+            ],
+            relations=[
+                ScopeRelationSemantics(
+                    source_group_id="1",
+                    target_group_id="2",
+                    relation="dispatches to",
+                )
+            ],
+        )
+        static_analysis = StaticAnalysisResults()
+        static_analysis.add_cfg(Language.PYTHON, scope.graphs_by_language["python"])
+        static_analysis.add_references(Language.PYTHON, list(scope.graphs_by_language["python"].nodes.values()))
+
+        assembler.apply_semantics(
+            analysis,
+            scope,
+            result,
+            {"1"},
+            {"1"},
+            StaticReferenceResolver(Path("/repo"), static_analysis),
+        )
+
+        self.assertEqual([component.component_id for component in analysis.components], ["1", "2", "3"])
+        self.assertEqual(analysis.components[0].name, "Stable")
+        self.assertEqual(analysis.components[0].description, "Updated responsibility.")
+        self.assertEqual(
+            {
+                component.component_id: [
+                    (group.file_path, [method.qualified_name for method in group.methods])
+                    for group in component.file_methods
+                ]
+                for component in analysis.components
+            },
+            original_membership,
+        )
+        self.assertEqual(analysis.components_relations[0].relation, "dispatches to")
+        self.assertTrue(analysis.components_relations[0].is_static)
+
+    def test_non_static_relation_requires_resolvable_evidence_on_both_sides(self) -> None:
+        scope = _scope()
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        result = ScopeAnalysisResult(
+            components=[],
+            relations=[
+                ScopeRelationSemantics(
+                    source_group_id="1",
+                    target_group_id="2",
+                    relation="posts orders to",
+                    evidence="a.run posts to the endpoint handled by b.load",
+                    key_edges=[
+                        RelationEdge(
+                            source=SourceCodeReference(qualified_name="a.run"),
+                            target=SourceCodeReference(qualified_name="b.load"),
+                            description="HTTP client and route handler",
+                        )
+                    ],
+                ),
+                ScopeRelationSemantics(
+                    source_group_id="1",
+                    target_group_id="3",
+                    relation="configures",
+                    evidence="name-only claim with no source symbols",
+                ),
+            ],
+        )
+        static_analysis = StaticAnalysisResults()
+        static_analysis.add_cfg(Language.PYTHON, scope.graphs_by_language["python"])
+        static_analysis.add_references(Language.PYTHON, list(scope.graphs_by_language["python"].nodes.values()))
+
+        assembler.apply_semantics(
+            analysis,
+            scope,
+            result,
+            {"1"},
+            set(),
+            StaticReferenceResolver(Path("/repo"), static_analysis),
+        )
+
+        self.assertEqual(
+            [(relation.src_id, relation.dst_id, relation.relation) for relation in analysis.components_relations],
+            [("1", "2", "posts orders to")],
+        )
+        edge = analysis.components_relations[0].key_edges[0]
+        self.assertEqual(edge.source.reference_file, "src/1.py")
+        self.assertEqual(edge.target.reference_file, "src/2.py")
 
 
 if __name__ == "__main__":

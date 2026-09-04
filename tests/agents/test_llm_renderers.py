@@ -1,7 +1,11 @@
+import json
 import unittest
+from pathlib import Path
 
-from agents.llm_renderers import render_call_graph
-from static_analyzer.cfg import CallGraph
+from agents.agent_responses import AnalysisInsights, Component, Relation
+from agents.llm_renderers import render_call_graph, render_scope_context
+from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
+from static_analyzer.clustering import ClusterConnectionEdge, ClusterGroup, ClusterScopeResult, GroupConnection
 from static_analyzer.config import NodeType
 from static_analyzer.node import Node
 
@@ -100,3 +104,98 @@ class TestRenderCallGraph(unittest.TestCase):
 
         self.assertIn("class-level summary", result)
         self.assertNotIn("pkg.ClassB", result)
+
+
+class TestRenderScopeContext(unittest.TestCase):
+    def test_includes_all_group_files_boundary_reasons_and_directed_calls(self):
+        graph = CallGraph(language="python")
+        graph.add_node(Node("client.submit", NodeType.FUNCTION, "/repo/client.py", 10, 20))
+        graph.add_node(Node("client.Payload", NodeType.CLASS, "/repo/payload.py", 1, 8))
+        graph.add_node(Node("server.receive", NodeType.FUNCTION, "/repo/server.py", 30, 40))
+        graph.add_edge("client.submit", "server.receive")
+        graph.add_reference_edge(ReferenceEdge("client.Payload", "server.receive", EdgeKind.TYPEREF))
+        scope = ClusterScopeResult(
+            scope_id="root",
+            graphs_by_language={"python": graph},
+            groups=[
+                ClusterGroup(
+                    group_id="1",
+                    cluster_ids=[1],
+                    symbol_members_by_language={"python": {"client.submit", "client.Payload"}},
+                    file_reasons={"/repo/client.py": "matches client terms"},
+                ),
+                ClusterGroup(
+                    group_id="2",
+                    cluster_ids=[2],
+                    symbol_members_by_language={"python": {"server.receive"}},
+                    file_reasons={"/repo/server.py": "matches server terms"},
+                ),
+            ],
+            connections=[
+                GroupConnection(
+                    source_group_id="1",
+                    target_group_id="2",
+                    edges=[
+                        ClusterConnectionEdge(
+                            language="python",
+                            source_qualified_name="client.submit",
+                            target_qualified_name="server.receive",
+                        )
+                    ],
+                )
+            ],
+        )
+        analysis = AnalysisInsights(
+            description="existing",
+            components=[
+                Component(name="Client", description="client", key_entities=[], component_id="1"),
+                Component(name="Server", description="server", key_entities=[], component_id="2"),
+            ],
+            components_relations=[
+                Relation(relation="submits to", src_name="Client", dst_name="Server", src_id="1", dst_id="2")
+            ],
+        )
+
+        payload = json.loads(
+            render_scope_context(
+                scope,
+                analysis,
+                Path("/repo"),
+                {"1"},
+                {"1"},
+                {"client.py"},
+                incremental=True,
+            )
+        )
+
+        first = payload["groups"][0]
+        self.assertEqual(payload["existing_description"], "existing")
+        self.assertEqual(first["status"], "changed")
+        self.assertTrue(first["name_locked"])
+        self.assertEqual(
+            first["files"],
+            [
+                {"path": "client.py", "grouping_reason": "matches client terms", "changed": True},
+                {
+                    "path": "payload.py",
+                    "grouping_reason": "member of the deterministic group",
+                    "changed": False,
+                },
+            ],
+        )
+        self.assertEqual({item["path"] for item in first["bordering_files"]}, {"client.py", "payload.py"})
+        self.assertEqual(
+            payload["known_connections"][0],
+            {
+                "source_group_id": "1",
+                "target_group_id": "2",
+                "language": "python",
+                "source_method": "client.submit",
+                "source_file": "client.py",
+                "source_line": 10,
+                "target_method": "server.receive",
+                "target_file": "server.py",
+                "target_line": 30,
+            },
+        )
+        self.assertEqual(payload["existing_relations"][0]["relation"], "submits to")

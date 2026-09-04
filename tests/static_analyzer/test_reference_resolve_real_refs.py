@@ -34,13 +34,8 @@ ANALYSIS_KEY_ENTITIES: list[tuple[str, str]] = [
     ("core.plugin_loader.PluginLoader", "core/plugin_loader.py"),
     ("agents.llm_config.LLMConfig", "agents/llm_config.py"),
     ("core.protocols.StaticAnalyzer", "core/protocols.py"),
-    ("caching.meta_cache.MetaCache", "caching/meta_cache.py"),
-    ("agents.dependency_discovery.DependencyDiscovery", "agents/dependency_discovery.py"),
-    ("agents.tools.read_cfg.ReadCFG", "agents/tools/read_cfg.py"),
     ("static_analyzer.clustering.names.spec.TreeSpec", "static_analyzer/clustering/names/spec.py"),
     ("diagram_analysis.scope_assembly.ScopeAssembler", "diagram_analysis/scope_assembly.py"),
-    ("agents.meta_agent.MetaAgent", "agents/meta_agent.py"),
-    ("agents.validation.ValidationResult", "agents/validation.py"),
     ("diagram_analysis.analysis_json.UnifiedAnalysisJson", "diagram_analysis/analysis_json.py"),
     ("diagram_analysis.diagram_generator.DiagramGenerator", "diagram_analysis/diagram_generator.py"),
     ("diagram_analysis.manifest.Manifest", "diagram_analysis/manifest.py"),
@@ -367,9 +362,6 @@ class TestMultiComponentAnalysis(unittest.TestCase):
                 ("core.protocols.StaticAnalyzer", "core/protocols.py"),
             ],
             "Static Analysis & Context Engine": [
-                ("caching.meta_cache.MetaCache", "caching/meta_cache.py"),
-                ("agents.dependency_discovery.DependencyDiscovery", "agents/dependency_discovery.py"),
-                ("agents.tools.read_cfg.ReadCFG", "agents/tools/read_cfg.py"),
                 (
                     "static_analyzer.clustering.names.spec.TreeSpec",
                     "static_analyzer/clustering/names/spec.py",
@@ -377,8 +369,6 @@ class TestMultiComponentAnalysis(unittest.TestCase):
             ],
             "AI Agentic Layer": [
                 ("diagram_analysis.scope_assembly.ScopeAssembler", "diagram_analysis/scope_assembly.py"),
-                ("agents.meta_agent.MetaAgent", "agents/meta_agent.py"),
-                ("agents.validation.ValidationResult", "agents/validation.py"),
             ],
             "Output & Visualization Engine": [
                 ("diagram_analysis.analysis_json.UnifiedAnalysisJson", "diagram_analysis/analysis_json.py"),
