@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
+from botocore.config import Config as BotoConfig
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
 from langchain_cerebras import ChatCerebras
@@ -197,6 +198,10 @@ LLM_PROVIDERS = {
         agent_model="anthropic.claude-sonnet-4-6",
         extra_args={
             "max_tokens": 4096,
+            "config": lambda: BotoConfig(
+                read_timeout=LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+                connect_timeout=LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+            ),
             "region_name": lambda: os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
             "credentials_profile_name": None,
         },
@@ -221,6 +226,7 @@ LLM_PROVIDERS = {
         keyless_capable=True,
         agent_model="qwen3:30b",
         agent_temperature=LLMDefaults.DEFAULT_AGENT_TEMPERATURE,
+        extra_args={"client_kwargs": {"timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS}},
         base_url_env="OLLAMA_BASE_URL",
     ),
     "deepseek": LLMConfig(

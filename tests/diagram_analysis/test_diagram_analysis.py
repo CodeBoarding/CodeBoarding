@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import time
 import unittest
+from concurrent.futures import ALL_COMPLETED, wait
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -909,7 +910,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertIs(caught.exception, error)
 
-    def test_enrich_scope_counts_a_response_that_skips_editable_groups_as_a_fallback(self):
+    def test_enrich_scope_counts_a_partly_named_scope_as_a_fallback(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -921,10 +922,8 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.static_analysis = StaticAnalysisResults()
         gen.scope_analysis_agent = MagicMock()
-        gen.scope_analysis_agent.analyze.return_value = ScopeAnalysisResult(
-            components=[ScopeComponentSemantics(group_id="1", name="Runner", description="Runs.")]
-        )
-        gen.scope_assembler.apply_semantics = Mock()
+        gen.scope_analysis_agent.analyze.return_value = ScopeAnalysisResult()
+        gen.scope_assembler.apply_semantics = Mock(return_value=frozenset({"2"}))
 
         gen._enrich_scope(
             ClusterScopeResult(scope_id="root"),
@@ -933,35 +932,47 @@ class TestDiagramGenerator(unittest.TestCase):
         )
 
         self.assertEqual((gen._scopes_enriched, gen._scopes_unnamed), (1, 1))
-        gen.scope_assembler.apply_semantics.assert_called_once()
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
-    def test_generate_subcomponents_aborts_on_authentication_failure(self, mock_save_analysis):
+    def test_generate_subcomponents_aborts_before_acting_on_a_batch_with_an_auth_failure(self, mock_save_analysis):
+        """A sibling's success that completes alongside a rejected key is neither saved nor expanded."""
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_level=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
-        root = Component(name="A", description="", key_entities=[], component_id="1")
-        gen._process_component = Mock(
-            side_effect=LLMAuthError(
+        good = Component(name="A", description="", key_entities=[], component_id="1")
+        bad = Component(name="B", description="", key_entities=[], component_id="2")
+        child = Component(name="A-child", description="", key_entities=[], component_id="1.1")
+        sub = AnalysisInsights(description="", components=[child], components_relations=[])
+
+        def process(component: Component):
+            if component.name == "A":
+                return "A", sub, [child]
+            raise LLMAuthError(
                 "key rejected",
                 provider="openai",
                 key_tail="1234",
                 telemetry_properties={"error_type": "auth"},
             )
-        )
 
-        with self.assertRaises(LLMAuthError):
-            gen._generate_subcomponents(
-                AnalysisInsights(description="", components=[root], components_relations=[]), [root]
-            )
+        gen._process_component = Mock(side_effect=process)
+        root = AnalysisInsights(description="", components=[good, bad], components_relations=[])
+
+        # Deliver both outcomes in one batch, whichever finished first.
+        with patch(
+            "diagram_analysis.diagram_generator.wait",
+            side_effect=lambda futures, **_: wait(futures, return_when=ALL_COMPLETED),
+        ):
+            with self.assertRaises(LLMAuthError):
+                gen._generate_subcomponents(root, [good, bad])
 
         mock_save_analysis.assert_not_called()
+        self.assertEqual([call.args[0].name for call in gen._process_component.call_args_list], ["A", "B"])
 
     @patch("diagram_analysis.diagram_generator.get_static_analysis")
     def test_new_analyzer_honors_cache_reuse_override(self, mock_get_static_analysis):

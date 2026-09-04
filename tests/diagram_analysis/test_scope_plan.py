@@ -17,6 +17,7 @@ from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScope
 
 FILE = "pkg/mod.py"
 DELETE = ScopeOperationAction.DELETE_COMPONENT
+CREATE = ScopeOperationAction.CREATE_COMPONENT
 REPO = Path("/repo")
 
 
@@ -158,6 +159,18 @@ class TestPlanScopeResultUpdate(unittest.TestCase):
             op.component_id: op.name for op in decision.operations if op.action == ScopeOperationAction.CREATE_COMPONENT
         }
         self.assertEqual(created, {"2": "Ingestion 2", "3": "Component 3"})
+
+    def test_a_retired_sibling_releases_its_name_to_a_new_group(self):
+        retired = component("1", ["a.one"], ["1"])
+        retired.name = "Storage"
+        scope = AnalysisInsights(description="", components=[retired], components_relations=[])
+        groups = [ClusterGroup(group_id="2", name="Storage", cluster_ids=[2])]
+
+        decision = plan_result(scope, {2: {"b.two"}}, groups=groups)
+
+        created = {op.component_id: op.name for op in decision.operations if op.action == CREATE}
+        self.assertEqual(created, {"2": "Storage"})
+        self.assertEqual(actions(decision)["1"], DELETE)
 
     def test_an_untouched_scope_plans_nothing_at_all(self):
         # An operation is not free: update_scope puts its target in refresh_ids, which

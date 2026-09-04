@@ -206,12 +206,71 @@ class TestScopeAssembler(unittest.TestCase):
         analysis = assembler.build(scope)
         analysis.components[0].key_entities = [SourceCodeReference(qualified_name="a.run")]
         result = ScopeAnalysisResult(
-            components=[ScopeComponentSemantics(group_id="1", name="Runner", description="Runs.", key_entities=[])],
+            components=[ScopeComponentSemantics(group_id="1", name="Runner", description="Runs.")],
         )
 
         assembler.apply_semantics(analysis, scope, result, {"1"}, set(), _resolver(scope))
 
         self.assertEqual([entity.qualified_name for entity in analysis.components[0].key_entities], ["a.run"])
+
+    def test_an_explicit_empty_key_entity_list_clears_them(self) -> None:
+        scope = _scope()
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        analysis.components[0].key_entities = [SourceCodeReference(qualified_name="a.run")]
+        result = ScopeAnalysisResult.model_validate_json(
+            '{"components": [{"group_id": "1", "name": "Runner", "description": "Runs.", "key_entities": []}]}'
+        )
+
+        assembler.apply_semantics(analysis, scope, result, {"1"}, set(), _resolver(scope))
+
+        self.assertEqual(analysis.components[0].key_entities, [])
+
+    def test_names_are_allocated_against_final_siblings_so_a_swap_is_valid(self) -> None:
+        scope = _scope(names={"1": "API", "2": "Storage"})
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        result = ScopeAnalysisResult(
+            components=[
+                ScopeComponentSemantics(group_id="1", name="Storage", description="Stores."),
+                ScopeComponentSemantics(group_id="2", name="Persistence", description="Persists."),
+            ],
+        )
+
+        unnamed = assembler.apply_semantics(analysis, scope, result, {"1", "2"}, set(), _resolver(scope))
+
+        self.assertEqual([component.name for component in analysis.components[:2]], ["Storage", "Persistence"])
+        self.assertEqual(unnamed, frozenset())
+
+    def test_a_losing_duplicate_proposal_falls_back_to_its_rule_name_and_is_reported(self) -> None:
+        scope = _scope(names={"1": "API", "2": "Storage", "3": "Cache"})
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        result = ScopeAnalysisResult(
+            components=[
+                ScopeComponentSemantics(group_id="1", name="Storage", description="Stores."),
+                ScopeComponentSemantics(group_id="2", name="Storage", description="Also stores."),
+                ScopeComponentSemantics(group_id="3", name="", description="Blank name."),
+            ],
+        )
+
+        unnamed = assembler.apply_semantics(analysis, scope, result, {"1", "2", "3"}, set(), _resolver(scope))
+
+        self.assertEqual([component.name for component in analysis.components], ["Storage", "Storage 2", "Cache"])
+        self.assertEqual(unnamed, frozenset({"2", "3"}))
+
+    def test_a_proposal_cannot_take_a_name_held_by_a_group_that_cannot_move(self) -> None:
+        scope = _scope(names={"1": "API", "2": "Storage"})
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        result = ScopeAnalysisResult(
+            components=[ScopeComponentSemantics(group_id="1", name="Storage", description="Stores.")],
+        )
+
+        unnamed = assembler.apply_semantics(analysis, scope, result, {"1"}, set(), _resolver(scope))
+
+        self.assertEqual([component.name for component in analysis.components[:2]], ["API", "Storage"])
+        self.assertEqual(unnamed, frozenset({"1"}))
 
     def test_keeps_the_previous_label_when_semantics_omit_a_still_connected_pair(self) -> None:
         scope = _scope(("1", "2"))

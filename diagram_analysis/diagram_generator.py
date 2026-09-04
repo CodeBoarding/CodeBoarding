@@ -742,19 +742,8 @@ class DiagramGenerator:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
             return
-        missing = editable_group_ids - {component.group_id for component in semantics.components}
-        if missing:
-            logger.warning(
-                "Scope %s: semantic analysis skipped %d of %d editable groups (%s); they keep deterministic names",
-                scope.scope_id,
-                len(missing),
-                len(editable_group_ids),
-                ", ".join(sorted(missing)),
-            )
-            with self._naming_counts_lock:
-                self._scopes_unnamed += 1
         assert self.static_analysis is not None
-        self.scope_assembler.apply_semantics(
+        unnamed = self.scope_assembler.apply_semantics(
             analysis,
             scope,
             semantics,
@@ -762,6 +751,16 @@ class DiagramGenerator:
             set(locked_name_ids),
             StaticReferenceResolver(self.repo_location, self.static_analysis),
         )
+        if unnamed:
+            logger.warning(
+                "Scope %s: %d of %d editable groups keep deterministic names (%s)",
+                scope.scope_id,
+                len(unnamed),
+                len(editable_group_ids),
+                ", ".join(sorted(unnamed)),
+            )
+            with self._naming_counts_lock:
+                self._scopes_unnamed += 1
 
     def _enrich_incremental_scopes(
         self,
@@ -1217,49 +1216,49 @@ class DiagramGenerator:
             while future_to_task:
                 completed_futures, _ = wait(future_to_task.keys(), return_when=FIRST_COMPLETED)
 
+                # Read every outcome in the batch before acting on any of it: a rejected key
+                # must abort the run before a sibling's success is saved or expanded.
+                outcomes: list[tuple[Component, int, tuple[str | None, AnalysisInsights | None, list[Component]]]] = []
                 for future in completed_futures:
                     component, level = future_to_task.pop(future)
                     stats["completed"] += 1
-
                     try:
-                        comp_name, sub_analysis, new_components = future.result()
-
-                        if comp_name and sub_analysis:
-                            sub_analyses[comp_name] = sub_analysis
-                            expanded_components.append(component)
-                            stats["saves"] += 1
-
-                            logger.debug("Saving intermediate analysis for '%s'", comp_name)
-                            self._strip_ignored(analysis, sub_analyses)
-                            expandable_ids, sub_expandable_ids = self._expandable_ids_for_tree(analysis, sub_analyses)
-                            save_analysis(
-                                analysis=analysis,
-                                output_dir=Path(self.output_dir),
-                                sub_analyses=sub_analyses,
-                                repo_name=self.repo_name,
-                                repo_dir=self.repo_location,
-                                source_tree_hash=self._source_tree_hash(),
-                                expandable_component_ids=expandable_ids,
-                                sub_expandable_ids=sub_expandable_ids,
-                                depth_cap=self.depth_level,
-                                tree_spec=self._tree_spec_dict(),
-                            )
-
-                        if new_components and level + 1 < self.depth_level:
-                            for child in new_components:
-                                submit_component(child, level + 1)
-
-                            logger.info("Expanded '%s' with %d new children.", comp_name, len(new_components))
-
+                        outcomes.append((component, level, future.result()))
                     except LLMAuthError:
-                        # A rejected key fails every remaining component identically; stop
-                        # scheduling more instead of saving a tree with silent holes.
                         for pending in future_to_task:
                             pending.cancel()
                         raise
                     except Exception:
                         stats["errors"] += 1
                         logger.exception("Component '%s' generated an exception", component.name)
+
+                for component, level, (comp_name, sub_analysis, new_components) in outcomes:
+                    if comp_name and sub_analysis:
+                        sub_analyses[comp_name] = sub_analysis
+                        expanded_components.append(component)
+                        stats["saves"] += 1
+
+                        logger.debug("Saving intermediate analysis for '%s'", comp_name)
+                        self._strip_ignored(analysis, sub_analyses)
+                        expandable_ids, sub_expandable_ids = self._expandable_ids_for_tree(analysis, sub_analyses)
+                        save_analysis(
+                            analysis=analysis,
+                            output_dir=Path(self.output_dir),
+                            sub_analyses=sub_analyses,
+                            repo_name=self.repo_name,
+                            repo_dir=self.repo_location,
+                            source_tree_hash=self._source_tree_hash(),
+                            expandable_component_ids=expandable_ids,
+                            sub_expandable_ids=sub_expandable_ids,
+                            depth_cap=self.depth_level,
+                            tree_spec=self._tree_spec_dict(),
+                        )
+
+                    if new_components and level + 1 < self.depth_level:
+                        for child in new_components:
+                            submit_component(child, level + 1)
+
+                        logger.info("Expanded '%s' with %d new children.", comp_name, len(new_components))
 
                 logger.info(
                     "Progress: %d completed, %d in flight, %d errors",
