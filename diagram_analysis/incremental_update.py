@@ -1,23 +1,12 @@
-"""Incremental refresh helpers for scoped structural updates."""
+"""Apply deterministic incremental updates to diagram scopes."""
 
 import logging
-import os
-import threading
 from collections.abc import Collection
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from langchain_core.language_models import BaseChatModel
-from langchain_core.prompts import PromptTemplate
-
-from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    ComponentApiSurfaces,
-    ComponentArchitecture,
-    ComponentRelations,
-    MetaAnalysisInsights,
     Relation,
     ScopeOperation,
     ScopeOperationAction,
@@ -26,74 +15,37 @@ from agents.agent_responses import (
     assign_relation_ids,
     iter_components,
 )
-from agents.component_ownership import group_ids_by_name
 from agents.content_hash import SourceCache
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
-from agents.llm_renderers import render_cluster_groups, render_scope_connections
-from agents.prompts import (
-    format_project_system_message,
-    get_api_surfaces_message,
-    get_final_analysis_message,
-    get_relation_analysis_message,
-    get_system_message,
-)
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
 from clustering_ids import CodeBoardingClusterIds
-from agents.static_analysis_enricher_mixin import StaticAnalysisEnricherMixin
-from agents.validation import ValidationContext, validate_relations
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
-from monitoring import trace
+from diagram_analysis.scope_assembly import ScopeAssembler
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterScopeResult
+from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
 
 
-class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
-    """Materialize incremental plans and regenerate touched scope relations."""
+class IncrementalUpdater:
+    """Materialize incremental plans and rebuild touched scope relations."""
 
     def __init__(
         self,
         repo_dir: Path,
         static_analysis: StaticAnalysisResults,
-        project_name: str,
-        meta_context: MetaAnalysisInsights | None,
-        agent_llm: BaseChatModel,
-        parsing_llm: BaseChatModel,
         changes: ChangeSet | None = None,
     ):
-        system_message = format_project_system_message(get_system_message(), project_name, meta_context)
-        super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
-        if changes is not None:
-            self.toolkit.context.changes = changes
-        self.project_name = project_name
-        self.meta_context = meta_context
-        self.prompts = {
-            "new_component_details": PromptTemplate(
-                template=get_final_analysis_message(),
-                input_variables=["cluster_analysis"],
-            ),
-            "api_surfaces": PromptTemplate(
-                template=get_api_surfaces_message(),
-                input_variables=[
-                    "component_summaries",
-                    "static_call_evidence",
-                ],
-            ),
-            "relation_analysis": PromptTemplate(
-                template=get_relation_analysis_message(),
-                input_variables=[
-                    "component_summaries",
-                    "api_surfaces",
-                    "static_call_evidence",
-                ],
-            ),
-        }
+        self.repo_dir = repo_dir
+        self.static_analysis = static_analysis
+        self.changes = changes
+        self.reference_resolver = StaticReferenceResolver(repo_dir, static_analysis)
+        self.scope_assembler = ScopeAssembler(repo_dir)
 
-    @trace
     def update_scope(
         self,
         scope_id: str,
@@ -172,6 +124,31 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             removed_ids=removed_ids,
         )
 
+    def generate_all_scope_relations(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+        relation_contexts: dict[str, ScopeRelationContext],
+        changed_members: set[str] | None = None,
+        unattributed_files: Collection[str] = (),
+    ) -> None:
+        """Regenerate deterministic relations for every touched scope."""
+        tasks: list[tuple[str, AnalysisInsights]] = []
+        if relation_contexts.get(ROOT_SCOPE_ID) is not None:
+            tasks.append((ROOT_SCOPE_ID, root_analysis))
+        for scope_id in sorted(relation_contexts.keys() - {ROOT_SCOPE_ID}):
+            sub = sub_analyses.get(scope_id)
+            if sub is not None:
+                tasks.append((scope_id, sub))
+        for scope_id, scope in tasks:
+            self._generate_scope_relations(
+                scope,
+                scope_id,
+                relation_contexts[scope_id],
+                changed_members,
+                unattributed_files,
+            )
+
     def _create_component_from_operation(
         self,
         scope_id: str,
@@ -195,7 +172,6 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             name=operation.name or "New Component",
             description=operation.description or "",
             key_entities=operation.key_entities,
-            source_group_names=[operation.name or "New Component"],
             source_cluster_ids=source_cluster_ids,
             component_id=requested if requested not in components_by_id else "",
         )
@@ -219,41 +195,6 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         if merged_cluster_ids != component.source_cluster_ids and component.component_id:
             refresh_ids.add(component.component_id)
         component.source_cluster_ids = merged_cluster_ids
-
-    @trace
-    def detail_new_components(self, components: list[Component]) -> None:
-        """Replace new components' provisional names and descriptions in one LLM call."""
-        target_by_group: dict[str, Component] = {}
-        group_ids: dict[str, list[int]] = {}
-        descriptions: dict[str, str] = {}
-        for component in components:
-            group_name = f"Incremental Group {component.component_id}"
-            group_ids[group_name] = []
-            descriptions[group_name] = _new_component_membership_summary(component)
-            target_by_group[group_name.casefold()] = component
-
-        prompt = self.prompts["new_component_details"].format(
-            cluster_analysis=render_cluster_groups(group_ids, descriptions)
-        )
-        group_names = list(group_ids)
-        prompt += (
-            f"\n\n## New Component Groups ({len(group_names)} total)\n"
-            f"Return exactly one semantically named component for each of these fixed groups: {group_names}.\n"
-            "These components have final deterministic membership. Replace their provisional metadata; "
-            "do not merge, split, or reassign their symbols."
-        )
-        architecture = self._parse_invoke(prompt, ComponentArchitecture)
-        for detailed in architecture.components:
-            if len(detailed.source_group_names) != 1:
-                continue
-            target = target_by_group.get(detailed.source_group_names[0].casefold())
-            if target is None:
-                continue
-            name = detailed.name.strip()
-            description = detailed.description.strip()
-            if name and description:
-                target.name = name
-                target.description = description
 
     def _update_component_from_operation(
         self,
@@ -298,83 +239,18 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         _patch_file_methods(scope, patched_groups, touched_ids, _live_cfg_qnames(self.static_analysis))
         scope.files = build_files_index(scope, self.repo_dir, source_cache)
 
-    @trace
-    def step_api_surfaces(
-        self,
-        scope: AnalysisInsights,
-        scope_name: str,
-        static_call_evidence: str,
-    ) -> ComponentApiSurfaces:
-        """Analyze API surfaces for one updated scope."""
-        logger.info("[IncrementalAgent] Analyzing API surfaces for scope: %s", scope_name)
-        prompt = self.prompts["api_surfaces"].format(
-            component_summaries=ComponentArchitecture(
-                description=scope.description, components=scope.components
-            ).llm_str(),
-            static_call_evidence=static_call_evidence,
-        )
-        return self._parse_invoke(prompt, ComponentApiSurfaces)
-
-    @trace
-    def step_relation_analysis(
-        self,
-        scope: AnalysisInsights,
-        scope_name: str,
-        api_surfaces: ComponentApiSurfaces,
-        clustering: ClusterScopeResult,
-        static_call_evidence: str,
-    ) -> list[Relation]:
-        """Discover evidence-backed relations and attach deterministic CFG edges."""
-        logger.info("[IncrementalAgent] Discovering component relations for scope: %s", scope_name)
-        cluster_results = clustering.leaf_clusters_by_language
-        cfg_graphs = clustering.graphs_by_language
-        self.toolkit.context.clustering = clustering
-        self.toolkit.context.group_ids_by_name = group_ids_by_name(
-            scope.components, {group.group_id for group in clustering.groups}
-        )
-        self.toolkit.context.cluster_results = cluster_results
-        self.toolkit.context.cfg_graphs = cfg_graphs
-        prompt = self.prompts["relation_analysis"].format(
-            component_summaries=ComponentArchitecture(
-                description=scope.description, components=scope.components
-            ).llm_str(),
-            api_surfaces=api_surfaces.llm_str(),
-            static_call_evidence=static_call_evidence,
-        )
-        relation_result: ComponentRelations = self._invoke_validate(
-            prompt,
-            ComponentRelations,
-            validators=[validate_relations],
-            validation_context=ValidationContext(
-                cluster_results=cluster_results,
-                cfg_graphs=cfg_graphs,
-                repo_dir=str(self.repo_dir),
-                static_analysis=self.static_analysis,
-                components=scope.components,
-            ),
-            max_validation_attempts=3,
-        )
-        scope.components_relations = relation_result.components_relations
-        self._attach_static_relations(scope, clustering)
-        return relation_result.components_relations
-
     def _attach_static_relations(
         self,
         scope: AnalysisInsights,
         clustering: ClusterScopeResult,
     ) -> None:
-        """Ground the scope's relations in the live CFG and resolve their source references.
-
-        Why: shared by the LLM and no-change paths; the latter passes no LLM relations, so only
-        the deterministic static call edges remain.
-        """
+        """Ground the scope's relations in the live CFG and resolve source references."""
         assign_relation_ids(scope)
-        self.merge_scope_relations(scope, clustering)
+        self.scope_assembler.merge_scope_relations(scope, clustering)
         self.reference_resolver.fix_source_code_reference_lines(scope)
         index_relation_endpoints(scope, self.repo_dir)
 
-    @trace
-    def generate_scope_relations(
+    def _generate_scope_relations(
         self,
         scope: AnalysisInsights,
         scope_name: str,
@@ -382,7 +258,7 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
         changed_members: set[str] | None = None,
         unattributed_files: Collection[str] = (),
     ) -> list[Relation]:
-        """Run the API-surface and relation stages for one updated scope, or skip both when nothing in it changed."""
+        """Rebuild static relations while preserving unaffected semantic metadata."""
         if len(scope.components) < 2:
             scope.components_relations = []
             self.reference_resolver.fix_source_code_reference_lines(scope)
@@ -407,30 +283,10 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             if relation.src_name and relation.dst_name
         }
 
-        gated_members: set[str] = set()
-        if context.changed_ids:
-            # Rendered once and shared: both prompts must agree on what the commit touched.
-            gated_members = set() if unattributed_files else changed_members or set()
-            static_call_evidence = render_scope_connections(
-                context.clustering,
-                {component.component_id: component.name for component in scope.components},
-                gated_members,
-                baseline_by_pair,
-            )
-            api_surfaces = self.step_api_surfaces(scope, scope_name, static_call_evidence)
-            rels = self.step_relation_analysis(
-                scope,
-                scope_name,
-                api_surfaces,
-                context.clustering,
-                static_call_evidence,
-            )
-        else:
-            # Nothing in this scope changed, so preserve_unchanged_relations below would discard any
-            # LLM output anyway; skip both round-trips and rebuild edges from the live CFG.
-            scope.components_relations = []
-            self._attach_static_relations(scope, context.clustering)
-            rels = scope.components_relations
+        gated_members = set() if unattributed_files else changed_members or set()
+        scope.components_relations = []
+        self._attach_static_relations(scope, context.clustering)
+        rels = scope.components_relations
 
         if baseline_by_pair:
             live_ids = {component.component_id for component in scope.components if component.component_id}
@@ -475,141 +331,13 @@ class IncrementalAgent(StaticAnalysisEnricherMixin, CodeBoardingAgent):
             # Preservation runs after the grounding filters and re-injects baseline edges, so
             # the assembled list is filtered once more — otherwise a baseline's invented or
             # mis-attributed edges survive every update that leaves their methods alone.
-            self.prune_relations(
+            self.scope_assembler.prune_relations(
                 scope,
                 self.reference_resolver.keep_relation_edge,
                 changed_members or set(),
             )
             rels = scope.components_relations
         return rels
-
-    @trace
-    def generate_all_scope_relations(
-        self,
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-        relation_contexts: dict[str, ScopeRelationContext],
-        changed_members: set[str] | None = None,
-        unattributed_files: Collection[str] = (),
-    ) -> None:
-        """Regenerate relations for every touched scope with at least two components.
-
-        Why: scopes are independent (own clustering, cfg, analysis object), so they run
-        concurrently; a single scope or none runs inline to skip worker setup.
-        """
-        tasks: list[tuple[str, AnalysisInsights]] = []
-        if relation_contexts.get(ROOT_SCOPE_ID) is not None:
-            tasks.append((ROOT_SCOPE_ID, root_analysis))
-        for scope_id in sorted(relation_contexts.keys() - {ROOT_SCOPE_ID}):
-            sub = sub_analyses.get(scope_id)
-            if sub is not None:
-                tasks.append((scope_id, sub))
-
-        if len(tasks) <= 1:
-            results = [
-                (
-                    scope_id,
-                    self.generate_scope_relations(
-                        scope,
-                        scope_id,
-                        relation_contexts[scope_id],
-                        changed_members,
-                        unattributed_files,
-                    ),
-                )
-                for scope_id, scope in tasks
-            ]
-        else:
-            results = self._generate_scope_relations_parallel(
-                tasks,
-                relation_contexts,
-                changed_members,
-                unattributed_files,
-            )
-
-        all_llm_rels = [
-            (scope_id, rels) for scope_id, rels in results if rels and relation_contexts[scope_id].changed_ids
-        ]
-
-        if all_llm_rels:
-            _log_scope_relations_summary(all_llm_rels)
-
-    def _generate_scope_relations_parallel(
-        self,
-        tasks: list[tuple[str, AnalysisInsights]],
-        relation_contexts: dict[str, ScopeRelationContext],
-        changed_members: set[str] | None,
-        unattributed_files: Collection[str],
-    ) -> list[tuple[str, list[Relation]]]:
-        """Regenerate each scope's relations concurrently, one agent clone per worker thread.
-
-        Why: step_relation_analysis writes clustering onto the agent's shared toolkit.context, so
-        scopes must not share an agent. executor.map preserves order for a deterministic log.
-        """
-        max_workers = min(len(tasks), os.cpu_count() or 4, 8)
-        worker_local = threading.local()
-        workers: list[IncrementalAgent] = []
-        workers_lock = threading.Lock()
-
-        def run_one(task: tuple[str, AnalysisInsights]) -> tuple[str, list[Relation]]:
-            scope_id, scope = task
-            worker = getattr(worker_local, "agent", None)
-            if worker is None:
-                worker = self._clone_for_worker()
-                worker_local.agent = worker
-                with workers_lock:
-                    workers.append(worker)
-            return scope_id, worker.generate_scope_relations(
-                scope,
-                scope_id,
-                relation_contexts[scope_id],
-                changed_members,
-                unattributed_files,
-            )
-
-        try:
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                results = list(executor.map(run_one, tasks))
-        finally:
-            # Merge even if a scope raised, so a failed run still reports the token/tool
-            # usage the workers already incurred.
-            for worker in workers:
-                self.agent_stats.merge(worker.agent_stats)
-        return results
-
-    def _clone_for_worker(self) -> "IncrementalAgent":
-        """A sibling agent with its own toolkit context, for concurrent scope regeneration."""
-        return IncrementalAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.static_analysis,
-            project_name=self.project_name,
-            meta_context=self.meta_context,
-            agent_llm=self.agent_llm,
-            parsing_llm=self.parsing_llm,
-            changes=self.toolkit.context.changes,
-        )
-
-
-def _new_component_membership_summary(component: Component) -> str:
-    files = sorted(group.file_path for group in component.file_methods)
-    symbols = sorted(
-        {method.qualified_name for group in component.file_methods for method in group.methods},
-        key=lambda qualified_name: (qualified_name.count("."), qualified_name),
-    )
-    shown_files = ", ".join(files[:8]) + (", ..." if len(files) > 8 else "")
-    shown_symbols = ", ".join(symbols[:12]) + (", ..." if len(symbols) > 12 else "")
-    return (
-        f"Final membership: {len(symbols)} symbols across {len(files)} files. "
-        f"Files: {shown_files}. Representative symbols: {shown_symbols}."
-    )
-
-
-def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> None:
-    lines = ["[scope_relations] LLM-generated inter-component relations:"]
-    for scope_name, rels in all_rels:
-        for relation in rels:
-            lines.append(f"  {scope_name:8s}  {relation.src_name:40s} --{relation.relation}--> {relation.dst_name}")
-    logger.info("\n".join(lines))
 
 
 def _operation_source_cluster_ids(scope_id: str, operation: ScopeOperation) -> list[str]:

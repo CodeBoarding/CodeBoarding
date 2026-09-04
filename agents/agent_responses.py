@@ -385,13 +385,8 @@ class Component(LLMBaseModel):
         description="The most important/critical classes and methods that represent this component's core functionality. Pick 2-5 key entities."
     )
 
-    source_group_names: list[str] = Field(
-        description="Names of the cluster groups from the grouping analysis that this component encompasses.",
-        default_factory=list,
-    )
-
     source_cluster_ids: list[ComponentId] = Field(
-        description="List of cluster IDs from CFG analysis that this component encompasses (populated deterministically from source_group_names).",
+        description="List of cluster IDs from CFG analysis that this component encompasses.",
         default_factory=list,
         exclude=True,
         json_schema_extra={"hidden": True},
@@ -418,14 +413,11 @@ class Component(LLMBaseModel):
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
         d = f"   - *Description*: {self.description}"
-        sg = ""
-        if self.source_group_names:
-            sg = f"   - *Source Group Names*: {', '.join(self.source_group_names)}"
         qn = ""
         if self.key_entities:
             qn += "   - *Key Entities*: "
             qn += ", ".join(f"`{q.llm_str()}`" for q in self.key_entities)
-        return "\n".join([n, d, sg, qn]).strip()
+        return "\n".join([n, d, qn]).strip()
 
 
 class AnalysisInsights(LLMBaseModel):
@@ -467,81 +459,6 @@ class AnalysisInsights(LLMBaseModel):
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
-
-
-class ComponentArchitecture(LLMBaseModel):
-    """Component-only architecture before relation discovery."""
-
-    description: str = Field(
-        description="One paragraph explaining the functionality represented by this graph, its main flow, and purpose."
-    )
-    components: list[Component] = Field(description="List of the components identified in the project.")
-
-    def llm_str(self):
-        if not self.components:
-            return "No abstract components found."
-        title = "# Abstract Components Overview\n"
-        body = "\n".join(ac.llm_str() for ac in self.components)
-        return title + body
-
-
-class ComponentApiSurface(LLMBaseModel):
-    """The provided and consumed APIs for one component."""
-
-    component_name: str = Field(description="Exact component name this API surface describes.")
-    provided_interfaces: list[SourceCodeReference] = Field(
-        default_factory=list,
-        description="Methods/classes/config symbols this component exposes or uses as entrypoints.",
-    )
-    consumed_interfaces: list[SourceCodeReference] = Field(
-        default_factory=list,
-        description="Methods/classes/config symbols this component calls, configures, imports, or expects from others.",
-    )
-    incoming_api_paths: list[str] = Field(
-        default_factory=list,
-        description="How other components enter this component's API, such as direct calls, registry dispatch, REST, queues, plugins, files, or config.",
-    )
-    outgoing_api_paths: list[str] = Field(
-        default_factory=list,
-        description="How this component reaches other components' APIs, such as direct calls, registry dispatch, REST, queues, plugins, files, or config.",
-    )
-    notes: str = Field(default="", description="Short notes about the component's API role.")
-
-    def llm_str(self):
-        provided = ", ".join(ref.llm_str() for ref in self.provided_interfaces) or "none"
-        consumed = ", ".join(ref.llm_str() for ref in self.consumed_interfaces) or "none"
-        incoming = ", ".join(self.incoming_api_paths) or "none"
-        outgoing = ", ".join(self.outgoing_api_paths) or "none"
-        return (
-            f"**{self.component_name}**\n"
-            f"  Provided: {provided}\n"
-            f"  Consumed: {consumed}\n"
-            f"  Incoming API paths: {incoming}\n"
-            f"  Outgoing API paths: {outgoing}\n"
-            f"  Notes: {self.notes}"
-        )
-
-
-class ComponentApiSurfaces(LLMBaseModel):
-    """API surfaces for all components in a scope."""
-
-    api_surfaces: list[ComponentApiSurface] = Field(description="API surface for each component in this scope.")
-
-    def llm_str(self):
-        if not self.api_surfaces:
-            return "No component API surfaces found."
-        return "\n".join(surface.llm_str() for surface in self.api_surfaces)
-
-
-class ComponentRelations(LLMBaseModel):
-    """Relations discovered from component API surfaces."""
-
-    components_relations: list[Relation] = Field(description="List of relations among the components.")
-
-    def llm_str(self):
-        if not self.components_relations:
-            return "No component relations found."
-        return "\n".join(relation.llm_str() for relation in self.components_relations)
 
 
 def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_new: bool = False) -> None:
@@ -684,31 +601,6 @@ class TreePlanInsights(LLMBaseModel):
         return "# Tree plan\n" + "\n".join(f"- {group.llm_str()}" for group in self.groups)
 
 
-class FileClassification(LLMBaseModel):
-    """Classification of a file to a component."""
-
-    component_name: str = Field(description="Name of the component or module")
-    file_path: str = Field(description="Path to the file")
-
-    def llm_str(self):
-        return f"`{self.file_path}` -> Component: `{self.component_name}`"
-
-
-class ComponentFiles(LLMBaseModel):
-    """Collection of file classifications for components."""
-
-    file_paths: list[FileClassification] = Field(
-        description="All files with their classifications for each of the files assigned to a component."
-    )
-
-    def llm_str(self):
-        if not self.file_paths:
-            return "No files classified."
-        title = "# Component File Classifications\n"
-        body = "\n".join(f"- `{fc.file_path}` -> Component: `{fc.component_name}`" for fc in self.file_paths)
-        return title + body
-
-
 class ScopeOperationAction(StrEnum):
     CREATE_COMPONENT = "create_component"
     UPDATE_COMPONENT = "update_component"
@@ -763,7 +655,7 @@ class ScopeOperation(LLMBaseModel):
 
 
 class ScopeUpdateDecision(LLMBaseModel):
-    """LLM-selected operations for one incremental scope update."""
+    """Deterministic operations for one incremental scope update."""
 
     operations: list[ScopeOperation] = Field(description="Operations to apply to the current scope.")
 

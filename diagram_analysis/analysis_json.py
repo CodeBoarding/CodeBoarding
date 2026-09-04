@@ -58,8 +58,6 @@ class ComponentJson(Component):
         description="Component method references grouped by file. Each methods entry stores only qualified_name.",
         default_factory=list,
     )
-    # Exclude intermediate field from JSON output
-    source_group_names: list[str] = Field(default_factory=list, exclude=True)
     # Nested sub-analysis for expanded components
     components: list["ComponentJson"] = Field(
         description="Sub-components if expanded, empty otherwise.", default_factory=list

@@ -14,28 +14,21 @@ from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 
-from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    MetaAnalysisInsights,
     Relation,
     SourceCodeReference,
-    index_components_by_id,
 )
 from agents.component_ownership import ComponentOwnershipIndex
-from agents.details_agent import DetailsAgent
-from agents.incremental_agent import (
-    IncrementalAgent,
+from diagram_analysis.incremental_update import (
+    IncrementalUpdater,
     prune_empty_components,
     remove_deleted_files,
 )
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_llms
-from agents.llm_errors import LLMAuthError
-from agents.meta_agent import MetaAgent
-from agents.planner_agent import get_expandable_components
 from agents.relation_edges import (
     drop_misattributed_edges,
     index_relation_endpoints,
@@ -57,6 +50,7 @@ from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from diagram_analysis.incremental_changes import compute_changed_members
+from diagram_analysis.scope_assembly import ScopeAssembler
 from repo_utils.path_utils import normalize_repo_path
 from diagram_analysis.scope_plan import plan_scope_result_update
 from diagram_analysis.tree_shape import absorb_single_child_components
@@ -234,7 +228,6 @@ class _ComponentBaseline:
     name: str
     description: str
     key_entities: list[SourceCodeReference]
-    source_group_names: list[str]
     source_cluster_ids: list[str]
     member_keys: frozenset[tuple[str, str]]
     member_qnames: frozenset[str]
@@ -253,7 +246,7 @@ class _MembershipBaseline:
 
 @dataclass
 class _IncrementalPreparation:
-    """Clustering inputs prepared before incremental agents initialize."""
+    """Clustering inputs prepared before incremental updates run."""
 
     structure_changed: bool
     baseline_membership: _MembershipBaseline
@@ -321,7 +314,6 @@ def _capture_membership_baseline(
                 name=component.name,
                 description=component.description,
                 key_entities=[entity.model_copy(deep=True) for entity in component.key_entities],
-                source_group_names=list(component.source_group_names),
                 source_cluster_ids=list(component.source_cluster_ids),
                 member_keys=frozenset(keys),
                 member_qnames=frozenset(qnames),
@@ -379,7 +371,6 @@ def _restore_unchanged_metadata(
             # want re-describing, and only a component nothing touched is safe to call unchanged.
             component.name = meta.name
             component.description = meta.description
-            component.source_group_names = list(meta.source_group_names)
             unchanged_ids.add(component.component_id)
     return unchanged_ids
 
@@ -568,7 +559,6 @@ class DiagramGenerator:
         self._source_tree_fingerprint: dict[str, str] | None = None
         self._static_analyzer = static_analyzer
 
-        self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.clustering_hierarchy: ClusterScopeResult | None = None
         # The tree specification the components are drawn from: drafted by a full analysis,
@@ -576,10 +566,8 @@ class DiagramGenerator:
         self.tree_spec: TreeSpec | None = None
         self._llms: tuple[BaseChatModel, BaseChatModel] | None = None
         self._incremental_preparation: _IncrementalPreparation | None = None
-        self.abstraction_agent: AbstractionAgent | None = None
-        self.meta_agent: MetaAgent | None = None
-        self.incremental_agent: IncrementalAgent | None = None
-        self.meta_context: MetaAnalysisInsights | None = None
+        self.scope_assembler = ScopeAssembler(repo_location)
+        self.incremental_updater: IncrementalUpdater | None = None
         self.file_coverage_data: dict | None = None
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
@@ -693,7 +681,9 @@ class DiagramGenerator:
             return AffinityGrouper()
         if choice == "kinship":
             return KinshipGrouper()
-        if self._llms is None or self.static_analysis is None:
+        if self._llms is None:
+            self._llms = initialize_llms()
+        if self.static_analysis is None:
             raise PlannerUnavailableError("no LLM was initialised before clustering")
         agent_llm, parsing_llm = self._llms
         planner = TreePlannerAgent(self.repo_location, self.static_analysis, agent_llm, parsing_llm)
@@ -704,14 +694,10 @@ class DiagramGenerator:
         return self.tree_spec.to_dict() if self.tree_spec is not None else None
 
     def agent_init(self) -> None:
-        """Initialize the LLM-backed agents after deterministic analysis."""
+        """Initialize analysis helpers after deterministic analysis."""
         assert self.static_analysis is not None
-        agent_llm, parsing_llm = initialize_llms()
-        self._llms = (agent_llm, parsing_llm)
-        self._initialize_meta_agent(agent_llm, parsing_llm)
-        assert self.meta_agent is not None
-        meta_context = self.meta_agent.analyze_project_metadata(skip_cache=self.force_full_analysis)
-        self._complete_agent_initialization(meta_context, agent_llm, parsing_llm)
+        self.incremental_updater = IncrementalUpdater(self.repo_location, self.static_analysis, self.changes)
+        self._initialize_stats_writer()
 
     def prepare_analysis(
         self,
@@ -721,46 +707,17 @@ class DiagramGenerator:
         incremental: bool = False,
         persisted_scopes: Mapping[str, AnalysisInsights] = _EMPTY_PERSISTED_SCOPES,
     ) -> None:
-        """Prepare deterministic inputs, then initialize the analysis agents."""
-        if incremental:
-            self.deterministic_analysis(
-                hierarchy_depth=hierarchy_depth,
-                target_component=target_component,
-                incremental=True,
-                persisted_scopes=persisted_scopes,
-            )
-            if self._incremental_preparation and self._incremental_preparation.has_changes:
-                self.agent_init()
-            return
+        """Prepare deterministic inputs, then initialize analysis helpers."""
+        self.deterministic_analysis(
+            hierarchy_depth=hierarchy_depth,
+            target_component=target_component,
+            incremental=incremental,
+            persisted_scopes=persisted_scopes,
+        )
+        self.agent_init()
 
-        agent_llm, parsing_llm = initialize_llms()
-        self._llms = (agent_llm, parsing_llm)
-        self._initialize_meta_agent(agent_llm, parsing_llm)
-        assert self.meta_agent is not None
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            meta_future = executor.submit(
-                self.meta_agent.analyze_project_metadata,
-                skip_cache=self.force_full_analysis,
-            )
-            self.deterministic_analysis(
-                hierarchy_depth=hierarchy_depth,
-                target_component=target_component,
-                persisted_scopes=persisted_scopes,
-            )
-            meta_context = meta_future.result()
-        self._complete_agent_initialization(meta_context, agent_llm, parsing_llm)
-
-    def _complete_agent_initialization(
-        self,
-        meta_context: MetaAnalysisInsights,
-        agent_llm: BaseChatModel,
-        parsing_llm: BaseChatModel,
-    ) -> None:
-        """Initialize agents that consume both deterministic and metadata results."""
-        assert self.static_analysis is not None
-        self.meta_context = meta_context
-        self._initialize_agents(self.static_analysis, meta_context, agent_llm, parsing_llm)
-
+    def _initialize_stats_writer(self) -> None:
+        """Initialize monitoring after every active agent is known."""
         if self.monitoring_enabled:
             monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
             self.stats_writer = StreamingStatsWriter(
@@ -777,7 +734,7 @@ class DiagramGenerator:
         sub_analyses: dict[str, AnalysisInsights],
         hierarchy_depth: int,
     ) -> _IncrementalPreparation:
-        """Replay the stored specification and capture the change context before agents initialize."""
+        """Replay the stored specification and capture the incremental change context."""
         assert self.static_analysis is not None
         if self.static_analysis.incremental_base_results is None:
             error = IncrementalCacheMissingError(self.output_dir)
@@ -821,8 +778,7 @@ class DiagramGenerator:
         baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
         assert self.tree_spec is not None
         persisted = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
-        # Scopes the specification never reached are drafted without a model here: the
-        # agents, and any LLM, come up only after clustering on an incremental run.
+        # Scopes the specification never reached are drafted deterministically here.
         service = ClusteringService()
         self.clustering_hierarchy = service.build_incremental_hierarchy(
             self.static_analysis,
@@ -871,31 +827,7 @@ class DiagramGenerator:
                 scope_id: precomputed_ids(scope) for scope_id, scope in sub_analyses.items()
             }
 
-        if self.details_agent is None:
-            return None, None
-
-        def expandable_ids(scope: AnalysisInsights, parent_had_clusters: bool = True) -> list[str]:
-            ids = [
-                component.component_id
-                for component in get_expandable_components(scope, parent_had_clusters=parent_had_clusters)
-                if component.component_id
-            ]
-            chosen = set(ids)
-            ids.extend(
-                component.component_id
-                for component in scope.components
-                if component.component_id and component.component_id in sub_analyses
-                if component.component_id not in chosen
-            )
-            return ids
-
-        root_ids = expandable_ids(root_analysis)
-        component_lookup = index_components_by_id(root_analysis, sub_analyses)
-        sub_ids: dict[str, list[str]] = {}
-        for cid, sub in sub_analyses.items():
-            parent = component_lookup.get(cid)
-            sub_ids[cid] = expandable_ids(sub, parent_had_clusters=bool(parent.source_cluster_ids) if parent else True)
-        return root_ids, sub_ids
+        return None, None
 
     def _process_component(
         self, component: Component
@@ -907,15 +839,11 @@ class DiagramGenerator:
             raise ClusteringScopeUnavailableError(component.component_id, "no precomputed scope")
 
         try:
-            assert self.details_agent is not None
-            analysis, _ = self.details_agent.run(scope, component)
+            analysis = self.scope_assembler.build(scope)
+            self.scope_assembler.qualify_source_cluster_ids(analysis, component.component_id)
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
-        except LLMAuthError:
-            # A rejected key fails every component identically; don't swallow it
-            # per-component and grind through the rest — abort the whole run.
-            raise
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
             return None, None, []
@@ -949,7 +877,7 @@ class DiagramGenerator:
 
         Single chokepoint applied right before every ``save_analysis(...)`` so
         the serialized architecture honors the user's ignore rules, regardless
-        of which discovery path (LSP imports, agent clustering, plugin) added
+        of which discovery path (LSP imports, clustering, plugin) added
         a file. Other layers (file_monitor, file_coverage, function_size)
         already use ``RepoIgnoreManager``; this extends the same authority to
         the analyzer's persisted output.
@@ -1058,57 +986,6 @@ class DiagramGenerator:
         """The source-tree version key aggregated from the cached fingerprint."""
         return tree_hash_from_file_hashes(self._source_tree_fingerprint_map())
 
-    def _initialize_meta_agent(self, agent_llm: BaseChatModel, parsing_llm: BaseChatModel) -> None:
-        """Initialize the metadata agent needed before the other agents."""
-        self.meta_agent = MetaAgent(
-            repo_dir=self.repo_location,
-            project_name=self.repo_name,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-        )
-        self._monitoring_agents["MetaAgent"] = self.meta_agent
-
-    def _initialize_agents(
-        self,
-        static_analysis: StaticAnalysisResults,
-        meta_context: MetaAnalysisInsights,
-        agent_llm: BaseChatModel,
-        parsing_llm: BaseChatModel,
-    ) -> None:
-        """Initialize agents that depend on static analysis and project metadata."""
-        self.details_agent = DetailsAgent(
-            repo_dir=self.repo_location,
-            project_name=self.repo_name,
-            static_analysis=static_analysis,
-            meta_context=meta_context,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-        )
-        self.abstraction_agent = AbstractionAgent(
-            repo_dir=self.repo_location,
-            project_name=self.repo_name,
-            static_analysis=static_analysis,
-            meta_context=meta_context,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-        )
-        self.incremental_agent = IncrementalAgent(
-            repo_dir=self.repo_location,
-            static_analysis=static_analysis,
-            project_name=self.repo_name,
-            meta_context=meta_context,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-            changes=self.changes,
-        )
-        self._monitoring_agents.update(
-            {
-                "DetailsAgent": self.details_agent,
-                "AbstractionAgent": self.abstraction_agent,
-                "IncrementalAgent": self.incremental_agent,
-            }
-        )
-
     def _build_component_scope(self, component: Component, hierarchy_depth: int) -> ClusterScopeResult:
         """Precompute an exact hierarchy rooted at one persisted component ID."""
         assert self.static_analysis is not None
@@ -1205,10 +1082,6 @@ class DiagramGenerator:
 
                             logger.info("Expanded '%s' with %d new children.", comp_name, len(new_components))
 
-                    except LLMAuthError:
-                        # Rejected key: abort the whole run rather than logging one
-                        # error per component and continuing with a dead key.
-                        raise
                     except Exception:
                         stats["errors"] += 1
                         logger.exception("Component '%s' generated an exception", component.name)
@@ -1231,12 +1104,7 @@ class DiagramGenerator:
         The output is stored in a single analysis.json file in output_dir.
         Components are analyzed in parallel as soon as their parents complete.
         """
-        if (
-            self.details_agent is None
-            or self.abstraction_agent is None
-            or self.static_analysis is None
-            or self.clustering_hierarchy is None
-        ):
+        if self.static_analysis is None or self.clustering_hierarchy is None:
             self.prepare_analysis()
 
         # Start monitoring (tracks start time)
@@ -1245,9 +1113,8 @@ class DiagramGenerator:
             # Generate the initial analysis
             logger.info("Generating initial analysis")
 
-            assert self.abstraction_agent is not None
             assert self.clustering_hierarchy is not None
-            analysis = self.abstraction_agent.run(self.clustering_hierarchy)
+            analysis = self.scope_assembler.build(self.clustering_hierarchy)
             root_components = [
                 component
                 for component in analysis.components
@@ -1446,13 +1313,13 @@ class DiagramGenerator:
         sub_analyses: dict[str, AnalysisInsights],
     ) -> RecursiveScopeUpdateResult:
         """Apply persisted-scope updates by traversing one precomputed hierarchy."""
-        assert self.incremental_agent is not None
+        assert self.incremental_updater is not None
         scope = root_analysis if clustering.scope_id == ROOT_SCOPE_ID else sub_analyses.get(clustering.scope_id)
         if scope is None:
             return RecursiveScopeUpdateResult()
 
         decision = plan_scope_result_update(scope, clustering, self._changed_members)
-        applied = self.incremental_agent.update_scope(
+        applied = self.incremental_updater.update_scope(
             clustering.scope_id,
             scope,
             decision,
@@ -1492,9 +1359,7 @@ class DiagramGenerator:
                 sub_analyses,
                 self.depth_level,
             )
-            if self._incremental_preparation.has_changes and (
-                self.details_agent is None or self.incremental_agent is None
-            ):
+            if self.incremental_updater is None:
                 self.agent_init()
         assert self.static_analysis is not None
         assert self._incremental_preparation is not None
@@ -1512,8 +1377,7 @@ class DiagramGenerator:
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
-            assert self.details_agent is not None
-            assert self.incremental_agent is not None
+            assert self.incremental_updater is not None
             assert self.clustering_hierarchy is not None
             hierarchy = self.clustering_hierarchy
             baseline_membership = preparation.baseline_membership
@@ -1554,9 +1418,6 @@ class DiagramGenerator:
                 root_analysis,
                 sub_analyses,
             )
-            if created_components:
-                self.incremental_agent.detail_new_components(created_components)
-
             new_components = [
                 component
                 for component in created_components
@@ -1573,7 +1434,7 @@ class DiagramGenerator:
                 # them from the refresh set. Narrow the contexts to what actually changed, or
                 # relations between two restored components would be reworded for nothing.
                 settled = apply_result.refresh_ids | apply_result.new_component_ids | apply_result.removed_ids
-                self.incremental_agent.generate_all_scope_relations(
+                self.incremental_updater.generate_all_scope_relations(
                     root_analysis,
                     sub_analyses,
                     {
@@ -1673,12 +1534,10 @@ def _merge_sub_analyses(
     target: dict[str, AnalysisInsights],
     updates: dict[str, AnalysisInsights],
 ) -> None:
-    """Merge *updates* into *target*, preserving components the redetailer didn't touch.
+    """Merge *updates* into *target*, preserving components absent from an update.
 
-    ``_generate_subcomponents`` produces fresh sub-analyses that only contain
-    components the detailer LLM generated. In the incremental path, scoped
-    operations may have inserted brand-new components that the detailer never
-    saw because they weren't in its input scope. A plain ``dict.update()``
+    In the incremental path, scoped operations may have inserted brand-new
+    components outside the regenerated sub-analysis. A plain ``dict.update()``
     would wipe those survivors out.
 
     For each key in *updates*, we:
