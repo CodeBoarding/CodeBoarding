@@ -17,6 +17,7 @@ from agents.relation_edges import (
 )
 from agents.scope_analysis_agent import ScopeAnalysisResult
 from agents.scope_ids import ROOT_SCOPE_ID
+from diagram_analysis.scope_plan import deterministic_component_name
 from clustering_ids import CodeBoardingClusterIds
 from constants import DEFAULT_STATIC_RELATION_LABEL
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
@@ -47,7 +48,7 @@ class ScopeAssembler:
         for group in scope.groups:
             components.append(
                 Component(
-                    name=self._deterministic_name(group, taken),
+                    name=deterministic_component_name(group, taken),
                     description=self._fallback_description(scope, group),
                     key_entities=[],
                     source_cluster_ids=CodeBoardingClusterIds.from_graph_ids(set(group.cluster_ids)),
@@ -320,19 +321,6 @@ class ScopeAssembler:
                 component.source_cluster_ids,
                 CodeBoardingClusterIds.prefix_for_scope(scope_id),
             )
-
-    @staticmethod
-    def _deterministic_name(group: ClusterGroup, taken: set[str]) -> str:
-        """Name a group from the clustering rule that claimed it.
-
-        Why: the rule name is the only name a scope has before semantic analysis runs, and the
-        one it keeps when that analysis fails.
-        """
-        name = group.name.strip() or f"Component {group.group_id}"
-        if name in taken:
-            name = f"{name} {group.group_id}"
-        taken.add(name)
-        return name
 
     @staticmethod
     def _fallback_description(scope: ClusterScopeResult, group: ClusterGroup) -> str:

@@ -742,6 +742,17 @@ class DiagramGenerator:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
             return
+        missing = editable_group_ids - {component.group_id for component in semantics.components}
+        if missing:
+            logger.warning(
+                "Scope %s: semantic analysis skipped %d of %d editable groups (%s); they keep deterministic names",
+                scope.scope_id,
+                len(missing),
+                len(editable_group_ids),
+                ", ".join(sorted(missing)),
+            )
+            with self._naming_counts_lock:
+                self._scopes_unnamed += 1
         assert self.static_analysis is not None
         self.scope_assembler.apply_semantics(
             analysis,
@@ -1240,6 +1251,12 @@ class DiagramGenerator:
 
                             logger.info("Expanded '%s' with %d new children.", comp_name, len(new_components))
 
+                    except LLMAuthError:
+                        # A rejected key fails every remaining component identically; stop
+                        # scheduling more instead of saving a tree with silent holes.
+                        for pending in future_to_task:
+                            pending.cancel()
+                        raise
                     except Exception:
                         stats["errors"] += 1
                         logger.exception("Component '%s' generated an exception", component.name)

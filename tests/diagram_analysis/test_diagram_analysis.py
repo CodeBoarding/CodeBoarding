@@ -20,6 +20,7 @@ from agents.agent_responses import (
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.incremental_results import RecursiveScopeUpdateResult, ScopeRelationContext, ScopeUpdateResult
 from agents.llm_errors import LLMAuthError
+from agents.scope_analysis_agent import ScopeAnalysisResult, ScopeComponentSemantics
 from agents.relation_edges import index_relation_endpoints
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.analysis_json import (
@@ -907,6 +908,60 @@ class TestDiagramGenerator(unittest.TestCase):
             )
 
         self.assertIs(caught.exception, error)
+
+    def test_enrich_scope_counts_a_response_that_skips_editable_groups_as_a_fallback(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.static_analysis = StaticAnalysisResults()
+        gen.scope_analysis_agent = MagicMock()
+        gen.scope_analysis_agent.analyze.return_value = ScopeAnalysisResult(
+            components=[ScopeComponentSemantics(group_id="1", name="Runner", description="Runs.")]
+        )
+        gen.scope_assembler.apply_semantics = Mock()
+
+        gen._enrich_scope(
+            ClusterScopeResult(scope_id="root"),
+            AnalysisInsights(description="", components=[], components_relations=[]),
+            {"1", "2"},
+        )
+
+        self.assertEqual((gen._scopes_enriched, gen._scopes_unnamed), (1, 1))
+        gen.scope_assembler.apply_semantics.assert_called_once()
+
+    @patch("diagram_analysis.diagram_generator.save_analysis")
+    def test_generate_subcomponents_aborts_on_authentication_failure(self, mock_save_analysis):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        root = Component(name="A", description="", key_entities=[], component_id="1")
+        gen._process_component = Mock(
+            side_effect=LLMAuthError(
+                "key rejected",
+                provider="openai",
+                key_tail="1234",
+                telemetry_properties={"error_type": "auth"},
+            )
+        )
+
+        with self.assertRaises(LLMAuthError):
+            gen._generate_subcomponents(
+                AnalysisInsights(description="", components=[root], components_relations=[]), [root]
+            )
+
+        mock_save_analysis.assert_not_called()
 
     @patch("diagram_analysis.diagram_generator.get_static_analysis")
     def test_new_analyzer_honors_cache_reuse_override(self, mock_get_static_analysis):

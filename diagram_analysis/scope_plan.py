@@ -20,6 +20,22 @@ from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScope
 logger = logging.getLogger(__name__)
 
 
+def deterministic_component_name(group: ClusterGroup, taken: set[str]) -> str:
+    """Name a group from the clustering rule that claimed it, unique among ``taken``.
+
+    Why: the rule name is the only name a scope has before semantic analysis runs, and the
+    one it keeps when that analysis fails or skips the group.
+    """
+    base = group.name.strip() or f"Component {group.group_id}"
+    name = base
+    suffix = 1
+    while name in taken:
+        suffix += 1
+        name = f"{base} {group.group_id}" if suffix == 2 else f"{base} {group.group_id} {suffix - 1}"
+    taken.add(name)
+    return name
+
+
 def plan_scope_result_update(
     scope: AnalysisInsights,
     clustering: ClusterScopeResult,
@@ -83,6 +99,7 @@ def _plan_scope_operations(
     operations: list[ScopeOperation] = []
     kept: set[str] = set()
     untouched = 0
+    sibling_names = {component.name for component in scope.components if component.component_id}
     for cluster_group in groups:
         group = set(cluster_group.cluster_ids)
         owner = cluster_group.previous_component_id
@@ -124,7 +141,7 @@ def _plan_scope_operations(
                     # The specification allocated this id; the component must keep it or the
                     # next replay would not recognise its own rule.
                     component_id=cluster_group.group_id,
-                    name=f"Component {cluster_group.group_id}",
+                    name=deterministic_component_name(cluster_group, sibling_names),
                     description=_provisional_description(group, combined),
                     rationale="clusters with no predecessor in this scope",
                 )

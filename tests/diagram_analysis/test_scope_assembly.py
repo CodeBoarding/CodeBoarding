@@ -190,6 +190,16 @@ class TestScopeAssembler(unittest.TestCase):
             ["Storage", "Storage 2", "Component 3"],
         )
 
+    def test_keeps_suffixing_until_the_name_is_free(self) -> None:
+        scope = _scope(names={"1": "Storage", "2": "Storage 3", "3": "Storage"})
+
+        analysis = ScopeAssembler(Path("/repo")).build(scope)
+
+        self.assertEqual(
+            [component.name for component in analysis.components],
+            ["Storage", "Storage 3", "Storage 3 2"],
+        )
+
     def test_keeps_existing_key_entities_when_semantics_omit_them(self) -> None:
         scope = _scope()
         assembler = ScopeAssembler(Path("/repo"))
