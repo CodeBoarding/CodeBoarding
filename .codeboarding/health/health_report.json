@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-04T19:59:04.857927+00:00",
-  "overall_score": 0.8668769716088328,
+  "timestamp": "2026-09-04T22:49:47.055139+00:00",
+  "overall_score": 0.8669609079445145,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1374,
+      "total_entities_checked": 1375,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -828,20 +828,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 434,
-              "line_end": 434,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 447,
-              "line_end": 447,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"_exc\" is not accessed",
               "file_path": "agents/retry.py",
               "line_start": 40,
@@ -849,87 +835,101 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 128,
-              "line_end": 128,
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 440,
+              "line_end": 440,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 453,
+              "line_end": 453,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_path\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 179,
-              "line_end": 179,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 283,
-              "line_end": 283,
+              "line_start": 129,
+              "line_end": 129,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_path\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 365,
-              "line_end": 365,
+              "line_start": 180,
+              "line_end": 180,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 341,
-              "line_end": 341,
+              "line_start": 284,
+              "line_end": 284,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 366,
+              "line_end": 366,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 398,
-              "line_end": 398,
+              "line_start": 342,
+              "line_end": 342,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 399,
+              "line_end": 399,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 477,
-              "line_end": 477,
+              "line_start": 478,
+              "line_end": 478,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_path\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 500,
-              "line_end": 500,
+              "line_start": 501,
+              "line_end": 501,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 485,
-              "line_end": 485,
+              "line_start": 486,
+              "line_end": 486,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 885,
-              "line_end": 885,
+              "line_start": 908,
+              "line_end": 908,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_expanded_components\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1272,
-              "line_end": 1272,
+              "line_start": 1305,
+              "line_end": 1305,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1310,
-              "line_end": 1310,
+              "line_start": 1343,
+              "line_end": 1343,
               "metric_value": 0.0
             }
           ]
