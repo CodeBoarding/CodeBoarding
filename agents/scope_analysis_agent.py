@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Sequence
 from pathlib import Path
 
 from langchain.agents import create_agent
+from langchain.agents.structured_output import ToolStrategy
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import Field, ValidationError
+from pydantic import Field
 
 from agents.agent_responses import AnalysisInsights, LLMBaseModel, RelationEdge, SourceCodeReference
 from agents.llm_config import MONITORING_CALLBACK, get_current_prompt_profile
@@ -30,12 +30,6 @@ logger = logging.getLogger(__name__)
 MAX_SCOPE_TOOL_CALLS = 6
 MAX_SCOPE_MODEL_CALLS = 8
 SCOPE_RECURSION_LIMIT = 40
-
-#: Sent once, without tools, when the bounded run did not end in a usable JSON object.
-JSON_RECOVERY_MESSAGE = (
-    "Your previous message did not contain the JSON object. Reply now with exactly one JSON object "
-    "in the requested shape and nothing else — no prose, no markdown fences."
-)
 
 
 class ScopeComponentSemantics(LLMBaseModel):
@@ -110,7 +104,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
         incremental: bool = False,
         enclosing_names: Sequence[str] = (),
     ) -> ScopeAnalysisResult | None:
-        """Run one bounded semantic analysis, returning no result for malformed output."""
+        """Run one bounded semantic analysis; None when the run ended without the structured answer."""
         context = RepoContext(
             repo_dir=self.repo_dir,
             static_analysis=self.static_analysis,
@@ -129,6 +123,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
             tools=tools,
             system_prompt=self.system_prompt,
             middleware=middleware,
+            response_format=ToolStrategy(ScopeAnalysisResult),
         )
         scope_context = render_scope_context(
             scope,
@@ -151,57 +146,8 @@ class ScopeAnalysisAgent(MonitoringMixin):
         except Exception as error:
             raise_if_auth_error(error)
             raise
-        messages = response.get("messages", [])
-        result = self._parse(self._last_response_text(messages), scope.scope_id)
-        if result is None:
-            logger.info("Scope %s: asking once more for the JSON object", scope.scope_id)
-            result = self._parse(self._recover_json(messages), scope.scope_id)
-        return result
-
-    def _recover_json(self, messages: list) -> str:
-        """One tool-free completion over the transcript, asking for the object alone."""
-        try:
-            answer = self.agent_llm.invoke(
-                [*messages, HumanMessage(content=JSON_RECOVERY_MESSAGE)],
-                config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
-            )
-        except Exception as error:
-            raise_if_auth_error(error)
-            logger.warning("JSON recovery call failed: %s", error)
-            return ""
-        return self._last_response_text([answer])
-
-    @classmethod
-    def _parse(cls, text: str, scope_id: str) -> ScopeAnalysisResult | None:
-        try:
-            return ScopeAnalysisResult.model_validate_json(cls._json_object(text))
-        except (json.JSONDecodeError, ValidationError, ValueError) as error:
-            logger.warning("Scope %s returned unusable semantic output: %s", scope_id, error)
+        result = response.get("structured_response")
+        if not isinstance(result, ScopeAnalysisResult):
+            logger.warning("Scope %s ended without a structured answer", scope.scope_id)
             return None
-
-    @staticmethod
-    def _last_response_text(messages: list) -> str:
-        """Extract text from the final model response across provider content formats."""
-        message = next((item for item in reversed(messages) if isinstance(item, AIMessage)), None)
-        if message is None:
-            return ""
-        if isinstance(message.content, str):
-            return message.content
-        parts: list[str] = []
-        for block in message.content:
-            if isinstance(block, str):
-                parts.append(block)
-            elif isinstance(block, dict):
-                text = block.get("text") or block.get("output_text")
-                if isinstance(text, str):
-                    parts.append(text)
-        return "".join(parts)
-
-    @staticmethod
-    def _json_object(text: str) -> str:
-        """Extract the outer JSON object without invoking a second model."""
-        start = text.find("{")
-        end = text.rfind("}")
-        if start < 0 or end < start:
-            raise ValueError("response contains no JSON object")
-        return text[start : end + 1]
+        return result

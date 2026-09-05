@@ -5,20 +5,22 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
+from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models import BaseChatModel, LanguageModelInput
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 
 from agents.agent_responses import AnalysisInsights, Component
 from agents.llm_errors import LLMAuthError
 from agents.scope_analysis_agent import (
-    JSON_RECOVERY_MESSAGE,
     MAX_SCOPE_MODEL_CALLS,
     MAX_SCOPE_TOOL_CALLS,
     SCOPE_RECURSION_LIMIT,
     ScopeAnalysisAgent,
+    ScopeAnalysisResult,
+    ScopeComponentSemantics,
 )
 from agents.tools import MethodCallsTool, ReadFileTool
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -65,20 +67,20 @@ def _inputs() -> tuple[StaticAnalysisResults, ClusterScopeResult, AnalysisInsigh
     return static_analysis, scope, analysis
 
 
+def _answer() -> ScopeAnalysisResult:
+    return ScopeAnalysisResult(
+        description="scope",
+        components=[ScopeComponentSemantics(group_id="1", name="Runner", description="Runs work")],
+        relations=[],
+    )
+
+
 class TestScopeAnalysisAgent(unittest.TestCase):
     @patch("agents.scope_analysis_agent.create_agent")
     def test_exposes_only_scoped_file_and_method_tools_with_runtime_limits(self, create_agent):
         static_analysis, scope, analysis = _inputs()
         runtime = MagicMock()
-        runtime.invoke.return_value = {
-            "messages": [
-                AIMessage(
-                    content='{"description":"scope","components":['
-                    '{"group_id":"1","name":"Runner","description":"Runs work","key_entities":[]}],'
-                    '"relations":[]}'
-                )
-            ]
-        }
+        runtime.invoke.return_value = {"messages": [AIMessage(content="")], "structured_response": _answer()}
         create_agent.return_value = runtime
         agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, MagicMock(spec=BaseChatModel))
 
@@ -87,6 +89,9 @@ class TestScopeAnalysisAgent(unittest.TestCase):
         self.assertIsNotNone(result)
         assert result is not None
         self.assertEqual(result.components[0].name, "Runner")
+        response_format = create_agent.call_args.kwargs["response_format"]
+        self.assertIsInstance(response_format, ToolStrategy)
+        self.assertIs(response_format.schema, ScopeAnalysisResult)
         tools = create_agent.call_args.kwargs["tools"]
         self.assertEqual([type(tool) for tool in tools], [ReadFileTool, MethodCallsTool])
         self.assertEqual([tool.name for tool in tools], ["readFile", "getMethodCalls"])
@@ -135,9 +140,15 @@ class TestScopeAnalysisAgent(unittest.TestCase):
             for index in range(MAX_SCOPE_TOOL_CALLS + 1)
         ]
         final_response = AIMessage(
-            content='{"description":"scope","components":['
-            '{"group_id":"1","name":"Runner","description":"Runs work","key_entities":[]}],'
-            '"relations":[]}'
+            content="",
+            tool_calls=[
+                {
+                    "name": "ScopeAnalysisResult",
+                    "args": _answer().model_dump(),
+                    "id": "final",
+                    "type": "tool_call",
+                }
+            ],
         )
         model = ToolCallingFakeModel(responses=[*tool_requests, final_response])
 
@@ -147,33 +158,20 @@ class TestScopeAnalysisAgent(unittest.TestCase):
         self.assertEqual(read_file.call_count, MAX_SCOPE_TOOL_CALLS)
 
     @patch("agents.scope_analysis_agent.create_agent")
-    def test_asks_once_more_when_the_run_ended_without_a_json_object(self, create_agent):
+    def test_returns_none_when_the_run_ended_without_a_structured_answer(self, create_agent):
         static_analysis, scope, analysis = _inputs()
         runtime = MagicMock()
-        runtime.invoke.return_value = {
-            "messages": [HumanMessage(content="analyze"), AIMessage(content="Done {no object here}.")]
-        }
+        runtime.invoke.return_value = {"messages": [AIMessage(content="Done.")], "structured_response": None}
         create_agent.return_value = runtime
-        llm = MagicMock(spec=BaseChatModel)
-        llm.invoke.return_value = AIMessage(
-            content='{"description":"scope","components":['
-            '{"group_id":"1","name":"Runner","description":"Runs work","key_entities":[]}],"relations":[]}'
-        )
-        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, llm)
+        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, MagicMock(spec=BaseChatModel))
 
-        result = agent.analyze(scope, analysis, {"1"})
-
-        assert result is not None
-        self.assertEqual(result.components[0].name, "Runner")
-        sent = llm.invoke.call_args.args[0]
-        self.assertEqual([type(m) for m in sent], [HumanMessage, AIMessage, HumanMessage])
-        self.assertEqual(sent[-1].content, JSON_RECOVERY_MESSAGE)
+        self.assertIsNone(agent.analyze(scope, analysis, {"1"}))
 
     @patch("agents.scope_analysis_agent.create_agent")
     def test_passes_the_enclosing_names_to_the_renderer(self, create_agent):
         static_analysis, scope, analysis = _inputs()
         runtime = MagicMock()
-        runtime.invoke.return_value = {"messages": [AIMessage(content='{"components":[],"relations":[]}')]}
+        runtime.invoke.return_value = {"messages": [], "structured_response": _answer()}
         create_agent.return_value = runtime
         agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, MagicMock(spec=BaseChatModel))
 
@@ -181,16 +179,3 @@ class TestScopeAnalysisAgent(unittest.TestCase):
 
         prompt = runtime.invoke.call_args.args[0]["messages"][0].content
         self.assertIn('"enclosing_components": [\n    "Engine"\n  ]', prompt)
-
-    @patch("agents.scope_analysis_agent.create_agent")
-    def test_returns_none_when_the_recovery_answer_is_malformed_too(self, create_agent):
-        static_analysis, scope, analysis = _inputs()
-        runtime = MagicMock()
-        runtime.invoke.return_value = {"messages": [AIMessage(content='{"components": [')]}
-        create_agent.return_value = runtime
-        llm = MagicMock(spec=BaseChatModel)
-        llm.invoke.return_value = AIMessage(content="still not JSON")
-        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, llm)
-
-        self.assertIsNone(agent.analyze(scope, analysis, {"1"}))
-        self.assertEqual(llm.invoke.call_count, 1)
