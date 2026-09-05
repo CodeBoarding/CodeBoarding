@@ -5,8 +5,20 @@ import unittest
 import shutil
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager
+from constants import CODEBOARDINGIGNORE_FILENAME
+from repo_utils.ignore import CODEBOARDINGIGNORE_TEMPLATE, RepoIgnoreManager, initialize_codeboardingignore
 from utils import CODEBOARDING_DIR_NAME
+
+
+def test_initialize_codeboardingignore_uses_repository_path(tmp_path: Path) -> None:
+    custom_output_dir = tmp_path / "custom-output"
+    custom_output_dir.mkdir()
+
+    initialize_codeboardingignore(tmp_path)
+
+    ignore_path = tmp_path / CODEBOARDING_DIR_NAME / CODEBOARDINGIGNORE_FILENAME
+    assert ignore_path.read_text(encoding="utf-8") == CODEBOARDINGIGNORE_TEMPLATE
+    assert not (custom_output_dir / CODEBOARDINGIGNORE_FILENAME).exists()
 
 
 class TestRepoIgnoreManagerRealWorldScenario(unittest.TestCase):
