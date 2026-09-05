@@ -169,6 +169,19 @@ class TestFullHierarchy(unittest.TestCase):
         csharp.add_reference_edge(ReferenceEdge("B", "B.Run()", EdgeKind.CONTAINS))
         self.assertEqual(unit_links({"csharp": csharp}), {(str(REPO / "a.cs"), str(REPO / "b.cs")): 2})
 
+    def test_a_rule_whose_units_own_no_callable_or_class_is_not_drawn(self):
+        layout = eshop() | {f"src/Assets/Asset{i}.cs": [f"Assets.asset{i}_var"] for i in range(6)}
+        hierarchy = ClusteringService().build_full_hierarchy(analysis_for(graph("csharp", layout)), max_depth=2)
+
+        def visit(scope: ClusterScopeResult) -> None:
+            for group in scope.groups:
+                self.assertTrue(any(group.symbol_members_by_language.values()), f"{group.group_id} owns nothing")
+                if group.children is not None:
+                    visit(group.children)
+
+        visit(hierarchy)
+        self.assertNotIn("Assets", {group.name for group in hierarchy.groups})
+
     def test_connections_come_from_the_graph(self):
         edges = [("Catalog.API.Model.CatalogType0.Run()", "Ordering.API.Apis.OrderingType0.Run()")]
         hierarchy = ClusteringService().build_full_hierarchy(analysis_for(graph("csharp", eshop(), edges)), max_depth=1)

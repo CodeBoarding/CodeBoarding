@@ -38,6 +38,8 @@ from agents.relation_edges import (
     prune_ungrounded_edges,
 )
 from agents.scope_ids import ROOT_SCOPE_ID
+from clustering_ids import CodeBoardingClusterIds
+from constants import ROOT_DOCUMENT_NAMES
 from agents.scope_analysis_agent import ScopeAnalysisAgent
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
@@ -55,6 +57,7 @@ from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, wri
 from diagram_analysis.incremental_changes import compute_changed_members
 from diagram_analysis.scope_assembly import ScopeAssembler
 from repo_utils.path_utils import normalize_repo_path
+from utils import sanitize
 from diagram_analysis.scope_plan import plan_scope_result_update
 from diagram_analysis.tree_shape import absorb_single_child_components
 from health.config import initialize_health_dir, load_health_config
@@ -504,6 +507,47 @@ def _incremental_changed_component_ids(
     return changed
 
 
+def distinguish_expanded_component_names(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> list[tuple[str, str, str]]:
+    """Give every expanded component a distinct document name; returns ``(id, old, new)`` per rename.
+
+    Why: renderers write the root under a fixed name and one document per expanded component
+    under ``sanitize(name)``, case-insensitively; scopes named in parallel can still collide.
+    """
+    scopes = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
+    expanded = {
+        component.component_id: component
+        for scope_analysis in scopes.values()
+        for component in scope_analysis.components
+        if component.component_id in sub_analyses
+    }
+    renamed: list[tuple[str, str, str]] = []
+    taken = {sanitize(name).casefold() for name in ROOT_DOCUMENT_NAMES}
+    for component_id in CodeBoardingClusterIds.sort(set(expanded)):
+        component = expanded[component_id]
+        key = sanitize(component.name).casefold()
+        if key not in taken:
+            taken.add(key)
+            continue
+        new_name = f"{component.name} ({component_id})"
+        while sanitize(new_name).casefold() in taken:
+            new_name += "_"
+        taken.add(sanitize(new_name).casefold())
+        old_name = component.name
+        component.name = new_name
+        for scope_analysis in scopes.values():
+            for relation in scope_analysis.components_relations:
+                if relation.src_id == component_id and relation.src_name == old_name:
+                    relation.src_name = new_name
+                if relation.dst_id == component_id and relation.dst_name == old_name:
+                    relation.dst_name = new_name
+        renamed.append((component_id, old_name, new_name))
+        logger.warning("Expanded components would share document '%s'; renamed %s to %r", key, component_id, new_name)
+    return renamed
+
+
 class DiagramGenerator:
     def __init__(
         self,
@@ -576,6 +620,8 @@ class DiagramGenerator:
         self._naming_counts_lock = threading.Lock()
         self._scopes_enriched = 0
         self._scopes_unnamed = 0
+        # Settled component names by id, so a child scope is told the names it sits inside.
+        self._names_by_id: dict[str, str] = {}
         self.incremental_updater: IncrementalUpdater | None = None
         self.file_coverage_data: dict | None = None
 
@@ -636,6 +682,7 @@ class DiagramGenerator:
             # A partial run expands one component of an existing analysis, so it replays the
             # specification that analysis was drawn from rather than drafting a new one.
             self.tree_spec = self._stored_tree_spec()
+            self._record_partial_names(target_component, persisted_scopes)
             scope = self._build_component_scope(target_component, depth)
             self.clustering_hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
             self.clustering_hierarchy.register_scope(target_component.component_id, scope)
@@ -718,8 +765,24 @@ class DiagramGenerator:
         incremental: bool = False,
     ) -> None:
         """Apply bounded semantic enrichment while preserving deterministic scope structure."""
-        if not editable_group_ids:
-            return
+        try:
+            if editable_group_ids:
+                self._apply_scope_semantics(
+                    scope, analysis, editable_group_ids, locked_name_ids, changed_files, incremental
+                )
+        finally:
+            self._record_names(analysis)
+
+    def _apply_scope_semantics(
+        self,
+        scope: ClusterScopeResult,
+        analysis: AnalysisInsights,
+        editable_group_ids: set[str],
+        locked_name_ids: frozenset[str],
+        changed_files: frozenset[str],
+        incremental: bool,
+    ) -> None:
+        enclosing_names = self._enclosing_names(scope.scope_id)
         with self._naming_counts_lock:
             self._scopes_enriched += 1
         try:
@@ -730,14 +793,13 @@ class DiagramGenerator:
                 locked_name_ids,
                 changed_files,
                 incremental,
+                enclosing_names=enclosing_names,
             )
         except LLMAuthError:
             raise
         except Exception:
             logger.exception("Semantic analysis failed for scope %s; retaining deterministic output", scope.scope_id)
-            with self._naming_counts_lock:
-                self._scopes_unnamed += 1
-            return
+            semantics = None
         if semantics is None:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
@@ -750,6 +812,7 @@ class DiagramGenerator:
             editable_group_ids,
             set(locked_name_ids),
             StaticReferenceResolver(self.repo_location, self.static_analysis),
+            reserved_names=enclosing_names,
         )
         if unnamed:
             logger.warning(
@@ -762,6 +825,30 @@ class DiagramGenerator:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
 
+    def _record_names(self, analysis: AnalysisInsights) -> None:
+        with self._naming_counts_lock:
+            for component in analysis.components:
+                if component.component_id:
+                    self._names_by_id[component.component_id] = component.name
+
+    def _record_partial_names(
+        self, target_component: Component, persisted_scopes: Mapping[str, AnalysisInsights]
+    ) -> None:
+        """A partial run names inside an existing tree; its children must know that tree's names."""
+        for scope_analysis in persisted_scopes.values():
+            self._record_names(scope_analysis)
+        with self._naming_counts_lock:
+            self._names_by_id[target_component.component_id] = target_component.name
+
+    def _enclosing_names(self, scope_id: str) -> tuple[str, ...]:
+        """The names of the components a scope sits inside, outermost first."""
+        if scope_id == ROOT_SCOPE_ID:
+            return ()
+        parts = scope_id.split(".")
+        with self._naming_counts_lock:
+            names = [self._names_by_id.get(".".join(parts[: index + 1])) for index in range(len(parts))]
+        return tuple(name for name in names if name)
+
     def _enrich_incremental_scopes(
         self,
         hierarchy: ClusterScopeResult,
@@ -772,6 +859,9 @@ class DiagramGenerator:
         skip_scope_ids: frozenset[str] = frozenset(),
     ) -> None:
         """Re-run semantic analysis only for scopes containing changed groups or files."""
+        self._record_names(root_analysis)
+        for scope_analysis in sub_analyses.values():
+            self._record_names(scope_analysis)
         changed_files = self._incremental_changed_files(root_analysis)
         for scope in self._cluster_scopes(hierarchy):
             if scope.scope_id in skip_scope_ids:
@@ -1388,6 +1478,7 @@ class DiagramGenerator:
         if self.tree_spec is not None:
             self.tree_spec.reroot(absorbed_ids)
         assert_scope_containment(root_analysis, sub_analyses)
+        distinguish_expanded_component_names(root_analysis, sub_analyses)
 
     def finalize_and_save(
         self,
