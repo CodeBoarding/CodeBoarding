@@ -104,9 +104,8 @@ class ScopeAssembler:
         """Apply valid semantic fields without changing deterministic structure.
 
         Returns the editable groups that ended up without a semantic name, so the caller can
-        report a scope the model only partly named. ``reserved_names`` are taken before any
-        proposal is: the names of the components this scope sits inside, so a child cannot be
-        named after its parent (each expanded component writes a document under its name).
+        report a scope the model only partly named. ``reserved_names`` (the enclosing
+        components) are taken before any proposal, so a child is never named after its parent.
         """
         components = {component.component_id: component for component in analysis.components}
         groups_by_id = {group.group_id: group for group in scope.groups}
@@ -350,11 +349,9 @@ class ScopeAssembler:
 
     @staticmethod
     def _fallback_description(scope: ClusterScopeResult, group: ClusterGroup, repo_dir: Path) -> str:
-        """What a component says about itself when semantic analysis skipped or failed it.
+        """The description a component keeps when semantic analysis skipped or failed it.
 
-        Repository-relative paths, deliberately: this text ships in analysis.json, and the
-        graph's file paths are absolute — a run in the extension would print the user's
-        disk layout and a run in the action the runner's temp directory.
+        Why relative paths: this text ships in analysis.json; the graph's paths are absolute.
         """
         files = sorted(
             {

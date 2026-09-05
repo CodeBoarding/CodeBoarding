@@ -172,16 +172,12 @@ class TestScopeAssembler(unittest.TestCase):
         )
 
     def test_fallback_descriptions_name_files_relative_to_the_repository(self) -> None:
-        """This text ships in analysis.json when semantic analysis fails; the graph's paths
-        are absolute, and a run once printed the runner's temp directory eight times over."""
         analysis = ScopeAssembler(Path("/repo")).build(_scope(absolute=True))
 
         self.assertEqual(analysis.components[0].description, "Owns 1 symbols across 1 files: src/1.py.")
         self.assertNotIn("/repo", analysis.components[0].description)
 
     def test_a_proposal_cannot_take_an_enclosing_components_name(self) -> None:
-        """Each expanded component writes a document under its name, so a child named after
-        its parent overwrites the parent's document."""
         scope = _scope(names={"1": "engine", "2": "adapters"})
         assembler = ScopeAssembler(Path("/repo"))
         analysis = assembler.build(scope)

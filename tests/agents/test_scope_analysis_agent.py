@@ -148,11 +148,11 @@ class TestScopeAnalysisAgent(unittest.TestCase):
 
     @patch("agents.scope_analysis_agent.create_agent")
     def test_asks_once_more_when_the_run_ended_without_a_json_object(self, create_agent):
-        """Kimi ended four of eleven Hono scopes in prose; one tool-free completion over the
-        transcript recovers the object, and the scope keeps its names instead of its rules."""
         static_analysis, scope, analysis = _inputs()
         runtime = MagicMock()
-        runtime.invoke.return_value = {"messages": [HumanMessage(content="analyze"), AIMessage(content="Done.")]}
+        runtime.invoke.return_value = {
+            "messages": [HumanMessage(content="analyze"), AIMessage(content="Done {no object here}.")]
+        }
         create_agent.return_value = runtime
         llm = MagicMock(spec=BaseChatModel)
         llm.invoke.return_value = AIMessage(
@@ -183,11 +183,14 @@ class TestScopeAnalysisAgent(unittest.TestCase):
         self.assertIn('"enclosing_components": [\n    "Engine"\n  ]', prompt)
 
     @patch("agents.scope_analysis_agent.create_agent")
-    def test_returns_none_for_malformed_model_output(self, create_agent):
+    def test_returns_none_when_the_recovery_answer_is_malformed_too(self, create_agent):
         static_analysis, scope, analysis = _inputs()
         runtime = MagicMock()
-        runtime.invoke.return_value = {"messages": [AIMessage(content="not JSON")]}
+        runtime.invoke.return_value = {"messages": [AIMessage(content='{"components": [')]}
         create_agent.return_value = runtime
-        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, MagicMock(spec=BaseChatModel))
+        llm = MagicMock(spec=BaseChatModel)
+        llm.invoke.return_value = AIMessage(content="still not JSON")
+        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, llm)
 
         self.assertIsNone(agent.analyze(scope, analysis, {"1"}))
+        self.assertEqual(llm.invoke.call_count, 1)

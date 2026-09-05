@@ -31,10 +31,7 @@ MAX_SCOPE_TOOL_CALLS = 6
 MAX_SCOPE_MODEL_CALLS = 8
 SCOPE_RECURSION_LIMIT = 40
 
-#: Asked once, without tools, when the bounded run ended in prose instead of the object.
-#: Measured on Hono with Kimi-K2.6: four of eleven scopes ended that way in one run and the
-#: scope then shipped its deterministic names; one plain completion over the same transcript
-#: is far cheaper than losing the scope.
+#: Sent once, without tools, when the bounded run did not end in a usable JSON object.
 JSON_RECOVERY_MESSAGE = (
     "Your previous message did not contain the JSON object. Reply now with exactly one JSON object "
     "in the requested shape and nothing else — no prose, no markdown fences."
@@ -155,15 +152,11 @@ class ScopeAnalysisAgent(MonitoringMixin):
             raise_if_auth_error(error)
             raise
         messages = response.get("messages", [])
-        text = self._last_response_text(messages)
-        if "{" not in text:
-            logger.info("Scope %s answered without a JSON object; asking once more for it", scope.scope_id)
-            text = self._recover_json(messages)
-        try:
-            return ScopeAnalysisResult.model_validate_json(self._json_object(text))
-        except (json.JSONDecodeError, ValidationError, ValueError) as error:
-            logger.warning("Scope %s returned unusable semantic output: %s", scope.scope_id, error)
-            return None
+        result = self._parse(self._last_response_text(messages), scope.scope_id)
+        if result is None:
+            logger.info("Scope %s: asking once more for the JSON object", scope.scope_id)
+            result = self._parse(self._recover_json(messages), scope.scope_id)
+        return result
 
     def _recover_json(self, messages: list) -> str:
         """One tool-free completion over the transcript, asking for the object alone."""
@@ -177,6 +170,14 @@ class ScopeAnalysisAgent(MonitoringMixin):
             logger.warning("JSON recovery call failed: %s", error)
             return ""
         return self._last_response_text([answer])
+
+    @classmethod
+    def _parse(cls, text: str, scope_id: str) -> ScopeAnalysisResult | None:
+        try:
+            return ScopeAnalysisResult.model_validate_json(cls._json_object(text))
+        except (json.JSONDecodeError, ValidationError, ValueError) as error:
+            logger.warning("Scope %s returned unusable semantic output: %s", scope_id, error)
+            return None
 
     @staticmethod
     def _last_response_text(messages: list) -> str:

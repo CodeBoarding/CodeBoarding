@@ -205,9 +205,6 @@ class TestRenderScopeContext(unittest.TestCase):
         self.assertEqual(payload["existing_relations"][0]["relation"], "submits to")
 
     def test_a_dense_pair_is_a_count_and_a_few_examples_not_every_edge(self):
-        """Gson's root scope carried 2,980 cross-group edges; rendered one object each they were
-        1.56 M of a 1.68 M-character prompt, more than a 262k-token model accepts, and the whole
-        scope shipped with rule names. The count carries the weight; five edges carry the symbols."""
         graph = CallGraph(language="python")
         edges = []
         for index in range(40):

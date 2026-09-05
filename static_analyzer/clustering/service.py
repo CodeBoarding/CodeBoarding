@@ -199,10 +199,8 @@ class ClusteringService:
             members = partition.members.get(rule.component_id, [])
             if not members:
                 continue
-            # Every name voted; the members the agents own are the callables and classes. A
-            # rule whose units carry none — data-only files, a TSX file of constants — would
-            # become a component that owns no file, and a box with nothing in it is not a
-            # component: the diagram stays whole without it, its units draw nothing anyway.
+            # Every name voted; the members the agents own are the callables and classes.
+            # Why skip a rule without any: its component would own no file and draw nothing.
             owned_by_language: dict[str, set[str]] = {}
             for unit in members:
                 nodes = graphs[unit.language].nodes

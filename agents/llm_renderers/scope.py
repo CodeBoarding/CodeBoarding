@@ -12,9 +12,10 @@ from agents.agent_responses import AnalysisInsights
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg.edge import EdgeKind
 from static_analyzer.clustering import ClusterConnectionEdge, ClusterGroup, ClusterScopeResult
+from static_analyzer.node import Node
 
-#: How many example edges a directed group pair shows the model. The count is always
-#: given; the examples exist so a relation's ``key_edges`` can cite exact symbols.
+#: Example edges per directed group pair; the count is always given, the examples let
+#: a relation's ``key_edges`` cite exact symbols.
 MAX_EXAMPLE_EDGES = 5
 
 
@@ -30,10 +31,8 @@ def render_scope_context(
 ) -> str:
     """Return complete group files, boundary candidates, and known calls as JSON.
 
-    ``enclosing_names`` are the names of the components this scope sits inside, outermost
-    first. They are shown so the model does not name a child after its parent: a document
-    is written per expanded component under its sanitised name, so a repeated name is two
-    documents on one path.
+    ``enclosing_names``: the components this scope sits inside, outermost first, so the
+    model does not name a child after its parent.
     """
     boundary_reasons = _boundary_reasons(scope, repo_dir)
     components = {component.component_id: component for component in analysis.components}
@@ -127,14 +126,10 @@ def _group_file_reasons(
 
 
 def _known_connections(scope: ClusterScopeResult, repo_dir: Path) -> list[dict[str, Any]]:
-    """One entry per directed group pair: how many distinct calls, and a few of them in full.
+    """One entry per directed group pair: the number of distinct calls and a few in full.
 
-    Why not every edge: a dense scope has thousands of cross-group calls, and rendering
-    each as its own object made the Gson root prompt 1.68 M characters — 93% of it this
-    list — which is more than a 262k-token model accepts. The scope agent then failed
-    outright and the whole scope shipped with its deterministic names and template
-    descriptions. The count is what the model needs to label a connection; the examples
-    are what it needs to cite exact symbols in ``key_edges``.
+    Why: a dense scope has thousands of cross-group calls, and one object per edge exceeds
+    a model's context; the count labels the connection, the examples name exact symbols.
     """
     by_pair: dict[tuple[str, str], list[ClusterConnectionEdge]] = defaultdict(list)
     for connection in scope.connections:
@@ -168,10 +163,14 @@ def _example(edge: ClusterConnectionEdge, scope: ClusterScopeResult, repo_dir: P
     target = graph.nodes.get(edge.target_qualified_name) if graph is not None else None
     return {
         "source": edge.source_qualified_name,
-        "source_at": f"{normalize_repo_path(source.file_path, repo_dir)}:{source.line_start}" if source else "",
+        "source_at": _location(source, repo_dir),
         "target": edge.target_qualified_name,
-        "target_at": f"{normalize_repo_path(target.file_path, repo_dir)}:{target.line_start}" if target else "",
+        "target_at": _location(target, repo_dir),
     }
+
+
+def _location(node: Node | None, repo_dir: Path) -> str:
+    return f"{normalize_repo_path(node.file_path, repo_dir)}:{node.line_start}" if node is not None else ""
 
 
 def _boundary_reasons(

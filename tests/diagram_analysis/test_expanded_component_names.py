@@ -1,9 +1,8 @@
-"""Two expanded components that sanitise to one document name overwrite each other."""
-
 import unittest
 
 from agents.agent_responses import AnalysisInsights, Component, Relation
 from diagram_analysis.diagram_generator import distinguish_expanded_component_names
+from utils import sanitize
 
 
 def _component(component_id: str, name: str) -> Component:
@@ -40,6 +39,45 @@ class TestDistinguishExpandedComponentNames(unittest.TestCase):
         self.assertEqual(one.components_relations[0].src_name, "Static Analysis Engine (1.1)")
         # A leaf may share the name: it writes no document of its own.
         self.assertEqual(one_one.components[0].name, "Static Analysis Engine")
+
+    def test_names_that_differ_only_in_case_collide_as_the_renderer_sees_them(self) -> None:
+        root = AnalysisInsights(
+            description="", components=[_component("1", "API"), _component("2", "api")], components_relations=[]
+        )
+        subs = {key: AnalysisInsights(description="", components=[], components_relations=[]) for key in ("1", "2")}
+
+        distinguish_expanded_component_names(root, subs)
+
+        self.assertEqual([c.name for c in root.components], ["API", "api (2)"])
+
+    def test_a_suffixed_name_that_is_itself_taken_is_suffixed_again(self) -> None:
+        root = AnalysisInsights(
+            description="",
+            components=[_component("1", "Core"), _component("2", "Core"), _component("3", "Core (2)")],
+            components_relations=[],
+        )
+        subs = {key: AnalysisInsights(description="", components=[], components_relations=[]) for key in "123"}
+
+        distinguish_expanded_component_names(root, subs)
+
+        names = [c.name for c in root.components]
+        self.assertEqual(names, ["Core", "Core (2)", "Core (2) (3)"])
+        self.assertEqual(len({sanitize(n).casefold() for n in names}), 3)
+
+    def test_ids_of_mixed_shapes_still_order(self) -> None:
+        root = AnalysisInsights(
+            description="",
+            components=[_component("legacy_component_a", "Core"), _component("2", "Core")],
+            components_relations=[],
+        )
+        subs = {
+            key: AnalysisInsights(description="", components=[], components_relations=[])
+            for key in ("legacy_component_a", "2")
+        }
+
+        renamed = distinguish_expanded_component_names(root, subs)
+
+        self.assertEqual([r[0] for r in renamed], ["legacy_component_a"])
 
     def test_names_that_differ_only_in_punctuation_still_collide(self) -> None:
         root = AnalysisInsights(

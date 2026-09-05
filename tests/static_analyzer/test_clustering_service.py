@@ -170,8 +170,6 @@ class TestFullHierarchy(unittest.TestCase):
         self.assertEqual(unit_links({"csharp": csharp}), {(str(REPO / "a.cs"), str(REPO / "b.cs")): 2})
 
     def test_a_rule_whose_units_own_no_callable_or_class_is_not_drawn(self):
-        """Hono drew "Render" and "Page" with zero files: the rules matched .tsx units whose only
-        symbols were variables, so the group had nothing to own and the component nothing to show."""
         layout = eshop() | {f"src/Assets/Asset{i}.cs": [f"Assets.asset{i}_var"] for i in range(6)}
         hierarchy = ClusteringService().build_full_hierarchy(analysis_for(graph("csharp", layout)), max_depth=2)
 
