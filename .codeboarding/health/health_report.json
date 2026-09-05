@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-04T22:49:47.055139+00:00",
-  "overall_score": 0.8669609079445145,
+  "timestamp": "2026-09-05T09:28:06.987609+00:00",
+  "overall_score": 0.86691776522285,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1375,
+      "total_entities_checked": 1381,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -19,8 +19,8 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 211,
-      "findings_count": 211,
+      "total_entities_checked": 212,
+      "findings_count": 212,
       "warning_count": 78,
       "score": 0.0,
       "finding_groups": [
@@ -930,6 +930,13 @@
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 1343,
               "line_end": 1343,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"role_words\" is not accessed",
+              "file_path": "static_analyzer/clustering/names/replay.py",
+              "line_start": 81,
+              "line_end": 81,
               "metric_value": 0.0
             }
           ]

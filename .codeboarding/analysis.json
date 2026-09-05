@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-09-04T22:52:53.151585+00:00",
-    "source_tree_hash": "4bb62dd5cb48ea12e76bf69174ae14d6b917b1510c8616b84726477dc0c73984",
+    "generated_at": "2026-09-05T09:29:52.489684+00:00",
+    "source_tree_hash": "7af4086467e23006975fa065b66b09fbdb5d2a72e1dfeae01d59a107dd173f1d",
     "repo_name": ".codeboarding-target",
     "depth_level": 4,
     "depth_cap": 4,
@@ -1275,6 +1275,11 @@
         "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._leaf_reason",
         "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._frontier_rules",
         "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._vocabulary_rules",
+        "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._file_rules",
+        "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._role_rules",
+        "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._grouped_rules",
+        "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._label",
+        "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._common_prefix",
         "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
         "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._unit_stems",
         "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._vocabulary_key",
@@ -1285,8 +1290,8 @@
         "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._floor",
         "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._dedupe"
       ],
-      "content_hash": "10023f811ad95d2e",
-      "module_hash": "eb9bf20b025b58d2"
+      "content_hash": "726766c85a5170cb",
+      "module_hash": "1e325b6fc61003a9"
     },
     "static_analyzer/clustering/names/frontier.py": {
       "method_keys": [
@@ -1302,12 +1307,13 @@
         "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier._feature_stem",
         "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier._dotted"
       ],
-      "content_hash": "d3be7a5c8d4c8de3",
-      "module_hash": "1c42a138eb1757ed"
+      "content_hash": "48827da477e06abd",
+      "module_hash": "9abcaf4d1f5b6760"
     },
     "static_analyzer/clustering/names/inventory.py": {
       "method_keys": [
         "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.Unit",
+        "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.unit_key",
         "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.unit_position",
         "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graph",
         "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graphs",
@@ -1317,8 +1323,8 @@
         "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.Trie.node",
         "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory._count"
       ],
-      "content_hash": "14eb5721e04103eb",
-      "module_hash": "802cc0fa2e871e71"
+      "content_hash": "6acfbd255048dced",
+      "module_hash": "9febde671890de84"
     },
     "static_analyzer/clustering/names/replay.py": {
       "method_keys": [
@@ -1330,8 +1336,8 @@
         "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay._longest_match",
         "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay.divergence"
       ],
-      "content_hash": "efd2b628988f1358",
-      "module_hash": "495b6c4c92437b23"
+      "content_hash": "20c7b4b9f6ef738e",
+      "module_hash": "604f4fda9ffebc57"
     },
     "static_analyzer/clustering/names/spec.py": {
       "method_keys": [
@@ -1357,8 +1363,8 @@
         "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec._tree_order",
         "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.is_root"
       ],
-      "content_hash": "dfe57c7c2697e141",
-      "module_hash": "a98723525a493398"
+      "content_hash": "02a02f3887699121",
+      "module_hash": "bf786845b67ed17e"
     },
     "static_analyzer/clustering/names/tokens.py": {
       "method_keys": [
@@ -8529,312 +8535,352 @@
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.GroupingContext": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.GroupingContext",
-      "start_line": 56,
-      "end_line": 70,
+      "start_line": 61,
+      "end_line": 75,
       "type": "CLASS",
       "content_hash": "b868da95221cc834"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.CandidateGroup": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.CandidateGroup",
-      "start_line": 74,
-      "end_line": 79,
+      "start_line": 79,
+      "end_line": 84,
       "type": "CLASS",
       "content_hash": "f2be4004340c4935"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.Grouper": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.Grouper",
-      "start_line": 82,
-      "end_line": 91,
+      "start_line": 87,
+      "end_line": 96,
       "type": "CLASS",
       "content_hash": "551efd9b47416385"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.Grouper.group": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.Grouper.group",
-      "start_line": 91,
-      "end_line": 91,
+      "start_line": 96,
+      "end_line": 96,
       "type": "METHOD",
       "content_hash": "3069e6a8c7461ebf"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.KinshipGrouper": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.KinshipGrouper",
-      "start_line": 94,
-      "end_line": 114,
+      "start_line": 99,
+      "end_line": 119,
       "type": "CLASS",
       "content_hash": "736ccbe3d0ad3af0"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.KinshipGrouper.group": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.KinshipGrouper.group",
-      "start_line": 99,
-      "end_line": 114,
+      "start_line": 104,
+      "end_line": 119,
       "type": "METHOD",
       "content_hash": "05bb09e319494e2c"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.AffinityGrouper": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.AffinityGrouper",
-      "start_line": 117,
-      "end_line": 188,
+      "start_line": 122,
+      "end_line": 193,
       "type": "CLASS",
       "content_hash": "6564668dcb89b648"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.AffinityGrouper.group": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.AffinityGrouper.group",
-      "start_line": 128,
-      "end_line": 167,
+      "start_line": 133,
+      "end_line": 172,
       "type": "METHOD",
       "content_hash": "bbf01d0a24994003"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.AffinityGrouper._fold": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.AffinityGrouper._fold",
-      "start_line": 170,
-      "end_line": 188,
+      "start_line": 175,
+      "end_line": 193,
       "type": "METHOD",
       "content_hash": "ea1eaefe70cba369"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.candidate_name": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.candidate_name",
-      "start_line": 198,
-      "end_line": 208,
+      "start_line": 203,
+      "end_line": 213,
       "type": "FUNCTION",
-      "content_hash": "deb0081af88b43ce"
+      "content_hash": "df86615183b41e63"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.role_words_for": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.role_words_for",
-      "start_line": 211,
-      "end_line": 212,
+      "start_line": 216,
+      "end_line": 217,
       "type": "FUNCTION",
       "content_hash": "e572d7388198b89c"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_tree": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.draft_tree",
-      "start_line": 215,
-      "end_line": 246,
+      "start_line": 220,
+      "end_line": 251,
       "type": "FUNCTION",
       "content_hash": "ea5bee98a45869d4"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_tree.build": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.draft_tree.build",
-      "start_line": 235,
-      "end_line": 243,
+      "start_line": 240,
+      "end_line": 248,
       "type": "FUNCTION",
       "content_hash": "d529cd29f278045d"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.draft_scope",
-      "start_line": 249,
-      "end_line": 300,
+      "start_line": 254,
+      "end_line": 307,
       "type": "FUNCTION",
-      "content_hash": "afe72352bc777e48"
+      "content_hash": "75870ea9f8347226"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope.frontier": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.draft_scope.frontier",
-      "start_line": 264,
-      "end_line": 265,
+      "start_line": 269,
+      "end_line": 270,
       "type": "FUNCTION",
-      "content_hash": "9570a7c163f57c66"
+      "content_hash": "d244d77c192eb6db"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope.vocabulary": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft.draft_scope.vocabulary",
-      "start_line": 267,
-      "end_line": 268,
+      "start_line": 272,
+      "end_line": 273,
       "type": "FUNCTION",
       "content_hash": "d9340f887c22f99c"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._leaf_reason": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._leaf_reason",
-      "start_line": 303,
-      "end_line": 313,
+      "start_line": 310,
+      "end_line": 320,
       "type": "FUNCTION",
-      "content_hash": "df8c4a96681fd9f8"
+      "content_hash": "fd9468341be61c42"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._frontier_rules": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._frontier_rules",
-      "start_line": 316,
-      "end_line": 331,
+      "start_line": 323,
+      "end_line": 339,
       "type": "FUNCTION",
-      "content_hash": "1190f4423b93a1f1"
+      "content_hash": "01623e305406ac97"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._vocabulary_rules": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._vocabulary_rules",
-      "start_line": 334,
-      "end_line": 351,
+      "start_line": 342,
+      "end_line": 359,
       "type": "FUNCTION",
       "content_hash": "a01a9bd25a512aed"
+    },
+    "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._file_rules": {
+      "file_path": "static_analyzer/clustering/names/draft.py",
+      "qualified_name": "static_analyzer.clustering.names.draft._file_rules",
+      "start_line": 362,
+      "end_line": 374,
+      "type": "FUNCTION",
+      "content_hash": "6f46477c435aedb8"
+    },
+    "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._role_rules": {
+      "file_path": "static_analyzer/clustering/names/draft.py",
+      "qualified_name": "static_analyzer.clustering.names.draft._role_rules",
+      "start_line": 377,
+      "end_line": 404,
+      "type": "FUNCTION",
+      "content_hash": "0fef368c40cea87d"
+    },
+    "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._grouped_rules": {
+      "file_path": "static_analyzer/clustering/names/draft.py",
+      "qualified_name": "static_analyzer.clustering.names.draft._grouped_rules",
+      "start_line": 407,
+      "end_line": 428,
+      "type": "FUNCTION",
+      "content_hash": "aa873dee2b9190c9"
+    },
+    "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._label": {
+      "file_path": "static_analyzer/clustering/names/draft.py",
+      "qualified_name": "static_analyzer.clustering.names.draft._label",
+      "start_line": 431,
+      "end_line": 432,
+      "type": "FUNCTION",
+      "content_hash": "955716b0b792198b"
+    },
+    "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._common_prefix": {
+      "file_path": "static_analyzer/clustering/names/draft.py",
+      "qualified_name": "static_analyzer.clustering.names.draft._common_prefix",
+      "start_line": 435,
+      "end_line": 441,
+      "type": "FUNCTION",
+      "content_hash": "2e7c2d86fcacf66f"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._context",
-      "start_line": 357,
-      "end_line": 388,
+      "start_line": 447,
+      "end_line": 480,
       "type": "FUNCTION",
-      "content_hash": "45c2a3fa1b00553b"
+      "content_hash": "7f05753da9f7c193"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._unit_stems": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._unit_stems",
-      "start_line": 391,
-      "end_line": 397,
+      "start_line": 483,
+      "end_line": 489,
       "type": "FUNCTION",
       "content_hash": "d88398a190c79426"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._vocabulary_key": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._vocabulary_key",
-      "start_line": 400,
-      "end_line": 409,
+      "start_line": 492,
+      "end_line": 501,
       "type": "FUNCTION",
       "content_hash": "821c6f6a9fbda76f"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._plainest": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._plainest",
-      "start_line": 412,
-      "end_line": 414,
+      "start_line": 504,
+      "end_line": 506,
       "type": "FUNCTION",
       "content_hash": "12217c8b4d1f9790"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._rules_from_groups": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._rules_from_groups",
-      "start_line": 417,
-      "end_line": 443,
+      "start_line": 509,
+      "end_line": 535,
       "type": "FUNCTION",
       "content_hash": "38bec2f8d127bce0"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._candidate_rule": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._candidate_rule",
-      "start_line": 446,
-      "end_line": 454,
+      "start_line": 538,
+      "end_line": 546,
       "type": "FUNCTION",
       "content_hash": "9f65f7a272ef29f5"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._settle": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._settle",
-      "start_line": 457,
-      "end_line": 493,
+      "start_line": 549,
+      "end_line": 586,
       "type": "FUNCTION",
-      "content_hash": "c379ba85e3137bd8"
+      "content_hash": "a4a26e25929613c9"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._floor": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._floor",
-      "start_line": 496,
-      "end_line": 497,
+      "start_line": 589,
+      "end_line": 590,
       "type": "FUNCTION",
       "content_hash": "1fe47956fce5a30d"
     },
     "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._dedupe": {
       "file_path": "static_analyzer/clustering/names/draft.py",
       "qualified_name": "static_analyzer.clustering.names.draft._dedupe",
-      "start_line": 500,
-      "end_line": 501,
+      "start_line": 593,
+      "end_line": 594,
       "type": "FUNCTION",
       "content_hash": "4e1f956eac4f2a0d"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier.Candidate": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier.Candidate",
-      "start_line": 48,
-      "end_line": 56,
+      "start_line": 52,
+      "end_line": 60,
       "type": "CLASS",
       "content_hash": "ee154b062d99d5db"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier.Frontier": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier.Frontier",
-      "start_line": 60,
-      "end_line": 63,
+      "start_line": 64,
+      "end_line": 67,
       "type": "CLASS",
       "content_hash": "20cd9657d4c011bc"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier.walk": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier.walk",
-      "start_line": 66,
-      "end_line": 79,
+      "start_line": 70,
+      "end_line": 85,
       "type": "FUNCTION",
-      "content_hash": "4bbc8b8be2be3086"
+      "content_hash": "c648607414a56b27"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier._visit": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier._visit",
-      "start_line": 82,
-      "end_line": 138,
+      "start_line": 88,
+      "end_line": 145,
       "type": "FUNCTION",
-      "content_hash": "a5720c3c1de9621c"
+      "content_hash": "5a2cd639d776b84d"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier._stepped_through": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier._stepped_through",
-      "start_line": 141,
-      "end_line": 142,
+      "start_line": 148,
+      "end_line": 149,
       "type": "FUNCTION",
       "content_hash": "258ef30a149717d2"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier._layered": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier._layered",
-      "start_line": 145,
-      "end_line": 218,
+      "start_line": 152,
+      "end_line": 226,
       "type": "FUNCTION",
-      "content_hash": "9dd2010f44e84ab6"
+      "content_hash": "95166af1f5e282dc"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier._feature_directories": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier._feature_directories",
-      "start_line": 221,
-      "end_line": 235,
+      "start_line": 229,
+      "end_line": 243,
       "type": "FUNCTION",
       "content_hash": "364251a8119ce2ee"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier._box": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier._box",
-      "start_line": 238,
-      "end_line": 241,
+      "start_line": 246,
+      "end_line": 249,
       "type": "FUNCTION",
       "content_hash": "79014c9e222ced04"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier._loose": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier._loose",
-      "start_line": 244,
-      "end_line": 245,
+      "start_line": 252,
+      "end_line": 253,
       "type": "FUNCTION",
       "content_hash": "cdf3ef765ba604a4"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier._feature_stem": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier._feature_stem",
-      "start_line": 248,
-      "end_line": 251,
+      "start_line": 256,
+      "end_line": 259,
       "type": "FUNCTION",
       "content_hash": "30ef7e774491c16b"
     },
     "static_analyzer/clustering/names/frontier.py|static_analyzer.clustering.names.frontier._dotted": {
       "file_path": "static_analyzer/clustering/names/frontier.py",
       "qualified_name": "static_analyzer.clustering.names.frontier._dotted",
-      "start_line": 254,
-      "end_line": 255,
+      "start_line": 262,
+      "end_line": 263,
       "type": "FUNCTION",
       "content_hash": "232ab33950190ac0"
     },
@@ -8842,295 +8888,303 @@
       "file_path": "static_analyzer/clustering/names/inventory.py",
       "qualified_name": "static_analyzer.clustering.names.inventory.Unit",
       "start_line": 20,
-      "end_line": 26,
+      "end_line": 29,
       "type": "CLASS",
-      "content_hash": "531585d6981da78a"
+      "content_hash": "b212424007999438"
+    },
+    "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.unit_key": {
+      "file_path": "static_analyzer/clustering/names/inventory.py",
+      "qualified_name": "static_analyzer.clustering.names.inventory.unit_key",
+      "start_line": 32,
+      "end_line": 39,
+      "type": "FUNCTION",
+      "content_hash": "fb8d3f5aa6940944"
     },
     "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.unit_position": {
       "file_path": "static_analyzer/clustering/names/inventory.py",
       "qualified_name": "static_analyzer.clustering.names.inventory.unit_position",
-      "start_line": 29,
-      "end_line": 45,
+      "start_line": 42,
+      "end_line": 50,
       "type": "FUNCTION",
-      "content_hash": "d712e44815d35f3f"
+      "content_hash": "c430a7fba0fec29e"
     },
     "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graph": {
       "file_path": "static_analyzer/clustering/names/inventory.py",
       "qualified_name": "static_analyzer.clustering.names.inventory.units_from_graph",
-      "start_line": 48,
-      "end_line": 56,
+      "start_line": 53,
+      "end_line": 67,
       "type": "FUNCTION",
-      "content_hash": "2e1e4c7640869683"
+      "content_hash": "feeaf3177a1dc55b"
     },
     "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graphs": {
       "file_path": "static_analyzer/clustering/names/inventory.py",
       "qualified_name": "static_analyzer.clustering.names.inventory.units_from_graphs",
-      "start_line": 59,
-      "end_line": 63,
+      "start_line": 70,
+      "end_line": 74,
       "type": "FUNCTION",
       "content_hash": "158d08342177bf13"
     },
     "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.TrieNode": {
       "file_path": "static_analyzer/clustering/names/inventory.py",
       "qualified_name": "static_analyzer.clustering.names.inventory.TrieNode",
-      "start_line": 67,
-      "end_line": 72,
+      "start_line": 78,
+      "end_line": 83,
       "type": "CLASS",
       "content_hash": "85b4b0a64e556487"
     },
     "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.Trie": {
       "file_path": "static_analyzer/clustering/names/inventory.py",
       "qualified_name": "static_analyzer.clustering.names.inventory.Trie",
-      "start_line": 75,
-      "end_line": 100,
+      "start_line": 86,
+      "end_line": 111,
       "type": "CLASS",
       "content_hash": "fd3a7dcc10440bb1"
     },
     "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.Trie.__init__": {
       "file_path": "static_analyzer/clustering/names/inventory.py",
       "qualified_name": "static_analyzer.clustering.names.inventory.Trie.__init__",
-      "start_line": 84,
-      "end_line": 91,
+      "start_line": 95,
+      "end_line": 102,
       "type": "METHOD",
       "content_hash": "4b9c9de56d90a91e"
     },
     "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.Trie.node": {
       "file_path": "static_analyzer/clustering/names/inventory.py",
       "qualified_name": "static_analyzer.clustering.names.inventory.Trie.node",
-      "start_line": 93,
-      "end_line": 100,
+      "start_line": 104,
+      "end_line": 111,
       "type": "METHOD",
       "content_hash": "7860503b2d23cde1"
     },
     "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory._count": {
       "file_path": "static_analyzer/clustering/names/inventory.py",
       "qualified_name": "static_analyzer.clustering.names.inventory._count",
-      "start_line": 103,
-      "end_line": 105,
+      "start_line": 114,
+      "end_line": 116,
       "type": "FUNCTION",
       "content_hash": "a932b5df394ff23f"
     },
     "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay.Partition": {
       "file_path": "static_analyzer/clustering/names/replay.py",
       "qualified_name": "static_analyzer.clustering.names.replay.Partition",
-      "start_line": 26,
-      "end_line": 44,
+      "start_line": 27,
+      "end_line": 45,
       "type": "CLASS",
       "content_hash": "bde83ae00e637e7e"
     },
     "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay.Partition.size": {
       "file_path": "static_analyzer/clustering/names/replay.py",
       "qualified_name": "static_analyzer.clustering.names.replay.Partition.size",
-      "start_line": 43,
-      "end_line": 44,
+      "start_line": 44,
+      "end_line": 45,
       "type": "METHOD",
       "content_hash": "8f54e48bedc1ce3a"
     },
     "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay.replay": {
       "file_path": "static_analyzer/clustering/names/replay.py",
       "qualified_name": "static_analyzer.clustering.names.replay.replay",
-      "start_line": 47,
-      "end_line": 75,
+      "start_line": 48,
+      "end_line": 78,
       "type": "FUNCTION",
-      "content_hash": "f1091aad99a27894"
+      "content_hash": "797b7348e76b4ffc"
     },
     "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay.term_votes": {
       "file_path": "static_analyzer/clustering/names/replay.py",
       "qualified_name": "static_analyzer.clustering.names.replay.term_votes",
-      "start_line": 78,
-      "end_line": 95,
+      "start_line": 81,
+      "end_line": 98,
       "type": "FUNCTION",
-      "content_hash": "1791bc42b335fa54"
+      "content_hash": "ad90ec54b7b714a8"
     },
     "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay._place": {
       "file_path": "static_analyzer/clustering/names/replay.py",
       "qualified_name": "static_analyzer.clustering.names.replay._place",
-      "start_line": 98,
-      "end_line": 117,
+      "start_line": 101,
+      "end_line": 121,
       "type": "FUNCTION",
-      "content_hash": "21af285bed1cd5f0"
+      "content_hash": "e1ebbd20c1a705a9"
     },
     "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay._longest_match": {
       "file_path": "static_analyzer/clustering/names/replay.py",
       "qualified_name": "static_analyzer.clustering.names.replay._longest_match",
-      "start_line": 120,
-      "end_line": 126,
+      "start_line": 124,
+      "end_line": 130,
       "type": "FUNCTION",
       "content_hash": "df4589e8de870e95"
     },
     "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay.divergence": {
       "file_path": "static_analyzer/clustering/names/replay.py",
       "qualified_name": "static_analyzer.clustering.names.replay.divergence",
-      "start_line": 129,
-      "end_line": 135,
+      "start_line": 133,
+      "end_line": 139,
       "type": "FUNCTION",
       "content_hash": "d4c7cde7a0c22775"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ComponentRule": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ComponentRule",
-      "start_line": 20,
-      "end_line": 65,
+      "start_line": 34,
+      "end_line": 79,
       "type": "CLASS",
       "content_hash": "b5001b1be628656e"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ComponentRule.is_fallback_only": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ComponentRule.is_fallback_only",
-      "start_line": 38,
-      "end_line": 40,
+      "start_line": 52,
+      "end_line": 54,
       "type": "METHOD",
       "content_hash": "833bd4d6ecb50fa7"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ComponentRule.to_dict": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ComponentRule.to_dict",
-      "start_line": 42,
-      "end_line": 52,
+      "start_line": 56,
+      "end_line": 66,
       "type": "METHOD",
       "content_hash": "b92dbb34ec544882"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ComponentRule.from_dict": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ComponentRule.from_dict",
-      "start_line": 55,
-      "end_line": 65,
+      "start_line": 69,
+      "end_line": 79,
       "type": "METHOD",
       "content_hash": "7b33dfb39c7b30c4"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ScopeSpec",
-      "start_line": 69,
-      "end_line": 124,
+      "start_line": 83,
+      "end_line": 138,
       "type": "CLASS",
       "content_hash": "799b3fa5373f5d7c"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.is_leaf": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ScopeSpec.is_leaf",
-      "start_line": 84,
-      "end_line": 85,
+      "start_line": 98,
+      "end_line": 99,
       "type": "METHOD",
       "content_hash": "a44e4ea7a4fa4c32"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.components": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ScopeSpec.components",
-      "start_line": 88,
-      "end_line": 89,
+      "start_line": 102,
+      "end_line": 103,
       "type": "METHOD",
       "content_hash": "9209e7c70e29fd36"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.unplaced_rule": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ScopeSpec.unplaced_rule",
-      "start_line": 92,
-      "end_line": 93,
+      "start_line": 106,
+      "end_line": 107,
       "type": "METHOD",
       "content_hash": "ad3337963ada71f1"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.rule": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ScopeSpec.rule",
-      "start_line": 95,
-      "end_line": 96,
+      "start_line": 109,
+      "end_line": 110,
       "type": "METHOD",
       "content_hash": "5f1d999409393083"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.next_id": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ScopeSpec.next_id",
-      "start_line": 98,
-      "end_line": 104,
+      "start_line": 112,
+      "end_line": 118,
       "type": "METHOD",
       "content_hash": "d5d4062daeadb057"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.to_dict": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ScopeSpec.to_dict",
-      "start_line": 106,
-      "end_line": 113,
+      "start_line": 120,
+      "end_line": 127,
       "type": "METHOD",
       "content_hash": "bb0d4e98c694a78c"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.from_dict": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.ScopeSpec.from_dict",
-      "start_line": 116,
-      "end_line": 124,
+      "start_line": 130,
+      "end_line": 138,
       "type": "METHOD",
       "content_hash": "39b1787a3b52539a"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.TreeSpec",
-      "start_line": 132,
-      "end_line": 202,
+      "start_line": 147,
+      "end_line": 217,
       "type": "CLASS",
       "content_hash": "1f41427b75ea59f5"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec.scope": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.TreeSpec.scope",
-      "start_line": 140,
-      "end_line": 141,
+      "start_line": 155,
+      "end_line": 156,
       "type": "METHOD",
       "content_hash": "0a419ca652fc85c5"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec.set_scope": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.TreeSpec.set_scope",
-      "start_line": 143,
-      "end_line": 144,
+      "start_line": 158,
+      "end_line": 159,
       "type": "METHOD",
       "content_hash": "ea43739c745d43a6"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec.reroot": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.TreeSpec.reroot",
-      "start_line": 146,
-      "end_line": 179,
+      "start_line": 161,
+      "end_line": 194,
       "type": "METHOD",
       "content_hash": "ea175bfa79ad710b"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec.reroot.moved": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.TreeSpec.reroot.moved",
-      "start_line": 155,
-      "end_line": 159,
+      "start_line": 170,
+      "end_line": 174,
       "type": "FUNCTION",
       "content_hash": "7f094c76eedd1c29"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec.to_dict": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.TreeSpec.to_dict",
-      "start_line": 181,
-      "end_line": 187,
+      "start_line": 196,
+      "end_line": 202,
       "type": "METHOD",
       "content_hash": "bff195e6b51c1302"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec.from_dict": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.TreeSpec.from_dict",
-      "start_line": 190,
-      "end_line": 198,
+      "start_line": 205,
+      "end_line": 213,
       "type": "METHOD",
       "content_hash": "f3674608dd365853"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec._tree_order": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.TreeSpec._tree_order",
-      "start_line": 200,
-      "end_line": 202,
+      "start_line": 215,
+      "end_line": 217,
       "type": "METHOD",
       "content_hash": "42fdb797a917d135"
     },
     "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.is_root": {
       "file_path": "static_analyzer/clustering/names/spec.py",
       "qualified_name": "static_analyzer.clustering.names.spec.is_root",
-      "start_line": 205,
-      "end_line": 206,
+      "start_line": 220,
+      "end_line": 221,
       "type": "FUNCTION",
       "content_hash": "8f3f4118772bd97a"
     },
@@ -19575,6 +19629,11 @@
             "static_analyzer.clustering.names.draft._leaf_reason",
             "static_analyzer.clustering.names.draft._frontier_rules",
             "static_analyzer.clustering.names.draft._vocabulary_rules",
+            "static_analyzer.clustering.names.draft._file_rules",
+            "static_analyzer.clustering.names.draft._role_rules",
+            "static_analyzer.clustering.names.draft._grouped_rules",
+            "static_analyzer.clustering.names.draft._label",
+            "static_analyzer.clustering.names.draft._common_prefix",
             "static_analyzer.clustering.names.draft._context",
             "static_analyzer.clustering.names.draft._unit_stems",
             "static_analyzer.clustering.names.draft._vocabulary_key",
@@ -19606,6 +19665,7 @@
           "file_path": "static_analyzer/clustering/names/inventory.py",
           "methods": [
             "static_analyzer.clustering.names.inventory.Unit",
+            "static_analyzer.clustering.names.inventory.unit_key",
             "static_analyzer.clustering.names.inventory.unit_position",
             "static_analyzer.clustering.names.inventory.units_from_graph",
             "static_analyzer.clustering.names.inventory.units_from_graphs",
@@ -20664,6 +20724,28 @@
                   "evidence": "During incremental and recursive diagram generation, the planner invokes scope enrichment routines, verifies containment across subcomponent hierarchies, and delegates final diagram persistence and coverage calculation.",
                   "key_edges": [
                     {
+                      "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
+                      "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._source_tree_hash",
+                      "call_sites": [
+                        {
+                          "line": 1250,
+                          "column": 51
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
+                      "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                      "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._enrich_incremental_scopes",
+                      "call_sites": [
+                        {
+                          "line": 1636,
+                          "column": 18
+                        }
+                      ],
+                      "description": ""
+                    },
+                    {
                       "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
                       "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
                       "call_sites": [
@@ -20685,28 +20767,6 @@
                         {
                           "line": 1583,
                           "column": 13
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
-                      "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._source_tree_hash",
-                      "call_sites": [
-                        {
-                          "line": 1250,
-                          "column": 51
-                        }
-                      ],
-                      "description": ""
-                    },
-                    {
-                      "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                      "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._enrich_incremental_scopes",
-                      "call_sites": [
-                        {
-                          "line": 1636,
-                          "column": 18
                         }
                       ],
                       "description": ""
@@ -24428,6 +24488,11 @@
                 "static_analyzer.clustering.names.draft._leaf_reason",
                 "static_analyzer.clustering.names.draft._frontier_rules",
                 "static_analyzer.clustering.names.draft._vocabulary_rules",
+                "static_analyzer.clustering.names.draft._file_rules",
+                "static_analyzer.clustering.names.draft._role_rules",
+                "static_analyzer.clustering.names.draft._grouped_rules",
+                "static_analyzer.clustering.names.draft._label",
+                "static_analyzer.clustering.names.draft._common_prefix",
                 "static_analyzer.clustering.names.draft._context",
                 "static_analyzer.clustering.names.draft._unit_stems",
                 "static_analyzer.clustering.names.draft._vocabulary_key",
@@ -24459,6 +24524,7 @@
               "file_path": "static_analyzer/clustering/names/inventory.py",
               "methods": [
                 "static_analyzer.clustering.names.inventory.Unit",
+                "static_analyzer.clustering.names.inventory.unit_key",
                 "static_analyzer.clustering.names.inventory.unit_position",
                 "static_analyzer.clustering.names.inventory.units_from_graph",
                 "static_analyzer.clustering.names.inventory.units_from_graphs",
@@ -25026,6 +25092,11 @@
                     "static_analyzer.clustering.names.draft.draft_scope.vocabulary",
                     "static_analyzer.clustering.names.draft._frontier_rules",
                     "static_analyzer.clustering.names.draft._vocabulary_rules",
+                    "static_analyzer.clustering.names.draft._file_rules",
+                    "static_analyzer.clustering.names.draft._role_rules",
+                    "static_analyzer.clustering.names.draft._grouped_rules",
+                    "static_analyzer.clustering.names.draft._label",
+                    "static_analyzer.clustering.names.draft._common_prefix",
                     "static_analyzer.clustering.names.draft._unit_stems",
                     "static_analyzer.clustering.names.draft._vocabulary_key",
                     "static_analyzer.clustering.names.draft._plainest",
@@ -25054,6 +25125,7 @@
                   "file_path": "static_analyzer/clustering/names/inventory.py",
                   "methods": [
                     "static_analyzer.clustering.names.inventory.Unit",
+                    "static_analyzer.clustering.names.inventory.unit_key",
                     "static_analyzer.clustering.names.inventory.unit_position",
                     "static_analyzer.clustering.names.inventory.units_from_graph",
                     "static_analyzer.clustering.names.inventory.TrieNode",
@@ -25136,100 +25208,15 @@
               ]
             },
             {
-              "relation": "Configures planner agents and delegates tree rule generation",
+              "relation": "Instantiates and configures tree planning agents and groupers",
               "src_name": "Incremental Diagram Generation & Delta Orchestrator",
               "dst_name": "Tree Planning",
-              "evidence": "DiagramGenerator instantiates TreePlannerAgent in its grouper selection factory (_grouper()) when LLM-assisted partitioning is configured, and manages persisted TreeSpec drafting and candidate rules.",
+              "evidence": "DiagramGenerator._grouper dynamically initializes TreePlannerAgent with the active LLM client and configures tree specifications used across clustering and expansion runs.",
               "key_edges": [],
               "src_id": "2.3.2",
               "dst_id": "2.3.4",
               "is_static": true,
               "all_edges": [
-                {
-                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
-                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._candidate_rule",
-                  "call_sites": [
-                    {
-                      "line": 367,
-                      "column": 28
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
-                  "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.segments",
-                  "call_sites": [
-                    {
-                      "line": 380,
-                      "column": 33
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
-                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope.frontier",
-                  "call_sites": [
-                    {
-                      "line": 273,
-                      "column": 41
-                    },
-                    {
-                      "line": 276,
-                      "column": 40
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
-                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope.vocabulary",
-                  "call_sites": [
-                    {
-                      "line": 274,
-                      "column": 35
-                    },
-                    {
-                      "line": 278,
-                      "column": 39
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.role_words_for",
-                  "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.stem",
-                  "call_sites": [
-                    {
-                      "line": 212,
-                      "column": 35
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graphs",
-                  "target": "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graph",
-                  "call_sites": [
-                    {
-                      "line": 62,
-                      "column": 22
-                    }
-                  ],
-                  "description": ""
-                },
-                {
-                  "source": "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay._place",
-                  "target": "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay.term_votes",
-                  "call_sites": [
-                    {
-                      "line": 110,
-                      "column": 17
-                    }
-                  ],
-                  "description": ""
-                },
                 {
                   "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
                   "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._grouper",
@@ -25253,17 +25240,6 @@
                   "description": ""
                 },
                 {
-                  "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.__init__",
-                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.AffinityGrouper",
-                  "call_sites": [
-                    {
-                      "line": 103,
-                      "column": 69
-                    }
-                  ],
-                  "description": ""
-                },
-                {
                   "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._scope_rules",
                   "target": "static_analyzer/clustering/exceptions.py|static_analyzer.clustering.exceptions.PlannerUnavailableError",
                   "call_sites": [
@@ -25273,8 +25249,141 @@
                     }
                   ],
                   "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
+                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._candidate_rule",
+                  "call_sites": [
+                    {
+                      "line": 458,
+                      "column": 18
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
+                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._file_rules",
+                  "call_sites": [
+                    {
+                      "line": 286,
+                      "column": 38
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
+                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._role_rules",
+                  "call_sites": [
+                    {
+                      "line": 287,
+                      "column": 37
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
+                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope.frontier",
+                  "call_sites": [
+                    {
+                      "line": 278,
+                      "column": 41
+                    },
+                    {
+                      "line": 282,
+                      "column": 40
+                    },
+                    {
+                      "line": 285,
+                      "column": 39
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
+                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope.vocabulary",
+                  "call_sites": [
+                    {
+                      "line": 279,
+                      "column": 35
+                    },
+                    {
+                      "line": 284,
+                      "column": 39
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graphs",
+                  "target": "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graph",
+                  "call_sites": [
+                    {
+                      "line": 73,
+                      "column": 22
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay._place",
+                  "target": "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay.term_votes",
+                  "call_sites": [
+                    {
+                      "line": 114,
+                      "column": 17
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
+                  "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.segments",
+                  "call_sites": [
+                    {
+                      "line": 472,
+                      "column": 33
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.role_words_for",
+                  "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.stem",
+                  "call_sites": [
+                    {
+                      "line": 217,
+                      "column": 35
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.__init__",
+                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.AffinityGrouper",
+                  "call_sites": [
+                    {
+                      "line": 103,
+                      "column": 69
+                    }
+                  ],
+                  "description": ""
                 }
               ]
+            },
+            {
+              "relation": "Delegates scope drafting and candidate grouping",
+              "src_name": "Modularity-Based Component Grouping & Clustering Service",
+              "dst_name": "Tree Planning",
+              "evidence": "ClusteringService invokes draft_tree, draft_scope, and replay within the tree planning naming engine, dispatching candidate grouping to TreePlannerAgent or deterministic groupers to partition units into component rules.",
+              "key_edges": [],
+              "src_id": "2.3.3",
+              "dst_id": "2.3.4",
+              "is_static": false,
+              "all_edges": []
             },
             {
               "relation": "calls",
@@ -25291,7 +25400,7 @@
                   "target": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ComponentRule",
                   "call_sites": [
                     {
-                      "line": 447,
+                      "line": 539,
                       "column": 12
                     }
                   ],
@@ -25302,8 +25411,30 @@
                   "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
                   "call_sites": [
                     {
-                      "line": 330,
+                      "line": 338,
                       "column": 15
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._grouped_rules",
+                  "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
+                  "call_sites": [
+                    {
+                      "line": 419,
+                      "column": 15
+                    }
+                  ],
+                  "description": ""
+                },
+                {
+                  "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._grouped_rules",
+                  "target": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ComponentRule",
+                  "call_sites": [
+                    {
+                      "line": 427,
+                      "column": 22
                     }
                   ],
                   "description": ""
@@ -25313,7 +25444,7 @@
                   "target": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ComponentRule",
                   "call_sites": [
                     {
-                      "line": 433,
+                      "line": 525,
                       "column": 13
                     }
                   ],
@@ -25324,7 +25455,7 @@
                   "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
                   "call_sites": [
                     {
-                      "line": 350,
+                      "line": 358,
                       "column": 15
                     }
                   ],
@@ -25451,6 +25582,28 @@
               "description": ""
             },
             {
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
+              "target": "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape.absorb_single_child_components",
+              "call_sites": [
+                {
+                  "line": 1385,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._incremental_changed_files",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs",
+              "call_sites": [
+                {
+                  "line": 810,
+                  "column": 43
+                }
+              ],
+              "description": ""
+            },
+            {
               "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._tree_spec_dict",
               "target": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec.to_dict",
               "call_sites": [
@@ -25463,33 +25616,11 @@
             },
             {
               "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
-              "target": "diagram_analysis/tree_shape.py|diagram_analysis.tree_shape.absorb_single_child_components",
-              "call_sites": [
-                {
-                  "line": 1385,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.finalize_for_save",
               "target": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec.reroot",
               "call_sites": [
                 {
                   "line": 1389,
                   "column": 28
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._incremental_changed_files",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs",
-              "call_sites": [
-                {
-                  "line": 810,
-                  "column": 43
                 }
               ],
               "description": ""
@@ -37778,7 +37909,19 @@
       "src_name": "Incremental Scope Planner & Hierarchy Merger",
       "dst_name": "Incremental Scope Decision & Cluster ID Resolution Engine",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
+          "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.build",
+          "call_sites": [
+            {
+              "line": 1291,
+              "column": 45
+            }
+          ],
+          "description": ""
+        }
+      ],
       "src_id": "2.1.1.2",
       "dst_id": "1.1.2.2",
       "is_static": true,
@@ -38625,6 +38768,17 @@
           "description": ""
         },
         {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._incremental_changed_files",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs",
+          "call_sites": [
+            {
+              "line": 810,
+              "column": 43
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._tree_spec_dict",
           "target": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.TreeSpec.to_dict",
           "call_sites": [
@@ -38642,17 +38796,6 @@
             {
               "line": 1389,
               "column": 28
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._incremental_changed_files",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs",
-          "call_sites": [
-            {
-              "line": 810,
-              "column": 43
             }
           ],
           "description": ""
@@ -40661,7 +40804,7 @@
           "target": "clustering_ids.py|clustering_ids.CodeBoardingClusterIds.prefix_for_scope",
           "call_sites": [
             {
-              "line": 100,
+              "line": 114,
               "column": 41
             }
           ],
@@ -40672,7 +40815,7 @@
           "target": "clustering_ids.py|clustering_ids.CodeBoardingClusterIds.sort",
           "call_sites": [
             {
-              "line": 201,
+              "line": 216,
               "column": 39
             }
           ],
@@ -41119,100 +41262,15 @@
       ]
     },
     {
-      "relation": "Configures planner agents and delegates tree rule generation",
+      "relation": "Instantiates and configures tree planning agents and groupers",
       "src_name": "Incremental Diagram Generation & Delta Orchestrator",
       "dst_name": "Tree Planning",
-      "evidence": "DiagramGenerator instantiates TreePlannerAgent in its grouper selection factory (_grouper()) when LLM-assisted partitioning is configured, and manages persisted TreeSpec drafting and candidate rules.",
+      "evidence": "DiagramGenerator._grouper dynamically initializes TreePlannerAgent with the active LLM client and configures tree specifications used across clustering and expansion runs.",
       "key_edges": [],
       "src_id": "2.3.2",
       "dst_id": "2.3.4",
       "is_static": true,
       "all_edges": [
-        {
-          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
-          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._candidate_rule",
-          "call_sites": [
-            {
-              "line": 367,
-              "column": 28
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
-          "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.segments",
-          "call_sites": [
-            {
-              "line": 380,
-              "column": 33
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
-          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope.frontier",
-          "call_sites": [
-            {
-              "line": 273,
-              "column": 41
-            },
-            {
-              "line": 276,
-              "column": 40
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
-          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope.vocabulary",
-          "call_sites": [
-            {
-              "line": 274,
-              "column": 35
-            },
-            {
-              "line": 278,
-              "column": 39
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.role_words_for",
-          "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.stem",
-          "call_sites": [
-            {
-              "line": 212,
-              "column": 35
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graphs",
-          "target": "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graph",
-          "call_sites": [
-            {
-              "line": 62,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay._place",
-          "target": "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay.term_votes",
-          "call_sites": [
-            {
-              "line": 110,
-              "column": 17
-            }
-          ],
-          "description": ""
-        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
           "target": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._grouper",
@@ -41236,23 +41294,134 @@
           "description": ""
         },
         {
-          "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.__init__",
-          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.AffinityGrouper",
-          "call_sites": [
-            {
-              "line": 103,
-              "column": 69
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._scope_rules",
           "target": "static_analyzer/clustering/exceptions.py|static_analyzer.clustering.exceptions.PlannerUnavailableError",
           "call_sites": [
             {
               "line": 255,
               "column": 19
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
+          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._candidate_rule",
+          "call_sites": [
+            {
+              "line": 458,
+              "column": 18
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
+          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._file_rules",
+          "call_sites": [
+            {
+              "line": 286,
+              "column": 38
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
+          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._role_rules",
+          "call_sites": [
+            {
+              "line": 287,
+              "column": 37
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
+          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope.frontier",
+          "call_sites": [
+            {
+              "line": 278,
+              "column": 41
+            },
+            {
+              "line": 282,
+              "column": 40
+            },
+            {
+              "line": 285,
+              "column": 39
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope",
+          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.draft_scope.vocabulary",
+          "call_sites": [
+            {
+              "line": 279,
+              "column": 35
+            },
+            {
+              "line": 284,
+              "column": 39
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graphs",
+          "target": "static_analyzer/clustering/names/inventory.py|static_analyzer.clustering.names.inventory.units_from_graph",
+          "call_sites": [
+            {
+              "line": 73,
+              "column": 22
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay._place",
+          "target": "static_analyzer/clustering/names/replay.py|static_analyzer.clustering.names.replay.term_votes",
+          "call_sites": [
+            {
+              "line": 114,
+              "column": 17
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
+          "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.segments",
+          "call_sites": [
+            {
+              "line": 472,
+              "column": 33
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.role_words_for",
+          "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.stem",
+          "call_sites": [
+            {
+              "line": 217,
+              "column": 35
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.__init__",
+          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.AffinityGrouper",
+          "call_sites": [
+            {
+              "line": 103,
+              "column": 69
             }
           ],
           "description": ""
@@ -41396,6 +41565,17 @@
       ]
     },
     {
+      "relation": "Delegates scope drafting and candidate grouping",
+      "src_name": "Modularity-Based Component Grouping & Clustering Service",
+      "dst_name": "Tree Planning",
+      "evidence": "ClusteringService invokes draft_tree, draft_scope, and replay within the tree planning naming engine, dispatching candidate grouping to TreePlannerAgent or deterministic groupers to partition units into component rules.",
+      "key_edges": [],
+      "src_id": "2.3.3",
+      "dst_id": "2.3.4",
+      "is_static": false,
+      "all_edges": []
+    },
+    {
       "relation": "Orchestrates multi-agent analysis and merges component models",
       "src_name": "Tree Planning",
       "dst_name": "Structured Component & API Surface Domain Models",
@@ -41501,7 +41681,7 @@
           "target": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ComponentRule",
           "call_sites": [
             {
-              "line": 447,
+              "line": 539,
               "column": 12
             }
           ],
@@ -41512,8 +41692,30 @@
           "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
           "call_sites": [
             {
-              "line": 330,
+              "line": 338,
               "column": 15
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._grouped_rules",
+          "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
+          "call_sites": [
+            {
+              "line": 419,
+              "column": 15
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._grouped_rules",
+          "target": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ComponentRule",
+          "call_sites": [
+            {
+              "line": 427,
+              "column": 22
             }
           ],
           "description": ""
@@ -41523,7 +41725,7 @@
           "target": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ComponentRule",
           "call_sites": [
             {
-              "line": 433,
+              "line": 525,
               "column": 13
             }
           ],
@@ -41534,7 +41736,7 @@
           "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft._context",
           "call_sites": [
             {
-              "line": 350,
+              "line": 358,
               "column": 15
             }
           ],
