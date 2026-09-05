@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from agents.agent_responses import AnalysisInsights
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg.edge import EdgeKind
-from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
+from static_analyzer.clustering import ClusterConnectionEdge, ClusterGroup, ClusterScopeResult
+
+#: How many example edges a directed group pair shows the model. The count is always
+#: given; the examples exist so a relation's ``key_edges`` can cite exact symbols.
+MAX_EXAMPLE_EDGES = 5
 
 
 def render_scope_context(
@@ -20,8 +26,15 @@ def render_scope_context(
     locked_name_ids: set[str] | frozenset[str],
     changed_files: set[str] | frozenset[str],
     incremental: bool,
+    enclosing_names: Sequence[str] = (),
 ) -> str:
-    """Return complete group files, boundary candidates, and known calls as JSON."""
+    """Return complete group files, boundary candidates, and known calls as JSON.
+
+    ``enclosing_names`` are the names of the components this scope sits inside, outermost
+    first. They are shown so the model does not name a child after its parent: a document
+    is written per expanded component under its sanitised name, so a repeated name is two
+    documents on one path.
+    """
     boundary_reasons = _boundary_reasons(scope, repo_dir)
     components = {component.component_id: component for component in analysis.components}
     groups = []
@@ -62,6 +75,7 @@ def render_scope_context(
         "mode": "incremental" if incremental else "full",
         "existing_description": analysis.description if incremental else None,
         "groups": groups,
+        "enclosing_components": list(enclosing_names),
         "known_connections": _known_connections(scope, repo_dir),
         "existing_relations": [
             {
@@ -112,40 +126,52 @@ def _group_file_reasons(
     return dict(sorted(reasons.items()))
 
 
-def _known_connections(scope: ClusterScopeResult, repo_dir: Path) -> list[dict[str, str | int]]:
-    connections: list[dict[str, str | int]] = []
-    seen: set[tuple[str, str, str]] = set()
+def _known_connections(scope: ClusterScopeResult, repo_dir: Path) -> list[dict[str, Any]]:
+    """One entry per directed group pair: how many distinct calls, and a few of them in full.
+
+    Why not every edge: a dense scope has thousands of cross-group calls, and rendering
+    each as its own object made the Gson root prompt 1.68 M characters — 93% of it this
+    list — which is more than a 262k-token model accepts. The scope agent then failed
+    outright and the whole scope shipped with its deterministic names and template
+    descriptions. The count is what the model needs to label a connection; the examples
+    are what it needs to cite exact symbols in ``key_edges``.
+    """
+    by_pair: dict[tuple[str, str], list[ClusterConnectionEdge]] = defaultdict(list)
     for connection in scope.connections:
-        for edge in connection.edges:
+        by_pair[(connection.source_group_id, connection.target_group_id)].extend(connection.edges)
+
+    connections: list[dict[str, Any]] = []
+    for (source_group_id, target_group_id), edges in sorted(by_pair.items()):
+        seen: set[tuple[str, str, str]] = set()
+        distinct: list[ClusterConnectionEdge] = []
+        for edge in edges:
             key = (edge.language, edge.source_qualified_name, edge.target_qualified_name)
             if key in seen:
                 continue
             seen.add(key)
-            graph = scope.graphs_by_language.get(edge.language)
-            source = graph.nodes.get(edge.source_qualified_name) if graph is not None else None
-            target = graph.nodes.get(edge.target_qualified_name) if graph is not None else None
-            connections.append(
-                {
-                    "source_group_id": connection.source_group_id,
-                    "target_group_id": connection.target_group_id,
-                    "language": edge.language,
-                    "source_method": edge.source_qualified_name,
-                    "source_file": normalize_repo_path(source.file_path, repo_dir) if source is not None else "",
-                    "source_line": source.line_start if source is not None else 0,
-                    "target_method": edge.target_qualified_name,
-                    "target_file": normalize_repo_path(target.file_path, repo_dir) if target is not None else "",
-                    "target_line": target.line_start if target is not None else 0,
-                }
-            )
-    return sorted(
-        connections,
-        key=lambda item: (
-            str(item["source_group_id"]),
-            str(item["target_group_id"]),
-            str(item["source_method"]),
-            str(item["target_method"]),
-        ),
-    )
+            distinct.append(edge)
+        distinct.sort(key=lambda edge: (edge.source_qualified_name, edge.target_qualified_name))
+        connections.append(
+            {
+                "source_group_id": source_group_id,
+                "target_group_id": target_group_id,
+                "calls": len(distinct),
+                "examples": [_example(edge, scope, repo_dir) for edge in distinct[:MAX_EXAMPLE_EDGES]],
+            }
+        )
+    return connections
+
+
+def _example(edge: ClusterConnectionEdge, scope: ClusterScopeResult, repo_dir: Path) -> dict[str, str]:
+    graph = scope.graphs_by_language.get(edge.language)
+    source = graph.nodes.get(edge.source_qualified_name) if graph is not None else None
+    target = graph.nodes.get(edge.target_qualified_name) if graph is not None else None
+    return {
+        "source": edge.source_qualified_name,
+        "source_at": f"{normalize_repo_path(source.file_path, repo_dir)}:{source.line_start}" if source else "",
+        "target": edge.target_qualified_name,
+        "target_at": f"{normalize_repo_path(target.file_path, repo_dir)}:{target.line_start}" if target else "",
+    }
 
 
 def _boundary_reasons(

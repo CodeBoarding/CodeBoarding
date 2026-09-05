@@ -7,13 +7,14 @@ from unittest.mock import MagicMock, patch
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
 from langchain_core.language_models import BaseChatModel, LanguageModelInput
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 
 from agents.agent_responses import AnalysisInsights, Component
 from agents.llm_errors import LLMAuthError
 from agents.scope_analysis_agent import (
+    JSON_RECOVERY_MESSAGE,
     MAX_SCOPE_MODEL_CALLS,
     MAX_SCOPE_TOOL_CALLS,
     SCOPE_RECURSION_LIMIT,
@@ -144,6 +145,42 @@ class TestScopeAnalysisAgent(unittest.TestCase):
 
         self.assertIsNotNone(result)
         self.assertEqual(read_file.call_count, MAX_SCOPE_TOOL_CALLS)
+
+    @patch("agents.scope_analysis_agent.create_agent")
+    def test_asks_once_more_when_the_run_ended_without_a_json_object(self, create_agent):
+        """Kimi ended four of eleven Hono scopes in prose; one tool-free completion over the
+        transcript recovers the object, and the scope keeps its names instead of its rules."""
+        static_analysis, scope, analysis = _inputs()
+        runtime = MagicMock()
+        runtime.invoke.return_value = {"messages": [HumanMessage(content="analyze"), AIMessage(content="Done.")]}
+        create_agent.return_value = runtime
+        llm = MagicMock(spec=BaseChatModel)
+        llm.invoke.return_value = AIMessage(
+            content='{"description":"scope","components":['
+            '{"group_id":"1","name":"Runner","description":"Runs work","key_entities":[]}],"relations":[]}'
+        )
+        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, llm)
+
+        result = agent.analyze(scope, analysis, {"1"})
+
+        assert result is not None
+        self.assertEqual(result.components[0].name, "Runner")
+        sent = llm.invoke.call_args.args[0]
+        self.assertEqual([type(m) for m in sent], [HumanMessage, AIMessage, HumanMessage])
+        self.assertEqual(sent[-1].content, JSON_RECOVERY_MESSAGE)
+
+    @patch("agents.scope_analysis_agent.create_agent")
+    def test_passes_the_enclosing_names_to_the_renderer(self, create_agent):
+        static_analysis, scope, analysis = _inputs()
+        runtime = MagicMock()
+        runtime.invoke.return_value = {"messages": [AIMessage(content='{"components":[],"relations":[]}')]}
+        create_agent.return_value = runtime
+        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, MagicMock(spec=BaseChatModel))
+
+        agent.analyze(scope, analysis, {"1"}, enclosing_names=("Engine",))
+
+        prompt = runtime.invoke.call_args.args[0]["messages"][0].content
+        self.assertIn('"enclosing_components": [\n    "Engine"\n  ]', prompt)
 
     @patch("agents.scope_analysis_agent.create_agent")
     def test_returns_none_for_malformed_model_output(self, create_agent):

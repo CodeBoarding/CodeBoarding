@@ -55,6 +55,7 @@ from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, wri
 from diagram_analysis.incremental_changes import compute_changed_members
 from diagram_analysis.scope_assembly import ScopeAssembler
 from repo_utils.path_utils import normalize_repo_path
+from utils import sanitize
 from diagram_analysis.scope_plan import plan_scope_result_update
 from diagram_analysis.tree_shape import absorb_single_child_components
 from health.config import initialize_health_dir, load_health_config
@@ -504,6 +505,56 @@ def _incremental_changed_component_ids(
     return changed
 
 
+def distinguish_expanded_component_names(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> list[tuple[str, str, str]]:
+    """Make every expanded component's document name unique across the whole tree.
+
+    The markdown and MDX renderers write one document per expanded component under
+    ``sanitize(name)``, so two expanded components that sanitise alike overwrite each other.
+    The scope agent is told the names it sits inside, and the assembler refuses a proposal
+    that repeats one, but two cousins named independently on the pool can still collide.
+    This is the guarantee: the later one (by id) gets its id appended, and every relation
+    that carries its name follows. Returns ``(component_id, old, new)`` per rename.
+    """
+    scopes = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
+    expanded: list[tuple[str, Component, AnalysisInsights]] = []
+    for scope_id, scope_analysis in scopes.items():
+        for component in scope_analysis.components:
+            if component.component_id in sub_analyses:
+                expanded.append((component.component_id, component, scope_analysis))
+    expanded.sort(key=lambda item: [int(part) if part.isdigit() else part for part in item[0].split(".")])
+
+    renamed: list[tuple[str, str, str]] = []
+    taken: set[str] = set()
+    for component_id, component, holder in expanded:
+        key = sanitize(component.name)
+        if key not in taken:
+            taken.add(key)
+            continue
+        new_name = f"{component.name} ({component_id})"
+        while sanitize(new_name) in taken:
+            new_name += "_"
+        taken.add(sanitize(new_name))
+        old_name = component.name
+        component.name = new_name
+        for scope_analysis in scopes.values():
+            for relation in scope_analysis.components_relations:
+                if relation.src_id == component_id and relation.src_name == old_name:
+                    relation.src_name = new_name
+                if relation.dst_id == component_id and relation.dst_name == old_name:
+                    relation.dst_name = new_name
+        renamed.append((component_id, old_name, new_name))
+        logger.warning(
+            "Expanded components would share document '%s'; renamed %s to %r",
+            key,
+            component_id,
+            new_name,
+        )
+    return renamed
+
+
 class DiagramGenerator:
     def __init__(
         self,
@@ -576,6 +627,9 @@ class DiagramGenerator:
         self._naming_counts_lock = threading.Lock()
         self._scopes_enriched = 0
         self._scopes_unnamed = 0
+        # Every component name this run has settled, by id, so a child scope can be told
+        # the names it sits inside. Written under the lock: child scopes run on the pool.
+        self._names_by_id: dict[str, str] = {}
         self.incremental_updater: IncrementalUpdater | None = None
         self.file_coverage_data: dict | None = None
 
@@ -719,7 +773,9 @@ class DiagramGenerator:
     ) -> None:
         """Apply bounded semantic enrichment while preserving deterministic scope structure."""
         if not editable_group_ids:
+            self._record_names(analysis)
             return
+        enclosing_names = self._enclosing_names(scope.scope_id)
         with self._naming_counts_lock:
             self._scopes_enriched += 1
         try:
@@ -730,6 +786,7 @@ class DiagramGenerator:
                 locked_name_ids,
                 changed_files,
                 incremental,
+                enclosing_names=enclosing_names,
             )
         except LLMAuthError:
             raise
@@ -737,10 +794,12 @@ class DiagramGenerator:
             logger.exception("Semantic analysis failed for scope %s; retaining deterministic output", scope.scope_id)
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
+            self._record_names(analysis)
             return
         if semantics is None:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
+            self._record_names(analysis)
             return
         assert self.static_analysis is not None
         unnamed = self.scope_assembler.apply_semantics(
@@ -750,7 +809,9 @@ class DiagramGenerator:
             editable_group_ids,
             set(locked_name_ids),
             StaticReferenceResolver(self.repo_location, self.static_analysis),
+            reserved_names=enclosing_names,
         )
+        self._record_names(analysis)
         if unnamed:
             logger.warning(
                 "Scope %s: %d of %d editable groups keep deterministic names (%s)",
@@ -762,6 +823,25 @@ class DiagramGenerator:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
 
+    def _record_names(self, analysis: AnalysisInsights) -> None:
+        with self._naming_counts_lock:
+            for component in analysis.components:
+                if component.component_id:
+                    self._names_by_id[component.component_id] = component.name
+
+    def _enclosing_names(self, scope_id: str) -> tuple[str, ...]:
+        """The names of the components a scope sits inside, outermost first.
+
+        Scope ``1.2.1`` sits inside components ``1`` and ``1.2``; both were named when
+        their own scope was enriched, which always happens before a child is submitted.
+        """
+        if scope_id == ROOT_SCOPE_ID:
+            return ()
+        parts = scope_id.split(".")
+        with self._naming_counts_lock:
+            names = [self._names_by_id.get(".".join(parts[: index + 1])) for index in range(len(parts))]
+        return tuple(name for name in names if name)
+
     def _enrich_incremental_scopes(
         self,
         hierarchy: ClusterScopeResult,
@@ -772,6 +852,10 @@ class DiagramGenerator:
         skip_scope_ids: frozenset[str] = frozenset(),
     ) -> None:
         """Re-run semantic analysis only for scopes containing changed groups or files."""
+        # The baseline's names are the ones a re-named child must not collide with.
+        self._record_names(root_analysis)
+        for scope_analysis in sub_analyses.values():
+            self._record_names(scope_analysis)
         changed_files = self._incremental_changed_files(root_analysis)
         for scope in self._cluster_scopes(hierarchy):
             if scope.scope_id in skip_scope_ids:
@@ -1388,6 +1472,7 @@ class DiagramGenerator:
         if self.tree_spec is not None:
             self.tree_spec.reroot(absorbed_ids)
         assert_scope_containment(root_analysis, sub_analyses)
+        distinguish_expanded_component_names(root_analysis, sub_analyses)
 
     def finalize_and_save(
         self,

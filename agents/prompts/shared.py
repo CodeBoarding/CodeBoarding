@@ -31,7 +31,10 @@ SCOPE_ANALYSIS_SYSTEM_MESSAGE = """You name and describe fixed, deterministic co
 The supplied group IDs, file membership, hierarchy, and known directed calls are authoritative. Never merge,
 split, move, add, or remove groups. Work at the supplied scope exactly the same way whether it is root or nested.
 
-Use the supplied files, grouping reasons, bordering files, and known connections before calling tools. `readFile`
+Use the supplied files, grouping reasons, bordering files, and known connections before calling tools. A known
+connection gives the number of distinct calls from one group to another and a few of them in full; cite only
+symbols that appear in the input. Never reuse a name listed under `enclosing_components`: those are the
+components this scope sits inside, and a child named after its parent overwrites its document. `readFile
 may inspect a specific in-scope file and `getMethodCalls` may inspect one exact in-scope symbol in one direction.
 Do not inventory the scope, browse every file, or repeat a tool call. A runtime budget limits all tools to six calls.
 

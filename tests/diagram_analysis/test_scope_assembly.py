@@ -22,12 +22,13 @@ def _component(component_id: str, name: str) -> Component:
     return Component(name=name, description=name, key_entities=[], component_id=component_id)
 
 
-def _scope(*pairs: tuple[str, str], names: dict[str, str] | None = None) -> ClusterScopeResult:
+def _scope(*pairs: tuple[str, str], names: dict[str, str] | None = None, absolute: bool = False) -> ClusterScopeResult:
     symbols = {"1": "a.run", "2": "b.load", "3": "c.save"}
     names = names or {}
     graph = CallGraph(language="python")
     for index, (group_id, qualified_name) in enumerate(symbols.items(), start=1):
-        graph.add_node(Node(qualified_name, NodeType.FUNCTION, f"src/{group_id}.py", index, index + 1))
+        path = f"/repo/src/{group_id}.py" if absolute else f"src/{group_id}.py"
+        graph.add_node(Node(qualified_name, NodeType.FUNCTION, path, index, index + 1))
     return ClusterScopeResult(
         scope_id="root",
         graphs_by_language={"python": graph},
@@ -169,6 +170,36 @@ class TestScopeAssembler(unittest.TestCase):
             [(relation.src_id, relation.dst_id, relation.relation) for relation in analysis.components_relations],
             [("2", "3", "calls")],
         )
+
+    def test_fallback_descriptions_name_files_relative_to_the_repository(self) -> None:
+        """This text ships in analysis.json when semantic analysis fails; the graph's paths
+        are absolute, and a run once printed the runner's temp directory eight times over."""
+        analysis = ScopeAssembler(Path("/repo")).build(_scope(absolute=True))
+
+        self.assertEqual(analysis.components[0].description, "Owns 1 symbols across 1 files: src/1.py.")
+        self.assertNotIn("/repo", analysis.components[0].description)
+
+    def test_a_proposal_cannot_take_an_enclosing_components_name(self) -> None:
+        """Each expanded component writes a document under its name, so a child named after
+        its parent overwrites the parent's document."""
+        scope = _scope(names={"1": "engine", "2": "adapters"})
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        result = ScopeAnalysisResult(
+            description="",
+            components=[
+                ScopeComponentSemantics(group_id="1", name="Static Analysis Engine", description="core"),
+                ScopeComponentSemantics(group_id="2", name="Adapters", description="per language"),
+            ],
+            relations=[],
+        )
+
+        unnamed = assembler.apply_semantics(
+            analysis, scope, result, {"1", "2"}, set(), _resolver(scope), reserved_names=("Static Analysis Engine",)
+        )
+
+        self.assertEqual([c.name for c in analysis.components], ["engine", "Adapters", "Component 3"])
+        self.assertEqual(unnamed, frozenset({"1"}))
 
     def test_names_components_from_the_clustering_rule_that_claimed_them(self) -> None:
         scope = _scope(names={"1": "Ingestion", "2": "Storage"})

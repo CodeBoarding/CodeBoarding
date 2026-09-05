@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 
 from langchain.agents import create_agent
@@ -29,6 +30,15 @@ logger = logging.getLogger(__name__)
 MAX_SCOPE_TOOL_CALLS = 6
 MAX_SCOPE_MODEL_CALLS = 8
 SCOPE_RECURSION_LIMIT = 40
+
+#: Asked once, without tools, when the bounded run ended in prose instead of the object.
+#: Measured on Hono with Kimi-K2.6: four of eleven scopes ended that way in one run and the
+#: scope then shipped its deterministic names; one plain completion over the same transcript
+#: is far cheaper than losing the scope.
+JSON_RECOVERY_MESSAGE = (
+    "Your previous message did not contain the JSON object. Reply now with exactly one JSON object "
+    "in the requested shape and nothing else — no prose, no markdown fences."
+)
 
 
 class ScopeComponentSemantics(LLMBaseModel):
@@ -101,6 +111,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
         locked_name_ids: frozenset[str] = frozenset(),
         changed_files: frozenset[str] = frozenset(),
         incremental: bool = False,
+        enclosing_names: Sequence[str] = (),
     ) -> ScopeAnalysisResult | None:
         """Run one bounded semantic analysis, returning no result for malformed output."""
         context = RepoContext(
@@ -130,6 +141,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
             locked_name_ids,
             changed_files,
             incremental,
+            enclosing_names,
         )
         try:
             response = agent.invoke(
@@ -142,12 +154,29 @@ class ScopeAnalysisAgent(MonitoringMixin):
         except Exception as error:
             raise_if_auth_error(error)
             raise
-        text = self._last_response_text(response.get("messages", []))
+        messages = response.get("messages", [])
+        text = self._last_response_text(messages)
+        if "{" not in text:
+            logger.info("Scope %s answered without a JSON object; asking once more for it", scope.scope_id)
+            text = self._recover_json(messages)
         try:
             return ScopeAnalysisResult.model_validate_json(self._json_object(text))
         except (json.JSONDecodeError, ValidationError, ValueError) as error:
             logger.warning("Scope %s returned unusable semantic output: %s", scope.scope_id, error)
             return None
+
+    def _recover_json(self, messages: list) -> str:
+        """One tool-free completion over the transcript, asking for the object alone."""
+        try:
+            answer = self.agent_llm.invoke(
+                [*messages, HumanMessage(content=JSON_RECOVERY_MESSAGE)],
+                config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
+            )
+        except Exception as error:
+            raise_if_auth_error(error)
+            logger.warning("JSON recovery call failed: %s", error)
+            return ""
+        return self._last_response_text([answer])
 
     @staticmethod
     def _last_response_text(messages: list) -> str:

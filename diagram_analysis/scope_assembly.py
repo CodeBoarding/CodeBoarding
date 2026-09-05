@@ -1,7 +1,7 @@
 """Build diagram scopes from deterministic clustering results."""
 
 import logging
-from collections.abc import Callable
+from collections.abc import Collection, Callable
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge
@@ -22,6 +22,7 @@ from constants import DEFAULT_STATIC_RELATION_LABEL
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
 from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.cfg import Edge
+from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult, GroupConnection
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
@@ -48,7 +49,7 @@ class ScopeAssembler:
             components.append(
                 Component(
                     name=group.unique_name(taken),
-                    description=self._fallback_description(scope, group),
+                    description=self._fallback_description(scope, group, self.repo_dir),
                     key_entities=[],
                     source_cluster_ids=CodeBoardingClusterIds.from_graph_ids(set(group.cluster_ids)),
                     component_id=group.group_id,
@@ -98,11 +99,14 @@ class ScopeAssembler:
         editable_group_ids: set[str],
         locked_name_ids: set[str],
         reference_resolver: StaticReferenceResolver,
+        reserved_names: Collection[str] = (),
     ) -> frozenset[str]:
         """Apply valid semantic fields without changing deterministic structure.
 
         Returns the editable groups that ended up without a semantic name, so the caller can
-        report a scope the model only partly named.
+        report a scope the model only partly named. ``reserved_names`` are taken before any
+        proposal is: the names of the components this scope sits inside, so a child cannot be
+        named after its parent (each expanded component writes a document under its name).
         """
         components = {component.component_id: component for component in analysis.components}
         groups_by_id = {group.group_id: group for group in scope.groups}
@@ -119,6 +123,7 @@ class ScopeAssembler:
             and semantics_by_id[group_id].name.strip()
         }
         taken = {component.name for group_id, component in components.items() if group_id not in proposals}
+        taken.update(reserved_names)
         named: set[str] = set()
         for group_id in ordered_ids:
             component = components.get(group_id)
@@ -344,10 +349,16 @@ class ScopeAssembler:
             )
 
     @staticmethod
-    def _fallback_description(scope: ClusterScopeResult, group: ClusterGroup) -> str:
+    def _fallback_description(scope: ClusterScopeResult, group: ClusterGroup, repo_dir: Path) -> str:
+        """What a component says about itself when semantic analysis skipped or failed it.
+
+        Repository-relative paths, deliberately: this text ships in analysis.json, and the
+        graph's file paths are absolute — a run in the extension would print the user's
+        disk layout and a run in the action the runner's temp directory.
+        """
         files = sorted(
             {
-                scope.graphs_by_language[language].nodes[qualified_name].file_path
+                normalize_repo_path(scope.graphs_by_language[language].nodes[qualified_name].file_path, repo_dir)
                 for language, qualified_names in group.symbol_members_by_language.items()
                 if language in scope.graphs_by_language
                 for qualified_name in qualified_names

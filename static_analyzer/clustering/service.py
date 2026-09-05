@@ -199,17 +199,26 @@ class ClusteringService:
             members = partition.members.get(rule.component_id, [])
             if not members:
                 continue
+            # Every name voted; the members the agents own are the callables and classes. A
+            # rule whose units carry none — data-only files, a TSX file of constants — would
+            # become a component that owns no file, and a box with nothing in it is not a
+            # component: the diagram stays whole without it, its units draw nothing anyway.
+            owned_by_language: dict[str, set[str]] = {}
+            for unit in members:
+                nodes = graphs[unit.language].nodes
+                owned = {name for name in unit.names if nodes[name].type in CALLABLE_TYPES | CLASS_TYPES}
+                owned_by_language.setdefault(unit.language, set()).update(owned)
+            if not any(owned_by_language.values()):
+                logger.info("Scope %s: rule %s owns no callable or class; not drawn", scope_id, rule.component_id)
+                continue
             group = ClusterGroup(
                 group_id=rule.component_id,
                 name=rule.name,
                 cluster_ids=sorted(leaf_by_unit[unit.unit_id] for unit in members),
                 previous_component_id=rule.component_id if rule.component_id in previous_ids else "",
             )
+            group.symbol_members_by_language = owned_by_language
             for unit in members:
-                # Every name voted; the members the agents own are the callables and classes.
-                nodes = graphs[unit.language].nodes
-                owned = {name for name in unit.names if nodes[name].type in CALLABLE_TYPES | CLASS_TYPES}
-                group.symbol_members_by_language.setdefault(unit.language, set()).update(owned)
                 group.file_reasons[unit.unit_id] = self._placement_reason(
                     unit,
                     rule,
