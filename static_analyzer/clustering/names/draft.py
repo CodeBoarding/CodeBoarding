@@ -14,6 +14,7 @@ from static_analyzer.clustering.names.replay import Partition, replay
 from static_analyzer.clustering.names.spec import (
     FILES,
     FRONTIER,
+    ISLAND,
     LAYERS,
     LEAF,
     ROLE,
@@ -52,6 +53,10 @@ CAP_SHARE = 0.6
 """No fold may grow a component past this share of its scope."""
 UNPLACED_NAME = "Unassigned"
 LOOSE_NAME = "Loose files"
+ISLAND_SHARE = 1 / 3
+"""Share of a scope one family must hold to be drawn on its own against the rest."""
+ISLAND_STRAYS = 1
+"""Links a family may exchange with the rest and still count as an island: one is noise."""
 
 Links = Mapping[tuple[str, str], int]
 """Weight of the graph edges between two units, keyed by the unit ids in sorted order."""
@@ -285,6 +290,7 @@ def draft_scope(
         rungs.append((LAYERS, lambda: frontier(LAYERS, False, layers=True)))
         rungs.append((FILES, lambda: _file_rules(scope_id, scope_units, role_words, grouper, links)))
         rungs.append((ROLE, lambda: _role_rules(scope_id, scope_units, role_words, grouper, links)))
+        rungs.append((ISLAND, lambda: _island_rules(scope_id, scope_units, role_words, grouper, links)))
     produced: dict[str, tuple[list[ComponentRule], str]] = {}
     for rung, produce in rungs:
         produced[rung] = rules, axis = produce()
@@ -402,6 +408,73 @@ def _role_rules(
         for word, members in sorted(by_head.items())
     ]
     return _grouped_rules(scope_id, units, candidates, role_words, grouper, ROLE, links), ROLE
+
+
+def _island_rules(
+    scope_id: ScopeId,
+    units: list[Unit],
+    role_words: frozenset[str],
+    grouper: Grouper,
+    links: Links,
+) -> tuple[list[ComponentRule], str]:
+    """One family that talks to itself and to nobody else, against the rest of a fan.
+
+    The files rung wants two families; a fan of parallel implementations usually has one at
+    most, the files that route through a shared sibling, beside siblings that share nothing.
+    That family is a box only when no link crosses to the rest: a family the rest calls is
+    the fold cutting a hub's neighbours in two, which is arbitrary, and stays whole.
+    """
+    by_key: dict[Prefix, list[Unit]] = {}
+    for unit in units:
+        by_key.setdefault(unit.key, []).append(unit)
+    candidates = [Candidate(f"{FILE}:{'.'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)]
+    if len(candidates) < 2:
+        return [], ISLAND
+    context = _context(scope_id, units, candidates, role_words, ISLAND, links)
+    groups = grouper.group(candidates, context)
+    strong = [group for group in groups if sum(context.sizes.get(key, 0) for key in group.keys) >= context.floor]
+    if len(strong) != 1:
+        return [], ISLAND
+    family_keys = set(strong[0].keys)
+    family = [unit for unit in units if f"{FILE}:{'.'.join(unit.key)}" in family_keys]
+    rest = [unit for unit in units if f"{FILE}:{'.'.join(unit.key)}" not in family_keys]
+    if len(family) < ISLAND_SHARE * len(units) or len(rest) < context.floor:
+        return [], ISLAND
+    family_ids = {unit.unit_id for unit in family}
+    rest_ids = {unit.unit_id for unit in rest}
+    crossing = sum(
+        weight
+        for (left, right), weight in links.items()
+        if (left in family_ids and right in rest_ids) or (left in rest_ids and right in family_ids)
+    )
+    if crossing > ISLAND_STRAYS:
+        return [], ISLAND
+    rules = _rules_from_groups(strong, [candidate for candidate in candidates if candidate.key in family_keys])
+    rules.append(
+        ComponentRule(
+            "",
+            _rest_name(rest),
+            prefixes=tuple(dict.fromkeys(unit.key for unit in rest)),
+            fallback_prefixes=(_common_prefix(units),),
+            origin=ISLAND,
+        )
+    )
+    return rules, ISLAND
+
+
+def _rest_name(units: list[Unit]) -> str:
+    """``Other converters``: the word most of the fan's names end in, else ``Other files``."""
+    heads: Counter[str] = Counter()
+    for unit in units:
+        words = tokenize(_label(unit.key))
+        if words:
+            heads[words[-1].casefold()] += 1
+    if not heads:
+        return "Other files"
+    word, count = heads.most_common(1)[0]
+    if count < len(units) / 2:
+        return "Other files"
+    return f"Other {word}" if word.endswith("s") else f"Other {word}s"
 
 
 def _grouped_rules(

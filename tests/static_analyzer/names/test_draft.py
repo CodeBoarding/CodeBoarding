@@ -19,6 +19,7 @@ from static_analyzer.clustering.names.draft import (
     FILES,
     FRONTIER,
     GUARD_SHARE,
+    ISLAND,
     LAYERS,
     LEAF,
     LEAF_CAP,
@@ -331,6 +332,75 @@ class TestLadder:
         assert rule_of(feature, "1.2").terms == ("strategy",)
         added = units_from_layout({"pkg/feat/kappa_strategy.py": ["pkg.feat.kappa_strategy.KappaStrategy"]})
         assert replay(added, feature, ROLE_WORDS).assignment == {"pkg/feat/kappa_strategy.py": "1.2"}
+
+    def _fan(self, *members: str) -> tuple[list, dict]:
+        """A fan of converters: the HTML-based ones call the HTML converter, the rest call nobody."""
+        layout = self._flat_feature(*members)
+        html = {
+            name for name in members if name in ("HtmlConverter", "DocxConverter", "EpubConverter", "PptxConverter")
+        }
+        links = {
+            (f"pkg/feat/{a.lower()}.py", f"pkg/feat/{b.lower()}.py"): 2
+            for a in sorted(html)
+            for b in sorted(html)
+            if a < b
+        }
+        return units_from_layout(layout), links
+
+    def test_a_family_that_talks_to_nobody_else_is_an_island_against_the_rest(self):
+        units, links = self._fan(
+            "HtmlConverter",
+            "DocxConverter",
+            "EpubConverter",
+            "PptxConverter",
+            "PdfConverter",
+            "AudioConverter",
+            "ImageConverter",
+            "ZipConverter",
+            "CsvConverter",
+        )
+        feature = scope_of(draft_tree(units, AffinityGrouper(), 3, links=links), "1")
+        assert feature.rung == ISLAND
+        assert names_of(feature) == ["Other converters", "DocxConverter"]
+        rest, family = feature.rules
+        assert len(rest.prefixes) == 5 and rest.fallback_prefixes == (("pkg", "feat"),)
+        assert len(family.prefixes) == 4
+        placed = replay(units, feature, ROLE_WORDS)
+        assert placed.size("1.1") == 5 and placed.size("1.2") == 4
+        assert scope_of(draft_tree(units, AffinityGrouper(), 3, links=links), "1.1").is_leaf
+
+    def test_a_family_the_rest_calls_is_a_hub_cut_and_stays_whole(self):
+        units, links = self._fan(
+            "HtmlConverter",
+            "DocxConverter",
+            "EpubConverter",
+            "PptxConverter",
+            "PdfConverter",
+            "AudioConverter",
+            "ImageConverter",
+            "ZipConverter",
+            "CsvConverter",
+        )
+        for name in ("pdfconverter", "audioconverter", "imageconverter"):
+            links[("pkg/feat/htmlconverter.py", f"pkg/feat/{name}.py")] = 1
+        feature = scope_of(draft_tree(units, AffinityGrouper(), 2, links=links), "1")
+        assert feature.is_leaf and "island" in feature.leaf_reason
+
+    def test_a_family_too_small_for_its_scope_is_not_an_island(self):
+        units, links = self._fan(
+            "HtmlConverter",
+            "DocxConverter",
+            "PdfConverter",
+            "AudioConverter",
+            "ImageConverter",
+            "ZipConverter",
+            "CsvConverter",
+            "TextConverter",
+            "RtfConverter",
+            "XmlConverter",
+        )
+        feature = scope_of(draft_tree(units, AffinityGrouper(), 2, links=links), "1")
+        assert feature.is_leaf
 
     def test_the_ladder_stops_at_the_leaf_units(self):
         layout = self._flat_feature("AlphaStrategy", "BetaStrategy", "GammaStrategy", "DeltaOptions", "EpsOptions")
