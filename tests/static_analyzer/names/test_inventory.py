@@ -1,4 +1,4 @@
-from static_analyzer.clustering.names import Trie, unit_position, units_from_graph, units_from_graphs
+from static_analyzer.clustering.names import Trie, unit_key, unit_position, units_from_graph, units_from_graphs
 from tests.static_analyzer.names.conftest import graph_from_layout, node_of, unit
 
 
@@ -10,6 +10,10 @@ class TestUnitPosition:
             "agents.scope_analysis_agent.helper",
         ]
         assert unit_position(names, ".") == ("agents", "scope_analysis_agent")
+
+    def test_the_key_keeps_the_one_class_a_file_declares(self):
+        assert unit_key(["pkg.mod.Thing", "pkg.mod.Thing.run"], ".") == ("pkg", "mod", "Thing")
+        assert unit_key(["pkg.mod.a", "pkg.mod.b"], ".") == ("pkg", "mod")
 
     def test_a_file_declaring_one_class_sits_in_its_module_not_its_class(self):
         names = [

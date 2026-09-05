@@ -15,6 +15,20 @@ UNPLACED = "unplaced"
 """Kinds of rule. The unplaced bucket owns what no rule claims, so it is drawn rather than
 hidden and can never collide with a component the planner proposes."""
 
+UNMERGE = "unmerge"
+FRONTIER = "frontier"
+VOCABULARY = "vocabulary"
+SEGMENT = "segment"
+LAYERS = "layers"
+FILES = "files"
+ROLE = "role"
+LEAF = "leaf"
+"""The rungs of the ladder, recorded on the scope they drew."""
+
+KEYED_RUNGS = frozenset({FILES, ROLE})
+"""Rungs whose rules own files by their key rather than directories by their position: replay
+matches the key only there, so a class named like a sibling directory moves nothing above."""
+
 
 @dataclass(frozen=True)
 class ComponentRule:
@@ -124,8 +138,9 @@ class ScopeSpec:
         )
 
 
-SPEC_VERSION = 2
-"""2: ``last_id`` per scope; a spec without it cannot keep a retired id from being reissued."""
+SPEC_VERSION = 3
+"""3: the files and role rungs below the old floor of forty units, whose rules claim a unit by its
+key and may own a role word. 2: ``last_id`` per scope."""
 
 
 @dataclass

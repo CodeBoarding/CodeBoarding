@@ -155,20 +155,32 @@ numbering cannot move a unit.
 | scope | rungs, in order |
 |---|---|
 | root | frontier of the trie (layers transposed or drawn) → words of the units (only if the frontier gave one box) |
-| component < 40 units | un-merge: the candidates the grouper folded into it → leaf ("cohesive") |
-| component 40–135 units | un-merge → frontier of its own sub-trie, layered nodes with a grid kept whole → leaf ("cohesive") |
-| component > 135 units | un-merge → frontier of its sub-trie, transposed where a grid recurs → words of its units → leaf ("exhausted") |
+| component ≤ 7 units | un-merge: the candidates the grouper folded into it → leaf ("small") |
+| component 8–135 units | un-merge → frontier of its own sub-trie, a layered grid kept whole → the same frontier with the grid drawn layer by layer → files → roles → leaf ("cohesive") |
+| component > 135 units | un-merge → frontier of its sub-trie, transposed where a grid recurs → words of its units → layers → files → roles → leaf ("exhausted") |
 
-Why two thresholds: the floor (40) is the size below which a box reads whole in a listing,
-and above which a reader wants to click; the cap (135, the largest box any maintainer has
-left unsplit, eShop's client app) is where the aggressive coordinates start, because on the
-one maintainer-drawn depth-2 ruler a transposition below it over-splits every leaf parent
-(eShop depth 2: 0.974 whole, 0.59 transposed at 40 units, 0.67 at 70). The structural
-rungs below the cap cost that ruler 0.974 → 0.934 (Identity.API opens into Quickstart,
-Models, Services, Data) and buy django eight expandable components at depth 2 where there
-was one. The un-merge rung gives nesting for free: a root box folded from several
-candidates opens into them at depth 2, and each of those opens its own sub-trie at depth 3.
-There is no graph tier: Leiden is retired at every depth.
+The two rungs below the trie read the files themselves, since below a leaf the trie is
+flat. **Files**: every file is a candidate labelled by its own name (its key: the position
+plus the one class it declares), the grouper merges the ones sharing a distinctive word and
+folds the rest along the graph, and every group under the floor pools into one "Loose files"
+bucket, a fallback-only rule on the scope's own prefix, so a one-file box is never drawn.
+**Roles**: the same over the head word of each file's name (`Strategy`, `Options`,
+`Converter`); inside a feature the roles are the structure, so this is the one rung where a
+rule may own a role word, and replay lets a role word vote only for a rule that owns it.
+Measured on nine repositories with no model (study "The Leaf Ladder", Sep 2026): the files
+rung resolves every leaf the trie cannot, with cross-child call leakage of 0.35 against 0.79
+for a random partition of the same shape; name kinship without the graph fold does not
+follow the calls (0.68). What stays a leaf is a fan of parallel implementations sharing no
+word (markitdown's converters) or a feature of eight to twelve files that no name separates.
+
+Why the cap (135, the largest box any maintainer has left unsplit, eShop's client app):
+on the one maintainer-drawn depth-2 ruler a transposition below it over-splits every leaf
+parent (eShop depth 2: 0.974 whole, 0.59 transposed at 40 units, 0.67 at 70), so below the
+cap a grid is drawn layer by layer instead, and only after the plain frontier has failed.
+The leaf size (7) is the box a reader takes in at a glance; the rungs below it never run,
+the un-merge always does. The un-merge rung gives nesting for free: a root box folded from
+several candidates opens into them at depth 2, and each of those opens its own sub-trie at
+depth 3. There is no graph tier: Leiden is retired at every depth.
 
 ## 4. Full, incremental, partial: one function, three entry points
 
@@ -311,10 +323,12 @@ perfect grouping) is the planner's to reach.
 - **Only static-analysis names are partitioned.** No support-scope carve-out.
 - **Never refuse.** One box at the root falls through to the words; nothing splits it,
   one box is drawn and the structure diagnostics say so.
-- **Structure from 40 units, aggressive rungs only above the leaf cap** (§3.5): the
-  sub-trie of a component is drawn from 40 units, transposition and words only above 135,
+- **Structure above 7 units, aggressive rungs only above the leaf cap** (§3.5): the
+  sub-trie of a component is drawn from 8 units, transposition and words only above 135,
   because a transposition below the cap over-splits every maintainer-drawn leaf on the only
-  depth-2 ruler while a directory split costs it 0.04.
+  depth-2 ruler while a directory split costs it 0.04. Below the trie the files and their
+  roles draw the boxes, and the depth cap alone decides how much of that ladder a run
+  materialises: the rest is drafted when a component is expanded or the cap is raised.
 - **The guard never folds into the largest rule.** A weak rule with no neighbour in the
   graph stands; the fold, not the guard, decides where a small box goes.
 - **The graph folds, never places.** Links between candidates reach the grouper as a
@@ -351,6 +365,11 @@ perfect grouping) is the planner's to reach.
   candidates) need links the synthesised ruler harness does not carry.
 - A unit the parent placed by a word has no home among the un-merged parts and lands in
   the unplaced bucket (eShop's Basket, serilog's Core: two and three files).
+- A fan of parallel implementations sharing no word (markitdown's 23 converters, mem0's 26
+  vector stores) stays one leaf; only the planner can fold it into families, at the variance
+  the grouper study measured. Splitting a single heavy file by its declarations was measured
+  and rejected: it equals the file in class-per-file languages and groups same-named
+  functions elsewhere.
 - The stemmer is crude (`spring` → `spr`); it is consistent with the measurements and
   ubiquity absorbs most of the damage, but it should be replaced when a ruler shows it
   costing something.

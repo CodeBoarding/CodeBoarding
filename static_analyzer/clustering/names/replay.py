@@ -1,9 +1,10 @@
 """One pure function from units and a scope's rules to a partition.
 
 A unit's box depends on its own names and the rules alone, never on a statistic over the
-collection, so a file added beside it cannot move it. Order of trial: the longest matching
-prefix, then a weighted vote over the words the rules own, then the longest matching
-fallback prefix; what is left is unplaced and reported.
+collection, so a file added beside it cannot move it. Order of trial: the longest prefix
+matching the unit's position (its key, in a scope the files or role rung drew), then a
+weighted vote over the words the rules own, then the longest matching fallback prefix; what
+is left is unplaced and reported.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from static_analyzer.clustering.names.inventory import Unit
-from static_analyzer.clustering.names.spec import UNPLACED, Prefix, ScopeSpec
+from static_analyzer.clustering.names.spec import KEYED_RUNGS, UNPLACED, Prefix, ScopeSpec
 from static_analyzer.clustering.names.tokens import segments, stem, tokenize
 from static_analyzer.config import ClusteringConfig
 
@@ -59,9 +60,11 @@ def replay(units: Iterable[Unit], scope: ScopeSpec, role_words: frozenset[str]) 
     named = [(prefix, component_id) for prefix, component_id in primary if prefix]
     known = {prefix for prefix, _ in named}
     bucket = scope.unplaced_rule
+    keyed = scope.rung in KEYED_RUNGS
     for unit in units:
-        component_id, how = _place(unit, primary, fallback, owner_by_term, rank, role_words)
-        if how != PREFIX or _longest_match(unit.position, named) is None:
+        where = unit.key if keyed else unit.position
+        component_id, how = _place(unit, where, primary, fallback, owner_by_term, rank, role_words)
+        if how != PREFIX or _longest_match(where, named) is None:
             partition.new_scopes.setdefault(divergence(unit.position, known), []).append(unit)
         if component_id is None:
             partition.unplaced.append(unit)
@@ -79,7 +82,9 @@ def term_votes(unit: Unit, owner_by_term: dict[str, str], role_words: frozenset[
     """Weighted votes of a unit's words for the rules that own them.
 
     Why the weighting: a noun phrase modifies rightwards, so a word nearer the head weighs
-    more; ``IncidentResolvedMetricsHandler`` is about metrics and reacts to an incident.
+    more; ``IncidentResolvedMetricsHandler`` is about metrics and reacts to an incident. A
+    role word votes only for a rule that owns it: the role rung draws boxes by role inside a
+    feature, and no rule above a leaf ever owns one.
     """
     votes: Counter[str] = Counter()
     for qualified_name in unit.names:
@@ -87,8 +92,6 @@ def term_votes(unit: Unit, owner_by_term: dict[str, str], role_words: frozenset[
             words = tokenize(part)
             for position, word in enumerate(words):
                 key = stem(word)
-                if key in role_words:
-                    continue
                 owner = owner_by_term.get(key)
                 if owner is not None:
                     votes[owner] += 2.0 ** (position - (len(words) - 1))
@@ -97,13 +100,14 @@ def term_votes(unit: Unit, owner_by_term: dict[str, str], role_words: frozenset[
 
 def _place(
     unit: Unit,
+    where: Prefix,
     primary: list[tuple[Prefix, str]],
     fallback: list[tuple[Prefix, str]],
     owner_by_term: dict[str, str],
     rank: dict[str, int],
     role_words: frozenset[str],
 ) -> tuple[str | None, str]:
-    owner = _longest_match(unit.position, primary)
+    owner = _longest_match(where, primary)
     if owner is not None:
         return owner, PREFIX
     if owner_by_term:
