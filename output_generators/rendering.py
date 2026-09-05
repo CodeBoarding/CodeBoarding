@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 from agents.agent_responses import AnalysisInsights, Relation
+from constants import DEFAULT_ROOT_DOCUMENT_NAME
 from agents.relation_edges import append_or_merge_relation
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from output_generators.html import generate_html_file
@@ -140,7 +141,7 @@ def render_docs(
     repo_ref: str,
     temp_dir: Path,
     format: str = ".md",
-    root_name: str = "overview",
+    root_name: str = DEFAULT_ROOT_DOCUMENT_NAME,
     demo_mode: bool = False,
 ) -> None:
     """Render docs in one extension under ``temp_dir``."""
@@ -180,7 +181,7 @@ def render(
     repo_name: str,
     output_dir: Path,
     repo_ref: str = "",
-    root_name: str = "overview",
+    root_name: str = DEFAULT_ROOT_DOCUMENT_NAME,
     demo_mode: bool = False,
 ) -> None:
     """Replace rendered docs for one format from a completed analysis.json."""

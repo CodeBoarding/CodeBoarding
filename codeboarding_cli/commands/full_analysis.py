@@ -1,5 +1,6 @@
 import argparse
 import logging
+from constants import CLI_ROOT_DOCUMENT_NAME
 from pathlib import Path
 
 from tqdm import tqdm
@@ -194,7 +195,7 @@ def _process_one_remote(
                 repo_ref=f"{repo_url}/blob/{get_branch(src.repo_path)}/",
                 temp_dir=src.artifact_dir,
                 format=".md",
-                root_name="on_boarding",
+                root_name=CLI_ROOT_DOCUMENT_NAME,
                 demo_mode=True,
             )
 

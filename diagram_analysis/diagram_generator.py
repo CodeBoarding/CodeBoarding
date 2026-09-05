@@ -39,6 +39,7 @@ from agents.relation_edges import (
 )
 from agents.scope_ids import ROOT_SCOPE_ID
 from clustering_ids import CodeBoardingClusterIds
+from constants import ROOT_DOCUMENT_NAMES
 from agents.scope_analysis_agent import ScopeAnalysisAgent
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
@@ -512,8 +513,8 @@ def distinguish_expanded_component_names(
 ) -> list[tuple[str, str, str]]:
     """Give every expanded component a distinct document name; returns ``(id, old, new)`` per rename.
 
-    Why: renderers write one document per expanded component under ``sanitize(name)``,
-    case-insensitively, and scopes named in parallel can still collide.
+    Why: renderers write the root under a fixed name and one document per expanded component
+    under ``sanitize(name)``, case-insensitively; scopes named in parallel can still collide.
     """
     scopes = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
     expanded = {
@@ -523,7 +524,7 @@ def distinguish_expanded_component_names(
         if component.component_id in sub_analyses
     }
     renamed: list[tuple[str, str, str]] = []
-    taken: set[str] = set()
+    taken = {sanitize(name).casefold() for name in ROOT_DOCUMENT_NAMES}
     for component_id in CodeBoardingClusterIds.sort(set(expanded)):
         component = expanded[component_id]
         key = sanitize(component.name).casefold()
@@ -681,6 +682,7 @@ class DiagramGenerator:
             # A partial run expands one component of an existing analysis, so it replays the
             # specification that analysis was drawn from rather than drafting a new one.
             self.tree_spec = self._stored_tree_spec()
+            self._record_partial_names(target_component, persisted_scopes)
             scope = self._build_component_scope(target_component, depth)
             self.clustering_hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
             self.clustering_hierarchy.register_scope(target_component.component_id, scope)
@@ -828,6 +830,15 @@ class DiagramGenerator:
             for component in analysis.components:
                 if component.component_id:
                     self._names_by_id[component.component_id] = component.name
+
+    def _record_partial_names(
+        self, target_component: Component, persisted_scopes: Mapping[str, AnalysisInsights]
+    ) -> None:
+        """A partial run names inside an existing tree; its children must know that tree's names."""
+        for scope_analysis in persisted_scopes.values():
+            self._record_names(scope_analysis)
+        with self._naming_counts_lock:
+            self._names_by_id[target_component.component_id] = target_component.name
 
     def _enclosing_names(self, scope_id: str) -> tuple[str, ...]:
         """The names of the components a scope sits inside, outermost first."""
