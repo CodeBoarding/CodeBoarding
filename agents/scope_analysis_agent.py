@@ -10,7 +10,7 @@ from langchain.agents import create_agent
 from langchain.agents.structured_output import ToolStrategy
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, ToolCall
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import Field
 
@@ -79,6 +79,17 @@ class ScopeAnalysisResult(LLMBaseModel):
         return "\n".join(part for part in (self.description, components, relations) if part)
 
 
+class RepositoryToolBudget(ToolCallLimitMiddleware):
+    """A shared call budget over the repository tools that never counts the structured answer.
+
+    Why: the stock limiter counts every tool call, and the answer is delivered as a tool
+    call — a scope that spent its budget on reads would have its answer blocked.
+    """
+
+    def _matches_tool_filter(self, tool_call: ToolCall) -> bool:
+        return tool_call["name"] != ScopeAnalysisResult.__name__
+
+
 class ScopeAnalysisAgent(MonitoringMixin):
     """Analyze any deterministic scope with two scope-restricted tools."""
 
@@ -115,7 +126,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
         )
         tools = [ReadFileTool(context=context), MethodCallsTool(context=context)]
         middleware: list = [
-            ToolCallLimitMiddleware(run_limit=MAX_SCOPE_TOOL_CALLS, exit_behavior="continue"),
+            RepositoryToolBudget(run_limit=MAX_SCOPE_TOOL_CALLS, exit_behavior="continue"),
             ModelCallLimitMiddleware(run_limit=MAX_SCOPE_MODEL_CALLS, exit_behavior="error"),
         ]
         agent: CompiledStateGraph = create_agent(

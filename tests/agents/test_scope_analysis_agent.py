@@ -18,6 +18,7 @@ from agents.scope_analysis_agent import (
     MAX_SCOPE_MODEL_CALLS,
     MAX_SCOPE_TOOL_CALLS,
     SCOPE_RECURSION_LIMIT,
+    RepositoryToolBudget,
     ScopeAnalysisAgent,
     ScopeAnalysisResult,
     ScopeComponentSemantics,
@@ -102,6 +103,7 @@ class TestScopeAnalysisAgent(unittest.TestCase):
         middleware = create_agent.call_args.kwargs["middleware"]
         tool_limit = next(item for item in middleware if isinstance(item, ToolCallLimitMiddleware))
         model_limit = next(item for item in middleware if isinstance(item, ModelCallLimitMiddleware))
+        self.assertIsInstance(tool_limit, RepositoryToolBudget)
         self.assertEqual(tool_limit.run_limit, MAX_SCOPE_TOOL_CALLS)
         self.assertEqual(model_limit.run_limit, MAX_SCOPE_MODEL_CALLS)
         self.assertEqual(runtime.invoke.call_args.kwargs["config"]["recursion_limit"], SCOPE_RECURSION_LIMIT)
@@ -139,6 +141,7 @@ class TestScopeAnalysisAgent(unittest.TestCase):
             )
             for index in range(MAX_SCOPE_TOOL_CALLS + 1)
         ]
+        # The budget is spent (and one read beyond it blocked); the answer still lands.
         final_response = AIMessage(
             content="",
             tool_calls=[
