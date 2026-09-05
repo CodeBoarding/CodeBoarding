@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-05T09:28:06.987609+00:00",
-  "overall_score": 0.86691776522285,
+  "timestamp": "2026-09-05T09:48:27.256563+00:00",
+  "overall_score": 0.8670846394984326,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1381,
+      "total_entities_checked": 1383,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
