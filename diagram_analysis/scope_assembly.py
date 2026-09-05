@@ -1,7 +1,7 @@
 """Build diagram scopes from deterministic clustering results."""
 
 import logging
-from collections.abc import Collection, Callable
+from collections.abc import Callable, Collection
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge

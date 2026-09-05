@@ -763,9 +763,23 @@ class DiagramGenerator:
         incremental: bool = False,
     ) -> None:
         """Apply bounded semantic enrichment while preserving deterministic scope structure."""
-        if not editable_group_ids:
+        try:
+            if editable_group_ids:
+                self._apply_scope_semantics(
+                    scope, analysis, editable_group_ids, locked_name_ids, changed_files, incremental
+                )
+        finally:
             self._record_names(analysis)
-            return
+
+    def _apply_scope_semantics(
+        self,
+        scope: ClusterScopeResult,
+        analysis: AnalysisInsights,
+        editable_group_ids: set[str],
+        locked_name_ids: frozenset[str],
+        changed_files: frozenset[str],
+        incremental: bool,
+    ) -> None:
         enclosing_names = self._enclosing_names(scope.scope_id)
         with self._naming_counts_lock:
             self._scopes_enriched += 1
@@ -783,14 +797,10 @@ class DiagramGenerator:
             raise
         except Exception:
             logger.exception("Semantic analysis failed for scope %s; retaining deterministic output", scope.scope_id)
-            with self._naming_counts_lock:
-                self._scopes_unnamed += 1
-            self._record_names(analysis)
-            return
+            semantics = None
         if semantics is None:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
-            self._record_names(analysis)
             return
         assert self.static_analysis is not None
         unnamed = self.scope_assembler.apply_semantics(
@@ -802,7 +812,6 @@ class DiagramGenerator:
             StaticReferenceResolver(self.repo_location, self.static_analysis),
             reserved_names=enclosing_names,
         )
-        self._record_names(analysis)
         if unnamed:
             logger.warning(
                 "Scope %s: %d of %d editable groups keep deterministic names (%s)",
