@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-05T09:48:27.256563+00:00",
-  "overall_score": 0.8670846394984326,
+  "timestamp": "2026-09-06T19:30:28.519443+00:00",
+  "overall_score": 0.8675827607745159,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1383,
+      "total_entities_checked": 1389,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -29,13 +29,6 @@
           "threshold": 0,
           "description": "Variables declared but never used",
           "entities": [
-            {
-              "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
-              "file_path": "codeboarding_workflows/analysis.py",
-              "line_start": 22,
-              "line_end": 22,
-              "metric_value": 0.0
-            },
             {
               "entity_name": "[unused_variable] \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
@@ -76,34 +69,6 @@
               "file_path": "monitoring/context.py",
               "line_start": 33,
               "line_end": 33,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_html_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 13,
-              "line_end": 13,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_markdown_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 14,
-              "line_end": 14,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_mdx_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 15,
-              "line_end": 15,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_rst_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 16,
-              "line_end": 16,
               "metric_value": 0.0
             },
             {
@@ -849,94 +814,129 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 129,
-              "line_end": 129,
+              "entity_name": "[unused_variable] \"role_words\" is not accessed",
+              "file_path": "static_analyzer/clustering/names/replay.py",
+              "line_start": 81,
+              "line_end": 81,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
+              "file_path": "codeboarding_workflows/analysis.py",
+              "line_start": 23,
+              "line_end": 23,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_path\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 180,
-              "line_end": 180,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 284,
-              "line_end": 284,
+              "line_start": 132,
+              "line_end": 132,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_path\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 366,
-              "line_end": 366,
+              "line_start": 183,
+              "line_end": 183,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 342,
-              "line_end": 342,
+              "line_start": 287,
+              "line_end": 287,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 369,
+              "line_end": 369,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 399,
-              "line_end": 399,
+              "line_start": 345,
+              "line_end": 345,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 402,
+              "line_end": 402,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 478,
-              "line_end": 478,
+              "line_start": 481,
+              "line_end": 481,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_path\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 501,
-              "line_end": 501,
+              "line_start": 504,
+              "line_end": 504,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 486,
-              "line_end": 486,
+              "line_start": 489,
+              "line_end": 489,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 908,
-              "line_end": 908,
+              "line_start": 998,
+              "line_end": 998,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_expanded_components\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1305,
-              "line_end": 1305,
+              "line_start": 1395,
+              "line_end": 1395,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1343,
-              "line_end": 1343,
+              "line_start": 1433,
+              "line_end": 1433,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"role_words\" is not accessed",
-              "file_path": "static_analyzer/clustering/names/replay.py",
-              "line_start": 81,
-              "line_end": 81,
+              "entity_name": "[unused_variable] \"generate_html_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 14,
+              "line_end": 14,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_markdown_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 15,
+              "line_end": 15,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_mdx_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_rst_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 17,
+              "line_end": 17,
               "metric_value": 0.0
             }
           ]
@@ -946,13 +946,6 @@
           "threshold": 0,
           "description": "Unused import statements that should be removed",
           "entities": [
-            {
-              "entity_name": "[unused_import] Import \"track_analysis\" is not accessed",
-              "file_path": "codeboarding_workflows/analysis.py",
-              "line_start": 22,
-              "line_end": 22,
-              "metric_value": 0.0
-            },
             {
               "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
@@ -979,34 +972,6 @@
               "file_path": "monitoring/__init__.py",
               "line_start": 12,
               "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"generate_html_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 13,
-              "line_end": 13,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"generate_markdown_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 14,
-              "line_end": 14,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"generate_mdx_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 15,
-              "line_end": 15,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"generate_rst_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 16,
-              "line_end": 16,
               "metric_value": 0.0
             },
             {
@@ -1491,6 +1456,41 @@
               "line_start": 37,
               "line_end": 37,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"track_analysis\" is not accessed",
+              "file_path": "codeboarding_workflows/analysis.py",
+              "line_start": 23,
+              "line_end": 23,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"generate_html_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 14,
+              "line_end": 14,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"generate_markdown_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 15,
+              "line_end": 15,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"generate_mdx_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"generate_rst_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 17,
+              "line_end": 17,
+              "metric_value": 0.0
             }
           ]
         },
@@ -1546,13 +1546,13 @@
       "composite_risk_score": 70.0
     },
     {
-      "file_path": "output_generators/rendering.py",
+      "file_path": "static_analyzer/lsp_client/__init__.py",
       "total_findings": 8,
       "warning_findings": 4,
       "composite_risk_score": 70.0
     },
     {
-      "file_path": "static_analyzer/lsp_client/__init__.py",
+      "file_path": "output_generators/rendering.py",
       "total_findings": 8,
       "warning_findings": 4,
       "composite_risk_score": 70.0
@@ -1606,12 +1606,6 @@
       "composite_risk_score": 30.0
     },
     {
-      "file_path": "codeboarding_workflows/analysis.py",
-      "total_findings": 2,
-      "warning_findings": 1,
-      "composite_risk_score": 25.0
-    },
-    {
       "file_path": "static_analyzer/cfg/call_graph.py",
       "total_findings": 2,
       "warning_findings": 1,
@@ -1619,6 +1613,12 @@
     },
     {
       "file_path": "static_analyzer/analysis_cache.py",
+      "total_findings": 2,
+      "warning_findings": 1,
+      "composite_risk_score": 25.0
+    },
+    {
+      "file_path": "codeboarding_workflows/analysis.py",
       "total_findings": 2,
       "warning_findings": 1,
       "composite_risk_score": 25.0
