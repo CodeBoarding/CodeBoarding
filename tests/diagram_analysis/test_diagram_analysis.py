@@ -882,6 +882,27 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNotNone(gen.scope_assembler)
         self.assertIsNone(gen.incremental_updater)
 
+    def test_a_partial_run_tells_child_scopes_the_names_they_sit_inside(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        root = AnalysisInsights(
+            description="",
+            components=[Component(name="Engine", description="", key_entities=[], component_id="1")],
+            components_relations=[],
+        )
+        target = Component(name="Adapters", description="", key_entities=[], component_id="1.2")
+
+        gen._record_partial_names(target, {ROOT_SCOPE_ID: root})
+
+        self.assertEqual(gen._enclosing_names("1.2.1"), ("Engine", "Adapters"))
+
     def test_enrich_scope_propagates_authentication_failures(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,

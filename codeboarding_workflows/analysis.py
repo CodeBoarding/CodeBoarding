@@ -14,6 +14,7 @@ import logging
 from pathlib import Path
 
 from agents.content_hash import compute_source_tree_hash
+from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_expandable_component_ids, load_full_analysis
 from diagram_analysis.run_context import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
@@ -141,7 +142,11 @@ def run_partial(
     generator = build_generator(run_paths, run_context, depth_level=depth_level, changes=ChangeSet(files=[]))
     generator.source_sha = current_source_hash
     # A component at the persisted cap needs one additional level prepared for expansion.
-    generator.prepare_analysis(hierarchy_depth=depth_level + 1, target_component=component_to_analyze)
+    generator.prepare_analysis(
+        hierarchy_depth=depth_level + 1,
+        target_component=component_to_analyze,
+        persisted_scopes={ROOT_SCOPE_ID: root_analysis, **sub_analyses},
+    )
 
     _, sub_analysis, _ = generator.process_component(component_to_analyze)
     if sub_analysis is None:

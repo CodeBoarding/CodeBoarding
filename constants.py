@@ -18,6 +18,10 @@ PERSISTED_ANALYSIS_ARTIFACT_FILENAMES = (
 GITIGNORE_FILENAME = ".gitignore"
 CODEBOARDINGIGNORE_FILENAME = ".codeboardingignore"
 DEFAULT_STATIC_RELATION_LABEL = "calls"
+# Document names the renderers give the root analysis; no expanded component may take one.
+DEFAULT_ROOT_DOCUMENT_NAME = "overview"
+CLI_ROOT_DOCUMENT_NAME = "on_boarding"
+ROOT_DOCUMENT_NAMES = (DEFAULT_ROOT_DOCUMENT_NAME, CLI_ROOT_DOCUMENT_NAME)
 
 
 class AppConfig:

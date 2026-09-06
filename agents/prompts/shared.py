@@ -31,7 +31,10 @@ SCOPE_ANALYSIS_SYSTEM_MESSAGE = """You name and describe fixed, deterministic co
 The supplied group IDs, file membership, hierarchy, and known directed calls are authoritative. Never merge,
 split, move, add, or remove groups. Work at the supplied scope exactly the same way whether it is root or nested.
 
-Use the supplied files, grouping reasons, bordering files, and known connections before calling tools. `readFile`
+Use the supplied files, grouping reasons, bordering files, and known connections before calling tools. A known
+connection gives the number of distinct calls from one group to another and a few of them in full; cite only
+symbols that appear in the input. Never reuse a name listed under `enclosing_components`: those are the
+components this scope sits inside, and a child named after its parent overwrites its document. `readFile`
 may inspect a specific in-scope file and `getMethodCalls` may inspect one exact in-scope symbol in one direction.
 Do not inventory the scope, browse every file, or repeat a tool call. A runtime budget limits all tools to six calls.
 
@@ -39,13 +42,13 @@ Name each editable group for one responsibility using the codebase's own vocabul
 and select only clearly evidenced key entities. Label known directed connections by their architectural meaning.
 You may add a missing non-static relation such as REST, queue, plugin, registry, file, or configuration wiring only
 when exact source symbols on both component sides and concrete textual evidence support it. Names alone are not
-evidence. Return JSON only, with no markdown fences."""
+evidence. Answer by calling the `ScopeAnalysisResult` tool; it is the only way to finish."""
 
 SCOPE_ANALYSIS_MESSAGE = """Analyze this deterministic scope:
 
 {scope_context}
 
-Return exactly this JSON shape:
+Call `ScopeAnalysisResult` with exactly this shape:
 {{
   "description": "one paragraph describing this scope's purpose and main flow",
   "components": [
@@ -93,7 +96,7 @@ Mandatory execution order:
 1. Read all supplied group and boundary context before deciding whether a tool is needed.
 2. Use a tool only to answer one unresolved question about a named file or symbol.
 3. Check every component, relation direction, and source symbol against the supplied context.
-4. Emit one JSON object and nothing else. Do not explain your reasoning or use markdown."""
+4. Finish with one `ScopeAnalysisResult` tool call. Do not explain your reasoning or use markdown."""
 
 STRICT_SCOPE_ANALYSIS_MESSAGE_SUFFIX = """
 
@@ -101,4 +104,4 @@ Final checklist before answering:
 - `components` contains exactly one entry for every editable group and no other group.
 - Every group ID and qualified name is copied exactly from the input.
 - Every relation is directed from source to target and has concrete evidence unless it is already known.
-- The response is one valid JSON object with no prose before or after it."""
+- The answer is a single `ScopeAnalysisResult` tool call, with no prose before or after it."""

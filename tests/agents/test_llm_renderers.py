@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component, Relation
+from agents.llm_renderers.scope import MAX_EXAMPLE_EDGES
 from agents.llm_renderers import render_call_graph, render_scope_context
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.clustering import ClusterConnectionEdge, ClusterGroup, ClusterScopeResult, GroupConnection
@@ -189,13 +190,58 @@ class TestRenderScopeContext(unittest.TestCase):
             {
                 "source_group_id": "1",
                 "target_group_id": "2",
-                "language": "python",
-                "source_method": "client.submit",
-                "source_file": "client.py",
-                "source_line": 10,
-                "target_method": "server.receive",
-                "target_file": "server.py",
-                "target_line": 30,
+                "calls": 1,
+                "examples": [
+                    {
+                        "source": "client.submit",
+                        "source_at": "client.py:10",
+                        "target": "server.receive",
+                        "target_at": "server.py:30",
+                    }
+                ],
             },
         )
+        self.assertEqual(payload["enclosing_components"], [])
         self.assertEqual(payload["existing_relations"][0]["relation"], "submits to")
+
+    def test_a_dense_pair_is_a_count_and_a_few_examples_not_every_edge(self):
+        graph = CallGraph(language="python")
+        edges = []
+        for index in range(40):
+            graph.add_node(Node(f"a.f{index}", NodeType.FUNCTION, f"/repo/a{index}.py", 1, 2))
+            graph.add_node(Node(f"b.g{index}", NodeType.FUNCTION, f"/repo/b{index}.py", 1, 2))
+            edges.append(ClusterConnectionEdge("python", f"a.f{index}", f"b.g{index}"))
+        # The same edge reported twice (two call sites) counts once.
+        edges.append(ClusterConnectionEdge("python", "a.f0", "b.g0"))
+        scope = ClusterScopeResult(
+            scope_id="root",
+            graphs_by_language={"python": graph},
+            groups=[
+                ClusterGroup("1", [1], symbol_members_by_language={"python": {f"a.f{i}" for i in range(40)}}),
+                ClusterGroup("2", [2], symbol_members_by_language={"python": {f"b.g{i}" for i in range(40)}}),
+            ],
+            connections=[
+                GroupConnection("1", "2", edges=edges[:20]),
+                GroupConnection("1", "2", edges=edges[20:]),
+            ],
+        )
+        analysis = AnalysisInsights(description="", components=[], components_relations=[])
+
+        payload = json.loads(
+            render_scope_context(
+                scope,
+                analysis,
+                Path("/repo"),
+                {"1", "2"},
+                set(),
+                set(),
+                incremental=False,
+                enclosing_names=("Backend", "Services"),
+            )
+        )
+
+        (pair,) = payload["known_connections"]
+        self.assertEqual((pair["source_group_id"], pair["target_group_id"], pair["calls"]), ("1", "2", 40))
+        self.assertEqual(len(pair["examples"]), MAX_EXAMPLE_EDGES)
+        self.assertEqual(pair["examples"][0]["source"], "a.f0")
+        self.assertEqual(payload["enclosing_components"], ["Backend", "Services"])

@@ -145,6 +145,7 @@ class TestPartialUpdate(unittest.TestCase):
             mock_generator.prepare_analysis.assert_called_once_with(
                 hierarchy_depth=2,
                 target_component=root_component,
+                persisted_scopes={"root": root_analysis},
             )
             mock_generator.process_component.assert_called_once_with(root_component)
             changes = mock_generator_class.call_args.kwargs["changes"]
@@ -194,10 +195,8 @@ class TestPartialUpdate(unittest.TestCase):
             components=[nested_component],
             components_relations=[],
         )
-        mock_load_full.return_value = (
-            AnalysisInsights(description="root", components=[root_component], components_relations=[]),
-            {"root_comp_id": sub_analysis_of_root},
-        )
+        root_analysis = AnalysisInsights(description="root", components=[root_component], components_relations=[])
+        mock_load_full.return_value = (root_analysis, {"root_comp_id": sub_analysis_of_root})
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -215,6 +214,7 @@ class TestPartialUpdate(unittest.TestCase):
             mock_generator.prepare_analysis.assert_called_once_with(
                 hierarchy_depth=3,
                 target_component=nested_component,
+                persisted_scopes={"root": root_analysis, "root_comp_id": sub_analysis_of_root},
             )
             mock_generator.process_component.assert_called_once_with(nested_component)
             self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 2)
@@ -399,10 +399,8 @@ class TestLocalSource(unittest.TestCase):
             key_entities=[],
         )
         mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash"}
-        mock_load_full.return_value = (
-            AnalysisInsights(description="root", components=[component], components_relations=[]),
-            {},
-        )
+        root_analysis = AnalysisInsights(description="root", components=[component], components_relations=[])
+        mock_load_full.return_value = (root_analysis, {})
         mock_generator_class.return_value.process_component.return_value = ("target", None, [])
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -422,6 +420,7 @@ class TestLocalSource(unittest.TestCase):
             mock_generator_class.return_value.prepare_analysis.assert_called_once_with(
                 hierarchy_depth=2,
                 target_component=component,
+                persisted_scopes={"root": root_analysis},
             )
 
 

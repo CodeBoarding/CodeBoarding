@@ -10,6 +10,7 @@ from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import run_full
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source, remote_source
+from constants import CLI_ROOT_DOCUMENT_NAME
 from diagram_analysis import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
@@ -194,7 +195,7 @@ def _process_one_remote(
                 repo_ref=f"{repo_url}/blob/{get_branch(src.repo_path)}/",
                 temp_dir=src.artifact_dir,
                 format=".md",
-                root_name="on_boarding",
+                root_name=CLI_ROOT_DOCUMENT_NAME,
                 demo_mode=True,
             )
 
