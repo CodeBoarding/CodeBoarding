@@ -290,7 +290,7 @@ wheels = [
 
 [[package]]
 name = "codeboarding"
-version = "0.13.11"
+version = "0.14.0"
 source = { editable = "." }
 dependencies = [
     { name = "docker" },
