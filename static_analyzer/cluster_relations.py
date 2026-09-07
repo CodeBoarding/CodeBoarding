@@ -19,7 +19,7 @@ from agents.relation_edges import (
     ground_relation_edges,
     static_relation_label,
 )
-from clustering_ids import is_self_or_descendant
+from clustering_ids import is_self_or_descendant  # noqa: F401  (re-exported)
 from static_analyzer.cfg import RELATION_REFERENCE_KINDS, CallGraph
 
 logger = logging.getLogger(__name__)
@@ -129,14 +129,19 @@ def _collect_authoritative_relations(
     return list(relations_by_pair.values())
 
 
-def _ancestor_relation(src_id: str, dst_id: str, llm_relations: list[Relation]) -> Relation | None:
+def _ancestor_relation(
+    src_id: str, dst_id: str, llm_relations_by_pair: dict[tuple[str, str], Relation]
+) -> Relation | None:
+    """The deepest semantic relation whose pair encloses ``(src_id, dst_id)``.
+
+    Why a pair lookup: scanning every semantic relation per static pair is quadratic, and a
+    type-complete graph has thousands of each.
+    """
     candidates = [
-        rel
-        for rel in llm_relations
-        if rel.src_id
-        and rel.dst_id
-        and is_self_or_descendant(src_id, rel.src_id)
-        and is_self_or_descendant(dst_id, rel.dst_id)
+        relation
+        for src_ancestor in iter_ancestor_ids(src_id)
+        for dst_ancestor in iter_ancestor_ids(dst_id)
+        if (relation := llm_relations_by_pair.get((src_ancestor, dst_ancestor))) is not None
     ]
     if not candidates:
         return None
@@ -175,19 +180,16 @@ def build_global_relations(
     global_relations: dict[tuple[str, str], Relation] = {}
     static_pairs = {(rel.src_cluster_id, rel.dst_cluster_id) for rel in static_relations}
     superseded_llm_pairs: set[tuple[str, str]] = set()
+    llm_relations_by_pair = {(rel.src_id, rel.dst_id): rel for rel in llm_relations if rel.src_id and rel.dst_id}
 
     for static_rel in static_relations:
         src_id = static_rel.src_cluster_id
         dst_id = static_rel.dst_cluster_id
-        for llm_rel in llm_relations:
-            if (
-                llm_rel.src_id
-                and llm_rel.dst_id
-                and is_self_or_descendant(src_id, llm_rel.src_id)
-                and is_self_or_descendant(dst_id, llm_rel.dst_id)
-            ):
-                superseded_llm_pairs.add((llm_rel.src_id, llm_rel.dst_id))
-        llm_relation = _ancestor_relation(src_id, dst_id, llm_relations)
+        for src_ancestor in iter_ancestor_ids(src_id):
+            for dst_ancestor in iter_ancestor_ids(dst_id):
+                if (src_ancestor, dst_ancestor) in llm_relations_by_pair:
+                    superseded_llm_pairs.add((src_ancestor, dst_ancestor))
+        llm_relation = _ancestor_relation(src_id, dst_id, llm_relations_by_pair)
         if llm_relation is None:
             relation = Relation.from_edges(
                 static_relation_label(static_rel.all_edges),

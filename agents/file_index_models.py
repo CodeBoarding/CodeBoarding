@@ -87,33 +87,28 @@ class FileEntry(BaseModel):
     )
 
     def merge_from(self, other: FileEntry) -> FileEntry:
-        """Merge another entry while retaining independent, canonical method metadata."""
+        """Merge another entry while retaining independent, canonical method metadata.
+
+        Why linear: an entry is merged once per component that touches its file, so copying
+        every method it already owns on each merge made a large file quadratic to index.
+        """
         if not self.content_hash:
             self.content_hash = other.content_hash
         if not self.module_hash:
             self.module_hash = other.module_hash
 
         methods_by_qname: dict[str, MethodEntry] = {}
-        for method in [*self.methods, *other.methods]:
-            candidate = method.model_copy(deep=True)
-            indexed = methods_by_qname.get(candidate.qualified_name)
-            if indexed is None:
-                methods_by_qname[candidate.qualified_name] = candidate
-                continue
-
-            if bool(indexed.content_hash) != bool(candidate.content_hash) and candidate.content_hash:
-                preferred, fallback = candidate, indexed
-            else:
-                preferred, fallback = indexed, candidate
-            preferred.start_line = preferred.start_line or fallback.start_line
-            preferred.end_line = preferred.end_line or fallback.end_line
-            preferred.content_hash = preferred.content_hash or fallback.content_hash
-            methods_by_qname[candidate.qualified_name] = preferred
-
-        self.methods = sorted(
-            methods_by_qname.values(),
-            key=lambda method: (method.start_line, method.end_line, method.qualified_name),
-        )
+        for method in self.methods:
+            _fold_method(methods_by_qname, method)
+        changed = False
+        for method in other.methods:
+            # A copy keeps this entry's metadata independent of ``other``; the fields are flat.
+            changed = _fold_method(methods_by_qname, method.model_copy()) or changed
+        if changed or len(methods_by_qname) != len(self.methods):
+            self.methods = sorted(
+                methods_by_qname.values(),
+                key=lambda method: (method.start_line, method.end_line, method.qualified_name),
+            )
         return self
 
     def merge_method_spans(self, spans: dict[str, tuple[int, int]]) -> None:
@@ -126,3 +121,21 @@ class FileEntry(BaseModel):
             method.start_line = method.start_line or start_line
             method.end_line = method.end_line or end_line
         self.methods.sort(key=lambda method: (method.start_line, method.end_line, method.qualified_name))
+
+
+def _fold_method(methods_by_qname: dict[str, MethodEntry], candidate: MethodEntry) -> bool:
+    """Index ``candidate`` by name, keeping the entry that knows its hash; returns whether anything changed."""
+    indexed = methods_by_qname.get(candidate.qualified_name)
+    if indexed is None:
+        methods_by_qname[candidate.qualified_name] = candidate
+        return True
+    if candidate.content_hash and not indexed.content_hash:
+        preferred, fallback = candidate, indexed
+        methods_by_qname[candidate.qualified_name] = preferred
+    else:
+        preferred, fallback = indexed, candidate
+    before = (preferred.start_line, preferred.end_line, preferred.content_hash)
+    preferred.start_line = preferred.start_line or fallback.start_line
+    preferred.end_line = preferred.end_line or fallback.end_line
+    preferred.content_hash = preferred.content_hash or fallback.content_hash
+    return preferred is not indexed or before != (preferred.start_line, preferred.end_line, preferred.content_hash)
