@@ -14,14 +14,15 @@ from agents.relation_edges import (
     edge_crosses_components,
     ground_relation_edges,
     prune_ungrounded_edges,
+    static_relation_label,
 )
 from agents.scope_analysis_agent import ScopeAnalysisResult
 from agents.scope_ids import ROOT_SCOPE_ID
 from clustering_ids import CodeBoardingClusterIds
-from constants import DEFAULT_STATIC_RELATION_LABEL
+from constants import STATIC_RELATION_LABELS
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
 from static_analyzer import StaticAnalysisFatalError
-from static_analyzer.cfg import Edge
+from static_analyzer.cfg import CALL_EDGE_KIND, Edge, EdgeKind
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult, GroupConnection
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -224,7 +225,7 @@ class ScopeAssembler:
             if pair not in seen_pairs
             and pair not in preserved_pairs
             and relation.relation.strip()
-            and relation.relation != DEFAULT_STATIC_RELATION_LABEL
+            and relation.relation not in STATIC_RELATION_LABELS
             and scope.connection_between(*pair) is not None
         ]
         for relation in carried:
@@ -305,7 +306,7 @@ class ScopeAssembler:
             append_or_merge_relation(
                 merged,
                 Relation.from_edges(
-                    DEFAULT_STATIC_RELATION_LABEL,
+                    static_relation_label(edges),
                     source.name if source is not None else connection.source_group_id,
                     target.name if target is not None else connection.target_group_id,
                     connection.source_group_id,
@@ -404,5 +405,8 @@ class ScopeAssembler:
             target = graph.nodes.get(connection_edge.target_qualified_name)
             if source is None or target is None:
                 continue
-            edges.append(RelationEdge.from_edge(Edge(source, target, connection_edge.call_sites)))
+            if connection_edge.kind == CALL_EDGE_KIND:
+                edges.append(RelationEdge.from_edge(Edge(source, target, connection_edge.call_sites)))
+            else:
+                edges.append(RelationEdge.from_reference(source, target, EdgeKind(connection_edge.kind)))
         return edges

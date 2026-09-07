@@ -188,6 +188,21 @@ class TestFullHierarchy(unittest.TestCase):
         self.assertEqual([(c.source_group_id, c.target_group_id) for c in hierarchy.connections], [("2", "1")])
         self.assertEqual(hierarchy.connections[0].edges[0].call_sites, [{"file": "x.cs", "line": 1}])
 
+    def test_connections_carry_reference_edges_with_their_kind(self):
+        csharp = graph("csharp", eshop())
+        csharp.add_reference_edge(
+            ReferenceEdge("Catalog.API.Model.CatalogType0", "Ordering.API.Apis.OrderingType0", EdgeKind.TYPEREF)
+        )
+        csharp.add_reference_edge(
+            ReferenceEdge("Catalog.API.Model.CatalogType0.Run()", "Catalog.API.Model.CatalogType0", EdgeKind.CONTAINS)
+        )
+        hierarchy = ClusteringService().build_full_hierarchy(analysis_for(csharp), max_depth=1)
+        self.assertEqual([(c.source_group_id, c.target_group_id) for c in hierarchy.connections], [("2", "1")])
+        (edge,) = hierarchy.connections[0].edges
+        self.assertEqual(
+            (edge.kind, edge.source_qualified_name, edge.call_sites), ("typeref", "Catalog.API.Model.CatalogType0", [])
+        )
+
     def test_materialized_groups_explain_every_file_placement(self):
         hierarchy = ClusteringService().build_full_hierarchy(analysis_for(graph("csharp", eshop())), max_depth=1)
         clustered_files = {

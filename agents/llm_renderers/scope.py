@@ -10,7 +10,7 @@ from typing import Any
 
 from agents.agent_responses import AnalysisInsights
 from repo_utils.path_utils import normalize_repo_path
-from static_analyzer.cfg.edge import EdgeKind
+from static_analyzer.cfg.edge import CALL_EDGE_KIND, EdgeKind
 from static_analyzer.clustering import ClusterConnectionEdge, ClusterGroup, ClusterScopeResult
 from static_analyzer.node import Node
 
@@ -146,12 +146,15 @@ def _known_connections(scope: ClusterScopeResult, repo_dir: Path) -> list[dict[s
             seen.add(key)
             distinct.append(edge)
         distinct.sort(key=lambda edge: (edge.source_qualified_name, edge.target_qualified_name))
+        calls = [edge for edge in distinct if edge.kind == CALL_EDGE_KIND]
+        references = [edge for edge in distinct if edge.kind != CALL_EDGE_KIND]
         connections.append(
             {
                 "source_group_id": source_group_id,
                 "target_group_id": target_group_id,
-                "calls": len(distinct),
-                "examples": [_example(edge, scope, repo_dir) for edge in distinct[:MAX_EXAMPLE_EDGES]],
+                "calls": len(calls),
+                "type_references": len(references),
+                "examples": [_example(edge, scope, repo_dir) for edge in (calls + references)[:MAX_EXAMPLE_EDGES]],
             }
         )
     return connections
@@ -186,6 +189,10 @@ def _boundary_reasons(
     }
     for connection in scope.connections:
         for edge in connection.edges:
+            # Only calls border a file here; a type reference is counted per pair in
+            # ``known_connections`` instead, or it would border nearly every file.
+            if edge.kind != CALL_EDGE_KIND:
+                continue
             graph = scope.graphs_by_language.get(edge.language)
             if graph is None:
                 continue
@@ -200,7 +207,9 @@ def _boundary_reasons(
 
     for language, graph in scope.graphs_by_language.items():
         for reference in graph.reference_edges:
-            if reference.kind is EdgeKind.CONTAINS:
+            # TYPEREF is dense enough to border nearly every file; its count rides on
+            # ``known_connections`` instead, where a pair costs one line.
+            if reference.kind is not EdgeKind.INHERITS:
                 continue
             source_group = owners.get((language, reference.src))
             target_group = owners.get((language, reference.dst))

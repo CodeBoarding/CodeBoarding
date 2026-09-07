@@ -24,8 +24,10 @@ from static_analyzer.cluster_relations import (
     build_component_relations,
     is_self_or_descendant,
 )
+from agents.relation_edges import static_relation_label
+from constants import DEFAULT_STATIC_RELATION_LABEL, INHERITANCE_RELATION_LABEL, TYPE_REFERENCE_RELATION_LABEL
 from static_analyzer.config import NodeType
-from static_analyzer.cfg import CallGraph, Edge
+from static_analyzer.cfg import CallGraph, Edge, EdgeKind, ReferenceEdge
 from static_analyzer.node import Node
 
 
@@ -75,6 +77,44 @@ def _make_component(name: str, methods: list[tuple[str, str]], component_id: str
 
 def _owner_of(nodes: dict[str, str]) -> Callable[[SourceCodeReference], str]:
     return ComponentOwnershipIndex.from_node_owners(nodes).owner_of
+
+
+class TestReferenceEdgesBecomeRelations(unittest.TestCase):
+    OWNERS = {"a.Cls": "1", "a.Cls.run": "1", "b.Cls": "2", "b.Cls.run": "2"}
+
+    def _graph(self, kind: EdgeKind, with_call: bool = False) -> CallGraph:
+        cfg = CallGraph(edges=[_make_edge("a.Cls.run", "b.Cls.run", "src/a.py", "src/b.py")] if with_call else [])
+        cfg.add_node(_make_node("a.Cls", "src/a.py"))
+        cfg.add_node(_make_node("b.Cls", "src/b.py"))
+        cfg.add_reference_edge(ReferenceEdge("a.Cls", "b.Cls", kind))
+        return cfg
+
+    def test_a_type_reference_alone_is_a_uses_relation(self):
+        relations = build_component_relations(self.OWNERS, {"python": self._graph(EdgeKind.TYPEREF)})
+        self.assertEqual([(r.src_cluster_id, r.dst_cluster_id) for r in relations], [("1", "2")])
+        (edge,) = relations[0].all_edges
+        self.assertEqual((edge.source.qualified_name, edge.target.qualified_name), ("a.Cls", "b.Cls"))
+        self.assertEqual(edge.description, "references type")
+        self.assertEqual(static_relation_label(relations[0].all_edges), TYPE_REFERENCE_RELATION_LABEL)
+
+    def test_inheritance_alone_is_an_inherits_relation(self):
+        relations = build_component_relations(self.OWNERS, {"python": self._graph(EdgeKind.INHERITS)})
+        self.assertEqual(static_relation_label(relations[0].all_edges), INHERITANCE_RELATION_LABEL)
+
+    def test_a_call_outranks_references(self):
+        relations = build_component_relations(self.OWNERS, {"python": self._graph(EdgeKind.TYPEREF, with_call=True)})
+        self.assertEqual(len(relations[0].all_edges), 2)
+        self.assertEqual(static_relation_label(relations[0].all_edges), DEFAULT_STATIC_RELATION_LABEL)
+
+    def test_containment_is_not_a_relation(self):
+        self.assertEqual(build_component_relations(self.OWNERS, {"python": self._graph(EdgeKind.CONTAINS)}), [])
+
+    def test_a_reference_inside_one_component_is_not_a_relation(self):
+        owners = dict.fromkeys(self.OWNERS, "1")
+        self.assertEqual(build_component_relations(owners, {"python": self._graph(EdgeKind.TYPEREF)}), [])
+
+    def test_no_edges_means_the_call_label(self):
+        self.assertEqual(static_relation_label([]), DEFAULT_STATIC_RELATION_LABEL)
 
 
 class TestAnalysisNodeOwners(unittest.TestCase):

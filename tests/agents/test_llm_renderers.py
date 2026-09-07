@@ -114,7 +114,7 @@ class TestRenderScopeContext(unittest.TestCase):
         graph.add_node(Node("client.Payload", NodeType.CLASS, "/repo/payload.py", 1, 8))
         graph.add_node(Node("server.receive", NodeType.FUNCTION, "/repo/server.py", 30, 40))
         graph.add_edge("client.submit", "server.receive")
-        graph.add_reference_edge(ReferenceEdge("client.Payload", "server.receive", EdgeKind.TYPEREF))
+        graph.add_reference_edge(ReferenceEdge("client.Payload", "server.receive", EdgeKind.INHERITS))
         scope = ClusterScopeResult(
             scope_id="root",
             graphs_by_language={"python": graph},
@@ -191,6 +191,7 @@ class TestRenderScopeContext(unittest.TestCase):
                 "source_group_id": "1",
                 "target_group_id": "2",
                 "calls": 1,
+                "type_references": 0,
                 "examples": [
                     {
                         "source": "client.submit",
@@ -203,6 +204,45 @@ class TestRenderScopeContext(unittest.TestCase):
         )
         self.assertEqual(payload["enclosing_components"], [])
         self.assertEqual(payload["existing_relations"][0]["relation"], "submits to")
+
+    def test_a_pair_counts_calls_and_type_references_apart_and_shows_calls_first(self):
+        graph = CallGraph(language="csharp")
+        graph.add_node(Node("a.Cls", NodeType.CLASS, "/repo/a.cs", 1, 9))
+        graph.add_node(Node("a.Cls.run()", NodeType.METHOD, "/repo/a.cs", 2, 3))
+        graph.add_node(Node("b.Cls", NodeType.CLASS, "/repo/b.cs", 1, 9))
+        graph.add_node(Node("b.Cls.go()", NodeType.METHOD, "/repo/b.cs", 2, 3))
+        scope = ClusterScopeResult(
+            scope_id="root",
+            graphs_by_language={"csharp": graph},
+            groups=[
+                ClusterGroup("1", [1], symbol_members_by_language={"csharp": {"a.Cls", "a.Cls.run()"}}),
+                ClusterGroup("2", [2], symbol_members_by_language={"csharp": {"b.Cls", "b.Cls.go()"}}),
+            ],
+            connections=[
+                GroupConnection(
+                    "1",
+                    "2",
+                    edges=[
+                        ClusterConnectionEdge("csharp", "a.Cls", "b.Cls", kind="typeref"),
+                        ClusterConnectionEdge("csharp", "a.Cls.run()", "b.Cls.go()"),
+                    ],
+                )
+            ],
+        )
+        analysis = AnalysisInsights(description="", components=[], components_relations=[])
+
+        payload = json.loads(
+            render_scope_context(scope, analysis, Path("/repo"), {"1", "2"}, set(), set(), incremental=False)
+        )
+
+        (pair,) = payload["known_connections"]
+        self.assertEqual((pair["calls"], pair["type_references"]), (1, 1))
+        self.assertEqual([example["source"] for example in pair["examples"]], ["a.Cls.run()", "a.Cls"])
+        # the call borders both files; the type reference borders none
+        bordering = {group["group_id"]: group["bordering_files"] for group in payload["groups"]}
+        self.assertEqual([item["path"] for item in bordering["1"]], ["a.cs"])
+        self.assertEqual(bordering["1"][0]["reasons"], ["calls group 2"])
+        self.assertEqual([item["path"] for item in bordering["2"]], ["b.cs"])
 
     def test_a_dense_pair_is_a_count_and_a_few_examples_not_every_edge(self):
         graph = CallGraph(language="python")

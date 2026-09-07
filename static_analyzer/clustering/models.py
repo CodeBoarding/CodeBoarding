@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
 from static_analyzer.cfg import CallGraph, CallSiteLocation
+from static_analyzer.cfg.edge import CALL_EDGE_KIND
 
 
 @dataclass
@@ -36,11 +37,13 @@ class ClusterConnectionEdge:
     source_qualified_name: str
     target_qualified_name: str
     call_sites: list[CallSiteLocation] = field(default_factory=list)
+    # ``CALL_EDGE_KIND`` for a call, else the ``EdgeKind`` value of the reference edge behind it.
+    kind: str = CALL_EDGE_KIND
 
 
 @dataclass
 class GroupConnection:
-    """All concrete calls from one sibling group to another."""
+    """All concrete calls and type references from one sibling group to another."""
 
     source_group_id: GroupId
     target_group_id: GroupId

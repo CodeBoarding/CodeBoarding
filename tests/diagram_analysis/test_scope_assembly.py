@@ -171,6 +171,23 @@ class TestScopeAssembler(unittest.TestCase):
             [("2", "3", "calls")],
         )
 
+    def test_a_reference_only_connection_is_labelled_uses(self) -> None:
+        scope = _scope(("2", "3"))
+        scope.connections[0].edges[0].kind = "typeref"
+        analysis = AnalysisInsights(
+            description="relations",
+            components=[_component("1", "A"), _component("2", "B"), _component("3", "C")],
+            components_relations=[],
+        )
+
+        ScopeAssembler.merge_scope_relations(analysis, scope)
+
+        (relation,) = analysis.components_relations
+        self.assertEqual((relation.src_id, relation.dst_id, relation.relation), ("2", "3", "uses"))
+        self.assertTrue(relation.is_static)
+        self.assertEqual(relation.all_edges[0].description, "references type")
+        self.assertEqual(relation.all_edges[0].call_sites, [])
+
     def test_fallback_descriptions_name_files_relative_to_the_repository(self) -> None:
         analysis = ScopeAssembler(Path("/repo")).build(_scope(absolute=True))
 

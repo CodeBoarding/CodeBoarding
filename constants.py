@@ -18,6 +18,10 @@ PERSISTED_ANALYSIS_ARTIFACT_FILENAMES = (
 GITIGNORE_FILENAME = ".gitignore"
 CODEBOARDINGIGNORE_FILENAME = ".codeboardingignore"
 DEFAULT_STATIC_RELATION_LABEL = "calls"
+# Labels for a relation backed only by reference edges (see ``static_relation_label``).
+INHERITANCE_RELATION_LABEL = "inherits from"
+TYPE_REFERENCE_RELATION_LABEL = "uses"
+STATIC_RELATION_LABELS = (DEFAULT_STATIC_RELATION_LABEL, INHERITANCE_RELATION_LABEL, TYPE_REFERENCE_RELATION_LABEL)
 # Document names the renderers give the root analysis; no expanded component may take one.
 DEFAULT_ROOT_DOCUMENT_NAME = "overview"
 CLI_ROOT_DOCUMENT_NAME = "on_boarding"

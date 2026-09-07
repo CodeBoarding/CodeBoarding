@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from clustering_ids import ComponentId
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodIndexEntry
 from agents.scope_ids import ROOT_SCOPE_ID
+from static_analyzer.cfg.edge import EdgeKind
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,13 @@ class RelationCallSite(BaseModel):
     column: int = Field(description="One-based column number of the call site in the source file.")
 
 
+# What a static reference edge says about itself; ``static_relation_label`` reads it back.
+REFERENCE_EDGE_DESCRIPTIONS: dict[EdgeKind, str] = {
+    EdgeKind.INHERITS: "inherits from",
+    EdgeKind.TYPEREF: "references type",
+}
+
+
 class RelationEdge(LLMBaseModel):
     """A source-to-target code reference that supports a component relation."""
 
@@ -119,6 +127,25 @@ class RelationEdge(LLMBaseModel):
                 reference_end_line=edge.dst_node.line_end,
             ),
             call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.call_sites],
+        )
+
+    @classmethod
+    def from_reference(cls, source, target, kind: EdgeKind) -> RelationEdge:
+        """An edge backed by a reference (inheritance, a type mention) rather than a call site."""
+        return cls(
+            source=SourceCodeReference(
+                qualified_name=source.fully_qualified_name,
+                reference_file=source.file_path,
+                reference_start_line=source.line_start,
+                reference_end_line=source.line_end,
+            ),
+            target=SourceCodeReference(
+                qualified_name=target.fully_qualified_name,
+                reference_file=target.file_path,
+                reference_start_line=target.line_start,
+                reference_end_line=target.line_end,
+            ),
+            description=REFERENCE_EDGE_DESCRIPTIONS[kind],
         )
 
     def llm_str(self) -> str:

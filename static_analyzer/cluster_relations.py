@@ -10,7 +10,6 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from constants import DEFAULT_STATIC_RELATION_LABEL
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
 from agents.component_ownership import ComponentOwnershipIndex
 from agents.relation_edges import (
@@ -18,9 +17,10 @@ from agents.relation_edges import (
     drop_reverse_duplicates,
     edge_crosses_components,
     ground_relation_edges,
+    static_relation_label,
 )
 from clustering_ids import is_self_or_descendant
-from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg import RELATION_REFERENCE_KINDS, CallGraph
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +53,8 @@ def build_component_relations(
 ) -> list[ClusterRelation]:
     """Build inter-component relations from actual CFG edges.
 
-    For every CFG edge where src and dst belong to different components,
-    count and collect the concrete bridge methods.
+    For every call edge, and every reference edge of a ``RELATION_REFERENCE_KINDS`` kind,
+    whose ends belong to different components, collect the concrete bridge symbols.
 
     Args:
         node_to_component: Mapping from node qualified_name to component_id.
@@ -73,6 +73,15 @@ def build_component_relations(
             if src_comp and dst_comp and src_comp != dst_comp:
                 key = (src_comp, dst_comp)
                 edge_pairs[key].append(RelationEdge.from_edge(edge))
+        for ref in cfg.reference_edges:
+            if ref.kind not in RELATION_REFERENCE_KINDS:
+                continue
+            src_comp = node_to_component.get(ref.src)
+            dst_comp = node_to_component.get(ref.dst)
+            source, target = cfg.nodes.get(ref.src), cfg.nodes.get(ref.dst)
+            if not (src_comp and dst_comp) or src_comp == dst_comp or source is None or target is None:
+                continue
+            edge_pairs[(src_comp, dst_comp)].append(RelationEdge.from_reference(source, target, ref.kind))
 
     relations = []
     for (src_c, dst_c), edges in sorted(edge_pairs.items()):
@@ -181,7 +190,7 @@ def build_global_relations(
         llm_relation = _ancestor_relation(src_id, dst_id, llm_relations)
         if llm_relation is None:
             relation = Relation.from_edges(
-                DEFAULT_STATIC_RELATION_LABEL,
+                static_relation_label(static_rel.all_edges),
                 id_to_name.get(src_id, src_id),
                 id_to_name.get(dst_id, dst_id),
                 src_id,

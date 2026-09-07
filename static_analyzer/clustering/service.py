@@ -11,7 +11,7 @@ from clustering_ids import ROOT_SCOPE_ID, ClusterId, ComponentId, ScopeId
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
-from static_analyzer.cfg.edge import EdgeKind
+from static_analyzer.cfg.edge import RELATION_REFERENCE_KINDS, EdgeKind
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.models import (
     ClusterConnectionEdge,
@@ -406,6 +406,25 @@ class ClusteringService:
                         source_qualified_name=source,
                         target_qualified_name=target,
                         call_sites=edge.call_sites,
+                    )
+                )
+            for ref in graph.reference_edges:
+                if ref.kind not in RELATION_REFERENCE_KINDS:
+                    continue
+                source_group = group_id_by_qualified_name.get((language, ref.src), "")
+                target_group = group_id_by_qualified_name.get((language, ref.dst), "")
+                if not source_group or not target_group or source_group == target_group:
+                    continue
+                connection = by_pair.setdefault(
+                    (source_group, target_group),
+                    GroupConnection(source_group_id=source_group, target_group_id=target_group),
+                )
+                connection.edges.append(
+                    ClusterConnectionEdge(
+                        language=language,
+                        source_qualified_name=ref.src,
+                        target_qualified_name=ref.dst,
+                        kind=ref.kind.value,
                     )
                 )
         return [by_pair[pair] for pair in sorted(by_pair)]
