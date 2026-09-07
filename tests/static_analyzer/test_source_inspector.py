@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from static_analyzer.engine.models import CallSite
+from static_analyzer.engine.models import CallSite, ImportBinding
 from static_analyzer.engine.source_inspector import SourceInspector
 
 
@@ -202,10 +202,6 @@ class TestIsCallableUsage:
         f.write_text("    register(handlers.on_start)\n")
         si = SourceInspector()
         assert si.is_callable_usage(f, 0, 13, 21) is False
-
-    def test_conservative_on_missing_file(self):
-        si = SourceInspector()
-        assert si.is_callable_usage(Path("/nonexistent.py"), 0, 0, 5) is True
 
     def test_conservative_on_missing_file(self):
         si = SourceInspector()
@@ -719,3 +715,136 @@ class TestIteratedExpression:
         si = SourceInspector()
         positions = _positions(si.find_iterated_expression_sites(f))
         assert (1, 46) in positions  # `Items`, whose type is what gets enumerated
+
+
+class TestFindTypeReferenceSites:
+    def test_csharp_type_positions(self, tmp_path: Path):
+        f = tmp_path / "Module.cs"
+        f.write_text(
+            "using Volo.Abp.Modularity;\n"
+            "namespace App;\n"
+            "[DependsOn(typeof(CoreModule))]\n"
+            "public class AppModule : AbpModule\n"
+            "{\n"
+            "    public DbSet<Blog> Blogs { get; set; }\n"
+            "    private readonly IRepository<Blog, Guid> _repo;\n"
+            "    public List<BlogDto> Convert(IEnumerable<Blog> items, Blog? single, Blog[] many)\n"
+            "    {\n"
+            "        var x = (BlogDto)null; if (single is BlogDto b) { } var o = items as Other;\n"
+            "        try { } catch (BusinessException e) { }\n"
+            "        return new List<BlogDto>();\n"
+            "    }\n"
+            "    void Register(ServiceConfigurationContext context) { context.Services.AddTransient<IBlogService, BlogService>(); }\n"
+            "    Volo.Abp.Settings.SettingValue Read() { return BlogKind.Draft; }\n"
+            "}\n"
+        )
+        sites = SourceInspector().find_type_reference_sites(f)
+        names = {(site.line, site.name) for site in sites}
+        assert (3, "CoreModule") in names
+        assert (4, "AbpModule") in names
+        assert {(6, "DbSet"), (6, "Blog"), (7, "IRepository"), (7, "Guid")} <= names
+        assert {(8, "List"), (8, "BlogDto"), (8, "IEnumerable"), (8, "Blog")} <= names
+        assert {(10, "BlogDto"), (10, "Other")} <= names
+        assert (11, "BusinessException") in names
+        assert {(14, "IBlogService"), (14, "BlogService")} <= names
+        assert (15, "BlogKind") in names
+        qualified = next(site for site in sites if site.name == "SettingValue")
+        assert qualified.qualifier == "Volo.Abp.Settings"
+        assert not any(site.name in ("var", "void", "AppModule", "DependsOn") for site in sites)
+        # a member-access receiver is a candidate too; ``context`` fails to resolve later, ``BlogKind`` resolves
+        assert (14, "context") in names
+        # ``new List<BlogDto>()`` names the created type only through its constructor call
+        assert [site.name for site in sites if site.line == 12] == ["BlogDto"]
+
+    def test_typescript_type_positions(self, tmp_path: Path):
+        f = tmp_path / "blog.ts"
+        f.write_text(
+            "import { BlogService } from './blog.service';\n"
+            "@NgModule({ imports: [CoreModule], providers: [{ provide: TOKEN, useClass: Impl }] })\n"
+            "export class BlogModule extends BaseModule implements OnInit {\n"
+            "  items: BlogDto[] = [];\n"
+            "  constructor(private svc: BlogService, cfg: Config<BlogDto>) { super(); }\n"
+            "  load(id: string): Observable<BlogDto> { return this.svc.get(id) as BlogDto; }\n"
+            "  make(): Foo { return new Foo(); }\n"
+            "}\n"
+            "export interface Shape extends Base<Q> { a: Qux; }\n"
+        )
+        sites = SourceInspector().find_type_reference_sites(f)
+        names = {(site.line, site.name) for site in sites}
+        assert {(2, "CoreModule"), (2, "Impl")} <= names
+        assert {(3, "BaseModule"), (3, "OnInit")} <= names
+        assert (4, "BlogDto") in names
+        assert {(5, "BlogService"), (5, "Config"), (5, "BlogDto")} <= names
+        assert {(6, "Observable"), (6, "BlogDto")} <= names
+        assert {(9, "Base"), (9, "Q"), (9, "Qux")} <= names
+        assert not any(site.name in ("BlogModule", "Shape", "string", "NgModule") for site in sites)
+        assert [site.name for site in sites if site.line == 7] == ["Foo"]
+
+    def test_javascript_heritage_is_a_type_position(self, tmp_path: Path):
+        f = tmp_path / "a.js"
+        f.write_text("class A extends B { make() { return new C(); } }\n")
+        sites = SourceInspector().find_type_reference_sites(f)
+        assert [site.name for site in sites] == ["B"]
+
+    def test_other_languages_have_no_type_sites(self, tmp_path: Path):
+        f = tmp_path / "a.py"
+        f.write_text("class A(B):\n    def m(self, x: C) -> D: ...\n")
+        assert SourceInspector().find_type_reference_sites(f) == []
+
+
+class TestFindNamespaceContext:
+    def test_block_and_nested_namespaces_with_ranges(self, tmp_path: Path):
+        f = tmp_path / "a.cs"
+        f.write_text(
+            "using System;\n"
+            "global using Volo.Abp;\n"
+            "namespace A.B\n"
+            "{\n"
+            "    using Inner.Use;\n"
+            "    namespace C { class K { } }\n"
+            "}\n"
+        )
+        context = SourceInspector().find_namespace_context(f)
+        assert context.usings == ("System", "Volo.Abp", "Inner.Use")
+        assert context.namespaces == (("A.B", 3, 7), ("A.B.C", 6, 6))
+
+    def test_a_file_scoped_namespace_spans_the_rest_of_the_file(self, tmp_path: Path):
+        f = tmp_path / "a.cs"
+        f.write_text("namespace Volo.CmsKit;\npublic class X { }\npublic class Y { }\n")
+        ((name, start, end),) = SourceInspector().find_namespace_context(f).namespaces
+        assert (name, start) == ("Volo.CmsKit", 1)
+        assert end >= 3
+
+    def test_an_alias_using_keeps_its_target(self, tmp_path: Path):
+        f = tmp_path / "a.cs"
+        f.write_text("using Alias = Volo.Abp.Foo;\n")
+        assert SourceInspector().find_namespace_context(f).usings == ("Volo.Abp.Foo",)
+
+    def test_other_languages_are_empty(self, tmp_path: Path):
+        f = tmp_path / "a.ts"
+        f.write_text("namespace A { }\n")
+        assert SourceInspector().find_namespace_context(f).namespaces == ()
+
+
+class TestFindImportBindings:
+    def test_named_alias_namespace_and_default_imports(self, tmp_path: Path):
+        f = tmp_path / "a.ts"
+        f.write_text(
+            "import { A, B as Bee } from './mod';\n"
+            "import * as NS from '../ns';\n"
+            'import D from "./d";\n'
+            "import type { T1 } from './t';\n"
+            "export { X } from './x';\n"
+        )
+        assert SourceInspector().find_import_bindings(f) == {
+            "A": ImportBinding("./mod", "A"),
+            "Bee": ImportBinding("./mod", "B"),
+            "NS": ImportBinding("../ns", "*"),
+            "D": ImportBinding("./d", "default"),
+            "T1": ImportBinding("./t", "T1"),
+        }
+
+    def test_other_languages_are_empty(self, tmp_path: Path):
+        f = tmp_path / "a.cs"
+        f.write_text("using A;\n")
+        assert SourceInspector().find_import_bindings(f) == {}

@@ -30,6 +30,7 @@ from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
 from telemetry.events import track_lsp_result
 from tool_registry import ensure_node_on_path
 from utils import get_artifact_dir
+from static_analyzer.engine.type_reference_builder import complete_type_references
 
 logger = logging.getLogger(__name__)
 
@@ -682,6 +683,7 @@ class StaticAnalyzer:
                 )
                 results = self._update_cached_results(cached_results, cached_sha)
 
+        self._complete_type_references(results)
         self._validate_analysis_results(results)
         results.diagnostics = self.collected_diagnostics
         self._cached_results = results
@@ -1003,6 +1005,21 @@ class StaticAnalyzer:
         result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter, self.ignore_manager)
         logger.info(f"convert_to_codeboarding_format for {adapter.language}: {time.monotonic() - t_convert:.1f}s")
         return result
+
+    def _complete_type_references(self, results: StaticAnalysisResults) -> None:
+        """Derive TYPEREF edges over each merged graph, so a name resolves across sub-projects."""
+        inspector = SourceInspector()
+        for language in results.get_languages():
+            try:
+                graph = results.get_cfg(language)
+            except ValueError:
+                continue
+            t_start = time.monotonic()
+            source_files = [Path(path) for path in results.get_source_files(language)]
+            stats = complete_type_references(graph, source_files, inspector)
+            logger.info(
+                "Type references for %s: %s in %.1fs", language.value, stats.summary(), time.monotonic() - t_start
+            )
 
     def _validate_analysis_results(self, results: StaticAnalysisResults) -> None:
         """Reject non-empty language buckets that would otherwise cache zero-symbol output."""

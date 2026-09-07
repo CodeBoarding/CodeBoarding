@@ -65,6 +65,35 @@ class CallSite:
         return self.column - 1
 
 
+@dataclass(frozen=True)
+class TypeReferenceSite:
+    """A position naming a type without calling it: a parameter, base, generic argument, ``typeof``."""
+
+    file: str
+    line: int  # one-based, like ``CallSite``
+    column: int
+    name: str
+    # The dotted prefix written before the name (``Volo.Abp`` in ``Volo.Abp.Foo``), else empty.
+    qualifier: str = ""
+
+
+@dataclass(frozen=True)
+class NamespaceContext:
+    """What a C# file can name unqualified: its usings and the namespaces it declares."""
+
+    usings: tuple[str, ...]
+    # (dotted namespace, first line, last line), one-based inclusive; nested names are joined.
+    namespaces: tuple[tuple[str, int, int], ...]
+
+
+@dataclass(frozen=True)
+class ImportBinding:
+    """One local name a TS/JS file imports: the module specifier and the exported name."""
+
+    source: str
+    imported_name: str
+
+
 @dataclass
 class Edge:
     """A directed edge in the call flow graph."""
@@ -105,7 +134,8 @@ class LanguageAnalysisResult:
     # Non-call relationship edges completing the graph for clustering. Each entry
     # is (source_qname, target_qname). type_references: code names a type (param,
     # return, annotation, cast); import_edges: module A imports symbol/module B.
-    # No engine populates either yet — the converter reads them, nothing writes them.
+    # TYPEREF is normally derived after the per-config graphs merge (see
+    # ``type_reference_builder``); an engine may still pre-fill either list.
     type_references: list[tuple[str, str]] = field(default_factory=list)
     import_edges: list[tuple[str, str]] = field(default_factory=list)
 

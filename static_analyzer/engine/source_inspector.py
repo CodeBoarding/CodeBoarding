@@ -14,7 +14,7 @@ from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Tree
 
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
-from static_analyzer.engine.models import CallSite
+from static_analyzer.engine.models import CallSite, ImportBinding, NamespaceContext, TypeReferenceSite
 
 import tree_sitter_c_sharp
 import tree_sitter_go
@@ -159,6 +159,44 @@ BODY_DECLARATION_LANGUAGES = (Language.TYPESCRIPT, Language.JAVASCRIPT)
 _BODY_FIELD_SUFFIXES = frozenset(
     suffix for language in BODY_DECLARATION_LANGUAGES for suffix in LANGUAGE_EXTENSIONS[language]
 )
+
+# C#: a name is a type when it fills its parent's type slot, sits in a type list, or is the
+# operand of ``as``/``is``. A creation's type is left out: naming it there already yields the
+# constructor's call edge.
+_CSHARP_TYPE_SLOT_FIELDS = frozenset({"type", "returns"})
+_CSHARP_TYPE_LIST_NODE_TYPES = frozenset({"type_argument_list", "base_list"})
+_CSHARP_TYPE_OPERAND_NODE_TYPES = frozenset({"as_expression", "is_expression"})
+# ``Consts.Value`` / ``Kind.Member``: the receiver of a member access is a type when it resolves
+# to one, and nothing else names an enum or a constants class. C# only: a script's receivers are
+# mostly variables, and a promoted one (``data``, ``options``) would resolve to the wrong file.
+_CSHARP_MEMBER_ACCESS_NODE_TYPES = frozenset({"member_access_expression"})
+_CSHARP_CREATION_NODE_TYPES = frozenset({"object_creation_expression"})
+_CSHARP_TYPE_NAME_NODE_TYPES = frozenset({"identifier", "qualified_name", "alias_qualified_name", "generic_name"})
+_CSHARP_NAMESPACE_NODE_TYPES = frozenset({"namespace_declaration", "file_scoped_namespace_declaration"})
+# ``namespace X;`` is one statement whose declarations follow as siblings, so its range is the file's.
+_CSHARP_FILE_SCOPED_NAMESPACE_NODE_TYPES = frozenset({"file_scoped_namespace_declaration"})
+_CSHARP_USING_NODE_TYPES = frozenset({"using_directive"})
+_TRANSPARENT_SCOPE_NODE_TYPES = frozenset({"declaration_list"})
+# TS/JS: every ``type_identifier`` outside a declaration's own name, a class's ``extends``
+# operand, and a class named inside a decorator's arrays (Angular's module wiring).
+_SCRIPT_TYPE_NAME_NODE_TYPES = frozenset({"type_identifier", "nested_type_identifier"})
+_SCRIPT_TYPE_DECLARATION_NODE_TYPES = frozenset(
+    {
+        "class_declaration",
+        "abstract_class_declaration",
+        "interface_declaration",
+        "type_alias_declaration",
+        "enum_declaration",
+        "type_parameter",
+    }
+)
+# TypeScript wraps ``extends`` in a clause; JavaScript puts the expression straight under the heritage.
+_SCRIPT_HERITAGE_NODE_TYPES = frozenset({"extends_clause", "class_heritage"})
+_DECORATOR_NODE_TYPES = frozenset({"decorator"})
+_DECORATOR_SEARCH_DEPTH = 12
+_SCRIPT_IMPORT_NODE_TYPES = frozenset({"import_statement"})
+_TYPESCRIPT_SUFFIXES = frozenset({".ts", ".tsx", ".mts", ".cts"})
+_SCRIPT_SUFFIXES = _TYPESCRIPT_SUFFIXES | frozenset(LANGUAGE_EXTENSIONS[Language.JAVASCRIPT])
 
 # Ceiling on retained tree-sitter nodes. Trees are by far the largest thing this
 # class touches — retaining one per file cost 2.2GB on a 5k-file C# repo — and
@@ -602,6 +640,115 @@ class SourceInspector:
             node = parent
         return False
 
+    def find_type_reference_sites(self, file_path: Path) -> list[TypeReferenceSite]:
+        """Positions where the file names a type without calling it.
+
+        Why: a parameter type, a base class, a generic argument or a ``typeof`` operand never
+        reaches the call graph, and in module-oriented code that is where the wiring is written.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+        suffix = file_path.suffix.lower()
+        if suffix in _PREPROCESSOR_SUFFIXES:
+            select = self._csharp_type_name
+        elif suffix in _SCRIPT_SUFFIXES:
+            select = self._script_type_name
+        else:
+            return []
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        sites: list[TypeReferenceSite] = []
+        seen: set[tuple[int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            named = select(node)
+            if named is None:
+                continue
+            name_node, qualifier_node = named
+            position = (name_node.start_point.row, name_node.start_point.column)
+            if position in seen:
+                continue
+            seen.add(position)
+            sites.append(
+                TypeReferenceSite(
+                    file=str(file_path),
+                    line=position[0] + 1,
+                    column=position[1] + 1,
+                    name=text(name_node),
+                    qualifier=text(qualifier_node) if qualifier_node is not None else "",
+                )
+            )
+        return sites
+
+    def find_namespace_context(self, file_path: Path) -> NamespaceContext:
+        """The usings and declared namespaces of a C# file; empty for any other language."""
+        parsed = self._parse(file_path)
+        if parsed is None or file_path.suffix.lower() not in _PREPROCESSOR_SUFFIXES:
+            return NamespaceContext((), ())
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        usings: list[str] = []
+        namespaces: list[tuple[str, int, int]] = []
+
+        def visit(scope: TreeSitterNode, prefix: str) -> None:
+            for child in scope.named_children:
+                if child.type in _CSHARP_USING_NODE_TYPES:
+                    target = self._using_target(child)
+                    if target is not None:
+                        usings.append(text(target))
+                elif child.type in _CSHARP_NAMESPACE_NODE_TYPES:
+                    name_node = child.child_by_field_name("name")
+                    name = text(name_node) if name_node is not None else ""
+                    full = ".".join(part for part in (prefix, name) if part)
+                    last = scope if child.type in _CSHARP_FILE_SCOPED_NAMESPACE_NODE_TYPES else child
+                    namespaces.append((full, child.start_point.row + 1, last.end_point.row + 1))
+                    visit(child, full)
+                elif child.type in _TRANSPARENT_SCOPE_NODE_TYPES:
+                    visit(child, prefix)
+
+        visit(parsed.tree.root_node, "")
+        return NamespaceContext(tuple(usings), tuple(namespaces))
+
+    def find_import_bindings(self, file_path: Path) -> dict[str, ImportBinding]:
+        """Local name -> what a TS/JS file imported it as; empty for any other language."""
+        parsed = self._parse(file_path)
+        if parsed is None or file_path.suffix.lower() not in _SCRIPT_SUFFIXES:
+            return {}
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        bindings: dict[str, ImportBinding] = {}
+        for statement in parsed.tree.root_node.named_children:
+            if statement.type not in _SCRIPT_IMPORT_NODE_TYPES:
+                continue
+            source_node = statement.child_by_field_name("source")
+            if source_node is None:
+                continue
+            source = text(source_node).strip("'\"`")
+            for clause in statement.named_children:
+                if clause.type != "import_clause":
+                    continue
+                for part in clause.named_children:
+                    if part.type == "identifier":
+                        bindings[text(part)] = ImportBinding(source, "default")
+                    elif part.type == "namespace_import":
+                        for alias in part.named_children:
+                            bindings[text(alias)] = ImportBinding(source, "*")
+                    elif part.type == "named_imports":
+                        for specifier in part.named_children:
+                            name_node = specifier.child_by_field_name("name")
+                            if name_node is None:
+                                continue
+                            alias_node = specifier.child_by_field_name("alias")
+                            local = text(alias_node if alias_node is not None else name_node)
+                            bindings[local] = ImportBinding(source, text(name_node))
+        return bindings
+
     def find_type_bases(self, file_path: Path) -> list[tuple[str, list[str]]]:
         """Return ``(declared type name, base type names)`` for each type in the file.
 
@@ -800,6 +947,75 @@ class SourceInspector:
             if child is not node and child.type in node_types:
                 result = child
         return result
+
+    def _csharp_type_name(self, node: TreeSitterNode) -> tuple[TreeSitterNode, TreeSitterNode | None] | None:
+        parent = node.parent
+        if parent is None or node.type not in _CSHARP_TYPE_NAME_NODE_TYPES:
+            return None
+        field = self._field_name(node)
+        in_slot = field in _CSHARP_TYPE_SLOT_FIELDS and parent.type not in _CSHARP_CREATION_NODE_TYPES
+        in_list = parent.type in _CSHARP_TYPE_LIST_NODE_TYPES
+        as_operand = parent.type in _CSHARP_TYPE_OPERAND_NODE_TYPES and field == "right"
+        receiver = (
+            node.type == "identifier" and parent.type in _CSHARP_MEMBER_ACCESS_NODE_TYPES and field == "expression"
+        )
+        if not (in_slot or in_list or as_operand or receiver):
+            return None
+        if node.type == "qualified_name":
+            name = node.child_by_field_name("name")
+            return (name, node.child_by_field_name("qualifier")) if name is not None else None
+        if node.type == "alias_qualified_name":
+            name = node.child_by_field_name("name")
+            return (name, None) if name is not None else None
+        if node.type == "generic_name":
+            name = self._first_named_child_of_type(node, _NAME_NODE_TYPES)
+            return (name, None) if name is not None else None
+        return (node, None)
+
+    def _script_type_name(self, node: TreeSitterNode) -> tuple[TreeSitterNode, TreeSitterNode | None] | None:
+        parent = node.parent
+        if parent is None:
+            return None
+        if node.type == "type_identifier":
+            if parent.type in _SCRIPT_TYPE_DECLARATION_NODE_TYPES and self._field_name(node) == "name":
+                return None
+            if parent.type in _SCRIPT_TYPE_NAME_NODE_TYPES:
+                return None
+            return (node, None)
+        if node.type == "nested_type_identifier":
+            name = node.child_by_field_name("name")
+            return (name, node.child_by_field_name("module")) if name is not None else None
+        if parent.type in _SCRIPT_HERITAGE_NODE_TYPES and self._field_name(node) in ("value", None):
+            if node.type == "identifier":
+                return (node, None)
+            if node.type == "member_expression":
+                name = node.child_by_field_name("property")
+                return (name, node.child_by_field_name("object")) if name is not None else None
+            return None
+        if node.type == "identifier" and self._inside_decorator(node):
+            if parent.type == "array" or (parent.type == "pair" and self._field_name(node) == "value"):
+                return (node, None)
+        return None
+
+    @staticmethod
+    def _using_target(directive: TreeSitterNode) -> TreeSitterNode | None:
+        """The namespace (or type) a ``using`` names, skipping an alias's own name."""
+        alias = directive.child_by_field_name("name")
+        for child in reversed(directive.named_children):
+            if child.type in ("qualified_name", "identifier") and (alias is None or child.id != alias.id):
+                return child
+        return None
+
+    @staticmethod
+    def _inside_decorator(node: TreeSitterNode) -> bool:
+        ancestor = node.parent
+        for _ in range(_DECORATOR_SEARCH_DEPTH):
+            if ancestor is None:
+                return False
+            if ancestor.type in _DECORATOR_NODE_TYPES:
+                return True
+            ancestor = ancestor.parent
+        return False
 
     @staticmethod
     def _field_name(node: TreeSitterNode) -> str | None:
