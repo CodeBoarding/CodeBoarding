@@ -84,6 +84,38 @@ _CONSTRUCTION_NODE_TYPES = (
     | frozenset({"explicit_constructor_invocation"})
 )
 _CALLABLE_USAGE_ANCESTORS = frozenset({"argument_list", "arguments"})
+# The receiver of a member chain (``abp`` in ``f(abp.x.y)``) is never the value passed or returned.
+_RECEIVER_FIELD_BY_NODE_TYPE = {
+    "member_expression": "object",
+    "attribute": "object",
+    "member_access_expression": "expression",
+    "selector_expression": "operand",
+    "field_access": "object",
+    "field_expression": "value",
+}
+# A callback's body is not "passed as a callable": the walk up to an argument list stops here.
+_FUNCTION_BOUNDARY_NODE_TYPES = frozenset(
+    {
+        "function_expression",
+        "function_declaration",
+        "arrow_function",
+        "method_definition",
+        "generator_function",
+        "generator_function_declaration",
+        "lambda",
+        "function_definition",
+        "func_literal",
+        "method_declaration",
+        "anonymous_function",
+        "anonymous_function_creation_expression",
+        "closure_expression",
+        "function_item",
+        "lambda_expression",
+        "anonymous_method_expression",
+        "local_function_statement",
+        "constructor_declaration",
+    }
+)
 _NAME_NODE_TYPES = frozenset(
     {
         "identifier",
@@ -658,8 +690,9 @@ class SourceInspector:
             for field in _BODY_FIELD_NAMES
         )
 
-    @staticmethod
-    def _node_is_return_value(target: TreeSitterNode) -> bool:
+    def _node_is_return_value(self, target: TreeSitterNode) -> bool:
+        if self._is_receiver(target):
+            return False
         node = target
         while node.parent is not None:
             parent = node.parent
@@ -671,15 +704,24 @@ class SourceInspector:
         return False
 
     def _node_is_call_argument(self, target: TreeSitterNode) -> bool:
+        if self._is_receiver(target):
+            return False
         node = target
         while node.parent is not None:
             parent = node.parent
             if parent.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(parent):
                 return True
-            if self._call_target_node(parent) == target:
+            if parent.type in _FUNCTION_BOUNDARY_NODE_TYPES or self._call_target_node(parent) == target:
                 return False
             node = parent
         return False
+
+    def _is_receiver(self, node: TreeSitterNode) -> bool:
+        parent = node.parent
+        if parent is None:
+            return False
+        receiver_field = _RECEIVER_FIELD_BY_NODE_TYPE.get(parent.type)
+        return receiver_field is not None and self._field_name(node) == receiver_field
 
     @staticmethod
     def _parent_is_call_like(node: TreeSitterNode) -> bool:
@@ -758,6 +800,16 @@ class SourceInspector:
             if child is not node and child.type in node_types:
                 result = child
         return result
+
+    @staticmethod
+    def _field_name(node: TreeSitterNode) -> str | None:
+        parent = node.parent
+        if parent is None:
+            return None
+        for index, child in enumerate(parent.children):
+            if child.id == node.id:
+                return parent.field_name_for_child(index)
+        return None
 
     def _walk(self, node: TreeSitterNode):
         yield node

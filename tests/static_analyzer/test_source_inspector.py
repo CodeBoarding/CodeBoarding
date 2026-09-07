@@ -172,6 +172,41 @@ class TestIsCallableUsage:
         si = SourceInspector()
         assert si.is_callable_usage(f, 0, 8, 12) is False
 
+    def test_a_mention_inside_a_callback_body_is_not_an_argument(self, tmp_path: Path):
+        """``abp`` here is used by the callback, not handed to ``$``."""
+        f = tmp_path / "test.js"
+        f.write_text("$(function () { abp.run(); });\n")
+        si = SourceInspector()
+        assert si.is_callable_usage(f, 0, 16, 19) is False
+
+    def test_a_value_passed_directly_still_is(self, tmp_path: Path):
+        f = tmp_path / "test.js"
+        f.write_text("$(abp);\n")
+        si = SourceInspector()
+        assert si.is_callable_usage(f, 0, 2, 5) is True
+
+    def test_a_receiver_inside_an_argument_is_not_the_value_passed(self, tmp_path: Path):
+        f = tmp_path / "test.js"
+        f.write_text("show(abp.localization.get(key));\n")
+        si = SourceInspector()
+        assert si.is_callable_usage(f, 0, 5, 8) is False
+
+    def test_a_receiver_inside_a_returned_expression_is_not_the_value_returned(self, tmp_path: Path):
+        f = tmp_path / "test.js"
+        f.write_text("return { locale: abp.localization.currentCulture };\n")
+        si = SourceInspector()
+        assert si.is_callable_usage(f, 0, 17, 20) is False
+
+    def test_a_python_receiver_is_not_the_value_passed(self, tmp_path: Path):
+        f = tmp_path / "test.py"
+        f.write_text("    register(handlers.on_start)\n")
+        si = SourceInspector()
+        assert si.is_callable_usage(f, 0, 13, 21) is False
+
+    def test_conservative_on_missing_file(self):
+        si = SourceInspector()
+        assert si.is_callable_usage(Path("/nonexistent.py"), 0, 0, 5) is True
+
     def test_conservative_on_missing_file(self):
         si = SourceInspector()
         assert si.is_callable_usage(Path("/nonexistent.py"), 0, 0, 5) is True
