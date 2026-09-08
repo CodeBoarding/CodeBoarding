@@ -1,6 +1,6 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-06T19:30:28.519443+00:00",
+  "timestamp": "2026-09-08T18:31:16.344307+00:00",
   "overall_score": 0.8675827607745159,
   "check_summaries": [
     {
@@ -13,6 +13,66 @@
       "warning_count": 0,
       "score": 1.0,
       "finding_groups": []
+    },
+    {
+      "check_name": "circular_dependencies",
+      "description": "Detects circular dependencies between packages",
+      "languages": [],
+      "check_type": "circular_dependencies",
+      "cycles": [
+        "agents.llm_renderers -> repo_utils -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> repo_utils -> diagram_analysis -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> repo_utils -> diagram_analysis -> health -> health.checks -> static_analyzer -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> repo_utils -> diagram_analysis -> health -> static_analyzer -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> repo_utils -> diagram_analysis -> static_analyzer -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> repo_utils -> diagram_analysis -> static_analyzer.cfg -> static_analyzer -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> repo_utils -> diagram_analysis -> static_analyzer.clustering -> static_analyzer -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> repo_utils -> diagram_analysis -> static_analyzer.clustering -> static_analyzer.cfg -> static_analyzer -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer -> repo_utils -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer -> repo_utils -> diagram_analysis -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer -> static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> repo_utils -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> repo_utils -> diagram_analysis -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> agents -> agents.llm_renderers",
+        "agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis -> agents -> agents.llm_renderers",
+        "diagram_analysis -> agents -> agents.tools -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.tools -> static_analyzer -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.tools -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.tools -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.tools -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> agents -> agents.tools -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> agents -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> agents -> agents.tools -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> agents -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer -> agents -> agents.tools -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer -> agents -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer -> repo_utils -> diagram_analysis"
+      ],
+      "packages_checked": 34,
+      "packages_in_cycles": 12
     },
     {
       "check_name": "unused_code_diagnostics",
@@ -30,45 +90,136 @@
           "description": "Variables declared but never used",
           "entities": [
             {
-              "entity_name": "[unused_variable] \"RunStats\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 9,
-              "line_end": 9,
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 440,
+              "line_end": 440,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"MonitoringCallback\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 453,
+              "line_end": 453,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"StreamingStatsWriter\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 11,
-              "line_end": 11,
+              "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
+              "file_path": "codeboarding_workflows/analysis.py",
+              "line_start": 23,
+              "line_end": 23,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"monitor_execution\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 12,
-              "line_end": 12,
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 132,
+              "line_end": 132,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_i\" is not accessed",
-              "file_path": "install.py",
-              "line_start": 748,
-              "line_end": 748,
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 183,
+              "line_end": 183,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"name\" is not accessed",
-              "file_path": "monitoring/context.py",
-              "line_start": 33,
-              "line_end": 33,
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 287,
+              "line_end": 287,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 369,
+              "line_end": 369,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 345,
+              "line_end": 345,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 402,
+              "line_end": 402,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 481,
+              "line_end": 481,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 504,
+              "line_end": 504,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 489,
+              "line_end": 489,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 998,
+              "line_end": 998,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_expanded_components\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 1395,
+              "line_end": 1395,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 1433,
+              "line_end": 1433,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_html_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 14,
+              "line_end": 14,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_markdown_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 15,
+              "line_end": 15,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_mdx_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_rst_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 17,
+              "line_end": 17,
               "metric_value": 0.0
             },
             {
@@ -79,10 +230,17 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"DEFAULT_REFERENCE_KINDS\" is not accessed",
-              "file_path": "static_analyzer/cfg/call_graph.py",
-              "line_start": 11,
-              "line_end": 11,
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 262,
+              "line_end": 262,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_i\" is not accessed",
+              "file_path": "install.py",
+              "line_start": 748,
+              "line_end": 748,
               "metric_value": 0.0
             },
             {
@@ -527,10 +685,45 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"_exc\" is not accessed",
+              "file_path": "agents/retry.py",
+              "line_start": 40,
+              "line_end": 40,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"config\" is not accessed",
               "file_path": "health/checks/unused_code_diagnostics.py",
               "line_start": 267,
               "line_end": 267,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"RunStats\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MonitoringCallback\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"StreamingStatsWriter\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"monitor_execution\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 12,
+              "line_end": 12,
               "metric_value": 0.0
             },
             {
@@ -562,6 +755,13 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"name\" is not accessed",
+              "file_path": "monitoring/context.py",
+              "line_start": 33,
+              "line_end": 33,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"exc_type\" is not accessed",
               "file_path": "monitoring/writers.py",
               "line_start": 54,
@@ -573,6 +773,13 @@
               "file_path": "output_generators/mdx.py",
               "line_start": 9,
               "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Node\" is not accessed",
+              "file_path": "static_analyzer/analysis_cache.py",
+              "line_start": 37,
+              "line_end": 37,
               "metric_value": 0.0
             },
             {
@@ -597,115 +804,24 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"source_files\" is not accessed",
-              "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 82,
-              "line_end": 82,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
-              "file_path": "static_analyzer/engine/lsp_client.py",
-              "line_start": 109,
-              "line_end": 109,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-              "line_start": 124,
-              "line_end": 124,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"receiver_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-              "line_start": 135,
-              "line_end": 135,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-              "line_start": 193,
-              "line_end": 193,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/php_adapter.py",
-              "line_start": 65,
-              "line_end": 65,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/python_adapter.py",
-              "line_start": 28,
-              "line_end": 28,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
-              "line_start": 187,
-              "line_end": 187,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
-              "line_start": 212,
-              "line_end": 212,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
-              "line_start": 215,
-              "line_end": 215,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"DiagnosticPosition\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
-              "line_start": 8,
-              "line_end": 8,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"DiagnosticRange\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
-              "line_start": 9,
-              "line_end": 9,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"FileDiagnosticsMap\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"LSPDiagnostic\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "entity_name": "[unused_variable] \"DEFAULT_REFERENCE_KINDS\" is not accessed",
+              "file_path": "static_analyzer/cfg/call_graph.py",
               "line_start": 11,
               "line_end": 11,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 140,
-              "line_end": 140,
+              "entity_name": "[unused_variable] \"role_words\" is not accessed",
+              "file_path": "static_analyzer/clustering/names/replay.py",
+              "line_start": 81,
+              "line_end": 81,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 143,
-              "line_end": 143,
+              "entity_name": "[unused_variable] \"source_files\" is not accessed",
+              "file_path": "static_analyzer/engine/edge_builder.py",
+              "line_start": 82,
+              "line_end": 82,
               "metric_value": 0.0
             },
             {
@@ -772,6 +888,13 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/engine/lsp_client.py",
+              "line_start": 109,
+              "line_end": 109,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
               "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
               "line_start": 241,
@@ -779,164 +902,101 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 262,
-              "line_end": 262,
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
+              "line_start": 124,
+              "line_end": 124,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"Node\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 37,
-              "line_end": 37,
+              "entity_name": "[unused_variable] \"receiver_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
+              "line_start": 135,
+              "line_end": 135,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_exc\" is not accessed",
-              "file_path": "agents/retry.py",
-              "line_start": 40,
-              "line_end": 40,
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
+              "line_start": 193,
+              "line_end": 193,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 440,
-              "line_end": 440,
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 140,
+              "line_end": 140,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 453,
-              "line_end": 453,
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 143,
+              "line_end": 143,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"role_words\" is not accessed",
-              "file_path": "static_analyzer/clustering/names/replay.py",
-              "line_start": 81,
-              "line_end": 81,
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/php_adapter.py",
+              "line_start": 65,
+              "line_end": 65,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
-              "file_path": "codeboarding_workflows/analysis.py",
-              "line_start": 23,
-              "line_end": 23,
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/python_adapter.py",
+              "line_start": 28,
+              "line_end": 28,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 132,
-              "line_end": 132,
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+              "line_start": 187,
+              "line_end": 187,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 183,
-              "line_end": 183,
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+              "line_start": 212,
+              "line_end": 212,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 287,
-              "line_end": 287,
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+              "line_start": 215,
+              "line_end": 215,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 369,
-              "line_end": 369,
+              "entity_name": "[unused_variable] \"DiagnosticPosition\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 345,
-              "line_end": 345,
+              "entity_name": "[unused_variable] \"DiagnosticRange\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 402,
-              "line_end": 402,
+              "entity_name": "[unused_variable] \"FileDiagnosticsMap\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_scope\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 481,
-              "line_end": 481,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 504,
-              "line_end": 504,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 489,
-              "line_end": 489,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 998,
-              "line_end": 998,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_expanded_components\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1395,
-              "line_end": 1395,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1433,
-              "line_end": 1433,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_html_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 14,
-              "line_end": 14,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_markdown_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 15,
-              "line_end": 15,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_mdx_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 16,
-              "line_end": 16,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_rst_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 17,
-              "line_end": 17,
+              "entity_name": "[unused_variable] \"LSPDiagnostic\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
               "metric_value": 0.0
             }
           ]
@@ -947,31 +1007,38 @@
           "description": "Unused import statements that should be removed",
           "entities": [
             {
-              "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 9,
-              "line_end": 9,
+              "entity_name": "[unused_import] Import \"track_analysis\" is not accessed",
+              "file_path": "codeboarding_workflows/analysis.py",
+              "line_start": 23,
+              "line_end": 23,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"MonitoringCallback\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
+              "entity_name": "[unused_import] Import \"generate_html_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 14,
+              "line_end": 14,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"StreamingStatsWriter\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 11,
-              "line_end": 11,
+              "entity_name": "[unused_import] Import \"generate_markdown_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 15,
+              "line_end": 15,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"monitor_execution\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 12,
-              "line_end": 12,
+              "entity_name": "[unused_import] Import \"generate_mdx_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"generate_rst_file\" is not accessed",
+              "file_path": "output_generators/rendering.py",
+              "line_start": 17,
+              "line_end": 17,
               "metric_value": 0.0
             },
             {
@@ -979,13 +1046,6 @@
               "file_path": "repo_utils/__init__.py",
               "line_start": 13,
               "line_end": 13,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"DEFAULT_REFERENCE_KINDS\" is not accessed",
-              "file_path": "static_analyzer/cfg/call_graph.py",
-              "line_start": 11,
-              "line_end": 11,
               "metric_value": 0.0
             },
             {
@@ -1423,6 +1483,48 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MonitoringCallback\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"StreamingStatsWriter\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"monitor_execution\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Node\" is not accessed",
+              "file_path": "static_analyzer/analysis_cache.py",
+              "line_start": 37,
+              "line_end": 37,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"DEFAULT_REFERENCE_KINDS\" is not accessed",
+              "file_path": "static_analyzer/cfg/call_graph.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_import] Import \"DiagnosticPosition\" is not accessed",
               "file_path": "static_analyzer/lsp_client/__init__.py",
               "line_start": 8,
@@ -1448,48 +1550,6 @@
               "file_path": "static_analyzer/lsp_client/__init__.py",
               "line_start": 11,
               "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"Node\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 37,
-              "line_end": 37,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"track_analysis\" is not accessed",
-              "file_path": "codeboarding_workflows/analysis.py",
-              "line_start": 23,
-              "line_end": 23,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"generate_html_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 14,
-              "line_end": 14,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"generate_markdown_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 15,
-              "line_end": 15,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"generate_mdx_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 16,
-              "line_end": 16,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"generate_rst_file\" is not accessed",
-              "file_path": "output_generators/rendering.py",
-              "line_start": 17,
-              "line_end": 17,
               "metric_value": 0.0
             }
           ]
@@ -1540,6 +1600,12 @@
       "composite_risk_score": 100.0
     },
     {
+      "file_path": "output_generators/rendering.py",
+      "total_findings": 8,
+      "warning_findings": 4,
+      "composite_risk_score": 70.0
+    },
+    {
       "file_path": "monitoring/__init__.py",
       "total_findings": 8,
       "warning_findings": 4,
@@ -1552,10 +1618,10 @@
       "composite_risk_score": 70.0
     },
     {
-      "file_path": "output_generators/rendering.py",
-      "total_findings": 8,
-      "warning_findings": 4,
-      "composite_risk_score": 70.0
+      "file_path": "diagram_analysis/diagram_generator.py",
+      "total_findings": 12,
+      "warning_findings": 0,
+      "composite_risk_score": 50.0
     },
     {
       "file_path": "utils.py",
@@ -1566,12 +1632,6 @@
     {
       "file_path": "static_analyzer/engine/language_adapter.py",
       "total_findings": 9,
-      "warning_findings": 0,
-      "composite_risk_score": 50.0
-    },
-    {
-      "file_path": "diagram_analysis/diagram_generator.py",
-      "total_findings": 12,
       "warning_findings": 0,
       "composite_risk_score": 50.0
     },
@@ -1606,7 +1666,7 @@
       "composite_risk_score": 30.0
     },
     {
-      "file_path": "static_analyzer/cfg/call_graph.py",
+      "file_path": "codeboarding_workflows/analysis.py",
       "total_findings": 2,
       "warning_findings": 1,
       "composite_risk_score": 25.0
@@ -1618,19 +1678,19 @@
       "composite_risk_score": 25.0
     },
     {
-      "file_path": "codeboarding_workflows/analysis.py",
+      "file_path": "static_analyzer/cfg/call_graph.py",
       "total_findings": 2,
       "warning_findings": 1,
       "composite_risk_score": 25.0
     },
     {
-      "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+      "file_path": "agents/llm_config.py",
       "total_findings": 2,
       "warning_findings": 0,
       "composite_risk_score": 20.0
     },
     {
-      "file_path": "agents/llm_config.py",
+      "file_path": "static_analyzer/engine/adapters/java_adapter.py",
       "total_findings": 2,
       "warning_findings": 0,
       "composite_risk_score": 20.0
@@ -1642,13 +1702,13 @@
       "composite_risk_score": 20.0
     },
     {
-      "file_path": "install.py",
+      "file_path": "static_analyzer/__init__.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
     },
     {
-      "file_path": "monitoring/context.py",
+      "file_path": "install.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
