@@ -138,9 +138,9 @@ def test_only_the_owner_is_taken_from_the_repository_slug(client, monkeypatch):
 
 
 def test_an_embedding_can_name_the_owner_itself(client, monkeypatch):
-    """An embedding that already resolved the owner sets ``CODEBOARDING_ORG``,
-    which wins over the CI variable so a run inside Actions is attributed to the
-    repository it was pointed at rather than the workflow's own."""
+    """The VSCode extension resolves the owner from the workspace's git remote
+    and sets ``CODEBOARDING_ORG``, which has to win: a run driven by the editor
+    inside a CI-like environment belongs to the workspace, not the runner."""
     monkeypatch.setenv("CODEBOARDING_ORG", "Acme")
     monkeypatch.setenv("GITHUB_REPOSITORY", "someone-else/runner")
 
