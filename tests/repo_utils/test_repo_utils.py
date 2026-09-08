@@ -67,8 +67,6 @@ class TestRepoUtils(unittest.TestCase):
         self.assertEqual(name, "another-repo")
 
     def test_get_repo_name_trailing_slash(self):
-        # The slash used to survive into the ``.git`` suffix, leaving
-        # ``.../my-repo/.git`` — which does not clone, and whose "name" is ``.git``.
         url = "https://github.com/user/my-repo/"
         self.assertEqual(get_repo_name(url), "my-repo")
 

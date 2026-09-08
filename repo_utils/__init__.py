@@ -66,10 +66,7 @@ def sanitize_repo_url(repo_url: str) -> str:
     Normalizes Git URLs to ensure proper format for cloning.
     Preserves HTTPS URLs for CI compatibility while supporting SSH URLs.
     """
-    # A trailing slash would otherwise survive into the ``.git`` suffix below,
-    # yielding ``.../my-repo/.git`` — which does not clone, and from which
-    # ``get_repo_name`` reads ``.git`` as the repository name.
-    repo_url = repo_url.rstrip("/")
+    repo_url = repo_url.rstrip("/")  # else the suffix below yields ``.../repo/.git``
 
     if repo_url.startswith("git@") or repo_url.startswith("ssh://"):
         return repo_url  # already in SSH format

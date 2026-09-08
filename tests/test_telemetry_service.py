@@ -100,8 +100,6 @@ def test_a_caller_property_never_overwrites_the_origin(client, monkeypatch):
 
 
 def test_ci_runs_report_the_repository_owner(client, monkeypatch):
-    """Actions always sets ``GITHUB_REPOSITORY``, so a CI run identifies its
-    deployment without the caller threading anything through."""
     monkeypatch.delenv("CODEBOARDING_ORG", raising=False)
     monkeypatch.setenv("GITHUB_REPOSITORY", "Acme-Corp/widgets")
 
@@ -125,8 +123,7 @@ def test_the_same_owner_always_reads_the_same_way(client, monkeypatch):
 
 
 def test_only_the_owner_is_taken_from_the_repository_slug(client, monkeypatch):
-    """``GITHUB_REPOSITORY`` is ``owner/name``. The name is the half that says
-    something about the code, and it is the half that is dropped."""
+    """Why: the name is the half that says something about the code."""
     monkeypatch.delenv("CODEBOARDING_ORG", raising=False)
     monkeypatch.setenv("GITHUB_REPOSITORY", "acme/secret-prototype")
 
@@ -197,8 +194,8 @@ def test_a_caller_cannot_supply_an_owner_on_exceptions_either(client, monkeypatc
 
 
 def test_the_owner_travels_on_exceptions_too(client, monkeypatch):
-    """A crash is worth as much as a success when asking which deployments are
-    hitting a given failure, and it arrives through a different code path."""
+    """Why: exceptions take a different code path, and error-rate dashboards are
+    where knowing whether one deployment or all of them is hitting a bug pays."""
     monkeypatch.delenv("CODEBOARDING_ORG", raising=False)
     monkeypatch.setenv("GITHUB_REPOSITORY", "acme/widgets")
 
