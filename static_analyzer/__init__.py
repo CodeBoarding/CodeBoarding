@@ -1020,6 +1020,14 @@ class StaticAnalyzer:
             logger.info(
                 "Type references for %s: %s in %.1fs", language.value, stats.summary(), time.monotonic() - t_start
             )
+            if stats.unreadable_files:
+                logger.warning(
+                    "Type references for %s: %d source file(s) could not be read, so their references are "
+                    "missing from the graph: %s",
+                    language.value,
+                    len(stats.unreadable_files),
+                    ", ".join(stats.unreadable_files[:5]),
+                )
 
     def _validate_analysis_results(self, results: StaticAnalysisResults) -> None:
         """Reject non-empty language buckets that would otherwise cache zero-symbol output."""

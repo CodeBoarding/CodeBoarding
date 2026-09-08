@@ -14,7 +14,7 @@ from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Tree
 
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
-from static_analyzer.engine.models import CallSite, ImportBinding, NamespaceContext, TypeReferenceSite, UsingDirective
+from static_analyzer.engine.models import DEFAULT_EXPORT_NAME, CallSite, ImportDirective, NameScope, TypeReferenceSite
 
 import tree_sitter_c_sharp
 import tree_sitter_go
@@ -203,6 +203,11 @@ _SCRIPT_HERITAGE_NODE_TYPES = frozenset({"extends_clause", "class_heritage"})
 _DECORATOR_NODE_TYPES = frozenset({"decorator"})
 _DECORATOR_SEARCH_DEPTH = 12
 _SCRIPT_IMPORT_NODE_TYPES = frozenset({"import_statement"})
+_SCRIPT_EXPORT_NODE_TYPES = frozenset({"export_statement"})
+# What ``export default`` can name: a declaration, or a bare identifier declared elsewhere.
+_SCRIPT_DEFAULT_EXPORT_NODE_TYPES = frozenset(
+    {"class_declaration", "abstract_class_declaration", "function_declaration", "identifier"}
+)
 _TYPESCRIPT_SUFFIXES = frozenset({".ts", ".tsx", ".mts", ".cts"})
 _SCRIPT_SUFFIXES = _TYPESCRIPT_SUFFIXES | frozenset(LANGUAGE_EXTENSIONS[Language.JAVASCRIPT])
 
@@ -683,15 +688,15 @@ class SourceInspector:
             node = parent
         return False
 
-    def find_type_reference_sites(self, file_path: Path) -> list[TypeReferenceSite]:
-        """Positions where the file names a type without calling it.
+    def find_type_reference_sites(self, file_path: Path) -> list[TypeReferenceSite] | None:
+        """Positions where the file names a type without calling it; ``None`` when it cannot be read.
 
         Why: a parameter type, a base class, a generic argument or a ``typeof`` operand never
         reaches the call graph, and in module-oriented code that is where the wiring is written.
+        Why None rather than empty: the caller rebuilds the whole type-reference layer from these,
+        so a file it cannot read is a gap to report, not a file that names nothing.
         """
-        # The language is decided before the file is read: only C# and the script family have a
-        # selector, and parsing first made every Python, Java, Go, PHP and Rust file pay a full
-        # tree-sitter parse to be thrown away (1.9s over django's 2,894 files).
+        # Only C# and the script family have a selector; the rest are never parsed for this.
         suffix = file_path.suffix.lower()
         if suffix in _PREPROCESSOR_SUFFIXES:
             select = self._csharp_type_name
@@ -701,7 +706,7 @@ class SourceInspector:
             return []
         parsed = self._parse(file_path)
         if parsed is None:
-            return []
+            return None
 
         def text(node: TreeSitterNode) -> str:
             return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
@@ -719,7 +724,7 @@ class SourceInspector:
             seen.add(position)
             sites.append(
                 TypeReferenceSite(
-                    file=str(file_path),
+                    file_path=str(file_path),
                     line=position[0] + 1,
                     column=position[1] + 1,
                     name=name,
@@ -728,84 +733,21 @@ class SourceInspector:
             )
         return sites
 
-    def find_namespace_context(self, file_path: Path) -> NamespaceContext:
-        """The usings and declared namespaces of a C# file; empty for any other language."""
+    def find_name_scope(self, file_path: Path) -> NameScope:
+        """The imports a file names things through, and the namespaces it declares.
+
+        C# reads ``using`` directives and namespace blocks; TS/JS reads ``import`` statements and
+        the ``export default`` declaration. Any other language, or an unreadable file, is empty.
+        """
+        suffix = file_path.suffix.lower()
+        if suffix in _PREPROCESSOR_SUFFIXES:
+            read = self._csharp_name_scope
+        elif suffix in _SCRIPT_SUFFIXES:
+            read = self._script_name_scope
+        else:
+            return NameScope()
         parsed = self._parse(file_path)
-        if parsed is None or file_path.suffix.lower() not in _PREPROCESSOR_SUFFIXES:
-            return NamespaceContext((), ())
-
-        def text(node: TreeSitterNode) -> str:
-            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
-
-        usings: list[UsingDirective] = []
-        namespaces: list[tuple[str, int, int]] = []
-
-        def visit(scope: TreeSitterNode, prefix: str, first_line: int, last_line: int) -> None:
-            for child in scope.named_children:
-                if child.type in _CSHARP_USING_NODE_TYPES:
-                    target = self._using_target(child)
-                    if target is not None:
-                        alias = child.child_by_field_name("name")
-                        usings.append(
-                            UsingDirective(
-                                target=_without_alias_qualifier(text(target)),
-                                first_line=first_line,
-                                last_line=last_line,
-                                alias=text(alias) if alias is not None else "",
-                                # ``static`` is an anonymous token, so it is not a named child.
-                                static=any(part.type == "static" for part in child.children),
-                            )
-                        )
-                elif child.type in _CSHARP_NAMESPACE_NODE_TYPES:
-                    name_node = child.child_by_field_name("name")
-                    name = text(name_node) if name_node is not None else ""
-                    full = ".".join(part for part in (prefix, name) if part)
-                    last = scope if child.type in _CSHARP_FILE_SCOPED_NAMESPACE_NODE_TYPES else child
-                    start, end = child.start_point.row + 1, last.end_point.row + 1
-                    namespaces.append((full, start, end))
-                    visit(child, full, start, end)
-                elif child.type in _TRANSPARENT_SCOPE_NODE_TYPES:
-                    visit(child, prefix, first_line, last_line)
-
-        root = parsed.tree.root_node
-        visit(root, "", 1, root.end_point.row + 1)
-        return NamespaceContext(tuple(usings), tuple(namespaces))
-
-    def find_import_bindings(self, file_path: Path) -> dict[str, ImportBinding]:
-        """Local name -> what a TS/JS file imported it as; empty for any other language."""
-        parsed = self._parse(file_path)
-        if parsed is None or file_path.suffix.lower() not in _SCRIPT_SUFFIXES:
-            return {}
-
-        def text(node: TreeSitterNode) -> str:
-            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
-
-        bindings: dict[str, ImportBinding] = {}
-        for statement in parsed.tree.root_node.named_children:
-            if statement.type not in _SCRIPT_IMPORT_NODE_TYPES:
-                continue
-            source_node = statement.child_by_field_name("source")
-            if source_node is None:
-                continue
-            source = text(source_node).strip("'\"`")
-            for clause in statement.named_children:
-                if clause.type != "import_clause":
-                    continue
-                for part in clause.named_children:
-                    if part.type == "identifier":
-                        bindings[text(part)] = ImportBinding(source, "default")
-                    elif part.type == "namespace_import":
-                        for alias in part.named_children:
-                            bindings[text(alias)] = ImportBinding(source, "*")
-                    elif part.type == "named_imports":
-                        for specifier in part.named_children:
-                            name_node = specifier.child_by_field_name("name")
-                            if name_node is None:
-                                continue
-                            alias_node = specifier.child_by_field_name("alias")
-                            local = text(alias_node if alias_node is not None else name_node)
-                            bindings[local] = ImportBinding(source, text(name_node))
-        return bindings
+        return NameScope() if parsed is None else read(parsed)
 
     def find_type_bases(self, file_path: Path) -> list[tuple[str, list[str]]]:
         """Return ``(declared type name, base type names)`` for each type in the file.
@@ -1050,6 +992,113 @@ class SourceInspector:
             if parent.type == "array" or (parent.type == "pair" and self._field_name(node) == "value"):
                 return node, text(node), ""
         return None
+
+    def _csharp_name_scope(self, parsed: ParsedSource) -> NameScope:
+        """``using`` directives with the range each governs, and the namespaces declared."""
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        imports: list[ImportDirective] = []
+        namespaces: list[tuple[str, int, int]] = []
+
+        def visit(scope: TreeSitterNode, prefix: str, last_line: int) -> None:
+            for child in scope.named_children:
+                if child.type in _CSHARP_USING_NODE_TYPES:
+                    target = self._using_target(child)
+                    if target is None:
+                        continue
+                    alias = child.child_by_field_name("name")
+                    written = _without_alias_qualifier(text(target))
+                    # An alias binds one name to a path; a plain or ``static`` using opens the path.
+                    container, name = split_type_name(written) if alias is not None else (written, "")
+                    imports.append(
+                        ImportDirective(
+                            container=container,
+                            # A using precedes the members of its scope, so it governs from its own
+                            # line to the scope's end.
+                            first_line=child.start_point.row + 1,
+                            last_line=last_line,
+                            name=name,
+                            alias=text(alias) if alias is not None else "",
+                            # ``global`` is an anonymous token, so it is not a named child.
+                            compilation_wide=any(part.type == "global" for part in child.children),
+                        )
+                    )
+                elif child.type in _CSHARP_NAMESPACE_NODE_TYPES:
+                    name_node = child.child_by_field_name("name")
+                    name = text(name_node) if name_node is not None else ""
+                    full = ".".join(part for part in (prefix, name) if part)
+                    last = scope if child.type in _CSHARP_FILE_SCOPED_NAMESPACE_NODE_TYPES else child
+                    namespaces.append((full, child.start_point.row + 1, last.end_point.row + 1))
+                    visit(child, full, last.end_point.row + 1)
+                elif child.type in _TRANSPARENT_SCOPE_NODE_TYPES:
+                    visit(child, prefix, last_line)
+
+        root = parsed.tree.root_node
+        visit(root, "", root.end_point.row + 1)
+        return NameScope(tuple(imports), tuple(namespaces))
+
+    def _script_name_scope(self, parsed: ParsedSource) -> NameScope:
+        """``import`` bindings, each hoisted over the whole file, and the ``export default`` name."""
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        root = parsed.tree.root_node
+        last_line = root.end_point.row + 1
+        imports: list[ImportDirective] = []
+        default_export = ""
+        for statement in root.named_children:
+            if statement.type in _SCRIPT_EXPORT_NODE_TYPES:
+                if any(part.type == "default" for part in statement.children):
+                    default_export = self._script_default_export(statement, text) or default_export
+                continue
+            if statement.type not in _SCRIPT_IMPORT_NODE_TYPES:
+                continue
+            source_node = statement.child_by_field_name("source")
+            if source_node is None:
+                continue
+            container = text(source_node).strip("'\"`")
+            for clause in statement.named_children:
+                if clause.type != "import_clause":
+                    continue
+                for part in clause.named_children:
+                    if part.type == "identifier":
+                        imports.append(
+                            ImportDirective(container, 1, last_line, name=DEFAULT_EXPORT_NAME, alias=text(part))
+                        )
+                    elif part.type == "namespace_import":
+                        imports.extend(
+                            ImportDirective(container, 1, last_line, alias=text(alias)) for alias in part.named_children
+                        )
+                    elif part.type == "named_imports":
+                        for specifier in part.named_children:
+                            name_node = specifier.child_by_field_name("name")
+                            if name_node is None:
+                                continue
+                            alias_node = specifier.child_by_field_name("alias")
+                            imports.append(
+                                ImportDirective(
+                                    container,
+                                    1,
+                                    last_line,
+                                    name=text(name_node),
+                                    alias=text(alias_node) if alias_node is not None else "",
+                                )
+                            )
+        return NameScope(tuple(imports), (), default_export)
+
+    @staticmethod
+    def _script_default_export(statement: TreeSitterNode, text: _NodeText) -> str:
+        """The declaration ``export default`` names, else empty for an anonymous value."""
+        exported = next(
+            (part for part in statement.named_children if part.type in _SCRIPT_DEFAULT_EXPORT_NODE_TYPES), None
+        )
+        if exported is None:
+            return ""
+        named = exported if exported.type == "identifier" else exported.child_by_field_name("name")
+        return text(named) if named is not None else ""
 
     @staticmethod
     def _script_member_name(

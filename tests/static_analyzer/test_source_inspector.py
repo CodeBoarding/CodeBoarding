@@ -2,8 +2,14 @@
 
 from pathlib import Path
 
-from static_analyzer.engine.models import CallSite, ImportBinding, UsingDirective
+from static_analyzer.engine.models import CallSite, ImportDirective, NameScope, TypeReferenceSite
 from static_analyzer.engine.source_inspector import SourceInspector
+
+
+def _type_sites(path: Path) -> list[TypeReferenceSite]:
+    sites = SourceInspector().find_type_reference_sites(path)
+    assert sites is not None
+    return sites
 
 
 def _positions(sites: list[CallSite]) -> set[tuple[int, int]]:
@@ -738,7 +744,7 @@ class TestFindTypeReferenceSites:
             "    Volo.Abp.Settings.SettingValue Read() { return BlogKind.Draft; }\n"
             "}\n"
         )
-        sites = SourceInspector().find_type_reference_sites(f)
+        sites = _type_sites(f)
         names = {(site.line, site.name) for site in sites}
         assert (3, "CoreModule") in names
         assert (4, "AbpModule") in names
@@ -769,7 +775,7 @@ class TestFindTypeReferenceSites:
             "}\n"
             "export interface Shape extends Base<Q> { a: Qux; }\n"
         )
-        sites = SourceInspector().find_type_reference_sites(f)
+        sites = _type_sites(f)
         names = {(site.line, site.name) for site in sites}
         assert {(2, "CoreModule"), (2, "Impl")} <= names
         assert {(3, "BaseModule"), (3, "OnInit")} <= names
@@ -783,7 +789,7 @@ class TestFindTypeReferenceSites:
     def test_javascript_heritage_is_a_type_position(self, tmp_path: Path):
         f = tmp_path / "a.js"
         f.write_text("class A extends B { make() { return new C(); } }\n")
-        sites = SourceInspector().find_type_reference_sites(f)
+        sites = _type_sites(f)
         assert [site.name for site in sites] == ["B"]
 
     def test_other_languages_have_no_type_sites(self, tmp_path: Path):
@@ -799,6 +805,9 @@ class TestFindTypeReferenceSites:
         assert inspector.find_type_reference_sites(f) == []
         assert inspector.cache_stats()["parsed_files"] == 0
 
+    def test_an_unreadable_file_is_none_not_a_file_naming_nothing(self, tmp_path: Path):
+        assert SourceInspector().find_type_reference_sites(tmp_path / "missing.cs") is None
+
 
 class TestCSharpTypeNameNormalization:
     """The written name is reduced to what the index is keyed by, and the prefix to a namespace."""
@@ -806,7 +815,7 @@ class TestCSharpTypeNameNormalization:
     def _sites(self, tmp_path: Path, body: str) -> dict[str, tuple[str, str]]:
         f = tmp_path / "a.cs"
         f.write_text(body)
-        return {s.name: (s.name, s.qualifier) for s in SourceInspector().find_type_reference_sites(f)}
+        return {s.name: (s.name, s.qualifier) for s in _type_sites(f)}
 
     def test_a_generic_written_with_a_namespace_keeps_only_the_outer_name(self, tmp_path: Path):
         sites = self._sites(tmp_path, "class K { Lib.Domain.Box<Lib.Domain.Order> F; }\n")
@@ -823,7 +832,7 @@ class TestCSharpTypeNameNormalization:
         assert sites["Order"] == ("Order", "Lib.Domain")
 
 
-class TestFindNamespaceContext:
+class TestFindNameScope:
     def test_block_and_nested_namespaces_with_ranges(self, tmp_path: Path):
         f = tmp_path / "a.cs"
         f.write_text(
@@ -835,48 +844,49 @@ class TestFindNamespaceContext:
             "    namespace C { class K { } }\n"
             "}\n"
         )
-        context = SourceInspector().find_namespace_context(f)
-        # A file-level directive governs the whole file; the block-level one governs its block.
-        assert [(d.target, d.first_line) for d in context.usings] == [("System", 1), ("Volo.Abp", 1), ("Inner.Use", 3)]
-        assert [d.last_line for d in context.usings] == [8, 8, 7]
-        assert context.namespaces == (("A.B", 3, 7), ("A.B.C", 6, 6))
+        scope = SourceInspector().find_name_scope(f)
+        # A directive governs from its own line to the end of its scope: the file, or its block.
+        assert [(d.container, d.first_line, d.last_line, d.compilation_wide) for d in scope.imports] == [
+            ("System", 1, 8, False),
+            ("Volo.Abp", 2, 8, True),
+            ("Inner.Use", 5, 7, False),
+        ]
+        assert scope.namespaces == (("A.B", 3, 7), ("A.B.C", 6, 6))
 
     def test_a_file_scoped_namespace_spans_the_rest_of_the_file(self, tmp_path: Path):
         f = tmp_path / "a.cs"
-        f.write_text("namespace Volo.CmsKit;\npublic class X { }\npublic class Y { }\n")
-        ((name, start, end),) = SourceInspector().find_namespace_context(f).namespaces
+        f.write_text("namespace Volo.CmsKit;\nusing A;\npublic class X { }\npublic class Y { }\n")
+        scope = SourceInspector().find_name_scope(f)
+        ((name, start, end),) = scope.namespaces
         assert (name, start) == ("Volo.CmsKit", 1)
-        assert end >= 3
+        assert end >= 4
+        # The using after the declaration is written inside that namespace, at its own line.
+        assert [(d.container, d.first_line) for d in scope.imports] == [("A", 2)]
 
-    def test_an_alias_using_keeps_both_its_name_and_its_target(self, tmp_path: Path):
+    def test_an_alias_using_binds_one_name_to_a_member_of_its_container(self, tmp_path: Path):
         f = tmp_path / "a.cs"
         f.write_text("using Alias = Volo.Abp.Foo;\n")
-        (directive,) = SourceInspector().find_namespace_context(f).usings
-        assert (directive.target, directive.alias, directive.static) == ("Volo.Abp.Foo", "Alias", False)
+        (directive,) = SourceInspector().find_name_scope(f).imports
+        assert (directive.container, directive.name, directive.alias) == ("Volo.Abp", "Foo", "Alias")
+        assert directive.local_name == "Alias"
 
-    def test_a_static_using_is_marked_as_one(self, tmp_path: Path):
+    def test_a_static_using_opens_its_target_as_a_container(self, tmp_path: Path):
         f = tmp_path / "a.cs"
         f.write_text("using static Volo.Abp.Check;\n")
-        (directive,) = SourceInspector().find_namespace_context(f).usings
-        assert (directive.target, directive.alias, directive.static) == ("Volo.Abp.Check", "", True)
+        (directive,) = SourceInspector().find_name_scope(f).imports
+        assert (directive.container, directive.name, directive.alias) == ("Volo.Abp.Check", "", "")
+        assert directive.local_name == ""
 
     def test_an_extern_alias_root_is_not_part_of_the_target(self, tmp_path: Path):
         """``global::`` names an assembly; keeping it made the directive match no namespace."""
         f = tmp_path / "a.cs"
         f.write_text("using global::System.Collections;\nusing global::System;\n")
-        assert [d.target for d in SourceInspector().find_namespace_context(f).usings] == [
+        assert [d.container for d in SourceInspector().find_name_scope(f).imports] == [
             "System.Collections",
             "System",
         ]
 
-    def test_other_languages_are_empty(self, tmp_path: Path):
-        f = tmp_path / "a.ts"
-        f.write_text("namespace A { }\n")
-        assert SourceInspector().find_namespace_context(f).namespaces == ()
-
-
-class TestFindImportBindings:
-    def test_named_alias_namespace_and_default_imports(self, tmp_path: Path):
+    def test_script_imports_govern_the_whole_file(self, tmp_path: Path):
         f = tmp_path / "a.ts"
         f.write_text(
             "import { A, B as Bee } from './mod';\n"
@@ -885,15 +895,28 @@ class TestFindImportBindings:
             "import type { T1 } from './t';\n"
             "export { X } from './x';\n"
         )
-        assert SourceInspector().find_import_bindings(f) == {
-            "A": ImportBinding("./mod", "A"),
-            "Bee": ImportBinding("./mod", "B"),
-            "NS": ImportBinding("../ns", "*"),
-            "D": ImportBinding("./d", "default"),
-            "T1": ImportBinding("./t", "T1"),
-        }
+        assert SourceInspector().find_name_scope(f) == NameScope(
+            imports=(
+                ImportDirective("./mod", 1, 6, name="A"),
+                ImportDirective("./mod", 1, 6, name="B", alias="Bee"),
+                ImportDirective("../ns", 1, 6, alias="NS"),
+                ImportDirective("./d", 1, 6, name="default", alias="D"),
+                ImportDirective("./t", 1, 6, name="T1"),
+            )
+        )
+
+    def test_a_script_default_export_names_its_declaration(self, tmp_path: Path):
+        declared = tmp_path / "a.ts"
+        declared.write_text("export default class Service { }\n")
+        assert SourceInspector().find_name_scope(declared).default_export == "Service"
+        named = tmp_path / "b.ts"
+        named.write_text("class S { }\nexport default S;\n")
+        assert SourceInspector().find_name_scope(named).default_export == "S"
+        anonymous = tmp_path / "c.ts"
+        anonymous.write_text("export default { a: 1 };\n")
+        assert SourceInspector().find_name_scope(anonymous).default_export == ""
 
     def test_other_languages_are_empty(self, tmp_path: Path):
-        f = tmp_path / "a.cs"
-        f.write_text("using A;\n")
-        assert SourceInspector().find_import_bindings(f) == {}
+        f = tmp_path / "a.py"
+        f.write_text("import os\n")
+        assert SourceInspector().find_name_scope(f) == NameScope()

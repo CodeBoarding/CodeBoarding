@@ -69,7 +69,8 @@ class CallSite:
 class TypeReferenceSite:
     """A position naming a type without calling it: a parameter, base, generic argument, ``typeof``."""
 
-    file: str
+    # The string form ``Node.file_path`` uses, which is what the site is matched against.
+    file_path: str
     line: int  # one-based, like ``CallSite``
     column: int
     name: str
@@ -77,36 +78,48 @@ class TypeReferenceSite:
     qualifier: str = ""
 
 
-@dataclass(frozen=True)
-class UsingDirective:
-    """One C# ``using`` and the lines it governs."""
+# The ``name`` an import directive carries for a TS/JS default binding.
+DEFAULT_EXPORT_NAME = "default"
 
-    target: str
-    # The enclosing scope's range: C# requires usings to precede declarations, so every site
-    # that can see this directive is inside it.
+
+@dataclass(frozen=True)
+class ImportDirective:
+    """One import and the lines it governs: a name a file can use, and the container it comes from.
+
+    ``container`` is spelled the way the language names it: a dotted namespace or type in C#
+    (``A.B`` in ``using A.B;``), a module specifier in TS/JS (``./svc`` in ``import { X } from "./svc"``).
+    A directive with no ``name`` opens the whole container (``using A.B;``, ``import * as NS``);
+    one with a ``name`` binds that one member of it, under ``alias`` when the file renames it.
+    """
+
+    container: str
+    # One-based inclusive: from the directive to the end of the scope it is written in, or the
+    # whole file where imports are hoisted.
     first_line: int
     last_line: int
-    # The name an alias binds (``Item`` in ``using Item = A.B.Item``), else empty.
+    name: str = ""
     alias: str = ""
-    # ``using static N.T``: T's members become nameable unqualified, T's own name does not.
-    static: bool = False
+    # ``global using``: in force in every file of the compilation, not only in this one.
+    compilation_wide: bool = False
+
+    @property
+    def local_name(self) -> str:
+        """What the file writes to mean this import; empty when the container is opened unqualified."""
+        return self.alias or self.name
 
 
 @dataclass(frozen=True)
-class NamespaceContext:
-    """What a C# file can name unqualified: its usings and the namespaces it declares."""
+class NameScope:
+    """What a file can name and where: its imports and the namespaces it declares.
 
-    usings: tuple[UsingDirective, ...]
-    # (dotted namespace, first line, last line), one-based inclusive; nested names are joined.
-    namespaces: tuple[tuple[str, int, int], ...]
+    ``namespaces`` are ``(dotted name, first line, last line)``, one-based inclusive, nested names
+    joined. C# declares them in source; a TS/JS module declares none, its file is its container.
+    ``default_export`` is the declaration a TS/JS module exports as ``default``, else empty.
+    """
 
-
-@dataclass(frozen=True)
-class ImportBinding:
-    """One local name a TS/JS file imports: the module specifier and the exported name."""
-
-    source: str
-    imported_name: str
+    imports: tuple[ImportDirective, ...] = ()
+    namespaces: tuple[tuple[str, int, int], ...] = ()
+    default_export: str = ""
 
 
 @dataclass
