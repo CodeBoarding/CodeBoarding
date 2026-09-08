@@ -879,6 +879,73 @@ class TestPythonTypeSites:
         assert self._sites(tmp_path, "def m():\n    return Widget()\n") == set()
 
 
+class TestGoTypeSites:
+    def _sites(self, tmp_path: Path, body: str) -> set[tuple[str, str]]:
+        f = tmp_path / "s.go"
+        f.write_text(body)
+        return {(s.name, s.qualifier) for s in SourceInspector().find_type_reference_sites(f)}
+
+    def test_qualified_and_bare_types(self, tmp_path: Path):
+        sites = self._sites(
+            tmp_path,
+            "package app\n"
+            'import core "example.com/x/core"\n'
+            "type Service struct { widget core.Widget; items []core.Thing; local Helper }\n"
+            "func (s *Service) Find(q *core.Query) (Result, error) { return nil, nil }\n",
+        )
+        assert {("Widget", "core"), ("Thing", "core"), ("Query", "core")} <= sites
+        assert {("Helper", ""), ("Result", "")} <= sites
+        # The type being declared is the ``name`` of its own spec, never a reference to itself.
+        assert ("Service", "") in sites  # the method receiver does name it
+        assert not any(name == "app" for name, _ in sites)
+
+    def test_a_declaration_is_not_a_site(self, tmp_path: Path):
+        assert self._sites(tmp_path, "package app\ntype Widget struct { }\n") == set()
+
+
+class TestGoImportBindings:
+    def test_aliased_and_bare_imports(self, tmp_path: Path):
+        f = tmp_path / "s.go"
+        f.write_text(
+            'package app\nimport (\n  core "example.com/x/core"\n  "example.com/x/util"\n  _ "side/effect"\n)\n'
+        )
+        bindings = SourceInspector().find_import_bindings(f)
+        assert bindings["core"] == ImportBinding("example.com/x/core", "*")
+        # Unaliased, a package is named by the last segment of its path.
+        assert bindings["util"] == ImportBinding("example.com/x/util", "*")
+        assert "_" not in bindings
+
+
+class TestPhpTypeSites:
+    def test_heritage_properties_parameters_and_returns(self, tmp_path: Path):
+        f = tmp_path / "s.php"
+        f.write_text(
+            "<?php\n"
+            "namespace App\\Models;\n"
+            "class Service extends BaseService implements Runnable {\n"
+            "  private Widget $widget;\n"
+            "  public function find(Alias $a, \\App\\Other\\Deep $d): Result { }\n"
+            "}\n"
+        )
+        sites = {(s.name, s.qualifier) for s in SourceInspector().find_type_reference_sites(f)}
+        assert {("BaseService", ""), ("Runnable", ""), ("Widget", ""), ("Alias", ""), ("Result", "")} <= sites
+        # A fully qualified name keeps its namespace, whose separator is normalised to a dot.
+        assert ("Deep", "App.Other") in sites
+
+
+class TestPhpNamespaceContext:
+    def test_namespace_and_use_clauses(self, tmp_path: Path):
+        f = tmp_path / "s.php"
+        f.write_text("<?php\nnamespace App\\Models;\nuse App\\Core\\Widget;\nuse App\\Util\\Thing as Alias;\n")
+        context = SourceInspector().find_namespace_context(f)
+        assert context.namespaces[0][0] == "App.Models"
+        # Every ``use`` binds one name, so each is recorded the way an alias is.
+        assert [(d.target, d.alias) for d in context.usings] == [
+            ("App.Core.Widget", "Widget"),
+            ("App.Util.Thing", "Alias"),
+        ]
+
+
 class TestJavaNamespaceContext:
     def test_package_imports_wildcards_and_static(self, tmp_path: Path):
         f = tmp_path / "S.java"

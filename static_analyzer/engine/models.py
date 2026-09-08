@@ -101,9 +101,14 @@ class NamespaceContext:
     namespaces: tuple[tuple[str, int, int], ...]
 
 
+#: ``imported_name`` for a binding that names a whole module rather than one of its exports:
+#: TypeScript's ``import * as NS``, Python's ``import a.b``, every Go import.
+NAMESPACE_IMPORT = "*"
+
+
 @dataclass(frozen=True)
 class ImportBinding:
-    """One local name a TS/JS file imports: the module specifier and the exported name."""
+    """One local name a file imports: the module specifier and the exported name."""
 
     source: str
     imported_name: str

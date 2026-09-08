@@ -14,7 +14,14 @@ from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Tree
 
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
-from static_analyzer.engine.models import CallSite, ImportBinding, NamespaceContext, TypeReferenceSite, UsingDirective
+from static_analyzer.engine.models import (
+    CallSite,
+    ImportBinding,
+    NAMESPACE_IMPORT,
+    NamespaceContext,
+    TypeReferenceSite,
+    UsingDirective,
+)
 
 import tree_sitter_c_sharp
 import tree_sitter_go
@@ -221,6 +228,19 @@ _PYTHON_TYPE_NODE_TYPES = frozenset({"type", "generic_type"})
 _PYTHON_SUPERCLASS_FIELD = "superclasses"
 _PYTHON_IMPORT_NODE_TYPES = frozenset({"import_statement", "import_from_statement"})
 _PYTHON_RELATIVE_IMPORT_NODE_TYPES = frozenset({"relative_import"})
+_GO_SUFFIXES = frozenset(LANGUAGE_EXTENSIONS[Language.GO])
+_PHP_SUFFIXES = frozenset(LANGUAGE_EXTENSIONS[Language.PHP])
+# Go writes a foreign type as ``pkg.Type`` and its own without a qualifier; a declaration is the
+# ``name`` of its own spec, which is the only ``type_identifier`` that is not a type position.
+_GO_QUALIFIED_TYPE_NODE_TYPES = frozenset({"qualified_type"})
+_GO_TYPE_DECLARATION_NODE_TYPES = frozenset({"type_spec", "type_alias"})
+_GO_IMPORT_NODE_TYPES = frozenset({"import_declaration"})
+# PHP: a type is written in a parameter, a property, a return, or a heritage clause.
+_PHP_TYPE_PARENT_NODE_TYPES = frozenset({"named_type", "base_clause", "class_interface_clause"})
+_PHP_QUALIFIED_NAME_NODE_TYPES = frozenset({"qualified_name"})
+_PHP_NAMESPACE_NODE_TYPES = frozenset({"namespace_definition"})
+_PHP_USE_NODE_TYPES = frozenset({"namespace_use_declaration"})
+_PHP_SEPARATOR = "\\"
 
 # Ceiling on retained tree-sitter nodes. Trees are by far the largest thing this
 # class touches — retaining one per file cost 2.2GB on a 5k-file C# repo — and
@@ -717,6 +737,8 @@ class SourceInspector:
                     (_SCRIPT_SUFFIXES, self._script_type_name),
                     (_JAVA_SUFFIXES, self._java_type_name),
                     (_PYTHON_SUFFIXES, self._python_type_name),
+                    (_GO_SUFFIXES, self._go_type_name),
+                    (_PHP_SUFFIXES, self._php_type_name),
                 )
                 if suffix in suffixes
             ),
@@ -760,13 +782,15 @@ class SourceInspector:
         declares plus what it imports — so they share one record and one resolver.
         """
         suffix = file_path.suffix.lower()
-        if suffix not in _PREPROCESSOR_SUFFIXES and suffix not in _JAVA_SUFFIXES:
+        if suffix not in _PREPROCESSOR_SUFFIXES | _JAVA_SUFFIXES | _PHP_SUFFIXES:
             return NamespaceContext((), ())
         parsed = self._parse(file_path)
         if parsed is None:
             return NamespaceContext((), ())
         if suffix in _JAVA_SUFFIXES:
             return self._java_namespace_context(parsed)
+        if suffix in _PHP_SUFFIXES:
+            return self._php_namespace_context(parsed)
 
         def text(node: TreeSitterNode) -> str:
             return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
@@ -844,13 +868,15 @@ class SourceInspector:
     def find_import_bindings(self, file_path: Path) -> dict[str, ImportBinding]:
         """Local name -> the module and export a TS/JS or Python file bound it from."""
         suffix = file_path.suffix.lower()
-        if suffix not in _SCRIPT_SUFFIXES and suffix not in _PYTHON_SUFFIXES:
+        if suffix not in _SCRIPT_SUFFIXES | _PYTHON_SUFFIXES | _GO_SUFFIXES:
             return {}
         parsed = self._parse(file_path)
         if parsed is None:
             return {}
         if suffix in _PYTHON_SUFFIXES:
             return self._python_import_bindings(parsed)
+        if suffix in _GO_SUFFIXES:
+            return self._go_import_bindings(parsed)
 
         def text(node: TreeSitterNode) -> str:
             return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
@@ -871,7 +897,7 @@ class SourceInspector:
                         bindings[text(part)] = ImportBinding(source, "default")
                     elif part.type == "namespace_import":
                         for alias in part.named_children:
-                            bindings[text(alias)] = ImportBinding(source, "*")
+                            bindings[text(alias)] = ImportBinding(source, NAMESPACE_IMPORT)
                     elif part.type == "named_imports":
                         for specifier in part.named_children:
                             name_node = specifier.child_by_field_name("name")
@@ -913,11 +939,69 @@ class SourceInspector:
                     if name_node is None or alias_node is None:
                         continue
                     written = text(name_node)
-                    bindings[text(alias_node)] = ImportBinding(module or written, "*" if not module else written)
+                    bindings[text(alias_node)] = ImportBinding(
+                        module or written, NAMESPACE_IMPORT if not module else written
+                    )
                 elif imported.type == "dotted_name":
                     written = text(imported)
                     # ``import a.b`` has no module of its own; the dotted name is the module.
-                    bindings[written] = ImportBinding(module or written, written if module else "*")
+                    bindings[written] = ImportBinding(module or written, written if module else NAMESPACE_IMPORT)
+        return bindings
+
+    def _php_namespace_context(self, parsed: ParsedSource) -> NamespaceContext:
+        """``namespace`` as the declared scope; each ``use`` binds one name, as an alias does."""
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        def dotted(node: TreeSitterNode) -> str:
+            return text(node).strip(_PHP_SEPARATOR).replace(_PHP_SEPARATOR, ".")
+
+        last_line = parsed.tree.root_node.end_point.row + 1
+        usings: list[UsingDirective] = []
+        namespaces: list[tuple[str, int, int]] = []
+        for child in parsed.tree.root_node.named_children:
+            if child.type in _PHP_NAMESPACE_NODE_TYPES:
+                name = child.child_by_field_name("name")
+                if name is not None:
+                    namespaces.append((dotted(name), 1, last_line))
+            elif child.type in _PHP_USE_NODE_TYPES:
+                for clause in child.named_children:
+                    if clause.type != "namespace_use_clause":
+                        continue
+                    target = next((c for c in clause.named_children if c.type in ("qualified_name", "name")), None)
+                    if target is None:
+                        continue
+                    alias = clause.child_by_field_name("alias")
+                    written = dotted(target)
+                    usings.append(
+                        UsingDirective(
+                            target=written,
+                            first_line=1,
+                            last_line=last_line,
+                            alias=text(alias) if alias is not None else written.rpartition(".")[2],
+                        )
+                    )
+        return NamespaceContext(tuple(usings), tuple(namespaces))
+
+    def _go_import_bindings(self, parsed: ParsedSource) -> dict[str, ImportBinding]:
+        """Local package name -> its import path. Unaliased, the name is the path's last segment."""
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        bindings: dict[str, ImportBinding] = {}
+        for node in self._walk(parsed.tree.root_node):
+            if node.type != "import_spec":
+                continue
+            path_node = node.child_by_field_name("path")
+            if path_node is None:
+                continue
+            path = text(path_node).strip('"`')
+            alias = node.child_by_field_name("name")
+            local = text(alias) if alias is not None else path.rpartition("/")[2]
+            if local and local not in (".", "_"):
+                bindings[local] = ImportBinding(path, NAMESPACE_IMPORT)
         return bindings
 
     def find_type_bases(self, file_path: Path) -> list[tuple[str, list[str]]]:
@@ -1196,6 +1280,36 @@ class SourceInspector:
         if node.type == "attribute":
             return self._script_member_name(node, "attribute", "object", text)
         return None
+
+    def _go_type_name(self, node: TreeSitterNode, text: _NodeText) -> _TypeName | None:
+        parent = node.parent
+        if parent is None:
+            return None
+        if node.type in _GO_QUALIFIED_TYPE_NODE_TYPES:
+            return self._script_member_name(node, "name", "package", text)
+        if node.type != "type_identifier":
+            return None
+        if parent.type in _GO_QUALIFIED_TYPE_NODE_TYPES:
+            return None
+        if parent.type in _GO_TYPE_DECLARATION_NODE_TYPES and self._field_name(node) == "name":
+            return None
+        return node, text(node), ""
+
+    def _php_type_name(self, node: TreeSitterNode, text: _NodeText) -> _TypeName | None:
+        parent = node.parent
+        if parent is None or parent.type not in _PHP_TYPE_PARENT_NODE_TYPES:
+            return None
+        if node.type in _PHP_QUALIFIED_NAME_NODE_TYPES:
+            # Not the ``prefix`` field: on a fully qualified ``\App\Deep`` it is the leading
+            # separator token, and the namespace is a plain named child either way.
+            prefix = next((c for c in node.named_children if c.type == "namespace_name"), None)
+            name = next((c for c in node.named_children if c.type == "name"), None)
+            if name is None:
+                return None
+            return node, text(name), text(prefix).replace(_PHP_SEPARATOR, ".") if prefix is not None else ""
+        if node.type != "name":
+            return None
+        return node, text(node), ""
 
     @staticmethod
     def _script_member_name(

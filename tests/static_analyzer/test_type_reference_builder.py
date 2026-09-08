@@ -213,6 +213,75 @@ class TestTypeIndexJava:
         assert _resolved_name(index, _site(user, "Widget", line=3)) == "com.example.util.Widget"
 
 
+class TestTypeIndexGo:
+    def test_an_unqualified_name_is_this_files_package(self, tmp_path: Path):
+        here = _write(tmp_path / "app" / "widget.go", "package app\ntype Widget struct { }\n")
+        other = _write(tmp_path / "other" / "widget.go", "package other\ntype Widget struct { }\n")
+        user = _write(tmp_path / "app" / "s.go", "package app\ntype S struct { w Widget }\n")
+        index = TypeIndex([_class("app.widget.Widget", here), _class("other.widget.Widget", other)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Widget", line=2)) == "app.widget.Widget"
+
+    def test_a_qualified_name_resolves_through_its_import(self, tmp_path: Path):
+        core = _write(tmp_path / "x" / "core" / "widget.go", "package core\ntype Widget struct { }\n")
+        other = _write(tmp_path / "x" / "util" / "widget.go", "package util\ntype Widget struct { }\n")
+        user = _write(
+            tmp_path / "app" / "s.go", 'package app\nimport "example.com/x/core"\ntype S struct { w core.Widget }\n'
+        )
+        index = TypeIndex(
+            [_class("x.core.widget.Widget", core), _class("x.util.widget.Widget", other)], SourceInspector()
+        )
+        assert _resolved_name(index, _site(user, "Widget", line=3, qualifier="core")) == "x.core.widget.Widget"
+
+    def test_an_aliased_import_resolves_through_its_local_name(self, tmp_path: Path):
+        core = _write(tmp_path / "x" / "core" / "widget.go", "package core\ntype Widget struct { }\n")
+        user = _write(
+            tmp_path / "app" / "s.go", 'package app\nimport c "example.com/x/core"\ntype S struct { w c.Widget }\n'
+        )
+        index = TypeIndex([_class("x.core.widget.Widget", core)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Widget", line=3, qualifier="c")) == "x.core.widget.Widget"
+
+    def test_an_unimported_qualifier_resolves_to_nothing(self, tmp_path: Path):
+        core = _write(tmp_path / "x" / "core" / "widget.go", "package core\ntype Widget struct { }\n")
+        user = _write(tmp_path / "app" / "s.go", "package app\ntype S struct { }\n")
+        index = TypeIndex([_class("x.core.widget.Widget", core)], SourceInspector())
+        assert index.resolve(_site(user, "Widget", line=2, qualifier="core")) is None
+
+
+class TestTypeIndexPhp:
+    def _repo(self, tmp_path: Path):
+        core = _write(tmp_path / "core" / "Widget.php", "<?php\nnamespace App\\Core;\nclass Widget { }\n")
+        models = _write(tmp_path / "models" / "Widget.php", "<?php\nnamespace App\\Models;\nclass Widget { }\n")
+        return [_class("core.Widget.Widget", core), _class("models.Widget.Widget", models)]
+
+    def test_a_use_clause_decides_the_name(self, tmp_path: Path):
+        nodes = self._repo(tmp_path)
+        user = _write(
+            tmp_path / "models" / "Service.php",
+            "<?php\nnamespace App\\Models;\nuse App\\Core\\Widget;\nclass Service { private Widget $w; }\n",
+        )
+        index = TypeIndex(nodes, SourceInspector())
+        # Without the use clause the file's own namespace would win.
+        assert _resolved_name(index, _site(user, "Widget", line=4)) == "core.Widget.Widget"
+
+    def test_the_files_own_namespace_resolves_without_a_use(self, tmp_path: Path):
+        nodes = self._repo(tmp_path)
+        user = _write(
+            tmp_path / "models" / "Service.php",
+            "<?php\nnamespace App\\Models;\nclass Service { private Widget $w; }\n",
+        )
+        index = TypeIndex(nodes, SourceInspector())
+        assert _resolved_name(index, _site(user, "Widget", line=3)) == "models.Widget.Widget"
+
+    def test_an_aliased_use_resolves_to_its_target(self, tmp_path: Path):
+        nodes = self._repo(tmp_path)
+        user = _write(
+            tmp_path / "models" / "Service.php",
+            "<?php\nnamespace App\\Models;\nuse App\\Core\\Widget as W;\nclass Service { private W $w; }\n",
+        )
+        index = TypeIndex(nodes, SourceInspector())
+        assert _resolved_name(index, _site(user, "W", line=4)) == "core.Widget.Widget"
+
+
 class TestTypeIndexPython:
     def test_an_absolute_import_resolves_to_its_module(self, tmp_path: Path):
         widget = _write(tmp_path / "a" / "b.py", "class Widget: ...\n")

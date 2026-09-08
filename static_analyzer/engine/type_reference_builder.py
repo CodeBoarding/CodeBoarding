@@ -15,8 +15,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
-from static_analyzer.engine.models import ImportBinding, NamespaceContext, TypeReferenceSite, UsingDirective
+from static_analyzer.engine.models import (
+    ImportBinding,
+    NAMESPACE_IMPORT,
+    NamespaceContext,
+    TypeReferenceSite,
+    UsingDirective,
+)
 from static_analyzer.engine.source_inspector import (
+    _GO_SUFFIXES,
     _PYTHON_SUFFIXES,
     _SCRIPT_SUFFIXES,
     SourceInspector,
@@ -28,7 +35,6 @@ from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
-_NAMESPACE_IMPORT = "*"
 _SCRIPT_MODULE_SUFFIXES = (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")
 
 
@@ -92,6 +98,8 @@ class TypeIndex:
             return self._resolve_script(site)
         if suffix in _PYTHON_SUFFIXES:
             return self._resolve_python(site)
+        if suffix in _GO_SUFFIXES:
+            return self._resolve_go(site)
         return self._resolve_by_namespace(site)
 
     def _resolve_by_namespace(self, site: TypeReferenceSite) -> Node | None:
@@ -116,12 +124,32 @@ class TypeIndex:
         binding = bindings.get(site.qualifier or site.name)
         if binding is None:
             return self._only_local_candidate(site)
-        wanted = site.name if binding.imported_name == _NAMESPACE_IMPORT else binding.imported_name
+        wanted = site.name if binding.imported_name == NAMESPACE_IMPORT else binding.imported_name
         module, anchored = _python_module(binding.source, site.file)
         candidates = [
             node for node in self._by_name.get(wanted, []) if _in_python_module(node.file_path, module, anchored)
         ]
         return candidates[0] if len(candidates) == 1 else None
+
+    def _resolve_go(self, site: TypeReferenceSite) -> Node | None:
+        """A package is a directory: an unqualified name is this file's, ``pkg.T`` is an import's."""
+        named = self._by_name.get(site.name, [])
+        if not site.qualifier:
+            here = os.path.dirname(site.file)
+            candidates = [node for node in named if os.path.dirname(node.file_path) == here]
+            return candidates[0] if len(candidates) == 1 else None
+        binding = self._imports_of(site.file).get(site.qualifier)
+        if binding is None:
+            return None
+        # The import path carries a module prefix this layer does not know, so the longest tail
+        # that matches a directory wins; a shorter one would match any package of that name.
+        parts = binding.source.split("/")
+        for start in range(len(parts)):
+            tail = os.sep.join(parts[start:])
+            candidates = [node for node in named if _in_directory(node.file_path, tail)]
+            if candidates:
+                return candidates[0] if len(candidates) == 1 else None
+        return None
 
     def _only_local_candidate(self, site: TypeReferenceSite) -> Node | None:
         """The name with no import behind it: this file's own, or the repository's only one."""
@@ -138,7 +166,7 @@ class TypeIndex:
             return self._only_local_candidate(site)
         if not binding.source.startswith("."):
             return None
-        wanted = site.name if binding.imported_name in (_NAMESPACE_IMPORT, "default") else binding.imported_name
+        wanted = site.name if binding.imported_name in (NAMESPACE_IMPORT, "default") else binding.imported_name
         module = _module_stem(os.path.normpath(os.path.join(os.path.dirname(site.file), binding.source)))
         candidates = [
             node
@@ -241,6 +269,11 @@ def _expand_alias(written: str, directives: Iterable[UsingDirective]) -> str:
         if directive.alias == head:
             return ".".join(part for part in (directive.target, rest) if part)
     return ""
+
+
+def _in_directory(file_path: str, directory: str) -> bool:
+    parent = os.path.dirname(file_path)
+    return parent == directory or parent.endswith(os.sep + directory)
 
 
 def _python_module(source: str, site_file: str) -> tuple[str, bool]:
