@@ -104,18 +104,6 @@ def get_repo_name(repo_url: str):
     return repo_name
 
 
-def get_repo_org(repo_url: str) -> str:
-    """The account owning the repository — ``acme`` for ``.../acme/widgets.git``.
-
-    Why: the segment before the name, with the ``git@host:`` prefix of an scp-style
-    URL dropped. Returns '' for a URL with no owner segment.
-    """
-    parts = sanitize_repo_url(repo_url).split("/")
-    if len(parts) < 2:
-        return ""
-    return parts[-2].rpartition(":")[2]
-
-
 @require_git_import()
 def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
     repo_url = sanitize_repo_url(repo_url)
