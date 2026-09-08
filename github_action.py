@@ -2,13 +2,12 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from urllib.parse import urlparse
 
 from codeboarding_workflows.analysis import run_incremental_workflow
 from diagram_analysis import DEFAULT_DEPTH_LEVEL, DiagramGenerator, RunContext
 from diagram_analysis.io_utils import load_analysis_metadata
 from output_generators.rendering import render_docs
-from repo_utils import checkout_repo, clone_repository
+from repo_utils import checkout_repo, clone_repository, get_repo_org
 from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, create_temp_repo_folder
 
 logger = logging.getLogger(__name__)
@@ -109,8 +108,7 @@ def generate_analysis(
     os.environ.setdefault("CODEBOARDING_SOURCE", "github_action")
     # Why: telemetry otherwise falls back to GITHUB_REPOSITORY, which names the
     # workflow's own repository rather than the one this run was pointed at.
-    repo_path = urlparse(repo_url).path if "://" in repo_url else repo_url.partition(":")[2]
-    os.environ["CODEBOARDING_ORG"] = repo_path.strip("/").partition("/")[0]
+    os.environ["CODEBOARDING_ORG"] = get_repo_org(repo_url)
     repo_root = Path(os.getenv("REPO_ROOT", "repos"))
     repo_name = clone_repository(repo_url, repo_root)
     repo_dir = repo_root / repo_name

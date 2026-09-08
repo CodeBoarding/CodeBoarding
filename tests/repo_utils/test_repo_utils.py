@@ -1,6 +1,6 @@
 import unittest
 
-from repo_utils import sanitize_repo_url, get_repo_name
+from repo_utils import sanitize_repo_url, get_repo_name, get_repo_org
 
 
 class TestRepoUtils(unittest.TestCase):
@@ -65,6 +65,41 @@ class TestRepoUtils(unittest.TestCase):
         url = "git@github.com:user/another-repo.git"
         name = get_repo_name(url)
         self.assertEqual(name, "another-repo")
+
+    def test_get_repo_org_https(self):
+        # Test extracting the owning account from an HTTPS URL
+        url = "https://github.com/user/my-repo"
+        self.assertEqual(get_repo_org(url), "user")
+
+    def test_get_repo_org_with_git_suffix(self):
+        url = "https://github.com/user/my-repo.git"
+        self.assertEqual(get_repo_org(url), "user")
+
+    def test_get_repo_org_ssh(self):
+        # The ``git@host:`` prefix sits in the same segment as the owner and
+        # has to come off, unlike the HTTPS form where the host is its own.
+        url = "git@github.com:user/another-repo.git"
+        self.assertEqual(get_repo_org(url), "user")
+
+    def test_get_repo_org_ssh_protocol(self):
+        url = "ssh://git@github.com/user/another-repo.git"
+        self.assertEqual(get_repo_org(url), "user")
+
+    def test_get_repo_org_trailing_slash(self):
+        url = "https://github.com/user/my-repo/"
+        self.assertEqual(get_repo_org(url), "user")
+
+    def test_get_repo_name_trailing_slash(self):
+        # The slash used to survive into the ``.git`` suffix, leaving
+        # ``.../my-repo/.git`` — which does not clone, and whose "name" is ``.git``.
+        url = "https://github.com/user/my-repo/"
+        self.assertEqual(get_repo_name(url), "my-repo")
+
+    def test_sanitize_strips_trailing_slash_before_adding_git(self):
+        self.assertEqual(
+            sanitize_repo_url("https://github.com/user/my-repo/"),
+            "https://github.com/user/my-repo.git",
+        )
 
     def test_get_repo_name_trailing_slash(self):
         # Test URL with trailing slash - sanitize adds .git then strips it

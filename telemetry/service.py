@@ -48,9 +48,7 @@ def _origin() -> dict[str, object]:
     """
     source = os.getenv("CODEBOARDING_SOURCE", "core")
     origin: dict[str, object] = {"source": source, "internal": source in INTERNAL_SOURCES}
-
-    org = _org()
-    if org:
+    if org := _org():
         origin["org"] = org
     return origin
 

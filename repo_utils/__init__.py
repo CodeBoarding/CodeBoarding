@@ -66,6 +66,11 @@ def sanitize_repo_url(repo_url: str) -> str:
     Normalizes Git URLs to ensure proper format for cloning.
     Preserves HTTPS URLs for CI compatibility while supporting SSH URLs.
     """
+    # A trailing slash would otherwise survive into the ``.git`` suffix below,
+    # yielding ``.../my-repo/.git`` — which does not clone, and from which
+    # ``get_repo_name`` reads ``.git`` as the repository name.
+    repo_url = repo_url.rstrip("/")
+
     if repo_url.startswith("git@") or repo_url.startswith("ssh://"):
         return repo_url  # already in SSH format
     elif repo_url.startswith("https://") or repo_url.startswith("http://"):
@@ -98,6 +103,18 @@ def get_repo_name(repo_url: str):
     base = repo_url.rstrip("/").split("/")[-1]
     repo_name, _ = os.path.splitext(base)
     return repo_name
+
+
+def get_repo_org(repo_url: str) -> str:
+    """The account owning the repository — ``acme`` for ``.../acme/widgets.git``.
+
+    Why: the segment before the name, with the ``git@host:`` prefix of an scp-style
+    URL dropped. Returns '' for a URL with no owner segment.
+    """
+    parts = sanitize_repo_url(repo_url).rstrip("/").split("/")
+    if len(parts) < 2:
+        return ""
+    return parts[-2].rpartition(":")[2]
 
 
 @require_git_import()
