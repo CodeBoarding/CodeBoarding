@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 
@@ -30,42 +31,31 @@ def _telemetry_disabled() -> bool:
     return os.getenv("CODEBOARDING_TELEMETRY", "true").strip().lower() == "false"
 
 
-def _repo_owner() -> str:
-    """The account a run's repository belongs to, when the environment names one.
+def _org_id() -> str:
+    """Pseudonymous id for the account a run's repository belongs to, or ''.
 
-    Only the owner segment is read, never the repository name: the owner is what
-    separates one deployment's runs from another's, and the repository name adds
-    nothing to that while saying considerably more about the code.
-
-    ``CODEBOARDING_ORG`` is the explicit form, set by an embedding that already
-    knows the owner. ``GITHUB_REPOSITORY`` is the CI form — Actions always sets
-    it to ``owner/name``. Neither is set for a plain local run, which therefore
-    reports no owner at all. Lower-cased because owners are case-insensitive on
-    GitHub, and a grouping that splits ``Acme`` from ``acme`` is a wrong one.
+    Why: a personal repository's owner is a GitHub login, so only its hash is
+    sent. ``CODEBOARDING_ORG`` when a caller knows the owner, else the owner
+    half of ``GITHUB_REPOSITORY``; the repository's own name is never read.
     """
-    explicit = os.getenv("CODEBOARDING_ORG", "").strip()
-    owner = explicit or os.getenv("GITHUB_REPOSITORY", "").strip().partition("/")[0]
-    return owner.lower()
+    owner = os.getenv("CODEBOARDING_ORG", "").strip() or os.getenv("GITHUB_REPOSITORY", "").strip().partition("/")[0]
+    if not owner:
+        return ""
+    return hashlib.sha256(owner.lower().encode("utf-8")).hexdigest()[:16]
 
 
 def _origin() -> dict[str, object]:
-    """Who invoked this run, and whether that is a person using the product.
+    """Who invoked this run, whether that is product usage, and which deployment.
 
-    ``source`` is the existing discriminator: "vscode" when invoked by the
-    extension, "oss" for the OSS CLI, "github_action" in CI, "tests" for the
-    engine's own suite, "evals" for the benchmark harness, "core" for any other
-    embedding. ``internal`` is derived from it so the two can never disagree.
-
-    ``org`` is the repository owner from :func:`_repo_owner`, and is omitted
-    entirely when the environment names none — an absent key reads as "unknown"
-    in a query, which an empty string does not.
+    Why: ``internal`` is derived from ``source`` so the two cannot disagree, and
+    ``org_id`` is omitted rather than blank so an absent key reads as unknown.
     """
     source = os.getenv("CODEBOARDING_SOURCE", "core")
     origin: dict[str, object] = {"source": source, "internal": source in INTERNAL_SOURCES}
 
-    owner = _repo_owner()
-    if owner:
-        origin["org"] = owner
+    org_id = _org_id()
+    if org_id:
+        origin["org_id"] = org_id
     return origin
 
 

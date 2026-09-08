@@ -6,9 +6,7 @@ and prioritize what to improve. It is **on by default** and easy to turn off.
 
 We designed it to be privacy-first: **no source code, repository names, prompts,
 model outputs, API keys, IP addresses, or any personal information are ever
-collected.** Events do carry the account a repository belongs to (`org`, below)
-so that one deployment's runs can be told apart from another's. (Error
-diagnostics may include file paths from a traceback — see
+collected.** (Error diagnostics may include file paths from a traceback — see
 [Error diagnostics](#error-diagnostics) for the only exception.)
 
 ## How to opt out
@@ -66,11 +64,13 @@ Every event also carries:
   metric filters on one condition and stays correct when another internal
   source is added — a hand-kept list of source values is right until it is
   quietly not.
-- `org` — the account the analysed repository belongs to, when the environment
-  names one: `CODEBOARDING_ORG` if an embedding sets it, otherwise the owner
-  half of `GITHUB_REPOSITORY`, which GitHub Actions always sets. Only the owner
-  is read — never the repository's own name — and nothing infers it, so a local
-  run with neither variable set sends no `org` at all.
+- `org_id` — an anonymous id for the account the analysed repository belongs
+  to, so one deployment's runs can be told apart from another's. It is the
+  **SHA-256** of the owner name, never the name itself: an owner is a GitHub
+  login for a personal repository, and no login, handle or organisation name is
+  ever sent. Only the owner is hashed — never the repository's own name — and
+  nothing is inferred, so a run outside CI whose caller names no owner sends no
+  `org_id` at all.
 - `distinct_id` — the anonymous id described above.
 
 Property meanings:
@@ -103,8 +103,7 @@ credentials are ever sent.
 ## What we never collect
 
 - Source code or file contents
-- Repository names or URLs (the owning account is sent as `org`, described
-  above; the repository's own name is not)
+- Repository names or URLs
 - Prompts sent to or responses from LLMs
 - API keys, tokens, or credentials of any kind
 - Names, emails, usernames, or IP addresses
