@@ -223,7 +223,7 @@ class TestRenderScopeContext(unittest.TestCase):
                     "1",
                     "2",
                     edges=[
-                        ClusterConnectionEdge("csharp", "a.Cls", "b.Cls", kind="typeref"),
+                        ClusterConnectionEdge("csharp", "a.Cls", "b.Cls", kind=EdgeKind.TYPEREF),
                         ClusterConnectionEdge("csharp", "a.Cls.run()", "b.Cls.go()"),
                     ],
                 )

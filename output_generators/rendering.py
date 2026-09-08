@@ -53,6 +53,7 @@ def project_relations_to_level(
                 src_id=src,
                 dst_id=dst,
                 is_static=rel.is_static,
+                default_label=rel.default_label,
                 all_edges=rel.all_edges,
             ),
             key=(src, dst),

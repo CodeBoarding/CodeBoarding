@@ -532,6 +532,35 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             [site.model_dump() for site in edge.call_sites], [{"line": 14, "column": 6}, {"line": 16, "column": 10}]
         )
 
+    def test_default_label_survives_the_round_trip_and_is_inferred_for_older_files(self):
+        self.analysis.components_relations = [
+            Relation(
+                src_name="Component1",
+                dst_name="Component2",
+                relation="uses",
+                src_id="1",
+                dst_id="2",
+                is_static=True,
+                default_label=True,
+            )
+        ]
+        data = json.loads(
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+            )
+        )
+        self.assertTrue(data["components_relations"][0]["default_label"])
+        parsed, _ = parse_unified_analysis(data)
+        self.assertTrue(parsed.components_relations[0].default_label)
+
+        # A file written before the flag existed can only be judged by its wording.
+        del data["components_relations"][0]["default_label"]
+        parsed, _ = parse_unified_analysis(data)
+        self.assertTrue(parsed.components_relations[0].default_label)
+        data["components_relations"][0]["relation"] = "dispatches through"
+        parsed, _ = parse_unified_analysis(data)
+        self.assertFalse(parsed.components_relations[0].default_label)
+
     def test_unified_analysis_parse_recovers_edges_missing_from_methods_index(self):
         data = json.loads(
             build_unified_analysis_json(

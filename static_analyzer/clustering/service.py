@@ -424,7 +424,8 @@ class ClusteringService:
                         language=language,
                         source_qualified_name=ref.src,
                         target_qualified_name=ref.dst,
-                        kind=ref.kind.value,
+                        call_sites=list(ref.sites),
+                        kind=ref.kind,
                     )
                 )
         return [by_pair[pair] for pair in sorted(by_pair)]

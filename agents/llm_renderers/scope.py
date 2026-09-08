@@ -10,7 +10,7 @@ from typing import Any
 
 from agents.agent_responses import AnalysisInsights
 from repo_utils.path_utils import normalize_repo_path
-from static_analyzer.cfg.edge import CALL_EDGE_KIND, EdgeKind
+from static_analyzer.cfg.edge import EdgeKind
 from static_analyzer.clustering import ClusterConnectionEdge, ClusterGroup, ClusterScopeResult
 from static_analyzer.node import Node
 
@@ -146,8 +146,8 @@ def _known_connections(scope: ClusterScopeResult, repo_dir: Path) -> list[dict[s
             seen.add(key)
             distinct.append(edge)
         distinct.sort(key=lambda edge: (edge.source_qualified_name, edge.target_qualified_name))
-        calls = [edge for edge in distinct if edge.kind == CALL_EDGE_KIND]
-        references = [edge for edge in distinct if edge.kind != CALL_EDGE_KIND]
+        calls = [edge for edge in distinct if edge.kind is EdgeKind.CALL]
+        references = [edge for edge in distinct if edge.kind is not EdgeKind.CALL]
         connections.append(
             {
                 "source_group_id": source_group_id,
@@ -191,7 +191,7 @@ def _boundary_reasons(
         for edge in connection.edges:
             # Only calls border a file here; a type reference is counted per pair in
             # ``known_connections`` instead, or it would border nearly every file.
-            if edge.kind != CALL_EDGE_KIND:
+            if edge.kind is not EdgeKind.CALL:
                 continue
             graph = scope.graphs_by_language.get(edge.language)
             if graph is None:

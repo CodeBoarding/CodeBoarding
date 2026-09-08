@@ -116,7 +116,7 @@ class CallGraph:
         """
         src, dst = self._resolve_name(ref.src), self._resolve_name(ref.dst)
         if src in self.nodes and dst in self.nodes and src != dst:
-            self.reference_edges.append(ReferenceEdge(src, dst, ref.kind))
+            self.reference_edges.append(ReferenceEdge(src, dst, ref.kind, ref.sites))
 
     def filter(self, keep_node: Callable[[Node], bool]) -> CallGraph:
         """Return a new CallGraph of the nodes matching ``keep_node`` and the edges between them.
@@ -226,7 +226,9 @@ class CallGraph:
                 # Resolve through the SOURCE's alias map: an endpoint stored under a short
                 # alias must map to the canonical name ``out`` promoted it to, or a call edge
                 # (which add_edge resolves) survives while its reference edge is silently dropped.
-                resolved = ReferenceEdge(source._resolve_name(ref.src), source._resolve_name(ref.dst), ref.kind)
+                resolved = ReferenceEdge(
+                    source._resolve_name(ref.src), source._resolve_name(ref.dst), ref.kind, ref.sites
+                )
                 if resolved.src in out.nodes and resolved.dst in out.nodes and resolved.src != resolved.dst:
                     carried.append(resolved)
         out.reference_edges = list(dict.fromkeys(carried))

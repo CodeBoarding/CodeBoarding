@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import NotRequired, TypedDict
 
@@ -11,18 +11,32 @@ from static_analyzer.node import Node
 
 
 class EdgeKind(StrEnum):
-    """Kind of a *reference* edge — the structural relationships a call graph misses.
+    """Kind of an edge: a call, or one of the structural relationships a call graph misses.
 
-    A method belongs to its class (CONTAINS), a class extends another (INHERITS),
-    code names a type (TYPEREF), a module imports another (IMPORT). Call edges are
-    not listed: they live in ``CallGraph.edges`` and carry no kind tag.
+    CALL is what ``CallGraph.edges`` holds. The rest are ``ReferenceEdge`` kinds: a method
+    belongs to its class (CONTAINS), a class extends another (INHERITS), code names a type
+    (TYPEREF), a module imports another (IMPORT).
     """
 
+    CALL = "call"
     CONTAINS = "contains"
     INHERITS = "inherits"
     TYPEREF = "typeref"
     IMPORT = "import"
 
+    @property
+    def relation_label(self) -> str:
+        """The verb a relation gets when edges of this kind alone connect two components."""
+        return _RELATION_LABEL_BY_KIND[self]
+
+
+_RELATION_LABEL_BY_KIND: dict[EdgeKind, str] = {
+    EdgeKind.CALL: "calls",
+    EdgeKind.CONTAINS: "contains",
+    EdgeKind.INHERITS: "inherits from",
+    EdgeKind.TYPEREF: "uses",
+    EdgeKind.IMPORT: "imports",
+}
 
 # What structural consumers fold into ``to_networkx`` on top of call edges. The call graph
 # leaves ~a fifth of symbols isolated (constructors, dunders, DI/interface methods), so
@@ -32,25 +46,32 @@ class EdgeKind(StrEnum):
 DEFAULT_REFERENCE_KINDS: tuple[EdgeKind, ...] = (EdgeKind.CONTAINS, EdgeKind.INHERITS)
 # The reference kinds that, like a call, make one component depend on another.
 RELATION_REFERENCE_KINDS: tuple[EdgeKind, ...] = (EdgeKind.INHERITS, EdgeKind.TYPEREF)
-# ``ClusterConnectionEdge.kind`` of a plain call; reference edges carry their ``EdgeKind`` value.
-CALL_EDGE_KIND = "call"
-
-
-@dataclass(frozen=True)
-class ReferenceEdge:
-    """A non-call relationship between two qualified names."""
-
-    src: str
-    dst: str
-    kind: EdgeKind
 
 
 class CallSiteLocation(TypedDict):
-    """A one-based source location where a call occurs."""
+    """A one-based source location where an edge occurs: a call, or a type being named."""
 
     line: int
     file: NotRequired[str]
     column: NotRequired[int]
+
+
+@dataclass(frozen=True)
+class ReferenceEdge:
+    """A non-call relationship between two qualified names, and where the source names the target.
+
+    Two edges are the same edge when they join the same names the same way; the sites are what
+    the source wrote and never decide identity.
+    """
+
+    src: str
+    dst: str
+    kind: EdgeKind
+    sites: tuple[CallSiteLocation, ...] = field(default=(), compare=False)
+
+    def __post_init__(self) -> None:
+        if self.kind is EdgeKind.CALL:
+            raise ValueError("a call is an Edge with call sites, not a ReferenceEdge")
 
 
 class Edge:

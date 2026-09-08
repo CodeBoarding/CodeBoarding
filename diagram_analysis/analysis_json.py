@@ -16,8 +16,12 @@ from agents.agent_responses import (
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry, MethodIndexEntry
 from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
+from static_analyzer.cfg.edge import RELATION_REFERENCE_KINDS, EdgeKind
 
 logger = logging.getLogger(__name__)
+
+# Every label ``static_relation_label`` can produce; only a file predating ``default_label`` needs it.
+_STATIC_LABELS = frozenset(kind.relation_label for kind in (EdgeKind.CALL, *RELATION_REFERENCE_KINDS))
 
 
 class RelationEdgeJson(BaseModel):
@@ -37,6 +41,10 @@ class RelationJson(Relation):
     src_id: str = Field(default="", description="Component ID of the source.")
     dst_id: str = Field(default="", description="Component ID of the destination.")
     is_static: bool = Field(default=False, description="True if derived from static CFG analysis.")
+    default_label: bool = Field(
+        default=False,
+        description="True when the label is what the static edges give the pair, not a description someone wrote.",
+    )
     all_edges: list[RelationEdgeJson] = Field(
         default_factory=list,
         description="All known source-to-target edges for this relation.",
@@ -315,6 +323,7 @@ def _relation_to_json(r: Relation, repo_dir: Path) -> RelationJson:
         src_id=r.src_id,
         dst_id=r.dst_id,
         is_static=r.is_static,
+        default_label=r.default_label,
         all_edges=[_relation_edge_to_json(edge, repo_dir) for edge in r.all_edges],
     )
 
@@ -657,6 +666,8 @@ def _extract_analysis_recursive(
                 src_id=r.get("src_id", ""),
                 dst_id=r.get("dst_id", ""),
                 is_static=r.get("is_static", False),
+                # A file written before the flag existed can only be judged by its wording.
+                default_label=r.get("default_label", r["relation"] in _STATIC_LABELS),
                 all_edges=all_edges,
             )
         )

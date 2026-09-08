@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import logging
 from abc import abstractmethod
-from collections.abc import Hashable
+from collections.abc import Hashable, Sequence
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
@@ -11,7 +11,8 @@ from pydantic import BaseModel, Field
 from clustering_ids import ComponentId
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodIndexEntry
 from agents.scope_ids import ROOT_SCOPE_ID
-from static_analyzer.cfg.edge import EdgeKind
+from static_analyzer.cfg.edge import CallSiteLocation, EdgeKind
+from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
@@ -78,13 +79,6 @@ class RelationCallSite(BaseModel):
     column: int = Field(description="One-based column number of the call site in the source file.")
 
 
-# What a static reference edge says about itself; ``static_relation_label`` reads it back.
-REFERENCE_EDGE_DESCRIPTIONS: dict[EdgeKind, str] = {
-    EdgeKind.INHERITS: "inherits from",
-    EdgeKind.TYPEREF: "references type",
-}
-
-
 class RelationEdge(LLMBaseModel):
     """A source-to-target code reference that supports a component relation."""
 
@@ -93,7 +87,12 @@ class RelationEdge(LLMBaseModel):
     description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
     call_sites: list[RelationCallSite] = Field(
         default_factory=list,
-        description="Call-site line and column pairs for this edge.",
+        description="Line and column pairs where this edge occurs.",
+        exclude=True,
+    )
+    kind: EdgeKind = Field(
+        default=EdgeKind.CALL,
+        description="The static edge behind this one: a call unless it came from a reference edge.",
         exclude=True,
     )
 
@@ -130,8 +129,10 @@ class RelationEdge(LLMBaseModel):
         )
 
     @classmethod
-    def from_reference(cls, source, target, kind: EdgeKind) -> RelationEdge:
-        """An edge backed by a reference (inheritance, a type mention) rather than a call site."""
+    def from_reference(
+        cls, source: Node, target: Node, kind: EdgeKind, sites: Sequence[CallSiteLocation] = ()
+    ) -> RelationEdge:
+        """An edge backed by a reference (inheritance, a type mention) rather than a call."""
         return cls(
             source=SourceCodeReference(
                 qualified_name=source.fully_qualified_name,
@@ -145,7 +146,9 @@ class RelationEdge(LLMBaseModel):
                 reference_start_line=target.line_start,
                 reference_end_line=target.line_end,
             ),
-            description=REFERENCE_EDGE_DESCRIPTIONS[kind],
+            description=kind.relation_label,
+            call_sites=[RelationCallSite.model_validate(site) for site in sites],
+            kind=kind,
         )
 
     def llm_str(self) -> str:
@@ -187,6 +190,20 @@ def _relation_endpoint_from_key(
     )
 
 
+def static_relation_label(edges: Sequence[RelationEdge]) -> str:
+    """The label a relation gets from its static edges alone.
+
+    A single call outranks any reference; one kind of reference reads as that kind; mixed
+    references read as the umbrella ``uses``.
+    """
+    kinds = {edge.kind for edge in edges}
+    if not kinds or EdgeKind.CALL in kinds:
+        return EdgeKind.CALL.relation_label
+    if len(kinds) == 1:
+        return next(iter(kinds)).relation_label
+    return EdgeKind.TYPEREF.relation_label
+
+
 class Relation(LLMBaseModel):
     """A relationship between two components."""
 
@@ -210,6 +227,11 @@ class Relation(LLMBaseModel):
     src_id: str = Field(default="", description="Component ID of the source.", exclude=True)
     dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
     is_static: bool = Field(default=False, description="True if derived from static CFG analysis.", exclude=True)
+    default_label: bool = Field(
+        default=False,
+        description="True when the label is what the static edges give the pair, not a description someone wrote.",
+        exclude=True,
+    )
     all_edges: list[RelationEdge] = Field(
         default_factory=list,
         description="All known source-to-target edges for this relation, populated deterministically when available.",
@@ -217,26 +239,17 @@ class Relation(LLMBaseModel):
     )
 
     @classmethod
-    def from_edges(
-        cls,
-        relation: str,
-        src_name: str,
-        dst_name: str,
-        src_id: str,
-        dst_id: str,
-        edges: list[RelationEdge],
-        is_static: bool,
-        evidence: str = "",
-    ) -> Relation:
+    def from_edges(cls, src_name: str, dst_name: str, src_id: str, dst_id: str, edges: list[RelationEdge]) -> Relation:
+        """The relation the static edges alone make between two components, labelled by their kinds."""
         return cls(
-            relation=relation,
+            relation=static_relation_label(edges),
             src_name=src_name,
             dst_name=dst_name,
-            evidence=evidence,
             key_edges=[],
             src_id=src_id,
             dst_id=dst_id,
-            is_static=is_static,
+            is_static=True,
+            default_label=True,
             all_edges=cls.unique_edges(edges),
         )
 
@@ -261,6 +274,7 @@ class Relation(LLMBaseModel):
             src_id=self.src_id,
             dst_id=self.dst_id,
             is_static=self.is_static,
+            default_label=self.default_label,
             all_edges=all_edges,
         )
 

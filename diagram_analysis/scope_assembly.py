@@ -14,15 +14,13 @@ from agents.relation_edges import (
     edge_crosses_components,
     ground_relation_edges,
     prune_ungrounded_edges,
-    static_relation_label,
 )
 from agents.scope_analysis_agent import ScopeAnalysisResult
 from agents.scope_ids import ROOT_SCOPE_ID
 from clustering_ids import CodeBoardingClusterIds
-from constants import STATIC_RELATION_LABELS
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
 from static_analyzer import StaticAnalysisFatalError
-from static_analyzer.cfg import CALL_EDGE_KIND, Edge, EdgeKind
+from static_analyzer.cfg import Edge, EdgeKind
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult, GroupConnection
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -218,14 +216,15 @@ class ScopeAssembler:
 
         # A group the model was asked about drops every relation it touches. Where the model did
         # not label one back, keep the label the previous run gave it rather than resetting a
-        # still-connected edge to the generic default.
+        # still-connected edge to the generic default. A label that was itself the static default
+        # is not carried: the merge recomputes it from today's edges.
         carried = [
             relation.model_copy(deep=True)
             for pair, relation in existing_by_pair.items()
             if pair not in seen_pairs
             and pair not in preserved_pairs
             and relation.relation.strip()
-            and relation.relation not in STATIC_RELATION_LABELS
+            and not relation.default_label
             and scope.connection_between(*pair) is not None
         ]
         for relation in carried:
@@ -290,6 +289,7 @@ class ScopeAssembler:
                     src_id=src_id,
                     dst_id=dst_id,
                     is_static=bool(static_edges),
+                    default_label=llm_relation.default_label,
                     all_edges=all_edges,
                 ),
             )
@@ -306,13 +306,11 @@ class ScopeAssembler:
             append_or_merge_relation(
                 merged,
                 Relation.from_edges(
-                    static_relation_label(edges),
                     source.name if source is not None else connection.source_group_id,
                     target.name if target is not None else connection.target_group_id,
                     connection.source_group_id,
                     connection.target_group_id,
                     edges,
-                    True,
                 ),
             )
 
@@ -405,8 +403,10 @@ class ScopeAssembler:
             target = graph.nodes.get(connection_edge.target_qualified_name)
             if source is None or target is None:
                 continue
-            if connection_edge.kind == CALL_EDGE_KIND:
+            if connection_edge.kind is EdgeKind.CALL:
                 edges.append(RelationEdge.from_edge(Edge(source, target, connection_edge.call_sites)))
             else:
-                edges.append(RelationEdge.from_reference(source, target, EdgeKind(connection_edge.kind)))
+                edges.append(
+                    RelationEdge.from_reference(source, target, connection_edge.kind, connection_edge.call_sites)
+                )
         return edges

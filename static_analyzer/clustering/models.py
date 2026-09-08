@@ -5,8 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
-from static_analyzer.cfg import CallGraph, CallSiteLocation
-from static_analyzer.cfg.edge import CALL_EDGE_KIND
+from static_analyzer.cfg import CallGraph, CallSiteLocation, EdgeKind
 
 
 @dataclass
@@ -36,9 +35,9 @@ class ClusterConnectionEdge:
     language: str
     source_qualified_name: str
     target_qualified_name: str
+    # Where the edge occurs: the call sites of a call, the positions naming the type for a reference.
     call_sites: list[CallSiteLocation] = field(default_factory=list)
-    # ``CALL_EDGE_KIND`` for a call, else the ``EdgeKind`` value of the reference edge behind it.
-    kind: str = CALL_EDGE_KIND
+    kind: EdgeKind = EdgeKind.CALL
 
 
 @dataclass

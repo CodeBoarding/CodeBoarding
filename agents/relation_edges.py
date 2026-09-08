@@ -1,29 +1,11 @@
 """Merge component relations and index their source endpoints."""
 
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection
 from pathlib import Path
 
-from agents.agent_responses import (
-    REFERENCE_EDGE_DESCRIPTIONS,
-    AnalysisInsights,
-    Relation,
-    RelationEdge,
-    SourceCodeReference,
-)
+from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
 from clustering_ids import is_self_or_descendant
 from repo_utils.path_utils import normalize_repo_path
-from constants import DEFAULT_STATIC_RELATION_LABEL, INHERITANCE_RELATION_LABEL, TYPE_REFERENCE_RELATION_LABEL
-from static_analyzer.cfg.edge import EdgeKind
-
-
-def static_relation_label(edges: Sequence[RelationEdge]) -> str:
-    """The label a relation gets from its static edges alone: a single call outranks any reference."""
-    descriptions = {edge.description for edge in edges}
-    if not descriptions or descriptions - set(REFERENCE_EDGE_DESCRIPTIONS.values()):
-        return DEFAULT_STATIC_RELATION_LABEL
-    if descriptions == {REFERENCE_EDGE_DESCRIPTIONS[EdgeKind.INHERITS]}:
-        return INHERITANCE_RELATION_LABEL
-    return TYPE_REFERENCE_RELATION_LABEL
 
 
 def append_or_merge_relation(
@@ -364,7 +346,11 @@ def _restore_baseline_orientation(relation: Relation, baseline_by_pair: dict) ->
 
 def _restore_baseline_wording(fresh: Relation, previous: Relation) -> Relation:
     """Restore baseline wording and highlighting onto fresh edge metadata."""
-    wording = {"relation": previous.relation, "evidence": previous.evidence}
+    wording = {
+        "relation": previous.relation,
+        "evidence": previous.evidence,
+        "default_label": previous.default_label,
+    }
     if not previous.key_edges:
         return fresh.model_copy(update=wording)
     highlighted = {

@@ -17,7 +17,6 @@ from agents.relation_edges import (
     drop_reverse_duplicates,
     edge_crosses_components,
     ground_relation_edges,
-    static_relation_label,
 )
 from clustering_ids import is_self_or_descendant  # noqa: F401  (re-exported)
 from static_analyzer.cfg import RELATION_REFERENCE_KINDS, CallGraph
@@ -81,7 +80,7 @@ def build_component_relations(
             source, target = cfg.nodes.get(ref.src), cfg.nodes.get(ref.dst)
             if not (src_comp and dst_comp) or src_comp == dst_comp or source is None or target is None:
                 continue
-            edge_pairs[(src_comp, dst_comp)].append(RelationEdge.from_reference(source, target, ref.kind))
+            edge_pairs[(src_comp, dst_comp)].append(RelationEdge.from_reference(source, target, ref.kind, ref.sites))
 
     relations = []
     for (src_c, dst_c), edges in sorted(edge_pairs.items()):
@@ -192,13 +191,11 @@ def build_global_relations(
         llm_relation = _ancestor_relation(src_id, dst_id, llm_relations_by_pair)
         if llm_relation is None:
             relation = Relation.from_edges(
-                static_relation_label(static_rel.all_edges),
                 id_to_name.get(src_id, src_id),
                 id_to_name.get(dst_id, dst_id),
                 src_id,
                 dst_id,
                 static_rel.all_edges,
-                True,
             )
         else:
             inherited_key_edges = _relation_key_edges_for_pair(llm_relation, src_id, dst_id, node_to_component)
@@ -212,6 +209,7 @@ def build_global_relations(
                 src_id=src_id,
                 dst_id=dst_id,
                 is_static=True,
+                default_label=llm_relation.default_label,
                 all_edges=all_edges,
             )
         global_relations[(src_id, dst_id)] = relation

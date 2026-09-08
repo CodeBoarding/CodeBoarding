@@ -6,7 +6,6 @@ the physical-location identity used to dedup LSP qualified-name aliases.
 
 from static_analyzer.cfg.call_graph import CallGraph
 from static_analyzer.cfg.edge import (
-    CALL_EDGE_KIND,
     CallSiteLocation,
     DEFAULT_REFERENCE_KINDS,
     Edge,
@@ -16,7 +15,6 @@ from static_analyzer.cfg.edge import (
 )
 
 __all__ = [
-    "CALL_EDGE_KIND",
     "DEFAULT_REFERENCE_KINDS",
     "RELATION_REFERENCE_KINDS",
     "CallGraph",

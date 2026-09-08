@@ -6,7 +6,7 @@ from agents.agent_responses import AnalysisInsights, Component, Relation, Relati
 from agents.scope_analysis_agent import ScopeAnalysisResult, ScopeComponentSemantics, ScopeRelationSemantics
 from diagram_analysis.scope_assembly import ScopeAssembler
 from static_analyzer import StaticAnalysisFatalError, StaticAnalysisResults
-from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.clustering import (
     ClusterConnectionEdge,
     ClusterGroup,
@@ -153,6 +153,7 @@ class TestScopeAssembler(unittest.TestCase):
         relation = analysis.components_relations[0]
         self.assertEqual(relation.relation, "dispatches to")
         self.assertTrue(relation.is_static)
+        self.assertFalse(relation.default_label)
         self.assertEqual(relation.all_edges[0].source.reference_file, "src/1.py")
         self.assertEqual(relation.all_edges[0].target.reference_file, "src/2.py")
 
@@ -170,10 +171,11 @@ class TestScopeAssembler(unittest.TestCase):
             [(relation.src_id, relation.dst_id, relation.relation) for relation in analysis.components_relations],
             [("2", "3", "calls")],
         )
+        self.assertTrue(analysis.components_relations[0].default_label)
 
     def test_a_reference_only_connection_is_labelled_uses(self) -> None:
         scope = _scope(("2", "3"))
-        scope.connections[0].edges[0].kind = "typeref"
+        scope.connections[0].edges[0].kind = EdgeKind.TYPEREF
         analysis = AnalysisInsights(
             description="relations",
             components=[_component("1", "A"), _component("2", "B"), _component("3", "C")],
@@ -185,7 +187,8 @@ class TestScopeAssembler(unittest.TestCase):
         (relation,) = analysis.components_relations
         self.assertEqual((relation.src_id, relation.dst_id, relation.relation), ("2", "3", "uses"))
         self.assertTrue(relation.is_static)
-        self.assertEqual(relation.all_edges[0].description, "references type")
+        self.assertTrue(relation.default_label)
+        self.assertEqual((relation.all_edges[0].kind, relation.all_edges[0].description), (EdgeKind.TYPEREF, "uses"))
         self.assertEqual(relation.all_edges[0].call_sites, [])
 
     def test_fallback_descriptions_name_files_relative_to_the_repository(self) -> None:
@@ -340,6 +343,35 @@ class TestScopeAssembler(unittest.TestCase):
             [(relation.src_id, relation.dst_id, relation.relation) for relation in analysis.components_relations],
             [("1", "2", "dispatches to")],
         )
+
+    def test_a_default_label_is_recomputed_while_an_authored_one_that_reads_the_same_is_carried(self) -> None:
+        """Provenance, not wording, decides: the model may well describe a pair as ``uses``."""
+        for default_label, expected in ((True, "calls"), (False, "uses")):
+            with self.subTest(default_label=default_label):
+                scope = _scope(("1", "2"))
+                assembler = ScopeAssembler(Path("/repo"))
+                analysis = assembler.build(scope)
+                analysis.components_relations = [
+                    Relation(
+                        relation="uses",
+                        src_name=analysis.components[0].name,
+                        dst_name=analysis.components[1].name,
+                        src_id="1",
+                        dst_id="2",
+                        is_static=True,
+                        default_label=default_label,
+                    )
+                ]
+                result = ScopeAnalysisResult(
+                    components=[
+                        ScopeComponentSemantics(group_id="1", name="Runner", description="Runs.", key_entities=[])
+                    ],
+                )
+
+                assembler.apply_semantics(analysis, scope, result, {"1"}, set(), _resolver(scope))
+
+                (relation,) = analysis.components_relations
+                self.assertEqual((relation.relation, relation.default_label), (expected, default_label))
 
     def test_semantics_cannot_change_fixed_ids_membership_or_a_locked_name(self) -> None:
         scope = _scope(("1", "2"))
