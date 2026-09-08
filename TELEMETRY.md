@@ -63,6 +63,9 @@ never personal data.
 | `analysis_completed` | An analysis run ends (success or failure) | `command`, `version`, `run_id`, `depth_level`, `status`, `duration_ms`, `model_name`, `total_tokens`, `input_tokens`, `output_tokens` |
 | `repo_scanned` | The repository is scanned (once per repo) | `version`, `run_id`, `total_loc`, `language_count`, `languages`, `stack` |
 | `$exception` | Any unhandled exception, via PostHog's built-in error tracking | `command`, `version`, `run_id` (plus the exception type, message, and stack trace captured automatically by the SDK) |
+| `lsp_analysis_result` | Static analysis finishes for one language | `version`, `run_id`, `language`, `loc`, `status`, `duration_ms`, `source_file_count`, `node_count`, `edge_count`, `reference_count`, `diagnostic_file_count`, `diagnostic_count`, `quality_status`, `zero_nodes_with_loc`, `zero_edges_with_loc` |
+| `mcp_request_received` | An MCP client calls the server | `method`, `is_notification`, `has_workspace` |
+| `mcp_tool_called` | An MCP tool runs | `method`, `is_notification`, `has_workspace` |
 
 Every event also carries:
 
@@ -100,6 +103,14 @@ Property meanings:
 - `total_loc` — total lines of code in the repository.
 - `language_count` — number of detected languages.
 - `languages` — per-language breakdown: `[{language, loc, percentage}]` (top 15).
+- `language`, `loc`, `source_file_count`, `node_count`, `edge_count`,
+  `reference_count` — sizes of what static analysis found, per language. Counts
+  only; no names of files, symbols, or packages.
+- `diagnostic_count`, `diagnostic_file_count`, `quality_status`,
+  `zero_nodes_with_loc`, `zero_edges_with_loc` — whether analysis produced a
+  usable graph, so we can spot a language silently returning nothing.
+- `method`, `is_notification`, `has_workspace` — which MCP call was made, and
+  whether a workspace was open. No arguments or results.
 - `stack` — sorted, comma-joined language names (the tech stack), e.g.
   `Python,Shell,TypeScript`.
 
@@ -115,7 +126,8 @@ credentials are ever sent.
 
 ## What we never collect
 
-- Source code or file contents
+- Source code or file contents (except a snippet that may appear in a crash
+  stack trace — see [Error diagnostics](#error-diagnostics))
 - File names or repository names
 - Prompts sent to or responses from LLMs
 - API keys, tokens, or credentials of any kind

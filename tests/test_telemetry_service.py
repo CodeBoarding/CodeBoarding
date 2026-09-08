@@ -171,6 +171,31 @@ def test_a_caller_property_never_overwrites_the_owner(client, monkeypatch):
     assert client.captures[0]["properties"]["org"] == "acme"
 
 
+def test_a_caller_cannot_supply_an_owner_when_there_is_none(client, monkeypatch):
+    """Merging the origin last stops a payload *overwriting* an owner, but not
+    inventing one: with no owner resolved the key is absent, so a caller's value
+    would have survived into it and attributed the run to an account it has
+    nothing to do with. The reserved keys come off the payload first."""
+    monkeypatch.delenv("CODEBOARDING_ORG", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+
+    client.service.capture("repo_scanned", {"org": "somebody-else", "total_loc": 10})
+
+    props = client.captures[0]["properties"]
+    assert "org" not in props
+    assert props["total_loc"] == 10
+
+
+def test_a_caller_cannot_supply_an_owner_on_exceptions_either(client, monkeypatch):
+    monkeypatch.delenv("CODEBOARDING_ORG", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+
+    client.service.capture_exception(RuntimeError("boom"), properties={"org": "somebody-else"})
+
+    _, kwargs = client.exceptions[0]
+    assert "org" not in kwargs["properties"]
+
+
 def test_the_owner_travels_on_exceptions_too(client, monkeypatch):
     """A crash is worth as much as a success when asking which deployments are
     hitting a given failure, and it arrives through a different code path."""
