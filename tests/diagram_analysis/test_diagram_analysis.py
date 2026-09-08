@@ -844,7 +844,7 @@ class TestDepthCapPersistence(unittest.TestCase):
         self.assertEqual(metadata["depth_level"], 1)
         self.assertEqual(metadata["depth_cap"], 3)
 
-    def test_save_does_not_treat_legacy_result_depth_as_configuration(self):
+    def test_save_preserves_legacy_depth_fallback(self):
         save_analysis(
             analysis=self._make_root(),
             output_dir=self.output_dir,
@@ -868,7 +868,7 @@ class TestDepthCapPersistence(unittest.TestCase):
         )
         metadata = json.loads(path.read_text())["metadata"]
         self.assertEqual(metadata["depth_level"], 1)
-        self.assertEqual(metadata["depth_cap"], 3)
+        self.assertEqual(metadata["depth_cap"], 5)
 
 
 class TestDiagramGenerator(unittest.TestCase):

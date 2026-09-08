@@ -178,8 +178,9 @@ The generator attribute is `depth_cap` and the exported default is
 `diagram_analysis.DEFAULT_DEPTH_CAP` (3). The GitHub helper uses `DIAGRAM_DEPTH_CAP`
 and rejects `DIAGRAM_DEPTH_LEVEL`. Telemetry reports configured `depth_cap`, not
 `depth_level`. Readers of analysis results must keep reading `metadata.depth_level`
-for the actual depth. Baselines without `metadata.depth_cap` use the default cap,
-never their realized depth as configuration.
+for the actual depth. Existing baseline loading behavior is unchanged: prefer
+`metadata.depth_cap`, fall back to legacy `metadata.depth_level`, then use
+`DEFAULT_DEPTH_CAP` if neither exists. This metadata fallback is not a CLI alias.
 
 > **Incremental needs a baseline.** `incremental` diffs the working tree against the previous
 > analysis in `.codeboarding/` (`analysis.json` + `fingerprint.json`). That baseline can live

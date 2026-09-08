@@ -182,6 +182,14 @@ class _AnalysisFileStore:
                         )
                 if depth_cap is None:
                     depth_cap = metadata.get("depth_cap")
+                    if depth_cap is None:
+                        depth_cap = metadata.get("depth_level")
+                        if depth_cap is not None:
+                            logger.warning(
+                                "Baseline has no depth_cap; using its realized depth_level=%s as the cap. "
+                                "Run a full analysis with --depth-cap to widen it.",
+                                depth_cap,
+                            )
         if depth_cap is None:
             depth_cap = DEFAULT_DEPTH_CAP
 

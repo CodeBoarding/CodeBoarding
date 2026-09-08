@@ -93,7 +93,7 @@ class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 1, "source_tree_hash": "source-hash"}
+        mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash"}
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -303,7 +303,6 @@ class TestIncrementalDepthSource(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     def test_depth_cap_taken_from_metadata(self, mock_load_metadata, mock_generator_class, mock_detect, mock_workflow):
-        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 4}
         mock_detect.return_value = MagicMock(files=[])
         mock_workflow.return_value = Path("analysis.json")
 
@@ -313,12 +312,18 @@ class TestIncrementalDepthSource(unittest.TestCase):
             output_dir = Path(temp_dir) / "output"
             output_dir.mkdir()
 
-            run_incremental(
-                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                RunContext(run_id="r", log_path="l"),
-            )
-
-        self.assertEqual(mock_generator_class.call_args.kwargs["depth_cap"], 4)
+            for metadata, expected_cap in (
+                ({"depth_level": 1, "depth_cap": 4}, 4),
+                ({"depth_level": 1}, 1),
+                ({}, 3),
+            ):
+                with self.subTest(metadata=metadata):
+                    mock_load_metadata.return_value = metadata
+                    run_incremental(
+                        RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                        RunContext(run_id="r", log_path="l"),
+                    )
+                    self.assertEqual(mock_generator_class.call_args.kwargs["depth_cap"], expected_cap)
 
 
 class TestRemoteSource(unittest.TestCase):

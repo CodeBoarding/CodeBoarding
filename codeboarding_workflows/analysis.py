@@ -87,7 +87,7 @@ def run_partial(
         f"Running PARTIAL analysis workflow for project '{run_paths.project_name}', component '{component_id}'."
     )
 
-    # Only the configured cap controls expansion, never the realized depth.
+    # Prefer the configured cap; retain depth_level for legacy baselines.
     metadata = load_analysis_metadata(run_paths.output_dir)
     if metadata is None:
         raise BaselineUnavailableError(
@@ -106,7 +106,7 @@ def run_partial(
             "Partial analysis requires an up-to-date source baseline. Run incremental analysis before expanding a component."
         )
 
-    depth_cap = int(metadata.get("depth_cap", DEFAULT_DEPTH_CAP))
+    depth_cap = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_CAP)))
     full_analysis = load_full_analysis(run_paths.output_dir)
     if full_analysis is None:
         # Metadata was present but the unified read failed — treat as a
@@ -188,13 +188,13 @@ def run_incremental(
     should surface a "run full analysis" prompt rather than silently degrading to
     an unscoped run.
     """
-    # Only the configured cap controls expansion, never the realized depth.
+    # Prefer the configured cap; retain depth_level for legacy baselines.
     metadata = load_analysis_metadata(run_paths.output_dir)
     if metadata is None:
         raise BaselineUnavailableError(
             f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
         )
-    depth_cap = int(metadata.get("depth_cap", DEFAULT_DEPTH_CAP))
+    depth_cap = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_CAP)))
 
     changes = detect_changes_from_fingerprint(run_paths.repo_path, run_paths.output_dir)
     logger.info(
