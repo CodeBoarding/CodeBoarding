@@ -434,7 +434,7 @@ class TestFullCliLocal(unittest.TestCase):
         args.output_dir = None
         args.project_name = None
         args.binary_location = None
-        args.depth_level = 1
+        args.depth_cap = 1
         args.upload = False
         args.enable_monitoring = False
         args.force = False
@@ -458,6 +458,7 @@ class TestFullCliLocal(unittest.TestCase):
         mock_run_full.assert_called_once()
         run_paths = mock_run_full.call_args.args[0]
         self.assertEqual(run_paths.repo_path, repo_path.resolve())
+        self.assertEqual(mock_run_full.call_args.kwargs["depth_level"], 1)
         self.assertFalse(mock_run_full.call_args.kwargs["force_full"])
 
     @patch("codeboarding_cli.commands.full_analysis.run_full")

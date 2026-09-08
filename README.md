@@ -155,8 +155,8 @@ python main.py full --local ./my-project
 
 # Raise the depth ceiling to auto-expand deeper (rarely needed — a component that
 # outgrows the leaf ceiling is flagged expandable at whatever depth the run stops
-# and can be expanded on demand; --depth-level is a safety-valve cap, default 3)
-python main.py full --local ./my-project --depth-level 5
+# and can be expanded on demand; --depth-cap is a safety-valve cap, default 3)
+python main.py full --local ./my-project --depth-cap 5
 
 # Re-analyze only changed parts when possible
 python main.py incremental --local ./my-project
@@ -167,6 +167,9 @@ python main.py partial --local ./my-project --component-id "1.2"
 # Analyze a remote GitHub repository
 python main.py full https://github.com/pytorch/pytorch
 ```
+
+`--depth-cap` configures `metadata.depth_cap`; `metadata.depth_level` records the
+depth actually reached. `--depth-level` remains a compatibility alias for `--depth-cap`.
 
 > **Incremental needs a baseline.** `incremental` diffs the working tree against the previous
 > analysis in `.codeboarding/` (`analysis.json` + `fingerprint.json`). That baseline can live

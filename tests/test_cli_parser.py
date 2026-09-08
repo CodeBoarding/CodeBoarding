@@ -1,10 +1,13 @@
 import json
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from codeboarding_cli.render import main as render_main
+from codeboarding_workflows.sources import SourceContext
+from diagram_analysis import DEFAULT_DEPTH_LEVEL
 from main import build_parser, main
 from output_generators import SUPPORTED_FORMATS
 
@@ -74,6 +77,62 @@ def test_force_flag_registered_and_defaults_false() -> None:
 def test_force_flag_sets_true_when_passed() -> None:
     args = build_parser().parse_args(["full", "--local", "/tmp/repo", "--force"])
     assert args.force is True
+
+
+def test_depth_cap_default_is_unchanged() -> None:
+    args = build_parser().parse_args(["full", "--local", "/tmp/repo"])
+    assert args.depth_cap == DEFAULT_DEPTH_LEVEL == 3
+    assert not hasattr(args, "depth_level")
+
+
+@pytest.mark.parametrize("command", [[], ["full"]])
+@pytest.mark.parametrize("flag", ["--depth-cap", "--depth-level"])
+def test_depth_cap_spellings_share_canonical_destination(command: list[str], flag: str) -> None:
+    with patch("main.full_analysis.run_from_args") as run_full:
+        main([*command, "--local", "/tmp/repo", flag, "5"])
+
+    args = run_full.call_args.args[0]
+    assert args.depth_cap == 5
+    assert not hasattr(args, "depth_level")
+
+
+@pytest.mark.parametrize("flag", ["--depth-cap", "--depth-level"])
+def test_depth_cap_requires_integer(flag: str) -> None:
+    with pytest.raises(SystemExit) as exc:
+        build_parser().parse_args(["full", "--local", "/tmp/repo", flag, "invalid"])
+    assert exc.value.code == 2
+
+
+def test_full_help_names_cap_and_distinguishes_realized_depth(capsys) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["full", "--help"])
+    assert exc.value.code == 0
+    help_text = capsys.readouterr().out
+    assert "--depth-cap DEPTH_CAP, --depth-level DEPTH_CAP" in help_text
+    assert "metadata.depth_cap" in help_text
+    assert "metadata.depth_level" in help_text
+
+
+@pytest.mark.parametrize("remote", [False, True])
+@pytest.mark.parametrize("flag", ["--depth-cap", "--depth-level"])
+def test_depth_cap_maps_to_existing_workflow_parameter(tmp_path: Path, monkeypatch, remote: bool, flag: str) -> None:
+    monkeypatch.chdir(tmp_path)
+    source = SourceContext(repo_path=tmp_path, artifact_dir=tmp_path, project_name="repo")
+    target = ["https://github.com/user/repo"] if remote else ["--local", str(tmp_path)]
+    with (
+        patch("codeboarding_cli.commands.full_analysis.bootstrap_environment"),
+        patch("codeboarding_workflows.orchestration.RunContext.resolve"),
+        patch("codeboarding_cli.commands.full_analysis.remote_source", return_value=nullcontext(source)),
+        patch("codeboarding_cli.commands.full_analysis.monitor_execution"),
+        patch("codeboarding_cli.commands.full_analysis.render_docs"),
+        patch("codeboarding_cli.commands.full_analysis.get_branch", return_value="main"),
+        patch("codeboarding_cli.commands.full_analysis.get_current_commit", return_value="sha"),
+        patch("codeboarding_cli.commands.full_analysis.run_full") as run_full,
+    ):
+        main(["full", *target, flag, "5"])
+
+    run_full.assert_called_once()
+    assert run_full.call_args.kwargs["depth_level"] == 5
 
 
 def test_render_flag_registered_and_defaults_none() -> None:

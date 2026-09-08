@@ -99,7 +99,7 @@ class AnalysisMetadata(BaseModel):
     repo_name: str = Field(description="Name of the analyzed repository.")
     depth_level: int = Field(description="Maximum depth level actually reached by this analysis.")
     depth_cap: int = Field(
-        description="Safety-valve depth ceiling the run was configured with (see --depth-level); "
+        description="Safety-valve depth ceiling the run was configured with (see --depth-cap); "
         "may exceed depth_level when separability stopped expansion before the cap. "
         "The value future incremental/partial runs reuse as their own cap."
     )

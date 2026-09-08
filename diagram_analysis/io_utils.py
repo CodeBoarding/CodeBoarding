@@ -191,7 +191,7 @@ class _AnalysisFileStore:
                         if depth_cap is not None:
                             logger.warning(
                                 "Baseline has no depth_cap; using its realized depth_level=%s as the cap. "
-                                "Run a full analysis with --depth-level to widen it.",
+                                "Run a full analysis with --depth-cap to widen it.",
                                 depth_cap,
                             )
         if depth_cap is None:
