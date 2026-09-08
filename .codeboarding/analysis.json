@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-09-08T18:33:18.486325+00:00",
-    "source_tree_hash": "2fe11b0354755f9d8f110417236f427080ac54e10a007a0084f0f2d2898fd00d",
+    "generated_at": "2026-09-08T20:44:46.444505+00:00",
+    "source_tree_hash": "2860c30800b5935e4d361ea7b884b2564de77bb91c6802d2368caa7796ba3d1b",
     "repo_name": ".codeboarding-target",
     "depth_level": 3,
     "depth_cap": 4,
@@ -4398,7 +4398,9 @@
     "telemetry/service.py": {
       "method_keys": [
         "telemetry/service.py|telemetry.service._telemetry_disabled",
+        "telemetry/service.py|telemetry.service._org",
         "telemetry/service.py|telemetry.service._origin",
+        "telemetry/service.py|telemetry.service._with_origin",
         "telemetry/service.py|telemetry.service.ProductTelemetry",
         "telemetry/service.py|telemetry.service.ProductTelemetry.__new__",
         "telemetry/service.py|telemetry.service.ProductTelemetry._init",
@@ -4407,8 +4409,8 @@
         "telemetry/service.py|telemetry.service.ProductTelemetry.capture_exception",
         "telemetry/service.py|telemetry.service.ProductTelemetry.flush"
       ],
-      "content_hash": "c3ba4f3370fd5d66",
-      "module_hash": "996f0364f3c7414a"
+      "content_hash": "db22b00cb6ae05c6",
+      "module_hash": "666e5b07eb7cab37"
     },
     "repo_utils/__init__.py": {
       "method_keys": [
@@ -4428,7 +4430,7 @@
         "repo_utils/__init__.py|repo_utils.__init__.normalize_path",
         "repo_utils/__init__.py|repo_utils.__init__.normalize_paths"
       ],
-      "content_hash": "ab6ba4c50c213bea",
+      "content_hash": "89ed1534abd2ea6d",
       "module_hash": "2239299c12997ea1"
     },
     "repo_utils/change_detector.py": {
@@ -16465,67 +16467,83 @@
       "type": "FUNCTION",
       "content_hash": "c991bd3199988727"
     },
+    "telemetry/service.py|telemetry.service._org": {
+      "file_path": "telemetry/service.py",
+      "qualified_name": "telemetry.service._org",
+      "start_line": 33,
+      "end_line": 40,
+      "type": "FUNCTION",
+      "content_hash": "6e2f648eb4dffa6a"
+    },
     "telemetry/service.py|telemetry.service._origin": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service._origin",
-      "start_line": 33,
-      "end_line": 42,
+      "start_line": 51,
+      "end_line": 61,
       "type": "FUNCTION",
-      "content_hash": "c53c3d19aa78e2d0"
+      "content_hash": "1f46a1059c4ed4a5"
+    },
+    "telemetry/service.py|telemetry.service._with_origin": {
+      "file_path": "telemetry/service.py",
+      "qualified_name": "telemetry.service._with_origin",
+      "start_line": 64,
+      "end_line": 66,
+      "type": "FUNCTION",
+      "content_hash": "4f61247c3d8c5e19"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry",
-      "start_line": 45,
-      "end_line": 124,
+      "start_line": 69,
+      "end_line": 138,
       "type": "CLASS",
-      "content_hash": "4c5c8fde182b67d5"
+      "content_hash": "4c8bdeabc41496b3"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry.__new__": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry.__new__",
-      "start_line": 50,
-      "end_line": 54,
+      "start_line": 74,
+      "end_line": 78,
       "type": "METHOD",
       "content_hash": "f1471dc7af4a7c80"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry._init": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry._init",
-      "start_line": 56,
-      "end_line": 73,
+      "start_line": 80,
+      "end_line": 97,
       "type": "METHOD",
       "content_hash": "56ec15bc076b1d8e"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry.user_id": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry.user_id",
-      "start_line": 76,
-      "end_line": 82,
+      "start_line": 100,
+      "end_line": 106,
       "type": "METHOD",
       "content_hash": "d3a86ef6521f4a5b"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry.capture": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry.capture",
-      "start_line": 84,
-      "end_line": 99,
+      "start_line": 108,
+      "end_line": 118,
       "type": "METHOD",
-      "content_hash": "ac26faa38df27430"
+      "content_hash": "f4fb5b58977b8294"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry.capture_exception": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry.capture_exception",
-      "start_line": 101,
-      "end_line": 117,
+      "start_line": 120,
+      "end_line": 131,
       "type": "METHOD",
-      "content_hash": "6f9f6a7ed52983d2"
+      "content_hash": "14a984f969847b3f"
     },
     "telemetry/service.py|telemetry.service.ProductTelemetry.flush": {
       "file_path": "telemetry/service.py",
       "qualified_name": "telemetry.service.ProductTelemetry.flush",
-      "start_line": 119,
-      "end_line": 124,
+      "start_line": 133,
+      "end_line": 138,
       "type": "METHOD",
       "content_hash": "ed92f7dcb0a416aa"
     },
@@ -16557,95 +16575,95 @@
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.sanitize_repo_url",
       "start_line": 64,
-      "end_line": 78,
+      "end_line": 80,
       "type": "FUNCTION",
-      "content_hash": "9a980e37bdcb0c82"
+      "content_hash": "b19c6352632639e4"
     },
     "repo_utils/__init__.py|repo_utils.__init__.remote_repo_exists": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.remote_repo_exists",
-      "start_line": 82,
-      "end_line": 93,
+      "start_line": 84,
+      "end_line": 95,
       "type": "FUNCTION",
       "content_hash": "22ee27287bd73675"
     },
     "repo_utils/__init__.py|repo_utils.__init__.get_repo_name": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.get_repo_name",
-      "start_line": 96,
-      "end_line": 100,
+      "start_line": 98,
+      "end_line": 101,
       "type": "FUNCTION",
-      "content_hash": "7892bbddbbe85b33"
+      "content_hash": "1b8530d4726a400f"
     },
     "repo_utils/__init__.py|repo_utils.__init__.clone_repository": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.clone_repository",
-      "start_line": 104,
-      "end_line": 126,
+      "start_line": 105,
+      "end_line": 127,
       "type": "FUNCTION",
       "content_hash": "299c42711f741743"
     },
     "repo_utils/__init__.py|repo_utils.__init__.checkout_repo": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.checkout_repo",
-      "start_line": 130,
-      "end_line": 137,
+      "start_line": 131,
+      "end_line": 138,
       "type": "FUNCTION",
       "content_hash": "34d07d3deef121d6"
     },
     "repo_utils/__init__.py|repo_utils.__init__.store_token": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.store_token",
-      "start_line": 140,
-      "end_line": 144,
+      "start_line": 141,
+      "end_line": 145,
       "type": "FUNCTION",
       "content_hash": "5014780edc31ea6f"
     },
     "repo_utils/__init__.py|repo_utils.__init__.upload_onboarding_materials": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.upload_onboarding_materials",
-      "start_line": 148,
-      "end_line": 177,
+      "start_line": 149,
+      "end_line": 178,
       "type": "FUNCTION",
       "content_hash": "dbf84098e05481b5"
     },
     "repo_utils/__init__.py|repo_utils.__init__.is_repo_dirty": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.is_repo_dirty",
-      "start_line": 181,
-      "end_line": 184,
+      "start_line": 182,
+      "end_line": 185,
       "type": "FUNCTION",
       "content_hash": "c72558c84a251d6b"
     },
     "repo_utils/__init__.py|repo_utils.__init__.get_repo_state_hash": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.get_repo_state_hash",
-      "start_line": 188,
-      "end_line": 218,
+      "start_line": 189,
+      "end_line": 219,
       "type": "FUNCTION",
       "content_hash": "f9e0d23d05ed4425"
     },
     "repo_utils/__init__.py|repo_utils.__init__.get_branch": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.get_branch",
-      "start_line": 222,
-      "end_line": 227,
+      "start_line": 223,
+      "end_line": 228,
       "type": "FUNCTION",
       "content_hash": "1265a2dd7465c217"
     },
     "repo_utils/__init__.py|repo_utils.__init__.normalize_path": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.normalize_path",
-      "start_line": 230,
-      "end_line": 261,
+      "start_line": 231,
+      "end_line": 262,
       "type": "FUNCTION",
       "content_hash": "f7d3c5350c39f949"
     },
     "repo_utils/__init__.py|repo_utils.__init__.normalize_paths": {
       "file_path": "repo_utils/__init__.py",
       "qualified_name": "repo_utils.__init__.normalize_paths",
-      "start_line": 264,
-      "end_line": 274,
+      "start_line": 265,
+      "end_line": 275,
       "type": "FUNCTION",
       "content_hash": "5cebe2ff23bea3f3"
     },
@@ -30841,6 +30859,12 @@
           "reference_file": "telemetry/events.py",
           "reference_start_line": 160,
           "reference_end_line": 222
+        },
+        {
+          "qualified_name": "telemetry.service.ProductTelemetry",
+          "reference_file": "telemetry/service.py",
+          "reference_start_line": 69,
+          "reference_end_line": 138
         }
       ],
       "source_cluster_ids": [
@@ -30974,7 +30998,9 @@
           "file_path": "telemetry/service.py",
           "methods": [
             "telemetry.service._telemetry_disabled",
+            "telemetry.service._org",
             "telemetry.service._origin",
+            "telemetry.service._with_origin",
             "telemetry.service.ProductTelemetry",
             "telemetry.service.ProductTelemetry.__new__",
             "telemetry.service.ProductTelemetry._init",
@@ -31116,8 +31142,8 @@
             {
               "qualified_name": "telemetry.service.ProductTelemetry",
               "reference_file": "telemetry/service.py",
-              "reference_start_line": 45,
-              "reference_end_line": 124
+              "reference_start_line": 69,
+              "reference_end_line": 138
             },
             {
               "qualified_name": "telemetry.events.track_analysis",
@@ -31186,7 +31212,9 @@
               "file_path": "telemetry/service.py",
               "methods": [
                 "telemetry.service._telemetry_disabled",
+                "telemetry.service._org",
                 "telemetry.service._origin",
+                "telemetry.service._with_origin",
                 "telemetry.service.ProductTelemetry",
                 "telemetry.service.ProductTelemetry.__new__",
                 "telemetry.service.ProductTelemetry._init",
@@ -31219,7 +31247,7 @@
                   "column": 37
                 }
               ],
-              "description": "Retrieves current run token counters to include in telemetry completion snapshots."
+              "description": "Reads process-global callback stats to measure token consumption during analysis runs."
             },
             {
               "source": "telemetry/events.py|telemetry.events._token_usage",
@@ -31230,7 +31258,7 @@
                   "column": 43
                 }
               ],
-              "description": "Serializes token usage statistics into dictionary form for snapshot payload formatting."
+              "description": "Serializes runtime execution statistics to snapshot token metrics."
             }
           ],
           "src_id": "6.2",
@@ -31284,6 +31312,12 @@
           "reference_file": "repo_utils/change_detector.py",
           "reference_start_line": 225,
           "reference_end_line": 304
+        },
+        {
+          "qualified_name": "repo_utils.__init__.get_repo_state_hash",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 189,
+          "reference_end_line": 219
         },
         {
           "qualified_name": "utils.get_artifact_dir",
@@ -31570,20 +31604,26 @@
             {
               "qualified_name": "repo_utils.__init__.clone_repository",
               "reference_file": "repo_utils/__init__.py",
-              "reference_start_line": 104,
-              "reference_end_line": 126
+              "reference_start_line": 105,
+              "reference_end_line": 127
             },
             {
               "qualified_name": "repo_utils.__init__.get_repo_state_hash",
               "reference_file": "repo_utils/__init__.py",
-              "reference_start_line": 188,
-              "reference_end_line": 218
+              "reference_start_line": 189,
+              "reference_end_line": 219
             },
             {
               "qualified_name": "repo_utils.__init__.normalize_path",
               "reference_file": "repo_utils/__init__.py",
-              "reference_start_line": 230,
-              "reference_end_line": 261
+              "reference_start_line": 231,
+              "reference_end_line": 262
+            },
+            {
+              "qualified_name": "repo_utils.__init__.store_token",
+              "reference_file": "repo_utils/__init__.py",
+              "reference_start_line": 141,
+              "reference_end_line": 145
             },
             {
               "qualified_name": "repo_utils.ignore.RepoIgnoreManager",
@@ -31666,22 +31706,22 @@
               "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
               "call_sites": [
                 {
-                  "line": 261,
+                  "line": 262,
                   "column": 17
                 }
               ],
-              "description": "Delegates path normalization to the repo-path utility function."
+              "description": "normalize_path delegates path normalization to normalize_repo_path"
             },
             {
               "source": "repo_utils/__init__.py|repo_utils.__init__.store_token",
               "target": "repo_utils/git_ops.py|repo_utils.git_ops.approve_https_credentials",
               "call_sites": [
                 {
-                  "line": 144,
+                  "line": 145,
                   "column": 5
                 }
               ],
-              "description": "Approves and stores HTTPS credentials using the git credential subprocess helper."
+              "description": "store_token forwards GitHub credentials to approve_https_credentials"
             }
           ],
           "src_id": "7.2",
@@ -31693,7 +31733,7 @@
               "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
               "call_sites": [
                 {
-                  "line": 261,
+                  "line": 262,
                   "column": 17
                 }
               ],
@@ -31704,7 +31744,7 @@
               "target": "repo_utils/git_ops.py|repo_utils.git_ops.approve_https_credentials",
               "call_sites": [
                 {
-                  "line": 144,
+                  "line": 145,
                   "column": 5
                 }
               ],
@@ -33093,7 +33133,23 @@
       "src_name": "Analysis Orchestrator and Language Adapters",
       "dst_name": "Product Usage Telemetry",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass.run_one",
+          "target": "telemetry/events.py|telemetry.events.track_lsp_result",
+          "call_sites": [
+            {
+              "line": 731,
+              "column": 21
+            },
+            {
+              "line": 744,
+              "column": 21
+            }
+          ],
+          "description": "Emits LSP pass completion and tech stack scan telemetry events"
+        }
+      ],
       "src_id": "1.1.1",
       "dst_id": "6.2",
       "is_static": true,
@@ -33199,7 +33255,19 @@
       "src_name": "Analysis Orchestrator and Language Adapters",
       "dst_name": "Repository Lifecycle and Ignore Filtering",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 243,
+              "column": 31
+            }
+          ],
+          "description": "Resolves ignore rules, git changes, and paths for static analysis"
+        }
+      ],
       "src_id": "1.1.1",
       "dst_id": "7.2",
       "is_static": true,
@@ -38429,6 +38497,17 @@
       "key_edges": [
         {
           "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 112,
+              "column": 14
+            }
+          ],
+          "description": "Filters ignored files and normalizes repository paths during agent scoping"
+        },
+        {
+          "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
           "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
           "call_sites": [
             {
@@ -40976,6 +41055,50 @@
       "is_static": true,
       "all_edges": [
         {
+          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.build",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.categorize_file",
+          "call_sites": [
+            {
+              "line": 60,
+              "column": 42
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.update",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.categorize_file",
+          "call_sites": [
+            {
+              "line": 119,
+              "column": 42
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 78,
+              "column": 22
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
+          "call_sites": [
+            {
+              "line": 82,
+              "column": 31
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage._apply_changes",
           "target": "repo_utils/__init__.py|repo_utils.__init__.normalize_path",
           "call_sites": [
@@ -41010,17 +41133,6 @@
           "description": ""
         },
         {
-          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.build",
-          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.categorize_file",
-          "call_sites": [
-            {
-              "line": 60,
-              "column": 42
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.update",
           "target": "repo_utils/__init__.py|repo_utils.__init__.normalize_paths",
           "call_sites": [
@@ -41030,39 +41142,6 @@
             },
             {
               "line": 100,
-              "column": 31
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.update",
-          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.categorize_file",
-          "call_sites": [
-            {
-              "line": 119,
-              "column": 42
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
-          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 78,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
-          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
-          "call_sites": [
-            {
-              "line": 82,
               "column": 31
             }
           ],
@@ -43059,17 +43138,6 @@
       "all_edges": [
         {
           "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope",
-          "target": "repo_utils/__init__.py|repo_utils.__init__.get_branch",
-          "call_sites": [
-            {
-              "line": 198,
-              "column": 45
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope",
           "target": "repo_utils/ignore.py|repo_utils.ignore.initialize_codeboardingignore",
           "call_sites": [
             {
@@ -43091,23 +43159,34 @@
           "description": ""
         },
         {
-          "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_remote",
-          "target": "repo_utils/__init__.py|repo_utils.__init__.store_token",
-          "call_sites": [
-            {
-              "line": 147,
-              "column": 13
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "codeboarding_cli/commands/partial_analysis.py|codeboarding_cli.commands.partial_analysis.run_from_args",
           "target": "repo_utils/ignore.py|repo_utils.ignore.initialize_codeboardingignore",
           "call_sites": [
             {
               "line": 49,
               "column": 5
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope",
+          "target": "repo_utils/__init__.py|repo_utils.__init__.get_branch",
+          "call_sites": [
+            {
+              "line": 198,
+              "column": 45
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_remote",
+          "target": "repo_utils/__init__.py|repo_utils.__init__.store_token",
+          "call_sites": [
+            {
+              "line": 147,
+              "column": 13
             }
           ],
           "description": ""
@@ -44461,7 +44540,7 @@
           "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
           "call_sites": [
             {
-              "line": 261,
+              "line": 262,
               "column": 17
             }
           ],
@@ -44472,7 +44551,7 @@
           "target": "repo_utils/git_ops.py|repo_utils.git_ops.approve_https_credentials",
           "call_sites": [
             {
-              "line": 144,
+              "line": 145,
               "column": 5
             }
           ],
@@ -44488,7 +44567,7 @@
           "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
           "call_sites": [
             {
-              "line": 261,
+              "line": 262,
               "column": 17
             }
           ],
@@ -44499,7 +44578,7 @@
           "target": "repo_utils/git_ops.py|repo_utils.git_ops.approve_https_credentials",
           "call_sites": [
             {
-              "line": 144,
+              "line": 145,
               "column": 5
             }
           ],
