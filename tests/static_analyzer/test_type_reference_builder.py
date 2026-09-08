@@ -125,6 +125,35 @@ class TestTypeIndexCSharp:
         index = TypeIndex(nodes, SourceInspector())
         assert _resolved_name(index, _site(outer, "Inner", line=5)) == "n.Outer.Inner"
 
+    def test_a_bare_name_does_not_reach_a_type_nested_in_another(self, tmp_path: Path):
+        """A bare ``File`` is the framework's, whatever ``Options.File`` the repository declares."""
+        outer = _write(
+            tmp_path / "n" / "Outer.cs", "namespace N;\npublic class Outer\n{\n    public class Inner { }\n}\n"
+        )
+        user = _write(tmp_path / "u" / "User.cs", "using N;\nnamespace U;\npublic class User { }\n")
+        nodes = [_class("n.Outer", outer, 2, 5), _class("n.Outer.Inner", outer, 4, 4)]
+        index = TypeIndex(nodes, SourceInspector())
+        assert index.resolve(_site(user, "Inner", line=3)) is None
+
+    def test_a_static_using_names_a_nested_type_bare(self, tmp_path: Path):
+        outer = _write(
+            tmp_path / "n" / "Outer.cs", "namespace N;\npublic class Outer\n{\n    public class Inner { }\n}\n"
+        )
+        user = _write(tmp_path / "u" / "User.cs", "using static N.Outer;\nnamespace U;\npublic class User { }\n")
+        nodes = [_class("n.Outer", outer, 2, 5), _class("n.Outer.Inner", outer, 4, 4)]
+        index = TypeIndex(nodes, SourceInspector())
+        assert _resolved_name(index, _site(user, "Inner", line=3)) == "n.Outer.Inner"
+
+    def test_a_top_level_type_answers_the_bare_name_instead(self, tmp_path: Path):
+        outer = _write(
+            tmp_path / "n" / "Outer.cs", "namespace N;\npublic class Outer\n{\n    public class Inner { }\n}\n"
+        )
+        other = _write(tmp_path / "m" / "Inner.cs", "namespace M;\npublic class Inner { }\n")
+        user = _write(tmp_path / "u" / "User.cs", "namespace U;\npublic class User { }\n")
+        nodes = [_class("n.Outer", outer, 2, 5), _class("n.Outer.Inner", outer, 4, 4), _class("m.Inner", other)]
+        index = TypeIndex(nodes, SourceInspector())
+        assert _resolved_name(index, _site(user, "Inner")) == "m.Inner"
+
     def test_equally_visible_copies_prefer_the_closest_directory(self, tmp_path: Path):
         """Every project template declares the same ``Program``; a reference means its own copy."""
         first = _write(tmp_path / "t1" / "Program.cs", "public class Program { }\n")

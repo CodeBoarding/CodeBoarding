@@ -154,7 +154,7 @@ class TypeIndex:
             full = ".".join(part for part in (alias.container, alias.name, rest) if part)
             bound = self._in_container(*split_type_name(full))
             return _closest(bound, site.file_path) if bound else None
-        candidates = self._in_container(site.qualifier, site.name)
+        candidates = [node for node in self._in_container(site.qualifier, site.name) if self._is_nameable(node, site)]
         if len(candidates) <= 1:
             return candidates[0] if candidates else None
         # What the site did not write must be reachable from where it stands: the first scope,
@@ -202,6 +202,20 @@ class TypeIndex:
         if not qualifier:
             return candidates
         return [node for node in candidates if _container_matches(self.container_of(node), qualifier)]
+
+    def _is_nameable(self, node: Node, site: TypeReferenceSite) -> bool:
+        """Whether the name ``site`` wrote can mean ``node`` from where it stands.
+
+        Only a type nested in another type is asked. A namespace can be opened by an import
+        this layer cannot see, so a top-level type answers from anywhere; a nested type is
+        named unqualified only inside its enclosing type or under ``using static``, and
+        without the rule a repository's ``TranslateCommand.Options.File`` answers every
+        ``File`` in the project.
+        """
+        unwritten = _unwritten_prefix(self.container_of(node), site.qualifier)
+        if unwritten == self._namespace_at(node.file_path, node.line_start):
+            return True
+        return any(unwritten in scope for scope in self._lookup_scopes(site.file_path, site.line))
 
     def _binding_at(self, file_path: str, line: int, local_name: str) -> ImportDirective | None:
         """The import in force at ``line`` that binds ``local_name``, the compilation's global ones included."""
