@@ -64,13 +64,15 @@ Every event also carries:
   metric filters on one condition and stays correct when another internal
   source is added — a hand-kept list of source values is right until it is
   quietly not.
-- `org_id` — an anonymous id for the account the analysed repository belongs
-  to, so one deployment's runs can be told apart from another's. It is the
-  **SHA-256** of the owner name, never the name itself: an owner is a GitHub
-  login for a personal repository, and no login, handle or organisation name is
-  ever sent. Only the owner is hashed — never the repository's own name — and
-  nothing is inferred, so a run outside CI whose caller names no owner sends no
-  `org_id` at all.
+- `org_id` — an id for the account the analysed repository belongs to, so one
+  deployment's runs can be told apart from another's. It is the **SHA-256** of
+  the owner name, never the name itself: an owner is a GitHub login for a
+  personal repository, and no login, handle or organisation name is ever sent.
+  It is *pseudonymous*, not anonymous — the hash is stable and unsalted, so
+  whoever holds the data can confirm an account name they already suspect,
+  though they cannot recover one they don't. Only the owner is hashed — never
+  the repository's own name — and nothing is inferred, so a run outside CI whose
+  caller names no owner sends no `org_id` at all.
 - `distinct_id` — the anonymous id described above.
 
 Property meanings:
