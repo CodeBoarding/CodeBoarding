@@ -44,7 +44,7 @@ class AnalysisStarted(BaseModel):
     command: str
     version: str
     run_id: str | None = None
-    depth_level: int | None = None
+    depth_cap: int | None = None
 
 
 class AnalysisCompleted(BaseModel):
@@ -57,7 +57,7 @@ class AnalysisCompleted(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     run_id: str | None = None
-    depth_level: int | None = None
+    depth_cap: int | None = None
 
 
 class TokenSnapshot(BaseModel):

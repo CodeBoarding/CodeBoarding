@@ -30,7 +30,7 @@ from diagram_analysis.analysis_json import (
     build_unified_analysis_json,
     parse_unified_analysis,
 )
-from diagram_analysis.run_context import DEFAULT_DEPTH_LEVEL
+from diagram_analysis.run_context import DEFAULT_DEPTH_CAP
 from utils import ANALYSIS_FILENAME, FINGERPRINT_FILENAME
 
 logger = logging.getLogger(__name__)
@@ -183,19 +183,15 @@ class _AnalysisFileStore:
                 if depth_cap is None:
                     depth_cap = metadata.get("depth_cap")
                     if depth_cap is None:
-                        # Legacy baselines predate depth_cap and only recorded depth_level,
-                        # which is the depth the run *realized* — often short of the cap it
-                        # was configured with. Reusing it as a cap can pin the tree shallower
-                        # than its owner asked for, so say so rather than silently narrowing.
                         depth_cap = metadata.get("depth_level")
                         if depth_cap is not None:
                             logger.warning(
                                 "Baseline has no depth_cap; using its realized depth_level=%s as the cap. "
-                                "Run a full analysis with --depth-level to widen it.",
+                                "Run a full analysis with --depth-cap to widen it.",
                                 depth_cap,
                             )
         if depth_cap is None:
-            depth_cap = DEFAULT_DEPTH_LEVEL
+            depth_cap = DEFAULT_DEPTH_CAP
 
         # Convert sub_analyses dict to the format expected by build_unified_analysis_json
         sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None

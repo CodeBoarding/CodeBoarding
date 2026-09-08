@@ -241,7 +241,7 @@ baseline. The cluster lineage in the pickle is no longer read.
 scope is absent, draft it from the component's units. A leaf by decision stays a leaf: the
 API reports it as not expandable with its reason.
 
-**Depth.** `--depth-level` is the cap on how many scopes are materialised up front, never a
+**Depth.** `--depth-cap` is the cap on how many scopes are materialised up front, never a
 target. The spec is drafted one level deeper than the tree is materialised, so `expandable`
 on a group is a recorded decision: its child scope has rules. The modularity expansion gate
 and the size-based `scope_load` are retired.

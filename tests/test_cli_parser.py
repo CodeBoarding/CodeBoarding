@@ -1,10 +1,15 @@
 import json
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+import diagram_analysis
 from codeboarding_cli.render import main as render_main
+from codeboarding_workflows.analysis import build_generator, run_full
+from codeboarding_workflows.sources import SourceContext
+from diagram_analysis import DEFAULT_DEPTH_CAP, DiagramGenerator, RunContext, RunPaths
 from main import build_parser, main
 from output_generators import SUPPORTED_FORMATS
 
@@ -74,6 +79,86 @@ def test_force_flag_registered_and_defaults_false() -> None:
 def test_force_flag_sets_true_when_passed() -> None:
     args = build_parser().parse_args(["full", "--local", "/tmp/repo", "--force"])
     assert args.force is True
+
+
+def test_depth_cap_default_is_unchanged() -> None:
+    args = build_parser().parse_args(["full", "--local", "/tmp/repo"])
+    assert args.depth_cap == DEFAULT_DEPTH_CAP == 3
+    assert not hasattr(args, "depth_level")
+    assert not hasattr(diagram_analysis, "DEFAULT_DEPTH_LEVEL")
+
+
+@pytest.mark.parametrize("command", [[], ["full"]])
+def test_depth_cap_has_canonical_destination(command: list[str]) -> None:
+    with patch("main.full_analysis.run_from_args") as run_full:
+        main([*command, "--local", "/tmp/repo", "--depth-cap", "5"])
+
+    args = run_full.call_args.args[0]
+    assert args.depth_cap == 5
+    assert not hasattr(args, "depth_level")
+
+
+@pytest.mark.parametrize("command", [[], ["full"]])
+@pytest.mark.parametrize("remote", [False, True])
+@pytest.mark.parametrize("extra", [[], ["--depth-cap", "4"]])
+def test_old_depth_input_is_rejected(command, remote, extra, capsys) -> None:
+    target = ["https://github.com/user/repo"] if remote else ["--local", "/tmp/repo"]
+    with patch("main.full_analysis.run_from_args") as run_full:
+        with pytest.raises(SystemExit) as exc:
+            main([*command, *target, "--depth-level", "5", *extra])
+    assert exc.value.code == 2
+    assert "unrecognized arguments: --depth-level" in capsys.readouterr().err
+    run_full.assert_not_called()
+
+
+@pytest.mark.parametrize("factory", [run_full, build_generator])
+def test_workflow_rejects_old_python_keyword(factory, tmp_path) -> None:
+    with pytest.raises(TypeError, match="depth_level"):
+        factory(RunPaths(tmp_path, tmp_path, "repo"), RunContext("run", "log"), **{"depth_level": 3})
+
+
+def test_generator_rejects_old_python_keyword(tmp_path) -> None:
+    with pytest.raises(TypeError, match="depth_level"):
+        DiagramGenerator(tmp_path, tmp_path, "repo", tmp_path, run_id="run", log_path="log", **{"depth_level": 3})
+
+
+def test_depth_cap_requires_integer() -> None:
+    with pytest.raises(SystemExit) as exc:
+        build_parser().parse_args(["full", "--local", "/tmp/repo", "--depth-cap", "invalid"])
+    assert exc.value.code == 2
+
+
+def test_full_help_names_cap_and_distinguishes_realized_depth(capsys) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["full", "--help"])
+    assert exc.value.code == 0
+    help_text = capsys.readouterr().out
+    assert "--depth-cap DEPTH_CAP" in help_text
+    assert "--depth-level" not in help_text
+    assert "metadata.depth_cap" in help_text
+    assert "metadata.depth_level" in help_text
+
+
+@pytest.mark.parametrize("remote", [False, True])
+def test_depth_cap_maps_to_workflow_parameter(tmp_path: Path, monkeypatch, remote: bool) -> None:
+    monkeypatch.chdir(tmp_path)
+    source = SourceContext(repo_path=tmp_path, artifact_dir=tmp_path, project_name="repo")
+    target = ["https://github.com/user/repo"] if remote else ["--local", str(tmp_path)]
+    with (
+        patch("codeboarding_cli.commands.full_analysis.bootstrap_environment"),
+        patch("codeboarding_workflows.orchestration.RunContext.resolve"),
+        patch("codeboarding_cli.commands.full_analysis.remote_source", return_value=nullcontext(source)),
+        patch("codeboarding_cli.commands.full_analysis.monitor_execution"),
+        patch("codeboarding_cli.commands.full_analysis.render_docs"),
+        patch("codeboarding_cli.commands.full_analysis.get_branch", return_value="main"),
+        patch("codeboarding_cli.commands.full_analysis.get_current_commit", return_value="sha"),
+        patch("codeboarding_cli.commands.full_analysis.run_full") as run_full,
+    ):
+        main(["full", *target, "--depth-cap", "5"])
+
+    run_full.assert_called_once()
+    assert run_full.call_args.kwargs["depth_cap"] == 5
+    assert "depth_level" not in run_full.call_args.kwargs
 
 
 def test_render_flag_registered_and_defaults_none() -> None:

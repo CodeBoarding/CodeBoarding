@@ -46,7 +46,7 @@ Examples:
 
   # Local full analysis with a higher depth ceiling (rarely needed — expansion
   # is driven by structural separability, this only raises the safety-valve cap)
-  codeboarding --local /path/to/repo --depth-level 5
+  codeboarding --local /path/to/repo --depth-cap 5
 
   # Incremental update on a local repository (explicit subcommand required)
   codeboarding incremental --local /path/to/repo

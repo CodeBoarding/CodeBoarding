@@ -4,12 +4,12 @@ from pathlib import Path
 from monitoring.paths import generate_log_path
 from utils import generate_run_id
 
-# Safety-valve depth cap, not a target — see --depth-level help / README for why.
+# Safety-valve depth cap, not a target — see --depth-cap help / README for why.
 # A component that outgrows the leaf ceiling is flagged expandable at whatever depth
 # the run stops, so this cap bounds how much gets expanded up front, not whether a
 # large component *can* be expanded (on demand, via the partial-analysis API). Raise
 # it to auto-expand deeper.
-DEFAULT_DEPTH_LEVEL = 3
+DEFAULT_DEPTH_CAP = 3
 
 
 @dataclass(frozen=True, slots=True)

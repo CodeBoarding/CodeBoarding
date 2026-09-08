@@ -5,9 +5,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from diagram_analysis import DEFAULT_DEPTH_LEVEL
+from diagram_analysis import DEFAULT_DEPTH_CAP
 from github_action import (
-    _resolve_depth_level,
+    _resolve_depth_cap,
     generate_analysis,
     generate_html,
     generate_markdown,
@@ -189,7 +189,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "2"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "2"})
     def test_generate_analysis_markdown(
         self,
         mock_clone,
@@ -229,7 +229,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             # Check that generator was created with correct params
             mock_generator_class.assert_called_once()
             args = mock_generator_class.call_args
-            self.assertEqual(args[1]["depth_level"], 2)
+            self.assertEqual(args[1]["depth_cap"], 2)
 
             # Check that markdown generation was called with a Path
             mock_generate_markdown.assert_called_once()
@@ -247,7 +247,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_html(
         self,
         mock_clone,
@@ -284,7 +284,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_mdx(
         self,
         mock_clone,
@@ -321,7 +321,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_rst(
         self,
         mock_clone,
@@ -357,7 +357,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_unsupported_extension(
         self,
         mock_clone,
@@ -393,7 +393,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_branch_checkout(
         self,
         mock_clone,
@@ -428,16 +428,16 @@ class TestGenerateAnalysis(unittest.TestCase):
             self.assertEqual(args[1], "feature-branch")
 
 
-class TestResolveDepthLevel(unittest.TestCase):
+class TestResolveDepthCap(unittest.TestCase):
     """An action incremental over a seeded baseline must reuse the baseline's
     own configured cap, not silently re-cap it at the current default."""
 
-    @patch.dict(os.environ, {"DIAGRAM_DEPTH_LEVEL": "5"}, clear=True)
+    @patch.dict(os.environ, {"DIAGRAM_DEPTH_CAP": "5"}, clear=True)
     def test_env_var_takes_priority_over_seeded_baseline(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             _write_analysis_file(temp_path / "analysis.json")
-            self.assertEqual(_resolve_depth_level(temp_path), 5)
+            self.assertEqual(_resolve_depth_cap(temp_path), 5)
 
     @patch.dict(os.environ, {}, clear=True)
     def test_seeded_baseline_depth_cap_used_when_env_var_unset(self):
@@ -453,20 +453,24 @@ class TestResolveDepthLevel(unittest.TestCase):
             with open(temp_path / "analysis.json", "w") as f:
                 json.dump(analysis, f)
 
-            self.assertEqual(_resolve_depth_level(temp_path), 4)
+            self.assertEqual(_resolve_depth_cap(temp_path), 4)
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_legacy_baseline_falls_back_to_depth_level(self):
-        """Baselines written before depth_cap existed only have depth_level."""
+    def test_realized_depth_is_not_a_configuration_fallback(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             _write_analysis_file(temp_path / "analysis.json")  # depth_level=1, no depth_cap
-            self.assertEqual(_resolve_depth_level(temp_path), 1)
+            self.assertEqual(_resolve_depth_cap(temp_path), DEFAULT_DEPTH_CAP)
+
+    @patch.dict(os.environ, {"DIAGRAM_DEPTH_LEVEL": "5"}, clear=True)
+    def test_old_environment_input_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "use DIAGRAM_DEPTH_CAP"):
+            _resolve_depth_cap(Path("unused"))
 
     @patch.dict(os.environ, {}, clear=True)
     def test_no_baseline_falls_back_to_default(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            self.assertEqual(_resolve_depth_level(Path(temp_dir)), DEFAULT_DEPTH_LEVEL)
+            self.assertEqual(_resolve_depth_cap(Path(temp_dir)), DEFAULT_DEPTH_CAP)
 
 
 if __name__ == "__main__":

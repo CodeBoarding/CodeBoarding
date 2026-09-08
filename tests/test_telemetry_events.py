@@ -26,11 +26,11 @@ def props_for(cap, name):
 
 def test_track_analysis_on_error_marks_status_and_forwards_exception(captured):
     @track_analysis
-    def run_full(repo_name, run_id=None, depth_level=1):
+    def run_full(repo_name, run_id=None, depth_cap=1):
         raise RuntimeError("git fetch failed: bad object")
 
     with pytest.raises(RuntimeError):
-        run_full("x", run_id="r1", depth_level=2)
+        run_full("x", run_id="r1", depth_cap=2)
 
     completed = props_for(captured, "analysis_completed")
     assert completed["status"] == "error"
@@ -100,7 +100,7 @@ def test_track_analysis_reads_run_id_from_self_for_generator_methods(captured):
 
     class Generator:
         run_id = "from-self"
-        depth_level = 3
+        depth_cap = 3
 
         @track_analysis
         def generate_analysis(self):
@@ -111,7 +111,10 @@ def test_track_analysis_reads_run_id_from_self_for_generator_methods(captured):
     started = props_for(captured, "analysis_started")
     assert started["command"] == "generate_analysis"
     assert started["run_id"] == "from-self"
-    assert started["depth_level"] == 3
+    assert started["depth_cap"] == 3
+    assert "depth_level" not in started
+    assert props_for(captured, "analysis_completed")["depth_cap"] == 3
+    assert "depth_level" not in props_for(captured, "analysis_completed")
     assert props_for(captured, "analysis_completed")["run_id"] == "from-self"
 
 
@@ -120,7 +123,7 @@ def test_track_analysis_propagates_run_id_to_nested_repo_scanned(captured):
 
     class Generator:
         run_id = "nested-id"
-        depth_level = 1
+        depth_cap = 1
 
         @track_analysis
         def generate_analysis(self):
@@ -184,7 +187,7 @@ def test_track_analysis_env_run_id_overrides_self(captured, monkeypatch):
 
     class Generator:
         run_id = "internal-id"
-        depth_level = 1
+        depth_cap = 1
 
         @track_analysis
         def generate_analysis(self):
