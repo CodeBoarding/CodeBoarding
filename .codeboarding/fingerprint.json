@@ -2,7 +2,7 @@
   "files": {
     "REVIEW.md": "1f492caa88e9faed",
     "PYPI.md": "82536930ce34c86b",
-    "pyproject.toml": "573c347785394c11",
+    "pyproject.toml": "fad59c024ce57813",
     "constants.py": "e44df5a3e0f4f661",
     "vscode_constants.py": "ed4ca12f298bcba0",
     "github_action.py": "7a4011d004c94068",
@@ -15,7 +15,7 @@
     "CONTRIBUTING.md": "aefea7ccbec0b91c",
     "llms.txt": "d7250ff1da2830ef",
     "Dockerfile": "cf0ba49d1a6e98fa",
-    "uv.lock": "fa44acbf08d265fa",
+    "uv.lock": "b63e785a7b35adb9",
     "CLAUDE.md": "918b1c90559355ef",
     "README.md": "3215475aba3ed180",
     "TELEMETRY.md": "568515dc56413537",
