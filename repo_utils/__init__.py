@@ -99,8 +99,7 @@ def remote_repo_exists(repo_url: str) -> bool:
 
 
 def get_repo_name(repo_url: str):
-    repo_url = sanitize_repo_url(repo_url)
-    base = repo_url.rstrip("/").split("/")[-1]
+    base = sanitize_repo_url(repo_url).split("/")[-1]
     repo_name, _ = os.path.splitext(base)
     return repo_name
 
@@ -111,7 +110,7 @@ def get_repo_org(repo_url: str) -> str:
     Why: the segment before the name, with the ``git@host:`` prefix of an scp-style
     URL dropped. Returns '' for a URL with no owner segment.
     """
-    parts = sanitize_repo_url(repo_url).rstrip("/").split("/")
+    parts = sanitize_repo_url(repo_url).split("/")
     if len(parts) < 2:
         return ""
     return parts[-2].rpartition(":")[2]
