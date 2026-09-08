@@ -560,7 +560,7 @@ class TestProgressSaveNeverTruncates(unittest.TestCase):
                 temp_folder=Path(tmp),
                 repo_name="test_repo",
                 output_dir=Path(tmp),
-                depth_level=2,
+                depth_cap=2,
                 run_id="test-run-id",
                 log_path="test_repo/test-run-log",
             )
@@ -577,7 +577,7 @@ class TestProgressSaveNeverTruncates(unittest.TestCase):
                 temp_folder=Path(tmp),
                 repo_name="test_repo",
                 output_dir=Path(tmp),
-                depth_level=2,
+                depth_cap=2,
                 run_id="test-run-id",
                 log_path="test_repo/test-run-log",
             )
@@ -596,7 +596,7 @@ class TestAnalysedSubtreeSurvivesTheSaveTimeVerdict(unittest.TestCase):
             temp_folder=Path(tmp),
             repo_name="test_repo",
             output_dir=Path(tmp),
-            depth_level=3,
+            depth_cap=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )

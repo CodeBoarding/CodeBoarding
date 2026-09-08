@@ -67,7 +67,7 @@ generated `.codeboarding/analysis.json` — it is parsed in your browser, nothin
 ```python
 import json
 from pathlib import Path
-from diagram_analysis import DiagramGenerator, configure_models
+from diagram_analysis import DiagramGenerator, RunContext, configure_models
 from diagram_analysis.analysis_json import parse_unified_analysis
 
 # Pass the key programmatically — shell env vars always take precedence if already set.
@@ -80,14 +80,17 @@ output_dir = repo_path / ".codeboarding"
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Generate the architectural diagram
+context = RunContext.resolve("my-project")
 generator = DiagramGenerator(
     repo_location=repo_path,
     temp_folder=output_dir,
     repo_name="my-project",
     output_dir=output_dir,
-    depth_level=3,  # safety-valve cap; a component that outgrows the leaf ceiling is flagged expandable and can be expanded on demand
+    depth_cap=3,  # Maximum hierarchy depth for automatic expansion, not a target.
+    run_id=context.run_id,
+    log_path=context.log_path,
 )
-[analysis_path] = generator.generate_analysis()
+analysis_path = generator.generate_analysis()
 
 # Read and inspect the results
 with open(analysis_path) as f:
@@ -148,7 +151,7 @@ codeboarding-render PATH/analysis.json --format FORMAT # render an existing anal
 |---|---|
 | `--local PATH` | Analyze a local repository (output: `PATH/.codeboarding/`) |
 | `--render {md,html,mdx,rst}` | Render overview and component files from the local `analysis.json` for full, incremental, or partial commands |
-| `--depth-cap INT` | Safety-valve depth cap (default: 3) on how deep auto-expansion goes; a component that outgrows the leaf ceiling is flagged expandable regardless, and can be expanded on demand. `--depth-level` remains a compatibility alias. Configures `metadata.depth_cap`, not `metadata.depth_level` (the depth actually reached) |
+| `--depth-cap INT` | Maximum allowed hierarchy depth for automatic expansion (default: 3), not a target. Components can still be expanded on demand. Configures `metadata.depth_cap`, not `metadata.depth_level` (the depth actually reached). No input alias is accepted. |
 | `--force` | (full only) Force full reanalysis, skip cached static analysis |
 | `--base-ref REF` / `--target-ref REF` | (incremental only) Git refs to diff |
 | `--component-id ID` | (partial only) ID of the component to update |

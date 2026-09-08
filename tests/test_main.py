@@ -49,7 +49,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             result = run_full(
                 RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_repo"),
                 RunContext(run_id="test-run-id", log_path="test_repo/test-run-log"),
-                depth_level=2,
+                depth_cap=2,
             )
 
             self.assertEqual(result, Path("analysis.json"))
@@ -58,7 +58,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 temp_folder=output_dir,
                 repo_name="test_repo",
                 output_dir=output_dir,
-                depth_level=2,
+                depth_cap=2,
                 run_id="test-run-id",
                 log_path="test_repo/test-run-log",
                 monitoring_enabled=False,
@@ -93,7 +93,7 @@ class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash"}
+        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 1, "source_tree_hash": "source-hash"}
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -163,7 +163,7 @@ class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_nested_component_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 2, "source_tree_hash": "source-hash"}
+        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 2, "source_tree_hash": "source-hash"}
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -217,7 +217,7 @@ class TestPartialUpdate(unittest.TestCase):
                 persisted_scopes={"root": root_analysis, "root_comp_id": sub_analysis_of_root},
             )
             mock_generator.process_component.assert_called_once_with(nested_component)
-            self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 2)
+            self.assertEqual(mock_generator_class.call_args.kwargs["depth_cap"], 2)
             mock_generator.finalize_and_save.assert_called_once()
             mock_generator._persist_static_analysis_artifact.assert_called_once_with()
 
@@ -280,7 +280,7 @@ class TestPartialUpdate(unittest.TestCase):
 
 
 class TestIncrementalDepthSource(unittest.TestCase):
-    """``run_incremental`` reads depth_level from analysis.json metadata."""
+    """Incremental reuses the configured cap, not the realized depth."""
 
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     def test_cold_start_raises_incremental_unavailable(self, mock_load_metadata):
@@ -302,10 +302,8 @@ class TestIncrementalDepthSource(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.detect_changes_from_fingerprint")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
-    def test_depth_level_taken_from_metadata(
-        self, mock_load_metadata, mock_generator_class, mock_detect, mock_workflow
-    ):
-        mock_load_metadata.return_value = {"depth_level": 3}
+    def test_depth_cap_taken_from_metadata(self, mock_load_metadata, mock_generator_class, mock_detect, mock_workflow):
+        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 4}
         mock_detect.return_value = MagicMock(files=[])
         mock_workflow.return_value = Path("analysis.json")
 
@@ -320,7 +318,7 @@ class TestIncrementalDepthSource(unittest.TestCase):
                 RunContext(run_id="r", log_path="l"),
             )
 
-        self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 3)
+        self.assertEqual(mock_generator_class.call_args.kwargs["depth_cap"], 4)
 
 
 class TestRemoteSource(unittest.TestCase):
@@ -398,7 +396,7 @@ class TestLocalSource(unittest.TestCase):
             description="",
             key_entities=[],
         )
-        mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash"}
+        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 1, "source_tree_hash": "source-hash"}
         root_analysis = AnalysisInsights(description="root", components=[component], components_relations=[])
         mock_load_full.return_value = (root_analysis, {})
         mock_generator_class.return_value.process_component.return_value = ("target", None, [])
@@ -458,7 +456,7 @@ class TestFullCliLocal(unittest.TestCase):
         mock_run_full.assert_called_once()
         run_paths = mock_run_full.call_args.args[0]
         self.assertEqual(run_paths.repo_path, repo_path.resolve())
-        self.assertEqual(mock_run_full.call_args.kwargs["depth_level"], 1)
+        self.assertEqual(mock_run_full.call_args.kwargs["depth_cap"], 1)
         self.assertFalse(mock_run_full.call_args.kwargs["force_full"])
 
     @patch("codeboarding_cli.commands.full_analysis.run_full")

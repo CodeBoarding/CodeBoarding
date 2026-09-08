@@ -844,6 +844,32 @@ class TestDepthCapPersistence(unittest.TestCase):
         self.assertEqual(metadata["depth_level"], 1)
         self.assertEqual(metadata["depth_cap"], 3)
 
+    def test_save_does_not_treat_legacy_result_depth_as_configuration(self):
+        save_analysis(
+            analysis=self._make_root(),
+            output_dir=self.output_dir,
+            repo_dir=self.repo_dir,
+            source_tree_hash="hash1",
+            repo_name="test",
+            depth_cap=5,
+        )
+        path = self.output_dir / "analysis.json"
+        baseline = json.loads(path.read_text())
+        del baseline["metadata"]["depth_cap"]
+        baseline["metadata"]["depth_level"] = 5
+        path.write_text(json.dumps(baseline))
+
+        save_analysis(
+            analysis=self._make_root(),
+            output_dir=self.output_dir,
+            repo_dir=self.repo_dir,
+            source_tree_hash="hash2",
+            repo_name="test",
+        )
+        metadata = json.loads(path.read_text())["metadata"]
+        self.assertEqual(metadata["depth_level"], 1)
+        self.assertEqual(metadata["depth_cap"], 3)
+
 
 class TestDiagramGenerator(unittest.TestCase):
     def setUp(self):
@@ -870,7 +896,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -878,7 +904,8 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(gen.repo_location, self.repo_location)
         self.assertEqual(gen.repo_name, "test_repo")
         self.assertEqual(gen.output_dir, self.output_dir)
-        self.assertEqual(gen.depth_level, 2)
+        self.assertEqual(gen.depth_cap, 2)
+        self.assertFalse(hasattr(gen, "depth_level"))
         self.assertIsNotNone(gen.scope_assembler)
         self.assertIsNone(gen.incremental_updater)
 
@@ -888,7 +915,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -909,7 +936,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -937,7 +964,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -962,7 +989,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=3,
+            depth_cap=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1002,7 +1029,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1034,7 +1061,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1059,7 +1086,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1082,7 +1109,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1106,7 +1133,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1128,7 +1155,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1152,7 +1179,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1181,7 +1208,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1197,7 +1224,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1213,7 +1240,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=3,
+            depth_cap=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1246,7 +1273,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=3,
+            depth_cap=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1296,7 +1323,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=3,
+            depth_cap=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1329,7 +1356,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1367,7 +1394,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1395,7 +1422,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1482,7 +1509,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1516,7 +1543,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=3,
+            depth_cap=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1587,7 +1614,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=1,
+            depth_cap=1,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1713,7 +1740,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=1,
+            depth_cap=1,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1740,7 +1767,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1783,7 +1810,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=3,
+            depth_cap=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1818,7 +1845,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1844,7 +1871,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=3,
+            depth_cap=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1887,7 +1914,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -1965,7 +1992,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -2010,7 +2037,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -2072,7 +2099,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=3,
+            depth_cap=3,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -2126,7 +2153,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -2166,7 +2193,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -2281,7 +2308,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -2320,7 +2347,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=1,
+            depth_cap=1,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )
@@ -2357,7 +2384,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=1,
+            depth_cap=1,
             run_id="test-run-id",
             log_path="test_repo/test-run-log",
         )

@@ -17,7 +17,7 @@ from agents.content_hash import compute_source_tree_hash
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_expandable_component_ids, load_full_analysis
-from diagram_analysis.run_context import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
+from diagram_analysis.run_context import DEFAULT_DEPTH_CAP, RunContext, RunPaths
 from repo_utils.change_detector import ChangeSet
 from repo_utils.fingerprint_diff import BaselineUnavailableError, detect_changes_from_fingerprint
 from telemetry.events import track_analysis
@@ -30,7 +30,7 @@ __all__ = ["BaselineUnavailableError", "run_full", "run_partial", "run_increment
 def build_generator(
     run_paths: RunPaths,
     run_context: RunContext,
-    depth_level: int,
+    depth_cap: int,
     monitoring_enabled: bool = False,
     static_analyzer=None,
     changes=None,
@@ -40,7 +40,7 @@ def build_generator(
         temp_folder=run_paths.output_dir,
         repo_name=run_paths.project_name,
         output_dir=run_paths.output_dir,
-        depth_level=depth_level,
+        depth_cap=depth_cap,
         run_id=run_context.run_id,
         log_path=run_context.log_path,
         monitoring_enabled=monitoring_enabled,
@@ -52,7 +52,7 @@ def build_generator(
 def run_full(
     run_paths: RunPaths,
     run_context: RunContext,
-    depth_level: int = DEFAULT_DEPTH_LEVEL,
+    depth_cap: int = DEFAULT_DEPTH_CAP,
     monitoring_enabled: bool = False,
     force_full: bool = False,
     static_analyzer=None,
@@ -63,7 +63,7 @@ def run_full(
     generator = build_generator(
         run_paths,
         run_context,
-        depth_level=depth_level,
+        depth_cap=depth_cap,
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
     )
@@ -87,8 +87,7 @@ def run_partial(
         f"Running PARTIAL analysis workflow for project '{run_paths.project_name}', component '{component_id}'."
     )
 
-    # Depth is the baseline's configured cap (metadata.depth_cap), with a
-    # legacy depth_level fallback — not the realized depth.
+    # Only the configured cap controls expansion, never the realized depth.
     metadata = load_analysis_metadata(run_paths.output_dir)
     if metadata is None:
         raise BaselineUnavailableError(
@@ -107,7 +106,7 @@ def run_partial(
             "Partial analysis requires an up-to-date source baseline. Run incremental analysis before expanding a component."
         )
 
-    depth_level = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_LEVEL)))
+    depth_cap = int(metadata.get("depth_cap", DEFAULT_DEPTH_CAP))
     full_analysis = load_full_analysis(run_paths.output_dir)
     if full_analysis is None:
         # Metadata was present but the unified read failed — treat as a
@@ -139,11 +138,11 @@ def run_partial(
         logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
 
-    generator = build_generator(run_paths, run_context, depth_level=depth_level, changes=ChangeSet(files=[]))
+    generator = build_generator(run_paths, run_context, depth_cap=depth_cap, changes=ChangeSet(files=[]))
     generator.source_sha = current_source_hash
     # A component at the persisted cap needs one additional level prepared for expansion.
     generator.prepare_analysis(
-        hierarchy_depth=depth_level + 1,
+        hierarchy_depth=depth_cap + 1,
         target_component=component_to_analyze,
         persisted_scopes={ROOT_SCOPE_ID: root_analysis, **sub_analyses},
     )
@@ -189,19 +188,13 @@ def run_incremental(
     should surface a "run full analysis" prompt rather than silently degrading to
     an unscoped run.
     """
-    # Depth comes from the existing analysis.json's configured cap
-    # (metadata.depth_cap, falling back to depth_level for legacy baselines
-    # that predate it) — not the realized depth_level, so a run that stopped
-    # short of its cap doesn't leave incremental permanently capped shallower
-    # than what was actually configured. Fail fast on cold-start:
-    # ``_generate_subcomponents`` requires the prior depth to re-detail
-    # changed components.
+    # Only the configured cap controls expansion, never the realized depth.
     metadata = load_analysis_metadata(run_paths.output_dir)
     if metadata is None:
         raise BaselineUnavailableError(
             f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
         )
-    depth_level = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_LEVEL)))
+    depth_cap = int(metadata.get("depth_cap", DEFAULT_DEPTH_CAP))
 
     changes = detect_changes_from_fingerprint(run_paths.repo_path, run_paths.output_dir)
     logger.info(
@@ -212,7 +205,7 @@ def run_incremental(
     generator = build_generator(
         run_paths,
         run_context,
-        depth_level=depth_level,
+        depth_cap=depth_cap,
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
         changes=changes,

@@ -46,8 +46,8 @@ never personal data.
 
 | Event | When | Properties |
 |-------|------|------------|
-| `analysis_started` | An analysis run begins | `command`, `version`, `run_id`, `depth_level` |
-| `analysis_completed` | An analysis run ends (success or failure) | `command`, `version`, `run_id`, `depth_level`, `status`, `duration_ms`, `model_name`, `total_tokens`, `input_tokens`, `output_tokens` |
+| `analysis_started` | An analysis run begins | `command`, `version`, `run_id`, `depth_cap` |
+| `analysis_completed` | An analysis run ends (success or failure) | `command`, `version`, `run_id`, `depth_cap`, `status`, `duration_ms`, `model_name`, `total_tokens`, `input_tokens`, `output_tokens` |
 | `repo_scanned` | The repository is scanned (once per repo) | `version`, `run_id`, `total_loc`, `language_count`, `languages`, `stack` |
 | `$exception` | Any unhandled exception, via PostHog's built-in error tracking | `command`, `version`, `run_id` (plus the exception type, message, and stack trace captured automatically by the SDK) |
 
@@ -72,7 +72,7 @@ Property meanings:
   `generate_analysis_incremental`).
 - `version` — the installed CodeBoarding version.
 - `run_id` — the per-run correlation id described under Identity.
-- `depth_level` — the configured diagram depth (an integer).
+- `depth_cap` — the configured maximum hierarchy depth (an integer), not the depth reached.
 - `status` — `success` or `error`.
 - `duration_ms` — wall-clock duration of the run.
 - `model_name` — the LLM model used (e.g. `gpt-4o`), for cost analysis.

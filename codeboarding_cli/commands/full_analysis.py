@@ -11,7 +11,7 @@ from codeboarding_workflows.analysis import run_full
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source, remote_source
 from constants import CLI_ROOT_DOCUMENT_NAME
-from diagram_analysis import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
+from diagram_analysis import DEFAULT_DEPTH_CAP, RunContext, RunPaths
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
 from output_generators.rendering import render_docs
@@ -46,15 +46,14 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
     )
     parser.add_argument(
         "--depth-cap",
-        "--depth-level",
         dest="depth_cap",
         type=int,
-        default=DEFAULT_DEPTH_LEVEL,
+        default=DEFAULT_DEPTH_CAP,
         help=(
-            "Safety-valve ceiling on how deep components auto-expand (default: "
-            f"{DEFAULT_DEPTH_LEVEL}). A component that outgrows the leaf ceiling is flagged expandable "
+            "Maximum allowed hierarchy depth for automatic expansion (default: "
+            f"{DEFAULT_DEPTH_CAP}). A component that outgrows the leaf ceiling is flagged expandable "
             "regardless and can be expanded on demand; raise this only to auto-expand deeper up front. "
-            "--depth-level is a compatibility alias. This configures metadata.depth_cap, "
+            "This configures metadata.depth_cap, "
             "not metadata.depth_level (the depth actually reached)."
         ),
     )
@@ -107,7 +106,7 @@ def _run_local(args: argparse.Namespace) -> None:
         run_full(
             RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
             run_context,
-            depth_level=args.depth_cap,
+            depth_cap=args.depth_cap,
             monitoring_enabled=should_monitor,
             force_full=args.force,
             source_sha=get_current_commit(src.repo_path),
@@ -189,7 +188,7 @@ def _process_one_remote(
             analysis_path = run_full(
                 RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
                 run_context,
-                depth_level=depth_cap,
+                depth_cap=depth_cap,
                 monitoring_enabled=should_monitor,
                 source_sha=get_current_commit(src.repo_path),
             )

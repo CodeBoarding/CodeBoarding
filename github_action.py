@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from codeboarding_workflows.analysis import run_incremental_workflow
-from diagram_analysis import DEFAULT_DEPTH_LEVEL, DiagramGenerator, RunContext
+from diagram_analysis import DEFAULT_DEPTH_CAP, DiagramGenerator, RunContext
 from diagram_analysis.io_utils import load_analysis_metadata
 from output_generators.rendering import render_docs
 from repo_utils import checkout_repo, clone_repository
@@ -85,15 +85,17 @@ def _seed_existing_analysis(existing_analysis_dir: Path, temp_repo_folder: Path)
             logger.info(f"Seeded existing {filename} for incremental analysis")
 
 
-def _resolve_depth_level(temp_repo_folder: Path) -> int:
+def _resolve_depth_cap(temp_repo_folder: Path) -> int:
     """Depth cap: explicit env var, else the seeded baseline's own depth_cap, else the default."""
-    env_depth = os.getenv("DIAGRAM_DEPTH_LEVEL")
+    if "DIAGRAM_DEPTH_LEVEL" in os.environ:
+        raise ValueError("DIAGRAM_DEPTH_LEVEL is no longer supported; use DIAGRAM_DEPTH_CAP")
+    env_depth = os.getenv("DIAGRAM_DEPTH_CAP")
     if env_depth is not None:
         return int(env_depth)
     metadata = load_analysis_metadata(temp_repo_folder)
     if metadata is not None:
-        return int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_LEVEL)))
-    return DEFAULT_DEPTH_LEVEL
+        return int(metadata.get("depth_cap", DEFAULT_DEPTH_CAP))
+    return DEFAULT_DEPTH_CAP
 
 
 def generate_analysis(
@@ -121,7 +123,7 @@ def generate_analysis(
         temp_folder=temp_repo_folder,
         repo_name=repo_name,
         output_dir=temp_repo_folder,
-        depth_level=_resolve_depth_level(temp_repo_folder),
+        depth_cap=_resolve_depth_cap(temp_repo_folder),
         run_id=run_context.run_id,
         log_path=run_context.log_path,
     )

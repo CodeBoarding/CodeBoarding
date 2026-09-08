@@ -1,3 +1,7 @@
+Historical source snapshot. For current APIs, consult README.md and PYPI.md.
+Configured depth is depth_cap (CLI --depth-cap), a maximum rather than a target.
+Only output metadata.depth_level means actual generated depth; no legacy input alias is accepted.
+
 ================================================
 FILE: duckdb_crud.py
 ================================================
@@ -257,7 +261,7 @@ def generate_analysis(
         temp_folder=temp_repo_folder,
         repo_name=repo_name,
         output_dir=temp_repo_folder,
-        depth_level=int(os.environ["DIAGRAM_DEPTH_LEVEL"]),
+        depth_cap=int(os.environ["DIAGRAM_DEPTH_CAP"]),
     )
 
     analysis_files = generator.generate_analysis()
@@ -781,7 +785,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 REPO_ROOT={project_root}/repos
 STATIC_ANALYSIS_CONFIG={project_root}/static_analysis_config.yml
 PROJECT_ROOT={project_root}
-DIAGRAM_DEPTH_LEVEL=1
+DIAGRAM_DEPTH_CAP=1
 CACHING_DOCUMENTATION=false
 
 # Monitoring Configuration
@@ -1561,7 +1565,7 @@ def generate_analysis(
     repo_name: str,
     repo_path: Path,
     output_dir: Path,
-    depth_level: int = 1,
+    depth_cap: int = 1,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
 ) -> list[Path]:
@@ -1570,7 +1574,7 @@ def generate_analysis(
         temp_folder=output_dir,
         repo_name=repo_name,
         output_dir=output_dir,
-        depth_level=depth_level,
+        depth_cap=depth_cap,
         run_id=run_id,
         monitoring_enabled=monitoring_enabled,
     )
@@ -1613,7 +1617,7 @@ def partial_update(
     project_name: str,
     component_name: str,
     analysis_name: str,
-    depth_level: int = 1,
+    depth_cap: int = 1,
 ):
     """
     Update a specific component in an existing analysis.
@@ -1623,7 +1627,7 @@ def partial_update(
         temp_folder=output_dir,
         repo_name=project_name,
         output_dir=output_dir,
-        depth_level=depth_level,
+        depth_cap=depth_cap,
     )
     generator.pre_analysis()
 
@@ -1667,7 +1671,7 @@ def generate_docs_remote(
     process_remote_repository(
         repo_url=repo_url,
         output_dir=temp_repo_folder,
-        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
+        depth_cap=int(os.getenv("DIAGRAM_DEPTH_CAP", "1")),
         upload=not local_dev,  # Only upload if not in local dev mode
         cache_check=True,
         run_id=run_id,
@@ -1678,7 +1682,7 @@ def generate_docs_remote(
 def process_remote_repository(
     repo_url: str,
     output_dir: Path | None = None,
-    depth_level: int = 1,
+    depth_cap: int = 1,
     upload: bool = False,
     cache_check: bool = True,
     run_id: str | None = None,
@@ -1708,7 +1712,7 @@ def process_remote_repository(
             repo_name=repo_name,
             repo_path=repo_path,
             output_dir=temp_folder,
-            depth_level=depth_level,
+            depth_cap=depth_cap,
             run_id=run_id,
             monitoring_enabled=monitoring_enabled,
         )
@@ -1740,7 +1744,7 @@ def process_local_repository(
     repo_path: Path,
     output_dir: Path,
     project_name: str,
-    depth_level: int = 1,
+    depth_cap: int = 1,
     component_name: str | None = None,
     analysis_name: str | None = None,
     monitoring_enabled: bool = False,
@@ -1753,7 +1757,7 @@ def process_local_repository(
             project_name=project_name,
             component_name=component_name,
             analysis_name=analysis_name,
-            depth_level=depth_level,
+            depth_cap=depth_cap,
         )
     else:
         # Full analysis (local repo - no markdown generation)
@@ -1761,7 +1765,7 @@ def process_local_repository(
             repo_name=project_name,
             repo_path=repo_path,
             output_dir=output_dir,
-            depth_level=depth_level,
+            depth_cap=depth_cap,
             monitoring_enabled=monitoring_enabled,
         )
 
@@ -1832,7 +1836,7 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
         help="Load the .env file for environment variables",
     )
     parser.add_argument("--binary-location", type=Path, help="Path to the binary directory for language servers")
-    parser.add_argument("--depth-level", type=int, default=1, help="Depth level for diagram generation (default: 1)")
+    parser.add_argument("--depth-cap", type=int, default=3, help="Maximum hierarchy depth (default: 3)")
     parser.add_argument(
         "--upload",
         action="store_true",
@@ -1907,7 +1911,7 @@ Examples:
             repo_path=args.local,
             output_dir=output_dir,
             project_name=args.project_name,
-            depth_level=args.depth_level,
+            depth_cap=args.depth_cap,
             component_name=args.partial_component,
             analysis_name=args.partial_analysis,
             monitoring_enabled=should_monitor,
@@ -1935,7 +1939,7 @@ Examples:
                         process_remote_repository(
                             repo_url=repo,
                             output_dir=output_dir,
-                            depth_level=args.depth_level,
+                            depth_cap=args.depth_cap,
                             upload=args.upload,
                             cache_check=not args.no_cache_check,
                             run_id=run_id,
@@ -6930,7 +6934,7 @@ class DiagramGenerator:
         temp_folder: Path,
         repo_name: str,
         output_dir: Path,
-        depth_level: int,
+        depth_cap: int,
         project_name: str | None = None,
         run_id: str | None = None,
         monitoring_enabled: bool = False,
@@ -6939,7 +6943,7 @@ class DiagramGenerator:
         self.temp_folder = temp_folder
         self.repo_name = repo_name
         self.output_dir = output_dir
-        self.depth_level = depth_level
+        self.depth_cap = depth_cap
         self.project_name = project_name
         self.run_id = run_id
         self.monitoring_enabled = monitoring_enabled
@@ -7107,7 +7111,7 @@ class DiagramGenerator:
             # Process each level of components in parallel
             while current_level_components:
                 level += 1
-                if level == self.depth_level:
+                if level == self.depth_cap:
                     break
                 logger.info(f"Processing level {level} with {len(current_level_components)} components")
                 next_level_components = []
@@ -7512,19 +7516,19 @@ PROJECTS_SCALING = [
         name="markitdown-depth-1",
         url="https://github.com/microsoft/markitdown",
         expected_language="Python",
-        env_vars={"DIAGRAM_DEPTH_LEVEL": "1"},
+        env_vars={"DIAGRAM_DEPTH_CAP": "1"},
     ),
     ProjectSpec(
         name="bertopic-depth-1",
         url="https://github.com/MaartenGr/BERTopic",
         expected_language="Python",
-        env_vars={"DIAGRAM_DEPTH_LEVEL": "1"},
+        env_vars={"DIAGRAM_DEPTH_CAP": "1"},
     ),
     # ProjectSpec(
     #     name="markitdown-depth-2",
     #     url="https://github.com/microsoft/markitdown",
     #     expected_language="Python",
-    #     env_vars={"DIAGRAM_DEPTH_LEVEL": "2"},
+    #     env_vars={"DIAGRAM_DEPTH_CAP": "2"},
     # ),
 ]
 
@@ -7976,7 +7980,7 @@ class ScalabilityEval(BaseEval):
             tool_usage = agent_data.get("tool_usage", {}).get("counts", {})
             agent_tool_usage[agent_name] = tool_usage
 
-        depth = int(project.env_vars.get("DIAGRAM_DEPTH_LEVEL") or 0)
+        depth = int(project.env_vars.get("DIAGRAM_DEPTH_CAP") or 0)
 
         return ScalabilityMetrics(
             loc=total_loc,
@@ -15478,7 +15482,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "2"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "2"})
     def test_generate_analysis_markdown(
         self,
         mock_clone,
@@ -15517,7 +15521,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             # Check that generator was created with correct params
             mock_generator_class.assert_called_once()
             args = mock_generator_class.call_args
-            self.assertEqual(args[1]["depth_level"], 2)
+            self.assertEqual(args[1]["depth_cap"], 2)
 
             # Check that markdown generation was called
             mock_generate_markdown.assert_called_once()
@@ -15530,7 +15534,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_html(
         self,
         mock_clone,
@@ -15565,7 +15569,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_mdx(
         self,
         mock_clone,
@@ -15600,7 +15604,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_rst(
         self,
         mock_clone,
@@ -15634,7 +15638,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_unsupported_extension(
         self,
         mock_clone,
@@ -15667,7 +15671,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
-    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_branch_checkout(
         self,
         mock_clone,
@@ -16540,7 +16544,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 repo_name="test_repo",
                 repo_path=repo_path,
                 output_dir=output_dir,
-                depth_level=2,
+                depth_cap=2,
             )
 
             self.assertEqual(len(result), 2)
@@ -16549,7 +16553,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 temp_folder=output_dir,
                 repo_name="test_repo",
                 output_dir=output_dir,
-                depth_level=2,
+                depth_cap=2,
                 run_id=None,
                 monitoring_enabled=False,
             )
@@ -16636,7 +16640,7 @@ class TestPartialUpdate(unittest.TestCase):
                 project_name="test_project",
                 component_name="TestComponent",
                 analysis_name="test_analysis",
-                depth_level=1,
+                depth_cap=1,
             )
 
             mock_generator.pre_analysis.assert_called_once()
@@ -16661,7 +16665,7 @@ class TestPartialUpdate(unittest.TestCase):
                 project_name="test_project",
                 component_name="TestComponent",
                 analysis_name="nonexistent",
-                depth_level=1,
+                depth_cap=1,
             )
 
             # pre_analysis should be called, but process_component should not
@@ -16770,14 +16774,14 @@ class TestProcessLocalRepository(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
-                depth_level=1,
+                depth_cap=1,
             )
 
             mock_generate_analysis.assert_called_once_with(
                 repo_name="test_project",
                 repo_path=repo_path,
                 output_dir=output_dir,
-                depth_level=1,
+                depth_cap=1,
                 monitoring_enabled=False,
             )
             self.assertTrue(output_dir.exists())
@@ -16794,7 +16798,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
-                depth_level=2,
+                depth_cap=2,
                 component_name="TestComponent",
                 analysis_name="test_analysis",
             )
@@ -16805,7 +16809,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 project_name="test_project",
                 component_name="TestComponent",
                 analysis_name="test_analysis",
-                depth_level=2,
+                depth_cap=2,
             )
 
 
@@ -20766,13 +20770,13 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
         )
 
         self.assertEqual(gen.repo_location, self.repo_location)
         self.assertEqual(gen.repo_name, "test_repo")
         self.assertEqual(gen.output_dir, self.output_dir)
-        self.assertEqual(gen.depth_level, 2)
+        self.assertEqual(gen.depth_cap, 2)
         self.assertIsNone(gen.details_agent)
         self.assertIsNone(gen.abstraction_agent)
 
@@ -20813,7 +20817,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
         )
 
         gen.pre_analysis()
@@ -20835,7 +20839,7 @@ class TestDiagramGenerator(unittest.TestCase):
             temp_folder=self.temp_folder,
             repo_name="test_repo",
             output_dir=self.output_dir,
-            depth_level=2,
+            depth_cap=2,
         )
 
         # Setup agents

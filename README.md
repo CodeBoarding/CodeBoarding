@@ -169,7 +169,17 @@ python main.py full https://github.com/pytorch/pytorch
 ```
 
 `--depth-cap` configures `metadata.depth_cap`; `metadata.depth_level` records the
-depth actually reached. `--depth-level` remains a compatibility alias for `--depth-cap`.
+depth actually reached. The cap is a maximum, not a target depth. `--depth-level`
+is rejected; there is no compatibility alias.
+
+Python callers must use `run_full(..., depth_cap=...)`,
+`build_generator(..., depth_cap=...)`, and `DiagramGenerator(..., depth_cap=...)`.
+The generator attribute is `depth_cap` and the exported default is
+`diagram_analysis.DEFAULT_DEPTH_CAP` (3). The GitHub helper uses `DIAGRAM_DEPTH_CAP`
+and rejects `DIAGRAM_DEPTH_LEVEL`. Telemetry reports configured `depth_cap`, not
+`depth_level`. Readers of analysis results must keep reading `metadata.depth_level`
+for the actual depth. Baselines without `metadata.depth_cap` use the default cap,
+never their realized depth as configuration.
 
 > **Incremental needs a baseline.** `incremental` diffs the working tree against the previous
 > analysis in `.codeboarding/` (`analysis.json` + `fingerprint.json`). That baseline can live

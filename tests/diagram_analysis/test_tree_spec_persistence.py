@@ -61,7 +61,7 @@ class TestTreeSpecPersistence(unittest.TestCase):
             temp_folder=self.temp_dir,
             repo_name="repo",
             output_dir=self.temp_dir,
-            depth_level=1,
+            depth_cap=1,
             run_id="run",
             log_path="log",
         )

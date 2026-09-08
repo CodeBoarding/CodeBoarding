@@ -9,7 +9,7 @@ from utils import generate_run_id
 # the run stops, so this cap bounds how much gets expanded up front, not whether a
 # large component *can* be expanded (on demand, via the partial-analysis API). Raise
 # it to auto-expand deeper.
-DEFAULT_DEPTH_LEVEL = 3
+DEFAULT_DEPTH_CAP = 3
 
 
 @dataclass(frozen=True, slots=True)

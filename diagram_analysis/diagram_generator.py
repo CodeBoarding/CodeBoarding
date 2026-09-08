@@ -555,7 +555,7 @@ class DiagramGenerator:
         temp_folder: Path,
         repo_name: str,
         output_dir: Path,
-        depth_level: int,
+        depth_cap: int,
         run_id: str,
         log_path: str,
         project_name: str | None = None,
@@ -567,7 +567,7 @@ class DiagramGenerator:
         self.temp_folder = temp_folder
         self.repo_name = repo_name
         self.output_dir = output_dir
-        self.depth_level = depth_level
+        self.depth_cap = depth_cap
         self.project_name = project_name
         self.run_id = run_id
         self.log_path = log_path
@@ -664,7 +664,7 @@ class DiagramGenerator:
             static_analysis = self._get_static_with_new_analyzer()
 
         self.static_analysis = static_analysis
-        depth = hierarchy_depth if hierarchy_depth is not None else self.depth_level
+        depth = hierarchy_depth if hierarchy_depth is not None else self.depth_cap
         if incremental:
             root_analysis = persisted_scopes.get(ROOT_SCOPE_ID)
             if root_analysis is None:
@@ -1295,7 +1295,7 @@ class DiagramGenerator:
                 logger.debug("Submitted component='%s' at level=%d", comp.name, lvl)
 
             # 1. Initial Seeding
-            for component, level in _component_expansion_seeds(root_components, self.depth_level):
+            for component, level in _component_expansion_seeds(root_components, self.depth_cap):
                 submit_component(component, level)
 
             logger.info(
@@ -1340,11 +1340,11 @@ class DiagramGenerator:
                             source_tree_hash=self._source_tree_hash(),
                             expandable_component_ids=expandable_ids,
                             sub_expandable_ids=sub_expandable_ids,
-                            depth_cap=self.depth_level,
+                            depth_cap=self.depth_cap,
                             tree_spec=self._tree_spec_dict(),
                         )
 
-                    if new_components and level + 1 < self.depth_level:
+                    if new_components and level + 1 < self.depth_cap:
                         for child in new_components:
                             submit_component(child, level + 1)
 
@@ -1524,7 +1524,7 @@ class DiagramGenerator:
             source_tree_hash=source_tree_hash,
             expandable_component_ids=expandable_component_ids,
             sub_expandable_ids=sub_expandable_ids,
-            depth_cap=self.depth_level,
+            depth_cap=self.depth_cap,
             tree_spec=self._tree_spec_dict(),
         ).resolve()
         if persist_side_artifacts:
@@ -1633,7 +1633,7 @@ class DiagramGenerator:
             self._incremental_preparation = self._prepare_incremental_clustering(
                 root_analysis,
                 sub_analyses,
-                self.depth_level,
+                self.depth_cap,
             )
             if self.incremental_updater is None:
                 self.agent_init()
@@ -1698,7 +1698,7 @@ class DiagramGenerator:
                 component
                 for component in created_components
                 if component.component_id in hierarchy.preclustered_scopes
-                and _component_depth(component.component_id) < self.depth_level
+                and _component_depth(component.component_id) < self.depth_cap
             ]
             generated_scope_ids: frozenset[str] = frozenset()
             if new_components:

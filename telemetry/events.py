@@ -171,11 +171,11 @@ def track_analysis(func):
         instance = args[0] if args else None
         command = func.__name__
         run_id = os.getenv("CODEBOARDING_RUN_ID") or kwargs.get("run_id") or getattr(instance, "run_id", None)
-        depth_level = kwargs.get("depth_level") or getattr(instance, "depth_level", None)
+        depth_cap = kwargs.get("depth_cap") or getattr(instance, "depth_cap", None)
 
         telemetry.capture(
             "analysis_started",
-            AnalysisStarted(command=command, version=_app_version(), run_id=run_id, depth_level=depth_level).model_dump(
+            AnalysisStarted(command=command, version=_app_version(), run_id=run_id, depth_cap=depth_cap).model_dump(
                 exclude_none=True
             ),
         )
@@ -208,7 +208,7 @@ def track_analysis(func):
                     input_tokens=after.input_tokens - before.input_tokens,
                     output_tokens=after.output_tokens - before.output_tokens,
                     run_id=run_id,
-                    depth_level=depth_level,
+                    depth_cap=depth_cap,
                 ).model_dump(exclude_none=True),
             )
             if exc is not None:
