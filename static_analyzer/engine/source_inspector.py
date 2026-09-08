@@ -205,6 +205,22 @@ _DECORATOR_SEARCH_DEPTH = 12
 _SCRIPT_IMPORT_NODE_TYPES = frozenset({"import_statement"})
 _TYPESCRIPT_SUFFIXES = frozenset({".ts", ".tsx", ".mts", ".cts"})
 _SCRIPT_SUFFIXES = _TYPESCRIPT_SUFFIXES | frozenset(LANGUAGE_EXTENSIONS[Language.JAVASCRIPT])
+_JAVA_SUFFIXES = frozenset(LANGUAGE_EXTENSIONS[Language.JAVA])
+_PYTHON_SUFFIXES = frozenset(LANGUAGE_EXTENSIONS[Language.PYTHON])
+# Java: every ``type_identifier`` is a type position — a declaration names itself with a plain
+# ``identifier`` — so the selector only has to exclude the segments of a dotted name and the
+# type of a creation, which is already a constructor call.
+_JAVA_SCOPED_TYPE_NODE_TYPES = frozenset({"scoped_type_identifier"})
+_JAVA_CREATION_NODE_TYPES = frozenset({"object_creation_expression"})
+_JAVA_ANNOTATION_NODE_TYPES = frozenset({"marker_annotation", "annotation"})
+_JAVA_IMPORT_NODE_TYPES = frozenset({"import_declaration"})
+_JAVA_PACKAGE_NODE_TYPES = frozenset({"package_declaration"})
+# Python: an annotation is always wrapped in a ``type`` node, and a base class is an argument
+# of the class's ``superclasses`` list.
+_PYTHON_TYPE_NODE_TYPES = frozenset({"type", "generic_type"})
+_PYTHON_SUPERCLASS_FIELD = "superclasses"
+_PYTHON_IMPORT_NODE_TYPES = frozenset({"import_statement", "import_from_statement"})
+_PYTHON_RELATIVE_IMPORT_NODE_TYPES = frozenset({"relative_import"})
 
 # Ceiling on retained tree-sitter nodes. Trees are by far the largest thing this
 # class touches — retaining one per file cost 2.2GB on a 5k-file C# repo — and
@@ -693,11 +709,20 @@ class SourceInspector:
         # selector, and parsing first made every Python, Java, Go, PHP and Rust file pay a full
         # tree-sitter parse to be thrown away (1.9s over django's 2,894 files).
         suffix = file_path.suffix.lower()
-        if suffix in _PREPROCESSOR_SUFFIXES:
-            select = self._csharp_type_name
-        elif suffix in _SCRIPT_SUFFIXES:
-            select = self._script_type_name
-        else:
+        select = next(
+            (
+                selector
+                for suffixes, selector in (
+                    (_PREPROCESSOR_SUFFIXES, self._csharp_type_name),
+                    (_SCRIPT_SUFFIXES, self._script_type_name),
+                    (_JAVA_SUFFIXES, self._java_type_name),
+                    (_PYTHON_SUFFIXES, self._python_type_name),
+                )
+                if suffix in suffixes
+            ),
+            None,
+        )
+        if select is None:
             return []
         parsed = self._parse(file_path)
         if parsed is None:
@@ -729,10 +754,19 @@ class SourceInspector:
         return sites
 
     def find_namespace_context(self, file_path: Path) -> NamespaceContext:
-        """The usings and declared namespaces of a C# file; empty for any other language."""
-        parsed = self._parse(file_path)
-        if parsed is None or file_path.suffix.lower() not in _PREPROCESSOR_SUFFIXES:
+        """The declared scope and the directives of a C# or Java file; empty for any other.
+
+        Both languages resolve a bare type name the same way — against the scope the file
+        declares plus what it imports — so they share one record and one resolver.
+        """
+        suffix = file_path.suffix.lower()
+        if suffix not in _PREPROCESSOR_SUFFIXES and suffix not in _JAVA_SUFFIXES:
             return NamespaceContext((), ())
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return NamespaceContext((), ())
+        if suffix in _JAVA_SUFFIXES:
+            return self._java_namespace_context(parsed)
 
         def text(node: TreeSitterNode) -> str:
             return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
@@ -771,11 +805,52 @@ class SourceInspector:
         visit(root, "", 1, root.end_point.row + 1)
         return NamespaceContext(tuple(usings), tuple(namespaces))
 
+    def _java_namespace_context(self, parsed: ParsedSource) -> NamespaceContext:
+        """``package`` as the declared scope; each ``import`` as a directive.
+
+        A single-type import decides a name outright, exactly as a C# alias does, so it is
+        recorded as one; a wildcard import offers a package, which is a plain namespace import.
+        """
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        last_line = parsed.tree.root_node.end_point.row + 1
+        usings: list[UsingDirective] = []
+        namespaces: list[tuple[str, int, int]] = []
+        for child in parsed.tree.root_node.named_children:
+            if child.type in _JAVA_PACKAGE_NODE_TYPES:
+                name = next((c for c in child.named_children if c.type in ("scoped_identifier", "identifier")), None)
+                if name is not None:
+                    namespaces.append((text(name), 1, last_line))
+            elif child.type in _JAVA_IMPORT_NODE_TYPES:
+                target = next((c for c in child.named_children if c.type in ("scoped_identifier", "identifier")), None)
+                if target is None:
+                    continue
+                wildcard = any(c.type == "asterisk" for c in child.children)
+                static = any(c.type == "static" for c in child.children)
+                written = text(target)
+                usings.append(
+                    UsingDirective(
+                        target=written,
+                        first_line=1,
+                        last_line=last_line,
+                        alias="" if wildcard or static else written.rpartition(".")[2],
+                        static=static,
+                    )
+                )
+        return NamespaceContext(tuple(usings), tuple(namespaces))
+
     def find_import_bindings(self, file_path: Path) -> dict[str, ImportBinding]:
-        """Local name -> what a TS/JS file imported it as; empty for any other language."""
-        parsed = self._parse(file_path)
-        if parsed is None or file_path.suffix.lower() not in _SCRIPT_SUFFIXES:
+        """Local name -> the module and export a TS/JS or Python file bound it from."""
+        suffix = file_path.suffix.lower()
+        if suffix not in _SCRIPT_SUFFIXES and suffix not in _PYTHON_SUFFIXES:
             return {}
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return {}
+        if suffix in _PYTHON_SUFFIXES:
+            return self._python_import_bindings(parsed)
 
         def text(node: TreeSitterNode) -> str:
             return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
@@ -805,6 +880,44 @@ class SourceInspector:
                             alias_node = specifier.child_by_field_name("alias")
                             local = text(alias_node if alias_node is not None else name_node)
                             bindings[local] = ImportBinding(source, text(name_node))
+        return bindings
+
+    def _python_import_bindings(self, parsed: ParsedSource) -> dict[str, ImportBinding]:
+        """``from a.b import C as D`` -> ``D`` bound to ``C`` of module ``a.b``.
+
+        ``import a.b`` binds the dotted name itself rather than its head, because that is what a
+        type site writes: ``a.b.Thing`` arrives with ``a.b`` as its qualifier.
+        """
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        def module_of(node: TreeSitterNode) -> str:
+            if node.type not in _PYTHON_RELATIVE_IMPORT_NODE_TYPES:
+                return text(node)
+            # ``from .. import x``: the dots are the module, and there may be no name after them.
+            dots = "".join(text(c) for c in node.children if c.type == "import_prefix")
+            rest = next((text(c) for c in node.named_children if c.type == "dotted_name"), "")
+            return dots + rest
+
+        bindings: dict[str, ImportBinding] = {}
+        for statement in parsed.tree.root_node.named_children:
+            if statement.type not in _PYTHON_IMPORT_NODE_TYPES:
+                continue
+            module_node = statement.child_by_field_name("module_name")
+            module = module_of(module_node) if module_node is not None else ""
+            for imported in statement.children_by_field_name("name"):
+                if imported.type == "aliased_import":
+                    name_node = imported.child_by_field_name("name")
+                    alias_node = imported.child_by_field_name("alias")
+                    if name_node is None or alias_node is None:
+                        continue
+                    written = text(name_node)
+                    bindings[text(alias_node)] = ImportBinding(module or written, "*" if not module else written)
+                elif imported.type == "dotted_name":
+                    written = text(imported)
+                    # ``import a.b`` has no module of its own; the dotted name is the module.
+                    bindings[written] = ImportBinding(module or written, written if module else "*")
         return bindings
 
     def find_type_bases(self, file_path: Path) -> list[tuple[str, list[str]]]:
@@ -1049,6 +1162,39 @@ class SourceInspector:
         if node.type == "identifier" and self._inside_decorator(node):
             if parent.type == "array" or (parent.type == "pair" and self._field_name(node) == "value"):
                 return node, text(node), ""
+        return None
+
+    def _java_type_name(self, node: TreeSitterNode, text: _NodeText) -> _TypeName | None:
+        parent = node.parent
+        if parent is None:
+            return None
+        if node.type in _JAVA_ANNOTATION_NODE_TYPES:
+            # An annotation names a type, and in a framework-wired codebase it is the wiring.
+            annotated = node.child_by_field_name("name")
+            return (annotated, text(annotated), "") if annotated is not None else None
+        if node.type in _JAVA_SCOPED_TYPE_NODE_TYPES:
+            if parent.type in _JAVA_SCOPED_TYPE_NODE_TYPES:
+                return None
+            qualifier, _, name = text(node).rpartition(".")
+            return node, name, qualifier
+        if node.type != "type_identifier":
+            return None
+        if parent.type in _JAVA_SCOPED_TYPE_NODE_TYPES or parent.type in _JAVA_CREATION_NODE_TYPES:
+            return None
+        return node, text(node), ""
+
+    def _python_type_name(self, node: TreeSitterNode, text: _NodeText) -> _TypeName | None:
+        parent = node.parent
+        if parent is None:
+            return None
+        in_annotation = parent.type in _PYTHON_TYPE_NODE_TYPES
+        in_bases = parent.type == "argument_list" and self._field_name(parent) == _PYTHON_SUPERCLASS_FIELD
+        if not (in_annotation or in_bases):
+            return None
+        if node.type == "identifier":
+            return node, text(node), ""
+        if node.type == "attribute":
+            return self._script_member_name(node, "attribute", "object", text)
         return None
 
     @staticmethod

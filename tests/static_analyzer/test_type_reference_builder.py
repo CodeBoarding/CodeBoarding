@@ -159,6 +159,107 @@ class TestTypeIndexCSharpUsings:
         assert _resolved_name(index, _site(user, "X", line=3)) == "c.X"
 
 
+class TestTypeIndexJava:
+    """Java resolves a bare name the way C# does, so it shares the resolver and only the reader differs."""
+
+    def _repo(self, tmp_path: Path) -> tuple[Path, list]:
+        core = _write(
+            tmp_path / "com" / "example" / "core" / "Widget.java",
+            "package com.example.core;\npublic class Widget { }\n",
+        )
+        util = _write(
+            tmp_path / "com" / "example" / "util" / "Widget.java",
+            "package com.example.util;\npublic class Widget { }\n",
+        )
+        return tmp_path, [_class("com.example.core.Widget", core), _class("com.example.util.Widget", util)]
+
+    def test_a_single_type_import_decides_the_name(self, tmp_path: Path):
+        root, nodes = self._repo(tmp_path)
+        user = _write(
+            root / "com" / "example" / "util" / "Service.java",
+            "package com.example.util;\nimport com.example.core.Widget;\npublic class Service { Widget w; }\n",
+        )
+        index = TypeIndex(nodes, SourceInspector())
+        # Without the import the file's own package would win.
+        assert _resolved_name(index, _site(user, "Widget", line=3)) == "com.example.core.Widget"
+
+    def test_the_files_own_package_resolves_without_an_import(self, tmp_path: Path):
+        root, nodes = self._repo(tmp_path)
+        user = _write(
+            root / "com" / "example" / "util" / "Service.java",
+            "package com.example.util;\npublic class Service { Widget w; }\n",
+        )
+        index = TypeIndex(nodes, SourceInspector())
+        assert _resolved_name(index, _site(user, "Widget", line=2)) == "com.example.util.Widget"
+
+    def test_a_wildcard_import_makes_a_package_nameable(self, tmp_path: Path):
+        root, nodes = self._repo(tmp_path)
+        user = _write(
+            root / "com" / "app" / "Service.java",
+            "package com.app;\nimport com.example.core.*;\npublic class Service { Widget w; }\n",
+        )
+        index = TypeIndex(nodes, SourceInspector())
+        assert _resolved_name(index, _site(user, "Widget", line=3)) == "com.example.core.Widget"
+
+    def test_a_static_import_does_not_make_the_type_nameable(self, tmp_path: Path):
+        root, nodes = self._repo(tmp_path)
+        user = _write(
+            root / "com" / "example" / "util" / "Service.java",
+            "package com.example.util;\nimport static com.example.core.Widget.check;\n"
+            "public class Service { Widget w; }\n",
+        )
+        index = TypeIndex(nodes, SourceInspector())
+        # The static import brings in members, so the file's own package still decides.
+        assert _resolved_name(index, _site(user, "Widget", line=3)) == "com.example.util.Widget"
+
+
+class TestTypeIndexPython:
+    def test_an_absolute_import_resolves_to_its_module(self, tmp_path: Path):
+        widget = _write(tmp_path / "a" / "b.py", "class Widget: ...\n")
+        other = _write(tmp_path / "z" / "b.py", "class Widget: ...\n")
+        user = _write(tmp_path / "u.py", "from a.b import Widget\n")
+        index = TypeIndex([_class("a.b.Widget", widget), _class("z.b.Widget", other)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Widget")) == "a.b.Widget"
+
+    def test_a_relative_import_resolves_against_the_importing_file(self, tmp_path: Path):
+        near = _write(tmp_path / "pkg" / "mod.py", "class Widget: ...\n")
+        far = _write(tmp_path / "other" / "mod.py", "class Widget: ...\n")
+        user = _write(tmp_path / "pkg" / "u.py", "from .mod import Widget\n")
+        index = TypeIndex([_class("pkg.mod.Widget", near), _class("other.mod.Widget", far)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Widget")) == "pkg.mod.Widget"
+
+    def test_a_package_resolves_through_its_init(self, tmp_path: Path):
+        widget = _write(tmp_path / "a" / "b" / "__init__.py", "class Widget: ...\n")
+        user = _write(tmp_path / "u.py", "from a.b import Widget\n")
+        index = TypeIndex([_class("a.b.Widget", widget)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Widget")) == "a.b.Widget"
+
+    def test_an_alias_resolves_to_the_exported_name(self, tmp_path: Path):
+        widget = _write(tmp_path / "a" / "b.py", "class Widget: ...\n")
+        user = _write(tmp_path / "u.py", "from a.b import Widget as W\n")
+        index = TypeIndex([_class("a.b.Widget", widget)], SourceInspector())
+        assert _resolved_name(index, _site(user, "W")) == "a.b.Widget"
+
+    def test_a_module_import_resolves_through_its_qualifier(self, tmp_path: Path):
+        widget = _write(tmp_path / "pkg" / "sub.py", "class Thing: ...\n")
+        user = _write(tmp_path / "u.py", "import pkg.sub\n")
+        index = TypeIndex([_class("pkg.sub.Thing", widget)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Thing", qualifier="pkg.sub")) == "pkg.sub.Thing"
+
+    def test_a_third_party_import_is_external(self, tmp_path: Path):
+        """A name the repository also declares must not be claimed for an installed package."""
+        widget = _write(tmp_path / "mine" / "b.py", "class Widget: ...\n")
+        user = _write(tmp_path / "u.py", "from django.db import Widget\n")
+        index = TypeIndex([_class("mine.b.Widget", widget)], SourceInspector())
+        assert index.resolve(_site(user, "Widget")) is None
+
+    def test_a_name_with_no_import_falls_back_to_this_file(self, tmp_path: Path):
+        here = _write(tmp_path / "u.py", "class Widget: ...\n")
+        elsewhere = _write(tmp_path / "far" / "b.py", "class Widget: ...\n")
+        index = TypeIndex([_class("u.Widget", here), _class("far.b.Widget", elsewhere)], SourceInspector())
+        assert _resolved_name(index, _site(here, "Widget")) == "u.Widget"
+
+
 class TestTypeIndexScript:
     def test_resolves_through_a_relative_import(self, tmp_path: Path):
         svc = _write(tmp_path / "svc.ts", "export class Svc { }\n")

@@ -786,15 +786,15 @@ class TestFindTypeReferenceSites:
         sites = SourceInspector().find_type_reference_sites(f)
         assert [site.name for site in sites] == ["B"]
 
-    def test_other_languages_have_no_type_sites(self, tmp_path: Path):
-        f = tmp_path / "a.py"
-        f.write_text("class A(B):\n    def m(self, x: C) -> D: ...\n")
+    def test_a_language_without_a_selector_has_no_type_sites(self, tmp_path: Path):
+        f = tmp_path / "a.rs"
+        f.write_text("struct A { b: B }\nimpl C for A { fn m(&self, x: D) -> E { }}\n")
         assert SourceInspector().find_type_reference_sites(f) == []
 
     def test_a_language_without_a_selector_is_never_parsed(self, tmp_path: Path):
         """Why: the pass runs over every source file, and a parse thrown away is the whole cost."""
-        f = tmp_path / "a.py"
-        f.write_text("class A(B): ...\n")
+        f = tmp_path / "a.rs"
+        f.write_text("struct A { b: B }\n")
         inspector = SourceInspector()
         assert inspector.find_type_reference_sites(f) == []
         assert inspector.cache_stats()["parsed_files"] == 0
@@ -821,6 +821,103 @@ class TestCSharpTypeNameNormalization:
     def test_a_plain_qualified_name_is_unchanged(self, tmp_path: Path):
         sites = self._sites(tmp_path, "class K { Lib.Domain.Order F; }\n")
         assert sites["Order"] == ("Order", "Lib.Domain")
+
+
+class TestJavaTypeSites:
+    def _sites(self, tmp_path: Path, body: str) -> set[tuple[str, str]]:
+        f = tmp_path / "S.java"
+        f.write_text(body)
+        return {(s.name, s.qualifier) for s in SourceInspector().find_type_reference_sites(f)}
+
+    def test_every_type_position_java_writes(self, tmp_path: Path):
+        sites = self._sites(
+            tmp_path,
+            "package com.example;\n"
+            "@Component\n"
+            "public class Service extends BaseService implements Runnable {\n"
+            "  private java.util.List<Widget> all;\n"
+            "  public Repo find(Query q) throws NotFound {\n"
+            "    Object o = (Widget) all; if (o instanceof Widget w) { }\n"
+            "    try { } catch (BadThing e) { }\n"
+            "    return null;\n"
+            "  }\n"
+            "}\n",
+        )
+        assert {("BaseService", ""), ("Runnable", ""), ("Component", "")} <= sites
+        assert ("List", "java.util") in sites and ("Widget", "") in sites
+        assert {("Repo", ""), ("Query", ""), ("NotFound", ""), ("BadThing", "")} <= sites
+        # The class names itself with a plain identifier, so a declaration is never a site.
+        assert not any(name == "Service" for name, _ in sites)
+
+    def test_a_created_type_is_left_to_the_constructor_call(self, tmp_path: Path):
+        sites = self._sites(tmp_path, "class S { void m() { Widget w = new Other(); } }\n")
+        assert ("Widget", "") in sites
+        assert ("Other", "") not in sites
+
+
+class TestPythonTypeSites:
+    def _sites(self, tmp_path: Path, body: str) -> set[tuple[str, str]]:
+        f = tmp_path / "a.py"
+        f.write_text(body)
+        return {(s.name, s.qualifier) for s in SourceInspector().find_type_reference_sites(f)}
+
+    def test_annotations_bases_and_nested_generics(self, tmp_path: Path):
+        sites = self._sites(
+            tmp_path,
+            "class Service(BaseService, Runnable):\n"
+            "    widget: Widget\n"
+            "    items: list[Nested]\n"
+            "    def find(self, q: Query, o: Optional[Deep]) -> Result: ...\n"
+            "    def use(self, x: mod.Thing): ...\n",
+        )
+        assert {("BaseService", ""), ("Runnable", ""), ("Widget", "")} <= sites
+        assert {("list", ""), ("Nested", ""), ("Optional", ""), ("Deep", "")} <= sites
+        assert {("Query", ""), ("Result", ""), ("Thing", "mod")} <= sites
+        assert not any(name == "Service" for name, _ in sites)
+
+    def test_a_call_is_not_a_type_position(self, tmp_path: Path):
+        assert self._sites(tmp_path, "def m():\n    return Widget()\n") == set()
+
+
+class TestJavaNamespaceContext:
+    def test_package_imports_wildcards_and_static(self, tmp_path: Path):
+        f = tmp_path / "S.java"
+        f.write_text(
+            "package com.example.app;\n"
+            "import com.example.core.Widget;\n"
+            "import com.example.util.*;\n"
+            "import static com.example.util.Helpers.check;\n"
+            "class S { }\n"
+        )
+        context = SourceInspector().find_namespace_context(f)
+        assert context.namespaces[0][0] == "com.example.app"
+        # A single-type import decides a name, exactly as a C# alias does; a wildcard offers a
+        # package; a static import offers members and not the type itself.
+        assert [(d.target, d.alias, d.static) for d in context.usings] == [
+            ("com.example.core.Widget", "Widget", False),
+            ("com.example.util", "", False),
+            ("com.example.util.Helpers.check", "", True),
+        ]
+
+
+class TestPythonImportBindings:
+    def test_absolute_relative_and_aliased_imports(self, tmp_path: Path):
+        f = tmp_path / "a.py"
+        f.write_text(
+            "from a.b import Widget, Other as Alias\n"
+            "from .mod import Nearby\n"
+            "from . import sibling\n"
+            "import pkg.sub\n"
+            "import pkg.sub as ps\n"
+        )
+        bindings = SourceInspector().find_import_bindings(f)
+        assert bindings["Widget"] == ImportBinding("a.b", "Widget")
+        assert bindings["Alias"] == ImportBinding("a.b", "Other")
+        assert bindings["Nearby"] == ImportBinding(".mod", "Nearby")
+        assert bindings["sibling"] == ImportBinding(".", "sibling")
+        # ``import a.b`` binds the dotted name, because that is what a type site writes.
+        assert bindings["pkg.sub"] == ImportBinding("pkg.sub", "*")
+        assert bindings["ps"] == ImportBinding("pkg.sub", "*")
 
 
 class TestFindNamespaceContext:

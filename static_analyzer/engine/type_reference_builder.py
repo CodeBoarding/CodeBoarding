@@ -16,7 +16,13 @@ from pathlib import Path
 
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.engine.models import ImportBinding, NamespaceContext, TypeReferenceSite, UsingDirective
-from static_analyzer.engine.source_inspector import SourceInspector, simple_type_name, split_type_name
+from static_analyzer.engine.source_inspector import (
+    _PYTHON_SUFFIXES,
+    _SCRIPT_SUFFIXES,
+    SourceInspector,
+    simple_type_name,
+    split_type_name,
+)
 from static_analyzer.internal_references import is_self_or_container_edge
 from static_analyzer.node import Node
 
@@ -76,12 +82,19 @@ class TypeIndex:
         return best
 
     def resolve(self, site: TypeReferenceSite) -> Node | None:
-        """The declaration ``site`` names, or ``None`` when unknown or not decidable."""
-        if site.file.lower().endswith(_SCRIPT_MODULE_SUFFIXES):
-            return self._resolve_script(site)
-        return self._resolve_csharp(site)
+        """The declaration ``site`` names, or ``None`` when unknown or not decidable.
 
-    def _resolve_csharp(self, site: TypeReferenceSite) -> Node | None:
+        Two families: a language that resolves a bare name against a declared scope and its
+        imports (C#, Java), and one that binds each name to a module (TypeScript, Python).
+        """
+        suffix = os.path.splitext(site.file)[1].lower()
+        if suffix in _SCRIPT_SUFFIXES:
+            return self._resolve_script(site)
+        if suffix in _PYTHON_SUFFIXES:
+            return self._resolve_python(site)
+        return self._resolve_by_namespace(site)
+
+    def _resolve_by_namespace(self, site: TypeReferenceSite) -> Node | None:
         written = f"{site.qualifier}.{site.name}" if site.qualifier else site.name
         alias_target = _expand_alias(written, self._usings_at(site.file, site.line))
         if alias_target:
@@ -98,15 +111,31 @@ class TypeIndex:
             return narrowed[0]
         return _closest(narrowed or candidates, site.file)
 
+    def _resolve_python(self, site: TypeReferenceSite) -> Node | None:
+        bindings = self._imports_of(site.file)
+        binding = bindings.get(site.qualifier or site.name)
+        if binding is None:
+            return self._only_local_candidate(site)
+        wanted = site.name if binding.imported_name == _NAMESPACE_IMPORT else binding.imported_name
+        module, anchored = _python_module(binding.source, site.file)
+        candidates = [
+            node for node in self._by_name.get(wanted, []) if _in_python_module(node.file_path, module, anchored)
+        ]
+        return candidates[0] if len(candidates) == 1 else None
+
+    def _only_local_candidate(self, site: TypeReferenceSite) -> Node | None:
+        """The name with no import behind it: this file's own, or the repository's only one."""
+        candidates = self._by_name.get(site.name, [])
+        same_file = [node for node in candidates if node.file_path == site.file]
+        if len(same_file) == 1:
+            return same_file[0]
+        return candidates[0] if len(candidates) == 1 else None
+
     def _resolve_script(self, site: TypeReferenceSite) -> Node | None:
         bindings = self._imports_of(site.file)
         binding = bindings.get(site.qualifier or site.name)
         if binding is None:
-            candidates = self._by_name.get(site.name, [])
-            same_file = [node for node in candidates if node.file_path == site.file]
-            if len(same_file) == 1:
-                return same_file[0]
-            return candidates[0] if len(candidates) == 1 else None
+            return self._only_local_candidate(site)
         if not binding.source.startswith("."):
             return None
         wanted = site.name if binding.imported_name in (_NAMESPACE_IMPORT, "default") else binding.imported_name
@@ -212,6 +241,31 @@ def _expand_alias(written: str, directives: Iterable[UsingDirective]) -> str:
         if directive.alias == head:
             return ".".join(part for part in (directive.target, rest) if part)
     return ""
+
+
+def _python_module(source: str, site_file: str) -> tuple[str, bool]:
+    """A Python import's module as a path, and whether it is anchored at a known directory.
+
+    A relative import resolves against the importing file and so is anchored; an absolute one
+    names a package whose root this layer does not know, and is matched as a path suffix.
+    """
+    if not source.startswith("."):
+        return source.replace(".", os.sep), False
+    depth = len(source) - len(source.lstrip("."))
+    base = os.path.dirname(site_file)
+    for _ in range(depth - 1):
+        base = os.path.dirname(base)
+    rest = source[depth:].replace(".", os.sep)
+    return (os.path.join(base, rest) if rest else base), True
+
+
+def _in_python_module(file_path: str, module: str, anchored: bool) -> bool:
+    """Whether ``file_path`` is the module, as a file or as a package's ``__init__``."""
+    stem = file_path[: -len(".py")] if file_path.endswith(".py") else file_path
+    package = os.sep + "__init__"
+    if stem.endswith(package):
+        stem = stem[: -len(package)]
+    return stem == module if anchored else stem == module or stem.endswith(os.sep + module)
 
 
 def _module_stem(path: str) -> str:
