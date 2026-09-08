@@ -895,12 +895,25 @@ class TestGoTypeSites:
         )
         assert {("Widget", "core"), ("Thing", "core"), ("Query", "core")} <= sites
         assert {("Helper", ""), ("Result", "")} <= sites
-        # The type being declared is the ``name`` of its own spec, never a reference to itself.
-        assert ("Service", "") in sites  # the method receiver does name it
+        # Neither the type being declared nor the receiver of its own method is a reference to it.
+        assert ("Service", "") not in sites
         assert not any(name == "app" for name, _ in sites)
 
     def test_a_declaration_is_not_a_site(self, tmp_path: Path):
         assert self._sites(tmp_path, "package app\ntype Widget struct { }\n") == set()
+
+    def test_a_method_does_not_depend_on_its_own_receiver(self, tmp_path: Path):
+        """The receiver names the type the method is on: containment, which CONTAINS already carries."""
+        sites = self._sites(
+            tmp_path,
+            "package app\n"
+            "func (e *Entity) Set(t string) { }\n"
+            'func (c Cat) Name() string { return "" }\n'
+            "func Free(x *Widget) *Result { return nil }\n",
+        )
+        assert ("Entity", "") not in sites and ("Cat", "") not in sites
+        # A genuine parameter and return type are still references.
+        assert {("Widget", ""), ("Result", "")} <= sites
 
 
 class TestGoImportBindings:

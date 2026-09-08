@@ -235,6 +235,7 @@ _PHP_SUFFIXES = frozenset(LANGUAGE_EXTENSIONS[Language.PHP])
 _GO_QUALIFIED_TYPE_NODE_TYPES = frozenset({"qualified_type"})
 _GO_TYPE_DECLARATION_NODE_TYPES = frozenset({"type_spec", "type_alias"})
 _GO_IMPORT_NODE_TYPES = frozenset({"import_declaration"})
+_GO_PARAMETER_LIST_NODE_TYPE = "parameter_list"
 # PHP: a type is written in a parameter, a property, a return, or a heritage clause.
 _PHP_TYPE_PARENT_NODE_TYPES = frozenset({"named_type", "base_clause", "class_interface_clause"})
 _PHP_QUALIFIED_NAME_NODE_TYPES = frozenset({"qualified_name"})
@@ -1293,7 +1294,22 @@ class SourceInspector:
             return None
         if parent.type in _GO_TYPE_DECLARATION_NODE_TYPES and self._field_name(node) == "name":
             return None
+        if self._inside_go_receiver(node):
+            return None
         return node, text(node), ""
+
+    def _inside_go_receiver(self, node: TreeSitterNode) -> bool:
+        """Whether the type sits in a method's receiver, which names the type the method is on.
+
+        Why: that is containment, already carried by a CONTAINS edge, and counting it as a type
+        reference makes every method depend on its own type — a third of fzf's references.
+        """
+        current: TreeSitterNode | None = node
+        while current is not None:
+            if current.type == _GO_PARAMETER_LIST_NODE_TYPE and self._field_name(current) == "receiver":
+                return True
+            current = current.parent
+        return False
 
     def _php_type_name(self, node: TreeSitterNode, text: _NodeText) -> _TypeName | None:
         parent = node.parent
