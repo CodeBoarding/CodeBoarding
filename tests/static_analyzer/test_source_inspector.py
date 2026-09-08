@@ -791,6 +791,14 @@ class TestFindTypeReferenceSites:
         f.write_text("class A(B):\n    def m(self, x: C) -> D: ...\n")
         assert SourceInspector().find_type_reference_sites(f) == []
 
+    def test_a_language_without_a_selector_is_never_parsed(self, tmp_path: Path):
+        """Why: the pass runs over every source file, and a parse thrown away is the whole cost."""
+        f = tmp_path / "a.py"
+        f.write_text("class A(B): ...\n")
+        inspector = SourceInspector()
+        assert inspector.find_type_reference_sites(f) == []
+        assert inspector.cache_stats()["parsed_files"] == 0
+
 
 class TestCSharpTypeNameNormalization:
     """The written name is reduced to what the index is keyed by, and the prefix to a namespace."""

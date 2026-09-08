@@ -689,15 +689,18 @@ class SourceInspector:
         Why: a parameter type, a base class, a generic argument or a ``typeof`` operand never
         reaches the call graph, and in module-oriented code that is where the wiring is written.
         """
-        parsed = self._parse(file_path)
-        if parsed is None:
-            return []
+        # The language is decided before the file is read: only C# and the script family have a
+        # selector, and parsing first made every Python, Java, Go, PHP and Rust file pay a full
+        # tree-sitter parse to be thrown away (1.9s over django's 2,894 files).
         suffix = file_path.suffix.lower()
         if suffix in _PREPROCESSOR_SUFFIXES:
             select = self._csharp_type_name
         elif suffix in _SCRIPT_SUFFIXES:
             select = self._script_type_name
         else:
+            return []
+        parsed = self._parse(file_path)
+        if parsed is None:
             return []
 
         def text(node: TreeSitterNode) -> str:
