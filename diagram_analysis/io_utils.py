@@ -31,6 +31,7 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from diagram_analysis.run_context import DEFAULT_DEPTH_CAP
+from run_diagnostics import RunDiagnosticsReport
 from utils import ANALYSIS_FILENAME, FINGERPRINT_FILENAME
 
 logger = logging.getLogger(__name__)
@@ -102,13 +103,15 @@ class _AnalysisFileStore:
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
         tree_spec: dict | None = None,
+        run_diagnostics: RunDiagnosticsReport | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
         If *sub_analyses* is not provided, existing sub-analyses on disk are
         preserved. ``depth_cap`` is the run's configured depth ceiling; when
         omitted, the existing on-disk value is preserved (see
-        ``_write_with_lock_held``).
+        ``_write_with_lock_held``). ``run_diagnostics`` describes *this* run and
+        is never inherited from disk: an omitted report means "nothing to report".
         """
         with self._lock:
             return self._write_with_lock_held(
@@ -122,6 +125,7 @@ class _AnalysisFileStore:
                 sub_expandable_ids,
                 depth_cap,
                 tree_spec,
+                run_diagnostics,
             )
 
     def _write_with_lock_held(
@@ -136,6 +140,7 @@ class _AnalysisFileStore:
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
         tree_spec: dict | None = None,
+        run_diagnostics: RunDiagnosticsReport | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # A caller-provided set is authoritative: it already reflects the run's expansion
@@ -229,6 +234,7 @@ class _AnalysisFileStore:
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
             tree_spec=tree_spec or {},
+            run_diagnostics=run_diagnostics,
         )
         write_text_atomic(self._analysis_path, payload)
         return self._analysis_path
@@ -352,6 +358,7 @@ def save_analysis(
     sub_expandable_ids: dict[str, list[str]] | None = None,
     depth_cap: int | None = None,
     tree_spec: dict | None = None,
+    run_diagnostics: RunDiagnosticsReport | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 
@@ -359,6 +366,8 @@ def save_analysis(
     whole-tree version key (reproducible by consumers that fingerprint the tree).
     ``depth_cap`` is the run's configured depth ceiling; omit to preserve the
     existing on-disk value (e.g. for an intermediate save mid-run).
+    ``run_diagnostics`` is what this run had to leave out; an intermediate save
+    omits it, and the run's own authoritative save supplies the finished report.
     """
     return _get_store(output_dir).write(
         analysis,
@@ -371,4 +380,5 @@ def save_analysis(
         sub_expandable_ids,
         depth_cap,
         tree_spec,
+        run_diagnostics,
     )

@@ -12,6 +12,43 @@ from utils import get_config
 
 logger = logging.getLogger(__name__)
 
+# Tokei counts data formats and markup as "languages" too, so a repository that is
+# mostly JSON would otherwise be reported as unanalyzed code. Only names on this
+# list are program code a reader would expect to see in an architecture diagram;
+# an unrecognised name is left alone rather than guessed at.
+UNSUPPORTED_CODE_LANGUAGES = frozenset(
+    {
+        "C",
+        "C Header",
+        "C++",
+        "C++ Header",
+        "Clojure",
+        "Dart",
+        "Elixir",
+        "Elm",
+        "Erlang",
+        "F#",
+        "Fortran",
+        "Groovy",
+        "Haskell",
+        "Julia",
+        "Kotlin",
+        "Lua",
+        "Nim",
+        "OCaml",
+        "Objective-C",
+        "Objective-C++",
+        "Perl",
+        "R",
+        "Ruby",
+        "Scala",
+        "Solidity",
+        "Swift",
+        "Visual Basic",
+        "Zig",
+    }
+)
+
 
 def _format_command(command: object) -> str:
     if isinstance(command, str):
@@ -65,6 +102,9 @@ class ProjectScanner:
     def __init__(self, repo_location: Path):
         self.repo_location = repo_location
         self.all_text_files: list[str] = []
+        # Program code no language server serves, so ``scan`` drops it. Kept so
+        # the run can report the hole rather than silently omitting it.
+        self.unsupported_code_languages: list[ProgrammingLanguage] = []
 
     def scan(self) -> list[ProgrammingLanguage]:
         """
@@ -124,6 +164,7 @@ class ProjectScanner:
             return []
 
         programming_languages: list[ProgrammingLanguage] = []
+        unsupported_code: list[ProgrammingLanguage] = []
         all_files: list[str] = []
         for technology, stats in tokei_data.items():
             if technology == "Total":
@@ -155,8 +196,11 @@ class ProjectScanner:
             logger.debug(f"Found: {pl}")
             if pl.is_supported_lang():
                 programming_languages.append(pl)
+            elif technology in UNSUPPORTED_CODE_LANGUAGES:
+                unsupported_code.append(pl)
 
         self.all_text_files = all_files
+        self.unsupported_code_languages = unsupported_code
         track_tech_stack(self.repo_location, total_code, programming_languages)
         return programming_languages
 

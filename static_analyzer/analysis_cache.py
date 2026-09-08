@@ -31,6 +31,7 @@ from filelock import FileLock
 
 from constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
 from repo_utils.path_utils import to_absolute_path, to_relative_path
+from run_diagnostics import RunDiagnostics
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge, StaticAnalysisResults
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -93,8 +94,10 @@ class StaticAnalysisCache:
     def _relativize(self, result: StaticAnalysisResults) -> StaticAnalysisResults:
         """Return a copy of result with all file paths made repo-relative."""
         portable = copy.copy(result)
-        # Drop runtime-only warm-start context before deep-copying/pickling the cache artifact.
+        # Drop runtime-only context before deep-copying/pickling the cache artifact. A warm
+        # start must not resurrect the previous run's diagnostics as if they were this run's.
         portable.incremental_base_results = None
+        portable.run_diagnostics = RunDiagnostics()
         portable = copy.deepcopy(portable)
         for lang_data in portable.results.values():
             lang_data.visit_paths(self._to_relative)

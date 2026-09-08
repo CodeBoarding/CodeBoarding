@@ -8,6 +8,14 @@ from pathlib import Path
 
 from repo_utils.git_ops import get_changed_files_since
 from repo_utils.ignore import RepoIgnoreManager
+from run_diagnostics import RunDiagnostics
+from run_diagnostics.catalog import (
+    UNANALYZED_LANGUAGE_MIN_SHARE,
+    language_engine_failed,
+    language_not_supported,
+    language_server_unavailable,
+    no_source_files,
+)
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
@@ -241,7 +249,14 @@ class StaticAnalyzer:
     def __init__(self, repository_path: Path, changed_files: set[Path] | None = None):
         self.repository_path = repository_path.resolve()
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
-        self.programming_langs = ProjectScanner(self.repository_path).scan()
+        # What this run had to leave out. Rides on the results so every surface
+        # downstream can say the diagram is short of what a clean run produces.
+        self.run_diagnostics = RunDiagnostics()
+        scanner = ProjectScanner(self.repository_path)
+        self.programming_langs = scanner.scan()
+        for language in scanner.unsupported_code_languages:
+            if language.percentage >= UNANALYZED_LANGUAGE_MIN_SHARE:
+                self.run_diagnostics.record(language_not_supported(language.language, language.percentage))
         self._engine_configs = _create_engine_configs(self.programming_langs, self.repository_path, self.ignore_manager)
         self._engine_clients: list[tuple[EngineConfig, LSPClient]] = []
         # (language, project) -> the failure preparation raised, or None.
@@ -284,6 +299,7 @@ class StaticAnalyzer:
         started: list[tuple[EngineConfig, LSPClient]] = []
         attempted: list[str] = []
         failed_languages: list[str] = []
+        failed_reasons: list[str] = []
         failed_details: list[str] = []
 
         for engine_config in self._engine_configs:
@@ -312,7 +328,10 @@ class StaticAnalyzer:
                     f"skipping this language and continuing"
                 )
                 failed_languages.append(adapter.language)
+                failed_reasons.append(str(exc))
                 failed_details.append(f"{adapter.language}: {exc}")
+
+        self._record_languages_without_sources()
 
         if not attempted:
             logger.info(f"No source files for any detected language in {self.repository_path}; no LSP clients started.")
@@ -352,9 +371,22 @@ class StaticAnalyzer:
                 f"Started: {', '.join(s.adapter.language for s, _ in started)}."
                 f"{details}"
             )
+            for language, reason in zip(failed_languages, failed_reasons):
+                self.run_diagnostics.record(language_server_unavailable(language, reason))
 
         self._engine_clients = started
         self._clients_started = True
+
+    def _record_languages_without_sources(self) -> None:
+        """Report a detected language whose every project resolved to zero files.
+
+        Per language, not per project: one empty sub-project in a monorepo is
+        ordinary, while a language with nothing to index anywhere is a hole the
+        reader can usually close by fixing an ignore rule.
+        """
+        with_sources = {config.adapter.language for config in self._engine_configs if config.source_files}
+        for language in sorted({config.adapter.language for config in self._engine_configs} - with_sources):
+            self.run_diagnostics.record(no_source_files(language))
 
     def _prepare_project_once(self, engine_config: EngineConfig) -> None:
         """Let the adapter prepare a project exactly once (e.g. ``dotnet restore``).
@@ -684,6 +716,7 @@ class StaticAnalyzer:
 
         self._validate_analysis_results(results)
         results.diagnostics = self.collected_diagnostics
+        results.run_diagnostics = self.run_diagnostics
         self._cached_results = results
         return results
 
@@ -740,6 +773,7 @@ class StaticAnalyzer:
                 raise
             except Exception as e:
                 logger.error(f"Error during engine analysis for {adapter.language}: {e}")
+                self.run_diagnostics.record(language_engine_failed(adapter.language, str(e)))
                 with absorb_lock:
                     track_lsp_result(
                         language=adapter.language_enum.value,
