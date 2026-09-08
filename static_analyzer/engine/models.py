@@ -78,10 +78,25 @@ class TypeReferenceSite:
 
 
 @dataclass(frozen=True)
+class UsingDirective:
+    """One C# ``using`` and the lines it governs."""
+
+    target: str
+    # The enclosing scope's range: C# requires usings to precede declarations, so every site
+    # that can see this directive is inside it.
+    first_line: int
+    last_line: int
+    # The name an alias binds (``Item`` in ``using Item = A.B.Item``), else empty.
+    alias: str = ""
+    # ``using static N.T``: T's members become nameable unqualified, T's own name does not.
+    static: bool = False
+
+
+@dataclass(frozen=True)
 class NamespaceContext:
     """What a C# file can name unqualified: its usings and the namespaces it declares."""
 
-    usings: tuple[str, ...]
+    usings: tuple[UsingDirective, ...]
     # (dotted namespace, first line, last line), one-based inclusive; nested names are joined.
     namespaces: tuple[tuple[str, int, int], ...]
 

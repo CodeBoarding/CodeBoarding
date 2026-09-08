@@ -5,13 +5,12 @@ from pathlib import Path
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.config import NodeType
 from static_analyzer.engine.models import TypeReferenceSite
-from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.engine.source_inspector import SourceInspector, simple_type_name
 from static_analyzer.engine.type_reference_builder import (
     TypeIndex,
     TypeReferenceStats,
     build_type_references,
     complete_type_references,
-    simple_type_name,
 )
 from static_analyzer.node import Node
 
@@ -42,6 +41,13 @@ def _resolved_name(index: TypeIndex, site: TypeReferenceSite) -> str | None:
 def test_simple_type_name_strips_path_and_arity():
     assert simple_type_name("a.b.Foo<T>") == "Foo"
     assert simple_type_name("Foo") == "Foo"
+    # A dotted type argument must not win the last-dot split...
+    assert simple_type_name("a.b.Box<x.y.T>") == "Box"
+    # ...and a generic segment that is not the last one must not swallow the name after it.
+    assert simple_type_name("A.B.Repo<T>.Entry") == "Entry"
+    assert simple_type_name("A.Outer<x.y.T>.Inner") == "Inner"
+    # A symbol whose name carries prose with an unbalanced bracket still yields its last segment.
+    assert simple_type_name("suite('release <= version') callback.downloadUrls") == "downloadUrls"
 
 
 class TestTypeIndexCSharp:
@@ -102,6 +108,57 @@ class TestTypeIndexCSharp:
         assert not index.has_candidates("Guid")
 
 
+class TestTypeIndexCSharpUsings:
+    """A ``using`` decides a name; the reader records what was written and the resolver applies it."""
+
+    def test_an_alias_decides_the_name_over_directory_proximity(self, tmp_path: Path):
+        vendor = _write(tmp_path / "vendor" / "Widget.cs", "namespace Vendor;\npublic class Widget { }\n")
+        core = _write(tmp_path / "core" / "Widget.cs", "namespace Core;\npublic class Widget { }\n")
+        user = _write(
+            tmp_path / "core" / "ui" / "User.cs",
+            "using Widget = Vendor.Widget;\nnamespace Core.Ui;\npublic class User { }\n",
+        )
+        index = TypeIndex([_class("vendor.Widget", vendor), _class("core.Widget", core)], SourceInspector())
+        # Without the alias the nearer `core/Widget.cs` wins on shared directory prefix.
+        assert _resolved_name(index, _site(user, "Widget", line=3)) == "vendor.Widget"
+
+    def test_an_alias_expands_the_leftmost_segment_of_a_qualified_name(self, tmp_path: Path):
+        leaf = _write(tmp_path / "a" / "Leaf.cs", "namespace A.Inner;\npublic class Leaf { }\n")
+        user = _write(tmp_path / "u" / "User.cs", "using Io = A.Inner;\nnamespace U;\npublic class User { }\n")
+        index = TypeIndex([_class("a.Leaf", leaf)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Leaf", line=3, qualifier="Io")) == "a.Leaf"
+
+    def test_an_alias_naming_something_outside_the_graph_resolves_to_nothing(self, tmp_path: Path):
+        """It must not fall through and guess: C# says the alias decided the name."""
+        core = _write(tmp_path / "core" / "Widget.cs", "namespace Core;\npublic class Widget { }\n")
+        user = _write(
+            tmp_path / "core" / "ui" / "User.cs",
+            "using Widget = Nuget.Package.Widget;\nnamespace Core.Ui;\npublic class User { }\n",
+        )
+        index = TypeIndex([_class("core.Widget", core)], SourceInspector())
+        assert index.resolve(_site(user, "Widget", line=3)) is None
+
+    def test_a_using_inside_a_namespace_block_does_not_reach_its_sibling(self, tmp_path: Path):
+        a = _write(tmp_path / "a" / "Widget.cs", "namespace A;\npublic class Widget { }\n")
+        b = _write(tmp_path / "b" / "Widget.cs", "namespace B;\npublic class Widget { }\n")
+        user = _write(
+            tmp_path / "u" / "User.cs",
+            "namespace N1\n{\n    using A;\n    class C1 { }\n}\n"
+            "namespace N2\n{\n    using B;\n    class C2 { }\n}\n",
+        )
+        index = TypeIndex([_class("a.Widget", a), _class("b.Widget", b)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Widget", line=4)) == "a.Widget"
+        assert _resolved_name(index, _site(user, "Widget", line=9)) == "b.Widget"
+
+    def test_a_static_using_does_not_make_its_namespace_nameable(self, tmp_path: Path):
+        """``using static A.B`` brings in B's members, not the types alongside B."""
+        held = _write(tmp_path / "a" / "X.cs", "namespace A.B;\npublic class X { }\n")
+        own = _write(tmp_path / "c" / "X.cs", "namespace C;\npublic class X { }\n")
+        user = _write(tmp_path / "u" / "User.cs", "using static A.B;\nnamespace C;\npublic class User { }\n")
+        index = TypeIndex([_class("a.X", held), _class("c.X", own)], SourceInspector())
+        assert _resolved_name(index, _site(user, "X", line=3)) == "c.X"
+
+
 class TestTypeIndexScript:
     def test_resolves_through_a_relative_import(self, tmp_path: Path):
         svc = _write(tmp_path / "svc.ts", "export class Svc { }\n")
@@ -131,6 +188,38 @@ class TestTypeIndexScript:
         user = _write(tmp_path / "user.ts", "class Local { }\n")
         index = TypeIndex([_class("user.Local", user)], SourceInspector())
         assert _resolved_name(index, _site(user, "Local")) == "user.Local"
+
+    def test_an_explicit_js_extension_resolves_to_the_typescript_module(self, tmp_path: Path):
+        """What NodeNext forces you to write: the specifier says .js, the module is .ts."""
+        svc = _write(tmp_path / "src" / "svc.ts", "export class Svc { }\n")
+        user = _write(tmp_path / "src" / "u.ts", "import { Svc } from './svc.js';\n")
+        index = TypeIndex([_class("src.svc.Svc", svc)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Svc")) == "src.svc.Svc"
+
+    def test_an_explicit_extension_resolves_when_the_module_really_is_javascript(self, tmp_path: Path):
+        svc = _write(tmp_path / "src" / "svc.js", "export class Svc { }\n")
+        user = _write(tmp_path / "src" / "u.js", "import { Svc } from './svc.js';\n")
+        index = TypeIndex([_class("src.svc.Svc", svc)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Svc")) == "src.svc.Svc"
+
+    def test_a_directory_import_through_index_resolves(self, tmp_path: Path):
+        svc = _write(tmp_path / "src" / "lib" / "svc.ts", "export class Svc { }\n")
+        user = _write(tmp_path / "src" / "u.ts", "import { Svc } from './lib/index.js';\n")
+        index = TypeIndex([_class("src.lib.svc.Svc", svc)], SourceInspector())
+        assert _resolved_name(index, _site(user, "Svc")) == "src.lib.svc.Svc"
+
+    def test_an_aliased_import_with_an_extension_resolves_to_the_exported_name(self, tmp_path: Path):
+        svc = _write(tmp_path / "src" / "svc.ts", "export class Svc { }\n")
+        user = _write(tmp_path / "src" / "u.ts", "import { Svc as S } from './svc.js';\n")
+        index = TypeIndex([_class("src.svc.Svc", svc)], SourceInspector())
+        assert _resolved_name(index, _site(user, "S")) == "src.svc.Svc"
+
+    def test_a_sibling_module_of_the_same_name_is_not_matched(self, tmp_path: Path):
+        """The precision fence: dropping the extension must not degrade into basename matching."""
+        elsewhere = _write(tmp_path / "a" / "svc.ts", "export class Svc { }\n")
+        user = _write(tmp_path / "src" / "u.ts", "import { Svc } from './svc.js';\n")
+        index = TypeIndex([_class("a.svc.Svc", elsewhere)], SourceInspector())
+        assert index.resolve(_site(user, "Svc")) is None
 
     def test_an_unimported_name_resolves_only_when_unique(self, tmp_path: Path):
         first = _write(tmp_path / "a" / "svc.ts", "export class Svc { }\n")
@@ -197,6 +286,23 @@ class TestBuildTypeReferences:
         stats = TypeReferenceStats()
         assert build_type_references(inspector, TypeIndex(nodes, inspector), [path], stats) == []
         assert stats.resolved == 2
+
+    def test_script_type_references_survive_an_explicit_extension(self, tmp_path: Path):
+        svc = _write(tmp_path / "src" / "svc.ts", "export class Svc { }\n")
+        user = _write(
+            tmp_path / "src" / "u.ts",
+            "import { Svc } from './svc.js';\nexport class U { run(s: Svc) { } }\n",
+        )
+        nodes = [
+            _class("src.svc.Svc", svc, 1, 1),
+            _class("src.u.U", user, 2, 2),
+            _method("src.u.U.run(s)", user, 2, 2),
+        ]
+        inspector = SourceInspector()
+        stats = TypeReferenceStats()
+        pairs = build_type_references(inspector, TypeIndex(nodes, inspector), [svc, user], stats)
+        assert ("src.u.U.run(s)", "src.svc.Svc") in pairs
+        assert (stats.resolved, stats.ambiguous) == (1, 0)
 
     def test_complete_type_references_replaces_stale_edges_and_keeps_other_kinds(self, tmp_path: Path):
         module, core, nodes = self._fixture(tmp_path)

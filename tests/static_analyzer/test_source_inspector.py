@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from static_analyzer.engine.models import CallSite, ImportBinding
+from static_analyzer.engine.models import CallSite, ImportBinding, UsingDirective
 from static_analyzer.engine.source_inspector import SourceInspector
 
 
@@ -792,6 +792,29 @@ class TestFindTypeReferenceSites:
         assert SourceInspector().find_type_reference_sites(f) == []
 
 
+class TestCSharpTypeNameNormalization:
+    """The written name is reduced to what the index is keyed by, and the prefix to a namespace."""
+
+    def _sites(self, tmp_path: Path, body: str) -> dict[str, tuple[str, str]]:
+        f = tmp_path / "a.cs"
+        f.write_text(body)
+        return {s.name: (s.name, s.qualifier) for s in SourceInspector().find_type_reference_sites(f)}
+
+    def test_a_generic_written_with_a_namespace_keeps_only_the_outer_name(self, tmp_path: Path):
+        sites = self._sites(tmp_path, "class K { Lib.Domain.Box<Lib.Domain.Order> F; }\n")
+        # Not "Box<Lib.Domain.Order>", and not the "Order>" a last-dot split would give.
+        assert sites["Box"] == ("Box", "Lib.Domain")
+        assert sites["Order"] == ("Order", "Lib.Domain")
+
+    def test_an_extern_alias_root_is_stripped_from_the_qualifier(self, tmp_path: Path):
+        sites = self._sites(tmp_path, "class K { global::Lib.Domain.Order F; }\n")
+        assert sites["Order"] == ("Order", "Lib.Domain")
+
+    def test_a_plain_qualified_name_is_unchanged(self, tmp_path: Path):
+        sites = self._sites(tmp_path, "class K { Lib.Domain.Order F; }\n")
+        assert sites["Order"] == ("Order", "Lib.Domain")
+
+
 class TestFindNamespaceContext:
     def test_block_and_nested_namespaces_with_ranges(self, tmp_path: Path):
         f = tmp_path / "a.cs"
@@ -805,7 +828,9 @@ class TestFindNamespaceContext:
             "}\n"
         )
         context = SourceInspector().find_namespace_context(f)
-        assert context.usings == ("System", "Volo.Abp", "Inner.Use")
+        # A file-level directive governs the whole file; the block-level one governs its block.
+        assert [(d.target, d.first_line) for d in context.usings] == [("System", 1), ("Volo.Abp", 1), ("Inner.Use", 3)]
+        assert [d.last_line for d in context.usings] == [8, 8, 7]
         assert context.namespaces == (("A.B", 3, 7), ("A.B.C", 6, 6))
 
     def test_a_file_scoped_namespace_spans_the_rest_of_the_file(self, tmp_path: Path):
@@ -815,10 +840,26 @@ class TestFindNamespaceContext:
         assert (name, start) == ("Volo.CmsKit", 1)
         assert end >= 3
 
-    def test_an_alias_using_keeps_its_target(self, tmp_path: Path):
+    def test_an_alias_using_keeps_both_its_name_and_its_target(self, tmp_path: Path):
         f = tmp_path / "a.cs"
         f.write_text("using Alias = Volo.Abp.Foo;\n")
-        assert SourceInspector().find_namespace_context(f).usings == ("Volo.Abp.Foo",)
+        (directive,) = SourceInspector().find_namespace_context(f).usings
+        assert (directive.target, directive.alias, directive.static) == ("Volo.Abp.Foo", "Alias", False)
+
+    def test_a_static_using_is_marked_as_one(self, tmp_path: Path):
+        f = tmp_path / "a.cs"
+        f.write_text("using static Volo.Abp.Check;\n")
+        (directive,) = SourceInspector().find_namespace_context(f).usings
+        assert (directive.target, directive.alias, directive.static) == ("Volo.Abp.Check", "", True)
+
+    def test_an_extern_alias_root_is_not_part_of_the_target(self, tmp_path: Path):
+        """``global::`` names an assembly; keeping it made the directive match no namespace."""
+        f = tmp_path / "a.cs"
+        f.write_text("using global::System.Collections;\nusing global::System;\n")
+        assert [d.target for d in SourceInspector().find_namespace_context(f).usings] == [
+            "System.Collections",
+            "System",
+        ]
 
     def test_other_languages_are_empty(self, tmp_path: Path):
         f = tmp_path / "a.ts"

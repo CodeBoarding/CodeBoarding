@@ -15,8 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
-from static_analyzer.engine.models import ImportBinding, TypeReferenceSite
-from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.engine.models import ImportBinding, NamespaceContext, TypeReferenceSite, UsingDirective
+from static_analyzer.engine.source_inspector import SourceInspector, simple_type_name, split_type_name
 from static_analyzer.internal_references import is_self_or_container_edge
 from static_analyzer.node import Node
 
@@ -49,7 +49,7 @@ class TypeIndex:
         self._inspector = inspector
         self._by_name: dict[str, list[Node]] = defaultdict(list)
         self._containers_by_file: dict[str, list[Node]] = defaultdict(list)
-        self._namespace_cache: dict[str, tuple[tuple[str, ...], tuple[tuple[str, int, int], ...]]] = {}
+        self._namespace_cache: dict[str, NamespaceContext] = {}
         self._import_cache: dict[str, dict[str, ImportBinding]] = {}
         for node in nodes:
             if node.is_class():
@@ -82,9 +82,14 @@ class TypeIndex:
         return self._resolve_csharp(site)
 
     def _resolve_csharp(self, site: TypeReferenceSite) -> Node | None:
-        candidates = self._by_name.get(site.name, [])
-        if site.qualifier:
-            candidates = [node for node in candidates if self._namespace_of(node).endswith(site.qualifier)]
+        written = f"{site.qualifier}.{site.name}" if site.qualifier else site.name
+        alias_target = _expand_alias(written, self._usings_at(site.file, site.line))
+        if alias_target:
+            # C# 7.8: an alias in scope decides the name outright. It never competes with a
+            # namespace import, so a miss means the target is outside the graph, not ambiguous.
+            bound = self._by_qualifier(alias_target)
+            return _closest(bound, site.file) if bound else None
+        candidates = self._by_qualifier(written)
         if len(candidates) <= 1:
             return candidates[0] if candidates else None
         visible = self._visible_namespaces(site.file, site.line)
@@ -105,31 +110,49 @@ class TypeIndex:
         if not binding.source.startswith("."):
             return None
         wanted = site.name if binding.imported_name in (_NAMESPACE_IMPORT, "default") else binding.imported_name
-        module = os.path.normpath(os.path.join(os.path.dirname(site.file), binding.source))
+        module = _module_stem(os.path.normpath(os.path.join(os.path.dirname(site.file), binding.source)))
         candidates = [
             node
             for node in self._by_name.get(wanted, [])
-            if node.file_path.startswith(module + ".") or node.file_path.startswith(module + os.sep)
+            if _module_stem(node.file_path) == module or node.file_path.startswith(module + os.sep)
         ]
         return candidates[0] if len(candidates) == 1 else None
 
+    def _by_qualifier(self, written: str) -> list[Node]:
+        """Indexed types whose declared namespace matches the dotted prefix written before the name."""
+        qualifier, name = split_type_name(written)
+        candidates = self._by_name.get(name, [])
+        if not qualifier:
+            return candidates
+        # ``endswith``, not equality: a name written from inside an ancestor namespace is only
+        # partially qualified (``Domain.Order`` in ``namespace Lib`` against ``Lib.Domain.Order``).
+        return [node for node in candidates if self._namespace_of(node).endswith(qualifier)]
+
     def _namespace_of(self, node: Node) -> str:
-        _, namespaces = self._namespace_context(node.file_path)
-        return _innermost_namespace(namespaces, node.line_start)
+        return _innermost_namespace(self._namespace_context(node.file_path).namespaces, node.line_start)
+
+    def _usings_at(self, file_path: str, line: int) -> list[UsingDirective]:
+        """The directives in force at ``line``: the file's, plus the enclosing namespace block's."""
+        return [
+            directive
+            for directive in self._namespace_context(file_path).usings
+            if directive.first_line <= line <= directive.last_line
+        ]
 
     def _visible_namespaces(self, file_path: str, line: int) -> set[str]:
-        usings, namespaces = self._namespace_context(file_path)
-        visible = {"", *usings}
-        enclosing = _innermost_namespace(namespaces, line)
+        visible = {""}
+        # Only a plain ``using N;`` makes a namespace nameable: an alias binds one name, and
+        # ``using static N.T`` brings in T's members rather than T itself.
+        visible.update(d.target for d in self._usings_at(file_path, line) if not d.alias and not d.static)
+        enclosing = _innermost_namespace(self._namespace_context(file_path).namespaces, line)
         parts = enclosing.split(".") if enclosing else []
         visible.update(".".join(parts[:count]) for count in range(1, len(parts) + 1))
         return visible
 
-    def _namespace_context(self, file_path: str) -> tuple[tuple[str, ...], tuple[tuple[str, int, int], ...]]:
+    def _namespace_context(self, file_path: str) -> NamespaceContext:
         cached = self._namespace_cache.get(file_path)
         if cached is None:
-            context = self._inspector.find_namespace_context(Path(file_path))
-            cached = self._namespace_cache[file_path] = (context.usings, context.namespaces)
+            cached = self._namespace_cache[file_path] = self._inspector.find_namespace_context(Path(file_path))
         return cached
 
     def _imports_of(self, file_path: str) -> dict[str, ImportBinding]:
@@ -137,11 +160,6 @@ class TypeIndex:
         if cached is None:
             cached = self._import_cache[file_path] = self._inspector.find_import_bindings(Path(file_path))
         return cached
-
-
-def simple_type_name(qualified_name: str) -> str:
-    """``Foo`` for ``a.b.Foo<T>``."""
-    return qualified_name.rsplit(".", 1)[-1].split("<", 1)[0]
 
 
 def build_type_references(
@@ -181,6 +199,31 @@ def complete_type_references(
         graph.add_reference_edge(ReferenceEdge(source, target, EdgeKind.TYPEREF))
     stats.edges = sum(1 for ref in graph.reference_edges if ref.kind is EdgeKind.TYPEREF)
     return stats
+
+
+def _expand_alias(written: str, directives: Iterable[UsingDirective]) -> str:
+    """What an alias in scope binds the leftmost segment to, else empty.
+
+    Why the leftmost only: C# looks the alias up for the first identifier of a name, which is
+    what makes ``using Io = System.IO;`` resolve ``Io.File``.
+    """
+    head, _, rest = written.partition(".")
+    for directive in directives:
+        if directive.alias == head:
+            return ".".join(part for part in (directive.target, rest) if part)
+    return ""
+
+
+def _module_stem(path: str) -> str:
+    """The module a path names: no script extension, no trailing ``/index``.
+
+    Why: a specifier and the file it resolves to spell the same module differently
+    (``./svc.js`` -> ``svc.ts``, ``./lib/index.js`` -> ``lib/``), so both sides normalise.
+    """
+    root, suffix = os.path.splitext(path)
+    stem = root if suffix.lower() in _SCRIPT_MODULE_SUFFIXES else path
+    parent, name = os.path.split(stem)
+    return parent if name == "index" and parent else stem
 
 
 def _innermost_namespace(namespaces: Iterable[tuple[str, int, int]], line: int) -> str:
