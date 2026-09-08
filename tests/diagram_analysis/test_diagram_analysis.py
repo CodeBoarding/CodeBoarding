@@ -442,6 +442,50 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             relations_by_label["dispatches to"]["key_edges"][0]["source"], "component1.py|component1.dispatch"
         )
 
+    def test_the_edge_kind_survives_the_artifact_and_is_omitted_for_a_call(self):
+        """A call is the default, so writing it on every edge would cost 1.7% of a large artifact."""
+        self._add_edge_methods_to_index()
+
+        def edge(kind: str, target: str, call_sites: list[RelationCallSite] | None = None) -> RelationEdge:
+            return RelationEdge(
+                source=SourceCodeReference(qualified_name="component1.run", reference_file="component1.py"),
+                target=SourceCodeReference(qualified_name=target, reference_file="component2.py"),
+                call_sites=call_sites or [],
+                kind=kind,
+            )
+
+        self.analysis.components_relations = [
+            Relation(
+                src_name="Component1",
+                dst_name="Component2",
+                relation="uses",
+                src_id="1",
+                dst_id="2",
+                is_static=True,
+                # The last two share a pair: a call and a type reference between the same symbols
+                # are distinct edges, and stay distinct because `identity()` keys on the call sites.
+                all_edges=[
+                    edge("typeref", "component2.Widget"),
+                    edge("inherits", "component2.Base"),
+                    edge("call", "component2.load", [RelationCallSite(line=12, column=8)]),
+                    edge("typeref", "component2.load"),
+                ],
+            )
+        ]
+
+        data = json.loads(
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+            )
+        )
+        written = data["components_relations"][0]["all_edges"]
+        self.assertEqual([e.get("kind") for e in written], ["typeref", "inherits", None, "typeref"])
+
+        parsed, _ = parse_unified_analysis(data)
+        self.assertEqual(
+            [e.kind for e in parsed.components_relations[0].all_edges], ["typeref", "inherits", "call", "typeref"]
+        )
+
     def test_unified_analysis_parse_preserves_all_edges(self):
         self._add_edge_methods_to_index()
         self.analysis.components_relations = [

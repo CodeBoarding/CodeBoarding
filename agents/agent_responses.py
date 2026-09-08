@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from clustering_ids import ComponentId
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodIndexEntry
 from agents.scope_ids import ROOT_SCOPE_ID
-from static_analyzer.cfg.edge import EdgeKind
+from static_analyzer.cfg.edge import CALL_EDGE_KIND, EdgeKind
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +96,10 @@ class RelationEdge(LLMBaseModel):
         description="Call-site line and column pairs for this edge.",
         exclude=True,
     )
+    kind: str = Field(
+        default=CALL_EDGE_KIND,
+        description="What backs this edge: a call, or the reference kind that stands in for one.",
+    )
 
     @classmethod
     def from_dict(cls, edge: dict, methods_index: dict[str, MethodIndexEntry]) -> RelationEdge:
@@ -109,6 +113,7 @@ class RelationEdge(LLMBaseModel):
             target=_relation_endpoint_from_key(target_key, methods_index),
             description=edge.get("description", ""),
             call_sites=[RelationCallSite.model_validate(site) for site in call_sites],
+            kind=edge.get("kind") or CALL_EDGE_KIND,
         )
 
     @classmethod
@@ -146,6 +151,7 @@ class RelationEdge(LLMBaseModel):
                 reference_end_line=target.line_end,
             ),
             description=REFERENCE_EDGE_DESCRIPTIONS[kind],
+            kind=kind.value,
         )
 
     def llm_str(self) -> str:

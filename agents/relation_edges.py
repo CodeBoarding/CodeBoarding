@@ -4,7 +4,6 @@ from collections.abc import Callable, Collection, Sequence
 from pathlib import Path
 
 from agents.agent_responses import (
-    REFERENCE_EDGE_DESCRIPTIONS,
     AnalysisInsights,
     Relation,
     RelationEdge,
@@ -13,15 +12,15 @@ from agents.agent_responses import (
 from clustering_ids import is_self_or_descendant
 from repo_utils.path_utils import normalize_repo_path
 from constants import DEFAULT_STATIC_RELATION_LABEL, INHERITANCE_RELATION_LABEL, TYPE_REFERENCE_RELATION_LABEL
-from static_analyzer.cfg.edge import EdgeKind
+from static_analyzer.cfg.edge import CALL_EDGE_KIND, EdgeKind
 
 
 def static_relation_label(edges: Sequence[RelationEdge]) -> str:
     """The label a relation gets from its static edges alone: a single call outranks any reference."""
-    descriptions = {edge.description for edge in edges}
-    if not descriptions or descriptions - set(REFERENCE_EDGE_DESCRIPTIONS.values()):
+    kinds = {edge.kind for edge in edges}
+    if not kinds or CALL_EDGE_KIND in kinds:
         return DEFAULT_STATIC_RELATION_LABEL
-    if descriptions == {REFERENCE_EDGE_DESCRIPTIONS[EdgeKind.INHERITS]}:
+    if kinds == {EdgeKind.INHERITS.value}:
         return INHERITANCE_RELATION_LABEL
     return TYPE_REFERENCE_RELATION_LABEL
 

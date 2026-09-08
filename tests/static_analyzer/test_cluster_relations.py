@@ -113,6 +113,15 @@ class TestReferenceEdgesBecomeRelations(unittest.TestCase):
         owners = dict.fromkeys(self.OWNERS, "1")
         self.assertEqual(build_component_relations(owners, {"python": self._graph(EdgeKind.TYPEREF)}), [])
 
+    def test_the_label_reads_the_kind_and_not_the_description(self):
+        """``ground_relation_edges`` overwrites an edge's description with the model's prose, so a
+        label derived from that text is lost on exactly the edges the side panel renders."""
+        edge = _make_relation_edge("a.Cls", "b.Cls")
+        edge.kind = "typeref"
+        edge.description = "orchestrates the widget lifecycle"
+
+        self.assertEqual(static_relation_label([edge]), TYPE_REFERENCE_RELATION_LABEL)
+
     def test_no_edges_means_the_call_label(self):
         self.assertEqual(static_relation_label([]), DEFAULT_STATIC_RELATION_LABEL)
 

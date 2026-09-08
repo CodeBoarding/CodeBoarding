@@ -16,6 +16,7 @@ from agents.agent_responses import (
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry, MethodIndexEntry
 from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
+from static_analyzer.cfg.edge import CALL_EDGE_KIND
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,12 @@ class RelationEdgeJson(BaseModel):
     target: str = Field(description="Key into methods_index for the target method.")
     call_sites: list[RelationCallSite] = Field(default_factory=list)
     description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
+    # Absent means a call, which is two thirds of the edges in a large analysis. Writing it out
+    # anyway costs 26 bytes each — 1.7% of abp's artifact — to say what the reader already assumes.
+    kind: str | None = Field(
+        default=None,
+        description="The reference kind standing in for a call; absent when the edge is a call.",
+    )
 
 
 class RelationJson(Relation):
@@ -212,6 +219,7 @@ def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path) -> RelationEdgeJs
         target=_source_reference_method_key(edge.target, repo_dir),
         call_sites=edge.call_sites,
         description=edge.description,
+        kind=edge.kind if edge.kind != CALL_EDGE_KIND else None,
     )
 
 
