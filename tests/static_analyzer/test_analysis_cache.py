@@ -273,6 +273,15 @@ class TestLoadWithSha(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def test_the_previous_engines_artifact_is_not_warm_started(self):
+        # Why the literal "v7": a v7 graph credits a callback body and a member-chain receiver
+        # as call edges, which this engine no longer reproduces. A generic bad tag would pass
+        # whether or not the bump happened.
+        self.cache.save(StaticAnalysisResults(), source_sha="sha-current")
+        self.cache.sha_path.write_text("v7\nsha-current\n")
+
+        self.assertIsNone(self.cache.load_with_sha())
+
     def test_returns_results_and_sha_when_both_present(self):
         results = StaticAnalysisResults()
         results.add_source_files(Language.PYTHON, [str(self.repo_root / "main.py")])

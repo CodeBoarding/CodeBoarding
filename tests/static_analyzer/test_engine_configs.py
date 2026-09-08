@@ -14,6 +14,7 @@ from static_analyzer import (
     _adapter_names_for,
     _create_engine_configs,
 )
+from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language
 from static_analyzer.engine.adapters.python_adapter import PythonAdapter
@@ -124,6 +125,24 @@ class TestIncrementalRefusesAnIncompatibleCache(unittest.TestCase):
         (artifacts / "static_analysis.sha").write_text("v1\ndeadbeef\n")
 
         # The scanner shells out to tokei, which the analyzer only needs to pick engines.
+        with patch.object(ProjectScanner, "scan", return_value=[]):
+            analyzer = StaticAnalyzer(tmp, changed_files={tmp / "a.py"})
+        analyzer._clients_started = True
+
+        with self.assertRaises(StaticAnalysisFatalError) as caught:
+            analyzer.analyze(artifacts)
+        self.assertIn("full analysis", str(caught.exception))
+
+    def test_a_readable_artifact_from_the_previous_engine_is_refused(self):
+        # The sibling above writes an unreadable pkl, so it passes with or without a tag bump.
+        # This one is readable: only the version gate can refuse it.
+        tmp = Path(tempfile.mkdtemp()).resolve()
+        (tmp / "a.py").write_text("def a():\n    pass\n")
+        artifacts = tmp / ".codeboarding"
+        cache = StaticAnalysisCache(artifacts, tmp)
+        cache.save(StaticAnalysisResults(), source_sha="deadbeef")
+        cache.sha_path.write_text("v7\ndeadbeef\n")
+
         with patch.object(ProjectScanner, "scan", return_value=[]):
             analyzer = StaticAnalyzer(tmp, changed_files={tmp / "a.py"})
         analyzer._clients_started = True

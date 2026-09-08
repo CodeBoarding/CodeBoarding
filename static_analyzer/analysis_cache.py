@@ -67,8 +67,11 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # named after.
 # v7: the pickle no longer carries cluster lineage; components come from the tree
 # specification in analysis.json, replayed over the graph.
+# v8: every call edge derived from a variable reference changes. A mention inside a callback
+# body and the receiver of a member chain are no longer the value passed or returned, so a
+# file-scope global stops absorbing its file's edges.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v7"
+_TAG_VERSION = "v8"
 
 
 class StaticAnalysisCache:
