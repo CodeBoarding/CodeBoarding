@@ -66,6 +66,8 @@ def sanitize_repo_url(repo_url: str) -> str:
     Normalizes Git URLs to ensure proper format for cloning.
     Preserves HTTPS URLs for CI compatibility while supporting SSH URLs.
     """
+    repo_url = repo_url.rstrip("/")  # else the suffix below yields ``.../repo/.git``
+
     if repo_url.startswith("git@") or repo_url.startswith("ssh://"):
         return repo_url  # already in SSH format
     elif repo_url.startswith("https://") or repo_url.startswith("http://"):
@@ -94,8 +96,7 @@ def remote_repo_exists(repo_url: str) -> bool:
 
 
 def get_repo_name(repo_url: str):
-    repo_url = sanitize_repo_url(repo_url)
-    base = repo_url.rstrip("/").split("/")[-1]
+    base = sanitize_repo_url(repo_url).split("/")[-1]
     repo_name, _ = os.path.splitext(base)
     return repo_name
 

@@ -212,10 +212,11 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 ## Telemetry
 
-CodeBoarding collects anonymous, aggregate usage telemetry (which command ran,
-success/failure, duration, and token cost) to help us improve the tool. It is on
-by default and never collects source code, file names, repository names, paths,
-prompts, model outputs, API keys, or any personal information. Opt out anytime:
+CodeBoarding collects usage telemetry (which command ran, success/failure,
+duration, token cost, repository size and languages, and the account the
+repository belongs to) to help us improve the tool. It is on by default and
+never collects source code, file names, repository names, paths, prompts, model
+outputs, or API keys. Opt out anytime:
 
 ```bash
 export CODEBOARDING_TELEMETRY=false   # or: export DO_NOT_TRACK=1
