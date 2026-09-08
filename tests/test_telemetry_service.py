@@ -97,3 +97,70 @@ def test_a_caller_property_never_overwrites_the_origin(client, monkeypatch):
     props = client.captures[0]["properties"]
     assert props["source"] == "evals"
     assert props["internal"] is True
+
+
+def test_ci_runs_report_the_repository_owner(client, monkeypatch):
+    """Actions always sets ``GITHUB_REPOSITORY``, so a CI run can say which
+    account it belongs to without the caller threading anything through."""
+    monkeypatch.setenv("CODEBOARDING_SOURCE", "github_action")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "Acme-Corp/widgets")
+
+    client.service.capture("analysis_started", {})
+
+    assert client.captures[0]["properties"]["org"] == "acme-corp"
+
+
+def test_only_the_owner_is_taken_from_the_repository_slug(client, monkeypatch):
+    """``GITHUB_REPOSITORY`` is ``owner/name``. The name is the half that says
+    something about the code, and it is the half that is dropped."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/secret-prototype")
+
+    client.service.capture("analysis_started", {})
+
+    props = client.captures[0]["properties"]
+    assert props["org"] == "acme"
+    assert "secret-prototype" not in str(props)
+
+
+def test_an_embedding_can_name_the_owner_itself(client, monkeypatch):
+    """An embedding that already resolved the owner sets ``CODEBOARDING_ORG``,
+    which wins over the CI variable so a run inside Actions can still be
+    attributed to the repository it was pointed at rather than the workflow's."""
+    monkeypatch.setenv("CODEBOARDING_ORG", "Acme")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "someone-else/runner")
+
+    client.service.capture("analysis_started", {})
+
+    assert client.captures[0]["properties"]["org"] == "acme"
+
+
+def test_a_local_run_reports_no_owner_at_all(client, monkeypatch):
+    """Nothing infers an owner. With neither variable set the key is absent
+    rather than empty, so a query can tell "no owner" from "owner is blank"."""
+    monkeypatch.delenv("CODEBOARDING_ORG", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+
+    client.service.capture("analysis_started", {})
+
+    assert "org" not in client.captures[0]["properties"]
+
+
+def test_a_caller_property_never_overwrites_the_owner(client, monkeypatch):
+    """``org`` merges with the rest of the origin, after the payload, for the
+    same reason ``internal`` does: it is a property of the process."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/widgets")
+
+    client.service.capture("repo_scanned", {"org": "somebody-else"})
+
+    assert client.captures[0]["properties"]["org"] == "acme"
+
+
+def test_the_owner_travels_on_exceptions_too(client, monkeypatch):
+    """A crash is worth as much as a success when asking which deployments are
+    hitting a given failure, and it arrives through a different code path."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/widgets")
+
+    client.service.capture_exception(RuntimeError("boom"), properties={"command": "run_full"})
+
+    _, kwargs = client.exceptions[0]
+    assert kwargs["properties"]["org"] == "acme"
