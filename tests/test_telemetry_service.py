@@ -11,7 +11,6 @@ which stubs ``capture`` out — the stamping happens below that stub, so it is
 invisible to every test in ``test_telemetry_events.py``.
 """
 
-import hashlib
 from types import SimpleNamespace
 
 import pytest
@@ -100,10 +99,6 @@ def test_a_caller_property_never_overwrites_the_origin(client, monkeypatch):
     assert props["internal"] is True
 
 
-def _org_id(owner: str) -> str:
-    return hashlib.sha256(owner.encode()).hexdigest()[:16]
-
-
 def test_ci_runs_report_the_repository_owner(client, monkeypatch):
     """Actions always sets ``GITHUB_REPOSITORY``, so a CI run identifies its
     deployment without the caller threading anything through."""
@@ -112,25 +107,12 @@ def test_ci_runs_report_the_repository_owner(client, monkeypatch):
 
     client.service.capture("analysis_started", {})
 
-    assert client.captures[0]["properties"]["org_id"] == _org_id("acme-corp")
+    assert client.captures[0]["properties"]["org"] == "acme-corp"
 
 
-def test_the_owner_is_hashed_rather_than_named(client, monkeypatch):
-    """The owner of a personal repository is a GitHub login. Telemetry promises
-    no usernames, so the name must not appear anywhere in the payload."""
-    monkeypatch.delenv("CODEBOARDING_ORG", raising=False)
-    monkeypatch.setenv("GITHUB_REPOSITORY", "alice/project")
-
-    client.service.capture("analysis_started", {})
-
-    props = client.captures[0]["properties"]
-    assert "alice" not in str(props)
-    assert props["org_id"] == _org_id("alice")
-
-
-def test_the_same_owner_always_gets_the_same_id(client, monkeypatch):
-    """The id is the join key across surfaces and across runs, so casing and
-    the two ways of naming an owner have to agree on one value."""
+def test_the_same_owner_always_reads_the_same_way(client, monkeypatch):
+    """The owner is the join key across surfaces and across runs, so casing and
+    the two ways of naming one have to agree on a single value."""
     monkeypatch.delenv("CODEBOARDING_ORG", raising=False)
     monkeypatch.setenv("GITHUB_REPOSITORY", "Acme/widgets")
     client.service.capture("analysis_started", {})
@@ -139,7 +121,7 @@ def test_the_same_owner_always_gets_the_same_id(client, monkeypatch):
     monkeypatch.setenv("CODEBOARDING_ORG", "acme")
     client.service.capture("analysis_started", {})
 
-    assert client.captures[0]["properties"]["org_id"] == client.captures[1]["properties"]["org_id"]
+    assert client.captures[0]["properties"]["org"] == client.captures[1]["properties"]["org"]
 
 
 def test_only_the_owner_is_taken_from_the_repository_slug(client, monkeypatch):
@@ -151,7 +133,7 @@ def test_only_the_owner_is_taken_from_the_repository_slug(client, monkeypatch):
     client.service.capture("analysis_started", {})
 
     props = client.captures[0]["properties"]
-    assert props["org_id"] == _org_id("acme")
+    assert props["org"] == "acme"
     assert "secret-prototype" not in str(props)
 
 
@@ -164,7 +146,7 @@ def test_an_embedding_can_name_the_owner_itself(client, monkeypatch):
 
     client.service.capture("analysis_started", {})
 
-    assert client.captures[0]["properties"]["org_id"] == _org_id("acme")
+    assert client.captures[0]["properties"]["org"] == "acme"
 
 
 def test_a_local_run_reports_no_owner_at_all(client, monkeypatch):
@@ -175,18 +157,18 @@ def test_a_local_run_reports_no_owner_at_all(client, monkeypatch):
 
     client.service.capture("analysis_started", {})
 
-    assert "org_id" not in client.captures[0]["properties"]
+    assert "org" not in client.captures[0]["properties"]
 
 
 def test_a_caller_property_never_overwrites_the_owner(client, monkeypatch):
-    """``org_id`` merges with the rest of the origin, after the payload, for the
+    """``org`` merges with the rest of the origin, after the payload, for the
     same reason ``internal`` does: it is a property of the process."""
     monkeypatch.delenv("CODEBOARDING_ORG", raising=False)
     monkeypatch.setenv("GITHUB_REPOSITORY", "acme/widgets")
 
-    client.service.capture("repo_scanned", {"org_id": "somebody-else"})
+    client.service.capture("repo_scanned", {"org": "somebody-else"})
 
-    assert client.captures[0]["properties"]["org_id"] == _org_id("acme")
+    assert client.captures[0]["properties"]["org"] == "acme"
 
 
 def test_the_owner_travels_on_exceptions_too(client, monkeypatch):
@@ -198,4 +180,4 @@ def test_the_owner_travels_on_exceptions_too(client, monkeypatch):
     client.service.capture_exception(RuntimeError("boom"), properties={"command": "run_full"})
 
     _, kwargs = client.exceptions[0]
-    assert kwargs["properties"]["org_id"] == _org_id("acme")
+    assert kwargs["properties"]["org"] == "acme"

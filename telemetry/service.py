@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import os
 
@@ -31,31 +30,28 @@ def _telemetry_disabled() -> bool:
     return os.getenv("CODEBOARDING_TELEMETRY", "true").strip().lower() == "false"
 
 
-def _org_id() -> str:
-    """Pseudonymous id for the account a run's repository belongs to, or ''.
+def _org() -> str:
+    """The account a run's repository belongs to, or '' when none is named.
 
-    Why: a personal repository's owner is a GitHub login, so only its hash is
-    sent. ``CODEBOARDING_ORG`` when a caller knows the owner, else the owner
-    half of ``GITHUB_REPOSITORY``; the repository's own name is never read.
+    Why: ``CODEBOARDING_ORG`` when a caller knows the owner, else the owner half
+    of ``GITHUB_REPOSITORY``; the repository's own name is never read.
     """
     owner = os.getenv("CODEBOARDING_ORG", "").strip() or os.getenv("GITHUB_REPOSITORY", "").strip().partition("/")[0]
-    if not owner:
-        return ""
-    return hashlib.sha256(owner.lower().encode("utf-8")).hexdigest()[:16]
+    return owner.lower()
 
 
 def _origin() -> dict[str, object]:
     """Who invoked this run, whether that is product usage, and which deployment.
 
     Why: ``internal`` is derived from ``source`` so the two cannot disagree, and
-    ``org_id`` is omitted rather than blank so an absent key reads as unknown.
+    ``org`` is omitted rather than blank so an absent key reads as unknown.
     """
     source = os.getenv("CODEBOARDING_SOURCE", "core")
     origin: dict[str, object] = {"source": source, "internal": source in INTERNAL_SOURCES}
 
-    org_id = _org_id()
-    if org_id:
-        origin["org_id"] = org_id
+    org = _org()
+    if org:
+        origin["org"] = org
     return origin
 
 
