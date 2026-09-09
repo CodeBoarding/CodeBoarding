@@ -30,6 +30,7 @@ from diagram_analysis.analysis_json import (
     RelationJson,
     UnifiedAnalysisJson,
     build_unified_analysis_json,
+    expand_analysis_document,
     from_analysis_to_json,
     from_component_to_json_component,
     parse_unified_analysis,
@@ -366,7 +367,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             )
         ]
 
-        data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
+        data = expand_analysis_document(json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir)))
 
         relation = data["components_relations"][0]
         self.assertNotIn("edge_count", relation)
@@ -431,7 +432,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             ),
         ]
 
-        data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
+        data = expand_analysis_document(json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir)))
 
         self.assertEqual(len(data["components_relations"]), 2)
         relations_by_label = {relation["relation"]: relation for relation in data["components_relations"]}
@@ -673,7 +674,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                 )
             ]
 
-            data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
+            data = expand_analysis_document(json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir)))
 
         key_edge = data["components_relations"][0]["key_edges"][0]
         self.assertEqual(key_edge["call_sites"], [])
@@ -715,7 +716,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                 )
             ]
 
-            data = json.loads(from_analysis_to_json(self.analysis, [], repo_dir=repo_dir))
+            data = expand_analysis_document(json.loads(from_analysis_to_json(self.analysis, [], repo_dir=repo_dir)))
 
         key_edge = data["components_relations"][0]["key_edges"][0]
         self.assertEqual(key_edge["source"], "component1.py|component1.run")
