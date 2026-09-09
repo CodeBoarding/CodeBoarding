@@ -169,6 +169,38 @@ class TestDiscoverSymbols:
         probe_call = lsp.document_symbol.call_args_list[0]
         assert probe_call.kwargs.get("timeout") == 1800
 
+    def test_probe_before_open_waits_after_every_did_open(self):
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        files = [Path(f"/project/file_{i}.cs") for i in range(100)]
+        post_open_symbols = [
+            {
+                "name": "ReadyAfterOpen",
+                "kind": NodeType.CLASS,
+                "range": {"start": {"line": 0, "character": 0}, "end": {"line": 5, "character": 0}},
+                "selectionRange": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 14}},
+            }
+        ]
+        lsp.document_symbol.side_effect = [[], post_open_symbols, *([[]] * 99)]
+
+        builder._discover_symbols(files)
+
+        synchronization_calls = [
+            (call[0], call.args[0], call.kwargs.get("timeout"))
+            for call in lsp.method_calls
+            if call[0] in {"did_open", "document_symbol"}
+        ]
+        assert synchronization_calls == [
+            ("document_symbol", files[0], 260),
+            *(("did_open", file_path, None) for file_path in files),
+            ("document_symbol", files[0], 260),
+            *(("document_symbol", file_path, None) for file_path in files[1:]),
+        ]
+        assert lsp.document_symbol.call_count == 101
+        assert "file_0.ReadyAfterOpen" in builder.symbol_table.symbols
+
     def test_interleaves_did_open_with_symbol_queries(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
