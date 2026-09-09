@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
@@ -34,10 +35,9 @@ from static_analyzer.clustering.names import (
     role_words_for,
     units_from_graphs,
 )
-from static_analyzer.clustering.names.draft import DETERMINISTIC_GROUPERS, UNPLACED_NAME, Links
+from static_analyzer.clustering.names.draft import DETERMINISTIC_GROUPERS, Links, loose_rule
 from static_analyzer.clustering.names.replay import FALLBACK, PREFIX, TERM, divergence
 from static_analyzer.clustering.names.spec import Prefix, is_root
-from static_analyzer.clustering.names.spec import UNPLACED
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
 
 AFFINE_REFERENCE_KINDS = frozenset({EdgeKind.INHERITS, EdgeKind.TYPEREF})
@@ -315,8 +315,8 @@ class ClusteringService:
             logger.info("[Names] %s: new scope %s (%d units)", scope.scope_id, ".".join(key), len(members))
         if added:
             partition = replay(units, scope, role_words)
-        if partition.unplaced and scope.unplaced_rule is None:
-            scope.rules.append(ComponentRule(scope.next_id(taken), UNPLACED_NAME, origin=UNPLACED, kind=UNPLACED))
+        if partition.unplaced:
+            scope.rules.append(replace(loose_rule(units), component_id=scope.next_id(taken)))
             partition = replay(units, scope, role_words)
         return partition
 
@@ -326,7 +326,7 @@ class ClusteringService:
         A fallback-only rule stays: it is the scope's last resort and legitimately empty.
         """
         for rule in list(scope.rules):
-            if rule.is_fallback_only or rule.kind == UNPLACED or partition.size(rule.component_id):
+            if rule.is_fallback_only or partition.size(rule.component_id):
                 continue
             scope.rules.remove(rule)
             for scope_id in [

@@ -22,7 +22,6 @@ from utils import CODEBOARDING_DIR_NAME, get_config
 logger = logging.getLogger(__name__)
 
 # The languages a JVM source root can be named for, in ``src/<source set>/<language>``.
-JVM_SOURCE_LANGUAGES = frozenset({"java", "kotlin", "groovy", "scala"})
 
 
 class JavaAdapter(LanguageAdapter):
@@ -142,7 +141,7 @@ class JavaAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        """Build ``<module>.<source set>.<package>.<declaring types>.<symbol>``.
+        """Build ``<directories>.<declaring types>.<symbol>``, from the repository root.
 
         Why no file stem: Java requires it to equal the top-level type, so folding it in
         made that type a sibling of its own members and CONTAINS could not link them.
@@ -152,19 +151,8 @@ class JavaAdapter(LanguageAdapter):
         return ".".join(part for part in (self.get_package_for_file(file_path, project_root), *segments) if part)
 
     def get_package_for_file(self, file_path: Path, project_root: Path) -> str:
-        """The directory holding the file, without the Maven or Gradle source root.
-
-        Why: ``src/main/java`` names no package, and prefixed every symbol in a Maven tree
-        with three segments the compiler does not recognise. The source set itself is kept
-        unless it is ``main``, because ``src/test/java`` and ``src/main/java`` can hold the
-        same package and the same type name.
-        """
-        parts = file_path.relative_to(project_root).parent.parts
-        for i in range(len(parts) - 2):
-            if parts[i] == "src" and parts[i + 2] in JVM_SOURCE_LANGUAGES:
-                source_set = () if parts[i + 1] == "main" else (parts[i + 1],)
-                return ".".join(parts[:i] + source_set + parts[i + 3 :])
-        return ".".join(parts)
+        """The directory holding the file, from the repository root, spelled as it is on disk."""
+        return ".".join(file_path.relative_to(project_root).parent.parts)
 
     @staticmethod
     def _clean_symbol_name(name: str) -> str:

@@ -22,7 +22,6 @@ from static_analyzer.clustering.names.spec import (
     ROLE,
     SEGMENT,
     UNMERGE,
-    UNPLACED,
     ComponentRule,
     Prefix,
     ScopeSpec,
@@ -64,7 +63,6 @@ MIN_HUB_UNITS = 3
 """Units a hub needs to be drawn on its own; a smaller one is a loose file everybody calls."""
 CAP_SHARE = 0.6
 """No fold may grow a component past this share of its scope."""
-UNPLACED_NAME = "Unassigned"
 LOOSE_NAME = "Loose files"
 OTHER_NAME = "Other files"
 ISLAND_SHARE = 1 / 3
@@ -863,9 +861,16 @@ def _settle(
         scope.rules.append(replace(rule, component_id=scope.next_id()))
     partition = replay(units, scope, role_words)
     if partition.unplaced:
-        scope.rules.append(ComponentRule(scope.next_id(), UNPLACED_NAME, origin=UNPLACED, kind=UNPLACED))
+        # What no rule claims is loose: a fallback on the scope's own prefix takes it, so nothing is hidden.
+        scope.rules.append(replace(loose_rule(units), component_id=scope.next_id()))
         partition = replay(units, scope, role_words)
     return scope, partition
+
+
+def loose_rule(units: list[Unit]) -> ComponentRule:
+    """The scope's last resort: a fallback-only rule on the prefix every unit shares."""
+    prefix = _common_prefix(units)
+    return _candidate_rule(Candidate(f"{LOOSE}:{'/'.join(prefix)}", LOOSE, "", fallback_prefixes=(prefix,)))
 
 
 def _floor(unit_count: int) -> int:

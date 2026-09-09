@@ -105,9 +105,11 @@ class LanguageAdapter(ABC):
     ) -> str:
         """Build the original-casing qualified name for a symbol.
 
-        Default: ``module.parent1.parent2.symbol_name`` where module is the
-        dot-joined relative path without suffix.  Override for languages that
-        need different logic (Go receiver notation, Java name cleaning, etc.).
+        ``project_root`` is the repository root: every adapter spells the path from there,
+        segment for segment as it is on disk, so two files in one directory carry the same
+        prefix whatever language they are. Default: ``module.parent1.parent2.symbol_name``
+        where module is the dot-joined relative path without suffix. Override only for what
+        a language means (Go receivers, Rust's implicit module files), never for layout.
         """
         rel = file_path.relative_to(project_root)
         module = ".".join(rel.with_suffix("").parts)

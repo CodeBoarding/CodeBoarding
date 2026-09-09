@@ -71,7 +71,7 @@ class TestCallGraphBuilderInit:
     def test_creates_symbol_table_and_inspector(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         assert builder.symbol_table is not None
         assert builder._source_inspector is not None
@@ -79,7 +79,7 @@ class TestCallGraphBuilderInit:
     def test_resolves_project_root(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
         assert builder._root == Path("/project").resolve()
 
 
@@ -87,7 +87,7 @@ class TestDiscoverSymbols:
     def test_opens_files_and_queries_symbols(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         files = [Path("/project/a.py"), Path("/project/b.py")]
         lsp.document_symbol.return_value = []
@@ -101,7 +101,7 @@ class TestDiscoverSymbols:
         """The probe result from the sync wait should be reused for the first file."""
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         probe_symbols = [
             {
@@ -123,7 +123,7 @@ class TestDiscoverSymbols:
     def test_empty_source_files(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         builder._discover_symbols([])
         lsp.did_open.assert_not_called()
@@ -132,7 +132,7 @@ class TestDiscoverSymbols:
     def test_batches_did_open_calls(self, mock_sleep):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         # Create more files than a single batch
         files = [Path(f"/project/file_{i}.py") for i in range(DID_OPEN_BATCH_SIZE + 5)]
@@ -147,7 +147,7 @@ class TestDiscoverSymbols:
     def test_probe_timeout_scales_linearly_with_file_count(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         files = [Path(f"/project/file_{i}.py") for i in range(100)]
         lsp.document_symbol.return_value = []
@@ -161,7 +161,7 @@ class TestDiscoverSymbols:
     def test_probe_timeout_capped_at_maximum(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         files = [Path(f"/project/file_{i}.py") for i in range(20000)]
         lsp.document_symbol.return_value = []
@@ -175,7 +175,7 @@ class TestDiscoverSymbols:
         lsp = _make_lsp()
         adapter = _make_adapter()
         adapter.interleave_did_open_with_symbols = True
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
         files = [Path("/project/a.go"), Path("/project/b.go")]
 
         builder._discover_symbols(files)
@@ -202,7 +202,7 @@ class TestDiscoverSymbols:
         lsp.document_symbol.side_effect = lambda path, timeout=None: [served] if path == files[0] else []
         read = {"name": "Shared", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
         adapter.read_document_symbols.return_value = [read]
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         builder._discover_symbols(files)
 
@@ -226,7 +226,7 @@ class TestDiscoverSymbols:
         lsp.document_symbol.side_effect = lambda path, timeout=None: (
             [served] if path == files[0] else ([loose] if path in opened else [])
         )
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         builder._discover_symbols(files)
 
@@ -249,7 +249,7 @@ class TestBuild:
     def test_returns_language_analysis_result(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         lsp.document_symbol.return_value = [
             {
@@ -272,7 +272,7 @@ class TestBuild:
     def test_build_with_no_files(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         result = builder.build([])
 
@@ -382,7 +382,7 @@ class Main {
         source.write_text(self.SOURCE)
         adapter = _make_adapter()
         adapter.expands_constructors = expands_constructors
-        builder = CallGraphBuilder(_make_lsp(), adapter, tmp_path)
+        builder = CallGraphBuilder(_make_lsp(), adapter, tmp_path, tmp_path)
 
         caller = SymbolInfo("main", "app.main", NodeType.FUNCTION, source, 3, 4, 7, 0)
         cls = SymbolInfo("Dog", "app.Dog", NodeType.CLASS, source, 25, 0, 50, 0)
@@ -479,7 +479,7 @@ class TestBuildPackageDeps:
     def test_cross_package_dependencies(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         sym_a = SymbolInfo("foo", "pkg_a.foo", NodeType.FUNCTION, Path("/project/pkg_a/mod.py"), 0, 0, 10, 0)
         sym_b = SymbolInfo("bar", "pkg_b.bar", NodeType.FUNCTION, Path("/project/pkg_b/mod.py"), 0, 0, 10, 0)
@@ -500,7 +500,7 @@ class TestBuildPackageDeps:
     def test_same_package_edges_excluded(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         sym_a = SymbolInfo("foo", "pkg.foo", NodeType.FUNCTION, Path("/project/pkg/a.py"), 0, 0, 10, 0)
         sym_b = SymbolInfo("bar", "pkg.bar", NodeType.FUNCTION, Path("/project/pkg/b.py"), 0, 0, 10, 0)
@@ -520,7 +520,7 @@ class TestBuildPackageDeps:
     def test_missing_symbols_in_edge_set(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         adapter.get_all_packages.return_value = {"pkg"}
 

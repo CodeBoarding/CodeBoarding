@@ -233,7 +233,7 @@ class CSharpAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        """Build ``<directory>.<file stem>.<declaring types>.<symbol>``.
+        """Build ``<directories>.<file stem>.<declaring types>.<symbol>``, from the repository root.
 
         C# has no file scope, so a file may declare several top-level types. The stem then
         names none of them and stays a plain segment. Folding it in, as a file declaring one
@@ -245,7 +245,7 @@ class CSharpAdapter(LanguageAdapter):
             return detail
 
         rel = file_path.relative_to(project_root)
-        module = ".".join(p for p in rel.with_suffix("").parts if p != "src")
+        module = ".".join(rel.with_suffix("").parts)
         # Skip File and Namespace: the namespace is encoded in the path for C#.
         code_parents = [name for name, kind in parent_chain if kind not in (NodeType.FILE, NodeType.NAMESPACE)]
 

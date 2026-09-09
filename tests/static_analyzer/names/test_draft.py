@@ -39,7 +39,6 @@ from static_analyzer.clustering.names.draft import (
     GroupingContext,
 )
 from static_analyzer.clustering.names.frontier import BOX, LOOSE
-from static_analyzer.clustering.names.spec import UNPLACED
 from tests.static_analyzer.names.conftest import rule_of, scope_of, units_from_layout
 
 

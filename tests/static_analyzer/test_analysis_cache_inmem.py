@@ -218,6 +218,7 @@ class TestWarmStartDeletion(unittest.TestCase):
                 {deleted_file},
                 adapter,
                 project_path,
+                project_path,
                 engine_client,
                 ignore_manager,
             )

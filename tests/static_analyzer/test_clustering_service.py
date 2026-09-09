@@ -280,11 +280,12 @@ class TestIncrementalHierarchy(unittest.TestCase):
         rule = rule_of(scope_of(service.spec, ROOT_SCOPE_ID), "6")
         self.assertEqual((rule.origin, rule.prefixes, rule.terms), (NEW_SCOPE, (("src", "Shipping.API"),), ()))
 
-    def test_a_single_new_file_nothing_claims_lands_in_the_bucket(self):
+    def test_a_single_new_file_nothing_claims_lands_in_the_loose_files(self):
         service, hierarchy = self._incremental(self.layout | {"src/Shipping/Ship.cs": ["Shipping.Ship"]})
         root = scope_of(service.spec, ROOT_SCOPE_ID)
-        assert root.unplaced_rule is not None
-        bucket = next(group for group in hierarchy.groups if group.group_id == root.unplaced_rule.component_id)
+        loose = next(rule for rule in root.rules if rule.is_fallback_only)
+        self.assertEqual(loose.name, "Loose files in src")
+        bucket = next(group for group in hierarchy.groups if group.group_id == loose.component_id)
         self.assertEqual(bucket.qualified_names, {"Shipping.Ship"})
         self.assertEqual([rule.origin for rule in root.rules if rule.origin == NEW_SCOPE], [])
 

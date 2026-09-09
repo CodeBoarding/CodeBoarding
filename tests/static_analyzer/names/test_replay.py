@@ -1,8 +1,7 @@
 """Replay is a pure function of a unit's names and the rules: nothing else may move a unit."""
 
 from static_analyzer.clustering.names import ROLE_WORDS, ComponentRule, ScopeSpec, replay
-from static_analyzer.clustering.names.replay import FALLBACK, PREFIX, TERM
-from static_analyzer.clustering.names.spec import UNPLACED
+from static_analyzer.clustering.names.replay import FALLBACK, PREFIX, TERM, UNPLACED
 from tests.static_analyzer.names.conftest import unit
 
 
@@ -81,13 +80,6 @@ class TestFallbackAndUnplaced:
         result = replay([unit("f", "Shared.OrderTotals"), unit("g", "Shared.Misc")], scope(ORDER, LOOSE), ROLE_WORDS)
         assert result.assignment == {"f": "2", "g": "3"}
         assert result.placed_by["g"] == FALLBACK
-
-    def test_unplaced_units_land_in_the_bucket_and_are_still_reported(self):
-        bucket = ComponentRule("4", "Unassigned", kind=UNPLACED)
-        result = replay([unit("f", "Shipping.Api.Ship")], scope(CATALOG, ORDER, bucket), ROLE_WORDS)
-        assert result.assignment == {"f": "4"}
-        assert [u.unit_id for u in result.unplaced] == ["f"]
-        assert result.placed_by["f"] == UNPLACED
 
     def test_without_a_bucket_an_unplaced_unit_is_only_reported(self):
         result = replay([unit("f", "Shipping.Api.Ship")], scope(CATALOG, ORDER), ROLE_WORDS)
