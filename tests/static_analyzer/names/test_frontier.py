@@ -1,7 +1,7 @@
 """The walk over synthetic layouts shaped like the rulers it was measured on."""
 
 from static_analyzer.clustering.names import ROLE_WORDS, Trie, walk
-from static_analyzer.clustering.names.frontier import BOX, FEATURE, LOOSE, NEARLY_ALL, RESIDUAL, ROLE_SHARE, SHARE
+from static_analyzer.clustering.names.frontier import BOX, FEATURE, LOOSE, NEARLY_ALL, RESIDUAL, ROLE_SHARE
 from tests.static_analyzer.names.conftest import units_from_layout
 
 
@@ -29,19 +29,19 @@ class TestFeatureShapedRoot:
         )
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
         assert frontier.axis == "structural"
-        assert sorted(keys(frontier)) == ["box:Basket", "box:Catalog", "box:Identity"]
+        assert sorted(keys(frontier)) == ["box:src.Basket.API", "box:src.Catalog.API", "box:src.Identity.API"]
 
-    def test_a_dotted_directory_is_one_scope_with_role_children(self):
-        """``Ordering.API`` and ``Ordering.Domain`` nest under ``Ordering``, which is never split."""
+    def test_a_dotted_directory_is_one_segment(self):
+        """``Ordering.API`` and ``Ordering.Domain`` are two projects; kinship, not the walk, relates them."""
         layout = (
             project("Ordering.API", 8, "Apis", "Application")
             | project("Ordering.Domain", 4)
             | project("Catalog.API", 4)
         )
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
-        assert sorted(keys(frontier)) == ["box:Catalog", "box:Ordering"]
+        assert sorted(keys(frontier)) == ["box:src.Catalog.API", "box:src.Ordering.API", "box:src.Ordering.Domain"]
 
-    def test_a_dominant_feature_directory_is_opened(self):
+    def test_a_dominant_directory_is_a_box_and_its_inside_is_the_next_depth(self):
         layout = {
             f"django/contrib/{app}/{mod}.py": [f"django.contrib.{app}.{mod}.f"]
             for app in ("admin", "auth", "gis")
@@ -51,20 +51,17 @@ class TestFeatureShapedRoot:
             f"django/{pkg}/{mod}.py": [f"django.{pkg}.{mod}.f"] for pkg in ("forms", "views") for mod in ("a", "b", "c")
         }
         frontier = walk(Trie(units_from_layout(layout)), ROLE_WORDS)
-        assert "opened django.contrib (9 units)" in frontier.notes
-        assert sorted(keys(frontier)) == [
-            "box:django.contrib.admin",
-            "box:django.contrib.auth",
-            "box:django.contrib.gis",
-            "box:django.forms",
-            "box:django.views",
-        ]
+        assert not frontier.notes
+        assert sorted(keys(frontier)) == ["box:django.contrib", "box:django.forms", "box:django.views"]
 
-    def test_a_layout_word_is_stepped_through(self):
+    def test_a_layout_word_is_a_box_unless_it_holds_nearly_everything(self):
+        """``src`` beside a ``tools`` of the same size is structure; ``src`` holding everything is not."""
         layout = project("Catalog.API", 3) | project("Basket.API", 3)
-        layout = {f"src/{path}": [f"src.{name}" for name in names] for path, names in layout.items()}
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
-        assert sorted(keys(frontier)) == ["box:src.Basket", "box:src.Catalog"]
+        assert sorted(keys(frontier)) == ["box:src.Basket.API", "box:src.Catalog.API"]
+        layout |= {f"tools/t{i}.py": [f"tools.t{i}.f"] for i in range(4)}
+        frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
+        assert sorted(keys(frontier)) == ["box:src", "box:tools"]
 
     def test_a_child_holding_nearly_everything_is_stepped_through_whatever_its_name(self):
         layout = {
@@ -84,7 +81,7 @@ class TestFeatureShapedRoot:
         )
         layout |= project("Ordering.API", 20, "Apis") | project("Basket.API", 20, "Apis")
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
-        assert sorted(keys(frontier)) == ["box:Basket", "box:ClientApp", "box:Ordering"]
+        assert sorted(keys(frontier)) == ["box:src.Basket.API", "box:src.ClientApp", "box:src.Ordering.API"]
 
     def test_one_unit_directories_and_root_files_are_loose(self):
         layout = {
@@ -94,14 +91,17 @@ class TestFeatureShapedRoot:
             "setup.py": ["setup.main"],
         }
         frontier = walk(Trie(units_from_layout(layout)), ROLE_WORDS)
-        loose = {candidate.key for candidate in frontier.candidates if candidate.kind == LOOSE}
-        assert loose == {"loose:", "loose:pkg"}
-        assert "box:pkg.b" in keys(frontier)
-        assert "box:pkg.a" not in keys(frontier)
+        assert [candidate.key for candidate in frontier.candidates if candidate.kind == LOOSE] == ["loose:"]
+        assert "box:pkg" in keys(frontier)
+        del layout["setup.py"]
+        inside = walk(Trie(units_from_layout(layout)), ROLE_WORDS)
+        assert [candidate.key for candidate in inside.candidates if candidate.kind == LOOSE] == ["loose:pkg"]
+        assert "box:pkg.b" in keys(inside)
+        assert "box:pkg.a" not in keys(inside)
 
 
 class TestThresholds:
-    def test_a_feature_child_is_opened_at_the_share_and_boxed_just_below_it(self):
+    def test_a_child_is_a_box_at_any_share_below_nearly_all(self):
         def layout(dominant: int) -> dict[str, list[str]]:
             out = {
                 f"top/big/{sub}/{i}.py": [f"top.big.{sub}.m{i}.f"]
@@ -111,11 +111,11 @@ class TestThresholds:
             out |= {f"top/other{j}/{i}.py": [f"top.other{j}.m{i}.f"] for j in range(4) for i in range(2)}
             return out
 
-        total = 8
-        opened = walk(Trie(units_from_layout(layout(round(SHARE * (total + 8) / (1 - SHARE)) + 1))), ROLE_WORDS)
-        assert any(note.startswith("opened top.big") for note in opened.notes)
-        boxed = walk(Trie(units_from_layout(layout(2))), ROLE_WORDS)
-        assert "box:top.big" in keys(boxed)
+        others = 8
+        for dominant in (2, others, 3 * others):
+            assert "box:top.big" in keys(walk(Trie(units_from_layout(layout(dominant))), ROLE_WORDS))
+        stepped = walk(Trie(units_from_layout(layout(4 * others + 2))), ROLE_WORDS)
+        assert "box:top.big" not in keys(stepped) and "box:top.big.alpha" in keys(stepped)
 
     def test_a_node_is_layered_at_the_role_share_and_not_below_it(self):
         def layout(role_units: int, feature_units: int) -> dict[str, list[str]]:
@@ -175,7 +175,7 @@ class TestLayeredRoot:
         features = {candidate.label: candidate for candidate in frontier.candidates if candidate.kind == FEATURE}
         assert set(features) == {"Incidents", "Escalation", "Teams"}
         assert features["Incidents"].terms == ("incident",)
-        assert ("Beacon", "Domain", "Incidents") in features["Incidents"].prefixes
+        assert ("Beacon.Domain", "Incidents") in features["Incidents"].prefixes
         residuals = [candidate.key for candidate in frontier.candidates if candidate.kind == RESIDUAL]
         assert residuals == [
             f"residual:Beacon.{layer}" for layer in ("Application", "Contracts", "Domain", "Infrastructure")
@@ -192,7 +192,7 @@ class TestLayeredRoot:
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
         features = {candidate.label: candidate for candidate in frontier.candidates if candidate.kind == FEATURE}
         assert set(features) == {"Orders", "Customers"}
-        assert ("Shop", "Application", "Handlers", "Orders") in features["Orders"].prefixes
+        assert ("Shop.Application", "Handlers", "Orders") in features["Orders"].prefixes
 
     def test_a_product_name_on_every_feature_directory_is_not_the_feature(self):
         layout: dict[str, list[str]] = {}
@@ -254,13 +254,10 @@ class TestLayeredRoot:
                     for i in range(2):
                         layout[f"{project}/{layer}/{feature}/{i}.cs"] = [f"{project}.{layer}.{feature}.T{i}"]
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
-        features = sorted(candidate.key for candidate in frontier.candidates if candidate.kind == FEATURE)
-        assert features == [
-            "feature:Billing:customer",
-            "feature:Billing:payment",
-            "feature:Orders:customer",
-            "feature:Orders:payment",
-        ]
+        assert keys(frontier) == ["box:Billing", "box:Orders"], "two projects are two boxes, transposed inside"
+        billing = walk(Trie([u for u in units_from_layout(layout, "csharp") if u.position[0] == "Billing"]), ROLE_WORDS)
+        features = sorted(candidate.key for candidate in billing.candidates if candidate.kind == FEATURE)
+        assert features == ["feature:Billing:customer", "feature:Billing:payment"]
 
     def test_the_walk_does_not_depend_on_unit_order(self):
         units = units_from_layout(self._beacon(), "csharp")
@@ -280,12 +277,12 @@ class TestLayeredRoot:
 
     def test_a_grid_is_one_box_when_the_walk_may_not_transpose(self):
         frontier = walk(Trie(units_from_layout(self._beacon(), "csharp")), ROLE_WORDS, transpose=False)
-        assert keys(frontier) == ["box:Beacon"]
+        assert keys(frontier) == ["box:"]
         assert any(note.endswith("kept as one box") for note in frontier.notes)
 
     def test_a_grid_is_drawn_layer_by_layer_when_asked(self):
         frontier = walk(Trie(units_from_layout(self._beacon(), "csharp")), ROLE_WORDS, transpose=False, layers=True)
-        assert keys(frontier) == [f"box:Beacon.{layer}" for layer in sorted(self.LAYERS[:3])] + ["loose:Beacon"]
+        assert keys(frontier) == [f"box:Beacon.{layer}" for layer in sorted(self.LAYERS[:3])] + ["loose:"]
         assert any("a grid drawn layer by layer" in note for note in frontier.notes)
 
     def test_the_shallowest_feature_directory_keys_its_subtree(self):
@@ -295,8 +292,8 @@ class TestLayeredRoot:
         layout["Beacon.Infrastructure/Metrics/MetricStore.cs"] = ["Beacon.Infrastructure.Metrics.MetricStore"]
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
         features = {candidate.label: candidate for candidate in frontier.candidates if candidate.kind == FEATURE}
-        assert ("Beacon", "Domain", "Incidents", "Metrics") not in features["Metrics"].prefixes
-        assert ("Beacon", "Application", "Metrics") in features["Metrics"].prefixes
+        assert ("Beacon.Domain", "Incidents", "Metrics") not in features["Metrics"].prefixes
+        assert ("Beacon.Application", "Metrics") in features["Metrics"].prefixes
 
 
 class TestTheWalkEmitsRulesNotAssignments:

@@ -1282,13 +1282,14 @@ class TestDiagramGenerator(unittest.TestCase):
         graph.add_node(Node("pkg.other.run", NodeType.FUNCTION, str(self.repo_location / "other.py"), 1, 4))
         gen.static_analysis = StaticAnalysisResults()
         gen.static_analysis.add_cfg(Language.PYTHON, graph)
-        # The service replays from the root down, so the spec carries the root that places pkg.persisted in 2.
+        # The service replays from the root down, so the spec carries the root that places persisted.py in 2.
+        # Both files sit at the repository root, so a rule owns one by its file key, as the files rung does.
         gen.tree_spec = TreeSpec(
             scopes={
                 ROOT_SCOPE_ID: ScopeSpec(
-                    ROOT_SCOPE_ID, [ComponentRule("2", "Persisted", prefixes=(("pkg", "persisted"),))]
+                    ROOT_SCOPE_ID, [ComponentRule("2", "Persisted", prefixes=(("persisted",),))], rung="files"
                 ),
-                "2": ScopeSpec("2", [ComponentRule("2.1", "Persisted", prefixes=(("pkg", "persisted"),))]),
+                "2": ScopeSpec("2", [ComponentRule("2.1", "Persisted", prefixes=(("persisted",),))], rung="files"),
             }
         )
         component = Component(

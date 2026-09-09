@@ -1,5 +1,9 @@
 """Drafting: the frontier grouped into components, the ladder below them, and the guard."""
 
+import re
+from collections import Counter
+from dataclasses import replace
+
 import pytest
 
 from clustering_ids import ROOT_SCOPE_ID
@@ -15,6 +19,8 @@ from static_analyzer.clustering.names import (
 )
 from static_analyzer.clustering.names.draft import (
     BUDGET,
+    LIMIT,
+    OTHER_NAME,
     CAP_SHARE,
     FILES,
     FRONTIER,
@@ -30,10 +36,9 @@ from static_analyzer.clustering.names.draft import (
     ROLE,
     SEGMENT,
     UNMERGE,
-    VOCABULARY,
     GroupingContext,
 )
-from static_analyzer.clustering.names.frontier import BOX
+from static_analyzer.clustering.names.frontier import BOX, LOOSE
 from static_analyzer.clustering.names.spec import UNPLACED
 from tests.static_analyzer.names.conftest import rule_of, scope_of, units_from_layout
 
@@ -74,11 +79,11 @@ class TestRootDraft:
             ROOT_SCOPE_ID, units_from_layout(eshop(), "csharp"), ROLE_WORDS, KinshipGrouper()
         )
         assert scope.rung == FRONTIER and scope.axis == "structural"
-        assert names_of(scope) == ["Ordering", "Catalog", "Webhooks", "Basket", "PaymentProcessor"]
+        assert names_of(scope) == ["Ordering.API", "Catalog.API", "WebhookClient", "Basket.API", "PaymentProcessor"]
         ordering = rule_of(scope, "1")
-        assert ordering.prefixes == (("OrderProcessor",), ("Ordering",))
+        assert ordering.prefixes == (("src", "OrderProcessor"), ("src", "Ordering.API"), ("src", "Ordering.Domain"))
         assert ordering.terms == ("order",)
-        assert [part.name for part in ordering.parts] == ["OrderProcessor", "Ordering"]
+        assert [part.name for part in ordering.parts] == ["OrderProcessor", "Ordering.API", "Ordering.Domain"]
         assert partition.size("1") == 19
         assert rule_of(scope, "5").parts == ()
 
@@ -90,7 +95,7 @@ class TestRootDraft:
         """A two-file directory is a box; small boxes are the grouper's to merge, not hidden."""
         layout = eshop() | project("Tiny.API", 2)
         scope, _ = draft_scope(ROOT_SCOPE_ID, units_from_layout(layout, "csharp"), ROLE_WORDS, KinshipGrouper())
-        assert "Tiny" in names_of(scope)
+        assert "Tiny.API" in names_of(scope)
 
     def test_a_transposed_root_places_loose_units_by_their_words(self):
         layout: dict[str, list[str]] = {}
@@ -112,9 +117,9 @@ class TestRootDraft:
         assert scope.axis == "transposed"
         by_name = {rule.name: rule.component_id for rule in scope.rules}
         assert partition.assignment["Beacon.Application/IncidentResolvedMetricsHandler.cs"] == by_name["Metrics"]
-        assert partition.assignment["Beacon.Application/Bootstrap.cs"] == by_name["Application (residual)"]
+        assert partition.assignment["Beacon.Application/Bootstrap.cs"] == by_name["Beacon.Application (residual)"]
 
-    def test_one_box_at_the_root_falls_through_to_the_words(self):
+    def test_one_box_at_the_root_falls_through_to_its_files(self):
         layout = {
             f"converters/{fmt}_{index}.py": [
                 f"converters.{fmt}_{index}.{fmt.capitalize()}Converter",
@@ -124,8 +129,8 @@ class TestRootDraft:
             for index in range(2)
         }
         scope, partition = draft_scope(ROOT_SCOPE_ID, units_from_layout(layout), ROLE_WORDS, KinshipGrouper())
-        assert scope.rung == VOCABULARY
-        assert names_of(scope) == ["Docx", "Pdf", "Pptx"]
+        assert scope.rung == FILES
+        assert names_of(scope) == ["docx_0", "pdf_0", "pptx_0"]
         assert all(partition.size(rule.component_id) == 2 for rule in scope.rules)
 
     def test_what_no_rule_claims_gets_a_bucket(self):
@@ -136,10 +141,9 @@ class TestRootDraft:
         }
         layout["converters/base.py"] = ["converters.base.Converter"]
         scope, partition = draft_scope(ROOT_SCOPE_ID, units_from_layout(layout), ROLE_WORDS, KinshipGrouper())
-        bucket = scope.unplaced_rule
-        assert bucket is not None and bucket.kind == UNPLACED
-        assert partition.assignment["converters/base.py"] == bucket.component_id
-        assert [unit.unit_id for unit in partition.unplaced] == ["converters/base.py"]
+        loose = next(rule for rule in scope.rules if rule.is_fallback_only)
+        assert partition.assignment["converters/base.py"] == loose.component_id
+        assert partition.placed_by["converters/base.py"] == "fallback"
 
     def test_a_layered_root_without_a_grid_draws_its_layers_before_reading_words(self):
         """serilog's shape: every top-level directory is role-named and no feature recurs."""
@@ -159,7 +163,7 @@ class TestRootDraft:
         layout = project("Ordering.API", 40) | project("Catalog.API", 40)
         layout["src/Program.cs"] = ["Program", "Program.Main()"]
         scope, partition = draft_scope(ROOT_SCOPE_ID, units_from_layout(layout, "csharp"), ROLE_WORDS, KinshipGrouper())
-        assert names_of(scope) == ["Catalog", "Ordering", "Loose files"]
+        assert names_of(scope) == ["Catalog.API", "Ordering.API", "Loose files in src"]
         assert partition.assignment["src/Program.cs"] == "3"
 
     def test_a_root_of_one_box_plus_loose_files_reads_its_words(self):
@@ -170,7 +174,7 @@ class TestRootDraft:
         }
         layout["setup.py"] = ["setup.main"]
         scope, _ = draft_scope(ROOT_SCOPE_ID, units_from_layout(layout), ROLE_WORDS, KinshipGrouper())
-        assert scope.rung == VOCABULARY
+        assert scope.rung == FILES and names_of(scope) == ["docx_reader", "pdf_reader", "Loose files"]
 
     def test_a_machinery_word_from_the_planner_is_a_role_word(self):
         layout = {
@@ -205,13 +209,13 @@ class TestLadder:
         spec = draft_tree(units_from_layout(eshop(), "csharp"), KinshipGrouper(), 2)
         child = scope_of(spec, "1")
         assert child.rung == UNMERGE
-        assert names_of(child) == ["Ordering", "OrderProcessor"]
-        assert [rule.component_id for rule in child.rules] == ["1.1", "1.2"]
-        assert rule_of(scope_of(spec, "1"), "1.1").prefixes == (("Ordering",),)
+        assert names_of(child) == ["Ordering.API", "Ordering.Domain", "OrderProcessor"]
+        assert [rule.component_id for rule in child.rules] == ["1.1", "1.2", "1.3"]
+        assert rule_of(scope_of(spec, "1"), "1.1").prefixes == (("src", "Ordering.API"),)
 
     def test_un_merge_keeps_the_parts_kinship_would_merge_again(self):
         child = scope_of(draft_tree(units_from_layout(eshop(), "csharp"), AffinityGrouper(), 2), "1")
-        assert child.rung == UNMERGE and names_of(child) == ["Ordering", "OrderProcessor"]
+        assert child.rung == UNMERGE and names_of(child) == ["Ordering.API", "Ordering.Domain", "OrderProcessor"]
 
     def test_un_merge_folds_the_parts_toward_the_budget(self):
         """Twelve parts one word merged at the root fold along their own links inside the box."""
@@ -247,7 +251,7 @@ class TestLadder:
         spec = draft_tree(units_from_layout(layout, "csharp"), KinshipGrouper(), 2)
         assert [part.name for part in rule_of(scope_of(spec, ROOT_SCOPE_ID), "1").parts] == [
             "OrderProcessor",
-            "Ordering",
+            "Ordering.API",
         ]
         assert scope_of(spec, "1").is_leaf
 
@@ -283,7 +287,7 @@ class TestLadder:
 
         def client_app(count: int):
             layout = project(
-                "ClientApp", count, "Models.Orders", "Services.Order", "Models.Basket", "Services.Basket", "Views"
+                "ClientApp", count, "Models/Orders", "Services/Order", "Models/Basket", "Services/Basket", "Views"
             )
             layout |= project("Beta", 40) | project("Gamma", 40)
             return scope_of(draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 2), "1")
@@ -294,8 +298,14 @@ class TestLadder:
         assert transposed.rung == SEGMENT and transposed.axis == "transposed"
         assert {"Orders", "Basket"} <= set(names_of(transposed))
 
+    @staticmethod
+    def _module(class_name: str) -> str:
+        return re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower()
+
     def _flat_feature(self, *class_names: str) -> dict[str, list[str]]:
-        layout = {f"pkg/feat/{name.lower()}.py": [f"pkg.feat.{name.lower()}.{name}"] for name in class_names}
+        layout = {
+            f"pkg/feat/{self._module(name)}.py": [f"pkg.feat.{self._module(name)}.{name}"] for name in class_names
+        }
         return layout | {f"pkg/other/{index}.py": [f"pkg.other.m{index}.f"] for index in range(3)}
 
     def test_a_flat_component_groups_its_files_by_their_words(self):
@@ -315,10 +325,10 @@ class TestLadder:
         units = units_from_layout(layout)
         feature = scope_of(draft_tree(units, KinshipGrouper(), 2), "1")
         assert feature.rung == FILES
-        assert names_of(feature) == [LOOSE_NAME, "RetryBuilder", "TimeoutBuilder"]
+        assert names_of(feature) == [LOOSE_NAME, "retry_options", "timeout_options"]
         retry = rule_of(feature, "1.2")
         assert retry.terms == ("retry",) and len(retry.prefixes) == 3
-        assert ("pkg", "feat", "retrypolicy", "RetryPolicy") in retry.prefixes
+        assert ("pkg", "feat", "retry_policy") in retry.prefixes
         loose = rule_of(feature, "1.1")
         assert loose.is_fallback_only and loose.fallback_prefixes == (("pkg", "feat"),)
         placed = replay(units, feature, ROLE_WORDS)
@@ -361,7 +371,7 @@ class TestLadder:
             name for name in members if name in ("HtmlConverter", "DocxConverter", "EpubConverter", "PptxConverter")
         }
         links = {
-            (f"pkg/feat/{a.lower()}.py", f"pkg/feat/{b.lower()}.py"): 2
+            (f"pkg/feat/{self._module(a)}.py", f"pkg/feat/{self._module(b)}.py"): 2
             for a in sorted(html)
             for b in sorted(html)
             if a < b
@@ -382,7 +392,7 @@ class TestLadder:
         )
         feature = scope_of(draft_tree(units, AffinityGrouper(), 3, links=links), "1")
         assert feature.rung == ISLAND
-        assert names_of(feature) == ["Other converters", "DocxConverter"]
+        assert names_of(feature) == ["Other converters", "docx_converter"]
         rest, family = feature.rules
         assert len(rest.prefixes) == 5 and rest.fallback_prefixes == (("pkg", "feat"),)
         assert len(family.prefixes) == 4
@@ -402,8 +412,8 @@ class TestLadder:
             "ZipConverter",
             "CsvConverter",
         )
-        for name in ("pdfconverter", "audioconverter", "imageconverter"):
-            links[("pkg/feat/htmlconverter.py", f"pkg/feat/{name}.py")] = 1
+        for name in ("pdf_converter", "audio_converter", "image_converter"):
+            links[("pkg/feat/html_converter.py", f"pkg/feat/{name}.py")] = 1
         feature = scope_of(draft_tree(units, AffinityGrouper(), 2, links=links), "1")
         assert feature.is_leaf and "island" in feature.leaf_reason
 
@@ -454,23 +464,18 @@ class TestLadder:
         layout |= {f"pkg/other/{index}.py": [f"pkg.other.m{index}.f"] for index in range(3)}
         return layout
 
-    def test_a_large_flat_component_reads_its_words(self):
-        spec = draft_tree(units_from_layout(self._flat(23)), KinshipGrouper(), 2)
-        big = scope_of(spec, "1")
-        assert big.rung == VOCABULARY
-        assert names_of(big) == ["Docx", "Pdf", "Pptx"]
-
-    def test_the_leaf_cap_is_a_boundary(self):
-        """135 units is a leaf; 136 reads its words."""
+    def test_a_large_flat_component_groups_its_files_by_their_words(self):
+        """Above the leaf cap as below it: the file names, not a separate vocabulary, draw the boxes."""
 
         def big_scope(extra: int):
             layout = self._flat(22) | {f"pkg/big/x{i}.py": [f"pkg.big.x{i}.f"] for i in range(extra)}
             return scope_of(draft_tree(units_from_layout(layout), KinshipGrouper(), 2), "1")
 
         assert 3 * 2 * 22 + 3 == LEAF_CAP
-        at_cap = big_scope(3)
-        assert at_cap.rung == FILES and names_of(at_cap) == ["DocxCodec", "PdfCodec", "PptxCodec", LOOSE_NAME]
-        assert big_scope(4).rung == VOCABULARY
+        for extra in (3, 4):
+            scope = big_scope(extra)
+            assert scope.rung == FILES
+            assert names_of(scope) == ["docx_reader_0", "pdf_reader_0", "pptx_reader_0", LOOSE_NAME]
 
     def test_a_large_component_nothing_splits_is_an_exhausted_leaf(self):
         layout = {f"pkg/big/m{i}.py": [f"pkg.big.m{i}.Thing"] for i in range(LEAF_CAP + 5)}
@@ -535,6 +540,7 @@ def context(
         FRONTIER,
         sizes={f"box:{name}": size for name, size in sizes.items()},
         links={tuple(sorted((f"box:{a}", f"box:{b}"))): count for (a, b), count in links.items()},  # type: ignore[misc]
+        calls={(f"box:{a}", f"box:{b}"): count for (a, b), count in links.items()},
         floor=floor,
     )
 
@@ -556,16 +562,38 @@ class TestAffinityGrouper:
 
     def test_within_budget_only_a_candidate_below_the_floor_folds(self):
         sizes = {"alpha": 5, "beta": 5, "tiny": 2}
-        links = {("tiny", "alpha"): 2, ("alpha", "beta"): 9}
+        links = {("alpha", "tiny"): 2, ("alpha", "beta"): 9}
         assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links))) == 3
         folded = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=3))
         assert members_of(folded) == {"alpha": ("alpha", "tiny"), "beta": ("beta",)}
+
+    def test_a_small_candidate_that_only_calls_others_is_an_application_and_stays(self):
+        """PaymentProcessor calls the bus; nothing calls it. It is a service, not the bus's helper."""
+        sizes = {"bus": 5, "orders": 5, "payment": 2}
+        links = {("payment", "bus"): 6, ("orders", "bus"): 6}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=3))) == 3
 
     def test_a_hub_is_nobody_s_closest_sibling(self):
         sizes = {"utils": 9, "billing": 5, "tiny": 2} | dict.fromkeys(self.BIG, 5)
         links = {("tiny", "utils"): 3, ("tiny", "billing"): 3} | {("utils", name): 10 for name in self.BIG}
         folded = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=3))
         assert members_of(folded)["billing"] == ("billing", "tiny")
+
+    def test_a_hub_neither_absorbs_a_sibling_nor_folds_into_one(self):
+        """An event bus every service calls is drawn as its own box, and so is the smallest service."""
+        sizes = {"bus": 4, "orders": 30, "catalog": 20, "basket": 6, "payment": 3, "webhooks": 12}
+        links = {(name, "bus"): 6 for name in ("orders", "catalog", "basket", "payment", "webhooks")}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))) == len(sizes)
+        two_callers = {("orders", "bus"): 6, ("payment", "bus"): 6}
+        folded = AffinityGrouper().group(boxes(*sizes), context(sizes, two_callers, floor=5))
+        assert members_of(folded)["orders"] == ("orders", "bus"), "shared by two, the bus joins the larger caller"
+
+    def test_a_fold_takes_the_sibling_it_links_to_most(self):
+        """Fifteen links to a busy sibling outweigh three to a quiet one."""
+        sizes = {"web": 20, "hybrid": 6, "components": 3, "orders": 20}
+        links = {("web", "components"): 15, ("hybrid", "components"): 3, ("web", "orders"): 40}
+        folded = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))
+        assert members_of(folded)["web"] == ("web", "components")
 
     def test_one_link_is_noise(self):
         sizes = {"alpha": 5, "tiny": 2}
@@ -574,17 +602,99 @@ class TestAffinityGrouper:
 
     def test_the_cap_sends_a_fold_to_the_next_sibling(self):
         sizes = {"big": 6, "mid": 3, "tiny": 2}
-        links = {("tiny", "big"): 3, ("tiny", "mid"): 2}
+        links = {("big", "tiny"): 3, ("mid", "tiny"): 2}
         assert 6 + 2 > CAP_SHARE * 11 >= 3 + 2
         folded = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=3))
         assert members_of(folded) == {"big": ("big",), "mid": ("mid", "tiny")}
 
     def test_kinship_comes_first_and_a_fold_keeps_every_word(self):
         sizes = {"Ordering": 8, "OrderProcessor": 2, "Basket": 5, "tiny": 2}
-        links = {("tiny", "Basket"): 2}
+        links = {("Basket", "tiny"): 2}
         folded = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=3))
         assert members_of(folded) == {"Ordering": ("Ordering", "OrderProcessor"), "Basket": ("Basket", "tiny")}
         assert next(group.terms for group in folded if group.name == "Ordering") == ("order",)
+
+
+class TestPlacementByRole:
+    """Small candidates are placed by what the calls say about them, before any fold."""
+
+    def test_a_helper_called_by_one_sibling_goes_inside_it(self):
+        sizes = {"cli": 20, "engine": 20, "core": 3}
+        folded = AffinityGrouper().group(boxes(*sizes), context(sizes, {("cli", "core"): 4}, floor=5))
+        assert members_of(folded)["cli"] == ("cli", "core")
+
+    def test_a_hub_called_by_many_stays_whatever_its_size(self):
+        sizes = {"bus": 3, "a": 20, "b": 20, "c": 20, "d": 20}
+        links = {(name, "bus"): 3 for name in "abcd"}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))) == 5
+
+    def test_a_hub_under_three_units_joins_the_loose_files(self):
+        sizes = {"log": 2, "a": 20, "b": 20, "c": 20, "d": 20}
+        links = {(name, "log"): 3 for name in "abcd"}
+        candidates = boxes(*sizes) + [Candidate("loose:", LOOSE, "", fallback_prefixes=((),))]
+        ctx = context(sizes | {"loose:": 0}, links, floor=5)
+        ctx.sizes["loose:"] = 2
+        groups = {group.name: group.keys for group in AffinityGrouper().group(candidates, ctx)}
+        assert groups["Loose files"] == ("loose:", "box:log")
+
+    def test_a_project_root_is_never_a_helper(self):
+        sizes = {"core": 40, "extensions": 3}
+        ctx = context(sizes, {("core", "extensions"): 6}, floor=5)
+        assert len(AffinityGrouper().group(boxes(*sizes), replace(ctx, projects=frozenset({"box:extensions"})))) == 2
+
+    def test_shared_by_three_stays_and_by_two_joins_the_larger(self):
+        sizes = {"a": 30, "b": 20, "c": 20, "shared": 3}
+        by_three = {(name, "shared"): 2 for name in "abc"}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, by_three, floor=5))) == 4
+        by_two = {("a", "shared"): 2, ("b", "shared"): 2}
+        folded = AffinityGrouper().group(boxes(*sizes), context(sizes, by_two, floor=5))
+        assert members_of(folded)["a"] == ("a", "shared")
+
+    def test_a_hub_calling_a_small_sibling_does_not_own_it(self):
+        """The event bus dispatches to every service's handlers; a service is its subscriber, not its helper."""
+        sizes = {"bus": 11, "a": 30, "b": 30, "c": 30, "d": 30, "basket": 4}
+        links = {(name, "bus"): 5 for name in "abcd"} | {("bus", "basket"): 6, ("basket", "bus"): 3}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))) == len(sizes)
+
+    def test_loose_files_tests_and_samples_own_no_helper(self):
+        sizes = {"lib": 30, "samples": 20, "printer": 3}
+        links = {("samples", "printer"): 9}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))) == 3
+
+    def test_a_candidate_with_no_links_joins_the_loose_files(self):
+        sizes = {"a": 30, "b": 20, "stray": 2}
+        candidates = boxes(*sizes) + [Candidate("loose:", LOOSE, "", fallback_prefixes=((),))]
+        ctx = context(sizes, {("a", "b"): 5}, floor=5)
+        ctx.sizes["loose:"] = 1
+        groups = {group.name: group.keys for group in AffinityGrouper().group(candidates, ctx)}
+        assert groups["Loose files"] == ("loose:", "box:stray")
+
+
+class TestBudgetAndLimit:
+    def test_over_the_budget_a_real_component_folds_only_into_a_dominant_partner(self):
+        """Webhooks must not join Catalog on the two links a shared helper brought along."""
+        sizes = dict.fromkeys((f"s{i}" for i in range(9)), 20) | {"webhooks": 20, "bus": 10}
+        links = {(name, "bus"): 30 for name in sizes if name != "bus"} | {("webhooks", "s0"): 2}
+        groups = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))
+        assert len(groups) == len(sizes), "the bus is a hub and two links out of thirty-two are not a home"
+
+    def test_over_the_limit_the_names_vocabulary_merges_the_closest_pair(self):
+        sizes = dict.fromkeys((f"pkg{i}" for i in range(15)), 20) | {"tenants": 20, "tenancy": 20}
+        ctx = context(sizes, {}, floor=5)
+        vocabulary = {key: Counter({key.removeprefix("box:"): 1}) for key in ctx.sizes}
+        vocabulary["box:tenants"] = Counter({"tenant": 3, "manager": 1})
+        vocabulary["box:tenancy"] = Counter({"tenant": 3, "resolver": 1})
+        groups = AffinityGrouper().group(boxes(*sizes), replace(ctx, vocabulary=vocabulary))
+        assert len(groups) == LIMIT
+        merged = next(group for group in groups if "box:tenants" in group.keys)
+        assert set(merged.keys) == {"box:tenants", "box:tenancy"}
+
+    def test_over_the_limit_with_nothing_to_merge_the_smallest_are_pooled(self):
+        sizes = {f"pkg{i:02d}": 30 - i for i in range(18)}
+        groups = AffinityGrouper().group(boxes(*sizes), context(sizes, {}, floor=5))
+        assert len(groups) == LIMIT
+        pooled = next(group for group in groups if group.name == OTHER_NAME)
+        assert set(pooled.keys) == {f"box:pkg{i}" for i in (14, 15, 16, 17)}
 
 
 class TestGroupingContractErrors:

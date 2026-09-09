@@ -74,7 +74,11 @@ def file_leaf_clusters(graph: CallGraph) -> ClusterResult:
 
 
 def unit_links(graphs: Mapping[str, CallGraph]) -> Links:
-    """Edges between files: call edges plus the reference kinds that cross a file."""
+    """Edges between files, directed from the calling file to the called one.
+
+    Call edges plus the reference kinds that cross a file. The direction is what tells a
+    helper (called by one sibling) from an application (calls others, called by none).
+    """
     links: dict[tuple[str, str], int] = {}
     for graph in graphs.values():
         pairs = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
@@ -84,7 +88,7 @@ def unit_links(graphs: Mapping[str, CallGraph]) -> Links:
             if left is None or right is None or not left.file_path or not right.file_path:
                 continue
             if left.file_path != right.file_path:
-                key = (min(left.file_path, right.file_path), max(left.file_path, right.file_path))
+                key = (left.file_path, right.file_path)
                 links[key] = links.get(key, 0) + 1
     return links
 
@@ -99,8 +103,10 @@ class ClusteringService:
     last build produced or extended; the caller persists it.
     """
 
-    def __init__(self, grouper: Grouper | None = None) -> None:
+    def __init__(self, grouper: Grouper | None = None, repo_dir: Path | None = None) -> None:
         self.grouper: Grouper = grouper if grouper is not None else AffinityGrouper()
+        self._repo_dir = repo_dir
+        """Where the files live: a unit's position is its directory under this root."""
         self.spec = TreeSpec(grouper=self.grouper.name)
         self._links: Links = {}
         self._baseline: _Baseline | None = None
@@ -108,7 +114,7 @@ class ClusteringService:
     def build_full_hierarchy(self, static_analysis: StaticAnalysisResults, max_depth: int) -> ClusterScopeResult:
         """Draft the specification from every language's names and materialize the tree."""
         graphs = static_analysis.available_cfgs()
-        units = units_from_graphs(graphs)
+        units = units_from_graphs(graphs, self._repo_dir)
         self._links = unit_links(graphs)
         self.spec = draft_tree(units, self.grouper, max_depth + 1, links=self._links)
         hierarchy = self._materialize(graphs, units, ROOT_SCOPE_ID, 1, max_depth)
@@ -134,9 +140,10 @@ class ClusteringService:
         if graphs and not base.available_cfgs():
             raise IncrementalCacheMissingError(artifact_dir, "the baseline static analysis carries no call graph")
         self._adopt(spec)
-        units = units_from_graphs(graphs)
+        self._repo_dir = repo_dir
+        units = units_from_graphs(graphs, repo_dir)
         self._links = unit_links(graphs)
-        baseline = _Baseline(persisted_scopes, repo_dir, units_from_graphs(base.available_cfgs()))
+        baseline = _Baseline(persisted_scopes, repo_dir, units_from_graphs(base.available_cfgs(), repo_dir))
         self._baseline = baseline
         hierarchy = self._materialize(graphs, units, ROOT_SCOPE_ID, 1, max_depth, baseline=baseline)
         hierarchy.index_hierarchy()
@@ -158,7 +165,7 @@ class ClusteringService:
             raise ValueError("max_depth must be at least 1")
         self._adopt(spec)
         role_words = role_words_for(spec.machinery)
-        units = self._scope_units(units_from_graphs(graphs), root_scope_id, role_words)
+        units = self._scope_units(units_from_graphs(graphs, self._repo_dir), root_scope_id, role_words)
         if not is_root(root_scope_id):
             # The scope's own graphs, induced by the files its ancestors' replay placed in it, so a
             # partial run sees the units a full run would have handed it, data-only files included.
@@ -226,7 +233,7 @@ class ClusteringService:
         result.connections = self._build_connections(graphs, result.groups)
         for group in result.groups:
             child_graphs = self._induced_graphs(partition.members.get(group.group_id, []), graphs)
-            child_units = units_from_graphs(child_graphs)
+            child_units = units_from_graphs(child_graphs, self._repo_dir)
             child = self._scope_rules(group.group_id, child_units)
             group.expandable = not child.is_leaf and bool(child_units)
             if not group.expandable or depth >= max_depth:

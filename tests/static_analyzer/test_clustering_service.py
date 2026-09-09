@@ -108,7 +108,7 @@ def persisted_from(hierarchy: ClusterScopeResult) -> dict[str, AnalysisInsights]
 class TestFullHierarchy(unittest.TestCase):
     def setUp(self):
         self.graph = graph("csharp", eshop() | {"src/Ordering.API/Apis/consts.cs": ["Ordering.API.Apis.limits_var"]})
-        self.service = ClusteringService()
+        self.service = ClusteringService(repo_dir=Path("/repo"))
         self.hierarchy = self.service.build_full_hierarchy(analysis_for(self.graph), max_depth=2)
 
     def test_groups_are_the_specification_rules(self):
@@ -116,7 +116,7 @@ class TestFullHierarchy(unittest.TestCase):
         self.assertEqual(
             [group.group_id for group in self.hierarchy.groups], [rule.component_id for rule in root.rules]
         )
-        self.assertEqual(rule_of(root, "1").name, "Ordering")
+        self.assertEqual(rule_of(root, "1").name, "Ordering.API")
 
     def test_leaves_are_files_and_members_are_callables_and_classes(self):
         leaves = self.hierarchy.leaf_clusters_by_language["csharp"]
@@ -143,7 +143,7 @@ class TestFullHierarchy(unittest.TestCase):
         ordering, basket = self.hierarchy.groups[0], self.hierarchy.groups[3]
         self.assertTrue(ordering.expandable)
         assert ordering.children is not None
-        self.assertEqual([group.group_id for group in ordering.children.groups], ["1.1", "1.2"])
+        self.assertEqual([group.group_id for group in ordering.children.groups], ["1.1", "1.2", "1.3"])
         self.assertFalse(basket.expandable)
         self.assertIsNone(basket.children)
         self.assertIn("1.1", self.service.spec.scopes, "the spec is drafted one level deeper than the tree")
@@ -156,11 +156,13 @@ class TestFullHierarchy(unittest.TestCase):
         for name in ("Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota"):
             layout |= project(name, 3)
         edges = [(f"Tiny.API.TinyType{i}.Run()", "Ordering.API.Apis.OrderingType0.Run()") for i in range(2)]
-        service = ClusteringService()
+        service = ClusteringService(repo_dir=Path("/repo"))
         service.build_full_hierarchy(analysis_for(graph("csharp", layout, edges)), max_depth=1)
         ordering = rule_of(scope_of(service.spec, ROOT_SCOPE_ID), "1")
-        self.assertIn(("Tiny",), ordering.prefixes)
-        self.assertEqual([part.name for part in ordering.parts], ["OrderProcessor", "Ordering", "Tiny"])
+        self.assertIn(("src", "Tiny.API"), ordering.prefixes)
+        self.assertEqual(
+            [part.name for part in ordering.parts], ["OrderProcessor", "Ordering.API", "Ordering.Domain", "Tiny.API"]
+        )
 
     def test_unit_links_count_calls_and_reference_edges_between_files(self):
         csharp = graph("csharp", {"a.cs": ["A", "A.Run()"], "b.cs": ["B", "B.Run()"]}, [("A.Run()", "B.Run()")])
@@ -171,7 +173,9 @@ class TestFullHierarchy(unittest.TestCase):
 
     def test_a_rule_whose_units_own_no_callable_or_class_is_not_drawn(self):
         layout = eshop() | {f"src/Assets/Asset{i}.cs": [f"Assets.asset{i}_var"] for i in range(6)}
-        hierarchy = ClusteringService().build_full_hierarchy(analysis_for(graph("csharp", layout)), max_depth=2)
+        hierarchy = ClusteringService(repo_dir=Path("/repo")).build_full_hierarchy(
+            analysis_for(graph("csharp", layout)), max_depth=2
+        )
 
         def visit(scope: ClusterScopeResult) -> None:
             for group in scope.groups:
@@ -184,12 +188,16 @@ class TestFullHierarchy(unittest.TestCase):
 
     def test_connections_come_from_the_graph(self):
         edges = [("Catalog.API.Model.CatalogType0.Run()", "Ordering.API.Apis.OrderingType0.Run()")]
-        hierarchy = ClusteringService().build_full_hierarchy(analysis_for(graph("csharp", eshop(), edges)), max_depth=1)
+        hierarchy = ClusteringService(repo_dir=Path("/repo")).build_full_hierarchy(
+            analysis_for(graph("csharp", eshop(), edges)), max_depth=1
+        )
         self.assertEqual([(c.source_group_id, c.target_group_id) for c in hierarchy.connections], [("2", "1")])
         self.assertEqual(hierarchy.connections[0].edges[0].call_sites, [{"file": "x.cs", "line": 1}])
 
     def test_materialized_groups_explain_every_file_placement(self):
-        hierarchy = ClusteringService().build_full_hierarchy(analysis_for(graph("csharp", eshop())), max_depth=1)
+        hierarchy = ClusteringService(repo_dir=Path("/repo")).build_full_hierarchy(
+            analysis_for(graph("csharp", eshop())), max_depth=1
+        )
         clustered_files = {
             file_path
             for clusters in hierarchy.leaf_clusters_by_language.values()
@@ -210,7 +218,7 @@ class TestFullHierarchy(unittest.TestCase):
 class TestIncrementalHierarchy(unittest.TestCase):
     def setUp(self):
         self.layout = eshop()
-        first = ClusteringService()
+        first = ClusteringService(repo_dir=Path("/repo"))
         baseline = first.build_full_hierarchy(analysis_for(graph("csharp", self.layout)), max_depth=2)
         self.spec = TreeSpec.from_dict(first.spec.to_dict())
         self.persisted = persisted_from(baseline)
@@ -218,7 +226,7 @@ class TestIncrementalHierarchy(unittest.TestCase):
     def _incremental(self, layout: dict[str, list[str]]) -> tuple[ClusteringService, ClusterScopeResult]:
         analysis = analysis_for(graph("csharp", layout))
         analysis.incremental_base_results = analysis_for(graph("csharp", self.layout))
-        service = ClusteringService()
+        service = ClusteringService(repo_dir=Path("/repo"))
         hierarchy = service.build_incremental_hierarchy(
             analysis, 2, self.spec, self.persisted, REPO, REPO / ".codeboarding"
         )
@@ -235,11 +243,11 @@ class TestIncrementalHierarchy(unittest.TestCase):
                     ]
         layout["src/Beacon.Application/Constants/Limits.cs"] = ["Beacon.Application.Constants.Limits.max_var"]
         layout["src/Beacon.Application/Constants/Defaults.cs"] = ["Beacon.Application.Constants.Defaults.min_var"]
-        first = ClusteringService()
+        first = ClusteringService(repo_dir=Path("/repo"))
         baseline = first.build_full_hierarchy(analysis_for(graph("csharp", layout)), max_depth=1)
         analysis = analysis_for(graph("csharp", layout))
         analysis.incremental_base_results = analysis_for(graph("csharp", layout))
-        service = ClusteringService()
+        service = ClusteringService(repo_dir=Path("/repo"))
         hierarchy = service.build_incremental_hierarchy(
             analysis, 1, TreeSpec.from_dict(first.spec.to_dict()), persisted_from(baseline), REPO, REPO
         )
@@ -270,7 +278,7 @@ class TestIncrementalHierarchy(unittest.TestCase):
         self.assertEqual(shipping.group_id, "6")
         self.assertEqual(len(shipping.qualified_names), 6)
         rule = rule_of(scope_of(service.spec, ROOT_SCOPE_ID), "6")
-        self.assertEqual((rule.origin, rule.prefixes, rule.terms), (NEW_SCOPE, (("Shipping",),), ()))
+        self.assertEqual((rule.origin, rule.prefixes, rule.terms), (NEW_SCOPE, (("src", "Shipping.API"),), ()))
 
     def test_a_single_new_file_nothing_claims_lands_in_the_bucket(self):
         service, hierarchy = self._incremental(self.layout | {"src/Shipping/Ship.cs": ["Shipping.Ship"]})
@@ -293,7 +301,7 @@ class TestIncrementalHierarchy(unittest.TestCase):
         spec = TreeSpec.from_dict(self.spec.to_dict() | {"grouper": "kinship"})
         analysis = analysis_for(graph("csharp", self.layout))
         analysis.incremental_base_results = analysis_for(graph("csharp", self.layout))
-        service = ClusteringService()
+        service = ClusteringService(repo_dir=Path("/repo"))
         service.build_incremental_hierarchy(analysis, 2, spec, self.persisted, REPO, REPO)
         self.assertEqual(service.grouper.name, "kinship")
 
@@ -301,7 +309,9 @@ class TestIncrementalHierarchy(unittest.TestCase):
         analysis = analysis_for(graph("csharp", self.layout))
         analysis.incremental_base_results = StaticAnalysisResults()
         with self.assertRaisesRegex(IncrementalCacheMissingError, "call graph"):
-            ClusteringService().build_incremental_hierarchy(analysis, 2, self.spec, self.persisted, REPO, REPO)
+            ClusteringService(repo_dir=Path("/repo")).build_incremental_hierarchy(
+                analysis, 2, self.spec, self.persisted, REPO, REPO
+            )
 
     def test_a_new_directory_in_a_scope_drawn_from_words_is_still_a_new_component(self):
         """No rule owns a prefix here, so the new files must be keyed by where they leave the old units."""
@@ -317,10 +327,10 @@ class TestIncrementalHierarchy(unittest.TestCase):
         }
         analysis = analysis_for(graph("csharp", new))
         analysis.incremental_base_results = analysis_for(graph("csharp", old))
-        service = ClusteringService()
+        service = ClusteringService(repo_dir=Path("/repo"))
         hierarchy = service.build_incremental_hierarchy(analysis, 1, spec, {}, REPO, REPO)
         sampling = rule_of(scope_of(service.spec, ROOT_SCOPE_ID), "3")
-        self.assertEqual((sampling.origin, sampling.prefixes), (NEW_SCOPE, (("Serilog", "Sampling"),)))
+        self.assertEqual((sampling.origin, sampling.prefixes), (NEW_SCOPE, (("src", "Serilog", "Sampling"),)))
         self.assertEqual(len(next(group for group in hierarchy.groups if group.group_id == "3").qualified_names), 6)
 
     def test_a_new_directory_whose_names_vote_elsewhere_is_still_a_new_component(self):
@@ -333,17 +343,19 @@ class TestIncrementalHierarchy(unittest.TestCase):
         shipping = next(group for group in hierarchy.groups if group.previous_component_id == "")
         self.assertEqual(len(shipping.qualified_names), 6)
         rule = rule_of(scope_of(service.spec, ROOT_SCOPE_ID), shipping.group_id)
-        self.assertEqual((rule.origin, rule.prefixes), (NEW_SCOPE, (("Shipping",),)))
+        self.assertEqual((rule.origin, rule.prefixes), (NEW_SCOPE, (("src", "Shipping"),)))
 
     def test_a_baseline_without_a_specification_cannot_be_built_on(self):
         analysis = analysis_for(graph("csharp", self.layout))
         analysis.incremental_base_results = StaticAnalysisResults()
         with self.assertRaisesRegex(IncrementalCacheMissingError, "tree specification"):
-            ClusteringService().build_incremental_hierarchy(analysis, 2, TreeSpec(), self.persisted, REPO, REPO)
+            ClusteringService(repo_dir=Path("/repo")).build_incremental_hierarchy(
+                analysis, 2, TreeSpec(), self.persisted, REPO, REPO
+            )
 
     def test_a_cold_static_analysis_cannot_be_built_on(self):
         with self.assertRaises(IncrementalCacheMissingError):
-            ClusteringService().build_incremental_hierarchy(
+            ClusteringService(repo_dir=Path("/repo")).build_incremental_hierarchy(
                 analysis_for(graph("csharp", self.layout)), 2, self.spec, self.persisted, REPO, REPO
             )
 
@@ -351,24 +363,28 @@ class TestIncrementalHierarchy(unittest.TestCase):
 class TestScopeHierarchy(unittest.TestCase):
     def setUp(self):
         self.graph = graph("csharp", eshop())
-        first = ClusteringService()
+        first = ClusteringService(repo_dir=Path("/repo"))
         self.hierarchy = first.build_full_hierarchy(analysis_for(self.graph), max_depth=1)
         self.spec = first.spec
 
     def _scope(self, component_id: str) -> ClusterScopeResult:
-        return ClusteringService().build_scope_hierarchy({"csharp": self.graph}, 1, component_id, self.spec)
+        return ClusteringService(repo_dir=Path("/repo")).build_scope_hierarchy(
+            {"csharp": self.graph}, 1, component_id, self.spec
+        )
 
     def test_a_grouped_component_replays_its_parts(self):
         scope = self._scope("1")
-        self.assertEqual([group.group_id for group in scope.groups], ["1.1", "1.2"])
+        self.assertEqual([group.group_id for group in scope.groups], ["1.1", "1.2", "1.3"])
 
     def test_a_partial_run_holds_the_units_a_full_run_placed_data_only_files_included(self):
         graph_with_consts = graph(
             "csharp", eshop() | {"src/Ordering.API/Apis/consts.cs": ["Ordering.API.Apis.limits_var"]}
         )
-        first = ClusteringService()
+        first = ClusteringService(repo_dir=Path("/repo"))
         full = first.build_full_hierarchy(analysis_for(graph_with_consts), max_depth=2)
-        partial = ClusteringService().build_scope_hierarchy({"csharp": graph_with_consts}, 1, "1", first.spec)
+        partial = ClusteringService(repo_dir=Path("/repo")).build_scope_hierarchy(
+            {"csharp": graph_with_consts}, 1, "1", first.spec
+        )
         assert full.groups[0].children is not None
         self.assertEqual(
             [(g.group_id, sorted(g.cluster_ids)) for g in partial.groups],
@@ -378,7 +394,7 @@ class TestScopeHierarchy(unittest.TestCase):
     def test_a_scope_the_planner_never_drew_is_not_drawn_by_another_grouper(self):
         spec = TreeSpec.from_dict(self.spec.to_dict() | {"grouper": "planner"})
         with self.assertRaisesRegex(PlannerUnavailableError, "never drafted"):
-            ClusteringService().build_scope_hierarchy({"csharp": self.graph}, 2, "1", spec)
+            ClusteringService(repo_dir=Path("/repo")).build_scope_hierarchy({"csharp": self.graph}, 2, "1", spec)
 
     def test_a_small_component_comes_back_without_groups(self):
         self.assertEqual(self._scope("4").groups, [])

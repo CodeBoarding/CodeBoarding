@@ -139,7 +139,7 @@ class ScopeSpec:
         )
 
 
-SPEC_VERSION = 3
+SPEC_VERSION = 4
 """3: the files and role rungs below the old floor of forty units, whose rules claim a unit by its
 key and may own a role word. 2: ``last_id`` per scope."""
 
