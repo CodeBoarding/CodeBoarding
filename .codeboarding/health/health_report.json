@@ -1,18 +1,78 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-08T20:57:34.917750+00:00",
-  "overall_score": 0.867747972551466,
+  "timestamp": "2026-09-09T22:24:04.998952+00:00",
+  "overall_score": 0.8679127725856698,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1391,
+      "total_entities_checked": 1393,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
       "finding_groups": []
+    },
+    {
+      "check_name": "circular_dependencies",
+      "description": "Detects circular dependencies between packages",
+      "languages": [],
+      "check_type": "circular_dependencies",
+      "cycles": [
+        "diagram_analysis -> agents -> agents.llm_renderers -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.llm_renderers -> static_analyzer -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.llm_renderers -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.llm_renderers -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.llm_renderers -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.llm_renderers -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.tools -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.tools -> static_analyzer -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.tools -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.tools -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> agents.tools -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> agents -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> agents -> agents.llm_renderers -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> agents -> agents.tools -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> agents -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> health.checks -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> agents -> agents.llm_renderers -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> agents -> agents.tools -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> agents -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> health -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer -> agents -> agents.llm_renderers -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer -> agents -> agents.tools -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer -> agents -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.cfg -> static_analyzer -> agents -> agents.llm_renderers -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.cfg -> static_analyzer -> agents -> agents.tools -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.cfg -> static_analyzer -> agents -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.cfg -> static_analyzer -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.clustering -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.clustering -> static_analyzer -> agents -> agents.llm_renderers -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.clustering -> static_analyzer -> agents -> agents.tools -> repo_utils -> diagram_analysis",
+        "diagram_analysis -> static_analyzer.clustering -> static_analyzer -> agents -> repo_utils -> diagram_analysis"
+      ],
+      "packages_checked": 34,
+      "packages_in_cycles": 12
     },
     {
       "check_name": "unused_code_diagnostics",
@@ -160,6 +220,13 @@
               "file_path": "output_generators/rendering.py",
               "line_start": 17,
               "line_end": 17,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"to_absolute_path\" is not accessed",
+              "file_path": "repo_utils/__init__.py",
+              "line_start": 13,
+              "line_end": 13,
               "metric_value": 0.0
             },
             {
@@ -830,8 +897,8 @@
             {
               "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
               "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
-              "line_start": 241,
-              "line_end": 241,
+              "line_start": 247,
+              "line_end": 247,
               "metric_value": 0.0
             },
             {
@@ -931,13 +998,6 @@
               "line_start": 11,
               "line_end": 11,
               "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"to_absolute_path\" is not accessed",
-              "file_path": "repo_utils/__init__.py",
-              "line_start": 13,
-              "line_end": 13,
-              "metric_value": 0.0
             }
           ]
         },
@@ -979,6 +1039,13 @@
               "file_path": "output_generators/rendering.py",
               "line_start": 17,
               "line_end": 17,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"to_absolute_path\" is not accessed",
+              "file_path": "repo_utils/__init__.py",
+              "line_start": 13,
+              "line_end": 13,
               "metric_value": 0.0
             },
             {
@@ -1484,13 +1551,6 @@
               "line_start": 11,
               "line_end": 11,
               "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"to_absolute_path\" is not accessed",
-              "file_path": "repo_utils/__init__.py",
-              "line_start": 13,
-              "line_end": 13,
-              "metric_value": 0.0
             }
           ]
         },
@@ -1499,6 +1559,13 @@
           "threshold": 0,
           "description": "Code that cannot be reached during execution",
           "entities": [
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "repo_utils/__init__.py",
+              "line_start": 86,
+              "line_end": 86,
+              "metric_value": 0.0
+            },
             {
               "entity_name": "[unreachable_code] Code is unreachable",
               "file_path": "tool_registry/manifest.py",
@@ -1518,13 +1585,6 @@
               "file_path": "static_analyzer/node.py",
               "line_start": 69,
               "line_end": 69,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "repo_utils/__init__.py",
-              "line_start": 86,
-              "line_end": 86,
               "metric_value": 0.0
             }
           ]
