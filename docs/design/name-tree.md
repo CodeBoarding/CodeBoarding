@@ -57,7 +57,10 @@ engine root a nested solution was analysed from, a dotted project directory (`Or
 and each was measured to scatter a root (abp's `framework/` invisible, btcpayserver's
 controllers transposed into 75 word boxes, eShop's two JavaScript files a box of their
 own). The **trie** is the prefix tree of positions: the repository's directory tree, the
-same for every language. A unit also records the nearest directory above it holding a
+same for every language. The names themselves follow the same rule since the engine spells
+every one from the repository root, segment for segment as the path is on disk (no adapter
+drops `src` or `src/main/java`, no nested solution spells its files relative to itself), so a
+name and a position agree. A unit also records the nearest directory above it holding a
 project manifest (`package.json`, `pyproject.toml`, a `.csproj`, …), which the grouper reads
 as "a reader separated this on purpose".
 
@@ -179,6 +182,11 @@ numbering cannot move a unit.
 | component ≤ 7 units | un-merge: the candidates the grouper folded into it, offered to the grouper again → leaf ("small") |
 | component 8–135 units | un-merge → frontier of its own sub-trie, a layered grid kept whole → the same frontier with the grid drawn layer by layer → files → roles → island → leaf ("cohesive") |
 | component > 135 units | the same, the frontier transposed where a grid recurs → leaf ("exhausted") |
+
+What no rule of a settled scope claims goes to a fallback-only "Loose files" rule on the
+scope's own prefix, drafted on the spot; there is no separate "Unassigned" bucket, so a reader
+meets one name for the files a scope holds directly, whether the walk found them or a later
+run added them.
 
 The ladder is the same at every depth. The un-merge rung hands a fold's parts back to the
 grouper inside their own scope (kinship skipped, since the parts are already one word apart),
