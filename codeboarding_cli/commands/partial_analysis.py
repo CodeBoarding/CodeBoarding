@@ -46,7 +46,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     logger.info("Starting CodeBoarding partial component update...")
 
     run_paths.output_dir.mkdir(parents=True, exist_ok=True)
-    initialize_codeboardingignore(run_paths.output_dir)
+    initialize_codeboardingignore(run_paths.repo_path)
 
     def scope(src: SourceContext, run_context: RunContext) -> None:
         run_partial(
