@@ -170,6 +170,10 @@ class CallGraphBuilder:
             probe_result = self._send_sync_probe(source_files, probe_timeout)
             if not interleave_open:
                 self._bulk_did_open(source_files)
+                # Why: bulk didOpen queues server work proportional to the file
+                # count, and the next request drains it. Without a probe here that
+                # drain lands on the adapter's fixed per-request timeout.
+                probe_result = self._send_sync_probe(source_files, probe_timeout, label="overlay processing")
         else:
             self._bulk_did_open(source_files)
             probe_result = self._send_sync_probe(source_files, probe_timeout)
@@ -214,10 +218,10 @@ class CallGraphBuilder:
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
-    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> list[dict]:
-        """Send a documentSymbol probe to wait for the LSP server to finish indexing."""
+    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int, label: str = "indexing") -> list[dict]:
+        """Send a documentSymbol probe to wait for the LSP server to finish ``label``."""
         probe_result: list[dict] = []
-        logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
+        logger.info("Waiting for LSP server %s (timeout=%ds)...", label, probe_timeout)
         t_probe = time.monotonic()
         if source_files:
             probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)

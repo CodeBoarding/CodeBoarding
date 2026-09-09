@@ -188,6 +188,43 @@ class TestDiscoverSymbols:
         ]
         assert [item.kwargs.get("timeout") for item in lsp.document_symbol.call_args_list[1:]] == [64, 64]
 
+    def test_probes_again_after_bulk_did_open(self):
+        """Why: bulk didOpen queues server work that the next request drains, so the
+        drain must land on a probe with the scaled timeout, not the fixed default."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        files = [Path("/project/a.cs"), Path("/project/b.cs")]
+
+        builder._discover_symbols(files)
+
+        calls = [(item[0], item.args[0]) for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == [
+            ("document_symbol", files[0]),
+            ("did_open", files[0]),
+            ("did_open", files[1]),
+            ("document_symbol", files[0]),
+            ("document_symbol", files[1]),
+        ]
+        assert lsp.did_open.call_count == len(files)
+        # Both probes get the scaled timeout; Phase 1 keeps the per-request default.
+        timeouts = [item.kwargs.get("timeout") for item in lsp.document_symbol.call_args_list]
+        assert timeouts == [64, 64, None]
+
+    def test_skips_post_open_probe_when_interleaving(self):
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        adapter.interleave_did_open_with_symbols = True
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        files = [Path("/project/a.go")]
+
+        builder._discover_symbols(files)
+
+        calls = [item[0] for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == ["document_symbol", "did_open", "document_symbol"]
+
 
 class TestBuild:
     def test_returns_language_analysis_result(self):
