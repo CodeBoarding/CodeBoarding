@@ -10,6 +10,7 @@ import pytest
 from static_analyzer.config import Language, NodeType
 from static_analyzer.dotnet_sdk import DotnetSdkError, DotnetSdkResolution
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
+from static_analyzer.engine.source_inspector import SourceInspector
 
 
 def _dotnet_resolution(dotnet_path: str = "/usr/bin/dotnet", env: dict[str, str] | None = None) -> DotnetSdkResolution:
@@ -659,3 +660,39 @@ class TestPrepareProject:
         monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.subprocess.run", fake_run)
 
         CSharpAdapter().prepare_project(tmp_path)  # no exception
+
+
+class TestReadDocumentSymbols:
+    """The parse tree stands in only for a file the loaded solution declares types in (a
+    source compiled into several projects); a file the server does not know is left to it."""
+
+    def _client(self, hits: list[str]) -> MagicMock:
+        client = MagicMock()
+        client.workspace_symbol.return_value = [{"name": "Clock", "location": {"uri": uri}} for uri in hits]
+        return client
+
+    def test_a_file_the_solution_declares_is_read_from_source(self, tmp_path: Path):
+        shared = tmp_path / "Shared" / "Clock.cs"
+        shared.parent.mkdir()
+        shared.write_text('namespace Shared;\ninternal static class Clock { public static string Stamp() => ""; }\n')
+        client = self._client([shared.resolve().as_uri()])
+
+        symbols = CSharpAdapter().read_document_symbols(shared, SourceInspector(), client)
+
+        assert [child["name"] for child in symbols[0]["children"][0]["children"]] == ["Clock"]
+        client.workspace_symbol.assert_called_once_with("Clock")
+
+    def test_a_file_the_solution_does_not_declare_is_left_to_the_server(self, tmp_path: Path):
+        loose = tmp_path / "Loose.cs"
+        loose.write_text("class Clock { }\n")
+        client = self._client([(tmp_path / "Elsewhere" / "Clock.cs").as_uri()])
+
+        assert CSharpAdapter().read_document_symbols(loose, SourceInspector(), client) == []
+
+    def test_a_file_without_types_asks_nothing(self, tmp_path: Path):
+        usings = tmp_path / "GlobalUsings.cs"
+        usings.write_text("global using System;\n")
+        client = self._client([])
+
+        assert CSharpAdapter().read_document_symbols(usings, SourceInspector(), client) == []
+        client.workspace_symbol.assert_not_called()

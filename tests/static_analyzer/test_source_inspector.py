@@ -684,3 +684,107 @@ class TestIteratedExpression:
         si = SourceInspector()
         positions = _positions(si.find_iterated_expression_sites(f))
         assert (1, 46) in positions  # `Items`, whose type is what gets enumerated
+
+
+class TestFindDocumentSymbols:
+    """The parse tree stands in for csharp-ls on a file it answers nothing for, so the
+    symbols must be spelled the way the server spells them."""
+
+    SOURCE = """using System;
+namespace Polly.Utils;
+internal static class Guard
+{
+    public static T NotNull<T>(T value, [CallerArgumentExpression("value")] string argumentName = "") where T : class => value;
+    private readonly int _count, _other;
+    public string Name { get; set; }
+    public event EventHandler Changed;
+    public Guard(int x) { }
+    public int this[int i] => i;
+    public static Guard operator +(Guard a, Guard b) => a;
+    public static implicit operator int(Guard g) => 1;
+    public void Run(pb::CodedOutputStream output, params string[] parts) { static int Local() => 1; }
+    private class Inner { public void M() { } }
+    public enum Kind { A, B }
+}
+"""
+
+    def _symbols(self, tmp_path: Path, source: str = SOURCE, name: str = "Guard.cs") -> list[dict]:
+        f = tmp_path / name
+        f.write_text(source)
+        return SourceInspector().find_document_symbols(f)
+
+    @staticmethod
+    def _flat(symbols: list[dict], depth: int = 0):
+        for sym in symbols:
+            yield depth, sym
+            yield from TestFindDocumentSymbols._flat(sym.get("children", []), depth + 1)
+
+    def test_nests_file_namespace_type_and_members(self, tmp_path: Path):
+        symbols = self._symbols(tmp_path)
+        shape = [(depth, sym["kind"], sym["name"]) for depth, sym in self._flat(symbols)]
+        assert shape[:3] == [(0, 1, "Guard.cs"), (1, 3, "Polly.Utils"), (2, 5, "Guard")]
+        assert symbols[0]["children"][0]["detail"] == "Polly.Utils"
+        members = [(kind, name) for depth, kind, name in shape if depth == 3]
+        assert members == [
+            (6, 'NotNull<T>(T value, string argumentName = "")'),
+            (8, "_count"),
+            (8, "_other"),
+            (7, "Name"),
+            (24, "Changed"),
+            (9, "Guard(int x)"),
+            (7, "this[int i]"),
+            (25, "operator +(Guard a, Guard b)"),
+            (25, "operator int(Guard g)"),
+            (6, "Run(CodedOutputStream output, params string[] parts)"),
+            (5, "Inner"),
+            (10, "Kind"),
+        ]
+        assert [(kind, name) for depth, kind, name in shape if depth == 4] == [(6, "M()"), (22, "A"), (22, "B")]
+
+    def test_local_functions_are_not_symbols(self, tmp_path: Path):
+        names = [sym["name"] for _, sym in self._flat(self._symbols(tmp_path))]
+        assert not any(name.startswith("Local") for name in names)
+
+    def test_selection_range_is_the_name(self, tmp_path: Path):
+        symbols = self._symbols(tmp_path)
+        method = next(sym for _, sym in self._flat(symbols) if sym["name"].startswith("NotNull"))
+        assert method["selectionRange"]["start"] == {"line": 4, "character": 20}
+        assert method["range"]["start"]["line"] == 4
+
+    def test_block_namespaces_and_generic_types(self, tmp_path: Path):
+        source = "namespace A.B { public interface IRepo<T> { T Get(int id); } public record Rec(int A); }\n"
+        symbols = self._symbols(tmp_path, source, "Repo.cs")
+        shape = [(depth, sym["kind"], sym["name"]) for depth, sym in self._flat(symbols)]
+        assert shape == [(0, 1, "Repo.cs"), (1, 3, "A.B"), (2, 11, "IRepo<T>"), (3, 6, "Get(int id)"), (2, 5, "Rec")]
+
+    def test_a_file_without_declarations_has_none(self, tmp_path: Path):
+        assert self._symbols(tmp_path, "using System;\n", "GlobalUsings.cs") == []
+
+    def test_only_csharp(self, tmp_path: Path):
+        assert self._symbols(tmp_path, "class A {}\n", "A.java") == []
+
+    def test_explicit_interface_members_keep_their_interface(self, tmp_path: Path):
+        source = "class Bag : IFoo, IBar { void IFoo.M() { } void IBar.M() { } int IFoo.this[int i] => i; }\n"
+        names = [
+            sym["name"] for _, sym in self._flat(self._symbols(tmp_path, source, "Bag.cs")) if sym["kind"] in (6, 7)
+        ]
+        assert names == ["IFoo.M()", "IBar.M()", "IFoo.this[int i]"]
+
+    def test_nested_block_namespaces_are_named_in_full(self, tmp_path: Path):
+        source = "namespace A { namespace Common { class C { } } }\nnamespace B { namespace Common { class D { } } }\n"
+        symbols = self._symbols(tmp_path, source, "N.cs")
+        namespaces = [(sym["name"], sym["detail"]) for _, sym in self._flat(symbols) if sym["kind"] == 3]
+        assert namespaces == [("A", "A"), ("A.Common", "A.Common"), ("B", "B"), ("B.Common", "B.Common")]
+
+    def test_whitespace_inside_a_default_literal_is_kept(self, tmp_path: Path):
+        source = 'class J { string Join(string separator = "  ", int\n    width = 2) => separator; }\n'
+        names = [sym["name"] for _, sym in self._flat(self._symbols(tmp_path, source, "J.cs")) if sym["kind"] == 6]
+        assert names == ['Join(string separator = "  ", int width = 2)']
+
+    def test_checked_operators_are_distinct(self, tmp_path: Path):
+        source = (
+            "class V { public static V operator +(V a, V b) => a; public static V operator checked +(V a, V b) => a;"
+            " public static explicit operator int(V v) => 1; }\n"
+        )
+        names = [sym["name"] for _, sym in self._flat(self._symbols(tmp_path, source, "V.cs")) if sym["kind"] == 25]
+        assert names == ["operator +(V a, V b)", "operator checked +(V a, V b)", "operator int(V v)"]

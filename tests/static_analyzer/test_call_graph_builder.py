@@ -54,6 +54,8 @@ def _make_adapter() -> MagicMock:
     adapter.get_probe_timeout_minimum.return_value = 0
     adapter.probe_before_open = False
     adapter.interleave_did_open_with_symbols = False
+    adapter.workspace_owns_documents = False
+    adapter.read_document_symbols.return_value = []
     return adapter
 
 
@@ -187,6 +189,60 @@ class TestDiscoverSymbols:
             ("document_symbol", files[1]),
         ]
         assert [item.kwargs.get("timeout") for item in lsp.document_symbol.call_args_list[1:]] == [64, 64]
+
+    def test_a_workspace_owning_server_keeps_a_file_read_from_source_closed(self):
+        """csharp-ls adds a second copy of a file it cannot map to one document when that
+        file is opened, so symbols come first and such a file is never opened."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        adapter.workspace_owns_documents = True
+        files = [Path("/project/a.cs"), Path("/project/shared.cs")]
+        served = {"name": "A", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        lsp.document_symbol.side_effect = lambda path, timeout=None: [served] if path == files[0] else []
+        read = {"name": "Shared", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        adapter.read_document_symbols.return_value = [read]
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        builder._discover_symbols(files)
+
+        calls = [(item[0], item.args[0]) for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == [("document_symbol", files[0]), ("document_symbol", files[1]), ("did_open", files[0])]
+        adapter.read_document_symbols.assert_called_once_with(files[1], builder._source_inspector, lsp)
+        assert {"a.A", "shared.Shared"} <= set(builder.symbol_table.symbols)
+
+    def test_a_file_the_server_does_not_know_yet_is_opened_and_asked_again(self):
+        """A file outside the loaded solution answers nothing until it is opened; that
+        is the server's to serve, not the parse tree's."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        adapter.workspace_owns_documents = True
+        files = [Path("/project/a.cs"), Path("/project/loose.cs")]
+        served = {"name": "A", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        loose = {"name": "Loose", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        opened: list[Path] = []
+        lsp.did_open.side_effect = opened.append
+        lsp.document_symbol.side_effect = lambda path, timeout=None: (
+            [served] if path == files[0] else ([loose] if path in opened else [])
+        )
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        builder._discover_symbols(files)
+
+        calls = [(item[0], item.args[0]) for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == [
+            ("document_symbol", files[0]),
+            ("document_symbol", files[1]),
+            ("did_open", files[1]),
+            ("document_symbol", files[1]),
+            ("did_open", files[0]),
+        ]
+        assert {"a.A", "loose.Loose"} <= set(builder.symbol_table.symbols)
+
+
+def _range(start_line: int, end_line: int) -> dict:
+    return {"start": {"line": start_line, "character": 0}, "end": {"line": end_line, "character": 0}}
 
 
 class TestBuild:

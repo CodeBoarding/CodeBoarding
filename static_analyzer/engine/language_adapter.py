@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Collection, Iterator, Sequence
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
@@ -262,20 +264,24 @@ class LanguageAdapter(ABC):
         """
         return None
 
-    def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
+    def discover_source_files(
+        self, project_root: Path, ignore_manager: RepoIgnoreManager, nested_roots: Sequence[Path] = ()
+    ) -> list[Path]:
         """Discover source files for this adapter under a project root.
 
         Walks the directory tree, skipping paths rejected by
         ``ignore_manager`` and files that don't match this adapter's
-        extensions.
+        extensions. ``nested_roots`` are directories another engine of the
+        same adapter owns; their files belong to that engine alone.
 
         Returns a sorted list of absolute paths.
         """
         project_root = project_root.resolve()
         extensions = set(self.file_extensions)
         files: list[Path] = []
+        skipped = {root.resolve() for root in nested_roots}
 
-        for path in self._walk(project_root, ignore_manager):
+        for path in self._walk(project_root, ignore_manager, skipped):
             if path.suffix in extensions:
                 files.append(path)
 
@@ -284,7 +290,7 @@ class LanguageAdapter(ABC):
             logger.info("Found %d %s files in %s", len(files), self.language, project_root)
         return files
 
-    def _walk(self, root: Path, ignore_manager: RepoIgnoreManager):
+    def _walk(self, root: Path, ignore_manager: RepoIgnoreManager, skipped: Collection[Path] = ()) -> Iterator[Path]:
         """Walk directory tree, skipping paths rejected by RepoIgnoreManager."""
         try:
             entries = sorted(root.iterdir())
@@ -295,7 +301,9 @@ class LanguageAdapter(ABC):
             if ignore_manager.should_ignore(entry):
                 continue
             if entry.is_dir():
-                yield from self._walk(entry, ignore_manager)
+                if entry.resolve() in skipped:
+                    continue
+                yield from self._walk(entry, ignore_manager, skipped)
             elif entry.is_file():
                 yield entry
 
@@ -363,6 +371,15 @@ class LanguageAdapter(ABC):
         by *project_root* as well, since one adapter instance serves every engine config and
         two of them can hold the same file with different symbols.
         """
+
+    def read_document_symbols(self, file_path: Path, inspector: SourceInspector, client: LSPClient) -> list[dict]:
+        """Symbols for a file the server answered nothing for; none by default.
+
+        Why: a server that owns the workspace can decline a file it cannot map to one
+        document, and calls into that file then resolve to positions no symbol covers.
+        An empty answer means the file is left to the server: it gets opened and asked again.
+        """
+        return []
 
     @property
     def expands_constructors(self) -> bool:

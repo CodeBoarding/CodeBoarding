@@ -438,6 +438,13 @@ class LSPClient:
         """
         return self._send_batch("textDocument/implementation", queries, self._position_params, timeout=timeout)
 
+    def workspace_symbol(self, query: str) -> list[dict]:
+        """Symbols declared anywhere in the loaded workspace whose name matches *query*."""
+        result = self._send_request("workspace/symbol", {"query": query})
+        if isinstance(result, list):
+            return result
+        return []
+
     def type_hierarchy_prepare(self, file_path: Path, line: int, character: int) -> list[dict] | None:
         """Prepare type hierarchy at the given position."""
         result = self._send_request(

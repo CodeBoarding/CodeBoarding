@@ -29,6 +29,7 @@ _SUFFIXES = {
     "JSX": [".jsx"],
     "Python": [".py"],
     "Java": [".java"],
+    "C#": [".cs"],
 }
 
 
@@ -93,6 +94,57 @@ class TestEngineConfigsPerFamily(unittest.TestCase):
         configs = self._configs([lang("Python")], {"a.py": "def a():\n    pass\n"})
         self.assertEqual(len(configs), 1)
         self.assertIs(configs[0].adapter.language_enum, Language.PYTHON)
+
+    def test_a_project_only_a_nested_solution_lists_belongs_to_that_engine(self) -> None:
+        """Two engines naming the same file from different roots would put it in the graph twice."""
+        configs = self._configs(
+            [lang("C#")],
+            {
+                "App.slnx": '<Solution><Project Path="App/App.csproj" /></Solution>',
+                "App/App.csproj": "<Project />",
+                "App/Program.cs": "class Program {}\n",
+                "Shared/Clock.cs": "class Clock {}\n",
+                "plugins/Plugins.slnx": '<Solution><Project Path="Host/Host.csproj" /></Solution>',
+                "plugins/Host/Host.csproj": "<Project />",
+                "plugins/Host/Host.cs": "class Host {}\n",
+            },
+        )
+        self.assertEqual(len(configs), 2)
+        outer = next(config for config in configs if config.project_path.name != "plugins")
+        inner = next(config for config in configs if config.project_path.name == "plugins")
+        # Shared/ is in no project directory; the root engine keeps it, as it always did.
+        self.assertEqual([f.name for f in outer.source_files], ["Program.cs", "Clock.cs"])
+        self.assertEqual([f.name for f in inner.source_files], ["Host.cs"])
+
+    def test_a_project_the_outer_solution_lists_stays_with_it_even_under_a_nested_solution(self) -> None:
+        """eShop's root solution lists src/ClientApp/ClientApp.csproj although that directory has
+        a solution of its own; the outer server loaded it, so the outer engine names it."""
+        configs = self._configs(
+            [lang("C#")],
+            {
+                "App.slnx": '<Solution><Project Path="App/App.csproj" /><Project Path="mobile/Client/Client.csproj" /></Solution>',
+                "App/App.csproj": "<Project />",
+                "App/Program.cs": "class Program {}\n",
+                "mobile/Client.slnx": '<Solution><Project Path="Client/Client.csproj" /></Solution>',
+                "mobile/Client/Client.csproj": "<Project />",
+                "mobile/Client/Client.cs": "class Client {}\n",
+            },
+        )
+        outer = next(config for config in configs if config.project_path.name != "mobile")
+        self.assertEqual([f.name for f in outer.source_files], ["Program.cs", "Client.cs"])
+
+    def test_a_root_whose_files_all_belong_to_nested_solutions_gets_no_engine(self) -> None:
+        configs = self._configs(
+            [lang("C#")],
+            {
+                "All.slnx": '<Solution><Project Path="Tools/Tools.csproj" /></Solution>',
+                "Tools/Tools.csproj": "<Project />",
+                "plugins/Plugins.slnx": '<Solution><Project Path="Host/Host.csproj" /></Solution>',
+                "plugins/Host/Host.csproj": "<Project />",
+                "plugins/Host/Host.cs": "class Host {}\n",
+            },
+        )
+        self.assertEqual([config.project_path.name for config in configs], ["plugins"])
 
     def _configs(self, languages, files: dict[str, str]):
         # Resolved: on macOS mkdtemp hands back /var/... while tsc reports /private/var/...

@@ -162,11 +162,20 @@ class CallGraphBuilder:
         probe_timeout = self._probe_timeout(total)
 
         interleave_open = self._adapter.interleave_did_open_with_symbols
+        owns_documents = self._adapter.workspace_owns_documents
 
         # Workspace-based servers can probe before didOpen. Some also need
         # request backpressure while creating overlays, so they interleave
         # each didOpen notification with the matching documentSymbol request.
-        if self._adapter.probe_before_open or interleave_open:
+        if owns_documents:
+            # Symbols first, then open: a file the server cannot map to one document (a
+            # source linked into several projects) answers nothing, and opening it makes
+            # the server add a second copy to the project on that path, after which every
+            # call into the file binds ambiguously. Such a file is read from source and
+            # stays closed; a file the server merely does not know yet is opened and asked
+            # again, as it always was.
+            probe_result = self._send_sync_probe(source_files, probe_timeout)
+        elif self._adapter.probe_before_open or interleave_open:
             probe_result = self._send_sync_probe(source_files, probe_timeout)
             if not interleave_open:
                 self._bulk_did_open(source_files)
@@ -175,6 +184,8 @@ class CallGraphBuilder:
             probe_result = self._send_sync_probe(source_files, probe_timeout)
 
         # Phase 1: extract symbols from each file
+        read_from_source: list[Path] = []
+        opened_early: list[Path] = []
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
         for idx, file_path in enumerate(source_files, 1):
             if interleave_open:
@@ -190,11 +201,27 @@ class CallGraphBuilder:
                 symbols = self._lsp.document_symbol(file_path, timeout=probe_timeout)
             else:
                 symbols = self._lsp.document_symbol(file_path)
+            if not symbols and owns_documents:
+                symbols = self._adapter.read_document_symbols(file_path, self._source_inspector, self._lsp)
+                if symbols:
+                    read_from_source.append(file_path)
+                else:
+                    opened_early.append(file_path)
+                    self._lsp.did_open(file_path)
+                    symbols = self._lsp.document_symbol(file_path)
             self._adapter.record_document_symbols(file_path, symbols, self._root)
             self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
             pbar.set_postfix(symbols=len(self._symbol_table.symbols))
             pbar.update(1)
         pbar.finish()
+        if owns_documents:
+            already = set(read_from_source) | set(opened_early)
+            self._bulk_did_open([file_path for file_path in source_files if file_path not in already])
+        if read_from_source:
+            logger.info(
+                "Phase 1: %d file(s) compiled into more than one project were read from source",
+                len(read_from_source),
+            )
 
         logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
 

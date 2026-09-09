@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager, _ALWAYS_IGNORED_DIRS
@@ -210,14 +211,16 @@ class GoAdapter(LanguageAdapter):
         """Give each serialized gopls reference search a modest time budget."""
         return 10
 
-    def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
+    def discover_source_files(
+        self, project_root: Path, ignore_manager: RepoIgnoreManager, nested_roots: Sequence[Path] = ()
+    ) -> list[Path]:
         """Discover Go source files, filtering out build-tag-constrained files.
 
         Files with ``//go:build`` or ``// +build`` directives containing
         negations (``!``) are excluded because gopls cannot resolve package
         metadata for them, which causes errors during cross-reference queries.
         """
-        files = super().discover_source_files(project_root, ignore_manager)
+        files = super().discover_source_files(project_root, ignore_manager, nested_roots)
         filtered = [f for f in files if not self._has_excluding_build_tag(f)]
         skipped = len(files) - len(filtered)
         if skipped:
