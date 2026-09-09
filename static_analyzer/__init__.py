@@ -101,7 +101,9 @@ def lsp_request_timeout(adapter: LanguageAdapter) -> int:
     """Seconds one LSP request may block, defaulting to the adapter's own ceiling.
 
     Why overridable: a ceiling that fits a server on a mid-sized workspace can be
-    far too low on a large one, and raising it should not need a new release.
+    far too low on a large one, and raising it should not need a new release. An
+    unusable value raises rather than falling back, because the fallback is the
+    ceiling the operator was trying to escape.
     """
     raw = os.environ.get(LSP_REQUEST_TIMEOUT_ENV_VAR, "").strip()
     if not raw:
@@ -109,11 +111,13 @@ def lsp_request_timeout(adapter: LanguageAdapter) -> int:
     try:
         value = int(raw)
     except ValueError:
-        logger.warning("Ignoring non-integer %s=%r; keeping the adapter default", LSP_REQUEST_TIMEOUT_ENV_VAR, raw)
-        return adapter.get_lsp_default_timeout()
+        raise StaticAnalysisFatalError(
+            f"{LSP_REQUEST_TIMEOUT_ENV_VAR} must be a whole number of seconds, got {raw!r}"
+        ) from None
     if value <= 0:
-        logger.warning("Ignoring non-positive %s=%r; keeping the adapter default", LSP_REQUEST_TIMEOUT_ENV_VAR, raw)
-        return adapter.get_lsp_default_timeout()
+        raise StaticAnalysisFatalError(
+            f"{LSP_REQUEST_TIMEOUT_ENV_VAR} must be a positive number of seconds, got {raw!r}"
+        )
     logger.info("Per-request LSP timeout for %s set to %ds", adapter.language, value)
     return value
 
@@ -328,6 +332,8 @@ class StaticAnalyzer:
                 continue
             try:
                 started.append((engine_config, self._spawn_engine_client(engine_config)))
+            except StaticAnalysisFatalError:
+                raise
             except Exception as exc:
                 logger.exception(
                     f"Failed to start engine LSP client for {adapter.language}; "

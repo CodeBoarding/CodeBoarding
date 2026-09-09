@@ -65,6 +65,15 @@ def _make_lsp() -> MagicMock:
     return lsp
 
 
+def _symbol(name: str) -> dict:
+    return {
+        "name": name,
+        "kind": NodeType.FUNCTION,
+        "range": {"start": {"line": 0, "character": 0}, "end": {"line": 10, "character": 0}},
+        "selectionRange": {"start": {"line": 0, "character": 4}, "end": {"line": 0, "character": 8}},
+    }
+
+
 class TestCallGraphBuilderInit:
     def test_creates_symbol_table_and_inspector(self):
         lsp = _make_lsp()
@@ -196,6 +205,8 @@ class TestDiscoverSymbols:
         adapter.probe_before_open = True
         builder = CallGraphBuilder(lsp, adapter, Path("/project"))
         files = [Path("/project/a.cs"), Path("/project/b.cs")]
+        pre_open, post_open = [_symbol("pre")], [_symbol("post")]
+        lsp.document_symbol.side_effect = [pre_open, post_open, [_symbol("b")]]
 
         builder._discover_symbols(files)
 
@@ -211,6 +222,8 @@ class TestDiscoverSymbols:
         # Both probes get the scaled timeout; Phase 1 keeps the per-request default.
         timeouts = [item.kwargs.get("timeout") for item in lsp.document_symbol.call_args_list]
         assert timeouts == [64, 64, None]
+        # The first file reuses the post-open probe, not the stale pre-open one.
+        assert adapter.record_document_symbols.call_args_list[0].args[:2] == (files[0], post_open)
 
     def test_skips_post_open_probe_when_interleaving(self):
         lsp = _make_lsp()
