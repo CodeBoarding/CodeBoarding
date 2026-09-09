@@ -478,6 +478,10 @@ class TestLspEnv:
         assert (
             "<CodeBoardingWorkspaceTargetFramework>$(TargetFramework)</CodeBoardingWorkspaceTargetFramework>" in props
         )
+        # UseArtifactsOutput derives the artifacts root from this; the SDK skips it when
+        # DirectoryBuildPropsPath arrives from outside.
+        assert "<_DirectoryBuildPropsBasePath Condition=\"'$(_DirectoryBuildPropsBasePath)' == ''\">" in props
+        assert props.index("<_DirectoryBuildPropsBasePath") < props.index("<Import")
         targets = Path(env["DirectoryBuildTargetsPath"]).read_text()
         assert "<TargetFramework Condition=" not in targets
         assert "<TargetFramework>$(TargetFrameworks)</TargetFramework>" not in targets
@@ -537,115 +541,121 @@ class TestPrepareProject:
     """``prepare_project`` runs ``dotnet restore`` so csharp-ls sees framework
     references; without it diagnostics are flooded with bogus CS0518."""
 
-    def test_runs_dotnet_restore_when_csproj_present(self, tmp_path, monkeypatch):
-        (tmp_path / "Foo.csproj").write_text("<Project />")
-
-        called = {}
+    @pytest.fixture(autouse=True)
+    def _fake_toolchain(self, tmp_path, monkeypatch):
+        self.commands: list[list[str]] = []
+        self.envs: list[dict[str, str]] = []
+        self.failing: set[str] = set()
 
         def fake_run(cmd, **kwargs):
-            called["cmd"] = cmd
-            called["cwd"] = kwargs.get("cwd")
-            called["env"] = kwargs.get("env")
-            return MagicMock(returncode=0, stdout="", stderr="")
+            self.commands.append(cmd)
+            self.envs.append(kwargs.get("env", {}))
+            self.cwd = kwargs.get("cwd")
+            failed = cmd[2] in self.failing
+            return MagicMock(returncode=1 if failed else 0, stdout="", stderr="NETSDK1147 workload missing")
 
-        monkeypatch.setattr(
-            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
-            fake_run,
-        )
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.subprocess.run", fake_run)
         monkeypatch.setattr(
             "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
             lambda _root: _dotnet_resolution("/opt/dotnet/dotnet", {"DOTNET_ROOT": "/opt/dotnet"}),
         )
-        CSharpAdapter().prepare_project(tmp_path)
-        assert called["cmd"][:2] == ["/opt/dotnet/dotnet", "restore"]
-        assert called["cmd"][2] == "Foo.csproj"
-        assert called["cwd"] == str(tmp_path)
-        assert called["env"]["DOTNET_ROOT"] == "/opt/dotnet"
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.get_servers_dir", lambda: tmp_path)
 
-    def test_prefers_solution_over_csproj(self, tmp_path, monkeypatch):
-        (tmp_path / "Foo.sln").write_text("")
-        (tmp_path / "Foo.csproj").write_text("<Project />")
+    @staticmethod
+    def _project(root: Path, relative: str) -> None:
+        (root / relative).parent.mkdir(parents=True, exist_ok=True)
+        (root / relative).write_text("<Project />")
 
-        called = {}
-
-        def fake_run(cmd, **kwargs):
-            called["cmd"] = cmd
-            return MagicMock(returncode=0, stdout="", stderr="")
-
-        monkeypatch.setattr(
-            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
-            fake_run,
+    @staticmethod
+    def _solution(root: Path, name: str, *projects: str) -> None:
+        (root / name).write_text(
+            "<Solution>" + "".join(f'<Project Path="{project}" />' for project in projects) + "</Solution>"
         )
-        monkeypatch.setattr(
-            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
-            lambda _root: _dotnet_resolution(),
-        )
+
+    def test_runs_dotnet_restore_when_csproj_present(self, tmp_path):
+        self._project(tmp_path, "Foo.csproj")
+
         CSharpAdapter().prepare_project(tmp_path)
-        assert called["cmd"][2] == "Foo.sln"
+
+        assert self.commands == [["/opt/dotnet/dotnet", "restore", "Foo.csproj", "--nologo", "--verbosity", "minimal"]]
+        assert self.cwd == str(tmp_path)
+        assert self.envs[0]["DOTNET_ROOT"] == "/opt/dotnet"
+
+    def test_restore_runs_under_the_environment_csharp_ls_gets(self, tmp_path):
+        """The two evaluate every path the same way, so the server finds what restore wrote."""
+        self._project(tmp_path, "Foo.csproj")
+
+        CSharpAdapter().prepare_project(tmp_path)
+
+        expected = CSharpAdapter().get_lsp_env(tmp_path)
+        assert {key: self.envs[0][key] for key in expected} == expected
+        assert Path(self.envs[0]["DirectoryBuildPropsPath"]).is_file()
+
+    def test_prefers_solution_over_csproj(self, tmp_path):
+        self._solution(tmp_path, "Foo.slnx", "Foo.csproj")
+        self._project(tmp_path, "Foo.csproj")
+
+        CSharpAdapter().prepare_project(tmp_path)
+
+        assert [cmd[2] for cmd in self.commands] == ["Foo.slnx"]
 
     def test_skips_when_no_project_file(self, tmp_path, monkeypatch):
-        def fake_run(*_args, **_kwargs):
-            raise AssertionError("subprocess.run should not be called")
-
         def fake_resolve(*_args, **_kwargs):
             raise AssertionError("resolve_dotnet_sdk should not be called")
 
-        monkeypatch.setattr(
-            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
-            fake_run,
-        )
-        monkeypatch.setattr(
-            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
-            fake_resolve,
-        )
-        CSharpAdapter().prepare_project(tmp_path)  # no exception
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk", fake_resolve)
+
+        CSharpAdapter().prepare_project(tmp_path)
+
+        assert self.commands == []
 
     def test_raises_when_sdk_unavailable(self, tmp_path, monkeypatch):
-        (tmp_path / "Foo.csproj").write_text("<Project />")
-
-        def fake_run(*_args, **_kwargs):
-            raise AssertionError("subprocess.run should not be called")
-
-        monkeypatch.setattr(
-            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
-            fake_run,
-        )
+        self._project(tmp_path, "Foo.csproj")
         monkeypatch.setattr(
             "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
             lambda _root: (_ for _ in ()).throw(DotnetSdkError("compatible .NET SDK was not found")),
         )
+
         with pytest.raises(RuntimeError, match="compatible .NET SDK"):
             CSharpAdapter().prepare_project(tmp_path)
+        assert self.commands == []
 
-    def test_swallows_restore_failure(self, tmp_path, monkeypatch):
-        (tmp_path / "Foo.csproj").write_text("<Project />")
+    def test_a_failed_project_restore_is_not_retried(self, tmp_path):
+        self._project(tmp_path, "Foo.csproj")
+        self.failing = {"Foo.csproj"}
 
-        def fake_run(cmd, **kwargs):
-            return MagicMock(returncode=1, stdout="", stderr="boom")
+        CSharpAdapter().prepare_project(tmp_path)  # a warning, not an abort
 
-        monkeypatch.setattr(
-            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
-            fake_run,
-        )
-        monkeypatch.setattr(
-            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
-            lambda _root: _dotnet_resolution(),
-        )
-        # Should not raise — restore failures are warnings, not aborts.
+        assert [cmd[2] for cmd in self.commands] == ["Foo.csproj"]
+
+    def test_restores_each_member_when_the_solution_restore_fails(self, tmp_path):
+        """One project a solution restore cannot evaluate leaves every other project
+        without assets; the fallback restores the solution's members on their own,
+        and only them."""
+        self._solution(tmp_path, "App.slnx", "src/Lib/Lib.csproj", "src/Mobile/Mobile.csproj")
+        self._project(tmp_path, "src/Lib/Lib.csproj")
+        self._project(tmp_path, "src/Mobile/Mobile.csproj")
+        self._project(tmp_path, "samples/Demo/Demo.csproj")
+        self.failing = {"App.slnx", "src/Mobile/Mobile.csproj"}
+
         CSharpAdapter().prepare_project(tmp_path)
 
+        assert [cmd[2] for cmd in self.commands] == ["App.slnx", "src/Lib/Lib.csproj", "src/Mobile/Mobile.csproj"]
+
+    def test_no_per_project_fallback_after_a_successful_solution_restore(self, tmp_path):
+        self._solution(tmp_path, "App.slnx", "Lib.csproj")
+        self._project(tmp_path, "Lib.csproj")
+
+        CSharpAdapter().prepare_project(tmp_path)
+
+        assert [cmd[2] for cmd in self.commands] == ["App.slnx"]
+
     def test_handles_subprocess_timeout(self, tmp_path, monkeypatch):
-        (tmp_path / "Foo.csproj").write_text("<Project />")
+        self._project(tmp_path, "Foo.csproj")
 
         def fake_run(cmd, **kwargs):
             raise subprocess.TimeoutExpired(cmd=cmd, timeout=1)
 
-        monkeypatch.setattr(
-            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
-            fake_run,
-        )
-        monkeypatch.setattr(
-            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
-            lambda _root: _dotnet_resolution(),
-        )
+        monkeypatch.setattr("static_analyzer.engine.adapters.csharp_adapter.subprocess.run", fake_run)
+
         CSharpAdapter().prepare_project(tmp_path)  # no exception

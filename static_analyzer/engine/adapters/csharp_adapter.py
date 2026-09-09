@@ -12,6 +12,7 @@ from pathlib import Path
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import Language, NodeType
 from static_analyzer.dotnet_sdk import DotnetSdkError, resolve_dotnet_sdk, system_dotnet_env
+from static_analyzer.dotnet_solution import solution_projects
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import EdgeStrategy
@@ -51,6 +52,7 @@ _SINGLE_TARGET_FRAMEWORK_TARGETS = r"""<Project>
 
 _WORKSPACE_TARGET_FRAMEWORK_PROPS = r"""<Project TreatAsLocalProperty="TargetFramework">
   <PropertyGroup>
+    <_DirectoryBuildPropsBasePath Condition="'$(_DirectoryBuildPropsBasePath)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'Directory.Build.props'))</_DirectoryBuildPropsBasePath>
     <CodeBoardingWorkspaceTargetFramework>$(TargetFramework)</CodeBoardingWorkspaceTargetFramework>
     <CodeBoardingDirectoryBuildPropsPath Condition="'$(CodeBoardingOriginalDirectoryBuildPropsPath)' == ''">$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildProjectDirectory)'))</CodeBoardingDirectoryBuildPropsPath>
   </PropertyGroup>
@@ -91,6 +93,10 @@ def _single_target_framework_env(project_root: Path) -> dict[str, str]:
     solution load into unbounded growth. ``TreatAsLocalProperty`` demotes the
     property so each project sees its declared framework again. Roslyn retains
     its normal inner-build expansion for projects that genuinely multi-target.
+
+    Why the base path: ``UseArtifactsOutput`` derives its ``artifacts`` root from
+    ``_DirectoryBuildPropsBasePath``, which the SDK computes only when it found
+    ``Directory.Build.props`` itself rather than being handed a path.
 
     Folding a multi-target project down to a single framework stays behind
     ``_MULTI_TARGET_PROJECT_THRESHOLD``, because that fold discards frameworks a
@@ -327,6 +333,9 @@ class CSharpAdapter(LanguageAdapter):
         emits a flood of bogus ``CS0518: Predefined type System.X is not
         defined`` diagnostics for every file. Restore is idempotent and
         only writes under ``obj/`` (which we already gitignore).
+
+        Restore runs under the MSBuild environment csharp-ls gets, so the two
+        evaluate every path the same way and the server finds what restore wrote.
         """
         # Find solution or csproj/fsproj at the project_root level
         target = next(iter(project_root.glob("*.sln")), None)
@@ -346,29 +355,17 @@ class CSharpAdapter(LanguageAdapter):
             raise RuntimeError(str(exc)) from exc
 
         env = os.environ.copy()
-        env.update(resolution.env)
-        try:
-            result = subprocess.run(
-                [resolution.dotnet_path, "restore", str(target.name), "--nologo", "--verbosity", "minimal"],
-                cwd=str(project_root),
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-            if result.returncode != 0:
-                logger.warning(
-                    "dotnet restore failed for %s (exit %d): %s",
-                    target.name,
-                    result.returncode,
-                    (result.stderr or result.stdout)[-500:],
-                )
-            else:
-                logger.info("dotnet restore completed for %s", target.name)
-        except subprocess.TimeoutExpired:
-            logger.warning("dotnet restore timed out after 600s for %s", target.name)
-        except OSError as exc:
-            logger.warning("dotnet restore could not be invoked: %s", exc)
+        env.update(self.get_lsp_env(project_root))
+        if self._restore(resolution.dotnet_path, target, project_root, env) or target.suffix not in (".sln", ".slnx"):
+            return
+        # A solution restore evaluates every project before writing any assets, so one
+        # project it cannot evaluate (a missing workload, a broken import) leaves the
+        # rest without ``project.assets.json`` -- and csharp-ls then resolves no package
+        # or transitive project reference anywhere. Each member on its own only fails
+        # for itself.
+        projects = solution_projects(target)
+        restored = sum(self._restore(resolution.dotnet_path, project, project_root, env) for project in projects)
+        logger.info("dotnet restore per project: %d of %d restored", restored, len(projects))
 
     def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
         """Return the .NET environment needed by csharp-ls.
@@ -412,3 +409,30 @@ class CSharpAdapter(LanguageAdapter):
             elif self.is_class_like(kind):
                 found.append(sym.get("name", ""))
         return found
+
+    def _restore(self, dotnet_path: str, target: Path, project_root: Path, env: dict[str, str]) -> bool:
+        try:
+            result = subprocess.run(
+                [dotnet_path, "restore", os.path.relpath(target, project_root), "--nologo", "--verbosity", "minimal"],
+                cwd=str(project_root),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning("dotnet restore timed out after 600s for %s", target.name)
+            return False
+        except OSError as exc:
+            logger.warning("dotnet restore could not be invoked: %s", exc)
+            return False
+        if result.returncode != 0:
+            logger.warning(
+                "dotnet restore failed for %s (exit %d): %s",
+                target.name,
+                result.returncode,
+                (result.stderr or result.stdout)[-500:],
+            )
+            return False
+        logger.info("dotnet restore completed for %s", target.name)
+        return True
