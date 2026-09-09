@@ -13,7 +13,7 @@ from tree_sitter import Language as TreeSitterLanguage
 from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Tree
 
-from static_analyzer.config import LANGUAGE_EXTENSIONS, Language
+from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.models import CallSite
 
 import tree_sitter_c_sharp
@@ -106,6 +106,62 @@ _TYPE_DECLARATION_NODE_TYPES = frozenset(
     {"class_declaration", "interface_declaration", "record_declaration", "struct_declaration"}
 )
 _BASE_LIST_NODE_TYPES = frozenset({"base_list", "superclass", "super_interfaces", "extends_interfaces"})
+# C# declarations csharp-ls reports as document symbols, and the LSP kind it gives each.
+_CSHARP_NAMESPACE_NODE_TYPES = frozenset({"namespace_declaration", "file_scoped_namespace_declaration"})
+_CSHARP_SYMBOL_KINDS: dict[str, int] = {
+    "class_declaration": NodeType.CLASS,
+    "record_declaration": NodeType.CLASS,
+    "delegate_declaration": NodeType.CLASS,
+    "struct_declaration": NodeType.STRUCT,
+    "record_struct_declaration": NodeType.STRUCT,
+    "interface_declaration": NodeType.INTERFACE,
+    "enum_declaration": NodeType.ENUM,
+    "enum_member_declaration": NodeType.ENUM_MEMBER,
+    "method_declaration": NodeType.METHOD,
+    "destructor_declaration": NodeType.METHOD,
+    "constructor_declaration": NodeType.CONSTRUCTOR,
+    "property_declaration": NodeType.PROPERTY,
+    "indexer_declaration": NodeType.PROPERTY,
+    "field_declaration": NodeType.FIELD,
+    "event_field_declaration": NodeType.EVENT,
+    "event_declaration": NodeType.EVENT,
+    "operator_declaration": NodeType.OPERATOR,
+    "conversion_operator_declaration": NodeType.OPERATOR,
+}
+_CSHARP_PARAMETER_LIST_NODE_TYPES = frozenset({"parameter_list", "bracketed_parameter_list"})
+_CSHARP_TYPE_SYMBOL_NODE_TYPES = frozenset(
+    {
+        "class_declaration",
+        "record_declaration",
+        "delegate_declaration",
+        "struct_declaration",
+        "record_struct_declaration",
+        "interface_declaration",
+        "enum_declaration",
+    }
+)
+_CSHARP_CALLABLE_MEMBER_NODE_TYPES = frozenset(
+    {
+        "method_declaration",
+        "destructor_declaration",
+        "constructor_declaration",
+        "indexer_declaration",
+        "operator_declaration",
+        "conversion_operator_declaration",
+    }
+)
+_CSHARP_LITERAL_NODE_TYPES = frozenset(
+    {
+        "string_literal",
+        "verbatim_string_literal",
+        "raw_string_literal",
+        "character_literal",
+        "interpolated_string_expression",
+    }
+)
+_CSHARP_UNNAMED_MEMBER_NODE_TYPES = frozenset(
+    {"indexer_declaration", "operator_declaration", "conversion_operator_declaration"}
+)
 # Java groups several bases under one node; C# wraps a record's base in its
 # primary-constructor call, whose ``type`` field is the base itself.
 _BASE_GROUP_NODE_TYPES = frozenset({"type_list"})
@@ -646,6 +702,147 @@ class SourceInspector:
                     found.add("explicit")
                 modifiers[(type_name, text(member_name_node))] = frozenset(found)
         return modifiers
+
+    def find_document_symbols(self, file_path: Path) -> list[dict]:
+        """C# document symbols read from the parse tree, shaped like csharp-ls reports them.
+
+        Why: csharp-ls answers nothing for a file that belongs to more than one project
+        (a shared source file linked into several), so calls into it resolve to a
+        position no symbol covers. Names follow the server's display form --
+        ``Add<T>(this IList<T> items, int count = 0)`` -- so the two sources of a
+        symbol table agree on how a member is spelled.
+        """
+        if file_path.suffix.lower() != ".cs":
+            return []
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        def text(node: TreeSitterNode) -> str:
+            raw = parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+            # Whitespace inside a literal is the literal; between tokens it is layout.
+            return raw if node.type in _CSHARP_LITERAL_NODE_TYPES else " ".join(raw.split())
+
+        def point(row_col: tuple[int, int]) -> dict[str, int]:
+            return {"line": row_col[0], "character": row_col[1]}
+
+        def symbol(node: TreeSitterNode, name: str, kind: int, selection: TreeSitterNode, children: list[dict]) -> dict:
+            return {
+                "name": name,
+                "kind": int(kind),
+                "range": {"start": point(node.start_point), "end": point(node.end_point)},
+                "selectionRange": {"start": point(selection.start_point), "end": point(selection.end_point)},
+                "children": children,
+            }
+
+        def parameters(node: TreeSitterNode) -> str:
+            rendered: list[str] = []
+            # The grammar leaves a ``params`` parameter as loose tokens between the commas.
+            loose: list[str] = []
+            for child in node.children:
+                if child.type in ("(", ")", "[", "]", ","):
+                    if loose:
+                        rendered.append(" ".join(loose))
+                        loose = []
+                    continue
+                if child.type != "parameter":
+                    loose.append(text(child))
+                    continue
+                parts = [
+                    text(part) for part in child.children if part.type not in ("attribute_list", "equals_value_clause")
+                ]
+                default = next((part for part in child.children if part.type == "equals_value_clause"), None)
+                if default is not None:
+                    parts.extend(["=", *(text(value) for value in default.named_children[:1])])
+                rendered.append(" ".join(parts))
+            if loose:
+                rendered.append(" ".join(loose))
+            # The server prints types without their ``pb::`` alias qualifiers.
+            return re.sub(r"\b\w+::", "", ", ".join(rendered))
+
+        def type_parameters(node: TreeSitterNode) -> str:
+            params = node.child_by_field_name("type_parameters")
+            if params is None:
+                return ""
+            names = [text(name) for param in params.named_children if (name := param.child_by_field_name("name"))]
+            return f"<{', '.join(names)}>"
+
+        def member_name(node: TreeSitterNode, name_node: TreeSitterNode | None) -> str:
+            base = text(name_node) if name_node is not None else ""
+            # ``void IFoo.M()`` and ``void IBar.M()`` are two members, as the server names them.
+            explicit = next((child for child in node.children if child.type == "explicit_interface_specifier"), None)
+            if explicit is not None:
+                base = text(explicit) + base
+            if node.type in ("method_declaration", "delegate_declaration"):
+                base += type_parameters(node)
+            params = next((child for child in node.children if child.type in _CSHARP_PARAMETER_LIST_NODE_TYPES), None)
+            if node.type == "indexer_declaration":
+                return f"{text(explicit) if explicit is not None else ''}this[{parameters(params) if params else ''}]"
+            if node.type in ("operator_declaration", "conversion_operator_declaration"):
+                # Everything between the ``operator`` keyword and the parameters names the
+                # operator: ``+``, ``checked +``, or a conversion's target type.
+                tokens = [child for child in node.children if child.type not in ("modifier", "attribute_list")]
+                keyword = next((i for i, child in enumerate(tokens) if child.type == "operator"), len(tokens))
+                after = tokens[keyword + 1 :]
+                until = next((i for i, token in enumerate(after) if token.type in _CSHARP_PARAMETER_LIST_NODE_TYPES), 0)
+                operator = " ".join(text(token) for token in after[:until])
+                return f"operator {operator}({parameters(params) if params is not None else ''})"
+            if node.type == "destructor_declaration":
+                base = "~" + base
+            if params is not None and node.type != "record_declaration":
+                base += f"({parameters(params)})"
+            return base
+
+        def declarations(nodes: list[TreeSitterNode], enclosing: str = "") -> list[dict]:
+            found: list[dict] = []
+            for index, node in enumerate(nodes):
+                if node.type in _CSHARP_NAMESPACE_NODE_TYPES:
+                    name_node = node.child_by_field_name("name")
+                    if name_node is None:
+                        continue
+                    body = node.child_by_field_name("body")
+                    # A file-scoped namespace has no body: everything after it is inside it.
+                    members = body.named_children if body is not None else nodes[index + 1 :]
+                    # The server names a namespace in full, ``A.B`` for ``namespace A { namespace B``.
+                    full_name = f"{enclosing}.{text(name_node)}" if enclosing else text(name_node)
+                    namespace = symbol(node, full_name, NodeType.NAMESPACE, name_node, declarations(members, full_name))
+                    namespace["detail"] = full_name
+                    found.append(namespace)
+                    if body is None:
+                        break
+                    continue
+                kind = _CSHARP_SYMBOL_KINDS.get(node.type)
+                if kind is None:
+                    continue
+                if node.type in ("field_declaration", "event_field_declaration"):
+                    declaration = next(
+                        (child for child in node.named_children if child.type == "variable_declaration"), None
+                    )
+                    for declarator in declaration.named_children if declaration is not None else []:
+                        name_node = declarator.child_by_field_name("name")
+                        if declarator.type == "variable_declarator" and name_node is not None:
+                            found.append(symbol(node, text(name_node), kind, name_node, []))
+                    continue
+                name_node = node.child_by_field_name("name")
+                if node.type in _CSHARP_CALLABLE_MEMBER_NODE_TYPES:
+                    if name_node is None and node.type not in _CSHARP_UNNAMED_MEMBER_NODE_TYPES:
+                        continue
+                    found.append(symbol(node, member_name(node, name_node), kind, name_node or node, []))
+                    continue
+                if name_node is None:
+                    continue
+                children: list[dict] = []
+                name = text(name_node)
+                if node.type in _CSHARP_TYPE_SYMBOL_NODE_TYPES:
+                    name += type_parameters(node)
+                    body = node.child_by_field_name("body")
+                    children = declarations(body.named_children) if body is not None else []
+                found.append(symbol(node, name, kind, name_node, children))
+            return found
+
+        root = parsed.tree.root_node
+        file_symbol = symbol(root, file_path.name, NodeType.FILE, root, declarations(root.named_children))
+        return [file_symbol] if file_symbol["children"] else []
 
     @staticmethod
     def _occupies_body_field(node: TreeSitterNode) -> bool:

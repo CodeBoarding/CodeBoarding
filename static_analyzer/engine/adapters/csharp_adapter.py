@@ -16,6 +16,7 @@ from static_analyzer.dotnet_solution import solution_projects
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import EdgeStrategy
+from static_analyzer.engine.source_inspector import SourceInspector
 from tool_registry import (
     TOOL_REGISTRY,
     ToolKind,
@@ -144,6 +145,24 @@ class CSharpAdapter(LanguageAdapter):
             self._files_with_sibling_types.add(key)
         else:
             self._files_with_sibling_types.discard(key)
+
+    def read_document_symbols(self, file_path: Path, inspector: SourceInspector, client: LSPClient) -> list[dict]:
+        """csharp-ls answers nothing for a file that is in more than one project (a
+        shared source linked into several); the parse tree names its members instead.
+
+        Why the workspace query: the server answers nothing for a file outside its
+        solution too, and that one it can still serve once opened. Only a file the
+        loaded solution declares types in is a linked file.
+        """
+        symbols = inspector.find_document_symbols(file_path)
+        declared = self._top_level_types(symbols)
+        if not declared:
+            return []
+        query = declared[0].split("<", 1)[0]
+        uri = file_path.resolve().as_uri()
+        if any(hit.get("location", {}).get("uri") == uri for hit in client.workspace_symbol(query)):
+            return symbols
+        return []
 
     @property
     def language(self) -> str:

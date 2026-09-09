@@ -12,7 +12,8 @@ from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import AdapterName, Language
-from static_analyzer.csharp_config_scanner import CSharpConfigScanner
+from static_analyzer.csharp_config_scanner import SOLUTION_GLOBS, CSharpConfigScanner, CSharpProjectConfig
+from static_analyzer.dotnet_solution import solution_projects
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
@@ -39,13 +40,17 @@ class EngineConfig:
     """One adapter + project root the engine should run.
 
     ``source_files`` is non-empty only when a scanner has authoritatively
-    resolved file membership (currently TypeScript via ``tsc --showConfig``);
-    otherwise the adapter walks ``project_path`` itself in ``_run_full_analysis``.
+    resolved file membership (TypeScript via ``tsc --showConfig``, C# by what
+    each root's solution lists); otherwise the adapter walks ``project_path``
+    itself in ``_run_full_analysis``. A config whose membership resolved to no
+    file is not created at all.
     """
 
     adapter: LanguageAdapter
     project_path: Path
     source_files: list[Path] = field(default_factory=list)
+    # Retain discovery exclusions for incremental edits, including deleted files.
+    excluded_roots: list[Path] = field(default_factory=list)
 
 
 class StaticAnalysisFatalError(RuntimeError):
@@ -119,6 +124,15 @@ def _adapter_names_for(programming_languages: list[ProgrammingLanguage]) -> list
     if AdapterName.TYPESCRIPT in names and AdapterName.JAVASCRIPT in names:
         names.remove(AdapterName.JAVASCRIPT)
     return names
+
+
+def _csharp_solution_members(csharp_projects: list[CSharpProjectConfig]) -> dict[Path, list[Path]]:
+    """Per C# root, the project files its solution files list."""
+    members: dict[Path, list[Path]] = {}
+    for config in csharp_projects:
+        solutions = [path for pattern in SOLUTION_GLOBS for path in config.root.glob(pattern)]
+        members[config.root] = [project for solution in solutions for project in solution_projects(solution)]
+    return members
 
 
 def _create_engine_configs(
@@ -198,12 +212,32 @@ def _create_engine_configs(
                 csharp_projects = csharp_scanner.scan()
 
                 if csharp_projects:
+                    members = _csharp_solution_members(csharp_projects)
                     for csharp_config in csharp_projects:
                         logger.info(
                             f"Creating engine config for CSharp ({csharp_config.project_type}) at: "
                             f"{csharp_config.root.relative_to(repository_path)}"
                         )
-                        configs.append(EngineConfig(adapter, csharp_config.root))
+                        # A project a nested root's solution lists, and this root's solutions do not,
+                        # is that engine's; naming it here as well would put it in the graph twice.
+                        elsewhere = [
+                            project.parent
+                            for root, projects in members.items()
+                            if root != csharp_config.root and root.is_relative_to(csharp_config.root)
+                            for project in projects
+                            if project not in members[csharp_config.root]
+                        ]
+                        source_files = adapter.discover_source_files(csharp_config.root, ignore_manager, elsewhere)
+                        if not source_files:
+                            logger.info(
+                                f"Every C# file under {csharp_config.root} belongs to a nested solution; skipping"
+                            )
+                            continue
+                        configs.append(
+                            EngineConfig(
+                                adapter, csharp_config.root, source_files=source_files, excluded_roots=elsewhere
+                            )
+                        )
                 else:
                     logger.info("No C# projects detected")
 
@@ -839,6 +873,11 @@ class StaticAnalyzer:
                 analysis = self._run_full_analysis(engine_config, engine_client)
                 self._absorb_into_results(results, language, analysis)
             else:
+                changed_files = {
+                    path
+                    for path in changed_files
+                    if not any(path.is_relative_to(root) for root in engine_config.excluded_roots)
+                }
                 logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
                 cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
                 analysis = update_cfg_for_changed_files(

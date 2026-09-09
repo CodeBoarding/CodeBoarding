@@ -100,6 +100,37 @@ class TestWarmStartChangedFiles(unittest.TestCase):
         absorb.assert_called_once()
         self.assertIs(absorb.call_args.args[2], second)
 
+    def test_discovery_exclusions_scope_supplied_and_git_changes_before_invalidation(self) -> None:
+        inner_root = self.project / "plugins"
+        excluded = inner_root / "Inner"
+        inner_changes = {excluded / name for name in ("modified.cs", "added.cs", "deleted.cs")}
+        outer_changes = {self.project / "Outer.cs", self.project / "plugins-extra" / "Other.cs"}
+        for use_git in (False, True):
+            with self.subTest(use_git=use_git):
+                analyzer = _analyzer_with_one_engine(
+                    self.project, changed_files=None if use_git else inner_changes | outer_changes
+                )
+                ((outer, client),) = analyzer._engine_clients
+                outer.excluded_roots = [excluded]
+                outer.source_files = [self.project / "Unchanged.cs"]
+                inner = EngineConfig(outer.adapter, inner_root, source_files=[excluded / "modified.cs"])
+                analyzer._engine_clients.append((inner, client))
+                with (
+                    patch(
+                        "static_analyzer.get_changed_files_since",
+                        side_effect=[inner_changes | outer_changes, inner_changes],
+                    ),
+                    patch("static_analyzer.update_cfg_for_changed_files", return_value={}) as update,
+                    patch.object(analyzer, "_extract_language_dict", return_value={}),
+                    patch.object(analyzer, "_absorb_into_results"),
+                    patch.object(analyzer, "_collect_diagnostics_for"),
+                    patch("static_analyzer.track_lsp_result"),
+                ):
+                    analyzer._update_cached_results(self.cached, cached_sha="baseline")
+                self.assertEqual(update.call_args_list[0].args[1], outer_changes)
+                # Added/deleted paths are absent from source_files but still belong to the inner engine.
+                self.assertEqual(update.call_args_list[1].args[1], inner_changes)
+
     @patch("static_analyzer.update_cfg_for_changed_files", return_value={})
     @patch("static_analyzer.get_changed_files_since", return_value={Path("/proj/x.py")})
     def test_none_falls_back_to_git(self, mock_git, mock_update) -> None:
