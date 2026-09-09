@@ -49,6 +49,8 @@ class EngineConfig:
     adapter: LanguageAdapter
     project_path: Path
     source_files: list[Path] = field(default_factory=list)
+    # Retain discovery exclusions for incremental edits, including deleted files.
+    excluded_roots: list[Path] = field(default_factory=list)
 
 
 class StaticAnalysisFatalError(RuntimeError):
@@ -231,7 +233,11 @@ def _create_engine_configs(
                                 f"Every C# file under {csharp_config.root} belongs to a nested solution; skipping"
                             )
                             continue
-                        configs.append(EngineConfig(adapter, csharp_config.root, source_files=source_files))
+                        configs.append(
+                            EngineConfig(
+                                adapter, csharp_config.root, source_files=source_files, excluded_roots=elsewhere
+                            )
+                        )
                 else:
                     logger.info("No C# projects detected")
 
@@ -867,6 +873,11 @@ class StaticAnalyzer:
                 analysis = self._run_full_analysis(engine_config, engine_client)
                 self._absorb_into_results(results, language, analysis)
             else:
+                changed_files = {
+                    path
+                    for path in changed_files
+                    if not any(path.is_relative_to(root) for root in engine_config.excluded_roots)
+                }
                 logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
                 cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
                 analysis = update_cfg_for_changed_files(

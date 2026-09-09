@@ -115,6 +115,8 @@ class TestEngineConfigsPerFamily(unittest.TestCase):
         # Shared/ is in no project directory; the root engine keeps it, as it always did.
         self.assertEqual([f.name for f in outer.source_files], ["Program.cs", "Clock.cs"])
         self.assertEqual([f.name for f in inner.source_files], ["Host.cs"])
+        self.assertEqual(outer.excluded_roots, [inner.project_path / "Host"])
+        self.assertEqual(inner.excluded_roots, [])
 
     def test_a_project_the_outer_solution_lists_stays_with_it_even_under_a_nested_solution(self) -> None:
         """eShop's root solution lists src/ClientApp/ClientApp.csproj although that directory has
@@ -132,6 +134,7 @@ class TestEngineConfigsPerFamily(unittest.TestCase):
         )
         outer = next(config for config in configs if config.project_path.name != "mobile")
         self.assertEqual([f.name for f in outer.source_files], ["Program.cs", "Client.cs"])
+        self.assertEqual(outer.excluded_roots, [])
 
     def test_a_root_whose_files_all_belong_to_nested_solutions_gets_no_engine(self) -> None:
         configs = self._configs(
