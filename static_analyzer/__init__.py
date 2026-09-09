@@ -53,6 +53,7 @@ class StaticAnalysisFatalError(RuntimeError):
 
 
 MAX_CONCURRENT_ENGINES_ENV_VAR = "CODEBOARDING_MAX_CONCURRENT_ENGINES"
+LSP_REQUEST_TIMEOUT_ENV_VAR = "CODEBOARDING_LSP_REQUEST_TIMEOUT"
 
 
 # An engine costs ~3 cores: the server's own peak (~1.9, measured on csharp-ls),
@@ -94,6 +95,27 @@ def recommended_engine_concurrency(engine_count: int) -> int:
     cpu_bound = (os.cpu_count() or CORES_PER_ENGINE) // CORES_PER_ENGINE
     memory_bound = default_memory_budget() // ENGINE_MEMORY_FOOTPRINT_BYTES
     return max(1, min(engine_count, cpu_bound, memory_bound))
+
+
+def lsp_request_timeout(adapter: LanguageAdapter) -> int:
+    """Seconds one LSP request may block, defaulting to the adapter's own ceiling.
+
+    Why overridable: a ceiling that fits a server on a mid-sized workspace can be
+    far too low on a large one, and raising it should not need a new release.
+    """
+    raw = os.environ.get(LSP_REQUEST_TIMEOUT_ENV_VAR, "").strip()
+    if not raw:
+        return adapter.get_lsp_default_timeout()
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning("Ignoring non-integer %s=%r; keeping the adapter default", LSP_REQUEST_TIMEOUT_ENV_VAR, raw)
+        return adapter.get_lsp_default_timeout()
+    if value <= 0:
+        logger.warning("Ignoring non-positive %s=%r; keeping the adapter default", LSP_REQUEST_TIMEOUT_ENV_VAR, raw)
+        return adapter.get_lsp_default_timeout()
+    logger.info("Per-request LSP timeout for %s set to %ds", adapter.language, value)
+    return value
 
 
 def _adapter_names_for(programming_languages: list[ProgrammingLanguage]) -> list[str]:
@@ -402,7 +424,7 @@ class StaticAnalyzer:
             command=command,
             project_root=project_path,
             init_options=init_options,
-            default_timeout=adapter.get_lsp_default_timeout(),
+            default_timeout=lsp_request_timeout(adapter),
             collect_diagnostics=True,
             extra_env=extra_env,
             workspace_settings=adapter.get_workspace_settings(),
