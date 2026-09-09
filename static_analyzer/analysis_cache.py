@@ -69,8 +69,9 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # specification in analysis.json, replayed over the graph.
 # v8: a C# file compiled into several projects has symbols and callers, and a
 # nested solution's files are named by its own engine only.
+# v9: a call into a project of another solution root is an edge.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v8"
+_TAG_VERSION = "v9"
 
 
 class StaticAnalysisCache:

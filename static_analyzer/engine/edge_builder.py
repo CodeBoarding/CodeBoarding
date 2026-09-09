@@ -18,10 +18,11 @@ from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
 )
-from static_analyzer.engine.models import CallSite, SymbolInfo
+from static_analyzer.engine.models import CallSite, ExternalCallSite, SymbolInfo
 from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.engine.utils import definition_location, uri_to_path
+from static_analyzer.graph_definitions import CALL, COLLECTION_INITIALIZER, ITERATED, METHOD_GROUP
 from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name
 
 logger = logging.getLogger(__name__)
@@ -382,7 +383,10 @@ def _resolve_iterated_types(
                     continue
                 for result in results[index] if index < len(results) else []:
                     target = _resolve_definition_to_symbol(result, pos_to_sym, line_to_syms)
-                    if target is None or not _is_valid_edge(caller, target):
+                    if target is None:
+                        _record_external_call_site(ctx, st.attribution_symbol(caller), result, site, ITERATED)
+                        continue
+                    if not _is_valid_edge(caller, target):
                         continue
                     resolved += 1
                     attributed = st.attribution_symbol(caller)
@@ -481,9 +485,16 @@ def _resolve_definitions(
                 if not caller:
                     continue
 
+                position = (call_site.lsp_line, call_site.lsp_column)
+                kind = CALL
+                if position in method_group_positions:
+                    kind = METHOD_GROUP
+                elif position in collection_positions:
+                    kind = COLLECTION_INITIALIZER
                 for def_result in defs:
                     target = _resolve_definition_to_symbol(def_result, pos_to_sym, line_to_syms)
                     if not target:
+                        _record_external_call_site(ctx, st.attribution_symbol(caller), def_result, call_site, kind)
                         continue
                     total_resolved += 1
 
@@ -618,6 +629,25 @@ def _resolve_implementations(
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+
+def _record_external_call_site(
+    ctx: EdgeBuildContext, caller: SymbolInfo, def_result: dict, call_site: CallSite, kind: str
+) -> None:
+    """Keep a definition that landed in a file this engine never named, for the merged graph."""
+    location = definition_location(def_result)
+    if location is None or str(location[0]) in ctx.symbol_table.file_symbols:
+        return
+    ctx.external_call_sites.append(
+        ExternalCallSite(
+            caller=caller.qualified_name,
+            file=str(location[0]),
+            line=location[1],
+            character=location[2],
+            call_site=call_site,
+            kind=kind,
+        )
+    )
 
 
 def _call_site(file_path: Path, line: int, column: int) -> CallSite:

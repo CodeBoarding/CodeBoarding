@@ -19,9 +19,11 @@ from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_recycler import default_memory_budget, per_engine_memory_budget
+from static_analyzer.engine.models import ExternalCallSite
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
+from static_analyzer.external_calls import link_external_call_sites
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -736,7 +738,7 @@ class StaticAnalyzer:
         # order. The merges replace on key collision, and overlapping configs
         # (nested solution roots) do collide, so completion order would let two
         # identical runs keep different nodes and produce different component IDs.
-        completed: dict[int, tuple[Language, dict]] = {}
+        completed: dict[int, tuple[LanguageAdapter, dict]] = {}
 
         def run_one(engine_config: EngineConfig, engine_client: LSPClient | None, order: int = 0) -> None:
             """Analyze one engine. Owns the client's lifetime when given none."""
@@ -760,7 +762,7 @@ class StaticAnalyzer:
                 duration_ms = round((time.monotonic() - t_lang_start) * 1000)
                 logger.info(f"Engine analysis for {adapter.language} completed in {duration_ms / 1000:.1f}s")
                 with absorb_lock:
-                    completed[order] = (language, analysis)
+                    completed[order] = (adapter, analysis)
                     self._collect_diagnostics_for(adapter, engine_client, analysis)
                     track_lsp_result(
                         language=adapter.language_enum.value,
@@ -817,9 +819,7 @@ class StaticAnalyzer:
                     f"(attempted: {', '.join(cfg.adapter.language for cfg in pending)}){details}"
                 )
 
-        for order in sorted(completed):
-            language, analysis = completed[order]
-            self._absorb_into_results(results, language, analysis)
+        self._absorb_and_link(results, [completed[order] for order in sorted(completed)])
 
         summaries = []
         for language in results.get_languages():
@@ -863,6 +863,8 @@ class StaticAnalyzer:
         # so a config that took its own copy of the cache would hand back the nodes another
         # config had just invalidated, and the merge would resurrect deleted files.
         carried: dict[Language, dict] = {}
+        carried_adapters: dict[Language, LanguageAdapter] = {}
+        rebuilt: list[tuple[LanguageAdapter, dict]] = []
         for engine_config, engine_client in self._live_clients("warm-start"):
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
@@ -871,7 +873,7 @@ class StaticAnalyzer:
 
             if changed_files is None:
                 analysis = self._run_full_analysis(engine_config, engine_client)
-                self._absorb_into_results(results, language, analysis)
+                rebuilt.append((adapter, analysis))
             else:
                 changed_files = {
                     path
@@ -884,6 +886,7 @@ class StaticAnalyzer:
                     cached_lang_dict, changed_files, adapter, project_path, engine_client, self.ignore_manager
                 )
                 carried[language] = analysis
+                carried_adapters[language] = adapter
 
             self._collect_diagnostics_for(adapter, engine_client, analysis)
             track_lsp_result(
@@ -894,8 +897,9 @@ class StaticAnalyzer:
                 analysis=analysis,
                 diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
             )
-        for language, analysis in carried.items():
-            self._absorb_into_results(results, language, analysis)
+        self._absorb_and_link(
+            results, rebuilt + [(carried_adapters[language], analysis) for language, analysis in carried.items()]
+        )
         results.incremental_base_results = cached_results
         return results
 
@@ -943,6 +947,24 @@ class StaticAnalyzer:
             "source_files": cached_source_files,
             "diagnostics": cached_results.diagnostics.get(language, {}),
         }
+
+    def _absorb_and_link(self, results: StaticAnalysisResults, analyses: list[tuple[LanguageAdapter, dict]]) -> None:
+        """Absorb every engine's analysis, then finish the calls whose definitions lie in another engine's files.
+
+        Why after all of them: only the merged graph holds every engine's nodes, so a call into
+        another solution's project can find its target, whichever engine ran first.
+        """
+        pending: dict[Language, tuple[LanguageAdapter, list[ExternalCallSite]]] = {}
+        for adapter, analysis in analyses:
+            language = adapter.results_language
+            self._absorb_into_results(results, language, analysis)
+            pending.setdefault(language, (adapter, []))[1].extend(analysis.get("external_call_sites", []))
+        inspector = SourceInspector()
+        for language, (adapter, sites) in pending.items():
+            if sites:
+                link_external_call_sites(
+                    results.get_cfg(language), sites, adapter, results.get_package_dependencies(language), inspector
+                )
 
     def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:
         """Stuff one language's analysis-dict into the shared ``StaticAnalysisResults``."""

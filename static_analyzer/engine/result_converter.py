@@ -161,6 +161,7 @@ def convert_to_codeboarding_format(
         "references": references,
         "source_files": result.source_files,
         "diagnostics": {},
+        "external_call_sites": [site for site in result.external_call_sites if call_graph.has_node(site.caller)],
     }
 
 

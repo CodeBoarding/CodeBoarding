@@ -94,6 +94,26 @@ class CallFlowGraph:
 
 
 @dataclass
+@dataclass(frozen=True)
+class ExternalCallSite:
+    """A call whose definition the server placed in a file this engine holds no symbols for.
+
+    Why: a repository with several solutions runs one engine per solution, and a call
+    into another solution's project resolves to a file only that other engine named.
+    The position is kept so the merged graph can finish the edge, and how the site
+    was found (a call, a method-group probe, a collection initializer, a ``foreach``)
+    so it is finished the way the engine would have.
+    """
+
+    caller: str
+    file: str
+    line: int
+    character: int
+    call_site: CallSite
+    kind: str = "call"
+
+
+@dataclass
 class LanguageAnalysisResult:
     """Analysis result for a single language."""
 
@@ -102,6 +122,7 @@ class LanguageAnalysisResult:
     cfg: CallFlowGraph = field(default_factory=CallFlowGraph)
     package_dependencies: dict[str, dict] = field(default_factory=dict)
     source_files: list[str] = field(default_factory=list)
+    external_call_sites: list[ExternalCallSite] = field(default_factory=list)
     # Non-call relationship edges completing the graph for clustering. Each entry
     # is (source_qname, target_qname). type_references: code names a type (param,
     # return, annotation, cast); import_edges: module A imports symbol/module B.
