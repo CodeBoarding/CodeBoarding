@@ -229,4 +229,5 @@ def _feature_stem(name: str, role_words: frozenset[str], ubiquitous: frozenset[s
 
 
 def _dotted(path: Prefix) -> str:
-    return ".".join(path)
+    """A key for a path: joined on ``/``, which no directory name carries, so ``x/a.b`` and ``x/a/b`` differ."""
+    return "/".join(path)

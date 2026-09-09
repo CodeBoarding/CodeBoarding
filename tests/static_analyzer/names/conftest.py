@@ -9,11 +9,11 @@ from static_analyzer.config import NodeType
 from static_analyzer.node import Node
 
 
-def unit(file_path: str, *names: str, language: str = "python", project: bool = False) -> Unit:
+def unit(file_path: str, *names: str, language: str = "python", project: tuple[str, ...] | None = None) -> Unit:
     """A unit positioned by its path, the way the inventory positions a file under the repository root."""
     relative = Path(file_path)
     position = () if relative.parent.parts == (".",) else relative.parent.parts
-    return Unit(file_path, language, tuple(sorted(names)), position, position + (relative.stem,), project)
+    return Unit(file_path, language, tuple(sorted(names)), position, position + (relative.name,), project)
 
 
 def units_from_layout(layout: dict[str, list[str]], language: str = "python") -> list[Unit]:

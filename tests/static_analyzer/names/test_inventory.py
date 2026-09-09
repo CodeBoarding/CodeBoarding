@@ -17,8 +17,14 @@ class TestUnitsFromGraph:
         units = units_from_graph(graph, "python")
         assert [u.unit_id for u in units] == ["pkg/a.py", "pkg/sub/b.py"]
         assert units[0].names == ("pkg.a.f", "pkg.a.g")
-        assert units[0].position == ("pkg",) and units[0].key == ("pkg", "a")
-        assert units[1].position == ("pkg", "sub") and units[1].key == ("pkg", "sub", "b")
+        assert units[0].position == ("pkg",) and units[0].key == ("pkg", "a.py")
+        assert units[1].position == ("pkg", "sub") and units[1].key == ("pkg", "sub", "b.py")
+
+    def test_a_file_and_a_directory_of_one_name_have_distinct_keys(self):
+        graph = graph_from_layout({"pkg/foo.py": ["pkg.foo.f"], "pkg/foo/stray.py": ["pkg.foo.stray.g"]})
+        keys = [u.key for u in units_from_graph(graph, "python")]
+        assert keys == [("pkg", "foo.py"), ("pkg", "foo", "stray.py")]
+        assert keys[1][: len(keys[0])] != keys[0]
 
     def test_the_names_are_never_read_for_structure(self):
         """Two files spelled differently by two adapters sit together when they share a directory."""
@@ -39,15 +45,26 @@ class TestUnitsFromGraph:
         graph = graph_from_layout({"setup.py": ["setup.main"]})
         assert units_from_graph(graph, "python")[0].position == ()
 
-    def test_a_directory_with_a_manifest_is_a_project(self, tmp_path: Path):
-        (tmp_path / "lib").mkdir()
+    def test_the_nearest_manifest_above_a_file_names_its_project(self, tmp_path: Path):
+        (tmp_path / "lib" / "src").mkdir(parents=True)
         (tmp_path / "lib" / "Lib.csproj").write_text("<Project/>")
         (tmp_path / "app").mkdir()
+        (tmp_path / "package.json").write_text("{}")
         graph = graph_from_layout(
-            {str(tmp_path / "lib" / "a.cs"): ["a"], str(tmp_path / "app" / "b.cs"): ["b"]}, "csharp"
+            {str(tmp_path / "lib" / "src" / "a.cs"): ["a"], str(tmp_path / "app" / "b.cs"): ["b"]}, "csharp"
         )
         units = {u.position: u.project for u in units_from_graph(graph, "csharp", tmp_path)}
-        assert units == {("lib",): True, ("app",): False}
+        assert units == {
+            ("lib", "src"): ("lib",),
+            ("app",): None,
+        }, "the repository root's own manifest is not a project"
+
+    def test_a_path_outside_the_repository_root_is_refused(self, tmp_path: Path):
+        graph = graph_from_layout({str(tmp_path.parent / "elsewhere" / "a.py"): ["a"]})
+        with pytest.raises(ValueError, match="outside"):
+            units_from_graph(graph, "python", tmp_path)
+        with pytest.raises(ValueError, match="outside"):
+            units_from_graph(graph_from_layout({"../a.py": ["a"]}), "python")
 
     def test_languages_are_read_in_sorted_order(self):
         graphs = {

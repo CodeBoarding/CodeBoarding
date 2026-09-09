@@ -328,7 +328,7 @@ class TestLadder:
         assert names_of(feature) == [LOOSE_NAME, "retry_options", "timeout_options"]
         retry = rule_of(feature, "1.2")
         assert retry.terms == ("retry",) and len(retry.prefixes) == 3
-        assert ("pkg", "feat", "retry_policy") in retry.prefixes
+        assert ("pkg", "feat", "retry_policy.py") in retry.prefixes
         loose = rule_of(feature, "1.1")
         assert loose.is_fallback_only and loose.fallback_prefixes == (("pkg", "feat"),)
         placed = replay(units, feature, ROLE_WORDS)
@@ -539,10 +539,19 @@ def context(
         unit_count or sum(sizes.values()),
         FRONTIER,
         sizes={f"box:{name}": size for name, size in sizes.items()},
-        links={tuple(sorted((f"box:{a}", f"box:{b}"))): count for (a, b), count in links.items()},  # type: ignore[misc]
+        links=_undirected(links),
         calls={(f"box:{a}", f"box:{b}"): count for (a, b), count in links.items()},
         floor=floor,
     )
+
+
+def _undirected(links: dict[tuple[str, str], int]) -> dict[tuple[str, str], int]:
+    """Both directions of a pair summed, the way the production context counts them."""
+    summed: dict[tuple[str, str], int] = {}
+    for (a, b), count in links.items():
+        key = (min(f"box:{a}", f"box:{b}"), max(f"box:{a}", f"box:{b}"))
+        summed[key] = summed.get(key, 0) + count
+    return summed
 
 
 def members_of(groups: list[CandidateGroup]) -> dict[str, tuple[str, ...]]:
@@ -669,6 +678,26 @@ class TestPlacementByRole:
         groups = {group.name: group.keys for group in AffinityGrouper().group(candidates, ctx)}
         assert groups["Loose files"] == ("loose:", "box:stray")
 
+    def test_two_one_link_callers_are_noise_not_a_shared_helper(self):
+        sizes = {"a": 30, "b": 20, "helper": 3}
+        links = {("a", "helper"): 1, ("b", "helper"): 1}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))) == 3
+
+    def test_a_helper_stays_when_its_owner_cannot_take_it_under_the_cap(self):
+        sizes = {"big": 58, "helper": 4, "other": 38}
+        links = {("big", "helper"): 6}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))) == 3
+
+    def test_a_small_hub_or_application_stands_at_the_files_rung(self):
+        """A one-file event bus every feature calls is a box, not a loose file."""
+        layout = {f"pkg/feat/{name}.py": [f"pkg.feat.{name}.{name.capitalize()}"] for name in ("bus",)}
+        for feature in ("alpha", "beta", "gamma", "delta"):
+            layout |= {f"pkg/feat/{feature}_{part}.py": [f"pkg.feat.{feature}_{part}.X"] for part in ("a", "b", "c")}
+        layout |= {f"pkg/other/{index}.py": [f"pkg.other.m{index}.f"] for index in range(3)}
+        links = {(f"pkg/feat/{feature}_a.py", "pkg/feat/bus.py"): 3 for feature in ("alpha", "beta", "gamma", "delta")}
+        feature = scope_of(draft_tree(units_from_layout(layout), AffinityGrouper(), 2, links=links), "1")
+        assert feature.rung == FILES and "bus" in names_of(feature)
+
 
 class TestBudgetAndLimit:
     def test_over_the_budget_a_real_component_folds_only_into_a_dominant_partner(self):
@@ -688,6 +717,21 @@ class TestBudgetAndLimit:
         assert len(groups) == LIMIT
         merged = next(group for group in groups if "box:tenants" in group.keys)
         assert set(merged.keys) == {"box:tenants", "box:tenancy"}
+
+    def test_a_consumer_takes_nothing_over_the_budget(self):
+        sizes = dict.fromkeys((f"s{i}" for i in range(9)), 20) | {"samples": 20, "printer": 6}
+        links = {("samples", "printer"): 12}
+        groups = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))
+        assert len(groups) == len(sizes)
+
+    def test_the_vocabulary_merge_respects_the_cap(self):
+        sizes = dict.fromkeys((f"pkg{i}" for i in range(14)), 2) | {"tenants": 35, "tenancy": 35}
+        ctx = context(sizes, {}, floor=1)
+        vocabulary = {key: Counter({key.removeprefix("box:"): 1}) for key in ctx.sizes}
+        vocabulary["box:tenants"] = Counter({"tenant": 3})
+        vocabulary["box:tenancy"] = Counter({"tenant": 3})
+        groups = AffinityGrouper().group(boxes(*sizes), replace(ctx, vocabulary=vocabulary))
+        assert not any({"box:tenants", "box:tenancy"} <= set(group.keys) for group in groups)
 
     def test_over_the_limit_with_nothing_to_merge_the_smallest_are_pooled(self):
         sizes = {f"pkg{i:02d}": 30 - i for i in range(18)}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -110,6 +111,9 @@ class CandidateGroup:
     name: str
     keys: tuple[str, ...]
     terms: tuple[str, ...] = ()
+    standing: bool = False
+    """Whether the group is shared infrastructure or a project, which stands on its own even
+    under the floor a rung would otherwise pool it at."""
 
 
 class Grouper(Protocol):
@@ -186,7 +190,6 @@ class _Fold:
         self.members = [list(group.keys) for group in groups]
         self.terms = [group.terms for group in groups]
         self.sizes = [sum(context.sizes.get(key, 0) for key in group.keys) for group in groups]
-        count = len(groups)
         self.links = [
             [self._between(left, right, context.links, ordered=False) for right in self.members]
             for left in self.members
@@ -194,34 +197,26 @@ class _Fold:
         self.calls = [
             [self._between(left, right, context.calls, ordered=True) for right in self.members] for left in self.members
         ]
-        for index in range(count):
+        for index in range(len(groups)):
             self.links[index][index] = self.calls[index][index] = 0
         self.vocabulary = [
             sum((context.vocabulary.get(key, Counter()) for key in group.keys), Counter()) for group in groups
         ]
         self.floor = context.floor
+        self.cap = CAP_SHARE * context.unit_count
         live = self.live()
         threshold = max(MIN_HUB_PARTNERS, HUB_SHARE * (len(live) - 1))
         self.hubs = {i for i in live if sum(1 for j in live if self.calls[j][i] >= MIN_LINKS) >= threshold}
         self.projects = {i for i, keys in enumerate(self.members) if any(key in context.projects for key in keys)}
+        self.fallback = {
+            i for i, keys in enumerate(self.members) if all(self.by_key[k].kind in (LOOSE, RESIDUAL) for k in keys)
+        }
         self.consumers = {i for i in live if self._is_consumer(i)}
         self.kept: set[int] = set()
         self.loose = next(
             (i for i, keys in enumerate(self.members) if any(self.by_key[k].kind == LOOSE for k in keys)), None
         )
-
-    @staticmethod
-    def _between(left: list[str], right: list[str], weights: Mapping[tuple[str, str], int], *, ordered: bool) -> int:
-        if ordered:
-            return sum(weights.get((a, b), 0) for a in left for b in right)
-        return sum(weights.get((min(a, b), max(a, b)), 0) for a in left for b in right)
-
-    def _is_consumer(self, index: int) -> bool:
-        """Loose files, tests, samples, benches and docs call the scope without being part of it."""
-        if any(self.by_key[key].kind == LOOSE for key in self.members[index]):
-            return True
-        labels = (self.by_key[key].label for key in self.members[index])
-        return any(set(stems(label)) & CONSUMER_WORDS for label in labels)
+        self.pooled: int | None = None
 
     def live(self) -> list[int]:
         return sorted((i for i in range(len(self.members)) if self.sizes[i]), key=lambda i: (self.sizes[i], i))
@@ -241,24 +236,26 @@ class _Fold:
             self.calls[source][other] = self.calls[other][source] = 0
         self.links[target][target] = self.calls[target][target] = 0
         self.members[source] = []
-        if source in self.hubs:
-            self.hubs.add(target)
-        if source in self.projects:
-            self.projects.add(target)
+        for flagged in (self.hubs, self.projects, self.kept):
+            if source in flagged:
+                flagged.add(target)
 
     def place(self) -> None:
-        """Every candidate under the floor, by its role in the calls."""
+        """Every candidate under the floor, by its role in the calls.
+
+        Loose files, residues, tests, samples, benches, docs and hubs own no helper; a helper
+        whose owner cannot take it under the cap stays.
+        """
         for index in self.live():
-            if self.sizes[index] >= self.floor:
+            if self.sizes[index] >= self.floor or index in self.fallback:
                 continue
-            # A hub calling a small sibling makes it a subscriber, not a helper: the bus owns no service.
             callers = {
                 j: self.calls[j][index]
                 for j in self.live()
-                if j != index and j not in self.consumers and j not in self.hubs and self.calls[j][index]
+                if j != index and j not in self.consumers and j not in self.hubs and self.calls[j][index] >= MIN_LINKS
             }
-            incoming = sum(callers.values())
             outgoing = sum(self.calls[index][j] for j in self.live() if j != index)
+            fitting = [j for j in callers if self.sizes[j] + self.sizes[index] <= self.cap]
             if index in self.hubs:
                 if self.sizes[index] < MIN_HUB_UNITS and self.loose is not None and self.loose != index:
                     self.merge(index, self.loose)
@@ -266,14 +263,9 @@ class _Fold:
                     self.kept.add(index)
             elif index in self.projects or len(callers) >= 3:
                 self.kept.add(index)
-            elif incoming >= MIN_LINKS and len(callers) == 1:
-                self.merge(index, next(iter(callers)))
-            elif incoming >= MIN_LINKS and len(callers) == 2:
-                # The larger caller, unless taking the helper would grow it past the cap.
-                cap = CAP_SHARE * self.context.unit_count
-                fitting = [j for j in callers if self.sizes[j] + self.sizes[index] <= cap] or list(callers)
+            elif len(callers) in (1, 2) and fitting:
                 self.merge(index, max(fitting, key=lambda j: (self.sizes[j], -j)))
-            elif incoming or outgoing >= MIN_LINKS:
+            elif callers or outgoing >= MIN_LINKS:
                 self.kept.add(index)
             elif self.loose is not None and self.loose != index:
                 self.merge(index, self.loose)
@@ -285,24 +277,27 @@ class _Fold:
 
         Below the floor a candidate the placement left standing joins whoever it links to;
         over the budget a candidate joins only a sibling carrying at least half of its links,
-        so a real component is never folded on the two links a helper brought along.
+        so a real component is never folded on the two links a helper brought along. A
+        consumer (tests, samples, docs) neither takes nor folds, and a fallback-only candidate
+        folds nowhere.
         """
-        cap = CAP_SHARE * self.context.unit_count
         while True:
             live = self.live()
             over_budget = len(live) > BUDGET
             sources = live if over_budget else [i for i in live if self.sizes[i] < self.floor and i not in self.kept]
             chosen = None
             for source in sources:
-                if source in self.hubs:
+                if source in self.hubs or source in self.fallback or source in self.consumers:
                     continue
                 degree = sum(self.links[source][other] for other in live)
                 best: tuple[int, int, int] | None = None
                 for target in live:
                     count = self.links[source][target]
-                    if target == source or target in self.hubs or count < MIN_LINKS:
+                    if target == source or count < MIN_LINKS:
                         continue
-                    if self.sizes[source] + self.sizes[target] > cap:
+                    if target in self.hubs or target in self.consumers or target in self.fallback:
+                        continue
+                    if self.sizes[source] + self.sizes[target] > self.cap:
                         continue
                     if over_budget and self.sizes[source] >= self.floor and count * 2 < degree:
                         continue
@@ -316,14 +311,16 @@ class _Fold:
             self.merge(*chosen)
 
     def by_vocabulary(self) -> None:
-        """Over the limit, the two non-hub candidates whose names share the most vocabulary merge."""
+        """Over the limit, the two candidates whose names share the most vocabulary merge, under the cap."""
         while len(self.live()) > LIMIT:
-            live = [i for i in self.live() if i not in self.hubs]
+            live = [i for i in self.live() if i not in self.hubs and i not in self.consumers and i not in self.fallback]
             vectors = self._tfidf(live)
             best: tuple[float, int, int] | None = None
             for a in range(len(live)):
                 for b in range(a + 1, len(live)):
                     i, j = live[a], live[b]
+                    if self.sizes[i] + self.sizes[j] > self.cap:
+                        continue
                     similarity = sum(weight * vectors[j].get(word, 0.0) for word, weight in vectors[i].items())
                     if similarity > 0 and (best is None or similarity > best[0]):
                         best = (similarity, i, j)
@@ -331,6 +328,53 @@ class _Fold:
                 return
             _, i, j = best
             self.merge(j if self.sizes[i] >= self.sizes[j] else i, i if self.sizes[i] >= self.sizes[j] else j)
+
+    def pool(self) -> None:
+        """Over the limit still, the smallest non-hub candidates become one box."""
+        live = [i for i in self.live() if i not in self.hubs and i not in self.fallback]
+        excess = len(self.live()) - LIMIT
+        if excess <= 0 or len(live) < 2:
+            return
+        pooled = live[: excess + 1]
+        target = pooled[-1]
+        for source in pooled[:-1]:
+            self.merge(source, target)
+        self.pooled = target
+
+    def groups(self) -> list[CandidateGroup]:
+        groups = []
+        for index, keys in enumerate(self.members):
+            if not keys:
+                continue
+            # Only shared infrastructure and a project stand under a rung's floor: at the files
+            # rung every leaf script calls something, and a box per script is not a picture.
+            standing = index in self.hubs or index in self.projects
+            if index == self.pooled:
+                groups.append(CandidateGroup(OTHER_NAME, tuple(keys), self.terms[index]))
+                continue
+            loose = next((self.by_key[key] for key in keys if self.by_key[key].kind == LOOSE), None)
+            if loose is not None:
+                # What joined the loose files is loose; the box keeps the name a reader knows.
+                groups.append(CandidateGroup(candidate_name(loose), tuple(keys), self.terms[index]))
+                continue
+            # The biggest member names a fold: the box a reader already recognises.
+            biggest = max(self.context.sizes.get(key, 0) for key in keys)
+            name = _plainest([self.by_key[key] for key in keys if self.context.sizes.get(key, 0) == biggest])
+            groups.append(CandidateGroup(name, tuple(keys), self.terms[index], standing))
+        return groups
+
+    @staticmethod
+    def _between(left: list[str], right: list[str], weights: Mapping[tuple[str, str], int], *, ordered: bool) -> int:
+        if ordered:
+            return sum(weights.get((a, b), 0) for a in left for b in right)
+        return sum(weights.get((min(a, b), max(a, b)), 0) for a in left for b in right)
+
+    def _is_consumer(self, index: int) -> bool:
+        """Loose files, residues, tests, samples, benches and docs call the scope without being part of it."""
+        if index in self.fallback:
+            return True
+        labels = (self.by_key[key].label for key in self.members[index])
+        return any(set(stems(label)) & CONSUMER_WORDS for label in labels)
 
     def _tfidf(self, live: list[int]) -> dict[int, dict[str, float]]:
         frequency: Counter[str] = Counter()
@@ -347,39 +391,6 @@ class _Fold:
             norm = math.sqrt(sum(weight * weight for weight in weights.values())) or 1.0
             vectors[index] = {word: weight / norm for word, weight in weights.items()}
         return vectors
-
-    def pool(self) -> None:
-        """Over the limit still, the smallest non-hub candidates become one box."""
-        live = [i for i in self.live() if i not in self.hubs]
-        excess = len(self.live()) - LIMIT
-        if excess <= 0 or len(live) < 2:
-            return
-        pooled = live[: excess + 1]
-        target = pooled[-1]
-        for source in pooled[:-1]:
-            self.merge(source, target)
-        self.pooled = target
-
-    pooled: int | None = None
-
-    def groups(self) -> list[CandidateGroup]:
-        groups = []
-        for index, keys in enumerate(self.members):
-            if not keys:
-                continue
-            if index == self.pooled:
-                groups.append(CandidateGroup(OTHER_NAME, tuple(keys), self.terms[index]))
-                continue
-            loose = next((self.by_key[key] for key in keys if self.by_key[key].kind == LOOSE), None)
-            if loose is not None:
-                # What joined the loose files is loose; the box keeps the name a reader knows.
-                groups.append(CandidateGroup(candidate_name(loose), tuple(keys), self.terms[index]))
-                continue
-            # The biggest member names a fold: the box a reader already recognises.
-            biggest = max(self.context.sizes.get(key, 0) for key in keys)
-            name = _plainest([self.by_key[key] for key in keys if self.context.sizes.get(key, 0) == biggest])
-            groups.append(CandidateGroup(name, tuple(keys), self.terms[index]))
-        return groups
 
 
 DETERMINISTIC_GROUPERS: dict[str, type[Grouper]] = {
@@ -463,7 +474,8 @@ def draft_scope(
         rungs.append((UNMERGE, lambda: _unmerge_rules(scope_id, scope_units, parts, role_words, grouper, links)))
     if is_root(scope_id) or len(scope_units) > LEAF_UNITS:
         transpose = is_root(scope_id) or len(scope_units) > LEAF_CAP
-        rungs.append((FRONTIER if is_root(scope_id) else SEGMENT, lambda: frontier(SEGMENT, transpose)))
+        rung = FRONTIER if is_root(scope_id) else SEGMENT
+        rungs.append((rung, lambda: frontier(rung, transpose)))
         rungs.append((LAYERS, lambda: frontier(LAYERS, False, layers=True)))
         rungs.append((FILES, lambda: _file_rules(scope_id, scope_units, role_words, grouper, links)))
         rungs.append((ROLE, lambda: _role_rules(scope_id, scope_units, role_words, grouper, links)))
@@ -560,7 +572,7 @@ def _file_rules(
     by_key: dict[Prefix, list[Unit]] = {}
     for unit in units:
         by_key.setdefault(unit.key, []).append(unit)
-    candidates = [Candidate(f"{FILE}:{'.'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)]
+    candidates = [Candidate(f"{FILE}:{'/'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)]
     return _grouped_rules(scope_id, units, candidates, role_words, grouper, FILES, links), FILES
 
 
@@ -611,7 +623,7 @@ def _island_rules(
     by_key: dict[Prefix, list[Unit]] = {}
     for unit in units:
         by_key.setdefault(unit.key, []).append(unit)
-    candidates = [Candidate(f"{FILE}:{'.'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)]
+    candidates = [Candidate(f"{FILE}:{'/'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)]
     if len(candidates) < 2:
         return [], ISLAND
     context = _context(scope_id, units, candidates, role_words, ISLAND, links)
@@ -620,8 +632,8 @@ def _island_rules(
     if len(strong) != 1:
         return [], ISLAND
     family_keys = set(strong[0].keys)
-    family = [unit for unit in units if f"{FILE}:{'.'.join(unit.key)}" in family_keys]
-    rest = [unit for unit in units if f"{FILE}:{'.'.join(unit.key)}" not in family_keys]
+    family = [unit for unit in units if f"{FILE}:{'/'.join(unit.key)}" in family_keys]
+    rest = [unit for unit in units if f"{FILE}:{'/'.join(unit.key)}" not in family_keys]
     if len(family) < ISLAND_SHARE * len(units) or len(rest) < context.floor:
         return [], ISLAND
     family_ids = {unit.unit_id for unit in family}
@@ -675,7 +687,12 @@ def _grouped_rules(
         return []
     context = _context(scope_id, units, candidates, role_words, rung, links)
     groups = grouper.group(candidates, context)
-    strong = [group for group in groups if sum(context.sizes.get(key, 0) for key in group.keys) >= context.floor]
+    # A hub or a project is a box under the floor too.
+    strong = [
+        group
+        for group in groups
+        if group.standing or sum(context.sizes.get(key, 0) for key in group.keys) >= context.floor
+    ]
     if len(strong) < 2:
         return []
     kept = {key for group in strong for key in group.keys}
@@ -686,7 +703,8 @@ def _grouped_rules(
 
 
 def _label(key: Prefix) -> str:
-    return key[-1] if key else ""
+    """The last segment, without a file's extension."""
+    return Path(key[-1]).stem if key else ""
 
 
 def _common_prefix(units: list[Unit]) -> Prefix:
@@ -730,7 +748,7 @@ def _context(
         seen: dict[str, None] = {}
         words: Counter[str] = Counter()
         for unit in partition.members.get(candidate.key, []):
-            if unit.project and unit.position in candidate.prefixes:
+            if unit.project is not None and unit.project in candidate.prefixes:
                 projects.add(candidate.key)
             unit_words: set[str] = set()
             for name in unit.names:

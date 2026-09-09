@@ -1287,9 +1287,9 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.tree_spec = TreeSpec(
             scopes={
                 ROOT_SCOPE_ID: ScopeSpec(
-                    ROOT_SCOPE_ID, [ComponentRule("2", "Persisted", prefixes=(("persisted",),))], rung="files"
+                    ROOT_SCOPE_ID, [ComponentRule("2", "Persisted", prefixes=(("persisted.py",),))], rung="files"
                 ),
-                "2": ScopeSpec("2", [ComponentRule("2.1", "Persisted", prefixes=(("persisted",),))], rung="files"),
+                "2": ScopeSpec("2", [ComponentRule("2.1", "Persisted", prefixes=(("persisted.py",),))], rung="files"),
             }
         )
         component = Component(

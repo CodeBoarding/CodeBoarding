@@ -49,14 +49,17 @@ per scope, from the same names, writes them down once, and replays them everywhe
 
 ### 3.1 Units and the trie (`inventory.py`)
 
-A **unit** is a file: the set of qualified names declared in it. Its **position** is the
-longest prefix its names share, less a trailing symbol (a file declaring one class shares
-that class across every member). The engine emits no module node, so this is how the
-module of a Python file, the package of a Java type and the directory of a C# type are read
-off the names alone. The **trie** is the prefix tree of positions; a dotted directory name
-(`Ordering.API`) nests as two segments, which is what lets `Ordering.API`, `Ordering.Domain`
-and `Ordering.Infrastructure` sit under one `Ordering` node that is never split along its
-role-named children.
+A **unit** is a file: the set of qualified names declared in it. Its **position** is its
+directory under the repository root, and its **key** the position plus the file's name, so a
+file and a directory of one name stay apart. The names are never read for structure: the
+engine root a nested solution was analysed from, a dotted project directory (`Ordering.API`,
+`BTCPayServer.Client`) and the spelling each adapter chose all used to leak into the trie,
+and each was measured to scatter a root (abp's `framework/` invisible, btcpayserver's
+controllers transposed into 75 word boxes, eShop's two JavaScript files a box of their
+own). The **trie** is the prefix tree of positions: the repository's directory tree, the
+same for every language. A unit also records the nearest directory above it holding a
+project manifest (`package.json`, `pyproject.toml`, a `.csproj`, …), which the grouper reads
+as "a reader separated this on purpose".
 
 ### 3.2 The frontier walk (`frontier.py`)
 
@@ -65,13 +68,15 @@ Per node, in order:
 | node | rule |
 |---|---|
 | one child, no units | pass through |
-| child is a layout word (`src`, `packages`, `pkg`, …) or holds ≥ 80% of the parent | step through, whatever it is called; this is decided before the layered test below |
+| child holds ≥ 80% of the parent | step through, whatever it is called (`src`, `src/main/java`, the one package of a library); this is decided before the layered test below |
 | children mostly (≥ 60%) role-named, ≥ 3 of them | **layered**: if a feature name recurs under ≥ 2 distinct layer children, **transpose** onto those features (at the root and above the leaf cap; below it the node is one box, because a transposition leaves a residual per layer); else the layers are the boxes, the only structure there is |
-| child is role-named | a box, never a way in |
-| feature-named child holding ≥ 50% of the scope, with mostly feature-named children | open it: half the scope is the scope's structure, less is one of its parts |
-| feature-named child holding ≥ 50% of the scope, with ≥ 3 mostly role-named children | layered, as above |
-| anything else | a box; a one-unit child is a loose unit of its parent |
+| anything else | a box, and its inside is the next depth; a one-unit child is a loose unit of its parent |
 | a node the walk entered that has only units and one-unit children | one box (a flat scope) |
+
+There is no opening of a child that holds "enough" of the scope and no list of layout words:
+both were measured to scatter a directory's contents across its parent (Polly's strategies,
+AutoMapper's test folders, LMCache's `v1`, abp's twenty modules at the root). A directory is
+its scope's structure; what it holds is the next depth's.
 
 Role words are a fixed closed class (`ROLE_WORDS`, ~95 stems: Api, Domain, Models,
 Services, Handlers, …) plus a per-repo tail the planner may add; measured, this list cannot
@@ -96,21 +101,37 @@ implementations behind one protocol, switchable by configuration (`CODEBOARDING_
 - `KinshipGrouper`: merge candidates sharing their distinctive word (`Ordering` +
   `OrderProcessor`, `Webhooks` + `WebhookClient`, `EventBus` + `EventBusRabbitMQ`).
   Recovers eShop's depth-1 drawing at 1.000 with no model.
-- `AffinityGrouper` (default): kinship, then fold the rung along the call graph. The
-  context hands every grouper, per candidate, its size and the graph links (call edges plus
-  `INHERITS`/`TYPEREF` reference edges, cross-file only) it exchanges with each sibling;
-  the service computes them once per run and they never reach `replay`. A candidate below
-  the scope's floor, and then the smallest candidate while the scope holds more than nine,
-  joins the sibling with the highest *observed over expected* link count
-  (`links × total / (degree × degree)`, at least two links, never past 60% of the scope).
-  Why that ratio and not the raw count: a hub (`utils`, `core`) talks to everyone, so raw
-  counts fold every small box into it; against its degree it is nobody's closest sibling.
-  Measured on django it recovers what the LLM planner folded (`http` → `views`,
-  `templatetags` → `template`, `conf`/`apps` → `core`, `urls`/`middleware` together) and
-  agrees with the planner's root grouping at 0.96 pair-F1, with no model and byte-identical
-  across runs. A candidate with no affine sibling stays its own box; the fold only ever
-  merges. The persisted rules are still prefixes and words: a fold is one rule with the
-  members' prefixes and the union of their words, so replay stays graph-free.
+- `AffinityGrouper` (default): kinship, then the graph, in four steps that read the same at
+  every depth. The context hands every grouper, per candidate, its size, the links it
+  exchanges with each sibling (call edges plus `INHERITS`/`TYPEREF` reference edges,
+  cross-file only) **with their direction**, the stems its units' names are made of, and
+  whether its directory is a project; the service computes them once per run and they
+  never reach `replay`.
+  1. *Placement by role*, for every candidate under the scope's floor (5%). Read off the
+     direction of the calls: a **hub** (called by 40% of its siblings, three at least) stays;
+     an **application** (calls others, called by none) stays; a **project root** stays; one
+     **shared** by three siblings stays; a **helper**, called by one sibling only, goes inside
+     it; shared by exactly two, into the larger; linked to nothing, into the loose files; a
+     hub under three files, into the loose files. Loose files, residues, tests, samples,
+     benches, docs and hubs own no helper: the bus dispatching to a service's handlers does
+     not make the service its helper. Why direction: size cannot tell `core/` (3 files, a
+     helper of the CLI) from `PaymentProcessor` (6 files, a service); who calls whom can.
+  2. *Budget*: while the scope holds more than nine, the smallest candidate joins the
+     sibling it exchanges the most links with, never a hub, never a consumer, never past 60%
+     of the scope, and only a sibling carrying at least half of the candidate's links, so a
+     real component is never folded on the two links a helper brought along. Why raw counts
+     and not observed-over-expected: the ratio was measured to send `WebAppComponents` to
+     `HybridApp` on three links over `WebApp` on fifteen, and to fold every service into the
+     event bus once the recovered call sites made the bus everyone's busiest partner; the
+     hub exclusion does what the ratio was meant to do, and does it by name.
+  3. *Limit*: while the scope holds more than fifteen, the two non-hub candidates whose
+     identifier vocabulary (TF-IDF over stems) is closest merge, under the cap.
+  4. *Pool*: still over fifteen, the smallest are one box, "Other files".
+  Measured on fifteen repositories at depth 3: no scope above fifteen anywhere (before: abp
+  31, nopCommerce 51, btcpayserver 27 at the root); eShop 9 of 9 published boxes from 5 of 9;
+  serilog and mermaid no longer forced from 13 to 9. A candidate with no home stays its own
+  box; the fold only ever merges. The persisted rules are still prefixes and words: a fold is
+  one rule with the members' prefixes and the union of their words, so replay stays graph-free.
 - `TreePlannerAgent` (LLM): runs kinship first and, only when a scope is left with more
   than nine groups, shows the model those groups with their sizes and a few identifiers and
   lets it fold them into components toward the budget. It may merge across words
@@ -154,10 +175,16 @@ numbering cannot move a unit.
 
 | scope | rungs, in order |
 |---|---|
-| root | frontier of the trie (layers transposed or drawn) → words of the units (only if the frontier gave one box) |
-| component ≤ 7 units | un-merge: the candidates the grouper folded into it → leaf ("small") |
+| root | un-merge → frontier of the trie (layers transposed) → layers → files → roles → island; never refused: a root nothing splits is the one box the frontier gave it |
+| component ≤ 7 units | un-merge: the candidates the grouper folded into it, offered to the grouper again → leaf ("small") |
 | component 8–135 units | un-merge → frontier of its own sub-trie, a layered grid kept whole → the same frontier with the grid drawn layer by layer → files → roles → island → leaf ("cohesive") |
-| component > 135 units | un-merge → frontier of its sub-trie, transposed where a grid recurs → words of its units → layers → files → roles → island → leaf ("exhausted") |
+| component > 135 units | the same, the frontier transposed where a grid recurs → leaf ("exhausted") |
+
+The ladder is the same at every depth. The un-merge rung hands a fold's parts back to the
+grouper inside their own scope (kinship skipped, since the parts are already one word apart),
+so a box the root folded out of seventy candidates opens onto nine, not seventy. The
+vocabulary rung (one candidate per word of the units' names) is gone: it produced the 51- and
+60-child scopes and nothing could fold its candidates, which share no links.
 
 The two rungs below the trie read the files themselves, since below a leaf the trie is
 flat. **Files**: every file is a candidate labelled by its own name (its key: the position
@@ -364,11 +391,10 @@ perfect grouping) is the planner's to reach.
 
 - Kubernetes-scale repos over-produce root boxes (44–53 against 16 sigs); grouping them
   is the planner's job and its variance must be measured across draws before it ships.
-- The vocabulary rung without a model collapses onto the commonest word (markitdown 88%,
-  serilog 69% in the grouper study). After the layered root draws its layers no repository
-  in the set reaches the rung, so the co-occurrence grouping of its words the study proposed
-  is unmeasured and not attempted; the affinity fold applies to word candidates as to any
-  other, which is all the rung has today.
+- Inside a wide flat scope (abp's `framework`, a hundred packages) the rules give package
+  families by kinship and vocabulary, not the eight themes a reader would draw. That gap is
+  semantic; a dependency-fingerprint proxy (packages that depend on the same hubs) and, failing
+  that, the planner on such scopes only, are the candidates.
 - The fold is measured on repositories of at most 635 units; kubernetes-scale roots (44–53
   candidates) need links the synthesised ruler harness does not carry.
 - A unit the parent placed by a word has no home among the un-merged parts and lands in

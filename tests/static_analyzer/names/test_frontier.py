@@ -29,7 +29,7 @@ class TestFeatureShapedRoot:
         )
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
         assert frontier.axis == "structural"
-        assert sorted(keys(frontier)) == ["box:src.Basket.API", "box:src.Catalog.API", "box:src.Identity.API"]
+        assert sorted(keys(frontier)) == ["box:src/Basket.API", "box:src/Catalog.API", "box:src/Identity.API"]
 
     def test_a_dotted_directory_is_one_segment(self):
         """``Ordering.API`` and ``Ordering.Domain`` are two projects; kinship, not the walk, relates them."""
@@ -39,7 +39,7 @@ class TestFeatureShapedRoot:
             | project("Catalog.API", 4)
         )
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
-        assert sorted(keys(frontier)) == ["box:src.Catalog.API", "box:src.Ordering.API", "box:src.Ordering.Domain"]
+        assert sorted(keys(frontier)) == ["box:src/Catalog.API", "box:src/Ordering.API", "box:src/Ordering.Domain"]
 
     def test_a_dominant_directory_is_a_box_and_its_inside_is_the_next_depth(self):
         layout = {
@@ -52,13 +52,13 @@ class TestFeatureShapedRoot:
         }
         frontier = walk(Trie(units_from_layout(layout)), ROLE_WORDS)
         assert not frontier.notes
-        assert sorted(keys(frontier)) == ["box:django.contrib", "box:django.forms", "box:django.views"]
+        assert sorted(keys(frontier)) == ["box:django/contrib", "box:django/forms", "box:django/views"]
 
     def test_a_layout_word_is_a_box_unless_it_holds_nearly_everything(self):
         """``src`` beside a ``tools`` of the same size is structure; ``src`` holding everything is not."""
         layout = project("Catalog.API", 3) | project("Basket.API", 3)
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
-        assert sorted(keys(frontier)) == ["box:src.Basket.API", "box:src.Catalog.API"]
+        assert sorted(keys(frontier)) == ["box:src/Basket.API", "box:src/Catalog.API"]
         layout |= {f"tools/t{i}.py": [f"tools.t{i}.f"] for i in range(4)}
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
         assert sorted(keys(frontier)) == ["box:src", "box:tools"]
@@ -72,7 +72,7 @@ class TestFeatureShapedRoot:
         layout["tools/x.py"] = ["tools.x.f"]
         frontier = walk(Trie(units_from_layout(layout)), ROLE_WORDS)
         assert "box:app" not in keys(frontier)
-        assert {"box:app.billing", "box:app.catalog", "box:app.search"} <= set(keys(frontier))
+        assert {"box:app/billing", "box:app/catalog", "box:app/search"} <= set(keys(frontier))
 
     def test_a_role_named_child_holding_a_share_is_a_box_not_a_way_in(self):
         """eShop's ClientApp is a box even though its children are layers with recurring features."""
@@ -81,7 +81,7 @@ class TestFeatureShapedRoot:
         )
         layout |= project("Ordering.API", 20, "Apis") | project("Basket.API", 20, "Apis")
         frontier = walk(Trie(units_from_layout(layout, "csharp")), ROLE_WORDS)
-        assert sorted(keys(frontier)) == ["box:src.Basket.API", "box:src.ClientApp", "box:src.Ordering.API"]
+        assert sorted(keys(frontier)) == ["box:src/Basket.API", "box:src/ClientApp", "box:src/Ordering.API"]
 
     def test_one_unit_directories_and_root_files_are_loose(self):
         layout = {
@@ -96,8 +96,8 @@ class TestFeatureShapedRoot:
         del layout["setup.py"]
         inside = walk(Trie(units_from_layout(layout)), ROLE_WORDS)
         assert [candidate.key for candidate in inside.candidates if candidate.kind == LOOSE] == ["loose:pkg"]
-        assert "box:pkg.b" in keys(inside)
-        assert "box:pkg.a" not in keys(inside)
+        assert "box:pkg/b" in keys(inside)
+        assert "box:pkg/a" not in keys(inside)
 
 
 class TestThresholds:
@@ -113,9 +113,9 @@ class TestThresholds:
 
         others = 8
         for dominant in (2, others, 3 * others):
-            assert "box:top.big" in keys(walk(Trie(units_from_layout(layout(dominant))), ROLE_WORDS))
+            assert "box:top/big" in keys(walk(Trie(units_from_layout(layout(dominant))), ROLE_WORDS))
         stepped = walk(Trie(units_from_layout(layout(4 * others + 2))), ROLE_WORDS)
-        assert "box:top.big" not in keys(stepped) and "box:top.big.alpha" in keys(stepped)
+        assert "box:top/big" not in keys(stepped) and "box:top/big/alpha" in keys(stepped)
 
     def test_a_node_is_layered_at_the_role_share_and_not_below_it(self):
         def layout(role_units: int, feature_units: int) -> dict[str, list[str]]:
@@ -148,7 +148,7 @@ class TestThresholds:
         layout |= {f"tests/t{i}.py": [f"tests.t{i}.f"] for i in range(2)}
         layout |= {f"docs/d{i}.py": [f"docs.d{i}.f"] for i in range(2)}
         frontier = walk(Trie(units_from_layout(layout)), ROLE_WORDS)
-        assert {"box:app.billing", "box:app.catalog", "box:app.search", "box:tests", "box:docs"} <= set(keys(frontier))
+        assert {"box:app/billing", "box:app/catalog", "box:app/search", "box:tests", "box:docs"} <= set(keys(frontier))
 
 
 class TestLayeredRoot:

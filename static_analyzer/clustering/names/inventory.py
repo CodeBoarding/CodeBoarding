@@ -39,8 +39,10 @@ class Unit:
     names: tuple[str, ...]
     position: tuple[str, ...]
     key: tuple[str, ...]
-    project: bool = False
-    """Whether the file's own directory is a project root: a unit a reader separated on purpose."""
+    """``position`` plus the file's name, so a file and a directory of the same name stay apart."""
+    project: tuple[str, ...] | None = None
+    """The nearest directory above the file holding a project manifest, when there is one: a unit
+    a reader separated on purpose."""
 
 
 def units_from_graph(graph: CallGraph, language: str, repo_dir: Path | None = None) -> list[Unit]:
@@ -54,25 +56,20 @@ def units_from_graph(graph: CallGraph, language: str, repo_dir: Path | None = No
         if node.file_path:
             by_file.setdefault(node.file_path, []).append(qualified_name)
     units: list[Unit] = []
-    projects: dict[tuple[str, ...], bool] = {}
+    projects: dict[tuple[str, ...], tuple[str, ...] | None] = {}
     for file_path, names in sorted(by_file.items()):
         if Path(file_path).is_absolute() and repo_dir is None:
             raise ValueError(f"{file_path} is absolute and no repository root was given to position it")
         relative = Path(normalize_repo_path(file_path, repo_dir))
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"{file_path} lies outside the repository root {repo_dir}")
         position = relative.parent.parts
         if position == (".",):
             position = ()
         if position not in projects:
-            projects[position] = repo_dir is not None and _is_project_root(repo_dir / Path(*position))
+            projects[position] = _project_root(repo_dir, position) if repo_dir is not None else None
         units.append(
-            Unit(
-                file_path,
-                language,
-                tuple(sorted(names)),
-                position,
-                position + (relative.stem,),
-                projects[position],
-            )
+            Unit(file_path, language, tuple(sorted(names)), position, position + (relative.name,), projects[position])
         )
     return units
 
@@ -82,6 +79,14 @@ def units_from_graphs(graphs: Mapping[str, CallGraph], repo_dir: Path | None = N
     for language in sorted(graphs):
         units.extend(units_from_graph(graphs[language], language, repo_dir))
     return units
+
+
+def _project_root(repo_dir: Path, position: tuple[str, ...]) -> tuple[str, ...] | None:
+    """The nearest directory at or above ``position`` that holds a manifest; the repository root does not count."""
+    for depth in range(len(position), 0, -1):
+        if _is_project_root(repo_dir / Path(*position[:depth])):
+            return position[:depth]
+    return None
 
 
 def _is_project_root(directory: Path) -> bool:
