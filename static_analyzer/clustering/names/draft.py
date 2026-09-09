@@ -107,6 +107,9 @@ class KinshipGrouper:
     name = "kinship"
 
     def group(self, candidates: Sequence[Candidate], context: GroupingContext) -> list[CandidateGroup]:
+        if context.rung == UNMERGE:
+            # The parts of a fold are past kinship: merging them again would undo the un-merge.
+            return [CandidateGroup(candidate_name(candidate), (candidate.key,)) for candidate in candidates]
         ubiquitous = ubiquitous_words(candidate.label for candidate in candidates if candidate.label)
         by_word: dict[str, list[Candidate]] = {}
         solo: list[Candidate] = []
@@ -278,7 +281,7 @@ def draft_scope(
         return _vocabulary_rules(scope_id, scope_units, role_words, grouper, links)
 
     if len(parts) >= 2:
-        rungs.append((UNMERGE, lambda: (list(parts), "structural")))
+        rungs.append((UNMERGE, lambda: _unmerge_rules(scope_id, scope_units, parts, role_words, grouper, links)))
     if is_root(scope_id):
         rungs.append((FRONTIER, lambda: frontier(FRONTIER, True)))
         rungs.append((VOCABULARY, vocabulary))
@@ -324,6 +327,35 @@ def _leaf_reason(
     tried = ", ".join(rung for rung, _ in rungs if rung != UNMERGE)
     kind = "cohesive" if unit_count <= LEAF_CAP else "exhausted"
     return f"{kind}: {unit_count} units; {unmerge}; no rung ({tried}) yields two children"
+
+
+def _unmerge_rules(
+    scope_id: ScopeId,
+    units: list[Unit],
+    parts: tuple[ComponentRule, ...],
+    role_words: frozenset[str],
+    grouper: Grouper,
+    links: Links,
+) -> tuple[list[ComponentRule], str]:
+    """The candidates a grouping merged, offered to the grouper again in the scope they now share.
+
+    Why through the grouper: the fold that merged them answered for the parent's budget; a
+    scope of seventy parts is over its own, and folds toward it along its own links. A residual
+    part is offered by its bare label, since ``candidate_name`` appends the suffix again.
+    """
+    candidates = [
+        Candidate(
+            f"part:{index}:{part.name}",
+            part.origin,
+            part.name.removesuffix(" (residual)") if part.origin == RESIDUAL else part.name,
+            part.prefixes,
+            part.fallback_prefixes,
+            part.terms,
+        )
+        for index, part in enumerate(parts)
+    ]
+    context = _context(scope_id, units, candidates, role_words, UNMERGE, links)
+    return _rules_from_groups(grouper.group(candidates, context), candidates), "structural"
 
 
 def _frontier_rules(

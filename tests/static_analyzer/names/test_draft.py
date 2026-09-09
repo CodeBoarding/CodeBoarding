@@ -209,6 +209,27 @@ class TestLadder:
         assert [rule.component_id for rule in child.rules] == ["1.1", "1.2"]
         assert rule_of(scope_of(spec, "1"), "1.1").prefixes == (("Ordering",),)
 
+    def test_un_merge_keeps_the_parts_kinship_would_merge_again(self):
+        child = scope_of(draft_tree(units_from_layout(eshop(), "csharp"), AffinityGrouper(), 2), "1")
+        assert child.rung == UNMERGE and names_of(child) == ["Ordering", "OrderProcessor"]
+
+    def test_un_merge_folds_the_parts_toward_the_budget(self):
+        """Twelve parts one word merged at the root fold along their own links inside the box."""
+        suffixes = "ABCDEFGHIJKL"
+        others = "Basket Catalog Identity Payment Shipping Webhooks Search Pricing Billing Tax Loyalty Reviews Wishlist"
+        assert len(others.split()) > len(suffixes), "a word half the siblings carry is ubiquitous, not kinship"
+        layout: dict[str, list[str]] = {}
+        for name in others.split():
+            layout |= project(name, 20)
+        for suffix in suffixes:
+            layout |= project(f"Order{suffix}", 6)
+        links = {("src/OrderA//OrderAType0.cs", f"src/Order{suffix}//Order{suffix}Type0.cs"): 3 for suffix in "JKL"}
+        spec = draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 2, links=links)
+        assert len(rule_of(scope_of(spec, ROOT_SCOPE_ID), "1").parts) == len(suffixes)
+        order = scope_of(spec, "1")
+        assert order.rung == UNMERGE and len(order.components) == BUDGET
+        assert sorted(len(rule.prefixes) for rule in order.rules) == [1] * (BUDGET - 1) + [4]
+
     def test_a_small_component_is_a_leaf_that_says_why(self):
         spec = draft_tree(units_from_layout(eshop(), "csharp"), KinshipGrouper(), 2)
         basket = scope_of(spec, "4")
