@@ -65,6 +65,15 @@ def _make_lsp() -> MagicMock:
     return lsp
 
 
+def _symbol(name: str) -> dict:
+    return {
+        "name": name,
+        "kind": NodeType.FUNCTION,
+        "range": {"start": {"line": 0, "character": 0}, "end": {"line": 10, "character": 0}},
+        "selectionRange": {"start": {"line": 0, "character": 4}, "end": {"line": 0, "character": 8}},
+    }
+
+
 class TestCallGraphBuilderInit:
     def test_creates_symbol_table_and_inspector(self):
         lsp = _make_lsp()
@@ -187,6 +196,47 @@ class TestDiscoverSymbols:
             ("document_symbol", files[1]),
         ]
         assert [item.kwargs.get("timeout") for item in lsp.document_symbol.call_args_list[1:]] == [64, 64]
+
+    def test_probes_again_after_bulk_did_open(self):
+        """Why: bulk didOpen queues server work that the next request drains, so the
+        drain must land on a probe with the scaled timeout, not the fixed default."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        files = [Path("/project/a.cs"), Path("/project/b.cs")]
+        pre_open, post_open = [_symbol("pre")], [_symbol("post")]
+        lsp.document_symbol.side_effect = [pre_open, post_open, [_symbol("b")]]
+
+        builder._discover_symbols(files)
+
+        calls = [(item[0], item.args[0]) for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == [
+            ("document_symbol", files[0]),
+            ("did_open", files[0]),
+            ("did_open", files[1]),
+            ("document_symbol", files[0]),
+            ("document_symbol", files[1]),
+        ]
+        assert lsp.did_open.call_count == len(files)
+        # Both probes get the scaled timeout; Phase 1 keeps the per-request default.
+        timeouts = [item.kwargs.get("timeout") for item in lsp.document_symbol.call_args_list]
+        assert timeouts == [64, 64, None]
+        # The first file reuses the post-open probe, not the stale pre-open one.
+        assert adapter.record_document_symbols.call_args_list[0].args[:2] == (files[0], post_open)
+
+    def test_skips_post_open_probe_when_interleaving(self):
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        adapter.interleave_did_open_with_symbols = True
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        files = [Path("/project/a.go")]
+
+        builder._discover_symbols(files)
+
+        calls = [item[0] for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == ["document_symbol", "did_open", "document_symbol"]
 
 
 class TestBuild:
