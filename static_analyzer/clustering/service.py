@@ -40,9 +40,16 @@ from static_analyzer.clustering.names.spec import Prefix, is_root
 from static_analyzer.clustering.names.spec import UNPLACED
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
 
-AFFINE_REFERENCE_KINDS = frozenset({EdgeKind.INHERITS, EdgeKind.TYPEREF})
+AFFINE_REFERENCE_KINDS = frozenset({EdgeKind.INHERITS})
 """Reference edges that count as links between files, with the call edges. CONTAINS never
-crosses a file; IMPORT is not emitted yet and would be too dense to weigh."""
+crosses a file; IMPORT is not emitted yet and would be too dense to weigh.
+
+TYPEREF is deliberately absent although it is drawn as a relation. A type reference is dense
+exactly where a shared contract is: on eShop every service names the event bus's types without
+calling them, so counting them here folds Payment into the bus and Basket into the client app,
+and the partition loses two of the nine boxes its maintainers publish. Whether a hub's links
+should be damped so this can be reconsidered is an open question; until it is answered, drawing
+the edge and moving the boxes stay separate decisions."""
 
 FILE_STRATEGY = "file_leaves"
 """Recorded on a ``ClusterResult`` whose leaves are files: the unit the names partition."""
