@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_recycler import LSPRecycler
@@ -20,3 +20,4 @@ class EdgeBuildContext:
     # Set only for servers that may be restarted mid-phase; None means the
     # strategy runs against a single server process for the whole phase.
     recycler: LSPRecycler | None = None
+    unresolved_files: set[str] = field(default_factory=set)

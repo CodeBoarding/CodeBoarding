@@ -170,6 +170,7 @@ class TestBoundedFullPass:
         analyzer._loc_for_adapter = MagicMock(return_value=0)
         analyzer._absorb_into_results = MagicMock()
         analyzer._collect_diagnostics_for = MagicMock()
+        analyzer._collect_symbols = MagicMock()
         return analyzer
 
     def test_every_client_failing_to_start_raises(self, tmp_path: Path):
@@ -183,11 +184,9 @@ class TestBoundedFullPass:
 
     def test_one_survivor_is_not_a_total_failure(self, tmp_path: Path):
         analyzer = self._analyzer(tmp_path, engines=3)
-        calls = {"n": 0}
 
-        def spawn(_config):
-            calls["n"] += 1
-            if calls["n"] > 1:
+        def spawn(config):
+            if config.project_path.name != "p0":
                 raise RuntimeError("csharp-ls missing")
             return MagicMock()
 
@@ -196,6 +195,17 @@ class TestBoundedFullPass:
 
         with patch.dict("os.environ", {MAX_CONCURRENT_ENGINES_ENV_VAR: "1"}):
             analyzer._run_full_lsp_pass()
+        analyzer._run_full_analysis.assert_called_once()
+
+    def test_second_pass_start_failure_does_not_cache_empty_analysis(self, tmp_path: Path):
+        analyzer = self._analyzer(tmp_path, engines=1)
+        absorb = MagicMock()
+        analyzer._absorb_into_results = absorb
+        analyzer._spawn_engine_client = MagicMock(side_effect=[MagicMock(), RuntimeError("restart failed")])
+        with patch.dict("os.environ", {MAX_CONCURRENT_ENGINES_ENV_VAR: "1"}):
+            with pytest.raises(StaticAnalysisFatalError, match="No engine completed"):
+                analyzer._run_full_lsp_pass()
+        absorb.assert_not_called()
 
     def test_a_fatal_error_cancels_the_engines_still_queued(self, tmp_path: Path):
         analyzer = self._analyzer(tmp_path, engines=12)

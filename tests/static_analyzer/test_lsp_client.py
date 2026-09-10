@@ -18,6 +18,36 @@ from static_analyzer.engine.lsp_client import (
 )
 
 
+def test_refresh_updates_open_overlays_and_reports_closed_dependencies(tmp_path: Path):
+    edited, added, deleted = [tmp_path / name for name in ("edited.py", "added.py", "deleted.py")]
+    edited.write_text("new content")
+    added.write_text("new dependency")
+    client = LSPClient(["fake-server"], tmp_path)
+    client._opened_uris = {edited.as_uri(), deleted.as_uri()}
+    with patch.object(client, "_send_notification") as notify:
+        client.refresh_files({edited, added, deleted}, {edited, deleted})
+    calls = notify.call_args_list
+    assert [(c.args[0], c.args[1]["textDocument"]["uri"]) for c in calls[:-1]] == [
+        ("textDocument/didClose", deleted.as_uri()),
+        ("textDocument/didChange", edited.as_uri()),
+    ]
+    assert calls[-2].args[1]["contentChanges"] == [{"text": "new content"}]
+    assert calls[-1].args == (
+        "workspace/didChangeWatchedFiles",
+        {
+            "changes": [
+                {"uri": added.as_uri(), "type": 1},
+                {"uri": deleted.as_uri(), "type": 3},
+                {"uri": edited.as_uri(), "type": 2},
+            ]
+        },
+    )
+    assert added.as_uri() not in client._opened_uris
+    with patch.object(client, "_send_notification") as notify:
+        client.refresh_files(set(), set())
+    notify.assert_not_called()
+
+
 class TestLSPClientInit:
     def test_default_attributes(self):
         client = LSPClient(["fake-server"], Path("/project"))

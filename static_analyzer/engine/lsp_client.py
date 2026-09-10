@@ -323,6 +323,21 @@ class LSPClient:
         self._opened_uris.discard(uri)
         self._doc_versions.pop(uri, None)
 
+    def refresh_files(self, changed_files: set[Path], known_files: set[Path]) -> None:
+        """Refresh open overlays and notify the workspace of dependency edits."""
+        changes = []
+        for path in sorted(changed_files):
+            uri = path.resolve().as_uri()
+            exists = path.is_file()
+            if uri in self._opened_uris:
+                if exists:
+                    self.did_change(path, path.read_text(errors="replace"))
+                else:
+                    self.did_close(path)
+            changes.append({"uri": uri, "type": (2 if path in known_files else 1) if exists else 3})
+        if changes:
+            self._send_notification("workspace/didChangeWatchedFiles", {"changes": changes})
+
     # ---- LSP queries ----
 
     def document_symbol(self, file_path: Path, timeout: int | None = None) -> list[dict]:

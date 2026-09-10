@@ -70,7 +70,7 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v8: a C# file compiled into several projects has symbols and callers, and a
 # nested solution's files are named by its own engine only.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v8"
+_TAG_VERSION = "v10"  # Lossless symbol snapshots and shared cross-engine resolution.
 
 
 class StaticAnalysisCache:
@@ -406,6 +406,11 @@ def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) 
         references=references,
         source_files=source_files,
         diagnostics=diagnostics,
+        symbols=(
+            None if cached.symbols is None else [s for s in cached.symbols if str(s.file_path) not in changed_file_strs]
+        ),
+        unresolved_files=cached.unresolved_files - changed_file_strs,
+        closed_documents=cached.closed_documents - changed_file_strs,
     )
 
     _validate_no_dangling_references(updated_result)
@@ -453,6 +458,9 @@ def merge_results(
         source_files=[path for path in cached_result.source_files if str(path) not in new_file_paths]
         + new.source_files,
         diagnostics=merged_diagnostics or None,
+        symbols=new.symbols if new.symbols is not None else cached_result.symbols,
+        unresolved_files=(cached_result.unresolved_files - new_file_paths) | new.unresolved_files,
+        closed_documents=(cached_result.closed_documents - new_file_paths) | new.closed_documents,
     )
     return merged
 

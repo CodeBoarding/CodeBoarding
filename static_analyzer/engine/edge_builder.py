@@ -14,10 +14,6 @@ from pathlib import Path
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.config import NodeType
-from static_analyzer.engine.lsp_constants import (
-    CALLABLE_KINDS,
-    CLASS_LIKE_KINDS,
-)
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.symbol_table import SymbolTable
@@ -89,6 +85,8 @@ def build_edges_via_references(
     st = ctx.symbol_table
 
     pos_to_syms, unique_positions = _prepare_trackable_symbols(adapter, st)
+    owned_files = {str(path) for path in source_files}
+    unique_positions = [pos for pos in unique_positions if pos[0] in owned_files]
 
     total_unique = len(unique_positions)
 
@@ -317,19 +315,13 @@ def build_edges_via_definitions(
     queries are ~20ms each, so we scan source for call sites and resolve
     them via definition, then query implementations for polymorphic dispatch.
     """
-    st = ctx.symbol_table
+    resolution = _resolve_definitions(adapter, ctx, source_files)
 
-    pos_to_sym, line_to_syms = _build_definition_lookups(st)
-
-    resolution = _resolve_definitions(adapter, ctx, source_files, pos_to_sym, line_to_syms)
-
-    total_impl_resolved = _resolve_implementations(
-        ctx, resolution.edge_set, resolution.impl_queries_pending, pos_to_sym, line_to_syms
-    )
+    total_impl_resolved = _resolve_implementations(ctx, resolution.edge_set, resolution.impl_queries_pending)
 
     total_iterated = 0
     if adapter.resolves_iterated_types:
-        total_iterated = _resolve_iterated_types(ctx, resolution.edge_set, source_files, pos_to_sym, line_to_syms)
+        total_iterated = _resolve_iterated_types(ctx, resolution.edge_set, source_files)
 
     logger.info(
         "Phase 2 summary: %d call sites, %d def resolved, %d impl resolved, %d iterated, %d raw edges",
@@ -346,8 +338,6 @@ def _resolve_iterated_types(
     ctx: EdgeBuildContext,
     edge_set: EdgeMap,
     source_files: list[Path],
-    pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
-    line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
 ) -> int:
     """Edge from a loop to the type it enumerates.
 
@@ -381,8 +371,11 @@ def _resolve_iterated_types(
                 if not caller:
                     continue
                 for result in results[index] if index < len(results) else []:
-                    target = _resolve_definition_to_symbol(result, pos_to_sym, line_to_syms)
-                    if target is None or not _is_valid_edge(caller, target):
+                    target = st.resolve_definition(result)
+                    if target is None:
+                        ctx.unresolved_files.add(str(file_path))
+                        continue
+                    if not _is_valid_edge(caller, target):
                         continue
                     resolved += 1
                     attributed = st.attribution_symbol(caller)
@@ -397,33 +390,10 @@ def _resolve_iterated_types(
     return resolved
 
 
-def _build_definition_lookups(
-    st: SymbolTable,
-) -> tuple[dict[tuple[str, int, int], SymbolInfo], dict[tuple[str, int], list[SymbolInfo]]]:
-    """Build position-based lookups for resolving definition results.
-
-    Returns (pos_to_sym, line_to_syms). Prefers the symbol with the longest
-    qualified name at each position (e.g. Container.Item.describe() over
-    Container.describe()).
-    """
-    pos_to_sym: dict[tuple[str, int, int], SymbolInfo] = {}
-    line_to_syms: dict[tuple[str, int], list[SymbolInfo]] = {}
-    for sym in st.symbols.values():
-        pos = sym.definition_location
-        existing = pos_to_sym.get(pos)
-        if existing is None or len(sym.qualified_name) > len(existing.qualified_name):
-            pos_to_sym[pos] = sym
-        key = (str(sym.file_path), sym.start_line)
-        line_to_syms.setdefault(key, []).append(sym)
-    return pos_to_sym, line_to_syms
-
-
 def _resolve_definitions(
     adapter: EdgeBuildAdapter,
     ctx: EdgeBuildContext,
     source_files: list[Path],
-    pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
-    line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
 ) -> DefinitionResolution:
     """Phase 2a: Resolve call sites via textDocument/definition."""
     edge_set: EdgeMap = {}
@@ -434,7 +404,11 @@ def _resolve_definitions(
     batch_size = 50
     impl_queries_pending: list[ImplementationQuery] = []
 
-    dispatch = _build_dispatch_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else None
+    dispatch = (
+        _build_dispatch_index(adapter, ctx, [Path(f) for f in st.primary_file_symbols])
+        if adapter.expands_virtual_dispatch
+        else None
+    )
 
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
@@ -472,6 +446,7 @@ def _resolve_definitions(
             for i, call_site in enumerate(batch):
                 defs = results[i] if i < len(results) else []
                 if not defs:
+                    ctx.unresolved_files.add(str(file_path))
                     continue
 
                 caller = st.find_containing_symbol(file_path, call_site.lsp_line, call_site.lsp_column)
@@ -482,8 +457,10 @@ def _resolve_definitions(
                     continue
 
                 for def_result in defs:
-                    target = _resolve_definition_to_symbol(def_result, pos_to_sym, line_to_syms)
+                    target = st.resolve_definition(def_result)
                     if not target:
+                        if definition_location(def_result) is not None:
+                            ctx.unresolved_files.add(str(file_path))
                         continue
                     total_resolved += 1
 
@@ -556,8 +533,6 @@ def _resolve_implementations(
     ctx: EdgeBuildContext,
     edge_set: EdgeMap,
     impl_queries_pending: list[ImplementationQuery],
-    pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
-    line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
 ) -> int:
     """Phase 2b: Resolve implementations for polymorphic call targets.
 
@@ -598,7 +573,7 @@ def _resolve_implementations(
             callers = target_pos_to_callers[tgt_key]
 
             for impl_result in impls:
-                impl_sym = _resolve_definition_to_symbol(impl_result, pos_to_sym, line_to_syms)
+                impl_sym = st.resolve_definition(impl_result)
                 if not impl_sym:
                     continue
                 total_impl_resolved += 1
@@ -747,48 +722,3 @@ def _is_valid_edge(caller: SymbolInfo, target: SymbolInfo) -> bool:
     if (str(target.file_path), target.start_line) == (str(caller.file_path), caller.start_line):
         return False
     return True
-
-
-def _resolve_definition_to_symbol(
-    def_result: dict,
-    pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
-    line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
-) -> SymbolInfo | None:
-    """Resolve a definition LSP result to a SymbolInfo in our table."""
-    location = definition_location(def_result)
-    if location is None:
-        return None
-    file_path, line, char = location
-    file_key = str(file_path)
-
-    # Exact match on (file, line, char)
-    sym = pos_to_sym.get((file_key, line, char))
-    if sym:
-        return sym
-
-    # Fuzzy: match on (file, line) — prefer callable > class > other, longest name wins
-    candidates = line_to_syms.get((file_key, line), [])
-    if candidates:
-        best = _best_candidate(candidates)
-        if best:
-            return best
-
-    # Try adjacent lines (definition range start vs selectionRange start)
-    for delta in (1, -1, 2, -2):
-        candidates = line_to_syms.get((file_key, line + delta), [])
-        if candidates:
-            best = _best_candidate(candidates)
-            if best:
-                return best
-    return None
-
-
-def _best_candidate(candidates: list[SymbolInfo]) -> SymbolInfo | None:
-    """Pick the best symbol from candidates: callable > class > other, longest name wins."""
-    callables = [c for c in candidates if c.kind in CALLABLE_KINDS]
-    if callables:
-        return max(callables, key=lambda c: len(c.qualified_name))
-    classes = [c for c in candidates if c.kind in CLASS_LIKE_KINDS]
-    if classes:
-        return max(classes, key=lambda c: len(c.qualified_name))
-    return max(candidates, key=lambda c: len(c.qualified_name)) if candidates else None

@@ -10,8 +10,10 @@ empty containers) so callers can distinguish "never populated" (raises
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
+from pathlib import Path
 
 from static_analyzer.cfg import CallGraph
+from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -160,6 +162,10 @@ class LanguageResults:
     references: References = field(default_factory=References)
     dependencies: PackageDependencies = field(default_factory=PackageDependencies)
     source_files: SourceFiles = field(default_factory=SourceFiles)
+    # None identifies a graph-only baseline that cannot hydrate an analysis context.
+    symbols: list[SymbolInfo] | None = None
+    unresolved_files: set[str] = field(default_factory=set)
+    closed_documents: set[str] = field(default_factory=set)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         self.cfg.visit_paths(fn)
@@ -167,3 +173,7 @@ class LanguageResults:
         self.references.visit_paths(fn)
         self.dependencies.visit_paths(fn)
         self.source_files.visit_paths(fn)
+        for symbol in self.symbols or []:
+            symbol.file_path = Path(fn(str(symbol.file_path)))
+        self.unresolved_files = {fn(path) for path in self.unresolved_files}
+        self.closed_documents = {fn(path) for path in self.closed_documents}

@@ -8,6 +8,7 @@ from typing import Any
 
 from static_analyzer.cfg import CallGraph, CallSiteLocation
 from static_analyzer.config import FAMILY_OWNER, SOURCE_EXTENSION_TO_LANGUAGE, Language
+from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
@@ -47,6 +48,9 @@ class AnalysisData:
     references: list[Node]
     source_files: list[Path]
     diagnostics: FileDiagnosticsMap | None = None
+    symbols: list[SymbolInfo] | None = None
+    unresolved_files: set[str] = field(default_factory=set)
+    closed_documents: set[str] = field(default_factory=set)
 
     @classmethod
     def from_dict(cls, analysis: dict[str, Any]) -> "AnalysisData":
@@ -57,6 +61,9 @@ class AnalysisData:
             references=analysis["references"],
             source_files=analysis["source_files"],
             diagnostics=analysis.get("diagnostics"),
+            symbols=analysis.get("symbols"),
+            unresolved_files=set(analysis.get("unresolved_files", set())),
+            closed_documents=set(analysis.get("closed_documents", set())),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -66,6 +73,9 @@ class AnalysisData:
             "package_relations": self.package_relations,
             "references": self.references,
             "source_files": self.source_files,
+            "symbols": self.symbols,
+            "unresolved_files": self.unresolved_files,
+            "closed_documents": self.closed_documents,
         }
         if self.diagnostics is not None:
             analysis["diagnostics"] = self.diagnostics

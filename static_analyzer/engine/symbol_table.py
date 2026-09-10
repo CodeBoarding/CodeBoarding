@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from pathlib import Path
 
 from static_analyzer.engine.protocols import SymbolNaming
 from static_analyzer.config import ANONYMOUS_SYMBOL_MARKERS, NodeType
-from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
+from static_analyzer.engine.lsp_constants import CALLABLE_KINDS, CLASS_LIKE_KINDS
 from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.utils import definition_location
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,9 @@ class SymbolTable:
         self._file_name_index: dict[tuple[str, str], list[SymbolInfo]] = {}
         # class qualified_name -> list of constructor qualified_names
         self._class_to_ctors: dict[str, list[str]] = {}
+        self._definition_positions: dict[tuple[str, int, int], SymbolInfo] = {}
+        self._definition_lines: dict[tuple[str, int], list[SymbolInfo]] = {}
+        self._indices_dirty = False
 
     @property
     def symbols(self) -> dict[str, SymbolInfo]:
@@ -65,8 +70,10 @@ class SymbolTable:
         parent_chain: list[tuple[str, int]],
         project_root: Path,
         owner_qualified_name: str = "",
+        naming: SymbolNaming | None = None,
     ) -> None:
         """Recursively register symbols with dual registration."""
+        naming = naming or self._naming
         for sym in symbols:
             name = sym.get("name", "")
             kind = sym.get("kind", 0)
@@ -96,11 +103,7 @@ class SymbolTable:
             end_line = end.get("line", 0)
             end_char = end.get("character", 0)
 
-            file_key = str(file_path)
-
-            qualified_name = self._naming.build_qualified_name(
-                file_path, name, kind, parent_chain, project_root, detail
-            )
+            qualified_name = naming.build_qualified_name(file_path, name, kind, parent_chain, project_root, detail)
 
             info = SymbolInfo(
                 name=name,
@@ -116,17 +119,13 @@ class SymbolTable:
             info.parent_chain = list(parent_chain)
             info.owner_qualified_name = owner_qualified_name
 
-            self._symbols[qualified_name] = info
-            ref_key = self._naming.build_reference_key(qualified_name)
-            self._ref_key_to_symbol[ref_key] = info
-            self._file_symbols.setdefault(file_key, []).append(info)
-            self._primary_file_symbols.setdefault(file_key, []).append(info)
+            registrations = [info]
 
             # Dual registration: register unqualified form(s) for symbols with parents
             # Aliases go into _file_symbols but NOT _primary_file_symbols
             if parent_chain:
-                unqualified_name = self._naming.build_qualified_name(file_path, name, kind, [], project_root, detail)
-                if unqualified_name != qualified_name and unqualified_name not in self._symbols:
+                unqualified_name = naming.build_qualified_name(file_path, name, kind, [], project_root, detail)
+                if unqualified_name != qualified_name:
                     unq_info = SymbolInfo(
                         name=name,
                         qualified_name=unqualified_name,
@@ -137,20 +136,18 @@ class SymbolTable:
                         end_line=end_line,
                         end_char=end_char,
                         promoted_from_variable=promoted,
+                        is_primary=False,
                     )
                     unq_info.parent_chain = []
-                    self._symbols[unqualified_name] = unq_info
-                    unq_ref_key = self._naming.build_reference_key(unqualified_name)
-                    self._ref_key_to_symbol[unq_ref_key] = unq_info
-                    self._file_symbols[file_key].append(unq_info)
+                    registrations.append(unq_info)
 
                 if len(parent_chain) >= 2:
                     for skip in range(1, len(parent_chain)):
                         partial_chain = parent_chain[skip:]
-                        partial_name = self._naming.build_qualified_name(
+                        partial_name = naming.build_qualified_name(
                             file_path, name, kind, partial_chain, project_root, detail
                         )
-                        if partial_name != qualified_name and partial_name not in self._symbols:
+                        if partial_name != qualified_name:
                             p_info = SymbolInfo(
                                 name=name,
                                 qualified_name=partial_name,
@@ -161,26 +158,97 @@ class SymbolTable:
                                 end_line=end_line,
                                 end_char=end_char,
                                 promoted_from_variable=promoted,
+                                is_primary=False,
                             )
                             p_info.parent_chain = list(partial_chain)
-                            self._symbols[partial_name] = p_info
-                            p_ref_key = self._naming.build_reference_key(partial_name)
-                            self._ref_key_to_symbol[p_ref_key] = p_info
-                            self._file_symbols[file_key].append(p_info)
+                            registrations.append(p_info)
 
+            self.add_symbols(registrations)
             children = sym.get("children", [])
             if children:
                 child_chain = parent_chain + [(name, kind)]
-                self.register_symbols(file_path, children, child_chain, project_root, qualified_name)
+                self.register_symbols(file_path, children, child_chain, project_root, qualified_name, naming)
+
+    def add_symbols(self, symbols: list[SymbolInfo]) -> None:
+        """Merge declarations and aliases, choosing collisions by declaration location."""
+        for sym in symbols:
+            existing = self._symbols.get(sym.qualified_name)
+            if existing is not None:
+                if self._registration_key(existing) <= self._registration_key(sym):
+                    continue
+                file_key = str(existing.file_path)
+                self._file_symbols[file_key].remove(existing)
+                if not self._file_symbols[file_key]:
+                    del self._file_symbols[file_key]
+                if existing.is_primary:
+                    self._primary_file_symbols[file_key].remove(existing)
+                    if not self._primary_file_symbols[file_key]:
+                        del self._primary_file_symbols[file_key]
+            self._symbols[sym.qualified_name] = sym
+            file_key = str(sym.file_path)
+            self._file_symbols.setdefault(file_key, []).append(sym)
+            if sym.is_primary:
+                self._primary_file_symbols.setdefault(file_key, []).append(sym)
+            ref_key = self._naming.build_reference_key(sym.qualified_name)
+            ref_symbol = self._ref_key_to_symbol.get(ref_key)
+            if ref_symbol is None or self._registration_key(sym) < self._registration_key(ref_symbol):
+                self._ref_key_to_symbol[ref_key] = sym
+            self._indices_dirty = True
+
+    def remove_files(self, files: set[Path]) -> None:
+        """Remove declarations from changed or deleted files and refresh all lookups."""
+        retained = [sym for sym in self._symbols.values() if sym.file_path not in files]
+        self._symbols.clear()
+        self._file_symbols.clear()
+        self._primary_file_symbols.clear()
+        self._ref_key_to_symbol.clear()
+        self.add_symbols(retained)
+        self.build_indices()
+
+    def snapshot(self) -> list[SymbolInfo]:
+        """Return detached, deterministic declarations and aliases without naming adapters."""
+        return deepcopy(sorted(self._symbols.values(), key=self._registration_key))
+
+    def resolve_definition(self, definition: dict) -> SymbolInfo | None:
+        """Resolve an LSP definition by exact position, then callable-first nearby lines."""
+        if self._indices_dirty:
+            self.build_indices()
+        location = definition_location(definition)
+        if location is None:
+            return None
+        file_path, line, character = location
+        file_key = str(file_path)
+        exact = self._definition_positions.get((file_key, line, character))
+        if exact is not None:
+            return exact
+        for delta in (0, 1, -1, 2, -2):
+            candidates = self._definition_lines.get((file_key, line + delta), [])
+            if candidates:
+                return max(
+                    candidates,
+                    key=lambda sym: (
+                        2 if sym.kind in CALLABLE_KINDS else 1 if sym.kind in CLASS_LIKE_KINDS else 0,
+                        len(sym.qualified_name),
+                    ),
+                )
+        return None
 
     def build_indices(self) -> None:
-        """Build optimized lookup indices after symbol registration.
+        """Rebuild name, constructor, and definition indices from registered symbols."""
+        self._file_name_index.clear()
+        self._class_to_ctors.clear()
+        self._definition_positions.clear()
+        self._definition_lines.clear()
+        for sym in sorted(self._symbols.values(), key=self._registration_key):
+            position = sym.definition_location
+            existing = self._definition_positions.get(position)
+            if existing is None or len(sym.qualified_name) > len(existing.qualified_name):
+                self._definition_positions[position] = sym
+            self._definition_lines.setdefault((str(sym.file_path), sym.start_line), []).append(sym)
 
-        Called once after all symbols are registered. Provides O(1)
-        name-based equivalent lookups and class-to-constructor mappings.
-        """
         # Build (file, name) -> symbols index for equivalent name lookup
         for file_key, syms in self._file_symbols.items():
+            syms.sort(key=self._registration_key)
             for sym in syms:
                 idx_key = (file_key, sym.name)
                 self._file_name_index.setdefault(idx_key, []).append(sym)
@@ -188,9 +256,14 @@ class SymbolTable:
         # Class -> constructors, keyed on the declaring symbol.
         # Why not a slice at the first "(": that names the class only where the scheme
         # doubles it, and it cannot tell a primary symbol from an alias.
+        for syms in self._primary_file_symbols.values():
+            syms.sort(key=self._registration_key)
         for sym in (s for syms in self._primary_file_symbols.values() for s in syms):
             if sym.kind == NodeType.CONSTRUCTOR and sym.owner_qualified_name:
                 self._class_to_ctors.setdefault(sym.owner_qualified_name, []).append(sym.qualified_name)
+        for constructors in self._class_to_ctors.values():
+            constructors.sort()
+        self._indices_dirty = False
 
     def find_containing_symbol(self, file_path: Path, line: int, character: int) -> SymbolInfo | None:
         """Find the innermost symbol whose range contains the given position.
@@ -363,6 +436,22 @@ class SymbolTable:
                 return True
 
         return False
+
+    @staticmethod
+    def _registration_key(sym: SymbolInfo) -> tuple:
+        """Order declarations independently of engine completion order."""
+        return (
+            *sym.definition_location,
+            not sym.is_primary,
+            sym.end_line,
+            sym.end_char,
+            sym.qualified_name,
+            sym.name,
+            sym.kind,
+            sym.parent_chain,
+            sym.owner_qualified_name,
+            sym.promoted_from_variable,
+        )
 
     def _is_unnameable(self, sym: SymbolInfo) -> bool:
         """Whether this symbol's own name is not one a reader would use as a caller."""

@@ -7,12 +7,10 @@ from unittest.mock import MagicMock, patch
 
 from static_analyzer.engine.edge_builder import (
     EdgeMap,
-    _best_candidate,
     _is_valid_edge,
     _process_references_for_position,
     _build_dispatch_index,
     _override_targets,
-    _resolve_definition_to_symbol,
     build_edges_via_definitions,
     build_edges_via_references,
 )
@@ -82,8 +80,8 @@ def test_reference_call_in_expression_body_produces_edge(tmp_path: Path):
     caller = _sym("Caller", "Caller.Caller", NodeType.METHOD, str(source), 0, 0, 0, 42)
     target_class = _sym("Target", "Target", NodeType.CLASS, str(target_file), 0, 0, 0, 45)
     target = _sym("Target", "Target.Target", NodeType.METHOD, str(target_file), 0, 21, 0, 27)
-    ctx.symbol_table.symbols[target_class.qualified_name] = target_class
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    ctx.symbol_table.add_symbols([caller, target_class, target])
+    ctx.symbol_table.build_indices()
     edge_set: EdgeMap = {}
     reference = {
         "uri": source.as_uri(),
@@ -108,7 +106,8 @@ def test_reference_in_constructor_initializer_is_not_a_call_edge(tmp_path: Path)
     caller_start = source_text.index("Cat(string")
     caller = _sym("Cat", "Cat.Cat", NodeType.CONSTRUCTOR, str(source), 0, caller_start, 0, len(source_text))
     target = _sym("Animal", "Animal.Animal", NodeType.CONSTRUCTOR, str(target_file), 0, 10, 0, 30)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    ctx.symbol_table.add_symbols([caller, target])
+    ctx.symbol_table.build_indices()
     edge_set: EdgeMap = {}
     ref_start = source_text.index("base")
     reference = {
@@ -133,7 +132,8 @@ def test_reference_at_caller_declaration_position_is_not_an_edge(tmp_path: Path)
     ctx, adapter = _make_ctx()
     caller = _sym("target", "Caller.target", NodeType.METHOD, str(source), 0, 19, 0, 25)
     target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    ctx.symbol_table.add_symbols([caller, target])
+    ctx.symbol_table.build_indices()
     reference = {
         "uri": source.as_uri(),
         "range": {"start": {"line": 0, "character": 19}, "end": {"line": 0, "character": 25}},
@@ -157,7 +157,8 @@ def test_a_typescript_concise_arrow_body_is_an_edge(tmp_path: Path):
     ctx, adapter = _make_ctx()
     caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 6, 0, 30)
     target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    ctx.symbol_table.add_symbols([caller, target])
+    ctx.symbol_table.build_indices()
     reference = {
         "uri": source.as_uri(),
         "range": {"start": {"line": 0, "character": 21}, "end": {"line": 0, "character": 27}},
@@ -180,7 +181,8 @@ def test_a_csharp_declaration_line_reference_is_still_ignored_by_default(tmp_pat
     ctx, adapter = _make_ctx()
     caller = _sym("Call", "C.Call", NodeType.METHOD, str(source), 0, 17, 0, 36)
     target = _sym("Target", "T.Target", NodeType.METHOD, str(target_file), 0, 30, 0, 36)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    ctx.symbol_table.add_symbols([caller, target])
+    ctx.symbol_table.build_indices()
     reference = {
         "uri": source.as_uri(),
         "range": {"start": {"line": 0, "character": 27}, "end": {"line": 0, "character": 33}},
@@ -201,7 +203,8 @@ def test_a_call_interpolated_into_a_concise_arrow_body_is_an_edge(tmp_path: Path
     ctx, adapter = _make_ctx()
     caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 6, 0, 42)
     target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    ctx.symbol_table.add_symbols([caller, target])
+    ctx.symbol_table.build_indices()
     reference = {
         "uri": source.as_uri(),
         "range": {"start": {"line": 0, "character": 31}, "end": {"line": 0, "character": 37}},
@@ -223,7 +226,8 @@ def test_reference_in_same_line_block_body_is_an_edge(tmp_path: Path):
     ctx, adapter = _make_ctx()
     caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 16, 0, 44)
     target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    ctx.symbol_table.add_symbols([caller, target])
+    ctx.symbol_table.build_indices()
     reference = {
         "uri": source.as_uri(),
         "range": {"start": {"line": 0, "character": 34}, "end": {"line": 0, "character": 40}},
@@ -244,7 +248,8 @@ def test_non_call_reference_in_same_line_block_body_is_not_an_edge(tmp_path: Pat
     ctx, adapter = _make_ctx()
     caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 16, 0, 53)
     target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    ctx.symbol_table.add_symbols([caller, target])
+    ctx.symbol_table.build_indices()
     reference_start = source.read_text().index("target")
     reference = {
         "uri": source.as_uri(),
@@ -269,7 +274,8 @@ def test_callback_reference_in_multiline_body_is_an_edge(tmp_path: Path):
     ctx, adapter = _make_ctx()
     caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 16, 2, 1)
     target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    ctx.symbol_table.add_symbols([caller, target])
+    ctx.symbol_table.build_indices()
     reference_start = source.read_text().splitlines()[1].index("target")
     reference = {
         "uri": source.as_uri(),
@@ -295,7 +301,8 @@ def test_non_call_reference_in_expression_body_is_not_an_edge(tmp_path: Path):
     ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
     caller = _sym("Caller", "Caller.Caller", NodeType.METHOD, str(source), 0, 0, 0, 47)
     target = _sym("Target", "Target.Target", NodeType.METHOD, str(target_file), 0, 21, 0, 27)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    ctx.symbol_table.add_symbols([caller, target])
+    ctx.symbol_table.build_indices()
     reference_start = source.read_text().index("Target;")
     reference = {
         "uri": source.as_uri(),
@@ -348,106 +355,124 @@ class TestIsValidEdge:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_definition_to_symbol
+# SymbolTable.resolve_definition
 # ---------------------------------------------------------------------------
 
 
 class TestResolveDefinitionToSymbol:
     def test_exact_match_with_location_format(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        pos_to_sym = {(str(Path("/p/a.py")), 10, 4): sym}
-        result = _resolve_definition_to_symbol(
+        st = SymbolTable(_TestAdapter())
+        st.add_symbols([sym])
+        result = st.resolve_definition(
             {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 4}}},
-            pos_to_sym,
-            {},
         )
         assert result is sym
 
     def test_exact_match_with_location_link_format(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        pos_to_sym = {(str(Path("/p/a.py")), 10, 4): sym}
-        result = _resolve_definition_to_symbol(
+        st = SymbolTable(_TestAdapter())
+        st.add_symbols([sym])
+        result = st.resolve_definition(
             {
                 "targetUri": Path("/p/a.py").as_uri(),
                 "targetSelectionRange": {"start": {"line": 10, "character": 4}},
             },
-            pos_to_sym,
-            {},
         )
         assert result is sym
 
     def test_fuzzy_match_on_same_line(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        line_to_syms = {(str(Path("/p/a.py")), 10): [sym]}
-        result = _resolve_definition_to_symbol(
+        st = SymbolTable(_TestAdapter())
+        st.add_symbols([sym])
+        result = st.resolve_definition(
             {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 0}}},
-            {},
-            line_to_syms,
         )
         assert result is sym
 
     def test_fuzzy_match_on_adjacent_line(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 11, 4)
-        line_to_syms = {(str(Path("/p/a.py")), 11): [sym]}
-        result = _resolve_definition_to_symbol(
+        st = SymbolTable(_TestAdapter())
+        st.add_symbols([sym])
+        result = st.resolve_definition(
             {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 0}}},
-            {},
-            line_to_syms,
         )
         assert result is sym
 
     def test_returns_none_for_invalid_uri(self):
-        result = _resolve_definition_to_symbol(
+        st = SymbolTable(_TestAdapter())
+        result = st.resolve_definition(
             {"uri": "invalid-uri", "range": {"start": {"line": 0, "character": 0}}},
-            {},
-            {},
         )
         assert result is None
 
     def test_returns_none_for_missing_position(self):
-        result = _resolve_definition_to_symbol(
+        st = SymbolTable(_TestAdapter())
+        result = st.resolve_definition(
             {"uri": Path("/p/a.py").as_uri(), "range": {}},
-            {},
-            {},
         )
         assert result is None
 
     def test_returns_none_when_no_match(self):
-        result = _resolve_definition_to_symbol(
+        st = SymbolTable(_TestAdapter())
+        result = st.resolve_definition(
             {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 100, "character": 0}}},
-            {},
-            {},
         )
         assert result is None
 
 
 # ---------------------------------------------------------------------------
-# _best_candidate
+# SymbolTable.resolve_definition candidate preference
 # ---------------------------------------------------------------------------
 
 
 class TestBestCandidate:
     def test_prefers_callable_over_class(self):
         cls = _sym("Foo", "a.Foo", NodeType.CLASS, "/p/a.py", 0)
-        method = _sym("foo", "a.Foo.foo", NodeType.METHOD, "/p/a.py", 5)
-        assert _best_candidate([cls, method]) is method
+        method = _sym("foo", "a.Foo.foo", NodeType.METHOD, "/p/a.py", 0)
+        st = SymbolTable(_TestAdapter())
+        st.add_symbols([cls, method])
+        assert (
+            st.resolve_definition({"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 0, "character": 1}}})
+            is method
+        )
 
     def test_prefers_class_over_variable(self):
         var = _sym("x", "a.x", NodeType.VARIABLE, "/p/a.py", 0)
         cls = _sym("Foo", "a.Foo", NodeType.CLASS, "/p/a.py", 0)
-        assert _best_candidate([var, cls]) is cls
+        st = SymbolTable(_TestAdapter())
+        st.add_symbols([var, cls])
+        assert (
+            st.resolve_definition({"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 0, "character": 1}}})
+            is cls
+        )
 
     def test_prefers_longest_qualified_name(self):
         short = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 0)
         long = _sym("foo", "a.b.c.foo", NodeType.FUNCTION, "/p/a.py", 0)
-        assert _best_candidate([short, long]) is long
+        st = SymbolTable(_TestAdapter())
+        st.add_symbols([short, long])
+        assert (
+            st.resolve_definition({"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 0, "character": 1}}})
+            is long
+        )
 
     def test_empty_list(self):
-        assert _best_candidate([]) is None
+        st = SymbolTable(_TestAdapter())
+        st.add_symbols([])
+        assert (
+            st.resolve_definition({"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 0, "character": 1}}})
+            is None
+        )
 
     def test_single_variable(self):
         var = _sym("x", "a.x", NodeType.VARIABLE, "/p/a.py", 0)
-        assert _best_candidate([var]) is var
+        st = SymbolTable(_TestAdapter())
+        st.add_symbols([var])
+        assert (
+            st.resolve_definition({"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 0, "character": 1}}})
+            is var
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -467,10 +492,7 @@ class TestBuildEdgesViaDefinitions:
 
         caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
         callee = _sym("helper", "app.helper", NodeType.FUNCTION, str(src), 3, 4, 4)
-        st._symbols["app.main"] = caller
-        st._symbols["app.helper"] = callee
-        st._file_symbols[str(src)] = [caller, callee]
-        st._primary_file_symbols[str(src)] = [caller, callee]
+        st.add_symbols([caller, callee])
         st.build_indices()
 
         # Call sites: main( at (0,4), helper( at (1,4), helper( def at (3,4)
@@ -515,9 +537,7 @@ class TestBuildEdgesViaDefinitions:
         src.write_text("def main():\n    helper()\n")
 
         caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
-        st._symbols["app.main"] = caller
-        st._file_symbols[str(src)] = [caller]
-        st._primary_file_symbols[str(src)] = [caller]
+        st.add_symbols([caller])
         st.build_indices()
 
         lsp.send_definition_batch.side_effect = Exception("LSP crash")
@@ -545,11 +565,7 @@ class TestBuildEdgesViaDefinitions:
             5,
             parent_chain=[("Dog", NodeType.CLASS)],
         )
-        st._symbols["app.main"] = caller
-        st._symbols["app.Dog"] = cls
-        st._symbols["app.Dog.__init__"] = ctor
-        st._file_symbols[str(src)] = [caller, cls, ctor]
-        st._primary_file_symbols[str(src)] = [caller, cls, ctor]
+        st.add_symbols([caller, cls, ctor])
         st.build_indices()
 
         # Dog( at (1,4) resolves to __init__ at (4,8); other sites resolve to nothing
@@ -582,11 +598,7 @@ class TestBuildEdgesViaDefinitions:
         caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
         target = _sym("speak", "app.speak", NodeType.METHOD, str(src), 3, 4, 4)
         impl = _sym("dog_speak", "app.dog_speak", NodeType.METHOD, str(src), 6, 4, 7)
-        st._symbols["app.main"] = caller
-        st._symbols["app.speak"] = target
-        st._symbols["app.dog_speak"] = impl
-        st._file_symbols[str(src)] = [caller, target, impl]
-        st._primary_file_symbols[str(src)] = [caller, target, impl]
+        st.add_symbols([caller, target, impl])
         st.build_indices()
 
         # speak( at (1,4) resolves to speak def at (3,4); others to nothing
@@ -622,10 +634,7 @@ class TestBuildEdgesViaDefinitions:
 
         caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
         target = _sym("speak", "app.speak", NodeType.METHOD, str(src), 3, 4, 4)
-        st._symbols["app.main"] = caller
-        st._symbols["app.speak"] = target
-        st._file_symbols[str(src)] = [caller, target]
-        st._primary_file_symbols[str(src)] = [caller, target]
+        st.add_symbols([caller, target])
         st.build_indices()
 
         # speak( at (1,4) resolves to speak def at (3,4)
@@ -661,10 +670,7 @@ class TestBuildEdgesViaReferencesExtra:
 
         caller = _sym("main", "app.main", NodeType.FUNCTION, "/project/app.py", 0, 0, 20)
         cls = _sym("Dog", "app.Dog", NodeType.CLASS, "/project/app.py", 25, 0, 50)
-        st._symbols["app.main"] = caller
-        st._symbols["app.Dog"] = cls
-        st._file_symbols[str(Path("/project/app.py"))] = [caller, cls]
-        st._primary_file_symbols[str(Path("/project/app.py"))] = [caller, cls]
+        st.add_symbols([caller, cls])
         st.build_indices()
 
         # Reference to Dog that is NOT an invocation (e.g., type annotation)
@@ -688,10 +694,7 @@ class TestBuildEdgesViaReferencesExtra:
 
         outer = _sym("outer", "app.outer", NodeType.FUNCTION, "/project/app.py", 0, 0, 20)
         inner = _sym("inner", "app.outer.inner", NodeType.FUNCTION, "/project/app.py", 5, 4, 10)
-        st._symbols["app.outer"] = outer
-        st._symbols["app.outer.inner"] = inner
-        st._file_symbols[str(Path("/project/app.py"))] = [outer, inner]
-        st._primary_file_symbols[str(Path("/project/app.py"))] = [outer, inner]
+        st.add_symbols([outer, inner])
         st.build_indices()
 
         # Reference to inner from within outer
@@ -737,16 +740,7 @@ class TestBuildEdgesViaReferencesExtra:
         bad_func1 = _sym("bad_fn1", "bad.bad_fn1", NodeType.FUNCTION, "/project/bad.py", 0, 0, 10)
         bad_func2 = _sym("bad_fn2", "bad.bad_fn2", NodeType.FUNCTION, "/project/bad.py", 15, 0, 25)
 
-        st._symbols["good.good_fn"] = good_func
-        st._symbols["bad.bad_fn1"] = bad_func1
-        st._symbols["bad.bad_fn2"] = bad_func2
-        for key in [str(Path("/project/good.py")), str(Path("/project/bad.py"))]:
-            st._file_symbols[key] = []
-            st._primary_file_symbols[key] = []
-        st._file_symbols[str(Path("/project/good.py"))] = [good_func]
-        st._primary_file_symbols[str(Path("/project/good.py"))] = [good_func]
-        st._file_symbols[str(Path("/project/bad.py"))] = [bad_func1, bad_func2]
-        st._primary_file_symbols[str(Path("/project/bad.py"))] = [bad_func1, bad_func2]
+        st.add_symbols([good_func, bad_func1, bad_func2])
         st.build_indices()
 
         def mock_refs_with_errors(queries, per_query_timeout=0):
@@ -824,9 +818,7 @@ class TestMethodGroupArguments:
 
         caller = _sym("Main", "P.Main", NodeType.METHOD, str(src), 1, 7, 1)
         handler = _sym("Handle", "P.Handle", NodeType.METHOD, str(src), 2, 7, 2)
-        st._symbols.update({"P.Main": caller, "P.Handle": handler})
-        st._file_symbols[str(src)] = [caller, handler]
-        st._primary_file_symbols[str(src)] = [caller, handler]
+        st.add_symbols([caller, handler])
         st.build_indices()
 
         lsp.send_definition_batch.side_effect = self._definitions_at(src, {(1, 25): (2, 7)})
@@ -841,9 +833,7 @@ class TestMethodGroupArguments:
 
         caller = _sym("Main", "P.Main", NodeType.METHOD, str(src), 1, 7, 1)
         field = _sym("total", "P.total", NodeType.FIELD, str(src), 2, 6, 2)
-        st._symbols.update({"P.Main": caller, "P.total": field})
-        st._file_symbols[str(src)] = [caller, field]
-        st._primary_file_symbols[str(src)] = [caller, field]
+        st.add_symbols([caller, field])
         st.build_indices()
 
         lsp.send_definition_batch.side_effect = self._definitions_at(src, {(1, 34): (2, 6)})
@@ -859,9 +849,7 @@ class TestMethodGroupArguments:
 
         caller = _sym("Invoke", "M.Invoke", NodeType.METHOD, str(src), 1, 7, 1)
         field = _sym("_next", "M._next", NodeType.FIELD, str(src), 2, 18, 2)
-        st._symbols.update({"M.Invoke": caller, "M._next": field})
-        st._file_symbols[str(src)] = [caller, field]
-        st._primary_file_symbols[str(src)] = [caller, field]
+        st.add_symbols([caller, field])
         st.build_indices()
 
         lsp.send_definition_batch.side_effect = self._definitions_at(src, {(1, 17): (2, 18)})
@@ -880,7 +868,9 @@ class TestOverrideTargets:
             paths.append(path)
         for qname, file_name in classes.items():
             simple = qname.rsplit(".", 1)[-1]
-            ctx.symbol_table._symbols[qname] = _sym(simple, qname, NodeType.CLASS, str(tmp_path / file_name), 0)
+            kind = NodeType.INTERFACE if files[file_name].startswith("interface ") else NodeType.CLASS
+            ctx.symbol_table.add_symbols([_sym(simple, qname, kind, str(tmp_path / file_name), 0)])
+        ctx.symbol_table.build_indices()
         return _build_dispatch_index(adapter, ctx, paths), ctx.symbol_table
 
     def test_expands_to_an_override(self, tmp_path: Path):
@@ -892,10 +882,15 @@ class TestOverrideTargets:
             },
             {"Animal": "Animal.cs", "Dog": "Dog.cs"},
         )
-        st._symbols["Animal.Speak"] = _sym("Speak", "Animal.Speak", NodeType.METHOD, str(tmp_path / "Animal.cs"), 0)
-        st._symbols["Dog.Speak"] = _sym("Speak", "Dog.Speak", NodeType.METHOD, str(tmp_path / "Dog.cs"), 0)
+        st.add_symbols(
+            [
+                _sym("Speak", "Animal.Speak", NodeType.METHOD, str(tmp_path / "Animal.cs"), 0),
+                _sym("Speak", "Dog.Speak", NodeType.METHOD, str(tmp_path / "Dog.cs"), 0),
+            ]
+        )
+        st.build_indices()
 
-        targets = _override_targets(st._symbols["Animal.Speak"], st, dispatch)
+        targets = _override_targets(st.symbols["Animal.Speak"], st, dispatch)
         assert [t.qualified_name for t in targets] == ["Dog.Speak"]
 
     def test_skips_a_hidden_member(self, tmp_path: Path):
@@ -907,10 +902,15 @@ class TestOverrideTargets:
             },
             {"Base": "Base.cs", "Derived": "Derived.cs"},
         )
-        st._symbols["Base.Plain"] = _sym("Plain", "Base.Plain", NodeType.METHOD, str(tmp_path / "Base.cs"), 0)
-        st._symbols["Derived.Plain"] = _sym("Plain", "Derived.Plain", NodeType.METHOD, str(tmp_path / "Derived.cs"), 0)
+        st.add_symbols(
+            [
+                _sym("Plain", "Base.Plain", NodeType.METHOD, str(tmp_path / "Base.cs"), 0),
+                _sym("Plain", "Derived.Plain", NodeType.METHOD, str(tmp_path / "Derived.cs"), 0),
+            ]
+        )
+        st.build_indices()
 
-        assert _override_targets(st._symbols["Base.Plain"], st, dispatch) == []
+        assert _override_targets(st.symbols["Base.Plain"], st, dispatch) == []
 
     def test_interface_member_reaches_an_implicit_implementation(self, tmp_path: Path):
         dispatch, st = self._index(
@@ -921,11 +921,15 @@ class TestOverrideTargets:
             },
             {"IThing": "IThing.cs", "Impl": "Impl.cs"},
         )
-        st._symbols["IThing"] = _sym("IThing", "IThing", NodeType.INTERFACE, str(tmp_path / "IThing.cs"), 0)
-        st._symbols["IThing.Run"] = _sym("Run", "IThing.Run", NodeType.METHOD, str(tmp_path / "IThing.cs"), 0)
-        st._symbols["Impl.Run"] = _sym("Run", "Impl.Run", NodeType.METHOD, str(tmp_path / "Impl.cs"), 0)
+        st.add_symbols(
+            [
+                _sym("Run", "IThing.Run", NodeType.METHOD, str(tmp_path / "IThing.cs"), 0),
+                _sym("Run", "Impl.Run", NodeType.METHOD, str(tmp_path / "Impl.cs"), 0),
+            ]
+        )
+        st.build_indices()
 
-        targets = _override_targets(st._symbols["IThing.Run"], st, dispatch)
+        targets = _override_targets(st.symbols["IThing.Run"], st, dispatch)
         assert [t.qualified_name for t in targets] == ["Impl.Run"]
 
     def test_base_name_declared_twice_is_not_expanded(self, tmp_path: Path):
@@ -943,10 +947,13 @@ class TestOverrideTargets:
                 "Beta.Other": "Other.cs",
             },
         )
-        st._symbols["Alpha.Base.Run"] = _sym(
-            "Run", "Alpha.Base.Run", NodeType.METHOD, str(tmp_path / "AlphaBase.cs"), 0
+        st.add_symbols(
+            [
+                _sym("Run", "Alpha.Base.Run", NodeType.METHOD, str(tmp_path / "AlphaBase.cs"), 0),
+                _sym("Run", "Beta.Other.Run", NodeType.METHOD, str(tmp_path / "Other.cs"), 0),
+            ]
         )
-        st._symbols["Beta.Other.Run"] = _sym("Run", "Beta.Other.Run", NodeType.METHOD, str(tmp_path / "Other.cs"), 0)
+        st.build_indices()
 
         assert "Base" in dispatch.ambiguous
-        assert _override_targets(st._symbols["Alpha.Base.Run"], st, dispatch) == []
+        assert _override_targets(st.symbols["Alpha.Base.Run"], st, dispatch) == []

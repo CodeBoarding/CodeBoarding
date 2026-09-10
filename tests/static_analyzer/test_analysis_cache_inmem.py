@@ -10,19 +10,18 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from static_analyzer import EngineConfig, StaticAnalyzer
-from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, merge_results
-from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
-from static_analyzer.config import Language, NodeType
+from static_analyzer.analysis_cache import invalidate_files, merge_results
+from static_analyzer.analysis_result import AnalysisData
+from static_analyzer.config import NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.node import Node
 from static_analyzer.incremental_orchestrator import (
-    _definition_nodes,
-    _restore_cross_boundary_edges,
+    MissingSymbolSnapshotError,
     update_cfg_for_changed_files,
 )
-from static_analyzer.engine.source_inspector import SourceInspector
-from utils import CODEBOARDING_DIR_NAME
+from static_analyzer.engine.adapters.python_adapter import PythonAdapter
+from static_analyzer.engine.analysis_context import AnalysisContext
+from static_analyzer.engine.models import SymbolInfo
 
 
 def _node(qname: str, file_path: str, line_start: int = 1) -> Node:
@@ -202,10 +201,9 @@ class TestWarmStartDeletion(unittest.TestCase):
                 references=[_node("a.foo", str(deleted_file)), _node("b.bar", str(live_file))],
                 source_files=[str(deleted_file), str(live_file)],
             )
+            cached["symbols"] = [SymbolInfo("bar", "b.bar", NodeType.FUNCTION, live_file, 0, 0, 1, 8)]
 
-            adapter = MagicMock()
-            adapter.file_extensions = [".py"]
-            adapter.language = "python"
+            adapter = PythonAdapter()
             engine_client = MagicMock()
             engine_client.get_collected_diagnostics.return_value = {}
             ignore_manager = MagicMock()
@@ -228,128 +226,23 @@ class TestWarmStartDeletion(unittest.TestCase):
 class TestWarmStartOutboundEdges(unittest.TestCase):
     def test_definition_resolution_accepts_declaration_range_before_symbol_name(self) -> None:
         file_path = Path("/repo/unchanged.php")
-        call_graph = CallGraph(language="php")
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="unchanged.unchanged_target",
-                node_type=NodeType.FUNCTION,
-                file_path=str(file_path),
-                line_start=3,
-                line_end=3,
-                col_start=9,
-            )
-        )
+        table = AnalysisContext().symbols_for(PythonAdapter())
+        table.add_symbols([SymbolInfo("unchanged_target", "unchanged.unchanged_target", 12, file_path, 2, 9, 2, 66)])
         definition = {
             "uri": file_path.as_uri(),
             "range": {"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 66}},
         }
 
-        matches = _definition_nodes(call_graph, definition)
+        match = table.resolve_definition(definition)
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual(match.qualified_name, "unchanged.unchanged_target")
 
-        self.assertEqual([node.fully_qualified_name for node in matches], ["unchanged.unchanged_target"])
-
-    def test_definition_resolution_includes_the_most_specific_node_and_its_class(self) -> None:
-        file_path = Path("/repo/pkg/converter.py")
-        call_graph = CallGraph(language="python")
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="pkg.converter.DocumentConverter",
-                node_type=NodeType.CLASS,
-                file_path=str(file_path),
-                line_start=1,
-                line_end=40,
+    def test_requires_lossless_snapshot(self) -> None:
+        with self.assertRaisesRegex(MissingSymbolSnapshotError, "full analysis"):
+            update_cfg_for_changed_files(
+                {}, {Path("deleted.py")}, PythonAdapter(), Path.cwd(), MagicMock(), MagicMock()
             )
-        )
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="pkg.converter.DocumentConverter.convert",
-                node_type=NodeType.METHOD,
-                file_path=str(file_path),
-                line_start=10,
-                line_end=20,
-                col_start=4,
-            )
-        )
-        definition = {
-            "uri": file_path.as_uri(),
-            "range": {"start": {"line": 9, "character": 8}, "end": {"line": 9, "character": 15}},
-        }
-
-        matches = _definition_nodes(call_graph, definition, include_callable_parent=True)
-
-        self.assertEqual(
-            [node.fully_qualified_name for node in matches],
-            [
-                "pkg.converter.DocumentConverter.convert",
-                "pkg.converter.DocumentConverter",
-            ],
-        )
-
-    def test_definition_resolution_same_line_fallback_prefers_class_over_nested_method(self) -> None:
-        file_path = Path("/repo/pkg/target.php")
-        call_graph = CallGraph(language="php")
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="pkg.target.Target",
-                node_type=NodeType.CLASS,
-                file_path=str(file_path),
-                line_start=1,
-                line_end=1,
-                col_start=6,
-            )
-        )
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="pkg.target.Target.method",
-                node_type=NodeType.METHOD,
-                file_path=str(file_path),
-                line_start=1,
-                line_end=1,
-                col_start=29,
-            )
-        )
-        definition = {
-            "uri": file_path.as_uri(),
-            "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 6}},
-        }
-
-        matches = _definition_nodes(call_graph, definition)
-
-        self.assertEqual([node.fully_qualified_name for node in matches], ["pkg.target.Target"])
-
-    def test_definition_resolution_includes_constructor_parent_without_definition_strategy(self) -> None:
-        file_path = Path("/repo/pkg/target.php")
-        call_graph = CallGraph(language="php")
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="pkg.target.Target",
-                node_type=NodeType.CLASS,
-                file_path=str(file_path),
-                line_start=1,
-                line_end=5,
-            )
-        )
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="pkg.target.Target.__construct",
-                node_type=NodeType.CONSTRUCTOR,
-                file_path=str(file_path),
-                line_start=2,
-                line_end=2,
-                col_start=5,
-            )
-        )
-        definition = {
-            "uri": file_path.as_uri(),
-            "range": {"start": {"line": 1, "character": 5}, "end": {"line": 1, "character": 16}},
-        }
-
-        matches = _definition_nodes(call_graph, definition)
-
-        self.assertEqual(
-            [node.fully_qualified_name for node in matches],
-            ["pkg.target.Target.__construct", "pkg.target.Target"],
-        )
 
     def test_cached_outbound_edge_is_restored_from_live_non_call_reference(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -375,32 +268,45 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             call_graph = CallGraph(language="python")
             call_graph.add_node(source)
             call_graph.add_node(target)
-            engine_client = MagicMock()
-            engine_client.references.return_value = [
-                {
-                    "uri": changed_file.as_uri(),
-                    "range": {
-                        "start": {"line": 1, "character": 11},
-                        "end": {"line": 1, "character": 30},
-                    },
-                }
-            ]
-            adapter = MagicMock()
-            adapter.language_id = "python"
-            adapter.is_class_like.return_value = False
-
-            _restore_cross_boundary_edges(
-                call_graph,
-                [(source.fully_qualified_name, target.fully_qualified_name, source, target, [])],
-                {str(changed_file)},
-                adapter,
-                engine_client,
-                SourceInspector(),
+            call_graph.add_edge(source.fully_qualified_name, target.fully_qualified_name)
+            adapter = PythonAdapter()
+            context = AnalysisContext()
+            context.symbols_for(adapter).add_symbols(
+                [
+                    SymbolInfo("convert", source.fully_qualified_name, 12, changed_file, 0, 0, 1, 40),
+                    SymbolInfo("text_content", target.fully_qualified_name, 6, target_file, 1, 4, 1, 40),
+                ]
             )
-
-            self.assertEqual(len(call_graph.edges), 1)
+            context.freeze()
+            engine_client = MagicMock()
+            reference = {
+                "uri": changed_file.as_uri(),
+                "range": {
+                    "start": {"line": 1, "character": 11},
+                    "end": {"line": 1, "character": 30},
+                },
+            }
+            engine_client.send_references_batch.side_effect = lambda queries, **kwargs: (
+                [[reference] if path == target_file else [] for path, _, _ in queries],
+                set(),
+            )
+            engine_client.get_collected_diagnostics.return_value = {}
+            ignore = MagicMock()
+            ignore.should_ignore.return_value = False
+            with patch("static_analyzer.incremental_orchestrator.CallGraphBuilder.collect_symbols") as collect:
+                updated = update_cfg_for_changed_files(
+                    _result(call_graph, source_files=[str(changed_file), str(target_file)]),
+                    {changed_file},
+                    adapter,
+                    Path(temp_dir),
+                    engine_client,
+                    ignore,
+                    context,
+                )
+            collect.assert_not_called()
+            self.assertEqual(len(updated["call_graph"].edges), 1)
             self.assertEqual(
-                call_graph.edges[0].call_sites,
+                updated["call_graph"].edges[0].call_sites,
                 [{"file": str(changed_file), "line": 2, "column": 12}],
             )
 

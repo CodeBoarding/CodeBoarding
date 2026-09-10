@@ -8,13 +8,14 @@ from pathlib import Path
 
 from repo_utils.git_ops import get_changed_files_since
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.analysis_cache import StaticAnalysisCache
+from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, _rederive_inherits_edges
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
-from static_analyzer.config import AdapterName, Language
+from static_analyzer.config import GRAPH_NODE_TYPES, AdapterName, Language
 from static_analyzer.csharp_config_scanner import SOLUTION_GLOBS, CSharpConfigScanner, CSharpProjectConfig
 from static_analyzer.dotnet_solution import solution_projects
 from static_analyzer.engine.adapters import get_adapter
+from static_analyzer.engine.analysis_context import AnalysisContext
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
@@ -22,7 +23,11 @@ from static_analyzer.engine.lsp_recycler import default_memory_budget, per_engin
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
+from static_analyzer.incremental_orchestrator import (
+    MissingSymbolSnapshotError,
+    affected_source_files,
+    update_cfg_for_changed_files,
+)
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
@@ -729,6 +734,7 @@ class StaticAnalyzer:
         explicitly requested ``skip_cache=True``.
         """
         results = StaticAnalysisResults()
+        self._analysis_context = AnalysisContext()
         absorb_lock = threading.Lock()
         spawned: list[str] = []
         spawn_failures: list[str] = []
@@ -737,9 +743,12 @@ class StaticAnalyzer:
         # (nested solution roots) do collide, so completion order would let two
         # identical runs keep different nodes and produce different component IDs.
         completed: dict[int, tuple[Language, dict]] = {}
+        collected: set[int] = set()
 
-        def run_one(engine_config: EngineConfig, engine_client: LSPClient | None, order: int = 0) -> None:
+        def run_one(engine_config: EngineConfig, engine_client: LSPClient | None, order: int, collect: bool) -> None:
             """Analyze one engine. Owns the client's lifetime when given none."""
+            if not collect and order not in collected:
+                return
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
             t_lang_start = time.monotonic()
@@ -756,6 +765,11 @@ class StaticAnalyzer:
                         spawned.append(adapter.language)
                     engine_client = owned_client
                 logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
+                if collect:
+                    self._collect_symbols(engine_config, engine_client)
+                    with absorb_lock:
+                        collected.add(order)
+                    return
                 analysis = self._run_full_analysis(engine_config, engine_client)
                 duration_ms = round((time.monotonic() - t_lang_start) * 1000)
                 logger.info(f"Engine analysis for {adapter.language} completed in {duration_ms / 1000:.1f}s")
@@ -793,33 +807,35 @@ class StaticAnalyzer:
                         logger.exception(f"Error shutting down {adapter.language} client for {project_path}")
 
         cap = max_concurrent_engines()
-        if not cap:
-            for order, (engine_config, engine_client) in enumerate(self._engine_clients):
-                run_one(engine_config, engine_client, order)
-        else:
-            pending = [cfg for cfg in self._engine_configs if cfg.source_files]
-            logger.info("Running %d engine(s) with at most %d resident at a time", len(pending), cap)
-            # Not ``with``: its ``__exit__`` waits without cancelling, so one
-            # engine's fatal error would still drain every queued engine — a full
-            # pass over a monorepo — before propagating. Cancel the queue, then
-            # wait so each in-flight ``run_one`` still shuts its own client down.
-            pool = ThreadPoolExecutor(max_workers=cap)
-            try:
-                futures = [pool.submit(run_one, cfg, None, order) for order, cfg in enumerate(pending)]
-                for future in as_completed(futures):
-                    future.result()
-            finally:
-                pool.shutdown(wait=True, cancel_futures=True)
-            if pending and not spawned:
-                details = f"; failures: {'; '.join(spawn_failures)}" if spawn_failures else ""
-                raise RuntimeError(
-                    "Failed to start any engine LSP client "
-                    f"(attempted: {', '.join(cfg.adapter.language for cfg in pending)}){details}"
-                )
+        for collect in (True, False):
+            if not collect:
+                self._analysis_context.freeze()
+            if not cap:
+                for order, (engine_config, engine_client) in enumerate(self._engine_clients):
+                    run_one(engine_config, engine_client, order, collect)
+            else:
+                pending = [cfg for cfg in self._engine_configs if cfg.source_files]
+                logger.info("Running %d engine(s) with at most %d resident at a time", len(pending), cap)
+                pool = ThreadPoolExecutor(max_workers=cap)
+                try:
+                    futures = [pool.submit(run_one, cfg, None, order, collect) for order, cfg in enumerate(pending)]
+                    for future in as_completed(futures):
+                        future.result()
+                finally:
+                    pool.shutdown(wait=True, cancel_futures=True)
+                if pending and not spawned:
+                    details = f"; failures: {'; '.join(spawn_failures)}" if spawn_failures else ""
+                    raise RuntimeError(
+                        "Failed to start any engine LSP client "
+                        f"(attempted: {', '.join(cfg.adapter.language for cfg in pending)}){details}"
+                    )
 
+        if (self._engine_clients or self._engine_configs) and not completed:
+            raise StaticAnalysisFatalError("No engine completed edge analysis; refusing to cache an empty graph.")
         for order in sorted(completed):
             language, analysis = completed[order]
             self._absorb_into_results(results, language, analysis)
+        self._snapshot_context(results)
 
         summaries = []
         for language in results.get_languages():
@@ -843,69 +859,93 @@ class StaticAnalyzer:
         cached_results: StaticAnalysisResults,
         cached_sha: str,
     ) -> StaticAnalysisResults:
-        """Bring *cached_results* up to date in-memory, scoped to the changed files.
-
-        Per language: determine the changed-file list, hand it to
-        ``update_cfg_for_changed_files`` along with the language's portion of the
-        cached state, and put the merged result back into a fresh
-        ``StaticAnalysisResults``.
-
-        Changed-file source: ``self.changed_files`` when set at construction
-        (git-free — e.g. the wrapper's fingerprint diff), else ``git diff`` via
-        ``get_changed_files_since``. If git fails (*cached_sha* unreachable, a
-        non-git frozen copy, or a content-hash SHA that isn't a git object), fall
-        back to a full re-LSP for that language so the run still produces valid
-        output.
-        """
+        """Hydrate once, replace all changed declarations, then requery affected callers."""
+        clients = self._live_clients("warm-start")
+        self._analysis_context = AnalysisContext()
         results = StaticAnalysisResults()
-        # One dict per language, threaded through every engine config of that language and
-        # absorbed once. Why: each config re-LSPs only the changed files under its own root,
-        # so a config that took its own copy of the cache would hand back the nodes another
-        # config had just invalidated, and the merge would resurrect deleted files.
+        baseline: dict[Language, dict] = {}
         carried: dict[Language, dict] = {}
-        for engine_config, engine_client in self._live_clients("warm-start"):
-            adapter, project_path = engine_config.adapter, engine_config.project_path
+        changes: dict[Language, set[Path]] = {}
+        engine_changes: list[set[Path]] = []
+        for config, _ in clients:
+            adapter = config.adapter
             language = adapter.results_language
-            t_lang_start = time.monotonic()
-            changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
-
-            if changed_files is None:
-                analysis = self._run_full_analysis(engine_config, engine_client)
-                self._absorb_into_results(results, language, analysis)
-            else:
-                changed_files = {
-                    path
-                    for path in changed_files
-                    if not any(path.is_relative_to(root) for root in engine_config.excluded_roots)
-                }
-                logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
-                cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
-                analysis = update_cfg_for_changed_files(
-                    cached_lang_dict, changed_files, adapter, project_path, engine_client, self.ignore_manager
+            if language not in baseline:
+                data = self._extract_language_dict(cached_results, language)
+                if data.get("symbols") is None:
+                    raise MissingSymbolSnapshotError(
+                        f"{language.value} has no symbol snapshot. Run a full analysis first."
+                    )
+                baseline[language] = data
+                self._analysis_context.hydrate(
+                    adapter, data["symbols"], data["unresolved_files"], data.get("closed_documents", set())
                 )
-                carried[language] = analysis
+            detected = self._changed_files_for_language(config.project_path, cached_sha, adapter.language)
+            if detected is None:
+                raise StaticAnalysisFatalError("Cannot determine incremental changes. Run a full analysis explicitly.")
+            scoped = {
+                path
+                for path in detected
+                if path.suffix in adapter.file_extensions
+                and not any(path.is_relative_to(root) for root in config.excluded_roots)
+                and not self.ignore_manager.should_ignore(path)
+            }
+            engine_changes.append(scoped)
+            changes.setdefault(language, set()).update(scoped)
 
-            self._collect_diagnostics_for(adapter, engine_client, analysis)
+        for language, data in baseline.items():
+            self._analysis_context.tables[language].remove_files(changes[language])
+            self._analysis_context.unresolved_files.difference_update(str(p) for p in changes[language])
+            carried[language] = invalidate_files(data, changes[language]).analysis.to_dict()
+        for config, client in clients:
+            language = config.adapter.results_language
+            client.refresh_files(changes[language], {Path(p) for p in baseline[language]["source_files"]})
+        for (config, client), changed in zip(clients, engine_changes):
+            files = sorted(path for path in changed if path.is_file())
+            if files:
+                self._collect_symbols(EngineConfig(config.adapter, config.project_path, files), client)
+            else:
+                self._analysis_context.prepared[(config.adapter.results_language, config.project_path.resolve())] = []
+        self._analysis_context.freeze()
+
+        for config, client in clients:
+            adapter, language = config.adapter, config.adapter.results_language
+            t_start = time.monotonic()
+            queries = affected_source_files(baseline[language], changes[language], adapter, self._analysis_context)
+            queries = {
+                p
+                for p in queries
+                if p.is_relative_to(config.project_path)
+                and not any(p.is_relative_to(root) for root in config.excluded_roots)
+            }
+            carried[language] = update_cfg_for_changed_files(
+                carried[language],
+                set(),
+                adapter,
+                config.project_path,
+                client,
+                self.ignore_manager,
+                context=self._analysis_context,
+                query_files=queries,
+            )
+            analysis = carried[language]
+            self._collect_diagnostics_for(adapter, client, analysis)
             track_lsp_result(
                 language=adapter.language_enum.value,
                 loc=self._loc_for_adapter(adapter),
                 status="success",
-                duration_ms=round((time.monotonic() - t_lang_start) * 1000),
+                duration_ms=round((time.monotonic() - t_start) * 1000),
                 analysis=analysis,
                 diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
             )
         for language, analysis in carried.items():
             self._absorb_into_results(results, language, analysis)
+        self._snapshot_context(results)
         results.incremental_base_results = cached_results
         return results
 
     def _changed_files_for_language(self, project_path: Path, cached_sha: str, language: str) -> set[Path] | None:
-        """The warm-start changed-file set scoped to one language's project root.
-
-        ``self.changed_files`` when set (git-free), else ``git diff`` via
-        ``get_changed_files_since``. ``None`` means "detect failed / no set" and
-        the caller does a full re-LSP for the language.
-        """
+        """Scope supplied or git changes; None makes incremental analysis fail explicitly."""
         if self.changed_files is not None:
             # Scope the repo-wide set to this language's project root so a
             # multi-language repo doesn't re-LSP every changed file per engine.
@@ -915,7 +955,7 @@ class StaticAnalyzer:
         except Exception as e:
             logger.warning(
                 f"get_changed_files_since failed for {language} (cached_sha={cached_sha}): {e}; "
-                "falling back to full re-LSP for this language"
+                "incremental analysis cannot proceed"
             )
             return None
 
@@ -935,6 +975,7 @@ class StaticAnalyzer:
             package_relations = {}
         cached_refs = list(cached_results.iter_reference_nodes(language))
         cached_source_files = [Path(p) for p in cached_results.get_source_files(language)]
+        bucket = cached_results.results.get(language)
         return {
             "call_graph": cached_cfg,
             "class_hierarchies": class_hierarchies,
@@ -942,6 +983,9 @@ class StaticAnalyzer:
             "references": cached_refs,
             "source_files": cached_source_files,
             "diagnostics": cached_results.diagnostics.get(language, {}),
+            "symbols": bucket.symbols if bucket is not None else None,
+            "unresolved_files": set(bucket.unresolved_files) if bucket is not None else set(),
+            "closed_documents": set(bucket.closed_documents) if bucket is not None else set(),
         }
 
     def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:
@@ -995,6 +1039,73 @@ class StaticAnalyzer:
                 total += pl.size
         return total
 
+    def _collect_symbols(self, config: EngineConfig, client: LSPClient) -> None:
+        files = config.source_files or config.adapter.discover_source_files(config.project_path, self.ignore_manager)
+        builder = CallGraphBuilder(client, config.adapter, config.project_path, context=self._analysis_context)
+        builder.collect_symbols(files)
+        if (
+            config.adapter.fail_on_empty_symbols is True
+            and files
+            and not any(str(path) in builder.symbol_table.file_symbols for path in files)
+        ):
+            raise StaticAnalysisFatalError(f"{config.adapter.language} produced no symbols in {config.project_path}")
+
+    def _snapshot_context(self, results: StaticAnalysisResults) -> None:
+        for language, bucket in results.results.items():
+            table = self._analysis_context.tables.get(language)
+            if table is not None:
+                bucket.symbols = table.snapshot()
+                bucket.unresolved_files = self._analysis_context.unresolved_files.intersection(table.file_symbols)
+                bucket.closed_documents = {
+                    str(p) for p in self._analysis_context.closed_documents if str(p) in table.file_symbols
+                }
+            graph = bucket.cfg.graph
+            if graph is None:
+                continue
+            participants = {name for edge in graph.edges for name in (edge.get_source(), edge.get_destination())}
+            graph = graph.filter(
+                lambda node: node.type in GRAPH_NODE_TYPES or node.fully_qualified_name in participants
+            )
+            bucket.cfg.graph = graph
+            hierarchy = {
+                name: {**info, "subclasses": []}
+                for name, info in (bucket.hierarchy.entries or {}).items()
+                if name in graph.nodes
+            }
+            bucket.hierarchy.entries = hierarchy
+            for child, info in hierarchy.items():
+                for parent in info.get("superclasses", []):
+                    if parent in hierarchy:
+                        hierarchy[parent]["subclasses"].append(child)
+            _rederive_inherits_edges(graph, hierarchy)
+            file_packages: dict[str, str] = {}
+            configs = [c for c in self._engine_configs if c.adapter.results_language == language]
+            for path in bucket.source_files.paths or []:
+                owners = [
+                    c
+                    for c in configs
+                    if Path(path).is_relative_to(c.project_path)
+                    and not any(Path(path).is_relative_to(r) for r in c.excluded_roots)
+                ]
+                if owners:
+                    owner = max(owners, key=lambda c: (len(c.project_path.parts), str(c.project_path)))
+                    file_packages[path] = owner.adapter.get_package_for_file(Path(path), owner.project_path)
+            dependencies: dict[str, dict] = {}
+            for path, package in sorted(file_packages.items()):
+                dependencies.setdefault(package, {"files": [], "imports": [], "imported_by": []})["files"].append(path)
+            for edge in graph.edges:
+                src = file_packages.get(edge.src_node.file_path)
+                dst = file_packages.get(edge.dst_node.file_path)
+                if src is not None and dst is not None and src != dst:
+                    if dst not in dependencies[src]["imports"]:
+                        dependencies[src]["imports"].append(dst)
+                    if src not in dependencies[dst]["imported_by"]:
+                        dependencies[dst]["imported_by"].append(src)
+            for info in dependencies.values():
+                info["imports"].sort()
+                info["imported_by"].sort()
+            bucket.dependencies.entries = dependencies
+
     def _run_full_analysis(self, engine_config: EngineConfig, engine_client: LSPClient) -> dict:
         """Run a full analysis using the engine pipeline.
 
@@ -1028,6 +1139,7 @@ class StaticAnalyzer:
             adapter,
             project_path,
             memory_budget_bytes=per_engine_memory_budget(max(max_concurrent_engines(), 1)),
+            context=getattr(self, "_analysis_context", None),
         )
         engine_result = builder.build(source_files)
         logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")

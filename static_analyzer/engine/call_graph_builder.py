@@ -6,6 +6,7 @@ import logging
 import time
 from pathlib import Path
 
+from static_analyzer.engine.analysis_context import AnalysisContext
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_definitions, build_edges_via_references
 from static_analyzer.engine.progress import ProgressLogger
@@ -15,7 +16,6 @@ from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE, EdgeStrategy
 from static_analyzer.engine.lsp_recycler import LSPRecycler
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult
-from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ class CallGraphBuilder:
         adapter: LanguageAdapter,
         project_root: Path,
         memory_budget_bytes: int = 0,
+        context: AnalysisContext | None = None,
     ) -> None:
         self._lsp = lsp_client
         self._adapter = adapter
@@ -37,15 +38,26 @@ class CallGraphBuilder:
         # 0 means "one server at a time", so the recycler uses the whole allowance.
         self._memory_budget_bytes = memory_budget_bytes
 
-        self._symbol_table = SymbolTable(adapter)
-        self._source_inspector = SourceInspector()
+        self._context = context if context is not None else AnalysisContext()
+        self._symbol_table = self._context.symbols_for(adapter)
+        self._source_inspector = self._context.source_inspector
 
     @property
     def symbol_table(self) -> SymbolTable:
         """Public access to the symbol table for result conversion."""
         return self._symbol_table
 
-    def build(self, source_files: list[Path], skip_hierarchy: bool = False) -> LanguageAnalysisResult:
+    def collect_symbols(self, source_files: list[Path]) -> None:
+        """Register this session's declarations before any engine resolves edges."""
+        self._discover_symbols(source_files)
+        self._context.prepared[(self._adapter.results_language, self._root)] = list(source_files)
+
+    def build(
+        self,
+        source_files: list[Path],
+        skip_hierarchy: bool = False,
+        definition_files: tuple[Path, ...] = (),
+    ) -> LanguageAnalysisResult:
         """Run the full analysis pipeline and return results.
 
         Args:
@@ -56,18 +68,32 @@ class CallGraphBuilder:
         """
         t_pipeline = time.monotonic()
 
-        self._discover_symbols(source_files)
+        key = (self._adapter.results_language, self._root)
+        if key not in self._context.prepared:
+            self.collect_symbols(source_files)
+            self._context.freeze()
+        else:
+            # A bounded worker may have restarted its server after symbol collection.
+            self._bulk_did_open([f for f in source_files if f not in self._context.closed_documents])
+            self._send_sync_probe(source_files, self._probe_timeout(len(source_files)))
         t_symbols_done = time.monotonic()
         logger.info("Phase 1 total (discover symbols): %.1fs", t_symbols_done - t_pipeline)
 
-        self._symbol_table.build_indices()
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
         ctx = EdgeBuildContext(
-            self._lsp, self._symbol_table, self._source_inspector, recycler=self._build_recycler(source_files)
+            self._lsp,
+            self._symbol_table,
+            self._source_inspector,
+            recycler=self._build_recycler(source_files),
+            unresolved_files=self._context.unresolved_files,
         )
         edge_set = self._build_edges(ctx, source_files)
+        if definition_files and self._adapter.edge_strategy != EdgeStrategy.DEFINITIONS:
+            for edge, sites in build_edges_via_definitions(self._adapter, ctx, list(definition_files)).items():
+                current = edge_set.setdefault(edge, [])
+                current.extend(site for site in sites if site not in current)
         edge_set = self._postprocess_edges(edge_set)
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
@@ -78,7 +104,7 @@ class CallGraphBuilder:
             logger.info("Phase %d (hierarchy): skipped", next_phase)
         else:
             hierarchy_builder = HierarchyBuilder(self._lsp, self._symbol_table, self._source_inspector, self._adapter)
-            hierarchy = hierarchy_builder.build()
+            hierarchy = hierarchy_builder.build(source_files)
             logger.info("Phase %d (hierarchy): %.1fs", next_phase, time.monotonic() - t_edges_done)
             next_phase += 1
 
@@ -210,7 +236,10 @@ class CallGraphBuilder:
                     self._lsp.did_open(file_path)
                     symbols = self._lsp.document_symbol(file_path)
             self._adapter.record_document_symbols(file_path, symbols, self._root)
-            self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
+            with self._context.lock:
+                self._symbol_table.register_symbols(
+                    file_path, symbols, parent_chain=[], project_root=self._root, naming=self._adapter
+                )
             pbar.set_postfix(symbols=len(self._symbol_table.symbols))
             pbar.update(1)
         pbar.finish()
@@ -218,6 +247,7 @@ class CallGraphBuilder:
             already = set(read_from_source) | set(opened_early)
             self._bulk_did_open([file_path for file_path in source_files if file_path not in already])
         if read_from_source:
+            self._context.closed_documents.update(read_from_source)
             logger.info(
                 "Phase 1: %d file(s) compiled into more than one project were read from source",
                 len(read_from_source),

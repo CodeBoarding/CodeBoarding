@@ -426,3 +426,142 @@ class TestIsLocalVariable:
         st._file_symbols["mod.py"] = [alias, parented]
 
         assert st.is_local_variable(alias) is True
+
+
+class TestReusableSymbolTable:
+    def test_repeated_registration_and_indices_are_idempotent(self):
+        st = SymbolTable(_make_adapter())
+        declarations = _class_with_child("__init__", NodeType.CONSTRUCTOR)
+        for _ in range(3):
+            st.register_symbols(Path("/mod.py"), declarations, [], Path("/"))
+            st.build_indices()
+            st.build_indices()
+        assert len(st.symbols) == 3
+        assert len(st.file_symbols["/mod.py"]) == 3
+        assert len(st.primary_file_symbols["/mod.py"]) == 2
+        assert st.get_equivalent_names("MyClass.__init__") == ["mod.__init__"]
+        assert st.class_to_ctors == {"mod.MyClass": ["MyClass.__init__"]}
+        assert len(st._definition_lines[("/mod.py", 0)]) == 3
+
+    def test_snapshot_roundtrip_preserves_nested_alias_metadata(self):
+        st = SymbolTable(_make_adapter())
+        declarations = _class_with_child("__init__", NodeType.CONSTRUCTOR)
+        declarations[0]["range"]["end"]["character"] = 17
+        st.register_symbols(Path("/mod.py"), declarations, [("Outer", NodeType.CLASS)], Path("/"))
+        st.build_indices()
+        snapshot = st.snapshot()
+        restored = SymbolTable(_make_adapter())
+        restored.add_symbols(snapshot)
+        restored.build_indices()
+        assert restored.snapshot() == st.snapshot()
+        assert restored.file_symbols == st.file_symbols
+        assert restored.primary_file_symbols == st.primary_file_symbols
+        assert restored.class_to_ctors == {"Outer.MyClass": ["Outer.MyClass.__init__"]}
+        assert restored._ref_key_to_symbol == st._ref_key_to_symbol
+        assert restored.symbols["Outer.MyClass.__init__"].end_char == 17
+        assert restored.symbols["MyClass.__init__"].is_primary is False
+        assert restored.symbols["mod.__init__"].is_primary is False
+        assert restored.symbols["MyClass.__init__"].parent_chain == [("MyClass", NodeType.CLASS)]
+        snapshot[0].parent_chain.append(("Mutation", NodeType.CLASS))
+        assert snapshot != st.snapshot()
+
+    def test_registration_uses_session_naming_recursively(self):
+        default = _make_adapter()
+        session = _make_adapter()
+        session.build_qualified_name.side_effect = lambda fp, name, kind, chain, root, detail="": ".".join(
+            ["session", *(n for n, _ in chain), name]
+        )
+        st = SymbolTable(default)
+        st.register_symbols(
+            Path("/mod.py"), _class_with_child("method", NodeType.METHOD), [], Path("/"), naming=session
+        )
+        assert set(st.symbols) == {"session.MyClass", "session.MyClass.method", "session.method"}
+        default.build_qualified_name.assert_not_called()
+        st.register_symbols(Path("/other.py"), [{"name": "foo", "kind": NodeType.FUNCTION}], [], Path("/"))
+        assert "other.foo" in st.symbols
+
+    def test_changed_and_deleted_files_clear_all_lookups(self):
+        st = SymbolTable(_make_adapter())
+        st.register_symbols(Path("/mod.py"), _class_with_child("__init__", NodeType.CONSTRUCTOR), [], Path("/"))
+        retained = _sym("keep", "other.keep", NodeType.FUNCTION, "/other.py")
+        st.add_symbols([retained])
+        st.build_indices()
+        st.remove_files({Path("/mod.py")})
+        assert st.resolve_definition(_definition(0, 0)) is None
+        assert st.get_equivalent_names("MyClass.__init__") == []
+        assert st.class_to_ctors == {}
+        assert set(st.file_symbols) == set(st.primary_file_symbols) == {"/other.py"}
+        assert st._ref_key_to_symbol == {"other.keep": retained}
+        replacement = _sym("new", "mod.new", NodeType.FUNCTION, "/mod.py", start_line=10)
+        st.add_symbols([replacement])
+        assert st.resolve_definition(_definition(10, 0)) is replacement
+        assert st.resolve_definition(_definition(0, 0)) is None
+        st.remove_files({Path("/mod.py"), Path("/other.py")})
+        assert st.snapshot() == []
+        assert st._definition_positions == st._definition_lines == st._file_name_index == {}
+
+    def test_collision_winner_is_independent_of_registration_order(self):
+        candidates = [
+            _sym("foo", "shared.foo", NodeType.FUNCTION, "/z.py", start_line=0),
+            _sym("foo", "shared.foo", NodeType.FUNCTION, "/a.py", start_line=5),
+            _sym("foo", "shared.foo", NodeType.FUNCTION, "/a.py", start_line=2, start_char=8),
+            _sym("foo", "shared.foo", NodeType.FUNCTION, "/a.py", start_line=2, start_char=4),
+        ]
+        tables = [SymbolTable(_make_adapter()), SymbolTable(_make_adapter())]
+        for st, order in zip(tables, (candidates, list(reversed(candidates)))):
+            for sym in order:
+                st.add_symbols([sym])
+                st.build_indices()
+            assert st.symbols == {"shared.foo": candidates[-1]}
+            assert st.file_symbols == st.primary_file_symbols == {"/a.py": [candidates[-1]]}
+            assert st._ref_key_to_symbol == {"shared.foo": candidates[-1]}
+            assert set(st._definition_positions) == {("/a.py", 2, 4)}
+        assert tables[0].snapshot() == tables[1].snapshot()
+
+
+class TestResolveDefinition:
+    def test_exact_overload_is_not_replaced_by_longer_fuzzy_match(self):
+        st = SymbolTable(_make_adapter())
+        short = _sym("run", "C.run()", NodeType.METHOD, "/mod.py", start_line=5, start_char=4)
+        long = _sym("run", "C.run(string)", NodeType.METHOD, "/mod.py", start_line=5, start_char=20)
+        st.add_symbols([short, long])
+        assert st.resolve_definition(_definition(5, 4)) is short
+        assert st.resolve_definition(_definition(5, 20)) is long
+        assert st.resolve_definition(_definition(5, 0)) is long
+        for line in (3, 4, 6, 7):
+            assert st.resolve_definition(_definition(line, 0)) is long
+        assert st.resolve_definition(_definition(8, 0)) is None
+
+    def test_exact_longest_name_but_fuzzy_callable_then_class(self):
+        st = SymbolTable(_make_adapter())
+        variable = _sym("v", "very.long.variable", NodeType.VARIABLE, "/mod.py", start_line=5)
+        cls = _sym("C", "mod.Class", NodeType.CLASS, "/mod.py", start_line=5)
+        method = _sym("m", "C.m", NodeType.METHOD, "/mod.py", start_line=5)
+        st.add_symbols([variable, cls])
+        assert st.resolve_definition(_definition(5, 1)) is cls
+        st.add_symbols([method])
+        assert st.resolve_definition(_definition(5, 0)) is variable
+        assert st.resolve_definition(_definition(5, 1)) is method
+
+    def test_adjacent_line_order_and_location_link_selection_range(self):
+        st = SymbolTable(_make_adapter())
+        before = _sym("before", "long.before", NodeType.FUNCTION, "/mod.py", start_line=4)
+        after = _sym("after", "after", NodeType.FUNCTION, "/mod.py", start_line=6)
+        st.add_symbols([before, after])
+        assert st.resolve_definition(_definition(5, 0)) is after
+        assert (
+            st.resolve_definition(
+                {
+                    "targetUri": "file:///mod.py",
+                    "targetRange": {"start": {"line": 6, "character": 0}},
+                    "targetSelectionRange": {"start": {"line": 4, "character": 0}},
+                }
+            )
+            is before
+        )
+        for invalid in ({}, {"uri": "https://example.com/mod.py"}, {"uri": "file:///mod.py"}):
+            assert st.resolve_definition(invalid) is None
+
+
+def _definition(line: int, character: int) -> dict:
+    return {"uri": "file:///mod.py", "range": {"start": {"line": line, "character": character}}}

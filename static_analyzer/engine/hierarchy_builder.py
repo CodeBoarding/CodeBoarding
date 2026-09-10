@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from pathlib import Path
 
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
@@ -31,7 +32,7 @@ class HierarchyBuilder:
         self._source_inspector = source_inspector
         self._adapter = adapter
 
-    def build(self) -> dict[str, dict]:
+    def build(self, source_files: list[Path] | None = None) -> dict[str, dict]:
         """Build class hierarchy using primary symbols only."""
         t_start = time.monotonic()
         hierarchy: dict[str, dict] = {}
@@ -57,6 +58,8 @@ class HierarchyBuilder:
         logger.info("Hierarchy: %d class symbols to process", len(class_symbols))
         type_hierarchy_supported = False
         for sym in class_symbols:
+            if source_files is not None and sym.file_path not in source_files:
+                continue
             try:
                 items = self._lsp.type_hierarchy_prepare(sym.file_path, sym.start_line, sym.start_char)
                 if not items:
@@ -99,7 +102,11 @@ class HierarchyBuilder:
 
         if not type_hierarchy_supported:
             logger.info("Type hierarchy not supported, inferring from source code")
-            self._infer_hierarchy_from_source(class_symbols, class_names, hierarchy)
+            self._infer_hierarchy_from_source(
+                [s for s in class_symbols if source_files is None or s.file_path in source_files],
+                class_names,
+                hierarchy,
+            )
 
         links = sum(len(h["superclasses"]) for h in hierarchy.values())
         logger.info(
@@ -108,7 +115,11 @@ class HierarchyBuilder:
             links,
             time.monotonic() - t_start,
         )
-        return hierarchy
+        return {
+            sym.qualified_name: hierarchy[sym.qualified_name]
+            for sym in class_symbols
+            if source_files is None or sym.file_path in source_files
+        }
 
     def _resolve_type_hierarchy_item(self, item: dict) -> str | None:
         """Resolve a type hierarchy item to a qualified name in our symbol table."""
