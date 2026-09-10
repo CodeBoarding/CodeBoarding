@@ -694,8 +694,8 @@ class TestPlacementByRole:
             layout |= {f"pkg/feat/{feature}_{part}.py": [f"pkg.feat.{feature}_{part}.X"] for part in ("a", "b", "c")}
         layout |= {f"pkg/other/{index}.py": [f"pkg.other.m{index}.f"] for index in range(3)}
         links = {(f"pkg/feat/{feature}_a.py", "pkg/feat/bus.py"): 3 for feature in ("alpha", "beta", "gamma", "delta")}
-        feature = scope_of(draft_tree(units_from_layout(layout), AffinityGrouper(), 2, links=links), "1")
-        assert feature.rung == FILES and "bus" in names_of(feature)
+        scope = scope_of(draft_tree(units_from_layout(layout), AffinityGrouper(), 2, links=links), "1")
+        assert scope.rung == FILES and "bus" in names_of(scope)
 
 
 class TestBudgetAndLimit:
