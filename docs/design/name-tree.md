@@ -104,7 +104,7 @@ implementations behind one protocol, switchable by configuration (`CODEBOARDING_
 - `KinshipGrouper`: merge candidates sharing their distinctive word (`Ordering` +
   `OrderProcessor`, `Webhooks` + `WebhookClient`, `EventBus` + `EventBusRabbitMQ`).
   Recovers eShop's depth-1 drawing at 1.000 with no model.
-- `AffinityGrouper` (default): kinship, then the graph, in four steps that read the same at
+- `AffinityGrouper` (default): kinship, then the graph, in two steps that read the same at
   every depth. The context hands every grouper, per candidate, its size, the links it
   exchanges with each sibling (call edges plus `INHERITS`/`TYPEREF` reference edges,
   cross-file only) **with their direction**, the stems its units' names are made of, and
@@ -113,27 +113,45 @@ implementations behind one protocol, switchable by configuration (`CODEBOARDING_
   1. *Placement by role*, for every candidate under the scope's floor (5%). Read off the
      direction of the calls: a **hub** (called by 40% of its siblings, three at least) stays;
      an **application** (calls others, called by none) stays; a **project root** stays; one
-     **shared** by three siblings stays; a **helper**, called by one sibling only, goes inside
-     it; shared by exactly two, into the larger; linked to nothing, into the loose files; a
-     hub under three files, into the loose files. Loose files, residues, tests, samples,
+     **shared** by three siblings stays, the hubs among them counted (else in a scope where
+     most siblings are hubs every shared candidate reads as the helper of the few that are
+     not); a **helper**, called by one sibling only, goes inside it; shared by exactly two,
+     into the larger; linked to nothing, into the loose files; a hub under three files, into
+     the loose files. Loose files, residues, tests, samples,
      benches, docs and hubs own no helper: the bus dispatching to a service's handlers does
      not make the service its helper. Why direction: size cannot tell `core/` (3 files, a
      helper of the CLI) from `PaymentProcessor` (6 files, a service); who calls whom can.
   2. *Budget*: while the scope holds more than nine, the smallest candidate joins the
      sibling it exchanges the most links with, never a hub, never a consumer, never past 60%
-     of the scope, and only a sibling carrying at least half of the candidate's links, so a
-     real component is never folded on the two links a helper brought along. Why raw counts
-     and not observed-over-expected: the ratio was measured to send `WebAppComponents` to
-     `HybridApp` on three links over `WebApp` on fifteen, and to fold every service into the
-     event bus once the recovered call sites made the bus everyone's busiest partner; the
-     hub exclusion does what the ratio was meant to do, and does it by name.
-  3. *Limit*: while the scope holds more than fifteen, the two non-hub candidates whose
-     identifier vocabulary (TF-IDF over stems) is closest merge, under the cap.
-  4. *Pool*: still over fifteen, the smallest are one box, "Other files".
-  Measured on fifteen repositories at depth 3: no scope above fifteen anywhere (before: abp
-  31, nopCommerce 51, btcpayserver 27 at the root); eShop 9 of 9 published boxes from 5 of 9;
-  serilog and mermaid no longer forced from 13 to 9. A candidate with no home stays its own
-  box; the fold only ever merges. The persisted rules are still prefixes and words: a fold is
+     of the scope, and only a sibling that carries at least half of the links the candidate
+     could follow. A real component (at the floor) is measured against all its links, so it
+     is never folded on the two links a helper brought along; a small one against its links
+     to siblings able to take it, since the hub it mostly calls cannot; and when that home is
+     small too, the two joined are a new box, so the home must also carry a quarter of all the
+     candidate's links (`PARTNER_SHARE`). A candidate under three units follows its links
+     wherever they lead. Why raw counts and not observed-over-expected: the ratio was measured
+     to send `WebAppComponents` to `HybridApp` on three links over `WebApp` on fifteen, and to
+     fold every service into the event bus once the recovered call sites made the bus
+     everyone's busiest partner; the hub exclusion does what the ratio was meant to do, and
+     does it by name. Why the dominance test: in MassTransit's core (39 directories, 22 of
+     them hubs by the 40% rule) the hub exclusion left sixteen non-hubs as the only legal
+     homes, and the folds that piled them into one 344-file bag carried 1% to 18% of the
+     folded candidate's links; abp's package families (Kafka and RabbitMQ into EventBus,
+     MailKit into Emailing) carry 33% to 79%.
+  The grouper has no limit step: the ladder enforces the limit on every grouper's output
+  (§3.5). The vocabulary merge that used to run past the limit (closest TF-IDF pair) is
+  gone: it merged nothing on the wide scopes it was written for (abp's `framework`: the
+  budget fold took 76 to 15 alone) and, once hubs could join it, snowballed, since a merged
+  group's identifier vector is closer to everything, into a 1,183-file box named
+  "Configuration". Measured on seventeen repositories and the five hold-out graphs at depth 3:
+  no scope above fifteen anywhere (before: abp 31, nopCommerce 51, btcpayserver 27 at the
+  root, then MassTransit's core 23); eShop's tree identical at every depth, 9 of 9 published
+  boxes; abp's depth-2 V against its projects 0.69 to 0.72, the bags named `Ddd.Domain` (845
+  files) and `Features` (317) replaced by a 24% "Other files" beside EventBus,
+  EntityFrameworkCore, BlobStoring and Authorization standing on their own; the roots of 20 of
+  22 repositories identical (hugo 11 to 14, jackson-databind 12 to 14, two named boxes out of a
+  35-file loose bucket). A candidate with no home stays its own box; the fold only ever merges.
+  The ledger of everything tried and why it was kept or discarded is `clustering-ledger.md`. The persisted rules are still prefixes and words: a fold is
   one rule with the members' prefixes and the union of their words, so replay stays graph-free.
 - `TreePlannerAgent` (LLM): runs kinship first and, only when a scope is left with more
   than nine groups, shows the model those groups with their sizes and a few identifiers and
@@ -187,6 +205,15 @@ What no rule of a settled scope claims goes to a fallback-only "Loose files" rul
 scope's own prefix, drafted on the spot; there is no separate "Unassigned" bucket, so a reader
 meets one name for the files a scope holds directly, whether the walk found them or a later
 run added them.
+
+The limit is enforced here too: past fifteen rules, the loose-files rule the unplaced units
+will need counted, `_settle` pools the smallest rules that are not a fallback into one "Other
+files" rule whose parts are the pooled rules, whatever grouper drew them and whatever their
+roles. Why here: the one function every rung's rules pass through is where a guarantee
+belongs. Inside the affinity grouper it bound neither the kinship nor the planner grouper, a
+pool that spared hubs left MassTransit's core at 23 children, and the fallback rule appended
+after it made sixteen. The pool opens at the next depth through the un-merge rung like any
+fold.
 
 The ladder is the same at every depth. The un-merge rung hands a fold's parts back to the
 grouper inside their own scope (kinship skipped, since the parts are already one word apart),
@@ -397,6 +424,18 @@ perfect grouping) is the planner's to reach.
 
 ## 10. Open items
 
+- A directory holding most of a scope stays one box (MassTransit's core at 45%, btcpayserver's
+  app at 66%, LMCache's `v1` at 71%) and opens onto at most fifteen. Opening it was measured
+  two ways at 0.4 to 0.6 of the scope: its directories as the scope's candidates, and its own
+  drafted boxes promoted among its siblings. Neither ships. Raw opening hands a root 20 to 50
+  candidates that the fold then pools; promotion draws a main-like root for MassTransit
+  (14 boxes at 0.45, none under 1%) and lifts abp's depth-1 V from 0.28 to 0.50 at 0.5, but
+  the promoted boxes are folded again under a hub threshold and a kinship ubiquity computed
+  over the new candidate count (btcpayserver's six satellite projects merge by their shared
+  word, MassTransit's root shows two "Other files", `Abstractions` sweeps the test framework
+  in), and 0.45 sits one point above MassTransit's share. The design that would work protects
+  promoted boxes from the parent's fold and merges pools. Not required: a directory that big
+  may be right and splits more evenly inside (Svilen, 11 Sep).
 - Kubernetes-scale repos over-produce root boxes (44–53 against 16 sigs); grouping them
   is the planner's job and its variance must be measured across draws before it ships.
 - Inside a wide flat scope (abp's `framework`, a hundred packages) the rules give package
