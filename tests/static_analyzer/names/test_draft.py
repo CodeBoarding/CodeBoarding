@@ -1,7 +1,6 @@
 """Drafting: the frontier grouped into components, the ladder below them, and the guard."""
 
 import re
-from collections import Counter
 from dataclasses import replace
 
 import pytest
@@ -33,6 +32,7 @@ from static_analyzer.clustering.names.draft import (
     LOOSE_NAME,
     MIN_LINKS,
     MIN_UNITS,
+    PARTNER_SHARE,
     ROLE,
     SEGMENT,
     UNMERGE,
@@ -687,6 +687,21 @@ class TestPlacementByRole:
         links = {("big", "helper"): 6}
         assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))) == 3
 
+    def test_what_three_siblings_call_is_shared_whoever_they_are(self):
+        """Two hubs and one service call ``data``: it is shared, not the service's helper."""
+        services = tuple(f"svc{index}" for index in range(6))
+        sizes = dict.fromkeys(services, 30) | {"bus": 30, "core": 30, "data": 4}
+        links = {(name, hub): 5 for name in services for hub in ("bus", "core")}
+        links |= {("bus", "data"): 2, ("core", "data"): 2, ("svc0", "data"): 2}
+        groups = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))
+        assert members_of(groups)["data"] == ("data",)
+        one_service = {key: count for key, count in links.items() if key[1] != "data"} | {("svc0", "data"): 2}
+        folded = AffinityGrouper().group(boxes(*sizes), context(sizes, one_service, floor=5))
+        assert members_of(folded)["svc0"] == (
+            "svc0",
+            "data",
+        ), "called by one service alone, it is that service's helper"
+
     def test_a_small_hub_or_application_stands_at_the_files_rung(self):
         """A one-file event bus every feature calls is a box, not a loose file."""
         layout = {f"pkg/feat/{name}.py": [f"pkg.feat.{name}.{name.capitalize()}"] for name in ("bus",)}
@@ -706,16 +721,38 @@ class TestBudgetAndLimit:
         groups = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))
         assert len(groups) == len(sizes), "the bus is a hub and two links out of thirty-two are not a home"
 
-    def test_over_the_limit_the_names_vocabulary_merges_the_closest_pair(self):
-        sizes = dict.fromkeys((f"pkg{i}" for i in range(15)), 20) | {"tenants": 20, "tenancy": 20}
-        ctx = context(sizes, {}, floor=5)
-        vocabulary = {key: Counter({key.removeprefix("box:"): 1}) for key in ctx.sizes}
-        vocabulary["box:tenants"] = Counter({"tenant": 3, "manager": 1})
-        vocabulary["box:tenancy"] = Counter({"tenant": 3, "resolver": 1})
-        groups = AffinityGrouper().group(boxes(*sizes), replace(ctx, vocabulary=vocabulary))
-        assert len(groups) == LIMIT
-        merged = next(group for group in groups if "box:tenants" in group.keys)
-        assert set(merged.keys) == {"box:tenants", "box:tenancy"}
+    def test_a_small_candidate_joins_only_a_home_carrying_half_of_the_links_it_could_follow(self):
+        """Both call the hub most; ``helper`` sends most of the rest to one box, ``shared`` spreads it."""
+        big = tuple(f"box{index}" for index in range(9))
+        sizes = dict.fromkeys(big, 20) | {"core": 5, "shared": 4, "helper": 4}
+        links = {(name, "core"): 10 for name in big} | {("shared", "core"): 20, ("helper", "core"): 20}
+        links |= {(name, "shared"): 2 for name in big[:4]}
+        links |= {("box0", "helper"): 6, ("box1", "helper"): 2, ("box2", "helper"): 2}
+        groups = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))
+        assert members_of(groups)["box0"] == ("box0", "helper")
+        assert members_of(groups)["shared"] == ("shared",), "no box carries half of what it could follow"
+
+    def test_two_small_candidates_join_only_on_a_real_share_of_the_links(self):
+        """Kafka sends two fifths of its links to the small event bus and joins it; topology and data
+        send each other a sliver beside hundreds to the hubs, and folding them would start a bag."""
+        hubs = tuple(f"hub{index}" for index in range(6))
+        sizes = dict.fromkeys(hubs, 30) | {"topology": 8, "data": 6, "eventbus": 9, "kafka": 5}
+        links = {(a, b): 10 for a in hubs for b in hubs if a != b}
+        links |= {("topology", hub): 50 for hub in hubs} | {("data", hub): 40 for hub in hubs}
+        links |= {("topology", "data"): 12, ("hub0", "data"): 2, ("hub1", "data"): 2}
+        links |= {("kafka", hub): 5 for hub in hubs} | {("kafka", "eventbus"): 20}
+        links |= {("eventbus", hub): 3 for hub in hubs} | {("hub0", "eventbus"): 2, ("hub1", "eventbus"): 2}
+        assert 12 < PARTNER_SHARE * (6 * 50 + 12) and 20 >= PARTNER_SHARE * (6 * 5 + 20)
+        groups = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=10))
+        assert members_of(groups)["eventbus"] == ("eventbus", "kafka")
+        assert members_of(groups)["topology"] == ("topology",) and members_of(groups)["data"] == ("data",)
+
+    def test_a_candidate_under_three_units_follows_its_links_wherever_they_lead(self):
+        big = tuple(f"box{index}" for index in range(9))
+        sizes = dict.fromkeys(big, 20) | {"core": 5, "shared": 2}
+        links = {(name, "core"): 10 for name in big} | {(name, "shared"): 2 for name in big[:3]}
+        groups = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))
+        assert members_of(groups)["box0"] == ("box0", "shared")
 
     def test_a_consumer_takes_nothing_over_the_budget(self):
         sizes = dict.fromkeys((f"s{i}" for i in range(9)), 20) | {"samples": 20, "printer": 6}
@@ -723,21 +760,43 @@ class TestBudgetAndLimit:
         groups = AffinityGrouper().group(boxes(*sizes), context(sizes, links, floor=5))
         assert len(groups) == len(sizes)
 
-    def test_the_vocabulary_merge_respects_the_cap(self):
-        sizes = dict.fromkeys((f"pkg{i}" for i in range(14)), 2) | {"tenants": 35, "tenancy": 35}
-        ctx = context(sizes, {}, floor=1)
-        vocabulary = {key: Counter({key.removeprefix("box:"): 1}) for key in ctx.sizes}
-        vocabulary["box:tenants"] = Counter({"tenant": 3})
-        vocabulary["box:tenancy"] = Counter({"tenant": 3})
-        groups = AffinityGrouper().group(boxes(*sizes), replace(ctx, vocabulary=vocabulary))
-        assert not any({"box:tenants", "box:tenancy"} <= set(group.keys) for group in groups)
-
-    def test_over_the_limit_with_nothing_to_merge_the_smallest_are_pooled(self):
+    def test_the_grouper_may_return_more_than_the_limit_and_the_ladder_pools_the_smallest(self):
+        """The limit is the ladder's, not the grouper's: eighteen packages sharing no link draw as fifteen."""
         sizes = {f"pkg{i:02d}": 30 - i for i in range(18)}
-        groups = AffinityGrouper().group(boxes(*sizes), context(sizes, {}, floor=5))
-        assert len(groups) == LIMIT
-        pooled = next(group for group in groups if group.name == OTHER_NAME)
-        assert set(pooled.keys) == {f"box:pkg{i}" for i in (14, 15, 16, 17)}
+        assert len(AffinityGrouper().group(boxes(*sizes), context(sizes, {}, floor=5))) == 18
+        layout: dict[str, list[str]] = {}
+        for index in range(18):
+            layout |= project(f"Pkg{index:02d}", 30 - index)
+        root = scope_of(draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 1), ROOT_SCOPE_ID)
+        assert len(root.rules) == LIMIT
+        pooled = next(rule for rule in root.rules if rule.name == OTHER_NAME)
+        assert sorted(part.name for part in pooled.parts) == [f"Pkg{index}" for index in (14, 15, 16, 17)]
+
+    def test_over_the_limit_the_pool_takes_the_smallest_hubs_too(self):
+        """Sixteen packages call two three-file hubs: the pool takes the hubs and the two smallest packages."""
+        layout: dict[str, list[str]] = {}
+        for index in range(16):
+            layout |= project(f"Pkg{index:02d}", 20 + index)
+        layout |= project("Bus", 3) | project("Log", 3)
+        links = {
+            (f"src/Pkg{index:02d}//Pkg{index:02d}Type0.cs", f"src/{hub}//{hub}Type0.cs"): 3
+            for index in range(16)
+            for hub in ("Bus", "Log")
+        }
+        spec = draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 1, links=links)
+        root = scope_of(spec, ROOT_SCOPE_ID)
+        assert len(root.rules) == LIMIT
+        pooled = next(rule for rule in root.rules if rule.name == OTHER_NAME)
+        assert sorted(part.name for part in pooled.parts) == ["Bus", "Log", "Pkg00", "Pkg01"]
+
+    def test_the_pool_leaves_room_for_the_loose_files(self):
+        """Sixteen packages plus a root-level file: fourteen boxes, the pool and the loose files make fifteen."""
+        layout: dict[str, list[str]] = {"src/Program.cs": ["Program"]}
+        for index in range(16):
+            layout |= project(f"Pkg{index:02d}", 30 + index)
+        root = scope_of(draft_tree(units_from_layout(layout, "csharp"), AffinityGrouper(), 1), ROOT_SCOPE_ID)
+        assert len(root.rules) == LIMIT
+        assert [rule.name for rule in root.rules if rule.is_fallback_only] == ["Loose files in src"]
 
 
 class TestGroupingContractErrors:
