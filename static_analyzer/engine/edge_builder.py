@@ -1,8 +1,9 @@
 """Edge building strategies for call-graph construction.
 
-Two strategies are provided:
-- build_edges_via_references: default, used by Python/TS/Go/PHP adapters
-- build_edges_via_definitions: used by Java (JDTLS) where references are too slow
+- build_edges_via_definitions: tree-sitter finds the call sites and the server answers
+  ``textDocument/definition`` at each. Used by Java, C#, Python, TypeScript and JavaScript.
+- build_edges_via_references: every declaration asks ``textDocument/references``. Still the
+  default for the adapters not yet moved across.
 """
 
 from __future__ import annotations

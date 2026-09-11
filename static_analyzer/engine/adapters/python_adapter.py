@@ -5,6 +5,7 @@ from __future__ import annotations
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_constants import EdgeStrategy
 
 
 class PythonAdapter(LanguageAdapter):
@@ -24,6 +25,14 @@ class PythonAdapter(LanguageAdapter):
     @property
     def language_id(self) -> str:
         return "python"
+
+    @property
+    def edge_strategy(self) -> EdgeStrategy:
+        return EdgeStrategy.DEFINITIONS
+
+    @property
+    def resolves_method_groups(self) -> bool:
+        return True
 
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         return {

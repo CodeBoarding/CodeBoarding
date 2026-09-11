@@ -72,7 +72,7 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v9: a call into a project of another solution root is an edge.
 # v10: every name is spelled from the repository root; C# keeps ``src`` and Java its source root.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v10"
+_TAG_VERSION = "v11"
 
 
 class StaticAnalysisCache:

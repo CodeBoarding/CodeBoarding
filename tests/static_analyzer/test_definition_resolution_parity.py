@@ -43,17 +43,18 @@ DECLARATIONS = [
     ("m.solo", NodeType.FUNCTION, 12, 4, 13),
 ]
 
-# Positions a server can answer with, and the declaration each must name.
+# Positions a server can answer with, the declaration each must name, and the nodes a call
+# there reaches -- the declaration plus, by the definitions convention, the class holding it.
 CASES = [
-    ((0, 4), "m.head"),  # exact
-    ((7, 8), "m.Box.hold"),  # exact, inside a class
-    ((7, 20), "m.Box.hold"),  # on the declaration's line, past its name
-    ((6, 10), "m.Box"),  # on the class line, past its name
-    ((1, 4), ""),  # a parameter line
-    ((3, 11), ""),  # a body line
-    ((11, 4), "m.solo"),  # the overload signature line, by the name written there
-    ((6, 0), ""),  # before every declaration on the line
-    ((5, 0), ""),  # a blank line
+    ((0, 4), "m.head", ["m.head"]),  # exact
+    ((7, 8), "m.Box.hold", ["m.Box.hold", "m.Box"]),  # exact, inside a class
+    ((7, 20), "m.Box.hold", ["m.Box.hold", "m.Box"]),  # on the declaration's line, past its name
+    ((6, 10), "m.Box", ["m.Box"]),  # on the class line, past its name
+    ((1, 4), "", []),  # a parameter line
+    ((3, 11), "", []),  # a body line
+    ((11, 4), "m.solo", ["m.solo"]),  # the overload signature line, by the name written there
+    ((6, 0), "", []),  # before every declaration on the line
+    ((5, 0), "", []),  # a blank line
 ]
 
 
@@ -87,13 +88,15 @@ def _graph_index(module: Path) -> GraphIndex:
     return GraphIndex(graph, SourceInspector())
 
 
-@pytest.mark.parametrize("position,expected", CASES)
-def test_both_resolvers_name_the_same_declaration(module: Path, position: tuple[int, int], expected: str) -> None:
+@pytest.mark.parametrize("position,declaration,targets", CASES)
+def test_both_resolvers_name_the_same_declaration(
+    module: Path, position: tuple[int, int], declaration: str, targets: list[str]
+) -> None:
     line, character = position
     definition = {"uri": module.as_uri(), "range": {"start": {"line": line, "character": character}}}
 
     symbol = _symbol_index(module).resolve(definition)
     nodes = targets_for(_graph_index(module), str(module), line, character, CALL, PythonAdapter())
 
-    assert (symbol.qualified_name if symbol else "") == expected
-    assert [node.fully_qualified_name for node in nodes] == ([expected] if expected else [])
+    assert (symbol.qualified_name if symbol else "") == declaration
+    assert [node.fully_qualified_name for node in nodes] == targets
