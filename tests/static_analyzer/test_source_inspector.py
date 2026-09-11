@@ -818,6 +818,40 @@ class TestJsxElementSites:
         assert (2, 16) not in positions  # onClick, the attribute name
 
 
+class TestOptionalChaining:
+    def test_a_php_nullsafe_member_call_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "app.php"
+        f.write_text("<?php\nfunction label(?Task $t): string {\n    return $t?->getLabel() ?? 'none';\n}\n")
+        si = SourceInspector()
+
+        assert (3, 17) in _positions(si.find_call_sites(f))
+
+    def test_typescript_optional_chaining_needs_no_entry_of_its_own(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("export function label(t?: Task) {\n    return t?.getLabel();\n}\n")
+        si = SourceInspector()
+
+        assert (2, 15) in _positions(si.find_call_sites(f))
+
+
+class TestMacroInvocation:
+    def test_a_rust_macro_invocation_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "app.rs"
+        f.write_text('fn run() {\n    debug!("x {}", 1);\n}\n')
+        si = SourceInspector()
+
+        assert (2, 5) in _positions(si.find_call_sites(f))
+
+    def test_a_scoped_macro_resolves_to_its_last_segment(self, tmp_path: Path):
+        f = tmp_path / "app.rs"
+        f.write_text("fn run() {\n    crate::macros::ok!(2);\n}\n")
+        si = SourceInspector()
+        positions = _positions(si.find_call_sites(f))
+
+        assert (2, 20) in positions  # ok
+        assert (2, 12) not in positions  # macros, the module it hangs off
+
+
 class TestDecoratorSites:
     def test_a_bare_python_decorator_is_a_call_site(self, tmp_path: Path):
         f = tmp_path / "app.py"

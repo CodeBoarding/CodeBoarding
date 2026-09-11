@@ -56,6 +56,7 @@ _CALL_NODE_TYPES = frozenset(
         "call_expression",
         "function_call_expression",
         "member_call_expression",
+        "nullsafe_member_call_expression",
         "scoped_call_expression",
         "method_invocation",
         "invocation_expression",
@@ -74,6 +75,8 @@ _OBJECT_INITIALIZER_NODE_TYPES = frozenset({"assignment_expression"})
 # Loops whose ``right`` field is a value whose type gets enumerated.
 _ITERATION_NODE_TYPES = frozenset({"foreach_statement", "for_each_statement", "enhanced_for_statement"})
 _METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference"})
+# Expanding a macro runs its body, and the module declaring it is a real dependency.
+_MACRO_INVOCATION_NODE_TYPES = frozenset({"macro_invocation"})
 # Rendering an element runs its component; the closing tag is the same element named twice.
 _JSX_ELEMENT_NODE_TYPES = frozenset({"jsx_opening_element", "jsx_self_closing_element"})
 # Applying a decorator calls it. ``@cache(...)`` is already a call node, so only a bare
@@ -115,6 +118,8 @@ _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
 _ARGUMENT_NODE_TYPES = frozenset({"argument"})
+# An argument that carries its parameter's name beside its value.
+_LABELLED_ARGUMENT_NODE_TYPES = frozenset({"keyword_argument"})
 _DECLARATOR_NODE_TYPES = frozenset({"variable_declarator"})
 _VALUE_BODY_NODE_TYPES = frozenset({"return_statement", "arrow_expression_clause"})
 _NAME_SHAPED_NODE_TYPES = frozenset({"identifier", "member_access_expression", "generic_name", "qualified_name"})
@@ -537,9 +542,9 @@ class SourceInspector:
 
     @staticmethod
     def _argument_value(argument: TreeSitterNode) -> TreeSitterNode:
-        value = argument.child_by_field_name("value")
-        if value is not None:
-            return value
+        """A labelled argument carries its value beside the label; anything else is the value."""
+        if argument.type in _LABELLED_ARGUMENT_NODE_TYPES:
+            return argument.child_by_field_name("value") or argument
         if argument.type in _ARGUMENT_NODE_TYPES and argument.named_children:
             return argument.named_children[-1]
         return argument
@@ -707,6 +712,8 @@ class SourceInspector:
             return next((child for child in node.children if child.type == "new"), None)
         if node.type in _METHOD_REFERENCE_NODE_TYPES:
             return self._last_named_child_of_type(node, _NAME_NODE_TYPES)
+        if node.type in _MACRO_INVOCATION_NODE_TYPES:
+            return self._select_query_node(node.child_by_field_name("macro"))
         if node.type in _JSX_ELEMENT_NODE_TYPES:
             return self._select_query_node(node.child_by_field_name("name"))
         if node.type in _DECORATOR_NODE_TYPES:

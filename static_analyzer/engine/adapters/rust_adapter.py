@@ -10,6 +10,7 @@ from pathlib import Path
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.lsp_client import LSPClient
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,14 @@ class RustAdapter(LanguageAdapter):
     @property
     def language_id(self) -> str:
         return "rust"
+
+    @property
+    def edge_strategy(self) -> EdgeStrategy:
+        return EdgeStrategy.DEFINITIONS
+
+    @property
+    def resolves_method_groups(self) -> bool:
+        return True
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
         """Fail fast if cargo is missing.
