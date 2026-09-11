@@ -7,13 +7,12 @@ import time
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_definitions, build_edges_via_references
+from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_definitions
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE, EdgeStrategy
-from static_analyzer.engine.lsp_recycler import LSPRecycler
+from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
@@ -30,15 +29,12 @@ class CallGraphBuilder:
         adapter: LanguageAdapter,
         project_root: Path,
         repository_path: Path,
-        memory_budget_bytes: int = 0,
     ) -> None:
         self._lsp = lsp_client
         self._adapter = adapter
         self._root = project_root.resolve()
         self._repository = repository_path.resolve()
         """Names are spelled from here, whichever nested solution or project the server was started on."""
-        # 0 means "one server at a time", so the recycler uses the whole allowance.
-        self._memory_budget_bytes = memory_budget_bytes
 
         self._symbol_table = SymbolTable(adapter)
         self._source_inspector = SourceInspector()
@@ -67,10 +63,8 @@ class CallGraphBuilder:
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
-        ctx = EdgeBuildContext(
-            self._lsp, self._symbol_table, self._source_inspector, recycler=self._build_recycler(source_files)
-        )
-        edge_set = self._build_edges(ctx, source_files)
+        ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
+        edge_set = build_edges_via_definitions(self._adapter, ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
@@ -127,23 +121,6 @@ class CallGraphBuilder:
             source_files=abs_files,
             external_call_sites=ctx.external_call_sites,
         )
-
-    def _build_recycler(self, source_files: list[Path]) -> LSPRecycler | None:
-        """A recycler for servers whose memory the references phase would otherwise grow without bound."""
-        if not self._adapter.workspace_owns_documents or not source_files:
-            return None
-        return LSPRecycler(
-            self._lsp,
-            source_files[0],
-            self._probe_timeout(len(source_files)),
-            budget_bytes=self._memory_budget_bytes,
-        )
-
-    def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> EdgeMap:
-        """Dispatch to the edge-building strategy specified by the adapter."""
-        if self._adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
-            return build_edges_via_definitions(self._adapter, ctx, source_files)
-        return build_edges_via_references(self._adapter, ctx, source_files)
 
     def _probe_timeout(self, total_files: int) -> int:
         """Seconds to allow a synchronization probe to block on LSP indexing.
@@ -229,8 +206,6 @@ class CallGraphBuilder:
 
         logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
 
-        self._warmup_references(source_files)
-
     def _bulk_did_open(self, source_files: list[Path]) -> None:
         """Phase 0: Send didOpen for all files so the LSP server can index them."""
         total = len(source_files)
@@ -258,23 +233,6 @@ class CallGraphBuilder:
             len(probe_result) if probe_result else 0,
         )
         return probe_result
-
-    def _warmup_references(self, source_files: list[Path]) -> None:
-        """Trigger the LSP server's cross-reference index build.
-
-        Sends a single references request with a long timeout so that the
-        server builds its index before we send batched queries in Phase 2.
-        Only relevant for adapters that use references-based edge building.
-        """
-        if not source_files or self._adapter.references_per_query_timeout <= 0:
-            return
-        logger.info("Phase 1.5 (warmup): triggering LSP index build with a single references request...")
-        t_warmup = time.monotonic()
-        try:
-            self._lsp.references(source_files[0], 0, 0)
-        except Exception as e:
-            logger.warning("Warmup probe failed (non-fatal): %s", e)
-        logger.info("Phase 1.5 (warmup): completed in %.1fs", time.monotonic() - t_warmup)
 
     def _postprocess_edges(self, edge_set: EdgeMap) -> EdgeMap:
         """Deduplicate edges by definition location and expand constructor edges.

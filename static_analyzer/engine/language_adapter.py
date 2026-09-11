@@ -14,7 +14,6 @@ from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
-    EdgeStrategy,
 )
 from utils import get_config
 
@@ -23,11 +22,6 @@ logger = logging.getLogger(__name__)
 
 class LanguageAdapter(ABC):
     """Strategy interface for language-specific behavior."""
-
-    @property
-    def include_references_on_declaration_line(self) -> bool:
-        """Whether declaration-line references are known to be call edges."""
-        return False
 
     @property
     @abstractmethod
@@ -208,11 +202,8 @@ class LanguageAdapter(ABC):
     def workspace_owns_documents(self) -> bool:
         """If True, the server reads documents from the project, not from our didOpen.
 
-        Such a server answers position queries for files we never opened, which
-        makes a restarted process equivalent to the one it replaced — so the
-        references phase may recycle it to bound memory (see ``LSPRecycler``).
-        Servers that only know the documents we pushed must not be recycled:
-        they would come back empty.
+        Such a server answers position queries for files we never opened, so symbols
+        can be asked for before the documents are pushed.
         """
         return False
 
@@ -332,18 +323,9 @@ class LanguageAdapter(ABC):
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 
     @property
-    def edge_strategy(self) -> EdgeStrategy:
-        """Edge-building strategy for Phase 2.
-
-        Default is ``REFERENCES``. Override to ``DEFINITIONS`` for
-        languages where references queries are too slow (e.g. Java/JDTLS).
-        """
-        return EdgeStrategy.REFERENCES
-
-    @property
     def resolves_method_groups(self) -> bool:
-        """Whether the definitions strategy should also query bare identifiers
-        passed as call arguments, and keep only callable/class-like targets."""
+        """Whether to query bare identifiers passed as call arguments as well, and keep
+        only the targets that are callable, class-like or a name bound to a function."""
         return False
 
     @property
@@ -398,16 +380,6 @@ class LanguageAdapter(ABC):
         the shared client free of language-specific opt-ins.
         """
         return {}
-
-    @property
-    def references_batch_size(self) -> int:
-        """Max number of references requests to send in a single batch."""
-        return 50
-
-    @property
-    def references_per_query_timeout(self) -> int:
-        """Per-query timeout for batched references. 0 means use the default batch timeout."""
-        return 0
 
     def build_edge_name(
         self,

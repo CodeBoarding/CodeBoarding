@@ -15,7 +15,6 @@ from static_analyzer.dotnet_sdk import DotnetSdkError, resolve_dotnet_sdk, syste
 from static_analyzer.dotnet_solution import solution_projects
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.source_inspector import SourceInspector
 from tool_registry import (
     TOOL_REGISTRY,
@@ -132,10 +131,6 @@ class CSharpAdapter(LanguageAdapter):
         # segment. Why the root: this one adapter serves every C# engine config, which the
         # bounded pass can run concurrently, and two roots can hold the same file.
         self._files_with_sibling_types: set[tuple[str, str]] = set()
-
-    @property
-    def include_references_on_declaration_line(self) -> bool:
-        return True
 
     def record_document_symbols(self, file_path: Path, symbols: list[dict], project_root: Path) -> None:
         # Discarded as well as added: the same adapter can re-analyse a file after a sibling
@@ -290,13 +285,6 @@ class CSharpAdapter(LanguageAdapter):
     def workspace_owns_documents(self) -> bool:
         """csharp-ls answers position queries from the loaded solution, opened or not."""
         return True
-
-    @property
-    def edge_strategy(self) -> EdgeStrategy:
-        """Definition-based edges: on a 3.5k-file workspace ~5% of csharp-ls
-        references queries take 60-100s (some never return), so a
-        references-based phase 2 never finishes."""
-        return EdgeStrategy.DEFINITIONS
 
     @property
     def resolves_method_groups(self) -> bool:

@@ -1056,7 +1056,6 @@ class StaticAnalyzer:
             adapter,
             project_path,
             self.repository_path,
-            memory_budget_bytes=per_engine_memory_budget(max(max_concurrent_engines(), 1)),
         )
         engine_result = builder.build(source_files)
         logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")

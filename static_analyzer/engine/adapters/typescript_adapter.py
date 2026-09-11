@@ -6,7 +6,6 @@ from pathlib import Path
 
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_constants import EdgeStrategy
 
 
 class TypeScriptAdapter(LanguageAdapter):
@@ -30,10 +29,6 @@ class TypeScriptAdapter(LanguageAdapter):
     @property
     def language_id(self) -> str:
         return "typescript"
-
-    @property
-    def edge_strategy(self) -> EdgeStrategy:
-        return EdgeStrategy.DEFINITIONS
 
     @property
     def resolves_method_groups(self) -> bool:

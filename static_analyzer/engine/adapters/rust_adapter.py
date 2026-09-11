@@ -10,7 +10,6 @@ from pathlib import Path
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.lsp_client import LSPClient
 
 logger = logging.getLogger(__name__)
@@ -86,12 +85,6 @@ class RustAdapter(LanguageAdapter):
         return Language.RUST
 
     @property
-    def references_per_query_timeout(self) -> int:
-        """Non-zero gates the Phase-1.5 warmup probe so rust-analyzer builds
-        its ``ide_db::search`` index before Phase 2 fans out queries."""
-        return 60
-
-    @property
     def wait_for_workspace_ready(self) -> bool:
         """Block on ``experimental/serverStatus`` quiescent before Phase 2.
 
@@ -137,10 +130,6 @@ class RustAdapter(LanguageAdapter):
     @property
     def language_id(self) -> str:
         return "rust"
-
-    @property
-    def edge_strategy(self) -> EdgeStrategy:
-        return EdgeStrategy.DEFINITIONS
 
     @property
     def resolves_method_groups(self) -> bool:

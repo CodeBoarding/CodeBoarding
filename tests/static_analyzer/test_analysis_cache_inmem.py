@@ -19,11 +19,9 @@ from static_analyzer.node import Node
 from static_analyzer.graph_definitions import GraphIndex, definition_nodes
 from static_analyzer.incremental_orchestrator import (
     _add_outbound_edges_from_changed_files,
-    _restore_cross_boundary_edges,
     update_cfg_for_changed_files,
 )
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
-from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.source_inspector import SourceInspector
 from utils import CODEBOARDING_DIR_NAME
 
@@ -362,59 +360,6 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             ["pkg.target.Target.__construct", "pkg.target.Target"],
         )
 
-    def test_cached_outbound_edge_is_restored_from_live_non_call_reference(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            changed_file = Path(temp_dir) / "changed.py"
-            target_file = Path(temp_dir) / "target.py"
-            changed_file.write_text("def convert():\n    return result.text_content\n", encoding="utf-8")
-            target_file.write_text("class Result:\n    def text_content(self): ...\n", encoding="utf-8")
-            source = Node(
-                fully_qualified_name="changed.convert",
-                node_type=NodeType.FUNCTION,
-                file_path=str(changed_file),
-                line_start=1,
-                line_end=2,
-            )
-            target = Node(
-                fully_qualified_name="target.Result.text_content",
-                node_type=NodeType.METHOD,
-                file_path=str(target_file),
-                line_start=2,
-                line_end=2,
-                col_start=4,
-            )
-            call_graph = CallGraph(language="python")
-            call_graph.add_node(source)
-            call_graph.add_node(target)
-            engine_client = MagicMock()
-            engine_client.references.return_value = [
-                {
-                    "uri": changed_file.as_uri(),
-                    "range": {
-                        "start": {"line": 1, "character": 11},
-                        "end": {"line": 1, "character": 30},
-                    },
-                }
-            ]
-            adapter = MagicMock()
-            adapter.language_id = "python"
-            adapter.is_class_like.return_value = False
-
-            _restore_cross_boundary_edges(
-                GraphIndex(call_graph, SourceInspector()),
-                [(source.fully_qualified_name, target.fully_qualified_name, source, target, [])],
-                {str(changed_file)},
-                adapter,
-                engine_client,
-                SourceInspector(),
-            )
-
-            self.assertEqual(len(call_graph.edges), 1)
-            self.assertEqual(
-                call_graph.edges[0].call_sites,
-                [{"file": str(changed_file), "line": 2, "column": 12}],
-            )
-
 
 if __name__ == "__main__":
     unittest.main()
@@ -452,7 +397,6 @@ class TestWarmStartCallShapes:
     def _typescript_adapter(self) -> MagicMock:
         adapter = MagicMock()
         adapter.language_id = "typescript"
-        adapter.edge_strategy = EdgeStrategy.DEFINITIONS
         adapter.resolves_method_groups = True
         adapter.resolves_collection_initializers = False
         adapter.resolves_iterated_types = False

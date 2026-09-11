@@ -339,64 +339,6 @@ class LSPClient:
             return result
         return []
 
-    def references(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
-        """Find all references to the symbol at the given position."""
-        result = self._send_request(
-            "textDocument/references",
-            {
-                "textDocument": {"uri": file_path.resolve().as_uri()},
-                "position": {"line": line, "character": character},
-                "context": {"includeDeclaration": True},
-            },
-            timeout=timeout,
-        )
-        if isinstance(result, list):
-            return result
-        return []
-
-    def send_references_batch(
-        self, queries: list[tuple[Path, int, int]], per_query_timeout: int = 0
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple references requests without waiting between them.
-
-        Returns ``(results, error_indices)`` where *results* is a list of
-        result lists (one per query, same order) and *error_indices* is a set
-        of 0-based indices whose LSP responses were errors.
-
-        Args:
-            queries: List of (file_path, line, character) tuples.
-            per_query_timeout: Per-query timeout in seconds. When > 0, the batch
-                deadline is ``per_query_timeout * len(queries)`` instead of the
-                default timeout. Use this for servers that serialize requests
-                internally (e.g. JDTLS) where total time scales linearly.
-        """
-        timeout = per_query_timeout * len(queries) if per_query_timeout > 0 else None
-
-        def build_params(file_path: Path, line: int, character: int) -> dict:
-            return {
-                "textDocument": {"uri": file_path.resolve().as_uri()},
-                "position": {"line": line, "character": character},
-                "context": {"includeDeclaration": True},
-            }
-
-        return self._send_batch("textDocument/references", queries, build_params, timeout=timeout)
-
-    def definition(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
-        """Find the definition of the symbol at the given position."""
-        result = self._send_request(
-            "textDocument/definition",
-            {
-                "textDocument": {"uri": file_path.resolve().as_uri()},
-                "position": {"line": line, "character": character},
-            },
-            timeout=timeout,
-        )
-        if isinstance(result, list):
-            return result
-        if isinstance(result, dict):
-            return [result]
-        return []
-
     def send_definition_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
     ) -> tuple[list[list[dict]], set[int]]:

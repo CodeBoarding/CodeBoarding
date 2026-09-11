@@ -50,50 +50,6 @@ class TestGetSourceLine:
         assert si.get_source_line(f, 0) == "cached"
 
 
-class TestIsInvocation:
-    def test_direct_call(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    foo(bar)\n")
-        si = SourceInspector()
-        assert si.is_invocation(f, 0, 7) is True  # after "foo"
-
-    def test_not_a_call(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    x = foo\n")
-        si = SourceInspector()
-        assert si.is_invocation(f, 0, 11) is False
-
-    def test_generic_instantiation(self, tmp_path: Path):
-        f = tmp_path / "test.java"
-        f.write_text("    new List<String>()\n")
-        si = SourceInspector()
-        # After "List" at char 8, rest is "<String>()"
-        assert si.is_invocation(f, 0, 12) is True
-
-    def test_conservative_on_missing_file(self):
-        si = SourceInspector()
-        assert si.is_invocation(Path("/nonexistent.py"), 0, 0) is True
-
-    def test_call_on_next_line(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    foo\n    (bar)\n")
-        si = SourceInspector()
-        # This is not a valid Python call expression, so tree-sitter does not treat it as an invocation.
-        assert si.is_invocation(f, 0, 7) is False
-
-    def test_no_call_on_next_line(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    foo\n    bar\n")
-        si = SourceInspector()
-        assert si.is_invocation(f, 0, 7) is False
-
-    def test_end_of_file(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    foo")
-        si = SourceInspector()
-        assert si.is_invocation(f, 0, 7) is False
-
-
 class TestIsConstructionSite:
     """Which call sites run a constructor, for constructor expansion."""
 
@@ -144,149 +100,6 @@ class TestIsConstructionSite:
     def test_conservative_on_missing_file(self):
         site = CallSite.from_lsp_position(file="/nonexistent.java", line=0, column=0)
         assert SourceInspector().is_construction_site(site) is False
-
-
-class TestIsCallableUsage:
-    def test_direct_invocation(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    func(args)\n")
-        si = SourceInspector()
-        assert si.is_callable_usage(f, 0, 4, 8) is True
-
-    def test_return_value(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    return handler\n")
-        si = SourceInspector()
-        assert si.is_callable_usage(f, 0, 11, 18) is True
-
-    def test_callback_argument(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    filter(func)\n")
-        si = SourceInspector()
-        # "func" starts at 11, ends at 15; preceded by unmatched "("
-        assert si.is_callable_usage(f, 0, 11, 15) is True
-
-    def test_plain_reference(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    x = func\n")
-        si = SourceInspector()
-        assert si.is_callable_usage(f, 0, 8, 12) is False
-
-    def test_conservative_on_missing_file(self):
-        si = SourceInspector()
-        assert si.is_callable_usage(Path("/nonexistent.py"), 0, 0, 5) is True
-
-
-class TestIsReferenceInDeclarationBody:
-    def test_object_literal_is_not_a_declaration_body(self, tmp_path: Path):
-        f = tmp_path / "Caller.ts"
-        source = "const caller = { run: target };\n"
-        f.write_text(source)
-        target_start = source.index("target")
-
-        assert (
-            SourceInspector().is_reference_in_declaration_body(
-                f,
-                0,
-                source.index("caller"),
-                0,
-                target_start,
-                target_start + len("target"),
-            )
-            is False
-        )
-
-    def test_reference_in_block_body(self, tmp_path: Path):
-        f = tmp_path / "Caller.cs"
-        source = "class Caller { string Call() { return Target(); } }\n"
-        f.write_text(source)
-        start = source.index("Target")
-
-        declaration_start = source.index("Call")
-
-        assert (
-            SourceInspector().is_reference_in_declaration_body(
-                f,
-                0,
-                declaration_start,
-                0,
-                start,
-                start + len("Target"),
-            )
-            is True
-        )
-
-    def test_expression_body_requires_opt_in(self, tmp_path: Path):
-        f = tmp_path / "Caller.cs"
-        source = "class Caller { string Call() => Target(); }\n"
-        f.write_text(source)
-        start = source.index("Target")
-        si = SourceInspector()
-        declaration_start = source.index("Call")
-
-        assert (
-            si.is_reference_in_declaration_body(
-                f,
-                0,
-                declaration_start,
-                0,
-                start,
-                start + len("Target"),
-            )
-            is False
-        )
-        assert (
-            si.is_reference_in_declaration_body(
-                f,
-                0,
-                declaration_start,
-                0,
-                start,
-                start + len("Target"),
-                include_expression_body=True,
-            )
-            is True
-        )
-
-    def test_constructor_initializer_is_outside_body(self, tmp_path: Path):
-        f = tmp_path / "Cat.cs"
-        source = "class Cat : Animal { public Cat(string name) : base(name) {} }\n"
-        f.write_text(source)
-        start = source.index("base")
-        declaration_start = source.index("Cat(string")
-
-        assert (
-            SourceInspector().is_reference_in_declaration_body(
-                f,
-                0,
-                declaration_start,
-                0,
-                start,
-                start + len("base"),
-                include_expression_body=True,
-            )
-            is False
-        )
-
-    def test_outer_block_does_not_count_as_local_declaration_body(self, tmp_path: Path):
-        f = tmp_path / "Outer.cs"
-        source = "class Outer { void Body() { void Local(Target value) {} } }\n"
-        f.write_text(source)
-        declaration_start = source.index("Local")
-        ref_start = source.index("Target")
-
-        assert (
-            SourceInspector().is_reference_in_declaration_body(
-                f,
-                0,
-                declaration_start,
-                0,
-                ref_start,
-                ref_start + len("Target"),
-                include_expression_body=True,
-            )
-            is False
-        )
 
 
 class TestFindCallSites:
@@ -502,7 +315,9 @@ class TestTreeCacheEviction:
 
         for f in files:
             assert evicting.find_call_sites(f) == unbounded.find_call_sites(f)
-            assert evicting.is_invocation(f, 1, 11) == unbounded.is_invocation(f, 1, 11)
+            assert evicting.is_construction_site(CallSite(str(f), 2, 12)) == unbounded.is_construction_site(
+                CallSite(str(f), 2, 12)
+            )
             assert evicting.get_file_lines(f) == unbounded.get_file_lines(f)
 
         assert evicting.cache_stats()["trees_evicted"] > 0

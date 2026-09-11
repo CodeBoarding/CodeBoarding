@@ -11,7 +11,6 @@ from pathlib import Path
 from repo_utils.ignore import RepoIgnoreManager, _ALWAYS_IGNORED_DIRS
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_constants import EdgeStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -104,10 +103,6 @@ class GoAdapter(LanguageAdapter):
     @property
     def language_id(self) -> str:
         return "go"
-
-    @property
-    def edge_strategy(self) -> EdgeStrategy:
-        return EdgeStrategy.DEFINITIONS
 
     @property
     def resolves_method_groups(self) -> bool:
@@ -209,16 +204,6 @@ class GoAdapter(LanguageAdapter):
         Avoids OOM errors on large codebases, especially in constrained environments like CI.
         """
         return {"GOGC": "50"}
-
-    @property
-    def references_batch_size(self) -> int:
-        """Limit concurrent gopls reference searches to avoid request backlogs."""
-        return 10
-
-    @property
-    def references_per_query_timeout(self) -> int:
-        """Give each serialized gopls reference search a modest time budget."""
-        return 10
 
     def discover_source_files(
         self, project_root: Path, ignore_manager: RepoIgnoreManager, nested_roots: Sequence[Path] = ()

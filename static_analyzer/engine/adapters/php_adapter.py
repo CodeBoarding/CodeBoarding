@@ -8,7 +8,6 @@ from pathlib import Path
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_constants import EdgeStrategy
 
 
 def _env_int(name: str, default: int) -> int:
@@ -35,16 +34,6 @@ class PHPAdapter(LanguageAdapter):
         return True
 
     @property
-    def references_batch_size(self) -> int:
-        """Lower batch concurrency to avoid overloading Intelephense on big projects."""
-        return _env_int("CODEBOARDING_PHP_REFERENCES_BATCH_SIZE", 10)
-
-    @property
-    def references_per_query_timeout(self) -> int:
-        """Keep reference queries bounded to avoid long request tails."""
-        return _env_int("CODEBOARDING_PHP_REFERENCES_QUERY_TIMEOUT", 10)
-
-    @property
     def language(self) -> str:
         return "PHP"
 
@@ -59,10 +48,6 @@ class PHPAdapter(LanguageAdapter):
     @property
     def language_id(self) -> str:
         return "php"
-
-    @property
-    def edge_strategy(self) -> EdgeStrategy:
-        return EdgeStrategy.DEFINITIONS
 
     @property
     def resolves_method_groups(self) -> bool:

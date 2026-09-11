@@ -14,7 +14,6 @@ from pathlib import Path
 
 from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location
 from static_analyzer.internal_references import parent_qualified_name, simple_name
@@ -239,7 +238,7 @@ def targets_for(
     base member dispatches to its overrides; a construction reaches the constructors.
     """
     call_graph = index.call_graph
-    include_parent = adapter.edge_strategy == EdgeStrategy.DEFINITIONS and kind != ITERATED
+    include_parent = kind != ITERATED
     resolved = nodes_at_location(index, file_path, line, character, include_parent)
     if kind == METHOD_GROUP and resolved:
         # A probe resolves to whatever declaration the name denotes; only a callable or a type

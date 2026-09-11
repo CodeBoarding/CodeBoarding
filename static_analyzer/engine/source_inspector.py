@@ -195,18 +195,6 @@ _DIRECTIVE_LINE = re.compile(rb"(?m)^[ \t]*#[^\n]*")
 # An identifier as every supported grammar spells one, PHP's ``$name`` included.
 _IDENTIFIER = re.compile(r"(?![0-9])[\w$]+")
 _PREPROCESSOR_SUFFIXES = frozenset({".cs"})
-_DECLARATION_BLOCK_NODE_TYPES = frozenset({"block", "compound_statement", "statement_block"})
-_EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
-# Fields holding a declaration's body or initialiser rather than its signature.
-# Why only TS/JS: a one-line `onClick={() => f()}` puts the call on its own declaration's
-# line, out of the block-node test's reach. Python's `def g(x=f())` occupies `value` too but
-# the enclosing scope evaluates it, so the rule stays off the other grammars.
-_BODY_FIELD_NAMES = ("body", "value")
-BODY_DECLARATION_LANGUAGES = (Language.TYPESCRIPT, Language.JAVASCRIPT)
-_BODY_FIELD_SUFFIXES = frozenset(
-    suffix for language in BODY_DECLARATION_LANGUAGES for suffix in LANGUAGE_EXTENSIONS[language]
-)
-
 # Ceiling on retained tree-sitter nodes. Trees are by far the largest thing this
 # class touches — retaining one per file cost 2.2GB on a 5k-file C# repo — and
 # the common path needs each exactly once, to build that file's usage index,
@@ -243,8 +231,6 @@ class ReceiverMember:
 
 @dataclass(frozen=True)
 class SourceUsageIndex:
-    invocation_end_positions: set[tuple[int, int]]
-    callable_ranges: set[tuple[int, int, int]]
     construction_start_positions: set[tuple[int, int]]
     function_value_positions: set[tuple[int, int]]
 
@@ -266,7 +252,7 @@ class SourceInspector:
     def cache_stats(self) -> dict[str, int]:
         """Retained per-file cache sizes, for the memory checkpoint log."""
         usage_entries = sum(
-            len(index.invocation_end_positions) + len(index.callable_ranges) + len(index.function_value_positions)
+            len(index.construction_start_positions) + len(index.function_value_positions)
             for index in self._usage_index_cache.values()
         )
         return {
@@ -304,13 +290,6 @@ class SourceInspector:
         match = _IDENTIFIER.match(source, character)
         return match.group(0) if match else ""
 
-    def is_invocation(self, file_path: Path, ref_line: int, ref_end_char: int) -> bool:
-        """Check whether a reference is the target of a call-like AST node."""
-        usage_index = self._usage_index(file_path)
-        if usage_index is None:
-            return True
-        return (ref_line, ref_end_char) in usage_index.invocation_end_positions
-
     def is_construction_site(self, site: CallSite) -> bool:
         """Whether the call at *site* runs a constructor.
 
@@ -322,53 +301,6 @@ class SourceInspector:
         if usage_index is None:
             return False
         return (site.line - 1, site.column - 1) in usage_index.construction_start_positions
-
-    def is_callable_usage(self, file_path: Path, ref_line: int, ref_start_char: int, ref_end_char: int) -> bool:
-        """Check whether a variable/constant reference is used in a callable context."""
-        usage_index = self._usage_index(file_path)
-        if usage_index is None:
-            return True
-        return (ref_line, ref_start_char, ref_end_char) in usage_index.callable_ranges
-
-    def is_reference_in_declaration_body(
-        self,
-        file_path: Path,
-        declaration_line: int,
-        declaration_start_char: int,
-        ref_line: int,
-        ref_start_char: int,
-        ref_end_char: int,
-        *,
-        include_expression_body: bool = False,
-    ) -> bool:
-        """Check whether a reference is structurally inside a declaration body."""
-        parsed = self._parse(file_path)
-        if parsed is None:
-            return False
-
-        body_fields = file_path.suffix in _BODY_FIELD_SUFFIXES
-        passed_a_call = False
-        node = self._smallest_named_node_covering_range(
-            parsed.tree.root_node,
-            ref_line,
-            ref_start_char,
-            ref_end_char,
-        )
-        while node is not None:
-            body_starts_in_declaration = node.start_point.row > declaration_line or (
-                node.start_point.row == declaration_line and node.start_point.column >= declaration_start_char
-            )
-            if body_starts_in_declaration and node.type in _DECLARATION_BLOCK_NODE_TYPES:
-                return True
-            if body_starts_in_declaration and include_expression_body and node.type in _EXPRESSION_BODY_NODE_TYPES:
-                return True
-            if node.type in _CALL_NODE_TYPES or node.type in _CONSTRUCTOR_NODE_TYPES:
-                # The reference is part of a call; an enclosing body or initialiser now counts.
-                passed_a_call = True
-            if body_starts_in_declaration and body_fields and passed_a_call and self._occupies_body_field(node):
-                return True
-            node = node.parent
-        return False
 
     def find_call_sites(self, file_path: Path) -> list[CallSite]:
         """Find definition-query positions for identifiers used at call sites."""
@@ -621,8 +553,6 @@ class SourceInspector:
         if parsed is None:
             return None
 
-        invocation_end_positions: set[tuple[int, int]] = set()
-        callable_ranges: set[tuple[int, int, int]] = set()
         construction_start_positions: set[tuple[int, int]] = set()
         function_value_positions: set[tuple[int, int]] = set()
         for node in self._walk(parsed.tree.root_node):
@@ -631,21 +561,10 @@ class SourceInspector:
                 function_value_positions.add((declared.start_point.row, declared.start_point.column))
 
             target = self._call_target_node(node)
-            if target is not None:
-                invocation_end_positions.add((target.end_point.row, target.end_point.column))
-                callable_ranges.add((target.start_point.row, target.start_point.column, target.end_point.column))
-                if self._runs_a_constructor(node):
-                    construction_start_positions.add((target.start_point.row, target.start_point.column))
-                continue
-
-            if not node.is_named:
-                continue
-            if self._node_is_return_value(node) or self._node_is_call_argument(node):
-                callable_ranges.add((node.start_point.row, node.start_point.column, node.end_point.column))
+            if target is not None and self._runs_a_constructor(node):
+                construction_start_positions.add((target.start_point.row, target.start_point.column))
 
         usage_index = SourceUsageIndex(
-            invocation_end_positions=invocation_end_positions,
-            callable_ranges=callable_ranges,
             construction_start_positions=construction_start_positions,
             function_value_positions=function_value_positions,
         )
@@ -964,39 +883,6 @@ class SourceInspector:
         return [file_symbol] if file_symbol["children"] else []
 
     @staticmethod
-    def _occupies_body_field(node: TreeSitterNode) -> bool:
-        """Whether *node* is its parent's body or initialiser rather than part of its signature."""
-        parent = node.parent
-        if parent is None:
-            return False
-        return any(
-            (child := parent.child_by_field_name(field)) is not None and child.id == node.id
-            for field in _BODY_FIELD_NAMES
-        )
-
-    @staticmethod
-    def _node_is_return_value(target: TreeSitterNode) -> bool:
-        node = target
-        while node.parent is not None:
-            parent = node.parent
-            if parent.type in {"return_statement", "return_statement2"}:
-                return True
-            if parent.type in _CALLABLE_USAGE_ANCESTORS:
-                return False
-            node = parent
-        return False
-
-    def _node_is_call_argument(self, target: TreeSitterNode) -> bool:
-        node = target
-        while node.parent is not None:
-            parent = node.parent
-            if parent.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(parent):
-                return True
-            if self._call_target_node(parent) == target:
-                return False
-            node = parent
-        return False
-
     @staticmethod
     def _parent_is_call_like(node: TreeSitterNode) -> bool:
         parent = node.parent
@@ -1015,23 +901,6 @@ class SourceInspector:
                 if best is None or self._node_size(candidate) < self._node_size(best):
                     best = candidate
             candidates.extend(child for child in candidate.children if self._node_contains_point(child, line, column))
-        return best
-
-    def _smallest_named_node_covering_range(
-        self, node: TreeSitterNode, line: int, start_column: int, end_column: int
-    ) -> TreeSitterNode | None:
-        best: TreeSitterNode | None = None
-        if not self._node_covers_range(node, line, start_column, end_column):
-            return None
-        candidates = [node]
-        while candidates:
-            candidate = candidates.pop()
-            if candidate.is_named:
-                if best is None or self._node_size(candidate) < self._node_size(best):
-                    best = candidate
-            candidates.extend(
-                child for child in candidate.children if self._node_covers_range(child, line, start_column, end_column)
-            )
         return best
 
     @staticmethod

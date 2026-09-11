@@ -5,8 +5,6 @@ for LSP SymbolKind integer values.  This module re-exports it for convenience
 and defines derived groupings (CLASS_LIKE_KINDS, CALLABLE_KINDS).
 """
 
-from enum import StrEnum
-
 from static_analyzer.config import NodeType
 
 CLASS_LIKE_KINDS: set[int] = {
@@ -25,8 +23,8 @@ CALLABLE_KINDS: set[int] = {
 # Batch size for did_open to avoid overwhelming LSP servers
 DID_OPEN_BATCH_SIZE = 50
 
-# Share of RAM the language server may hold before it gets recycled. This
-# leaves room for Python, other language servers, and the operating system.
+# Share of RAM one language server may hold. This leaves room for Python, other
+# language servers, and the operating system.
 MEMORY_BUDGET_FRACTION = 0.4
 MIN_MEMORY_BUDGET = 2 * 1024**3
 MAX_MEMORY_BUDGET = 12 * 1024**3
@@ -34,15 +32,4 @@ MAX_MEMORY_BUDGET = 12 * 1024**3
 # recycles faster than it can index.
 MIN_ENGINE_MEMORY_BUDGET = 1024**3
 
-# Reduce reference-query concurrency before reaching the recycle threshold.
-PRESSURE_FRACTION = 0.5
-PRESSURED_BATCH_DIVISOR = 10
-
 MEMORY_BUDGET_ENV_VAR = "CODEBOARDING_LSP_MEMORY_BUDGET_MB"
-
-
-class EdgeStrategy(StrEnum):
-    """Edge-building strategy selection for Phase 2."""
-
-    REFERENCES = "references"
-    DEFINITIONS = "definitions"

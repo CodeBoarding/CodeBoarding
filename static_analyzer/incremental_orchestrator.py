@@ -3,7 +3,7 @@
 Warm-start flow:
 1. Keep unchanged files from the pkl and invalidate changed/deleted files.
 2. Re-LSP existing changed files and merge their fresh nodes/references back in.
-3. Restore cached cross-boundary edges only when live references still prove them.
+3. Restore cached inbound edges only when a definition query still proves them.
 4. Add new outbound edges by resolving changed-file call sites with definitions.
 5. Keep unchanged-only edges cached and let ``StaticAnalyzer`` persist the new pkl.
 """
@@ -18,15 +18,13 @@ from static_analyzer.analysis_cache import (
     invalidate_files,
     merge_results,
 )
-from static_analyzer.config import NodeType
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.models import CallSite, ExternalCallSite
-from static_analyzer.engine.utils import definition_location, uri_to_path
+from static_analyzer.engine.utils import definition_location
 from static_analyzer.graph_definitions import (
     CALL,
     COLLECTION_INITIALIZER,
@@ -36,7 +34,6 @@ from static_analyzer.graph_definitions import (
     containing_source_node,
     definition_nodes,
     override_nodes,
-    position_inside_node,
     targets_for,
 )
 from static_analyzer.cfg import CallGraph
@@ -142,7 +139,7 @@ def _rebuild_changed_file_edges(
     """
     source_inspector = SourceInspector()
     index = GraphIndex(merged_analysis.call_graph, source_inspector)
-    _restore_cross_boundary_edges(index, invalidated_edges, changed_file_strs, adapter, engine_client, source_inspector)
+    _restore_inbound_edges_via_definitions(index, invalidated_edges, changed_file_strs, adapter, engine_client)
     external = _add_outbound_edges_from_changed_files(
         index,
         changed_source_files,
@@ -154,91 +151,17 @@ def _rebuild_changed_file_edges(
     return external
 
 
-def _restore_cross_boundary_edges(
-    index: GraphIndex,
-    invalidated_edges: list[InvalidatedEdge],
-    changed_file_strs: set[str],
-    adapter: LanguageAdapter,
-    engine_client: LSPClient,
-    source_inspector: SourceInspector,
-) -> None:
-    call_graph = index.call_graph
-    if not invalidated_edges:
-        return
-
-    if adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
-        _restore_inbound_edges_via_definitions(
-            index,
-            invalidated_edges,
-            changed_file_strs,
-            adapter,
-            engine_client,
-            include_callable_parent=True,
-        )
-        return
-
-    checked = {"inbound": 0, "outbound": 0}
-    restored = {"inbound": 0, "outbound": 0}
-    references_cache: dict[str, list[dict]] = {}
-
-    for src_name, dst_name, old_src_node, old_dst_node, _cached_sites in invalidated_edges:
-        src_changed = old_src_node.file_path in changed_file_strs
-        dst_changed = old_dst_node.file_path in changed_file_strs
-        if src_changed == dst_changed:
-            continue
-        if not call_graph.has_node(src_name) or not call_graph.has_node(dst_name):
-            continue
-
-        src_node = call_graph.nodes[src_name]
-        dst_node = call_graph.nodes[dst_name]
-        direction = "outbound" if src_changed else "inbound"
-
-        checked[direction] += 1
-        refs = references_cache.get(dst_name)
-        if refs is None:
-            try:
-                dst_path = Path(dst_node.file_path)
-                engine_client.did_open(dst_path)
-                refs = engine_client.references(Path(dst_node.file_path), dst_node.line_start - 1, dst_node.col_start)
-            except Exception as exc:
-                # An empty result here means the cached edge is not re-confirmed and
-                # is therefore deleted, which is a silent loss rather than a retry.
-                logger.debug("Failed to validate references for %s", dst_name, exc_info=True)
-                refs = []
-            references_cache[dst_name] = refs
-
-        call_sites = _edge_reference_call_sites(src_node, dst_node, refs, adapter, source_inspector)
-        if call_sites:
-            try:
-                call_graph.add_edge(src_name, dst_name, call_sites=call_sites)
-                restored[direction] += 1
-            except ValueError:
-                logger.debug("Failed to restore edge %s -> %s", src_name, dst_name, exc_info=True)
-
-    logger.info(
-        "Validated cached cross-boundary edges, restored inbound %d/%d and outbound %d/%d",
-        restored["inbound"],
-        checked["inbound"],
-        restored["outbound"],
-        checked["outbound"],
-    )
-
-
 def _restore_inbound_edges_via_definitions(
     index: GraphIndex,
     invalidated_edges: list[InvalidatedEdge],
     changed_file_strs: set[str],
     adapter: LanguageAdapter,
     engine_client: LSPClient,
-    include_callable_parent: bool,
 ) -> None:
     call_graph = index.call_graph
     """Re-resolve invalidated edges whose source file is unchanged, from their cached call sites.
 
-    Why not references: an adapter on the definitions strategy is there because
-    its server answers references far too slowly to sit on this path, and the
-    hot symbols an edit invalidates are its worst cases. The cached call sites
-    let us ask the same question with a definition query instead: does this
+    The cached call sites let us ask the same question a full run asks: does this
     position still resolve to that destination? Restoring without asking is not
     enough, an unchanged caller can still lose the edge when the destination's
     own declaration moves out from under it.
@@ -286,7 +209,7 @@ def _restore_inbound_edges_via_definitions(
             resolved = [
                 dst_node
                 for definition in definitions
-                for dst_node in definition_nodes(index, definition, include_callable_parent)
+                for dst_node in definition_nodes(index, definition, include_callable_parent=True)
             ]
             reachable = {node.fully_qualified_name for node in resolved}
             if adapter.expands_virtual_dispatch:
@@ -304,35 +227,6 @@ def _restore_inbound_edges_via_definitions(
             logger.debug("Failed to restore edge %s -> %s", src_name, dst_name, exc_info=True)
 
     logger.info("Restored %d of %d cached inbound edge(s) via definitions", restored, len(pending))
-
-
-def _edge_reference_call_sites(
-    src_node: Node,
-    dst_node: Node,
-    refs: list[dict],
-    adapter: LanguageAdapter,
-    source_inspector: SourceInspector,
-) -> list[dict[str, str | int]]:
-    call_sites: list[dict[str, str | int]] = []
-    for ref in refs:
-        ref_file = uri_to_path(ref.get("uri", ""))
-        if ref_file is None or str(ref_file) != src_node.file_path:
-            continue
-
-        ref_range = ref.get("range", {})
-        ref_start = ref_range.get("start", {})
-        ref_end = ref_range.get("end", {})
-        ref_line = ref_start.get("line", -1)
-        ref_char = ref_start.get("character", -1)
-        ref_end_char = ref_end.get("character", -1)
-        if not position_inside_node(src_node, ref_line, ref_char):
-            continue
-        if not _reference_matches_edge_kind(
-            dst_node, ref_file, ref_line, ref_char, ref_end_char, adapter, source_inspector
-        ):
-            continue
-        call_sites.append({"file": str(ref_file), "line": ref_line + 1, "column": ref_char + 1})
-    return call_sites
 
 
 def _add_outbound_edges_from_changed_files(
@@ -529,26 +423,6 @@ def _add_edges(
         except ValueError:
             logger.debug("Failed to add edge %s -> %s", src_node.fully_qualified_name, dst_node.fully_qualified_name)
     return added
-
-
-def _reference_matches_edge_kind(
-    dst_node: Node,
-    ref_file: Path,
-    ref_line: int,
-    ref_char: int,
-    ref_end_char: int,
-    adapter: LanguageAdapter,
-    source_inspector: SourceInspector,
-) -> bool:
-    if adapter.is_class_like(dst_node.type) and not source_inspector.is_invocation(ref_file, ref_line, ref_end_char):
-        return False
-    if dst_node.type == NodeType.CONSTANT and not source_inspector.is_invocation(ref_file, ref_line, ref_end_char):
-        return False
-    if dst_node.type == NodeType.VARIABLE and not source_inspector.is_callable_usage(
-        ref_file, ref_line, ref_char, ref_end_char
-    ):
-        return False
-    return True
 
 
 def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
