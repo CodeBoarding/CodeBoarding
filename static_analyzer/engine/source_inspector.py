@@ -171,6 +171,8 @@ _MEMBER_DECLARATION_NODE_TYPES = frozenset(
 # Conditional-compilation lines, blanked (not removed) so byte offsets survive.
 # Restricted to languages where ``#`` opens a directive rather than a comment.
 _DIRECTIVE_LINE = re.compile(rb"(?m)^[ \t]*#[^\n]*")
+# An identifier as every supported grammar spells one, PHP's ``$name`` included.
+_IDENTIFIER = re.compile(r"(?![0-9])[\w$]+")
 _PREPROCESSOR_SUFFIXES = frozenset({".cs"})
 _DECLARATION_BLOCK_NODE_TYPES = frozenset({"block", "compound_statement", "statement_block"})
 _EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
@@ -262,6 +264,14 @@ class SourceInspector:
                 return None
             self._file_content_cache[file_key] = content.decode(errors="replace").splitlines()
         return self._file_content_cache[file_key]
+
+    def identifier_at(self, file_path: Path, line: int, character: int) -> str:
+        """The identifier that starts at a zero-based position, or empty when none starts there."""
+        source = self.get_source_line(file_path, line)
+        if source is None or not 0 <= character < len(source):
+            return ""
+        match = _IDENTIFIER.match(source, character)
+        return match.group(0) if match else ""
 
     def is_invocation(self, file_path: Path, ref_line: int, ref_end_char: int) -> bool:
         """Check whether a reference is the target of a call-like AST node."""

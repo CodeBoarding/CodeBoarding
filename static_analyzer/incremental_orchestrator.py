@@ -141,15 +141,17 @@ def _rebuild_changed_file_edges(
     finished once every engine's graph is merged.
     """
     source_inspector = SourceInspector()
-    index = GraphIndex(merged_analysis.call_graph)
+    index = GraphIndex(merged_analysis.call_graph, source_inspector)
     _restore_cross_boundary_edges(index, invalidated_edges, changed_file_strs, adapter, engine_client, source_inspector)
-    return _add_outbound_edges_from_changed_files(
+    external = _add_outbound_edges_from_changed_files(
         index,
         changed_source_files,
         engine_client,
         source_inspector,
         adapter,
     )
+    logger.info("Warm-start definition matches: %s", index.counts.summary())
+    return external
 
 
 def _restore_cross_boundary_edges(

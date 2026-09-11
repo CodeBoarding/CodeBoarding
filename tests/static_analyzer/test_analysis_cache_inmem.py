@@ -229,7 +229,8 @@ class TestWarmStartDeletion(unittest.TestCase):
 
 
 class TestWarmStartOutboundEdges(unittest.TestCase):
-    def test_definition_resolution_accepts_declaration_range_before_symbol_name(self) -> None:
+    def test_a_link_result_names_the_declaration_its_whole_range_does_not(self) -> None:
+        """``linkSupport`` is what makes this exact: a bare Location starts at ``function``."""
         file_path = Path("/repo/unchanged.php")
         call_graph = CallGraph(language="php")
         call_graph.add_node(
@@ -242,14 +243,20 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
                 col_start=9,
             )
         )
-        definition = {
+        index = GraphIndex(call_graph, SourceInspector())
+        link = {
+            "targetUri": file_path.as_uri(),
+            "targetSelectionRange": {"start": {"line": 2, "character": 9}, "end": {"line": 2, "character": 24}},
+        }
+        whole_declaration = {
             "uri": file_path.as_uri(),
             "range": {"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 66}},
         }
 
-        matches = definition_nodes(GraphIndex(call_graph), definition)
-
-        self.assertEqual([node.fully_qualified_name for node in matches], ["unchanged.unchanged_target"])
+        self.assertEqual(
+            [node.fully_qualified_name for node in definition_nodes(index, link)], ["unchanged.unchanged_target"]
+        )
+        self.assertEqual(definition_nodes(index, whole_declaration), [])
 
     def test_definition_resolution_includes_the_most_specific_node_and_its_class(self) -> None:
         file_path = Path("/repo/pkg/converter.py")
@@ -278,7 +285,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             "range": {"start": {"line": 9, "character": 8}, "end": {"line": 9, "character": 15}},
         }
 
-        matches = definition_nodes(GraphIndex(call_graph), definition, include_callable_parent=True)
+        matches = definition_nodes(GraphIndex(call_graph, SourceInspector()), definition, include_callable_parent=True)
 
         self.assertEqual(
             [node.fully_qualified_name for node in matches],
@@ -288,7 +295,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             ],
         )
 
-    def test_definition_resolution_same_line_fallback_prefers_class_over_nested_method(self) -> None:
+    def test_a_position_before_every_declaration_on_the_line_names_none_of_them(self) -> None:
         file_path = Path("/repo/pkg/target.php")
         call_graph = CallGraph(language="php")
         call_graph.add_node(
@@ -316,9 +323,9 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 6}},
         }
 
-        matches = definition_nodes(GraphIndex(call_graph), definition)
+        matches = definition_nodes(GraphIndex(call_graph, SourceInspector()), definition)
 
-        self.assertEqual([node.fully_qualified_name for node in matches], ["pkg.target.Target"])
+        self.assertEqual(matches, [])
 
     def test_definition_resolution_includes_constructor_parent_without_definition_strategy(self) -> None:
         file_path = Path("/repo/pkg/target.php")
@@ -347,7 +354,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             "range": {"start": {"line": 1, "character": 5}, "end": {"line": 1, "character": 16}},
         }
 
-        matches = definition_nodes(GraphIndex(call_graph), definition)
+        matches = definition_nodes(GraphIndex(call_graph, SourceInspector()), definition)
 
         self.assertEqual(
             [node.fully_qualified_name for node in matches],
@@ -393,7 +400,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             adapter.is_class_like.return_value = False
 
             _restore_cross_boundary_edges(
-                GraphIndex(call_graph),
+                GraphIndex(call_graph, SourceInspector()),
                 [(source.fully_qualified_name, target.fully_qualified_name, source, target, [])],
                 {str(changed_file)},
                 adapter,
@@ -429,7 +436,7 @@ class TestWarmStartKeepsDefinitionsAnotherEngineOwns:
         )
 
         external = _add_outbound_edges_from_changed_files(
-            GraphIndex(graph), [changed], client, SourceInspector(), CSharpAdapter()
+            GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), CSharpAdapter()
         )
 
         assert graph.edges == []

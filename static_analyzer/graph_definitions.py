@@ -8,12 +8,16 @@ every engine's graph), so the two cannot disagree on which nodes a call site rea
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
+from dataclasses import dataclass
+from pathlib import Path
 
 from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_constants import EdgeStrategy
+from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location
-from static_analyzer.internal_references import parent_qualified_name
+from static_analyzer.internal_references import parent_qualified_name, simple_name
 from static_analyzer.node import Node
 
 # How a call site was found in source; it decides what a resolved definition may become.
@@ -23,17 +27,98 @@ COLLECTION_INITIALIZER = "collection"
 ITERATED = "iterated"
 
 
+@dataclass
+class MatchCounts:
+    """How a pass over definition results matched them, for one summary line at the end."""
+
+    exact: int = 0
+    same_line: int = 0
+    name_at_definition: int = 0
+    rejected: int = 0
+
+    def summary(self) -> str:
+        return (
+            f"{self.exact} exact, {self.same_line} containing the position, "
+            f"{self.name_at_definition} by the name at the definition, {self.rejected} rejected"
+        )
+
+
 class GraphIndex:
     """A graph's nodes by file, so a position lookup does not scan every node."""
 
-    def __init__(self, call_graph: CallGraph) -> None:
+    def __init__(self, call_graph: CallGraph, inspector: SourceInspector) -> None:
         self.call_graph = call_graph
+        self.counts = MatchCounts()
+        self._inspector = inspector
         self._by_file: dict[str, list[Node]] = defaultdict(list)
         for node in call_graph.nodes.values():
             self._by_file[node.file_path].append(node)
+        self._by_name: dict[str, dict[str, dict[tuple[int, int], Node]]] = {}
 
     def nodes_in(self, file_path: str) -> list[Node]:
         return self._by_file.get(file_path, [])
+
+    def declaration_at(self, file_path: str, line: int, character: int) -> Node | None:
+        """The node a definition result names, by the engine's matching rules.
+
+        Exact position, else the innermost node declared on that line that still contains
+        the position, else the sole callable or class declared in the file under the name
+        written there -- the overload set a server answers with a signature line for.
+        Anything else is ambiguous and matches nothing.
+        """
+        exact = _innermost(
+            node for node in self.nodes_in(file_path) if (node.line_start, node.col_start) == (line + 1, character)
+        )
+        if exact is not None:
+            self.counts.exact += 1
+            return exact
+
+        containing = _innermost(
+            node
+            for node in self.nodes_in(file_path)
+            if node.line_start == line + 1 and position_inside_node(node, line, character)
+        )
+        if containing is not None:
+            self.counts.same_line += 1
+            return containing
+
+        named = self._sole_declaration_named(file_path, line, character)
+        if named is not None:
+            self.counts.name_at_definition += 1
+            return named
+
+        self.counts.rejected += 1
+        return None
+
+    def _sole_declaration_named(self, file_path: str, line: int, character: int) -> Node | None:
+        name = self._inspector.identifier_at(Path(file_path), line, character)
+        if not name:
+            return None
+        declared = self._declarations_by_name(file_path).get(name)
+        if declared is None or len(declared) != 1:
+            return None
+        return next(iter(declared.values()))
+
+    def _declarations_by_name(self, file_path: str) -> dict[str, dict[tuple[int, int], Node]]:
+        """Callables and classes the file declares, by name then by position.
+
+        Why keyed by position: one declaration registered under two qualified names is one
+        declaration, and must not read as an ambiguous name.
+        """
+        cached = self._by_name.get(file_path)
+        if cached is not None:
+            return cached
+        by_name: dict[str, dict[tuple[int, int], Node]] = {}
+        for node in self.nodes_in(file_path):
+            if not (node.is_callable() or node.is_class()):
+                continue
+            at = by_name.setdefault(simple_name(node.fully_qualified_name), {})
+            position = (node.line_start, node.col_start)
+            held = at.get(position)
+            if held is None or len(node.fully_qualified_name) > len(held.fully_qualified_name):
+                at[position] = node
+        self._by_name[file_path] = by_name
+        return by_name
 
 
 def position_inside_node(node: Node, zero_based_line: int, character: int) -> bool:
@@ -48,11 +133,17 @@ def position_inside_node(node: Node, zero_based_line: int, character: int) -> bo
 def most_specific_node_at_position(
     index: GraphIndex, file_path: str, line: int, char: int, callable_only: bool = False
 ) -> Node | None:
-    matches = [
+    """The innermost node containing the position -- which declaration a call site sits in."""
+    return _innermost(
         node
         for node in index.nodes_in(file_path)
         if (not callable_only or node.is_callable()) and position_inside_node(node, line, char)
-    ]
+    )
+
+
+def _innermost(nodes: Iterable[Node]) -> Node | None:
+    """The last-starting, shortest-spanning, most specific of the candidates."""
+    matches = list(nodes)
     if not matches:
         return None
     return max(
@@ -79,13 +170,7 @@ def nodes_at_location(
     index: GraphIndex, file_path: str, line: int, character: int, include_callable_parent: bool = False
 ) -> list[Node]:
     """The node declared at an LSP position, plus the class a callable or constructor belongs to."""
-    target = most_specific_node_at_position(index, file_path, line, character)
-    if target is None:
-        same_line = [node for node in index.nodes_in(file_path) if node.line_start == line + 1]
-        if same_line:
-            target = max(
-                same_line, key=lambda node: (node.is_class(), node.is_callable(), len(node.fully_qualified_name))
-            )
+    target = index.declaration_at(file_path, line, character)
     if target is None:
         return []
     targets = [target]

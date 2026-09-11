@@ -34,7 +34,7 @@ def link_external_call_sites(
     """
     if not sites:
         return 0
-    index = GraphIndex(call_graph)
+    index = GraphIndex(call_graph, inspector)
     added = 0
     unresolved = 0
     for site in sites:
@@ -62,10 +62,11 @@ def link_external_call_sites(
                     package_dependencies, adapter, caller.fully_qualified_name, destination.fully_qualified_name
                 )
     logger.info(
-        "Cross-engine call sites: %d linked into %d new edges, %d point outside every engine's files",
+        "Cross-engine call sites: %d linked into %d new edges, %d point outside every engine's files (%s)",
         len(sites) - unresolved,
         added,
         unresolved,
+        index.counts.summary(),
     )
     return added
 

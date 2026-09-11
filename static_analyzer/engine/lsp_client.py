@@ -145,7 +145,10 @@ class LSPClient:
                 "hierarchicalDocumentSymbolSupport": True,
             },
             "references": {},
-            "definition": {},
+            # Why linkSupport: a plain Location carries the whole declaration's range, which
+            # starts at the modifiers, so the position never matches the name the symbol table
+            # is keyed on. A LocationLink names the declared symbol itself.
+            "definition": {"linkSupport": True},
             "typeHierarchy": {},
             "implementation": {},
             "callHierarchy": {},

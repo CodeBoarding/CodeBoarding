@@ -71,12 +71,17 @@ def test_exact_position_beats_a_neighbouring_line():
     assert "Framework.Builder.UseAuditing(App app)" not in _destinations(graph)
 
 
-def test_a_position_inside_a_declaration_resolves_to_it():
+def test_a_position_inside_a_declaration_body_names_nothing():
+    """The neighbouring-line match bound a call written in a body to the method around it."""
     graph = _graph()
 
-    _link(graph, [_site(BUILDER, 21, 8)])
+    assert _link(graph, [_site(BUILDER, 21, 8)]) == 0
 
-    assert "Framework.Builder.UseAuditing(App app)" in _destinations(graph)
+
+def test_a_position_one_line_off_a_declaration_names_nothing():
+    graph = _graph()
+
+    assert _link(graph, [_site(BUILDER, 18, 4)]) == 0
 
 
 def test_a_method_group_probe_that_is_a_value_adds_nothing():

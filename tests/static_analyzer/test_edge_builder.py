@@ -7,12 +7,11 @@ from unittest.mock import MagicMock, patch
 
 from static_analyzer.engine.edge_builder import (
     EdgeMap,
-    _best_candidate,
+    SymbolIndex,
     _is_valid_edge,
     _process_references_for_position,
     _build_dispatch_index,
     _override_targets,
-    _resolve_definition_to_symbol,
     build_edges_via_definitions,
     build_edges_via_references,
 )
@@ -348,106 +347,130 @@ class TestIsValidEdge:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_definition_to_symbol
+# SymbolIndex.resolve
 # ---------------------------------------------------------------------------
 
 
-class TestResolveDefinitionToSymbol:
+def _definition(path: str, line: int, char: int) -> dict:
+    return {"uri": Path(path).as_uri(), "range": {"start": {"line": line, "character": char}}}
+
+
+def _index(symbols: list[SymbolInfo], inspector: SourceInspector | None = None) -> SymbolIndex:
+    table = SymbolTable(_TestAdapter())
+    for sym in symbols:
+        table.symbols[sym.qualified_name] = sym
+    return SymbolIndex(table, inspector or SourceInspector())
+
+
+class TestSymbolIndexResolve:
     def test_exact_match_with_location_format(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        pos_to_sym = {(str(Path("/p/a.py")), 10, 4): sym}
-        result = _resolve_definition_to_symbol(
-            {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 4}}},
-            pos_to_sym,
-            {},
-        )
-        assert result is sym
+        assert _index([sym]).resolve(_definition("/p/a.py", 10, 4)) is sym
 
     def test_exact_match_with_location_link_format(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        pos_to_sym = {(str(Path("/p/a.py")), 10, 4): sym}
-        result = _resolve_definition_to_symbol(
+        result = _index([sym]).resolve(
             {
                 "targetUri": Path("/p/a.py").as_uri(),
                 "targetSelectionRange": {"start": {"line": 10, "character": 4}},
-            },
-            pos_to_sym,
-            {},
+            }
         )
         assert result is sym
 
-    def test_fuzzy_match_on_same_line(self):
-        sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        line_to_syms = {(str(Path("/p/a.py")), 10): [sym]}
-        result = _resolve_definition_to_symbol(
-            {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 0}}},
-            {},
-            line_to_syms,
-        )
-        assert result is sym
+    def test_symbol_declared_on_the_line_that_contains_the_position(self, tmp_path: Path):
+        source = tmp_path / "a.ts"
+        source.write_text("export class Box { hold(item: string) {} }\n")
+        method = _sym("hold", "a.Box.hold", NodeType.METHOD, str(source), 0, 19, 0, 41)
+        box = _sym("Box", "a.Box", NodeType.CLASS, str(source), 0, 13, 0, 42)
+        assert _index([box, method]).resolve(_definition(str(source), 0, 25)) is method
 
-    def test_fuzzy_match_on_adjacent_line(self):
-        sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 11, 4)
-        line_to_syms = {(str(Path("/p/a.py")), 11): [sym]}
-        result = _resolve_definition_to_symbol(
-            {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 0}}},
-            {},
-            line_to_syms,
+    def test_symbol_whose_declaration_ends_above_the_position_is_not_a_match(self, tmp_path: Path):
+        source = tmp_path / "a.py"
+        source.write_text("def head():\n    pass\n\n\ndef tail():\n    pass\n")
+        head = _sym("head", "a.head", NodeType.FUNCTION, str(source), 0, 4, 1, 8)
+        assert _index([head]).resolve(_definition(str(source), 4, 4)) is None
+
+    def test_parameter_line_does_not_bind_to_the_neighbouring_function(self, tmp_path: Path):
+        source = tmp_path / "handlers.py"
+        source.write_text("def handle(\n    payload,\n):\n    return payload\n")
+        function = _sym("handle", "handlers.handle", NodeType.FUNCTION, str(source), 0, 4, 3, 18)
+        assert _index([function]).resolve(_definition(str(source), 1, 4)) is None
+
+    def test_local_variable_line_does_not_bind_to_the_neighbouring_function(self, tmp_path: Path):
+        source = tmp_path / "calc.py"
+        source.write_text("def total(items):\n    subtotal = 0\n    return subtotal\n")
+        function = _sym("total", "calc.total", NodeType.FUNCTION, str(source), 0, 4, 2, 20)
+        assert _index([function]).resolve(_definition(str(source), 1, 4)) is None
+
+    def test_import_line_does_not_bind_to_the_neighbouring_function(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("from lib import helper\n\n\ndef run():\n    return helper()\n")
+        function = _sym("run", "app.run", NodeType.FUNCTION, str(source), 3, 4, 4, 20)
+        assert _index([function]).resolve(_definition(str(source), 0, 16)) is None
+
+    def test_overload_signature_resolves_to_the_sole_declaration_of_that_name(self, tmp_path: Path):
+        source = tmp_path / "teams.ts"
+        source.write_text(
+            "export function getTeams(id: string): Team[];\n"
+            "export function getTeams(id: number): Team[];\n"
+            "export function getTeams(id: unknown): Team[] {\n  return [];\n}\n"
         )
-        assert result is sym
+        implementation = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 2, 16, 4, 1)
+        assert _index([implementation]).resolve(_definition(str(source), 0, 16)) is implementation
+
+    def test_two_declarations_of_the_name_are_ambiguous(self, tmp_path: Path):
+        source = tmp_path / "teams.ts"
+        source.write_text(
+            "export function getTeams(id: string): Team[];\n"
+            "export function getTeams() {}\n"
+            "class Api { getTeams() {} }\n"
+        )
+        free = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
+        method = _sym("getTeams", "teams.Api.getTeams", NodeType.METHOD, str(source), 2, 12, 2, 26)
+        assert _index([free, method]).resolve(_definition(str(source), 0, 16)) is None
+
+    def test_dual_registration_at_one_position_is_one_declaration(self, tmp_path: Path):
+        source = tmp_path / "teams.ts"
+        source.write_text("export function getTeams(id: string): Team[];\nexport function getTeams() {}\n")
+        short = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
+        long = _sym("getTeams", "teams.index.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
+        assert _index([short, long]).resolve(_definition(str(source), 0, 16)) is long
+
+    def test_name_at_definition_only_considers_callables_and_classes(self, tmp_path: Path):
+        source = tmp_path / "config.py"
+        source.write_text("DEBUG = True\n\n\nDEBUG = False\n")
+        first = _sym("DEBUG", "config.DEBUG", NodeType.CONSTANT, str(source), 0, 0, 0, 5)
+        assert _index([first]).resolve(_definition(str(source), 3, 0)) is None
+
+    def test_adjacent_line_is_no_longer_a_match(self, tmp_path: Path):
+        source = tmp_path / "a.py"
+        source.write_text("@decorator\ndef foo():\n    pass\n")
+        sym = _sym("foo", "a.foo", NodeType.FUNCTION, str(source), 1, 4, 2, 8)
+        assert _index([sym]).resolve(_definition(str(source), 0, 0)) is None
+
+    def test_annotation_line_above_a_method_still_resolves_by_name(self, tmp_path: Path):
+        source = tmp_path / "Service.java"
+        source.write_text("class Service {\n  @Override\n  public void run() {}\n}\n")
+        method = _sym("run()", "Service.run()", NodeType.METHOD, str(source), 2, 14, 2, 22)
+        assert _index([method]).resolve(_definition(str(source), 2, 14)) is method
 
     def test_returns_none_for_invalid_uri(self):
-        result = _resolve_definition_to_symbol(
-            {"uri": "invalid-uri", "range": {"start": {"line": 0, "character": 0}}},
-            {},
-            {},
-        )
-        assert result is None
+        assert _index([]).resolve({"uri": "invalid-uri", "range": {"start": {"line": 0, "character": 0}}}) is None
 
     def test_returns_none_for_missing_position(self):
-        result = _resolve_definition_to_symbol(
-            {"uri": Path("/p/a.py").as_uri(), "range": {}},
-            {},
-            {},
-        )
-        assert result is None
+        assert _index([]).resolve({"uri": Path("/p/a.py").as_uri(), "range": {}}) is None
 
-    def test_returns_none_when_no_match(self):
-        result = _resolve_definition_to_symbol(
-            {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 100, "character": 0}}},
-            {},
-            {},
-        )
-        assert result is None
-
-
-# ---------------------------------------------------------------------------
-# _best_candidate
-# ---------------------------------------------------------------------------
-
-
-class TestBestCandidate:
-    def test_prefers_callable_over_class(self):
-        cls = _sym("Foo", "a.Foo", NodeType.CLASS, "/p/a.py", 0)
-        method = _sym("foo", "a.Foo.foo", NodeType.METHOD, "/p/a.py", 5)
-        assert _best_candidate([cls, method]) is method
-
-    def test_prefers_class_over_variable(self):
-        var = _sym("x", "a.x", NodeType.VARIABLE, "/p/a.py", 0)
-        cls = _sym("Foo", "a.Foo", NodeType.CLASS, "/p/a.py", 0)
-        assert _best_candidate([var, cls]) is cls
-
-    def test_prefers_longest_qualified_name(self):
-        short = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 0)
-        long = _sym("foo", "a.b.c.foo", NodeType.FUNCTION, "/p/a.py", 0)
-        assert _best_candidate([short, long]) is long
-
-    def test_empty_list(self):
-        assert _best_candidate([]) is None
-
-    def test_single_variable(self):
-        var = _sym("x", "a.x", NodeType.VARIABLE, "/p/a.py", 0)
-        assert _best_candidate([var]) is var
+    def test_counts_every_outcome(self, tmp_path: Path):
+        source = tmp_path / "teams.ts"
+        source.write_text("export function getTeams(id: string): Team[];\nexport function getTeams() {}\n")
+        sym = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
+        index = _index([sym])
+        index.resolve(_definition(str(source), 1, 16))
+        index.resolve(_definition(str(source), 1, 20))
+        index.resolve(_definition(str(source), 0, 16))
+        index.resolve(_definition(str(source), 0, 0))
+        assert (index.counts.exact, index.counts.same_line) == (1, 1)
+        assert (index.counts.name_at_definition, index.counts.rejected) == (1, 1)
 
 
 # ---------------------------------------------------------------------------
