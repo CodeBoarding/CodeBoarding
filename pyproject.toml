@@ -88,6 +88,7 @@ packages = [
     "monitoring",
     "output_generators",
     "repo_utils",
+    "run_diagnostics",
     "static_analyzer",
     "static_analyzer.cfg",
     "static_analyzer.clustering",

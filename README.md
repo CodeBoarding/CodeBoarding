@@ -191,6 +191,43 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 > doing a full run. Static-analysis caches are versioned but not migrated; after a cache-version
 > upgrade, run a full analysis once to reindex.
 
+### Run diagnostics
+
+Not every failure stops a run. A language server that never starts, a language nothing
+indexed under, an LLM that stopped answering during naming — each of these leaves the run
+able to finish and write an `analysis.json` that looks exactly like a good one. Those are
+recorded in `metadata.run_diagnostics`:
+
+```json
+"run_diagnostics": {
+  "version": 1,
+  "degraded": 1,
+  "notices": 0,
+  "entries": [
+    {
+      "code": "static.language_server_unavailable",
+      "severity": "degraded",
+      "title": "CSharp could not be analyzed",
+      "detail": "Its language server failed to start (csharp-ls not found), so no CSharp file contributed a component, a call or a relation to this diagram.",
+      "remedy": "Check the run log for the server's own error and confirm the CSharp toolchain is installed where the analysis ran, then run the analysis again.",
+      "subject": "CSharp",
+      "count": 1
+    }
+  ]
+}
+```
+
+`severity` is `degraded` when the diagram is missing structure a clean run would have had,
+and `notice` when it is whole but something about how it was produced is worth knowing. An
+empty `remedy` means nothing the reader does would have changed the outcome — consumers
+offer "report this" there rather than an instruction nobody can follow. The report describes
+the run that wrote the document and is never inherited from a previous one; an analysis
+written before the field existed simply has no `run_diagnostics` key.
+
+Every surface that renders an analysis is expected to say when `degraded` is non-zero —
+the GitHub Action annotates its run and its review comment, and the webview banners the
+diagram. Wording lives in `run_diagnostics/catalog.py`, one builder per code.
+
 ## Where to use it
 
 - [CLI](https://github.com/CodeBoarding/CodeBoarding) for local analysis, automation, and CI workflows.
