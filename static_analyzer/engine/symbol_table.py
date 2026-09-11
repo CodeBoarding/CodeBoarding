@@ -220,30 +220,33 @@ class SymbolTable:
                     best = sym
                     best_size = size
 
-        # If the best match is a class-like symbol, check if the reference line
-        # is actually a decorator/annotation for one of its child methods.
-        # This heuristic works across languages: Python decorators (@trace),
-        # Java annotations (@Override, @Inject), TypeScript decorators (@Component).
-        # These sit 1-3 lines before the method definition line (accounting for
-        # stacked decorators/annotations).  Attribute the reference to the
-        # nearest child method whose start_line is within a small window.
-        if best and self._naming.is_class_like(best.kind):
-            max_decorator_gap = 4
-            nearest_child: SymbolInfo | None = None
-            nearest_gap = max_decorator_gap + 1
-            for sym in symbols:
-                if not self._naming.is_callable(sym.kind):
-                    continue
-                if not sym.qualified_name.startswith(best.qualified_name + "."):
-                    continue
-                gap = sym.start_line - line
-                if 0 < gap < nearest_gap:
-                    nearest_child = sym
-                    nearest_gap = gap
-            if nearest_child is not None:
-                best = nearest_child
+        # A decorator or annotation sits 1-3 lines above what it decorates, so a
+        # position there belongs to the member below it rather than to whatever
+        # encloses the gap: a class between two of its methods, or nothing at all
+        # when the decorated function is at module level.
+        if best is None or self._naming.is_class_like(best.kind):
+            prefix = f"{best.qualified_name}." if best is not None else ""
+            decorated = self._nearest_member_below(symbols, line, prefix)
+            if decorated is not None:
+                best = decorated
 
         return best
+
+    def _nearest_member_below(self, symbols: list[SymbolInfo], line: int, prefix: str) -> SymbolInfo | None:
+        """The callable declared just under *line*, within a stacked decorator's reach."""
+        max_decorator_gap = 4
+        nearest: SymbolInfo | None = None
+        nearest_gap = max_decorator_gap + 1
+        for sym in symbols:
+            if not self._naming.is_callable(sym.kind):
+                continue
+            if prefix and not sym.qualified_name.startswith(prefix):
+                continue
+            gap = sym.start_line - line
+            if 0 < gap < nearest_gap:
+                nearest = sym
+                nearest_gap = gap
+        return nearest
 
     def lift_to_callable(self, sym: SymbolInfo) -> SymbolInfo | None:
         """If sym is a variable/property, find its parent callable symbol."""

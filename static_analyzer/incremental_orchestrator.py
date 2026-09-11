@@ -373,6 +373,7 @@ def _add_outbound_edges_from_changed_files(
         except Exception:
             logger.debug("Failed to resolve outbound definitions for %s", file_path, exc_info=True)
             continue
+        unresolved: list[CallSite] = []
         for site, definitions in zip(call_sites, definition_results):
             position = (site.lsp_line, site.lsp_column)
             src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
@@ -384,6 +385,7 @@ def _add_outbound_edges_from_changed_files(
             elif position in collection_positions:
                 kind = COLLECTION_INITIALIZER
             constructing = kind == CALL and adapter.expands_constructors and source_inspector.is_construction_site(site)
+            reached = False
             for definition in definitions:
                 location = definition_location(definition)
                 if location is None:
@@ -396,7 +398,13 @@ def _add_outbound_edges_from_changed_files(
                         )
                     )
                     continue
+                reached = True
                 added += _add_edges(call_graph, src_node, targets, site, changed_file_strs)
+            if not reached and kind == CALL:
+                unresolved.append(site)
+        added += _add_receiver_member_edges(
+            index, file_path, unresolved, engine_client, source_inspector, changed_file_strs
+        )
     if added:
         logger.info("Added %d new outbound edge(s) from changed files", added)
     return external
@@ -446,6 +454,56 @@ def _add_iterated_type_edges(
                 )
                 continue
             added += _add_edges(index.call_graph, src_node, targets, site, {str(file_path)})
+    return added
+
+
+def _add_receiver_member_edges(
+    index: GraphIndex,
+    file_path: Path,
+    unresolved: list[CallSite],
+    engine_client: LSPClient,
+    source_inspector: SourceInspector,
+    changed_file_strs: set[str],
+) -> int:
+    """``receiver.member(...)`` whose member left the repository: name it through the receiver.
+
+    The full rebuild does the same in ``edge_builder._resolve_through_receivers``; without it
+    here, every such edge in a changed file disappears until the next full run.
+    """
+    if not unresolved:
+        return 0
+    receivers = source_inspector.receiver_member_calls(file_path)
+    # One query per receiver, not per call: `log.warn` and `log.info` name the same object.
+    by_receiver: dict[tuple[int, int], list[tuple[CallSite, str]]] = {}
+    for site in unresolved:
+        found = receivers.get((site.lsp_line, site.lsp_column))
+        if found is not None:
+            by_receiver.setdefault((found.line, found.column), []).append((site, found.member))
+    if not by_receiver:
+        return 0
+
+    positions = list(by_receiver)
+    added = 0
+    for start in range(0, len(positions), _DEFINITION_BATCH_SIZE):
+        batch = positions[start : start + _DEFINITION_BATCH_SIZE]
+        try:
+            results, _ = engine_client.send_definition_batch([(file_path, line, column) for line, column in batch])
+        except Exception:
+            logger.debug("Failed to resolve receivers for %s", file_path, exc_info=True)
+            continue
+        for position, definitions in zip(batch, results):
+            for definition in definitions:
+                location = definition_location(definition)
+                if location is None:
+                    continue
+                receiver = index.declaration_at(str(location[0]), location[1], location[2])
+                if receiver is None:
+                    continue
+                for site, member in by_receiver[position]:
+                    target = index.call_graph.nodes.get(f"{receiver.fully_qualified_name}.{member}")
+                    src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
+                    if target is not None and src_node is not None:
+                        added += _add_edges(index.call_graph, src_node, [target], site, changed_file_strs)
     return added
 
 

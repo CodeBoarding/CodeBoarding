@@ -49,7 +49,7 @@ class GraphIndex:
     def __init__(self, call_graph: CallGraph, inspector: SourceInspector) -> None:
         self.call_graph = call_graph
         self.counts = MatchCounts()
-        self._inspector = inspector
+        self.inspector = inspector
         self._by_file: dict[str, list[Node]] = defaultdict(list)
         for node in call_graph.nodes.values():
             self._by_file[node.file_path].append(node)
@@ -91,7 +91,7 @@ class GraphIndex:
         return None
 
     def _sole_declaration_named(self, file_path: str, line: int, character: int) -> Node | None:
-        name = self._inspector.identifier_at(Path(file_path), line, character)
+        name = self.inspector.identifier_at(Path(file_path), line, character)
         if not name:
             return None
         declared = self._declarations_by_name(file_path).get(name)
@@ -247,7 +247,11 @@ def targets_for(
         # and the type that encloses it must not stand in for it.
         primary = resolved[0]
         declared_here = (primary.line_start, primary.col_start) == (line + 1, character)
-        if not declared_here or not (primary.is_callable() or primary.is_class()):
+        if not declared_here or not (
+            primary.is_callable()
+            or primary.is_class()
+            or index.inspector.declares_function_value(Path(file_path), line, character)
+        ):
             return []
     targets: list[Node] = []
     for node in resolved:

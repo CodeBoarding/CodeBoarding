@@ -23,6 +23,7 @@ from static_analyzer.incremental_orchestrator import (
     update_cfg_for_changed_files,
 )
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
+from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.source_inspector import SourceInspector
 from utils import CODEBOARDING_DIR_NAME
 
@@ -443,3 +444,72 @@ class TestWarmStartKeepsDefinitionsAnotherEngineOwns:
         assert [(s.caller, s.file, s.line, s.character, s.kind) for s in external] == [
             ("Host.Configure()", str(elsewhere), 20, 4, "call")
         ]
+
+
+class TestWarmStartCallShapes:
+    """The shapes the full rebuild finds must survive an edit, or a warm start loses them."""
+
+    def _typescript_adapter(self) -> MagicMock:
+        adapter = MagicMock()
+        adapter.language_id = "typescript"
+        adapter.edge_strategy = EdgeStrategy.DEFINITIONS
+        adapter.resolves_method_groups = True
+        adapter.resolves_collection_initializers = False
+        adapter.resolves_iterated_types = False
+        adapter.expands_virtual_dispatch = False
+        adapter.expands_constructors = False
+        return adapter
+
+    def _run(self, graph: CallGraph, changed: Path, answers: dict[int, tuple[str, int, int]]) -> list[tuple[str, str]]:
+        client = MagicMock()
+        client.send_definition_batch.side_effect = lambda queries: (
+            [
+                (
+                    [{"uri": Path(at[0]).as_uri(), "range": {"start": {"line": at[1], "character": at[2]}}}]
+                    if (at := answers.get(col)) is not None
+                    else []
+                )
+                for _, _line, col in queries
+            ],
+            set(),
+        )
+        _add_outbound_edges_from_changed_files(
+            GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), self._typescript_adapter()
+        )
+        return [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
+
+    def test_a_callback_bound_to_a_const_is_a_method_group_target(self, tmp_path: Path) -> None:
+        helpers = tmp_path / "helpers.ts"
+        helpers.write_text("export const handler = () => 1;\n")
+        changed = tmp_path / "app.ts"
+        changed.write_text(
+            "import { handler } from './helpers';\n\nexport function run() {\n    subscribe(handler);\n}\n"
+        )
+        graph = CallGraph(language="typescript")
+        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
+        graph.add_node(Node("helpers.handler", NodeType.VARIABLE, str(helpers), line_start=1, line_end=1, col_start=13))
+
+        assert self._run(graph, changed, {14: (str(helpers), 0, 13)}) == [("app.run", "helpers.handler")]
+
+    def test_a_constant_passed_as_an_argument_is_not_an_edge(self, tmp_path: Path) -> None:
+        helpers = tmp_path / "helpers.ts"
+        helpers.write_text("export const LIMIT = 5;\n")
+        changed = tmp_path / "app.ts"
+        changed.write_text("import { LIMIT } from './helpers';\n\nexport function run() {\n    subscribe(LIMIT);\n}\n")
+        graph = CallGraph(language="typescript")
+        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
+        graph.add_node(Node("helpers.LIMIT", NodeType.VARIABLE, str(helpers), line_start=1, line_end=1, col_start=13))
+
+        assert self._run(graph, changed, {14: (str(helpers), 0, 13)}) == []
+
+    def test_a_member_call_that_leaves_the_repository_resolves_through_its_receiver(self, tmp_path: Path) -> None:
+        logger_file = tmp_path / "log.ts"
+        logger_file.write_text("export const log = { warn(m: string) {} };\n")
+        changed = tmp_path / "app.ts"
+        changed.write_text("import { log } from './log';\n\nexport function run() {\n    log.warn('x');\n}\n")
+        graph = CallGraph(language="typescript")
+        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
+        graph.add_node(Node("log.log", NodeType.VARIABLE, str(logger_file), line_start=1, line_end=1, col_start=13))
+        graph.add_node(Node("log.log.warn", NodeType.METHOD, str(logger_file), line_start=1, line_end=1, col_start=21))
+
+        assert self._run(graph, changed, {4: (str(logger_file), 0, 13)}) == [("app.run", "log.log.warn")]

@@ -788,3 +788,136 @@ internal static class Guard
         )
         names = [sym["name"] for _, sym in self._flat(self._symbols(tmp_path, source, "V.cs")) if sym["kind"] == 25]
         assert names == ["operator +(V a, V b)", "operator checked +(V a, V b)", "operator int(V v)"]
+
+
+class TestJsxElementSites:
+    def test_rendering_a_component_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "app.tsx"
+        f.write_text("export function App() {\n  return <Card x={1} />;\n}\n")
+        si = SourceInspector()
+
+        assert (2, 11) in _positions(si.find_call_sites(f))
+
+    def test_a_dotted_element_name_resolves_to_its_last_part(self, tmp_path: Path):
+        f = tmp_path / "app.tsx"
+        f.write_text("export function App() {\n  return <ns.Card>{1}</ns.Card>;\n}\n")
+        si = SourceInspector()
+        positions = _positions(si.find_call_sites(f))
+
+        assert (2, 14) in positions  # Card in the opening tag
+        assert (2, 11) not in positions  # ns, the namespace it hangs off
+        assert (2, 25) not in positions  # Card in the closing tag
+
+    def test_a_jsx_attribute_expression_is_a_method_group(self, tmp_path: Path):
+        f = tmp_path / "app.tsx"
+        f.write_text("export function App() {\n  return <Card onClick={handler} x={1} />;\n}\n")
+        si = SourceInspector()
+        positions = _positions(si.find_method_group_sites(f))
+
+        assert (2, 25) in positions  # handler
+        assert (2, 16) not in positions  # onClick, the attribute name
+
+
+class TestDecoratorSites:
+    def test_a_bare_python_decorator_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("@register\ndef run():\n    pass\n")
+        si = SourceInspector()
+
+        assert (1, 2) in _positions(si.find_call_sites(f))
+
+    def test_a_dotted_decorator_resolves_to_the_member(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("@registry.add\ndef run():\n    pass\n")
+        si = SourceInspector()
+        positions = _positions(si.find_call_sites(f))
+
+        assert (1, 11) in positions  # add
+        assert (1, 2) not in positions  # registry
+
+    def test_an_applied_decorator_is_counted_once(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("@cache(maxsize=2)\ndef run():\n    pass\n")
+        si = SourceInspector()
+        positions = [(site.line, site.column) for site in si.find_call_sites(f)]
+
+        assert positions.count((1, 2)) == 1
+
+    def test_a_typescript_decorator_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("@Injectable\nexport class Service {}\n")
+        si = SourceInspector()
+
+        assert (1, 2) in _positions(si.find_call_sites(f))
+
+
+class TestKeywordArgumentValues:
+    def test_the_value_is_the_site_not_the_keyword(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("def run():\n    subscribe(key=handler)\n")
+        si = SourceInspector()
+        positions = _positions(si.find_method_group_sites(f))
+
+        assert (2, 19) in positions  # handler
+        assert (2, 15) not in positions  # key, the keyword
+
+
+class TestDeclaresFunctionValue:
+    def test_an_arrow_bound_to_a_const(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("const handler = () => 1;\n")
+        si = SourceInspector()
+
+        assert si.declares_function_value(f, 0, 6) is True
+
+    def test_a_function_in_an_object_literal(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("const api = { load: function () {} };\n")
+        si = SourceInspector()
+
+        assert si.declares_function_value(f, 0, 14) is True
+
+    def test_a_python_lambda_bound_to_a_name(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("double = lambda x: x * 2\n")
+        si = SourceInspector()
+
+        assert si.declares_function_value(f, 0, 0) is True
+
+    def test_a_constant_is_not_a_function_value(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("const LIMIT = 5;\n")
+        si = SourceInspector()
+
+        assert si.declares_function_value(f, 0, 6) is False
+
+    def test_a_declared_function_is_not_a_function_value(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("function handler() { return 1; }\n")
+        si = SourceInspector()
+
+        assert si.declares_function_value(f, 0, 9) is False
+
+
+class TestReceiverMemberCalls:
+    def test_a_member_call_records_its_receiver(self, tmp_path: Path):
+        f = tmp_path / "app.js"
+        f.write_text("import { log } from './log';\nexport function run() {\n  log.warn('x');\n}\n")
+        si = SourceInspector()
+
+        assert si.receiver_member_calls(f)[(2, 6)].member == "warn"
+        assert (si.receiver_member_calls(f)[(2, 6)].line, si.receiver_member_calls(f)[(2, 6)].column) == (2, 2)
+
+    def test_a_chained_receiver_is_not_a_bare_name(self, tmp_path: Path):
+        f = tmp_path / "app.js"
+        f.write_text("export function run() {\n  api.client.send('x');\n}\n")
+        si = SourceInspector()
+
+        assert si.receiver_member_calls(f) == {}
+
+    def test_a_plain_call_has_no_receiver(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("def run():\n    helper()\n")
+        si = SourceInspector()
+
+        assert si.receiver_member_calls(f) == {}

@@ -74,6 +74,22 @@ _OBJECT_INITIALIZER_NODE_TYPES = frozenset({"assignment_expression"})
 # Loops whose ``right`` field is a value whose type gets enumerated.
 _ITERATION_NODE_TYPES = frozenset({"foreach_statement", "for_each_statement", "enhanced_for_statement"})
 _METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference"})
+# Rendering an element runs its component; the closing tag is the same element named twice.
+_JSX_ELEMENT_NODE_TYPES = frozenset({"jsx_opening_element", "jsx_self_closing_element"})
+# Applying a decorator calls it. ``@cache(...)`` is already a call node, so only a bare
+# name is a site of its own.
+_DECORATOR_NODE_TYPES = frozenset({"decorator"})
+_DECORATOR_NAME_NODE_TYPES = frozenset({"identifier", "attribute", "member_expression"})
+# Declarations that hold a value, and the values that are functions: ``const f = () => ...``
+# is as callable a target as a declared function.
+_FUNCTION_VALUE_HOLDER_NODE_TYPES = frozenset(
+    {"variable_declarator", "public_field_definition", "field_definition", "pair", "assignment", "property_signature"}
+)
+_FUNCTION_LITERAL_NODE_TYPES = frozenset(
+    {"arrow_function", "function_expression", "function", "generator_function", "lambda"}
+)
+# ``receiver.member(...)``: the object field holds the receiver in both spellings.
+_MEMBER_ACCESS_NODE_TYPES = frozenset({"member_expression", "attribute"})
 # Nodes that run a constructor. Java's `super(...)`/`this(...)` is a call node rather than a
 # creation one, and `Dog::new` is a method reference that has to be told from `Dog::speak`.
 _CONSTRUCTION_NODE_TYPES = (
@@ -212,10 +228,20 @@ class ParsedSource:
 
 
 @dataclass(frozen=True)
+class ReceiverMember:
+    """A ``receiver.member(...)`` call whose receiver is a bare name."""
+
+    line: int
+    column: int
+    member: str
+
+
+@dataclass(frozen=True)
 class SourceUsageIndex:
     invocation_end_positions: set[tuple[int, int]]
     callable_ranges: set[tuple[int, int, int]]
     construction_start_positions: set[tuple[int, int]]
+    function_value_positions: set[tuple[int, int]]
 
 
 class SourceInspector:
@@ -235,7 +261,7 @@ class SourceInspector:
     def cache_stats(self) -> dict[str, int]:
         """Retained per-file cache sizes, for the memory checkpoint log."""
         usage_entries = sum(
-            len(index.invocation_end_positions) + len(index.callable_ranges)
+            len(index.invocation_end_positions) + len(index.callable_ranges) + len(index.function_value_positions)
             for index in self._usage_index_cache.values()
         )
         return {
@@ -415,6 +441,49 @@ class SourceInspector:
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=position[0], column=position[1]))
         return sites
 
+    def declares_function_value(self, file_path: Path, line: int, character: int) -> bool:
+        """Whether the declaration at this position is a name bound to a function literal.
+
+        Why: ``const handler = () => ...`` is a callable target a server reports as a
+        variable, so a method group resolving to it would otherwise be discarded as a value.
+        """
+        usage_index = self._usage_index(file_path)
+        if usage_index is None:
+            return False
+        return (line, character) in usage_index.function_value_positions
+
+    def receiver_member_calls(self, file_path: Path) -> dict[tuple[int, int], ReceiverMember]:
+        """``receiver.member(...)`` sites with a bare-name receiver, by the member's position.
+
+        Why: when the member's own definition leaves the repository -- an object typed as
+        ``console``, a re-export -- the receiver still names something this repository
+        declares, and the member it holds is the thing the call runs.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return {}
+
+        calls: dict[tuple[int, int], ReceiverMember] = {}
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _CALL_NODE_TYPES:
+                continue
+            access = node.child_by_field_name("function") or node.child_by_field_name("name")
+            if access is None or access.type not in _MEMBER_ACCESS_NODE_TYPES:
+                continue
+            receiver = access.child_by_field_name("object")
+            member = self._select_query_node(access)
+            if receiver is None or receiver.type != "identifier" or member is None:
+                continue
+            calls.setdefault(
+                (member.start_point.row, member.start_point.column),
+                ReceiverMember(
+                    line=receiver.start_point.row,
+                    column=receiver.start_point.column,
+                    member=parsed.content[member.start_byte : member.end_byte].decode("utf8", "replace"),
+                ),
+            )
+        return calls
+
     def find_method_group_sites(self, file_path: Path) -> list[CallSite]:
         """Positions where naming a method passes it as a value rather than calling it.
 
@@ -446,12 +515,13 @@ class SourceInspector:
     def _method_group_candidates(self, node: TreeSitterNode) -> list[TreeSitterNode]:
         """Expressions in a position where a bare name would be a method group."""
         if node.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(node):
-            # Only the argument itself: a named argument (``f(handler: H)``)
-            # keeps its label as the first named child.
-            return [
-                child.named_children[-1] if child.type in _ARGUMENT_NODE_TYPES and child.named_children else child
-                for child in node.named_children
-            ]
+            # Only the argument itself: a named argument keeps its label alongside the value,
+            # as the first named child (``f(handler: H)``) or under ``name`` (``f(key=h)``).
+            return [self._argument_value(child) for child in node.named_children]
+
+        if node.type == "jsx_expression" and node.parent is not None and node.parent.type == "jsx_attribute":
+            # ``onClick={handler}`` passes the handler exactly as an argument would.
+            return list(node.named_children)
 
         # A value position accepts any expression, so unlike an argument it is
         # only worth a query when it is already shaped like a name.
@@ -464,6 +534,15 @@ class SourceInspector:
         else:
             return []
         return [candidate] if candidate is not None and candidate.type in _NAME_SHAPED_NODE_TYPES else []
+
+    @staticmethod
+    def _argument_value(argument: TreeSitterNode) -> TreeSitterNode:
+        value = argument.child_by_field_name("value")
+        if value is not None:
+            return value
+        if argument.type in _ARGUMENT_NODE_TYPES and argument.named_children:
+            return argument.named_children[-1]
+        return argument
 
     @staticmethod
     def _read_file_bytes(file_path: Path) -> bytes | None:
@@ -540,7 +619,12 @@ class SourceInspector:
         invocation_end_positions: set[tuple[int, int]] = set()
         callable_ranges: set[tuple[int, int, int]] = set()
         construction_start_positions: set[tuple[int, int]] = set()
+        function_value_positions: set[tuple[int, int]] = set()
         for node in self._walk(parsed.tree.root_node):
+            declared = self._function_value_name(node)
+            if declared is not None:
+                function_value_positions.add((declared.start_point.row, declared.start_point.column))
+
             target = self._call_target_node(node)
             if target is not None:
                 invocation_end_positions.add((target.end_point.row, target.end_point.column))
@@ -558,9 +642,21 @@ class SourceInspector:
             invocation_end_positions=invocation_end_positions,
             callable_ranges=callable_ranges,
             construction_start_positions=construction_start_positions,
+            function_value_positions=function_value_positions,
         )
         self._usage_index_cache[file_key] = usage_index
         return usage_index
+
+    @staticmethod
+    def _function_value_name(node: TreeSitterNode) -> TreeSitterNode | None:
+        """The name a declaration binds, when what it binds is a function literal."""
+        if node.type not in _FUNCTION_VALUE_HOLDER_NODE_TYPES:
+            return None
+        value = node.child_by_field_name("value") or node.child_by_field_name("right")
+        if value is None or value.type not in _FUNCTION_LITERAL_NODE_TYPES:
+            return None
+        name = node.child_by_field_name("name") or node.child_by_field_name("key") or node.child_by_field_name("left")
+        return name if name is not None and name.type in _NAME_NODE_TYPES else None
 
     def _parser_for(self, file_path: Path) -> Parser | None:
         suffix = file_path.suffix.lower()
@@ -611,6 +707,12 @@ class SourceInspector:
             return next((child for child in node.children if child.type == "new"), None)
         if node.type in _METHOD_REFERENCE_NODE_TYPES:
             return self._last_named_child_of_type(node, _NAME_NODE_TYPES)
+        if node.type in _JSX_ELEMENT_NODE_TYPES:
+            return self._select_query_node(node.child_by_field_name("name"))
+        if node.type in _DECORATOR_NODE_TYPES:
+            named = node.named_children
+            if named and named[0].type in _DECORATOR_NAME_NODE_TYPES:
+                return self._select_query_node(named[0])
         return None
 
     def _select_query_node(self, node: TreeSitterNode | None) -> TreeSitterNode | None:

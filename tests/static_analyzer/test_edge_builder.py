@@ -17,6 +17,7 @@ from static_analyzer.engine.edge_builder import (
 )
 from static_analyzer.config import NodeType
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
+from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
@@ -27,6 +28,16 @@ from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 class _ExpressionBodyTestAdapter(_TestAdapter):
     @property
     def include_references_on_declaration_line(self) -> bool:
+        return True
+
+
+class _DefinitionsTestAdapter(_TestAdapter):
+    @property
+    def edge_strategy(self) -> EdgeStrategy:
+        return EdgeStrategy.DEFINITIONS
+
+    @property
+    def resolves_method_groups(self) -> bool:
         return True
 
 
@@ -1005,3 +1016,113 @@ class TestOverrideTargets:
 
         assert "Base" in dispatch.ambiguous
         assert _override_targets(st._symbols["Alpha.Base.Run"], st, dispatch) == []
+
+
+# ---------------------------------------------------------------------------
+# Generic call shapes: function-valued targets and the receiver fallback
+# ---------------------------------------------------------------------------
+
+
+def _definitions_ctx(lsp: MagicMock) -> tuple[EdgeBuildContext, _DefinitionsTestAdapter]:
+    adapter = _DefinitionsTestAdapter()
+    return EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector()), adapter
+
+
+def _register(ctx: EdgeBuildContext, path: Path, symbols: list[SymbolInfo]) -> None:
+    st = ctx.symbol_table
+    for sym in symbols:
+        st._symbols[sym.qualified_name] = sym
+    st._file_symbols[str(path)] = symbols
+    st._primary_file_symbols[str(path)] = symbols
+    st.build_indices()
+
+
+def _answer(lsp: MagicMock, answers: dict[tuple[int, int], tuple[int, int]], path: Path) -> None:
+    """Resolve each queried position to the declaration position it maps to."""
+
+    def batch(queries: list) -> tuple[list, set[int]]:
+        return [
+            (
+                [{"uri": path.as_uri(), "range": {"start": {"line": at[0], "character": at[1]}}}]
+                if (at := answers.get((line, col))) is not None
+                else []
+            )
+            for _, line, col in queries
+        ], set()
+
+    lsp.send_definition_batch.side_effect = batch
+
+
+class TestFunctionValuedTargets:
+    def test_a_callback_bound_to_a_const_is_a_method_group_target(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text("const handler = () => 1;\n\nexport function run() {\n    subscribe(handler);\n}\n")
+
+        run = _sym("run", "app.run", NodeType.FUNCTION, str(src), 2, 16, 4)
+        handler = _sym("handler", "app.handler", NodeType.VARIABLE, str(src), 0, 6, 0, 23)
+        _register(ctx, src, [run, handler])
+        _answer(lsp, {(3, 14): (0, 6)}, src)
+
+        assert ("app.run", "app.handler") in build_edges_via_definitions(adapter, ctx, [src])
+
+    def test_a_constant_passed_as_an_argument_is_not_an_edge(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text("const LIMIT = 5;\n\nexport function run() {\n    subscribe(LIMIT);\n}\n")
+
+        run = _sym("run", "app.run", NodeType.FUNCTION, str(src), 2, 16, 4)
+        limit = _sym("LIMIT", "app.LIMIT", NodeType.VARIABLE, str(src), 0, 6, 0, 15)
+        _register(ctx, src, [run, limit])
+        _answer(lsp, {(3, 14): (0, 6)}, src)
+
+        assert build_edges_via_definitions(adapter, ctx, [src]) == {}
+
+
+class TestReceiverMemberFallback:
+    def test_a_member_call_that_leaves_the_repository_resolves_through_its_receiver(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text("export const log = { warn(m: string) {} };\n\nexport function run() {\n    log.warn('x');\n}\n")
+
+        run = _sym("run", "app.run", NodeType.FUNCTION, str(src), 2, 16, 4)
+        log = _sym("log", "app.log", NodeType.VARIABLE, str(src), 0, 13, 0, 41)
+        warn = _sym("warn", "app.log.warn", NodeType.METHOD, str(src), 0, 21, 0, 39)
+        _register(ctx, src, [run, log, warn])
+        # The member resolves nowhere; only the receiver at (3, 4) answers.
+        _answer(lsp, {(3, 4): (0, 13)}, src)
+
+        assert ("app.run", "app.log.warn") in build_edges_via_definitions(adapter, ctx, [src])
+
+    def test_a_receiver_that_holds_no_such_member_adds_nothing(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text("export const log = { info(m: string) {} };\n\nexport function run() {\n    log.warn('x');\n}\n")
+
+        run = _sym("run", "app.run", NodeType.FUNCTION, str(src), 2, 16, 4)
+        log = _sym("log", "app.log", NodeType.VARIABLE, str(src), 0, 13, 0, 41)
+        info = _sym("info", "app.log.info", NodeType.METHOD, str(src), 0, 21, 0, 39)
+        _register(ctx, src, [run, log, info])
+        _answer(lsp, {(3, 4): (0, 13)}, src)
+
+        assert build_edges_via_definitions(adapter, ctx, [src]) == {}
+
+    def test_a_member_call_the_engine_already_resolved_is_not_asked_again(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text("export const log = { warn(m: string) {} };\n\nexport function run() {\n    log.warn('x');\n}\n")
+
+        run = _sym("run", "app.run", NodeType.FUNCTION, str(src), 2, 16, 4)
+        log = _sym("log", "app.log", NodeType.VARIABLE, str(src), 0, 13, 0, 41)
+        warn = _sym("warn", "app.log.warn", NodeType.METHOD, str(src), 0, 21, 0, 39)
+        _register(ctx, src, [run, log, warn])
+        _answer(lsp, {(3, 8): (0, 21)}, src)
+
+        build_edges_via_definitions(adapter, ctx, [src])
+        queried = {(line, col) for call in lsp.send_definition_batch.call_args_list for _, line, col in call.args[0]}
+        assert (3, 4) not in queried
