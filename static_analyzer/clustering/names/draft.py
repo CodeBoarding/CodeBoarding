@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import math
+from pathlib import Path
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Protocol
 
 from clustering_ids import ROOT_SCOPE_ID, ScopeId
-from static_analyzer.clustering.names.frontier import BOX, FILE, HEAD, LOOSE, RESIDUAL, SHARE, WORD, Candidate, walk
+from static_analyzer.clustering.names.frontier import BOX, FILE, HEAD, LOOSE, RESIDUAL, WORD, Candidate, walk
 from static_analyzer.clustering.names.inventory import Trie, Unit
 from static_analyzer.clustering.names.replay import Partition, replay
 from static_analyzer.clustering.names.spec import (
@@ -20,8 +22,6 @@ from static_analyzer.clustering.names.spec import (
     ROLE,
     SEGMENT,
     UNMERGE,
-    UNPLACED,
-    VOCABULARY,
     ComponentRule,
     Prefix,
     ScopeSpec,
@@ -44,22 +44,38 @@ GUARD_SHARE = 0.05
 LEAF_UNITS = 7
 """Units at or under which a component is a leaf: a box a reader takes in at a glance."""
 LEAF_CAP = 135
-"""Units above which a component transposes a layered sub-tree and reads its words."""
+"""Units above which a component transposes a layered sub-tree."""
 BUDGET = 9
-"""Components a rung is folded toward; the guard, not the budget, is what a rung must clear."""
+"""Components a scope is folded toward along its links, and only along links that carry
+at least half of what the folded candidate exchanges; the guard, not the budget, is what
+a rung must clear."""
+LIMIT = 15
+"""Components a scope never exceeds: past the budget nothing folds into a hub, past the
+limit the names' vocabulary and, last, a pool of the smallest bring it down."""
 MIN_LINKS = 2
 """Graph links two candidates must exchange before they count as affine: one is noise."""
+HUB_SHARE = 0.4
+"""Share of its siblings that must call a candidate for it to be shared infrastructure: a
+hub neither absorbs a sibling nor folds into one, whatever the counts say."""
+MIN_HUB_PARTNERS = 3
+"""Siblings a hub is called by at the least, so a scope of three cannot hold one."""
+MIN_HUB_UNITS = 3
+"""Units a hub needs to be drawn on its own; a smaller one is a loose file everybody calls."""
 CAP_SHARE = 0.6
 """No fold may grow a component past this share of its scope."""
-UNPLACED_NAME = "Unassigned"
 LOOSE_NAME = "Loose files"
+OTHER_NAME = "Other files"
 ISLAND_SHARE = 1 / 3
 """Share of a scope one family must hold to be drawn on its own against the rest."""
 ISLAND_STRAYS = 1
 """Links a family may exchange with the rest and still count as an island: one is noise."""
+CONSUMER_WORDS = frozenset(
+    {"test", "spec", "e2e", "sample", "example", "doc", "bench", "benchmark", "snippet", "demo", "script", "cypress"}
+)
+"""Stems naming code that calls the scope without being part of it: it owns no helper."""
 
 Links = Mapping[tuple[str, str], int]
-"""Weight of the graph edges between two units, keyed by the unit ids in sorted order."""
+"""Weight of the graph edges from one unit to another, keyed ``(calling unit, called unit)``."""
 
 
 @dataclass(frozen=True)
@@ -76,6 +92,12 @@ class GroupingContext:
     samples: dict[str, tuple[str, ...]] = field(default_factory=dict)
     links: dict[tuple[str, str], int] = field(default_factory=dict)
     """Graph edges between two candidates' units, keyed by their keys in sorted order."""
+    calls: dict[tuple[str, str], int] = field(default_factory=dict)
+    """The same edges with their direction kept: ``(calling candidate, called candidate)``."""
+    vocabulary: dict[str, Counter[str]] = field(default_factory=dict)
+    """Per candidate, the stems its units' names are made of, counted once per unit."""
+    projects: frozenset[str] = frozenset()
+    """Candidates whose directory is a project of its own (a manifest sits in it)."""
     floor: int = MIN_UNITS
     """Units a candidate must hold to stand on its own in this scope."""
 
@@ -87,6 +109,9 @@ class CandidateGroup:
     name: str
     keys: tuple[str, ...]
     terms: tuple[str, ...] = ()
+    standing: bool = False
+    """Whether the group is shared infrastructure or a project, which stands on its own even
+    under the floor a rung would otherwise pool it at."""
 
 
 class Grouper(Protocol):
@@ -107,6 +132,9 @@ class KinshipGrouper:
     name = "kinship"
 
     def group(self, candidates: Sequence[Candidate], context: GroupingContext) -> list[CandidateGroup]:
+        if context.rung == UNMERGE:
+            # The parts of a fold are past kinship: merging them again would undo the un-merge.
+            return [CandidateGroup(candidate_name(candidate), (candidate.key,)) for candidate in candidates]
         ubiquitous = ubiquitous_words(candidate.label for candidate in candidates if candidate.label)
         by_word: dict[str, list[Candidate]] = {}
         solo: list[Candidate] = []
@@ -125,77 +153,242 @@ class KinshipGrouper:
 
 
 class AffinityGrouper:
-    """Kinship, then fold the rung along the graph: a candidate below the floor, and the
-    smallest candidate while the rung is over budget, joins the sibling it exchanges the most
-    links with against what their sizes predict.
+    """Kinship, then the graph, in four steps that read the same at every depth.
 
-    Why observed over expected: a hub (``utils``, ``core``) talks to everyone, so raw counts
-    would fold every small box into it; against its degree it is nobody's closest sibling.
+    1. Every small candidate is placed by its role: a hub or an application stays, a helper
+       (called by one sibling only) goes inside that sibling, one shared by exactly two goes
+       into the larger of them, one nobody links to goes to the loose files.
+    2. Over the budget, the smallest candidate joins the sibling it exchanges the most links
+       with, never a hub, until nothing affine is left.
+    3. Over the limit still, the two candidates whose names share the most vocabulary merge.
+    4. Over the limit still, the smallest are pooled into one box, named for what they are.
+
+    Why hubs are out of every fold: shared infrastructure (an event bus, a ``core`` package)
+    is what every small sibling links to most, so by counts every service belongs to it; a
+    reader wants the infrastructure drawn as one box and the services that use it as theirs.
     """
 
     name = "affinity"
 
     def group(self, candidates: Sequence[Candidate], context: GroupingContext) -> list[CandidateGroup]:
-        groups = KinshipGrouper().group(candidates, context)
-        members = [list(group.keys) for group in groups]
-        terms = [group.terms for group in groups]
-        sizes = [sum(context.sizes.get(key, 0) for key in group.keys) for group in groups]
-        links = [
-            [sum(context.links.get((min(a, b), max(a, b)), 0) for a in left for b in right) for right in members]
-            for left in members
+        fold = _Fold(KinshipGrouper().group(candidates, context), candidates, context)
+        fold.place()
+        fold.toward_budget()
+        fold.by_vocabulary()
+        fold.pool()
+        return fold.groups()
+
+
+class _Fold:
+    """The merges of one rung, over the candidates' sizes, links and calls."""
+
+    def __init__(self, groups: list[CandidateGroup], candidates: Sequence[Candidate], context: GroupingContext):
+        self.context = context
+        self.by_key = {candidate.key: candidate for candidate in candidates}
+        self.members = [list(group.keys) for group in groups]
+        self.terms = [group.terms for group in groups]
+        self.sizes = [sum(context.sizes.get(key, 0) for key in group.keys) for group in groups]
+        self.links = [
+            [self._between(left, right, context.links, ordered=False) for right in self.members]
+            for left in self.members
         ]
-        for index in range(len(members)):
-            links[index][index] = 0
+        self.calls = [
+            [self._between(left, right, context.calls, ordered=True) for right in self.members] for left in self.members
+        ]
+        for index in range(len(groups)):
+            self.links[index][index] = self.calls[index][index] = 0
+        self.vocabulary = [
+            sum((context.vocabulary.get(key, Counter()) for key in group.keys), Counter()) for group in groups
+        ]
+        self.floor = context.floor
+        self.cap = CAP_SHARE * context.unit_count
+        live = self.live()
+        threshold = max(MIN_HUB_PARTNERS, HUB_SHARE * (len(live) - 1))
+        self.hubs = {i for i in live if sum(1 for j in live if self.calls[j][i] >= MIN_LINKS) >= threshold}
+        self.projects = {i for i, keys in enumerate(self.members) if any(key in context.projects for key in keys)}
+        self.fallback = {
+            i for i, keys in enumerate(self.members) if all(self.by_key[k].kind in (LOOSE, RESIDUAL) for k in keys)
+        }
+        self.consumers = {i for i in live if self._is_consumer(i)}
+        self.kept: set[int] = set()
+        self.loose = next(
+            (i for i, keys in enumerate(self.members) if any(self.by_key[k].kind == LOOSE for k in keys)), None
+        )
+        self.pooled: int | None = None
+
+    def live(self) -> list[int]:
+        return sorted((i for i in range(len(self.members)) if self.sizes[i]), key=lambda i: (self.sizes[i], i))
+
+    def merge(self, source: int, target: int) -> None:
+        self.members[target].extend(self.members[source])
+        self.terms[target] = _dedupe(self.terms[target] + self.terms[source])
+        self.sizes[target] += self.sizes[source]
+        self.sizes[source] = 0
+        self.vocabulary[target].update(self.vocabulary[source])
+        for other in range(len(self.members)):
+            self.links[target][other] += self.links[source][other]
+            self.links[other][target] += self.links[other][source]
+            self.calls[target][other] += self.calls[source][other]
+            self.calls[other][target] += self.calls[other][source]
+            self.links[source][other] = self.links[other][source] = 0
+            self.calls[source][other] = self.calls[other][source] = 0
+        self.links[target][target] = self.calls[target][target] = 0
+        self.members[source] = []
+        for flagged in (self.hubs, self.projects, self.kept):
+            if source in flagged:
+                flagged.add(target)
+
+    def place(self) -> None:
+        """Every candidate under the floor, by its role in the calls.
+
+        Loose files, residues, tests, samples, benches, docs and hubs own no helper; a helper
+        whose owner cannot take it under the cap stays.
+        """
+        for index in self.live():
+            if self.sizes[index] >= self.floor or index in self.fallback:
+                continue
+            callers = {
+                j: self.calls[j][index]
+                for j in self.live()
+                if j != index and j not in self.consumers and j not in self.hubs and self.calls[j][index] >= MIN_LINKS
+            }
+            outgoing = sum(self.calls[index][j] for j in self.live() if j != index)
+            fitting = [j for j in callers if self.sizes[j] + self.sizes[index] <= self.cap]
+            if index in self.hubs:
+                if self.sizes[index] < MIN_HUB_UNITS and self.loose is not None and self.loose != index:
+                    self.merge(index, self.loose)
+                else:
+                    self.kept.add(index)
+            elif index in self.projects or len(callers) >= 3:
+                self.kept.add(index)
+            elif len(callers) in (1, 2) and fitting:
+                self.merge(index, max(fitting, key=lambda j: (self.sizes[j], -j)))
+            elif callers or outgoing >= MIN_LINKS:
+                self.kept.add(index)
+            elif self.loose is not None and self.loose != index:
+                self.merge(index, self.loose)
+            else:
+                self.kept.add(index)
+
+    def toward_budget(self) -> None:
+        """The smallest candidate joins the sibling it exchanges the most links with, never a hub.
+
+        Below the floor a candidate the placement left standing joins whoever it links to;
+        over the budget a candidate joins only a sibling carrying at least half of its links,
+        so a real component is never folded on the two links a helper brought along. A
+        consumer (tests, samples, docs) neither takes nor folds, and a fallback-only candidate
+        folds nowhere.
+        """
         while True:
-            live = sorted((index for index in range(len(members)) if sizes[index]), key=lambda i: (sizes[i], i))
-            sources = [index for index in live if sizes[index] < context.floor]
-            if len(live) > BUDGET:
-                sources = live
-            chosen = self._fold(sources, live, sizes, links, context)
+            live = self.live()
+            over_budget = len(live) > BUDGET
+            sources = live if over_budget else [i for i in live if self.sizes[i] < self.floor and i not in self.kept]
+            chosen = None
+            for source in sources:
+                if source in self.hubs or source in self.fallback or source in self.consumers:
+                    continue
+                degree = sum(self.links[source][other] for other in live)
+                best: tuple[int, int, int] | None = None
+                for target in live:
+                    count = self.links[source][target]
+                    if target == source or count < MIN_LINKS:
+                        continue
+                    if target in self.hubs or target in self.consumers or target in self.fallback:
+                        continue
+                    if self.sizes[source] + self.sizes[target] > self.cap:
+                        continue
+                    if over_budget and self.sizes[source] >= self.floor and count * 2 < degree:
+                        continue
+                    if best is None or (count, -self.sizes[target], -target) > best:
+                        best = (count, -self.sizes[target], -target)
+                if best is not None:
+                    chosen = (source, -best[2])
+                    break
             if chosen is None:
-                break
-            source, target = chosen
-            members[target].extend(members[source])
-            terms[target] = _dedupe(terms[target] + terms[source])
-            sizes[target] += sizes[source]
-            sizes[source] = 0
-            for other in range(len(members)):
-                links[target][other] += links[source][other]
-                links[other][target] += links[other][source]
-                links[source][other] = links[other][source] = 0
-            links[target][target] = 0
-            members[source] = []
-        by_key = {candidate.key: candidate for candidate in candidates}
+                return
+            self.merge(*chosen)
+
+    def by_vocabulary(self) -> None:
+        """Over the limit, the two candidates whose names share the most vocabulary merge, under the cap."""
+        while len(self.live()) > LIMIT:
+            live = [i for i in self.live() if i not in self.hubs and i not in self.consumers and i not in self.fallback]
+            vectors = self._tfidf(live)
+            best: tuple[float, int, int] | None = None
+            for a in range(len(live)):
+                for b in range(a + 1, len(live)):
+                    i, j = live[a], live[b]
+                    if self.sizes[i] + self.sizes[j] > self.cap:
+                        continue
+                    similarity = sum(weight * vectors[j].get(word, 0.0) for word, weight in vectors[i].items())
+                    if similarity > 0 and (best is None or similarity > best[0]):
+                        best = (similarity, i, j)
+            if best is None:
+                return
+            _, i, j = best
+            self.merge(j if self.sizes[i] >= self.sizes[j] else i, i if self.sizes[i] >= self.sizes[j] else j)
+
+    def pool(self) -> None:
+        """Over the limit still, the smallest non-hub candidates become one box."""
+        live = [i for i in self.live() if i not in self.hubs and i not in self.fallback]
+        excess = len(self.live()) - LIMIT
+        if excess <= 0 or len(live) < 2:
+            return
+        pooled = live[: excess + 1]
+        target = pooled[-1]
+        for source in pooled[:-1]:
+            self.merge(source, target)
+        self.pooled = target
+
+    def groups(self) -> list[CandidateGroup]:
         groups = []
-        for index, keys in enumerate(members):
+        for index, keys in enumerate(self.members):
             if not keys:
                 continue
+            # Only shared infrastructure and a project stand under a rung's floor: at the files
+            # rung every leaf script calls something, and a box per script is not a picture.
+            standing = index in self.hubs or index in self.projects
+            if index == self.pooled:
+                groups.append(CandidateGroup(OTHER_NAME, tuple(keys), self.terms[index]))
+                continue
+            loose = next((self.by_key[key] for key in keys if self.by_key[key].kind == LOOSE), None)
+            if loose is not None:
+                # What joined the loose files is loose; the box keeps the name a reader knows.
+                groups.append(CandidateGroup(candidate_name(loose), tuple(keys), self.terms[index]))
+                continue
             # The biggest member names a fold: the box a reader already recognises.
-            biggest = max(context.sizes.get(key, 0) for key in keys)
-            name = _plainest([by_key[key] for key in keys if context.sizes.get(key, 0) == biggest])
-            groups.append(CandidateGroup(name, tuple(keys), terms[index]))
+            biggest = max(self.context.sizes.get(key, 0) for key in keys)
+            name = _plainest([self.by_key[key] for key in keys if self.context.sizes.get(key, 0) == biggest])
+            groups.append(CandidateGroup(name, tuple(keys), self.terms[index], standing))
         return groups
 
     @staticmethod
-    def _fold(
-        sources: list[int], live: list[int], sizes: list[int], links: list[list[int]], context: GroupingContext
-    ) -> tuple[int, int] | None:
-        """The smallest source with an affine sibling, and that sibling: ``(source, target)``."""
-        degree = [sum(row) for row in links]
-        total = sum(degree) / 2 or 1.0
-        cap = CAP_SHARE * context.unit_count
-        for source in sources:
-            best: tuple[float, int, int] | None = None
-            for target in live:
-                count = links[source][target]
-                if target == source or count < MIN_LINKS or sizes[source] + sizes[target] > cap:
-                    continue
-                affinity = count * total / (degree[source] * degree[target])
-                if best is None or (affinity, -sizes[target], -target) > best:
-                    best = (affinity, -sizes[target], -target)
-            if best is not None:
-                return source, -best[2]
-        return None
+    def _between(left: list[str], right: list[str], weights: Mapping[tuple[str, str], int], *, ordered: bool) -> int:
+        if ordered:
+            return sum(weights.get((a, b), 0) for a in left for b in right)
+        return sum(weights.get((min(a, b), max(a, b)), 0) for a in left for b in right)
+
+    def _is_consumer(self, index: int) -> bool:
+        """Loose files, residues, tests, samples, benches and docs call the scope without being part of it."""
+        if index in self.fallback:
+            return True
+        labels = (self.by_key[key].label for key in self.members[index])
+        return any(set(stems(label)) & CONSUMER_WORDS for label in labels)
+
+    def _tfidf(self, live: list[int]) -> dict[int, dict[str, float]]:
+        frequency: Counter[str] = Counter()
+        for index in live:
+            frequency.update(self.vocabulary[index].keys())
+        vectors: dict[int, dict[str, float]] = {}
+        for index in live:
+            total = sum(self.vocabulary[index].values()) or 1
+            weights = {
+                word: (count / total) * math.log(1 + len(live) / frequency[word])
+                for word, count in self.vocabulary[index].items()
+                if frequency[word] < 0.8 * len(live)
+            }
+            norm = math.sqrt(sum(weight * weight for weight in weights.values())) or 1.0
+            vectors[index] = {word: weight / norm for word, weight in weights.items()}
+        return vectors
 
 
 DETERMINISTIC_GROUPERS: dict[str, type[Grouper]] = {
@@ -228,7 +421,6 @@ def draft_tree(
     max_depth: int,
     *,
     machinery: Iterable[str] = (),
-    share: float = SHARE,
     links: Links | None = None,
 ) -> TreeSpec:
     """Draft the root and every scope below it down to ``max_depth``.
@@ -243,9 +435,7 @@ def draft_tree(
     role_words = role_words_for(machinery)
 
     def build(scope_id: ScopeId, scope_units: list[Unit], parts: tuple[ComponentRule, ...], depth: int) -> None:
-        scope, partition = draft_scope(
-            scope_id, scope_units, role_words, grouper, parts=parts, share=share, links=links
-        )
+        scope, partition = draft_scope(scope_id, scope_units, role_words, grouper, parts=parts, links=links)
         spec.set_scope(scope)
         if depth >= max_depth:
             return
@@ -263,30 +453,27 @@ def draft_scope(
     grouper: Grouper,
     *,
     parts: tuple[ComponentRule, ...] = (),
-    share: float = SHARE,
     links: Links | None = None,
 ) -> tuple[ScopeSpec, Partition]:
-    """Draft one scope's rules from its units: the first rung that splits it wins."""
+    """Draft one scope's rules from its units: the first rung that splits it wins.
+
+    The ladder is the same at every depth: the parts a fold merged, the directory frontier,
+    the layers of a layered directory, the files, their role words, and an island. The root
+    is never refused: a root nothing splits is drawn as the one box the frontier gave it.
+    """
     scope_units = list(units)
     links = links or {}
     rungs: list[tuple[str, Callable[[], tuple[list[ComponentRule], str]]]] = []
 
     def frontier(rung: str, transpose: bool, layers: bool = False) -> tuple[list[ComponentRule], str]:
-        return _frontier_rules(scope_id, scope_units, role_words, grouper, share, rung, links, transpose, layers)
-
-    def vocabulary() -> tuple[list[ComponentRule], str]:
-        return _vocabulary_rules(scope_id, scope_units, role_words, grouper, links)
+        return _frontier_rules(scope_id, scope_units, role_words, grouper, rung, links, transpose, layers)
 
     if len(parts) >= 2:
-        rungs.append((UNMERGE, lambda: (list(parts), "structural")))
-    if is_root(scope_id):
-        rungs.append((FRONTIER, lambda: frontier(FRONTIER, True)))
-        rungs.append((VOCABULARY, vocabulary))
-    elif len(scope_units) > LEAF_UNITS:
-        transpose = len(scope_units) > LEAF_CAP
-        rungs.append((SEGMENT, lambda: frontier(SEGMENT, transpose)))
-        if transpose:
-            rungs.append((VOCABULARY, vocabulary))
+        rungs.append((UNMERGE, lambda: _unmerge_rules(scope_id, scope_units, parts, role_words, grouper, links)))
+    if is_root(scope_id) or len(scope_units) > LEAF_UNITS:
+        transpose = is_root(scope_id) or len(scope_units) > LEAF_CAP
+        rung = FRONTIER if is_root(scope_id) else SEGMENT
+        rungs.append((rung, lambda: frontier(rung, transpose)))
         rungs.append((LAYERS, lambda: frontier(LAYERS, False, layers=True)))
         rungs.append((FILES, lambda: _file_rules(scope_id, scope_units, role_words, grouper, links)))
         rungs.append((ROLE, lambda: _role_rules(scope_id, scope_units, role_words, grouper, links)))
@@ -301,7 +488,6 @@ def draft_scope(
         scope.axis = axis
         return scope, partition
     if is_root(scope_id) and scope_units:
-        # Never refuse: a root nothing splits is drawn as the one box the frontier gave it.
         rules, axis = produced[FRONTIER]
         settled = _settle(scope_id, scope_units, rules, role_words, FRONTIER, guard=False, min_rules=1)
         if settled is not None:
@@ -326,43 +512,51 @@ def _leaf_reason(
     return f"{kind}: {unit_count} units; {unmerge}; no rung ({tried}) yields two children"
 
 
+def _unmerge_rules(
+    scope_id: ScopeId,
+    units: list[Unit],
+    parts: tuple[ComponentRule, ...],
+    role_words: frozenset[str],
+    grouper: Grouper,
+    links: Links,
+) -> tuple[list[ComponentRule], str]:
+    """The candidates a grouping merged, offered to the grouper again in the scope they now share.
+
+    Why through the grouper: the fold that merged them answered for the parent's budget; a
+    scope of seventy parts is over its own, and folds toward it along its own links. A residual
+    part is offered by its bare label, since ``candidate_name`` appends the suffix again.
+    """
+    candidates = [
+        Candidate(
+            f"part:{index}:{part.name}",
+            part.origin,
+            part.name.removesuffix(" (residual)") if part.origin == RESIDUAL else part.name,
+            part.prefixes,
+            part.fallback_prefixes,
+            part.terms,
+        )
+        for index, part in enumerate(parts)
+    ]
+    context = _context(scope_id, units, candidates, role_words, UNMERGE, links)
+    return _rules_from_groups(grouper.group(candidates, context), candidates), "structural"
+
+
 def _frontier_rules(
     scope_id: ScopeId,
     units: list[Unit],
     role_words: frozenset[str],
     grouper: Grouper,
-    share: float,
     rung: str,
     links: Links,
     transpose: bool,
     layers: bool = False,
 ) -> tuple[list[ComponentRule], str]:
-    frontier = walk(Trie(units), role_words, share=share, transpose=transpose, layers=layers)
+    frontier = walk(Trie(units), role_words, transpose=transpose, layers=layers)
     candidates = sorted(frontier.candidates, key=lambda candidate: candidate.key)
     if not candidates:
         return [], frontier.axis
     context = _context(scope_id, units, candidates, role_words, rung, links)
     return _rules_from_groups(grouper.group(candidates, context), candidates), frontier.axis
-
-
-def _vocabulary_rules(
-    scope_id: ScopeId,
-    units: list[Unit],
-    role_words: frozenset[str],
-    grouper: Grouper,
-    links: Links,
-) -> tuple[list[ComponentRule], str]:
-    """One candidate per word the units' own names elect, head noun weighing most."""
-    counts: Counter[str] = Counter()
-    for unit in units:
-        counts.update(_unit_stems(unit))
-    ubiquitous = frozenset(word for word, count in counts.items() if count >= 2 and count >= len(units) / 2)
-    keys = sorted({key for unit in units if (key := _vocabulary_key(unit, role_words, ubiquitous))})
-    candidates = [Candidate(f"{WORD}:{key}", WORD, key, terms=(key,)) for key in keys]
-    if len(candidates) < 2:
-        return [], VOCABULARY
-    context = _context(scope_id, units, candidates, role_words, VOCABULARY, links)
-    return _rules_from_groups(grouper.group(candidates, context), candidates), VOCABULARY
 
 
 def _file_rules(
@@ -376,7 +570,7 @@ def _file_rules(
     by_key: dict[Prefix, list[Unit]] = {}
     for unit in units:
         by_key.setdefault(unit.key, []).append(unit)
-    candidates = [Candidate(f"{FILE}:{'.'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)]
+    candidates = [Candidate(f"{FILE}:{'/'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)]
     return _grouped_rules(scope_id, units, candidates, role_words, grouper, FILES, links), FILES
 
 
@@ -427,7 +621,7 @@ def _island_rules(
     by_key: dict[Prefix, list[Unit]] = {}
     for unit in units:
         by_key.setdefault(unit.key, []).append(unit)
-    candidates = [Candidate(f"{FILE}:{'.'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)]
+    candidates = [Candidate(f"{FILE}:{'/'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)]
     if len(candidates) < 2:
         return [], ISLAND
     context = _context(scope_id, units, candidates, role_words, ISLAND, links)
@@ -436,8 +630,8 @@ def _island_rules(
     if len(strong) != 1:
         return [], ISLAND
     family_keys = set(strong[0].keys)
-    family = [unit for unit in units if f"{FILE}:{'.'.join(unit.key)}" in family_keys]
-    rest = [unit for unit in units if f"{FILE}:{'.'.join(unit.key)}" not in family_keys]
+    family = [unit for unit in units if f"{FILE}:{'/'.join(unit.key)}" in family_keys]
+    rest = [unit for unit in units if f"{FILE}:{'/'.join(unit.key)}" not in family_keys]
     if len(family) < ISLAND_SHARE * len(units) or len(rest) < context.floor:
         return [], ISLAND
     family_ids = {unit.unit_id for unit in family}
@@ -491,7 +685,12 @@ def _grouped_rules(
         return []
     context = _context(scope_id, units, candidates, role_words, rung, links)
     groups = grouper.group(candidates, context)
-    strong = [group for group in groups if sum(context.sizes.get(key, 0) for key in group.keys) >= context.floor]
+    # A hub or a project is a box under the floor too.
+    strong = [
+        group
+        for group in groups
+        if group.standing or sum(context.sizes.get(key, 0) for key in group.keys) >= context.floor
+    ]
     if len(strong) < 2:
         return []
     kept = {key for group in strong for key in group.keys}
@@ -502,7 +701,8 @@ def _grouped_rules(
 
 
 def _label(key: Prefix) -> str:
-    return key[-1] if key else ""
+    """The last segment, without a file's extension."""
+    return Path(key[-1]).stem if key else ""
 
 
 def _common_prefix(units: list[Unit]) -> Prefix:
@@ -525,7 +725,7 @@ def _context(
     rung: str,
     links: Links,
 ) -> GroupingContext:
-    """Size, a few identifiers and links per candidate, from a replay of the candidates as rules."""
+    """Size, a few identifiers, vocabulary, calls and projects per candidate, from a replay of the candidates as rules."""
     provisional = ScopeSpec(
         scope_id,
         [replace(_candidate_rule(candidate), component_id=candidate.key) for candidate in candidates],
@@ -533,50 +733,57 @@ def _context(
     )
     partition = replay(units, provisional, role_words)
     between: Counter[tuple[str, str]] = Counter()
+    calls: Counter[tuple[str, str]] = Counter()
     for (left, right), weight in links.items():
         left_owner, right_owner = partition.assignment.get(left), partition.assignment.get(right)
         if left_owner and right_owner and left_owner != right_owner:
             between[(min(left_owner, right_owner), max(left_owner, right_owner))] += weight
+            calls[(left_owner, right_owner)] += weight
     samples: dict[str, tuple[str, ...]] = {}
+    vocabulary: dict[str, Counter[str]] = {}
+    projects: set[str] = set()
     for candidate in candidates:
         seen: dict[str, None] = {}
+        words: Counter[str] = Counter()
         for unit in partition.members.get(candidate.key, []):
+            if unit.project is not None and unit.project in candidate.prefixes:
+                projects.add(candidate.key)
+            unit_words: set[str] = set()
             for name in unit.names:
-                seen.setdefault(segments(name, ClusteringConfig.QUALIFIED_NAME_DELIMITER)[-1], None)
-                if len(seen) >= SAMPLE_IDENTIFIERS:
-                    break
-            if len(seen) >= SAMPLE_IDENTIFIERS:
-                break
-        samples[candidate.key] = tuple(seen)
+                parts = segments(name, ClusteringConfig.QUALIFIED_NAME_DELIMITER)
+                seen.setdefault(parts[-1], None)
+                for part in parts:
+                    unit_words.update(stems(part))
+            words.update(unit_words)
+        samples[candidate.key] = tuple(list(seen)[:SAMPLE_IDENTIFIERS])
+        vocabulary[candidate.key] = words
     sizes = {candidate.key: partition.size(candidate.key) for candidate in candidates}
-    floor = MIN_UNITS if rung == FRONTIER else _floor(len(units))
-    return GroupingContext(scope_id, role_words, len(units), rung, sizes, samples, dict(between), floor)
-
-
-def _unit_stems(unit: Unit) -> set[str]:
-    return {
-        stem(word)
-        for name in unit.names
-        for part in segments(name, ClusteringConfig.QUALIFIED_NAME_DELIMITER)
-        for word in tokenize(part)
-    }
-
-
-def _vocabulary_key(unit: Unit, role_words: frozenset[str], ubiquitous: frozenset[str]) -> str:
-    votes: Counter[str] = Counter()
-    for name in unit.names:
-        for part in segments(name, ClusteringConfig.QUALIFIED_NAME_DELIMITER):
-            words = tokenize(part)
-            for position, word in enumerate(words):
-                key = stem(word)
-                if key not in role_words and key not in ubiquitous:
-                    votes[key] += 2.0 ** (position - (len(words) - 1))
-    return max(sorted(votes), key=lambda key: (votes[key], key)) if votes else ""
+    return GroupingContext(
+        scope_id,
+        role_words,
+        len(units),
+        rung,
+        sizes,
+        samples,
+        dict(between),
+        dict(calls),
+        vocabulary,
+        frozenset(projects),
+        _floor(len(units)),
+    )
 
 
 def _plainest(members: list[Candidate]) -> str:
-    """``Ordering`` over ``OrderProcessor``: the member with the fewest words names the group."""
-    return candidate_name(min(members, key=lambda candidate: (len(tokenize(candidate.label)), candidate.label)))
+    """``Ordering.API`` over ``OrderProcessor``: the member whose label says the least beyond the group's word.
+
+    Fewest words that are not role words, then fewest words, then the alphabet.
+    """
+
+    def plainness(candidate: Candidate) -> tuple[int, int, str]:
+        words = tokenize(candidate.label)
+        return (sum(1 for word in words if stem(word) not in ROLE_WORDS), len(words), candidate.label)
+
+    return candidate_name(min(members, key=plainness))
 
 
 def _rules_from_groups(groups: list[CandidateGroup], candidates: Sequence[Candidate]) -> list[ComponentRule]:
@@ -654,9 +861,16 @@ def _settle(
         scope.rules.append(replace(rule, component_id=scope.next_id()))
     partition = replay(units, scope, role_words)
     if partition.unplaced:
-        scope.rules.append(ComponentRule(scope.next_id(), UNPLACED_NAME, origin=UNPLACED, kind=UNPLACED))
+        # What no rule claims is loose: a fallback on the scope's own prefix takes it, so nothing is hidden.
+        scope.rules.append(replace(loose_rule(units), component_id=scope.next_id()))
         partition = replay(units, scope, role_words)
     return scope, partition
+
+
+def loose_rule(units: list[Unit]) -> ComponentRule:
+    """The scope's last resort: a fallback-only rule on the prefix every unit shares."""
+    prefix = _common_prefix(units)
+    return _candidate_rule(Candidate(f"{LOOSE}:{'/'.join(prefix)}", LOOSE, "", fallback_prefixes=(prefix,)))
 
 
 def _floor(unit_count: int) -> int:

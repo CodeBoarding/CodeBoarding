@@ -163,7 +163,7 @@ class TestBuildQualifiedName:
             project_root=self.root,
         )
         # File and Namespace skipped, DownloadService matches filename -> deduped
-        assert result == "Contoso.Processing.Download.DownloadService.ProcessAsync"
+        assert result == "src.Contoso.Processing.Download.DownloadService.ProcessAsync"
 
     def test_namespace_symbol_uses_detail(self):
         """Namespace symbols use their detail field as the qualified name."""
@@ -186,10 +186,10 @@ class TestBuildQualifiedName:
             parent_chain=[("Program.cs", NodeType.FILE)],
             project_root=self.root,
         )
-        assert result == "Contoso.Api.Program"
+        assert result == "src.Contoso.Api.Program"
 
-    def test_src_prefix_stripped(self):
-        """The 'src' directory is stripped from qualified names."""
+    def test_src_is_a_directory_like_any_other(self):
+        """Every adapter spells the path from the repository root; nothing is dropped."""
         result = self.adapter.build_qualified_name(
             file_path=Path("/repo/src/Contoso.Core/Models/Media.cs"),
             symbol_name="Media",
@@ -197,7 +197,7 @@ class TestBuildQualifiedName:
             parent_chain=[],
             project_root=self.root,
         )
-        assert result == "Contoso.Core.Models.Media"
+        assert result == "src.Contoso.Core.Models.Media"
 
 
 class TestFilesDeclaringSeveralTypes:

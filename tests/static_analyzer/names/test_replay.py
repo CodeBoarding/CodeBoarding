@@ -1,8 +1,7 @@
 """Replay is a pure function of a unit's names and the rules: nothing else may move a unit."""
 
 from static_analyzer.clustering.names import ROLE_WORDS, ComponentRule, ScopeSpec, replay
-from static_analyzer.clustering.names.replay import FALLBACK, PREFIX, TERM
-from static_analyzer.clustering.names.spec import UNPLACED
+from static_analyzer.clustering.names.replay import FALLBACK, PREFIX, TERM, UNPLACED
 from tests.static_analyzer.names.conftest import unit
 
 
@@ -18,12 +17,13 @@ LOOSE = ComponentRule("3", "Loose files", fallback_prefixes=((),))
 class TestPrefixes:
     def test_the_longest_matching_prefix_wins(self):
         deep = ComponentRule("9", "Catalog items", prefixes=(("Catalog", "API", "Model"),))
+        f, g = "Catalog/API/Model/CatalogItem.cs", "Catalog/API/Apis/CatalogApi.cs"
         result = replay(
-            [unit("f", "Catalog.API.Model.CatalogItem"), unit("g", "Catalog.API.Apis.CatalogApi")],
+            [unit(f, "Catalog.API.Model.CatalogItem"), unit(g, "Catalog.API.Apis.CatalogApi")],
             scope(CATALOG, deep),
             ROLE_WORDS,
         )
-        assert result.assignment == {"f": "9", "g": "1"}
+        assert result.assignment == {f: "9", g: "1"}
         assert set(result.placed_by.values()) == {PREFIX}
 
     def test_a_prefix_never_matches_a_partial_segment(self):
@@ -81,24 +81,18 @@ class TestFallbackAndUnplaced:
         assert result.assignment == {"f": "2", "g": "3"}
         assert result.placed_by["g"] == FALLBACK
 
-    def test_unplaced_units_land_in_the_bucket_and_are_still_reported(self):
-        bucket = ComponentRule("4", "Unassigned", kind=UNPLACED)
-        result = replay([unit("f", "Shipping.Api.Ship")], scope(CATALOG, ORDER, bucket), ROLE_WORDS)
-        assert result.assignment == {"f": "4"}
-        assert [u.unit_id for u in result.unplaced] == ["f"]
-        assert result.placed_by["f"] == UNPLACED
-
     def test_without_a_bucket_an_unplaced_unit_is_only_reported(self):
         result = replay([unit("f", "Shipping.Api.Ship")], scope(CATALOG, ORDER), ROLE_WORDS)
         assert result.assignment == {}
         assert [u.unit_id for u in result.unplaced] == ["f"]
 
     def test_unplaced_units_are_grouped_where_they_leave_the_known_tree(self):
-        units = [unit("f", "Shipping.Api.Ship"), unit("g", "Shipping.Domain.Parcel"), unit("h", "Loose")]
+        f, g, h = "Shipping/Api/Ship.cs", "Shipping/Domain/Parcel.cs", "Loose.cs"
+        units = [unit(f, "Shipping.Api.Ship"), unit(g, "Shipping.Domain.Parcel"), unit(h, "Loose")]
         result = replay(units, scope(CATALOG, ORDER), ROLE_WORDS)
         assert {key: [u.unit_id for u in members] for key, members in result.new_scopes.items()} == {
-            ("Shipping",): ["f", "g"],
-            (): ["h"],
+            ("Shipping",): [f, g],
+            (): [h],
         }
 
     def test_members_follow_rule_order_and_include_empty_rules(self):
@@ -110,29 +104,34 @@ class TestFallbackAndUnplaced:
 class TestNewScopes:
     def test_units_a_loose_rule_catches_still_surface_where_they_diverge(self):
         """A root with loose files must not hide a new top-level directory behind 'Loose files'."""
-        shipping = [unit(f"s{i}", f"Shipping.API.Ship{i}") for i in range(3)]
-        result = replay([unit("p", "Program"), *shipping], scope(CATALOG, ORDER, LOOSE), ROLE_WORDS)
+        shipping = [unit(f"Shipping/API/Ship{i}.cs", f"Shipping.API.Ship{i}") for i in range(3)]
+        result = replay([unit("Program.cs", "Program"), *shipping], scope(CATALOG, ORDER, LOOSE), ROLE_WORDS)
         assert all(result.assignment[u.unit_id] == "3" for u in shipping)
-        assert [u.unit_id for u in result.new_scopes[("Shipping",)]] == ["s0", "s1", "s2"]
-        assert [u.unit_id for u in result.new_scopes[()]] == ["p"]
+        assert [u.unit_id for u in result.new_scopes[("Shipping",)]] == [u.unit_id for u in shipping]
+        assert [u.unit_id for u in result.new_scopes[()]] == ["Program.cs"]
 
     def test_a_unit_a_word_claims_outside_every_prefix_is_still_a_new_scope_candidate(self):
         """A new directory is a new directory, whatever its names happen to say."""
-        result = replay([unit("s0", "Shipping.OrderShipment.Run()")], scope(ORDER), ROLE_WORDS)
-        assert result.assignment["s0"] == "2"
-        assert [u.unit_id for u in result.new_scopes[("Shipping",)]] == ["s0"]
+        s0 = "Shipping/OrderShipment.cs"
+        result = replay([unit(s0, "Shipping.OrderShipment.Run()")], scope(ORDER), ROLE_WORDS)
+        assert result.assignment[s0] == "2"
+        assert [u.unit_id for u in result.new_scopes[("Shipping",)]] == [s0]
 
     def test_a_root_drawn_as_one_box_does_not_hide_the_directories_added_after_it(self):
         everything = ComponentRule("1", "All files", prefixes=((),))
+        s0, s1 = "Shipping/Ship.cs", "Shipping/Dock.cs"
         result = replay(
-            [unit("s0", "Shipping.Ship.Run()"), unit("s1", "Shipping.Dock.Run()")], scope(everything), ROLE_WORDS
+            [unit(s0, "Shipping.Ship.Run()"), unit(s1, "Shipping.Dock.Run()")], scope(everything), ROLE_WORDS
         )
-        assert result.assignment == {"s0": "1", "s1": "1"}
-        assert [u.unit_id for u in result.new_scopes[("Shipping",)]] == ["s0", "s1"]
+        assert result.assignment == {s0: "1", s1: "1"}
+        assert [u.unit_id for u in result.new_scopes[("Shipping",)]] == [s0, s1]
 
     def test_a_unit_a_prefix_claims_is_not_a_new_scope(self):
         result = replay(
-            [unit("f", "Catalog.API.Item"), unit("g", "OrderProcessor.Totals")],
+            [
+                unit("Catalog/API/Item.cs", "Catalog.API.Item"),
+                unit("OrderProcessor/Totals.cs", "OrderProcessor.Totals"),
+            ],
             scope(CATALOG, ORDER, LOOSE),
             ROLE_WORDS,
         )
@@ -144,8 +143,9 @@ class TestNewScopes:
         feature = ComponentRule(
             "5", "Incidents", prefixes=(("Beacon", "Application", "Incidents"),), terms=("incident",)
         )
-        result = replay([unit("f", "Beacon.Application.Billing.Invoice")], scope(residual, feature), ROLE_WORDS)
-        assert result.assignment == {"f": "4"}
+        f = "Beacon/Application/Billing/Invoice.cs"
+        result = replay([unit(f, "Beacon.Application.Billing.Invoice")], scope(residual, feature), ROLE_WORDS)
+        assert result.assignment == {f: "4"}
         assert list(result.new_scopes) == [("Beacon", "Application", "Billing")]
 
 

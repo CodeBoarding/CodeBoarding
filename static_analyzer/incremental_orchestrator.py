@@ -53,6 +53,7 @@ def update_cfg_for_changed_files(
     changed_files: set[Path],
     adapter: LanguageAdapter,
     project_path: Path,
+    repository_path: Path,
     engine_client: LSPClient,
     ignore_manager: RepoIgnoreManager,
 ) -> dict[str, Any]:
@@ -94,7 +95,7 @@ def update_cfg_for_changed_files(
     ]
 
     if changed_source_files:
-        builder = CallGraphBuilder(engine_client, adapter, project_path)
+        builder = CallGraphBuilder(engine_client, adapter, project_path, repository_path)
         engine_result = builder.build(changed_source_files)
         new_analysis = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
     else:

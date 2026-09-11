@@ -10,10 +10,6 @@ from clustering_ids import ROOT_SCOPE_ID, CodeBoardingClusterIds, ScopeId
 
 Prefix = tuple[str, ...]
 
-COMPONENT = "component"
-UNPLACED = "unplaced"
-"""Kinds of rule. The unplaced bucket owns what no rule claims, so it is drawn rather than
-hidden and can never collide with a component the planner proposes."""
 
 UNMERGE = "unmerge"
 FRONTIER = "frontier"
@@ -47,7 +43,6 @@ class ComponentRule:
     fallback_prefixes: tuple[Prefix, ...] = ()
     parts: tuple[ComponentRule, ...] = ()
     origin: str = "frontier"
-    kind: str = COMPONENT
 
     @property
     def is_fallback_only(self) -> bool:
@@ -55,7 +50,7 @@ class ComponentRule:
         return not self.prefixes and not self.terms
 
     def to_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = {"id": self.component_id, "name": self.name, "origin": self.origin, "kind": self.kind}
+        out: dict[str, Any] = {"id": self.component_id, "name": self.name, "origin": self.origin}
         if self.prefixes:
             out["prefixes"] = [list(prefix) for prefix in self.prefixes]
         if self.terms:
@@ -76,7 +71,6 @@ class ComponentRule:
             fallback_prefixes=tuple(tuple(prefix) for prefix in raw.get("fallback_prefixes", ())),
             parts=tuple(cls.from_dict(part) for part in raw.get("parts", ())),
             origin=str(raw.get("origin", "frontier")),
-            kind=str(raw.get("kind", COMPONENT)),
         )
 
 
@@ -101,11 +95,7 @@ class ScopeSpec:
 
     @property
     def components(self) -> list[ComponentRule]:
-        return [rule for rule in self.rules if rule.kind == COMPONENT]
-
-    @property
-    def unplaced_rule(self) -> ComponentRule | None:
-        return next((rule for rule in self.rules if rule.kind == UNPLACED), None)
+        return list(self.rules)
 
     def rule(self, component_id: str) -> ComponentRule | None:
         return next((rule for rule in self.rules if rule.component_id == component_id), None)
@@ -139,7 +129,7 @@ class ScopeSpec:
         )
 
 
-SPEC_VERSION = 3
+SPEC_VERSION = 4
 """3: the files and role rungs below the old floor of forty units, whose rules claim a unit by its
 key and may own a role word. 2: ``last_id`` per scope."""
 

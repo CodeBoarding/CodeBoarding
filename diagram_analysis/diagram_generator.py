@@ -675,7 +675,7 @@ class DiagramGenerator:
             self.tree_spec = self._stored_tree_spec()
             self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
         elif target_component is None:
-            service = ClusteringService(self._grouper())
+            service = ClusteringService(self._grouper(), self.repo_location)
             self.clustering_hierarchy = service.build_full_hierarchy(static_analysis, depth)
             self.tree_spec = service.spec
         else:
@@ -1031,7 +1031,7 @@ class DiagramGenerator:
         assert self.tree_spec is not None
         persisted = {ROOT_SCOPE_ID: root_analysis, **sub_analyses}
         # Scopes the specification never reached are drafted deterministically here.
-        service = ClusteringService()
+        service = ClusteringService(repo_dir=self.repo_location)
         self.clustering_hierarchy = service.build_incremental_hierarchy(
             self.static_analysis,
             hierarchy_depth,
@@ -1252,7 +1252,7 @@ class DiagramGenerator:
             raise ClusteringScopeUnavailableError(component.component_id, "no owned CFG nodes")
         remaining_depth = max(1, hierarchy_depth - _component_depth(component.component_id))
         assert self.tree_spec is not None
-        service = ClusteringService(self._grouper())
+        service = ClusteringService(self._grouper(), self.repo_location)
         # The service replays the specification from the root down to this component, so the
         # scope holds the units a full run placed in it, data-only files included.
         scope = service.build_scope_hierarchy(graphs, remaining_depth, component.component_id, self.tree_spec)

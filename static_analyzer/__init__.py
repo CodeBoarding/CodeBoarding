@@ -883,7 +883,13 @@ class StaticAnalyzer:
                 logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
                 cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
                 analysis = update_cfg_for_changed_files(
-                    cached_lang_dict, changed_files, adapter, project_path, engine_client, self.ignore_manager
+                    cached_lang_dict,
+                    changed_files,
+                    adapter,
+                    project_path,
+                    self.repository_path,
+                    engine_client,
+                    self.ignore_manager,
                 )
                 carried[language] = analysis
                 carried_adapters[language] = adapter
@@ -1049,6 +1055,7 @@ class StaticAnalyzer:
             engine_client,
             adapter,
             project_path,
+            self.repository_path,
             memory_budget_bytes=per_engine_memory_budget(max(max_concurrent_engines(), 1)),
         )
         engine_result = builder.build(source_files)

@@ -29,11 +29,14 @@ class CallGraphBuilder:
         lsp_client: LSPClient,
         adapter: LanguageAdapter,
         project_root: Path,
+        repository_path: Path,
         memory_budget_bytes: int = 0,
     ) -> None:
         self._lsp = lsp_client
         self._adapter = adapter
         self._root = project_root.resolve()
+        self._repository = repository_path.resolve()
+        """Names are spelled from here, whichever nested solution or project the server was started on."""
         # 0 means "one server at a time", so the recycler uses the whole allowance.
         self._memory_budget_bytes = memory_budget_bytes
 
@@ -210,8 +213,8 @@ class CallGraphBuilder:
                     opened_early.append(file_path)
                     self._lsp.did_open(file_path)
                     symbols = self._lsp.document_symbol(file_path)
-            self._adapter.record_document_symbols(file_path, symbols, self._root)
-            self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
+            self._adapter.record_document_symbols(file_path, symbols, self._repository)
+            self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._repository)
             pbar.set_postfix(symbols=len(self._symbol_table.symbols))
             pbar.update(1)
         pbar.finish()
@@ -372,7 +375,7 @@ class CallGraphBuilder:
 
     def _build_package_deps(self, edge_set: EdgeMap, source_files: list[Path]) -> dict[str, dict]:
         """Phase 4: Infer package dependencies from cross-package edges."""
-        all_packages = self._adapter.get_all_packages(source_files, self._root)
+        all_packages = self._adapter.get_all_packages(source_files, self._repository)
 
         package_deps: dict[str, dict] = {}
         for pkg in sorted(all_packages):
@@ -384,8 +387,8 @@ class CallGraphBuilder:
             dst_sym = st.symbols.get(dst)
             if not src_sym or not dst_sym:
                 continue
-            src_pkg = self._adapter.get_package_for_file(src_sym.file_path, self._root)
-            dst_pkg = self._adapter.get_package_for_file(dst_sym.file_path, self._root)
+            src_pkg = self._adapter.get_package_for_file(src_sym.file_path, self._repository)
+            dst_pkg = self._adapter.get_package_for_file(dst_sym.file_path, self._repository)
             if src_pkg != dst_pkg:
                 if src_pkg in package_deps and dst_pkg not in package_deps[src_pkg]["imports"]:
                     package_deps[src_pkg]["imports"].append(dst_pkg)

@@ -1,19 +1,33 @@
-"""Units and the trie of their qualified-name prefixes.
+"""Units and the trie of their positions.
 
-A unit is one file: the set of qualified names the engine declared in it. Its *position* is
-the longest prefix its names share, read from the names alone (the engine emits no module
-node, and a file path is never parsed here). The trie over every unit's position is the
-directory tree in every language today, because every adapter derives the prefix from the
-path; a declared namespace would land in the same structure the day an adapter carried one.
+A unit is one file: the qualified names the engine declared in it. Its *position* is the
+file's directory under the repository root, so the trie over every unit's position is the
+repository's directory tree, the same for every language and every engine, whatever an
+adapter chose to call a symbol. Its *key* is the position plus the file's stem: what a rule
+owns to claim this file and not a sibling in the same directory.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg import CallGraph
-from static_analyzer.clustering.names.tokens import segments
+
+PROJECT_MANIFESTS = (
+    "package.json",
+    "pyproject.toml",
+    "setup.py",
+    "go.mod",
+    "Cargo.toml",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "composer.json",
+)
+"""Files that make a directory a project of its own; a ``.csproj`` or ``.fsproj`` does too."""
 
 
 @dataclass(frozen=True)
@@ -25,53 +39,63 @@ class Unit:
     names: tuple[str, ...]
     position: tuple[str, ...]
     key: tuple[str, ...]
-    """``position`` plus the one symbol the file declares, when it declares one: what a rule owns
-    to claim this file and not a sibling declared in the same module."""
+    """``position`` plus the file's name, so a file and a directory of the same name stay apart."""
+    project: tuple[str, ...] | None = None
+    """The nearest directory above the file holding a project manifest, when there is one: a unit
+    a reader separated on purpose."""
 
 
-def unit_key(names: Iterable[str], delimiter: str) -> tuple[str, ...]:
-    """The longest prefix the names share."""
-    shared: list[str] = []
-    for parts in zip(*(tuple(segments(name, delimiter)) for name in names)):
-        if len(set(parts)) != 1:
-            break
-        shared.append(parts[0])
-    return tuple(shared)
+def units_from_graph(graph: CallGraph, language: str, repo_dir: Path | None = None) -> list[Unit]:
+    """One unit per file, positioned by its directory under ``repo_dir``.
 
-
-def unit_position(names: Iterable[str], delimiter: str) -> tuple[str, ...]:
-    """The unit key less a trailing symbol.
-
-    A file declaring one class shares that class's name across every member, so the bare
-    prefix would name the class rather than the module it sits in.
+    ``repo_dir`` is required when the graph carries absolute paths; a relative path is taken
+    as already repository-relative.
     """
-    listed = list(names)
-    key = unit_key(listed, delimiter)
-    return key[:-1] if any(tuple(segments(name, delimiter)) == key for name in listed) else key
-
-
-def units_from_graph(graph: CallGraph, language: str) -> list[Unit]:
     by_file: dict[str, list[str]] = {}
     for qualified_name, node in graph.nodes.items():
         if node.file_path:
             by_file.setdefault(node.file_path, []).append(qualified_name)
-    return [
-        Unit(
-            file_path,
-            language,
-            tuple(sorted(names)),
-            unit_position(names, graph.delimiter),
-            unit_key(names, graph.delimiter),
+    units: list[Unit] = []
+    projects: dict[tuple[str, ...], tuple[str, ...] | None] = {}
+    for file_path, names in sorted(by_file.items()):
+        if Path(file_path).is_absolute() and repo_dir is None:
+            raise ValueError(f"{file_path} is absolute and no repository root was given to position it")
+        relative = Path(normalize_repo_path(file_path, repo_dir))
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"{file_path} lies outside the repository root {repo_dir}")
+        position = relative.parent.parts
+        if position == (".",):
+            position = ()
+        if position not in projects:
+            projects[position] = _project_root(repo_dir, position) if repo_dir is not None else None
+        units.append(
+            Unit(file_path, language, tuple(sorted(names)), position, position + (relative.name,), projects[position])
         )
-        for file_path, names in sorted(by_file.items())
-    ]
+    return units
 
 
-def units_from_graphs(graphs: Mapping[str, CallGraph]) -> list[Unit]:
+def units_from_graphs(graphs: Mapping[str, CallGraph], repo_dir: Path | None = None) -> list[Unit]:
     units: list[Unit] = []
     for language in sorted(graphs):
-        units.extend(units_from_graph(graphs[language], language))
+        units.extend(units_from_graph(graphs[language], language, repo_dir))
     return units
+
+
+def _project_root(repo_dir: Path, position: tuple[str, ...]) -> tuple[str, ...] | None:
+    """The nearest directory at or above ``position`` that holds a manifest; the repository root does not count."""
+    for depth in range(len(position), 0, -1):
+        if _is_project_root(repo_dir / Path(*position[:depth])):
+            return position[:depth]
+    return None
+
+
+def _is_project_root(directory: Path) -> bool:
+    if any((directory / manifest).is_file() for manifest in PROJECT_MANIFESTS):
+        return True
+    try:
+        return any(entry.suffix in (".csproj", ".fsproj") for entry in directory.iterdir())
+    except OSError:
+        return False
 
 
 @dataclass
@@ -84,12 +108,11 @@ class TrieNode:
 
 
 class Trie:
-    """The prefix tree of unit positions.
+    """The prefix tree of unit positions: the directory tree of every file the engine saw.
 
-    A node holding one unit and nothing else is usually that unit's own name (a Python
-    module, a file declaring several C# types); the walk treats such a node as a loose unit
-    of its parent rather than as a scope, but keeps it in the tree, because a one-file
-    feature directory under a layer is evidence the transposition needs.
+    A node holding one unit and nothing else is a one-file directory; the walk treats such a
+    node as a loose unit of its parent rather than as a scope, but keeps it in the tree,
+    because a one-file feature directory under a layer is evidence the transposition needs.
     """
 
     def __init__(self, units: Iterable[Unit]):

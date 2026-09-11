@@ -16,6 +16,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 
 def _analyzer_with_one_engine(project_path: Path, changed_files: set[Path] | None) -> StaticAnalyzer:
     analyzer = object.__new__(StaticAnalyzer)
+    analyzer.repository_path = project_path
     adapter = MagicMock()
     adapter.language = "Python"
     adapter.language_enum = MagicMock()

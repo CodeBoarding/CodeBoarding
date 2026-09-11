@@ -1,6 +1,6 @@
 from clustering_ids import ROOT_SCOPE_ID
 from static_analyzer.clustering.names import ComponentRule, KinshipGrouper, ScopeSpec, TreeSpec, draft_tree
-from static_analyzer.clustering.names.spec import SPEC_VERSION, UNPLACED
+from static_analyzer.clustering.names.spec import SPEC_VERSION
 from tests.static_analyzer.names.conftest import units_from_layout
 
 
@@ -94,10 +94,9 @@ class TestScopeSpec:
         spec = TreeSpec(scopes={s: ScopeSpec(s) for s in ("1.1", "10", "2", "root", "1")})
         assert list(spec.to_dict()["scopes"]) == ["root", "1", "2", "10", "1.1"]
 
-    def test_components_exclude_the_bucket(self):
-        scope = ScopeSpec("root", [ComponentRule("1", "a"), ComponentRule("2", "Unassigned", kind=UNPLACED)])
-        assert [rule.component_id for rule in scope.components] == ["1"]
-        assert scope.unplaced_rule is not None and scope.unplaced_rule.component_id == "2"
+    def test_every_rule_is_a_component(self):
+        scope = ScopeSpec("root", [ComponentRule("1", "a"), ComponentRule("2", "Loose files", fallback_prefixes=((),))])
+        assert [rule.component_id for rule in scope.components] == ["1", "2"]
         assert scope.rule("9") is None
 
     def test_a_rule_without_prefix_or_word_is_fallback_only(self):
