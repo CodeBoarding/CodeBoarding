@@ -16,11 +16,13 @@ from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
 from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.node import Node
+from static_analyzer.graph_definitions import GraphIndex, definition_nodes
 from static_analyzer.incremental_orchestrator import (
-    _definition_nodes,
+    _add_outbound_edges_from_changed_files,
     _restore_cross_boundary_edges,
     update_cfg_for_changed_files,
 )
+from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
 from utils import CODEBOARDING_DIR_NAME
 
@@ -244,7 +246,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             "range": {"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 66}},
         }
 
-        matches = _definition_nodes(call_graph, definition)
+        matches = definition_nodes(GraphIndex(call_graph), definition)
 
         self.assertEqual([node.fully_qualified_name for node in matches], ["unchanged.unchanged_target"])
 
@@ -275,7 +277,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             "range": {"start": {"line": 9, "character": 8}, "end": {"line": 9, "character": 15}},
         }
 
-        matches = _definition_nodes(call_graph, definition, include_callable_parent=True)
+        matches = definition_nodes(GraphIndex(call_graph), definition, include_callable_parent=True)
 
         self.assertEqual(
             [node.fully_qualified_name for node in matches],
@@ -313,7 +315,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 6}},
         }
 
-        matches = _definition_nodes(call_graph, definition)
+        matches = definition_nodes(GraphIndex(call_graph), definition)
 
         self.assertEqual([node.fully_qualified_name for node in matches], ["pkg.target.Target"])
 
@@ -344,7 +346,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             "range": {"start": {"line": 1, "character": 5}, "end": {"line": 1, "character": 16}},
         }
 
-        matches = _definition_nodes(call_graph, definition)
+        matches = definition_nodes(GraphIndex(call_graph), definition)
 
         self.assertEqual(
             [node.fully_qualified_name for node in matches],
@@ -390,7 +392,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             adapter.is_class_like.return_value = False
 
             _restore_cross_boundary_edges(
-                call_graph,
+                GraphIndex(call_graph),
                 [(source.fully_qualified_name, target.fully_qualified_name, source, target, [])],
                 {str(changed_file)},
                 adapter,
@@ -407,3 +409,29 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWarmStartKeepsDefinitionsAnotherEngineOwns:
+    def test_a_changed_caller_whose_definition_has_no_node_yet_is_handed_back(self, tmp_path: Path) -> None:
+        """Solution A's changed file calls something solution B adds in the same edit; B's node is
+        not in the graph when A is processed, so the site must survive until every engine merged."""
+        changed = tmp_path / "Host.cs"
+        changed.write_text("class Host\n{\n    void Configure() { Builder.UseAuditing(); }\n}\n")
+        graph = CallGraph(language="csharp")
+        graph.add_node(Node("Host", NodeType.CLASS, str(changed), line_start=1, line_end=4, col_start=0))
+        graph.add_node(Node("Host.Configure()", NodeType.METHOD, str(changed), line_start=3, line_end=3, col_start=9))
+        elsewhere = tmp_path / "framework" / "Builder.cs"
+        client = MagicMock()
+        client.send_definition_batch.side_effect = lambda queries: (
+            [[{"uri": elsewhere.as_uri(), "range": {"start": {"line": 20, "character": 4}}}] for _ in queries],
+            set(),
+        )
+
+        external = _add_outbound_edges_from_changed_files(
+            GraphIndex(graph), [changed], client, SourceInspector(), CSharpAdapter()
+        )
+
+        assert graph.edges == []
+        assert [(s.caller, s.file, s.line, s.character, s.kind) for s in external] == [
+            ("Host.Configure()", str(elsewhere), 20, 4, "call")
+        ]

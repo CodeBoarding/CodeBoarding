@@ -25,9 +25,22 @@ from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.engine.models import CallSite, ExternalCallSite
 from static_analyzer.engine.utils import definition_location, uri_to_path
-from static_analyzer.cfg import CallGraph, EdgeKind
-from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name
+from static_analyzer.graph_definitions import (
+    CALL,
+    COLLECTION_INITIALIZER,
+    ITERATED,
+    METHOD_GROUP,
+    GraphIndex,
+    containing_source_node,
+    definition_nodes,
+    override_nodes,
+    position_inside_node,
+    targets_for,
+)
+from static_analyzer.cfg import CallGraph
+from static_analyzer.internal_references import is_self_or_container_edge
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -99,7 +112,7 @@ def update_cfg_for_changed_files(
         new_analysis["diagnostics"] = fresh_diagnostics
 
     merged_analysis = merge_results(updated_cache.analysis, new_analysis)
-    _rebuild_changed_file_edges(
+    external = _rebuild_changed_file_edges(
         merged_analysis,
         updated_cache.invalidated_edges,
         updated_cache.invalidated_files,
@@ -107,7 +120,9 @@ def update_cfg_for_changed_files(
         adapter,
         engine_client,
     )
-    return _filter_to_live_files(merged_analysis).to_dict()
+    updated = _filter_to_live_files(merged_analysis).to_dict()
+    updated["external_call_sites"] = external
+    return updated
 
 
 def _rebuild_changed_file_edges(
@@ -117,13 +132,18 @@ def _rebuild_changed_file_edges(
     changed_source_files: list[Path],
     adapter: LanguageAdapter,
     engine_client: LSPClient,
-) -> None:
+) -> list[ExternalCallSite]:
+    """Restore and re-resolve the edges an edit touched; return the definitions this graph cannot name yet.
+
+    Why return them: a changed caller in one solution and its new destination in another are
+    updated by different engines, in either order, so a definition with no node here is only
+    finished once every engine's graph is merged.
+    """
     source_inspector = SourceInspector()
-    _restore_cross_boundary_edges(
-        merged_analysis.call_graph, invalidated_edges, changed_file_strs, adapter, engine_client, source_inspector
-    )
-    _add_outbound_edges_from_changed_files(
-        merged_analysis.call_graph,
+    index = GraphIndex(merged_analysis.call_graph)
+    _restore_cross_boundary_edges(index, invalidated_edges, changed_file_strs, adapter, engine_client, source_inspector)
+    return _add_outbound_edges_from_changed_files(
+        index,
         changed_source_files,
         engine_client,
         source_inspector,
@@ -132,19 +152,20 @@ def _rebuild_changed_file_edges(
 
 
 def _restore_cross_boundary_edges(
-    call_graph: CallGraph,
+    index: GraphIndex,
     invalidated_edges: list[InvalidatedEdge],
     changed_file_strs: set[str],
     adapter: LanguageAdapter,
     engine_client: LSPClient,
     source_inspector: SourceInspector,
 ) -> None:
+    call_graph = index.call_graph
     if not invalidated_edges:
         return
 
     if adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
         _restore_inbound_edges_via_definitions(
-            call_graph,
+            index,
             invalidated_edges,
             changed_file_strs,
             adapter,
@@ -201,13 +222,14 @@ def _restore_cross_boundary_edges(
 
 
 def _restore_inbound_edges_via_definitions(
-    call_graph: CallGraph,
+    index: GraphIndex,
     invalidated_edges: list[InvalidatedEdge],
     changed_file_strs: set[str],
     adapter: LanguageAdapter,
     engine_client: LSPClient,
     include_callable_parent: bool,
 ) -> None:
+    call_graph = index.call_graph
     """Re-resolve invalidated edges whose source file is unchanged, from their cached call sites.
 
     Why not references: an adapter on the definitions strategy is there because
@@ -261,12 +283,12 @@ def _restore_inbound_edges_via_definitions(
             resolved = [
                 dst_node
                 for definition in definitions
-                for dst_node in _definition_nodes(call_graph, definition, include_callable_parent)
+                for dst_node in definition_nodes(index, definition, include_callable_parent)
             ]
             reachable = {node.fully_qualified_name for node in resolved}
             if adapter.expands_virtual_dispatch:
                 for node in resolved:
-                    reachable.update(o.fully_qualified_name for o in _override_nodes(call_graph, node))
+                    reachable.update(o.fully_qualified_name for o in override_nodes(call_graph, node))
             if edge[1] in reachable:
                 confirmed.setdefault(edge, []).append(site)
 
@@ -300,7 +322,7 @@ def _edge_reference_call_sites(
         ref_line = ref_start.get("line", -1)
         ref_char = ref_start.get("character", -1)
         ref_end_char = ref_end.get("character", -1)
-        if not _position_inside_node(src_node, ref_line, ref_char):
+        if not position_inside_node(src_node, ref_line, ref_char):
             continue
         if not _reference_matches_edge_kind(
             dst_node, ref_file, ref_line, ref_char, ref_end_char, adapter, source_inspector
@@ -310,54 +332,19 @@ def _edge_reference_call_sites(
     return call_sites
 
 
-def _members_named(call_graph: CallGraph, owner: Node, name: str) -> list[Node]:
-    """Nodes for ``owner``'s members called *name*, by qualified-name prefix.
-
-    The full rebuild reads these off the symbol table; incrementally only the
-    merged graph is available, so the owning type's members are found by name.
-    """
-    prefix = f"{owner.fully_qualified_name}.{name}"
-    return [node for qname, node in call_graph.nodes.items() if qname == prefix or qname.startswith(f"{prefix}(")]
-
-
-def _override_nodes(call_graph: CallGraph, target: Node) -> list[Node]:
-    """Same-named members on types that inherit the target's owner.
-
-    A call through a base-typed reference resolves to the base declaration, so
-    without this the incremental graph stops where the full rebuild continues.
-    The full rebuild builds a subclass index from source; here the INHERITS
-    edges already in the merged graph carry the same relation.
-    """
-    if not target.is_callable():
-        return []
-    owner_qname = parent_qualified_name(target.fully_qualified_name)
-    owner = call_graph.nodes.get(owner_qname)
-    if owner is None:
-        return []
-    member = target.fully_qualified_name[len(owner_qname) + 1 :].split("(")[0]
-    overrides: list[Node] = []
-    for ref in call_graph.reference_edges:
-        if ref.kind is EdgeKind.INHERITS and ref.dst == owner_qname:
-            derived = call_graph.nodes.get(ref.src)
-            if derived is not None:
-                overrides.extend(_members_named(call_graph, derived, member))
-    return overrides
-
-
 def _add_outbound_edges_from_changed_files(
-    call_graph: CallGraph,
+    index: GraphIndex,
     changed_source_files: list[Path],
     engine_client: LSPClient,
     source_inspector: SourceInspector,
     adapter: LanguageAdapter,
-) -> None:
+) -> list[ExternalCallSite]:
+    call_graph = index.call_graph
+    external: list[ExternalCallSite] = []
     if not changed_source_files:
-        return
-
-    include_callable_parent = adapter.edge_strategy == EdgeStrategy.DEFINITIONS
+        return external
     added = 0
     changed_file_strs = {str(file_path) for file_path in changed_source_files}
-
     for file_path in changed_source_files:
         call_sites = source_inspector.find_call_sites(file_path)
         method_group_positions: set[tuple[int, int]] = set()
@@ -374,14 +361,7 @@ def _add_outbound_edges_from_changed_files(
                 (site.lsp_line, site.lsp_column)
                 for site in source_inspector.find_collection_initializer_sites(file_path)
             }
-        added += _add_iterated_type_edges(
-            call_graph,
-            file_path,
-            engine_client,
-            source_inspector,
-            adapter,
-            changed_file_strs,
-        )
+        added += _add_iterated_type_edges(index, file_path, engine_client, source_inspector, adapter, external)
         if not call_sites:
             continue
         queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
@@ -390,59 +370,42 @@ def _add_outbound_edges_from_changed_files(
         except Exception:
             logger.debug("Failed to resolve outbound definitions for %s", file_path, exc_info=True)
             continue
-
         for site, definitions in zip(call_sites, definition_results):
-            line = site.lsp_line
-            char = site.lsp_column
-            src_node = _containing_source_node(call_graph, file_path, line, char)
+            position = (site.lsp_line, site.lsp_column)
+            src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
             if src_node is None:
                 continue
-            is_method_group = (line, char) in method_group_positions
+            kind = CALL
+            if position in method_group_positions:
+                kind = METHOD_GROUP
+            elif position in collection_positions:
+                kind = COLLECTION_INITIALIZER
+            constructing = kind == CALL and adapter.expands_constructors and source_inspector.is_construction_site(site)
             for definition in definitions:
-                for resolved in _definition_nodes(call_graph, definition, include_callable_parent):
-                    # Same rule as the full rebuild: an argument position is a
-                    # method group only when it resolves to something callable.
-                    if is_method_group and not (resolved.is_callable() or resolved.is_class()):
-                        continue
-                    targets = [resolved]
-                    if adapter.expands_virtual_dispatch:
-                        targets += _override_nodes(call_graph, resolved)
-                    if (line, char) in collection_positions:
-                        targets += _members_named(call_graph, resolved, "Add")
-                    for dst_node in targets:
-                        # The fresh partial analysis already owns changed-to-changed edges.
-                        if dst_node.file_path in changed_file_strs:
-                            continue
-                        if is_self_or_container_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name):
-                            continue
-                        try:
-                            before = len(call_graph.edges)
-                            call_graph.add_edge(
-                                src_node.fully_qualified_name,
-                                dst_node.fully_qualified_name,
-                                call_sites=[{"file": site.file, "line": site.line, "column": site.column}],
-                            )
-                            if len(call_graph.edges) > before:
-                                added += 1
-                        except ValueError:
-                            logger.debug(
-                                "Failed to add outbound edge %s -> %s",
-                                src_node.fully_qualified_name,
-                                dst_node.fully_qualified_name,
-                                exc_info=True,
-                            )
-
+                location = definition_location(definition)
+                if location is None:
+                    continue
+                targets = targets_for(index, str(location[0]), location[1], location[2], kind, adapter, constructing)
+                if not targets:
+                    external.append(
+                        ExternalCallSite(
+                            src_node.fully_qualified_name, str(location[0]), location[1], location[2], site, kind
+                        )
+                    )
+                    continue
+                added += _add_edges(call_graph, src_node, targets, site, changed_file_strs)
     if added:
         logger.info("Added %d new outbound edge(s) from changed files", added)
+    return external
 
 
 def _add_iterated_type_edges(
-    call_graph: CallGraph,
+    index: GraphIndex,
     file_path: Path,
     engine_client: LSPClient,
     source_inspector: SourceInspector,
     adapter: LanguageAdapter,
-    changed_file_strs: set[str],
+    external: list[ExternalCallSite],
 ) -> int:
     """``foreach (var x in bag)`` calls ``bag.GetEnumerator()`` with no call written.
 
@@ -462,118 +425,49 @@ def _add_iterated_type_edges(
     except Exception:
         logger.warning("Failed to resolve iterated types for %s", file_path, exc_info=True)
         return 0
-
     added = 0
     for site, definitions in zip(sites, results):
-        src_node = _containing_source_node(call_graph, file_path, site.lsp_line, site.lsp_column)
+        src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
         if src_node is None:
             continue
         for definition in definitions:
-            for type_node in _definition_nodes(call_graph, definition, include_callable_parent=False):
-                for dst_node in [type_node] + _members_named(call_graph, type_node, "GetEnumerator"):
-                    if dst_node.file_path in changed_file_strs:
-                        continue
-                    if is_self_or_container_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name):
-                        continue
-                    try:
-                        before = len(call_graph.edges)
-                        call_graph.add_edge(
-                            src_node.fully_qualified_name,
-                            dst_node.fully_qualified_name,
-                            call_sites=[{"file": site.file, "line": site.line, "column": site.column}],
-                        )
-                        if len(call_graph.edges) > before:
-                            added += 1
-                    except ValueError:
-                        logger.debug("Failed to add iterated-type edge", exc_info=True)
+            location = definition_location(definition)
+            if location is None:
+                continue
+            targets = targets_for(index, str(location[0]), location[1], location[2], ITERATED, adapter)
+            if not targets:
+                external.append(
+                    ExternalCallSite(
+                        src_node.fully_qualified_name, str(location[0]), location[1], location[2], site, ITERATED
+                    )
+                )
+                continue
+            added += _add_edges(index.call_graph, src_node, targets, site, {str(file_path)})
     return added
 
 
-def _containing_source_node(call_graph: CallGraph, file_path: Path, line: int, char: int) -> Node | None:
-    """The node an edge from this position belongs to, callable or otherwise.
-
-    A field initializer -- ``private readonly Store _store = new Store();`` -- calls
-    a constructor from outside any method, so a callable-only lookup finds nothing
-    and the edge is dropped. The full rebuild attributes it to the enclosing class,
-    and an incremental run has to agree or it loses the edge on every edit to that
-    file, including edits that change nothing.
-    """
-    callable_node = _most_specific_node_at_position(call_graph, file_path, line, char, callable_only=True)
-    if callable_node is not None:
-        return callable_node
-    return _most_specific_node_at_position(call_graph, file_path, line, char)
-
-
-def _most_specific_node_at_position(
-    call_graph: CallGraph,
-    file_path: Path,
-    line: int,
-    char: int,
-    callable_only: bool = False,
-) -> Node | None:
-    matches = [
-        node
-        for node in call_graph.nodes.values()
-        if node.file_path == str(file_path)
-        and (not callable_only or node.is_callable())
-        and _position_inside_node(node, line, char)
-    ]
-    if not matches:
-        return None
-    return max(
-        matches,
-        key=lambda node: (
-            node.line_start,
-            node.col_start,
-            -node.line_end,
-            len(node.fully_qualified_name),
-        ),
-    )
-
-
-def _definition_nodes(
-    call_graph: CallGraph,
-    definition: dict[str, Any],
-    include_callable_parent: bool = False,
-) -> list[Node]:
-    location = definition_location(definition)
-    if location is None:
-        return []
-    file_path, line, character = location
-    target = _most_specific_node_at_position(call_graph, file_path, line, character)
-    if target is None:
-        same_line = [
-            node
-            for node in call_graph.nodes.values()
-            if node.file_path == str(file_path) and node.line_start == line + 1
-        ]
-        if same_line:
-            target = max(
-                same_line,
-                key=lambda node: (
-                    node.is_class(),
-                    node.is_callable(),
-                    len(node.fully_qualified_name),
-                ),
+def _add_edges(
+    call_graph: CallGraph, src_node: Node, targets: list[Node], site: CallSite, changed_file_strs: set[str]
+) -> int:
+    """Edges from *src_node* to *targets* with *site*; the fresh partial analysis already owns changed-to-changed ones."""
+    added = 0
+    for dst_node in targets:
+        if dst_node.file_path in changed_file_strs:
+            continue
+        if is_self_or_container_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name):
+            continue
+        try:
+            before = len(call_graph.edges)
+            call_graph.add_edge(
+                src_node.fully_qualified_name,
+                dst_node.fully_qualified_name,
+                call_sites=[{"file": site.file, "line": site.line, "column": site.column}],
             )
-    if target is None:
-        return []
-
-    targets = [target]
-    if (include_callable_parent and target.is_callable()) or target.type == NodeType.CONSTRUCTOR:
-        parent = call_graph.nodes.get(parent_qualified_name(target.fully_qualified_name))
-        if parent is not None and parent.is_class():
-            targets.append(parent)
-    return targets
-
-
-def _position_inside_node(node: Node, zero_based_line: int, character: int) -> bool:
-    line = zero_based_line + 1
-    if line < node.line_start or line > node.line_end:
-        return False
-    if line == node.line_start and character < node.col_start:
-        return False
-    return True
+            if len(call_graph.edges) > before:
+                added += 1
+        except ValueError:
+            logger.debug("Failed to add edge %s -> %s", src_node.fully_qualified_name, dst_node.fully_qualified_name)
+    return added
 
 
 def _reference_matches_edge_kind(

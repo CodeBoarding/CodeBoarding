@@ -122,6 +122,7 @@ class CallGraphBuilder:
             cfg=cfg,
             package_dependencies=package_deps,
             source_files=abs_files,
+            external_call_sites=ctx.external_call_sites,
         )
 
     def _build_recycler(self, source_files: list[Path]) -> LSPRecycler | None:

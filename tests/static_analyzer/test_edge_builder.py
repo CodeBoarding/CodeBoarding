@@ -490,6 +490,38 @@ class TestBuildEdgesViaDefinitions:
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert ("app.main", "app.helper") in edges
 
+    def test_a_definition_in_a_file_this_engine_never_named_is_kept_for_the_merge(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _make_ctx(lsp)
+        st = ctx.symbol_table
+
+        src = tmp_path / "modules" / "app.py"
+        src.parent.mkdir()
+        src.write_text("def main():\n    helper()\n")
+        other = tmp_path / "framework" / "lib.py"
+
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
+        st._symbols["app.main"] = caller
+        st._file_symbols[str(src)] = [caller]
+        st._primary_file_symbols[str(src)] = [caller]
+        st.build_indices()
+
+        lsp.send_definition_batch.side_effect = lambda queries: (
+            [
+                [{"uri": other.as_uri(), "range": {"start": {"line": 7, "character": 4}}}] if line == 1 else []
+                for _, line, _ in queries
+            ],
+            set(),
+        )
+
+        edges = build_edges_via_definitions(adapter, ctx, [src])
+
+        assert edges == {}
+        assert [(s.caller, s.file, s.line, s.character, s.kind) for s in ctx.external_call_sites] == [
+            ("app.main", str(other), 7, 4, "call")
+        ]
+        assert (ctx.external_call_sites[0].call_site.line, ctx.external_call_sites[0].call_site.column) == (2, 5)
+
     def test_no_call_sites_produces_empty(self, tmp_path: Path):
         """File with no call sites produces no edges."""
         lsp = _make_lsp()
