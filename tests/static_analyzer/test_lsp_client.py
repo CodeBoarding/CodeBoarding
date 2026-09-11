@@ -357,12 +357,11 @@ class TestCollectBatchResponses:
         client._msg_queue.put({"jsonrpc": "2.0", "id": 2, "result": [{"b": 1}]})
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "result": [{"a": 1}]})
 
-        results, timed_out, error_ids = client._collect_batch_responses([1, 2], timeout=5)
+        results, timed_out = client._collect_batch_responses("textDocument/definition", [1, 2], timeout=5)
 
         assert results[1] == [{"a": 1}]
         assert results[2] == [{"b": 1}]
         assert timed_out == set()
-        assert error_ids == set()
 
     def test_reports_timed_out_ids(self):
         client = LSPClient(["cmd"], Path("/root"))
@@ -372,27 +371,31 @@ class TestCollectBatchResponses:
         # Only queue one of two expected responses
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "result": [{"a": 1}]})
 
-        results, timed_out, error_ids = client._collect_batch_responses([1, 2], timeout=1)
+        results, timed_out = client._collect_batch_responses("textDocument/definition", [1, 2], timeout=1)
 
         assert results[1] == [{"a": 1}]
         assert results[2] == []
-        assert 2 in timed_out
-        assert error_ids == set()
+        assert timed_out == {2}
 
-    def test_handles_error_responses(self):
+    def test_an_error_is_an_answer_not_a_hole(self):
+        """gopls declines an implementation query on a free function with an error.
+
+        "X is a function, not a method" is a complete negative answer, not a request that
+        went missing, so it must not fail the run the way a timeout does.
+        """
         client = LSPClient(["cmd"], Path("/root"))
         client._process = MagicMock()
         client._process.poll.return_value = None
 
-        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": {"code": -1, "message": "fail"}})
+        error = {"code": 0, "message": "Add is a function, not a method"}
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
 
-        results, timed_out, error_ids = client._collect_batch_responses([1], timeout=5)
+        results, timed_out = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
         assert results[1] == []
         assert timed_out == set()
-        assert 1 in error_ids
 
-    def test_deduplicates_error_logging(self, caplog):
-        """Repeated LSP errors are logged once with a count, not per-request."""
+    def test_deduplicates_declined_request_logging(self, caplog):
+        """Repeated declines are logged once with a count, not per-request."""
         client = LSPClient(["cmd"], Path("/root"))
         client._process = MagicMock()
         client._process.poll.return_value = None
@@ -403,14 +406,13 @@ class TestCollectBatchResponses:
 
         import logging
 
-        with caplog.at_level(logging.WARNING):
-            _, _, error_ids = client._collect_batch_responses([1, 2, 3], timeout=5)
+        with caplog.at_level(logging.DEBUG):
+            _, timed_out = client._collect_batch_responses("textDocument/definition", [1, 2, 3], timeout=5)
 
-        assert error_ids == {1, 2, 3}
-        # Should have a single deduplicated warning, not 3 separate ones
-        error_lines = [r for r in caplog.records if "no package metadata" in r.message]
-        assert len(error_lines) == 1
-        assert "x3" in error_lines[0].message
+        assert timed_out == set()
+        declined = [r for r in caplog.records if "no package metadata" in r.message]
+        assert len(declined) == 1
+        assert "x3" in declined[0].message
 
 
 class TestHandleNotification:

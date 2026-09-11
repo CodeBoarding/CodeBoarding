@@ -82,6 +82,8 @@ _JSX_ELEMENT_NODE_TYPES = frozenset({"jsx_opening_element", "jsx_self_closing_el
 # Applying a decorator calls it. ``@cache(...)`` is already a call node, so only a bare
 # name is a site of its own.
 _DECORATOR_NODE_TYPES = frozenset({"decorator"})
+# Everything a grammar writes above a declaration to decorate it.
+_DECORATION_NODE_TYPES = frozenset({"decorator", "annotation", "marker_annotation", "attribute_list"})
 _DECORATOR_NAME_NODE_TYPES = frozenset({"identifier", "attribute", "member_expression"})
 # Declarations that hold a value, and the values that are functions: ``const f = () => ...``
 # is as callable a target as a declared function.
@@ -93,6 +95,21 @@ _FUNCTION_LITERAL_NODE_TYPES = frozenset(
 )
 # ``receiver.member(...)``: the object field holds the receiver in both spellings.
 _MEMBER_ACCESS_NODE_TYPES = frozenset({"member_expression", "attribute"})
+# Statements that bind a name declared in another file.
+_IMPORT_NODE_TYPES = frozenset(
+    {
+        "import_statement",
+        "import_from_statement",
+        "import_declaration",
+        "import_spec",
+        "namespace_use_declaration",
+        "use_declaration",
+        "using_directive",
+    }
+)
+# Fields that hold what a declaration runs rather than how it is declared. A position in one
+# of them is inside the body, however few lines the declaration is written on.
+_BODY_FIELD_NAMES = ("body", "value", "right")
 # Nodes that run a constructor. Java's `super(...)`/`this(...)` is a call node rather than a
 # creation one, and `Dog::new` is a method reference that has to be told from `Dog::speak`.
 _CONSTRUCTION_NODE_TYPES = (
@@ -122,7 +139,24 @@ _ARGUMENT_NODE_TYPES = frozenset({"argument"})
 _LABELLED_ARGUMENT_NODE_TYPES = frozenset({"keyword_argument"})
 _DECLARATOR_NODE_TYPES = frozenset({"variable_declarator"})
 _VALUE_BODY_NODE_TYPES = frozenset({"return_statement", "arrow_expression_clause"})
-_NAME_SHAPED_NODE_TYPES = frozenset({"identifier", "member_access_expression", "generic_name", "qualified_name"})
+_NAME_SHAPED_NODE_TYPES = frozenset(
+    {
+        "identifier",
+        "member_access_expression",
+        "generic_name",
+        "qualified_name",
+        "attribute",
+        "member_expression",
+        "scoped_identifier",
+        "field_access",
+        "selector_expression",
+    }
+)
+# Literals that hold a group of values, each of which can be a name: a dispatch table is
+# written as one of these and every callable in it is reached through it.
+_VALUE_GROUP_NODE_TYPES = frozenset(
+    {"dictionary", "list", "tuple", "set", "object", "array", "pair", "keyword_argument", "array_creation_expression"}
+)
 _TYPE_DECLARATION_NODE_TYPES = frozenset(
     {"class_declaration", "interface_declaration", "record_declaration", "struct_declaration"}
 )
@@ -282,13 +316,21 @@ class SourceInspector:
             self._file_content_cache[file_key] = content.decode(errors="replace").splitlines()
         return self._file_content_cache[file_key]
 
-    def identifier_at(self, file_path: Path, line: int, character: int) -> str:
-        """The identifier that starts at a zero-based position, or empty when none starts there."""
+    def declared_name_at(self, file_path: Path, line: int, character: int) -> str:
+        """The identifier this file declares at a zero-based position, or empty when none is.
+
+        Why an import binding is not one: the name written in ``import { target as t }`` is
+        declared in the file it comes from, and a server answers at that binding as readily
+        as at a declaration. Reading it as a name this file declares matches it to whatever
+        the file happens to declare under the same name.
+        """
         source = self.get_source_line(file_path, line)
         if source is None or not 0 <= character < len(source):
             return ""
         match = _IDENTIFIER.match(source, character)
-        return match.group(0) if match else ""
+        if match is None or self._inside_import(file_path, line, character):
+            return ""
+        return match.group(0)
 
     def is_construction_site(self, site: CallSite) -> bool:
         """Whether the call at *site* runs a constructor.
@@ -389,6 +431,50 @@ class SourceInspector:
             return False
         return (line, character) in usage_index.function_value_positions
 
+    def attribution_position(self, file_path: Path, line: int, character: int) -> tuple[int, int]:
+        """The position that decides which declaration a call written here belongs to.
+
+        Why: a decorator, annotation or attribute runs where it is written but belongs to the
+        member below it, so the lookup is redirected to that member's own name. The gap
+        between the two is not a measure of anything -- a call at module level can sit in it
+        and belongs to nobody. Any other position speaks for itself.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return (line, character)
+        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, character, character)
+        while node is not None and node.type not in _DECORATION_NODE_TYPES:
+            node = node.parent
+        while node is not None and node.parent is not None:
+            declared = node.parent.child_by_field_name("name") or self._following_declaration_name(node)
+            if declared is not None:
+                return (declared.start_point.row, declared.start_point.column)
+            node = node.parent
+        return (line, character)
+
+    def in_declaration_body(self, file_path: Path, declaration: tuple[int, int], line: int, character: int) -> bool:
+        """Whether the position sits in the body of the declaration named at *declaration*.
+
+        Why: a one-line ``function outer() { const cb = () => 1; }`` puts its body on its own
+        declaration line, so "the declaration starts on this line" cannot tell a signature
+        position from a body one, and a compact declaration would accept matches a spread one
+        rejects. The declaration is identified by its name's position, which is what both
+        symbol tables and graph nodes are keyed on.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return False
+        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, character, character)
+        while node is not None:
+            parent = node.parent
+            # ``==``, not ``is``: tree-sitter hands back a fresh wrapper for the same node.
+            if parent is not None and any(parent.child_by_field_name(field) == node for field in _BODY_FIELD_NAMES):
+                name = parent.child_by_field_name("name")
+                if name is not None and (name.start_point.row, name.start_point.column) == declaration:
+                    return True
+            node = parent
+        return False
+
     def receiver_member_calls(self, file_path: Path) -> dict[tuple[int, int], ReceiverMember]:
         """``receiver.member(...)`` sites with a bare-name receiver, by the member's position.
 
@@ -449,19 +535,26 @@ class SourceInspector:
                 sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
 
+    def _inside_import(self, file_path: Path, line: int, character: int) -> bool:
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return False
+        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, character, character)
+        while node is not None:
+            if node.type in _IMPORT_NODE_TYPES:
+                return True
+            node = node.parent
+        return False
+
     def _method_group_candidates(self, node: TreeSitterNode) -> list[TreeSitterNode]:
-        """Expressions in a position where a bare name would be a method group."""
+        """Names in a position where naming something callable passes it as a value."""
         if node.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(node):
-            # Only the argument itself: a named argument keeps its label alongside the value,
-            # as the first named child (``f(handler: H)``) or under ``name`` (``f(key=h)``).
-            return [self._argument_value(child) for child in node.named_children]
+            return [name for child in node.named_children for name in self._value_names(child)]
 
         if node.type == "jsx_expression" and node.parent is not None and node.parent.type == "jsx_attribute":
             # ``onClick={handler}`` passes the handler exactly as an argument would.
-            return list(node.named_children)
+            return [name for child in node.named_children for name in self._value_names(child)]
 
-        # A value position accepts any expression, so unlike an argument it is
-        # only worth a query when it is already shaped like a name.
         if node.type == "assignment_expression":
             candidate = node.child_by_field_name("right")
         elif node.type in _DECLARATOR_NODE_TYPES:
@@ -470,7 +563,42 @@ class SourceInspector:
             candidate = node.named_children[0] if node.named_children else None
         else:
             return []
-        return [candidate] if candidate is not None and candidate.type in _NAME_SHAPED_NODE_TYPES else []
+        return self._value_names(candidate) if candidate is not None else []
+
+    def _value_names(self, value: TreeSitterNode) -> list[TreeSitterNode]:
+        """The names this value is, or holds, that could denote something callable.
+
+        A bare name is one; a group of values (a dispatch table, a list of handlers, a labelled
+        argument) is each of the names inside it. Anything else -- an arithmetic expression, a
+        call, a string -- is a value in its own right and names nothing that is being passed.
+        """
+        if value.type in _NAME_SHAPED_NODE_TYPES:
+            return [value]
+        if value.type in _VALUE_GROUP_NODE_TYPES:
+            if value.type in _LABELLED_ARGUMENT_NODE_TYPES:
+                held = [self._argument_value(value)]
+            else:
+                held = list(value.named_children)
+            return [name for child in held for name in self._value_names(child)]
+        if value.type in _ARGUMENT_NODE_TYPES and value.named_children:
+            return self._value_names(value.named_children[-1])
+        return []
+
+    @staticmethod
+    def _following_declaration_name(node: TreeSitterNode) -> TreeSitterNode | None:
+        """The name of the first sibling declared after *node*.
+
+        Why: some grammars keep a decoration beside what it decorates rather than inside it.
+        """
+        parent = node.parent
+        if parent is None:
+            return None
+        for sibling in parent.named_children:
+            if sibling.start_byte >= node.end_byte:
+                name = sibling.child_by_field_name("name")
+                if name is not None:
+                    return name
+        return None
 
     @staticmethod
     def _argument_value(argument: TreeSitterNode) -> TreeSitterNode:
@@ -901,6 +1029,22 @@ class SourceInspector:
                 if best is None or self._node_size(candidate) < self._node_size(best):
                     best = candidate
             candidates.extend(child for child in candidate.children if self._node_contains_point(child, line, column))
+        return best
+
+    def _smallest_named_node_covering_range(
+        self, node: TreeSitterNode, line: int, start_column: int, end_column: int
+    ) -> TreeSitterNode | None:
+        best: TreeSitterNode | None = None
+        if not self._node_covers_range(node, line, start_column, end_column):
+            return None
+        candidates = [node]
+        while candidates:
+            candidate = candidates.pop()
+            if candidate.is_named and (best is None or self._node_size(candidate) < self._node_size(best)):
+                best = candidate
+            candidates.extend(
+                child for child in candidate.children if self._node_covers_range(child, line, start_column, end_column)
+            )
         return best
 
     @staticmethod

@@ -23,6 +23,7 @@ from static_analyzer.engine.models import ExternalCallSite
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
+from static_analyzer.errors import StaticAnalysisFatalError
 from static_analyzer.external_calls import link_external_call_sites
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
@@ -53,10 +54,6 @@ class EngineConfig:
     source_files: list[Path] = field(default_factory=list)
     # Retain discovery exclusions for incremental edits, including deleted files.
     excluded_roots: list[Path] = field(default_factory=list)
-
-
-class StaticAnalysisFatalError(RuntimeError):
-    """Raised when continuing would produce misleading cached analysis."""
 
 
 MAX_CONCURRENT_ENGINES_ENV_VAR = "CODEBOARDING_MAX_CONCURRENT_ENGINES"
@@ -636,7 +633,7 @@ class StaticAnalyzer:
                 return []
 
             queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
-            results, _ = client.send_definition_batch(queries)
+            results = client.send_definition_batch(queries)
 
             resolved = file_path.resolve()
             unique_paths: set[str] = set()

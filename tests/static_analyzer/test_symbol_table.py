@@ -249,17 +249,20 @@ class TestFindContainingSymbol:
         result = st.find_containing_symbol(Path("unknown.py"), 0, 0)
         assert result is None
 
-    def test_decorator_attributed_to_method_not_class(self):
+    def test_a_gap_between_members_belongs_to_the_class(self):
+        """Containment is a range question; which member a decoration belongs to is not.
+
+        The parse tree answers the second one, in ``SourceInspector.attribution_position``.
+        """
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         cls = _sym("C", "mod.C", NodeType.CLASS, start_line=0, end_line=30)
         method = _sym("m", "mod.C.m", NodeType.METHOD, start_line=5, end_line=15)
         st._file_symbols["mod.py"] = [cls, method]
 
-        # Line 3 is a decorator above the method at line 5
         result = st.find_containing_symbol(Path("mod.py"), 3, 4)
         assert result is not None
-        assert result.qualified_name == "mod.C.m"
+        assert result.qualified_name == "mod.C"
 
 
 # ---- lift_to_callable ----

@@ -193,14 +193,7 @@ class SymbolTable:
                 self._class_to_ctors.setdefault(sym.owner_qualified_name, []).append(sym.qualified_name)
 
     def find_containing_symbol(self, file_path: Path, line: int, character: int) -> SymbolInfo | None:
-        """Find the innermost symbol whose range contains the given position.
-
-        When the best match is a class-like symbol and the reference line falls
-        in the gap between methods (e.g. on a decorator line), narrow the result
-        to the nearest child method whose definition starts just after the
-        reference line.  This correctly attributes decorator references like
-        ``@trace`` to the decorated method rather than the enclosing class.
-        """
+        """The innermost symbol whose range contains the given position."""
         file_key = str(file_path)
         symbols = self._file_symbols.get(file_key, [])
 
@@ -220,33 +213,7 @@ class SymbolTable:
                     best = sym
                     best_size = size
 
-        # A decorator or annotation sits 1-3 lines above what it decorates, so a
-        # position there belongs to the member below it rather than to whatever
-        # encloses the gap: a class between two of its methods, or nothing at all
-        # when the decorated function is at module level.
-        if best is None or self._naming.is_class_like(best.kind):
-            prefix = f"{best.qualified_name}." if best is not None else ""
-            decorated = self._nearest_member_below(symbols, line, prefix)
-            if decorated is not None:
-                best = decorated
-
         return best
-
-    def _nearest_member_below(self, symbols: list[SymbolInfo], line: int, prefix: str) -> SymbolInfo | None:
-        """The callable declared just under *line*, within a stacked decorator's reach."""
-        max_decorator_gap = 4
-        nearest: SymbolInfo | None = None
-        nearest_gap = max_decorator_gap + 1
-        for sym in symbols:
-            if not self._naming.is_callable(sym.kind):
-                continue
-            if prefix and not sym.qualified_name.startswith(prefix):
-                continue
-            gap = sym.start_line - line
-            if 0 < gap < nearest_gap:
-                nearest = sym
-                nearest_gap = gap
-        return nearest
 
     def lift_to_callable(self, sym: SymbolInfo) -> SymbolInfo | None:
         """If sym is a variable/property, find its parent callable symbol."""

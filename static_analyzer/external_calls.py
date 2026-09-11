@@ -44,7 +44,7 @@ def link_external_call_sites(
         constructing = (
             site.kind == CALL and adapter.expands_constructors and inspector.is_construction_site(site.call_site)
         )
-        targets = targets_for(index, site.file, site.line, site.character, site.kind, adapter, constructing)
+        targets = targets_for(index, site.file, site.line, site.character, site.kind, adapter, constructing).nodes
         if not targets:
             unresolved += 1
             continue

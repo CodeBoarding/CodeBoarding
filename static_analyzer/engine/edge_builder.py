@@ -23,7 +23,16 @@ from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.engine.utils import definition_location, uri_to_path
-from static_analyzer.graph_definitions import CALL, COLLECTION_INITIALIZER, ITERATED, MatchCounts, METHOD_GROUP
+from static_analyzer.graph_definitions import (
+    CALL,
+    COLLECTION_INITIALIZER,
+    ITERATED,
+    METHOD_GROUP,
+    Match,
+    MatchCounts,
+    MatchRule,
+    is_method_group_target,
+)
 from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name, simple_name
 
 logger = logging.getLogger(__name__)
@@ -141,42 +150,55 @@ class SymbolIndex:
                 at = self._by_name.setdefault((str(sym.file_path), simple_name(sym.qualified_name)), {})
                 self._keep_most_specific(at, position, sym)
 
-    def resolve(self, def_result: dict) -> SymbolInfo | None:
-        """The symbol a definition result names, or None when nothing names it unambiguously.
+    def resolve(self, def_result: dict) -> Match[SymbolInfo]:
+        """The symbol a definition result names, and the rule that found it.
 
-        Exact position, else the innermost symbol declared on that line that still contains
-        the position, else the sole callable or class the file declares under the name written
-        there -- the overload set a server answers with a signature line for.
+        Exact position, else the symbol whose signature covers the position on its own line,
+        else the sole callable or class the file declares under the name written there -- the
+        overload set a server answers with a signature line for.
         """
         location = definition_location(def_result)
         if location is None:
-            self.counts.rejected += 1
-            return None
+            self.counts.record(MatchRule.NONE)
+            return Match.none()
         file_path, line, char = location
         file_key = str(file_path)
 
         exact = self._by_position.get((file_key, line, char))
         if exact is not None:
-            self.counts.exact += 1
-            return exact
+            return self._matched(exact, MatchRule.EXACT)
 
-        containing = max(
-            (sym for sym in self._by_line.get((file_key, line), []) if sym.start_char <= char and sym.end_line >= line),
+        signature = max(
+            (
+                sym
+                for sym in self._by_line.get((file_key, line), [])
+                if self._signature_covers(sym, file_path, line, char)
+            ),
             key=lambda sym: (sym.start_char, -sym.end_line, len(sym.qualified_name)),
             default=None,
         )
-        if containing is not None:
-            self.counts.same_line += 1
-            return containing
+        if signature is not None:
+            return self._matched(signature, MatchRule.SIGNATURE)
 
-        name = self._inspector.identifier_at(file_path, line, char)
+        name = self._inspector.declared_name_at(file_path, line, char)
         declared = self._by_name.get((file_key, name)) if name else None
         if declared is not None and len(declared) == 1:
-            self.counts.name_at_definition += 1
-            return next(iter(declared.values()))
+            return self._matched(next(iter(declared.values())), MatchRule.NAME)
 
-        self.counts.rejected += 1
-        return None
+        self.counts.record(MatchRule.NONE)
+        return Match.none()
+
+    def _matched(self, symbol: SymbolInfo, rule: MatchRule) -> Match[SymbolInfo]:
+        self.counts.record(rule)
+        return Match(symbol, rule)
+
+    def _signature_covers(self, sym: SymbolInfo, file_path: Path, line: int, char: int) -> bool:
+        """Whether the position lies in this declaration's signature, past its name."""
+        if sym.start_char > char or sym.end_line < line:
+            return False
+        if sym.end_line == line and char > sym.end_char:
+            return False
+        return not self._inspector.in_declaration_body(file_path, (sym.start_line, sym.start_char), line, char)
 
     @staticmethod
     def _keep_most_specific(
@@ -239,22 +261,14 @@ def _resolve_iterated_types(
         for start in range(0, len(sites), batch_size):
             batch = sites[start : start + batch_size]
             queries = [(file_path, site.lsp_line, site.lsp_column) for site in batch]
-            try:
-                results, _ = ctx.lsp.send_type_definition_batch(queries)
-            except Exception as e:
-                logger.warning(
-                    "Type-definition batch failed for %s (%d foreach sites): %s", file_path.name, len(batch), e
-                )
-                continue
+            results = ctx.lsp.send_type_definition_batch(queries)
 
             for offset, site in enumerate(batch):
-                caller = st.find_containing_symbol(file_path, site.lsp_line, site.lsp_column)
-                if caller:
-                    caller = st.lift_to_callable(caller)
-                if not caller:
+                caller = _caller_at(ctx, file_path, site.lsp_line, site.lsp_column)
+                if caller is None:
                     continue
-                for result in results[offset] if offset < len(results) else []:
-                    target = index.resolve(result)
+                for result in results[offset]:
+                    target = index.resolve(result).declaration
                     if target is None:
                         _record_external_call_site(ctx, st.attribution_symbol(caller), result, site, ITERATED)
                         continue
@@ -317,14 +331,10 @@ def _resolve_definitions(
             batch = call_sites[batch_start : batch_start + batch_size]
             queries = [(file_path, site.lsp_line, site.lsp_column) for site in batch]
 
-            try:
-                results, _ = ctx.lsp.send_definition_batch(queries)
-            except Exception as e:
-                logger.warning("Definition batch failed for %s: %s", file_path.name, e)
-                continue
+            results = ctx.lsp.send_definition_batch(queries)
 
             for i, call_site in enumerate(batch):
-                defs = results[i] if i < len(results) else []
+                defs = results[i]
                 position = (call_site.lsp_line, call_site.lsp_column)
                 kind = CALL
                 if position in method_group_positions:
@@ -337,27 +347,25 @@ def _resolve_definitions(
                         unresolved.append(call_site)
                     continue
 
-                caller = st.find_containing_symbol(file_path, call_site.lsp_line, call_site.lsp_column)
-                if caller:
-                    caller = st.lift_to_callable(caller)
-                if not caller:
+                caller = _caller_at(ctx, file_path, call_site.lsp_line, call_site.lsp_column)
+                if caller is None:
                     continue
 
                 resolved_here = False
                 for def_result in defs:
-                    target = index.resolve(def_result)
-                    if not target:
+                    match = index.resolve(def_result)
+                    target = match.declaration
+                    if target is None:
                         _record_external_call_site(ctx, st.attribution_symbol(caller), def_result, call_site, kind)
                         continue
                     total_resolved += 1
                     resolved_here = True
 
-                    # An argument position is a method group only if it resolves to something
-                    # callable; otherwise it is an ordinary value.
-                    if kind == METHOD_GROUP and not (
+                    if kind == METHOD_GROUP and not is_method_group_target(
+                        match,
                         adapter.is_callable(target.kind)
                         or adapter.is_class_like(target.kind)
-                        or si.declares_function_value(target.file_path, target.start_line, target.start_char)
+                        or si.declares_function_value(target.file_path, target.start_line, target.start_char),
                     ):
                         continue
 
@@ -410,24 +418,18 @@ def _resolve_through_receivers(
     resolved = 0
     for batch_start in range(0, len(positions), 50):
         batch = positions[batch_start : batch_start + 50]
-        try:
-            results, _ = ctx.lsp.send_definition_batch([(file_path, line, column) for line, column in batch])
-        except Exception as e:
-            logger.warning("Receiver definition batch failed for %s: %s", file_path.name, e)
-            continue
+        results = ctx.lsp.send_definition_batch([(file_path, line, column) for line, column in batch])
         for i, position in enumerate(batch):
-            for def_result in results[i] if i < len(results) else []:
-                receiver = index.resolve(def_result)
+            for def_result in results[i]:
+                receiver = index.resolve(def_result).declaration
                 if receiver is None:
                     continue
                 for call_site, member in by_receiver[position]:
                     target = st.symbols.get(f"{receiver.qualified_name}.{member}")
                     if target is None:
                         continue
-                    caller = st.find_containing_symbol(file_path, call_site.lsp_line, call_site.lsp_column)
-                    if caller:
-                        caller = st.lift_to_callable(caller)
-                    if not caller:
+                    caller = _caller_at(ctx, file_path, call_site.lsp_line, call_site.lsp_column)
+                    if caller is None:
                         continue
                     resolved += 1
                     sink.add(caller, target, call_site)
@@ -467,20 +469,15 @@ def _resolve_implementations(
         batch_keys = unique_impl_targets[batch_start : batch_start + batch_size]
         queries = [(Path(fk), ln, ch) for fk, ln, ch in batch_keys]
 
-        try:
-            impl_results, _ = ctx.lsp.send_implementation_batch(queries)
-        except Exception as e:
-            logger.warning("Implementation batch failed: %s", e)
-            pbar.update(len(batch_keys))
-            continue
+        impl_results = ctx.lsp.send_implementation_batch(queries)
 
         for j, tgt_key in enumerate(batch_keys):
-            impls = impl_results[j] if j < len(impl_results) else []
+            impls = impl_results[j]
             callers = target_pos_to_callers[tgt_key]
 
             for impl_result in impls:
-                impl_sym = index.resolve(impl_result)
-                if not impl_sym:
+                impl_sym = index.resolve(impl_result).declaration
+                if impl_sym is None:
                     continue
                 total_impl_resolved += 1
 
@@ -499,6 +496,17 @@ def _resolve_implementations(
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+
+def _caller_at(ctx: EdgeBuildContext, file_path: Path, line: int, column: int) -> SymbolInfo | None:
+    """The callable a call written at this position belongs to.
+
+    A decoration runs where it is written but belongs to the member below it, so the lookup
+    is redirected to that member's own position rather than guessed from the gap.
+    """
+    line, column = ctx.source_inspector.attribution_position(file_path, line, column)
+    caller = ctx.symbol_table.find_containing_symbol(file_path, line, column)
+    return ctx.symbol_table.lift_to_callable(caller) if caller else None
 
 
 def _record_external_call_site(

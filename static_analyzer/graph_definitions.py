@@ -7,9 +7,10 @@ every engine's graph), so the two cannot disagree on which nodes a call site rea
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from static_analyzer.cfg import CallGraph, EdgeKind
@@ -26,19 +27,72 @@ COLLECTION_INITIALIZER = "collection"
 ITERATED = "iterated"
 
 
-@dataclass
+class MatchRule(StrEnum):
+    """How a definition position was matched to the declaration it names."""
+
+    EXACT = "exact"
+    SIGNATURE = "signature"
+    """Inside the declaration's signature: its own line, past its name, outside its body."""
+    NAME = "name"
+    """The identifier written at the definition names exactly one declaration in the file."""
+    NONE = "none"
+
+
+@dataclass(frozen=True)
+class Match[T]:
+    """A declaration a definition position resolved to, and the rule that found it."""
+
+    declaration: T | None
+    rule: MatchRule
+
+    @classmethod
+    def none(cls) -> "Match[T]":
+        return cls(None, MatchRule.NONE)
+
+
+@dataclass(frozen=True)
+class CallTargets:
+    """What a call site reaches: the nodes the graph already holds, and the queries still owed.
+
+    ``implementations`` are declaration positions a server still has to expand. A full build
+    follows every callable target with ``textDocument/implementation`` and gives the caller an
+    edge to each result, so a resolver that stopped at the definition would answer with a
+    strictly smaller set than the build it mirrors.
+    """
+
+    nodes: list[Node]
+    implementations: list[tuple[str, int, int]]
+
+    @classmethod
+    def none(cls) -> "CallTargets":
+        return cls([], [])
+
+
+def is_method_group_target(match: Match, declared_callable: bool) -> bool:
+    """Whether a name passed as a value denotes something callable rather than an ordinary value.
+
+    Why a signature match never counts: it means the position fell inside a declaration the
+    index holds while the thing actually named there -- an enum member, a property, a local --
+    is one it does not, so the enclosing declaration would stand in for a value.
+    """
+    return match.declaration is not None and match.rule is not MatchRule.SIGNATURE and declared_callable
+
+
 class MatchCounts:
     """How a pass over definition results matched them, for one summary line at the end."""
 
-    exact: int = 0
-    same_line: int = 0
-    name_at_definition: int = 0
-    rejected: int = 0
+    def __init__(self) -> None:
+        self.by_rule: Counter[MatchRule] = Counter()
+
+    def record(self, rule: MatchRule) -> None:
+        self.by_rule[rule] += 1
 
     def summary(self) -> str:
         return (
-            f"{self.exact} exact, {self.same_line} containing the position, "
-            f"{self.name_at_definition} by the name at the definition, {self.rejected} rejected"
+            f"{self.by_rule[MatchRule.EXACT]} exact, "
+            f"{self.by_rule[MatchRule.SIGNATURE]} in a declaration's signature, "
+            f"{self.by_rule[MatchRule.NAME]} by the name at the definition, "
+            f"{self.by_rule[MatchRule.NONE]} rejected"
         )
 
 
@@ -57,40 +111,45 @@ class GraphIndex:
     def nodes_in(self, file_path: str) -> list[Node]:
         return self._by_file.get(file_path, [])
 
-    def declaration_at(self, file_path: str, line: int, character: int) -> Node | None:
+    def declaration_at(self, file_path: str, line: int, character: int) -> Match[Node]:
         """The node a definition result names, by the engine's matching rules.
 
-        Exact position, else the innermost node declared on that line that still contains
-        the position, else the sole callable or class declared in the file under the name
-        written there -- the overload set a server answers with a signature line for.
-        Anything else is ambiguous and matches nothing.
+        Exact position, else the node whose signature covers the position on its own line,
+        else the sole callable or class declared in the file under the name written there --
+        the overload set a server answers with a signature line for. Anything else is
+        ambiguous and matches nothing.
         """
         exact = _innermost(
             node for node in self.nodes_in(file_path) if (node.line_start, node.col_start) == (line + 1, character)
         )
         if exact is not None:
-            self.counts.exact += 1
-            return exact
+            return self._matched(exact, MatchRule.EXACT)
 
-        containing = _innermost(
+        signature = _innermost(
             node
             for node in self.nodes_in(file_path)
-            if node.line_start == line + 1 and position_inside_node(node, line, character)
+            if node.line_start == line + 1
+            and position_inside_node(node, line, character)
+            and not self.inspector.in_declaration_body(
+                Path(file_path), (node.line_start - 1, node.col_start), line, character
+            )
         )
-        if containing is not None:
-            self.counts.same_line += 1
-            return containing
+        if signature is not None:
+            return self._matched(signature, MatchRule.SIGNATURE)
 
         named = self._sole_declaration_named(file_path, line, character)
         if named is not None:
-            self.counts.name_at_definition += 1
-            return named
+            return self._matched(named, MatchRule.NAME)
 
-        self.counts.rejected += 1
-        return None
+        self.counts.record(MatchRule.NONE)
+        return Match.none()
+
+    def _matched(self, node: Node, rule: MatchRule) -> Match[Node]:
+        self.counts.record(rule)
+        return Match(node, rule)
 
     def _sole_declaration_named(self, file_path: str, line: int, character: int) -> Node | None:
-        name = self.inspector.identifier_at(Path(file_path), line, character)
+        name = self.inspector.declared_name_at(Path(file_path), line, character)
         if not name:
             return None
         declared = self._declarations_by_name(file_path).get(name)
@@ -125,6 +184,9 @@ def position_inside_node(node: Node, zero_based_line: int, character: int) -> bo
     if line < node.line_start or line > node.line_end:
         return False
     if line == node.line_start and character < node.col_start:
+        return False
+    # ``col_end`` is 0 on a node built before it was recorded, which reads as unbounded.
+    if line == node.line_end and node.col_end and character > node.col_end:
         return False
     return True
 
@@ -169,15 +231,18 @@ def nodes_at_location(
     index: GraphIndex, file_path: str, line: int, character: int, include_callable_parent: bool = False
 ) -> list[Node]:
     """The node declared at an LSP position, plus the class a callable or constructor belongs to."""
-    target = index.declaration_at(file_path, line, character)
+    target = index.declaration_at(file_path, line, character).declaration
     if target is None:
         return []
-    targets = [target]
-    if (include_callable_parent and target.is_callable()) or target.type.name == "CONSTRUCTOR":
-        parent = index.call_graph.nodes.get(parent_qualified_name(target.fully_qualified_name))
-        if parent is not None and parent.is_class():
-            targets.append(parent)
-    return targets
+    return _with_owning_class(index, target, include_owner=include_callable_parent)
+
+
+def _with_owning_class(index: GraphIndex, target: Node, include_owner: bool) -> list[Node]:
+    """The declaration, and the class it belongs to when a call on it reaches that too."""
+    if not ((include_owner and target.is_callable()) or target.type.name == "CONSTRUCTOR"):
+        return [target]
+    owner = index.call_graph.nodes.get(parent_qualified_name(target.fully_qualified_name))
+    return [target, owner] if owner is not None and owner.is_class() else [target]
 
 
 def definition_nodes(index: GraphIndex, definition: dict, include_callable_parent: bool = False) -> list[Node]:
@@ -186,6 +251,15 @@ def definition_nodes(index: GraphIndex, definition: dict, include_callable_paren
         return []
     file_path, line, character = location
     return nodes_at_location(index, str(file_path), line, character, include_callable_parent)
+
+
+def implementation_positions(nodes: Iterable[Node]) -> list[tuple[str, int, int]]:
+    """Where to ask which implementations override each callable among *nodes*.
+
+    A full build follows every callable it resolves with ``textDocument/implementation``;
+    the query belongs at the declaration's own name position, in LSP coordinates.
+    """
+    return [(node.file_path, node.line_start - 1, node.col_start) for node in nodes if node.is_callable()]
 
 
 def members_named(call_graph: CallGraph, owner: Node, name: str) -> list[Node]:
@@ -229,7 +303,7 @@ def targets_for(
     kind: str,
     adapter: LanguageAdapter,
     constructing: bool = False,
-) -> list[Node]:
+) -> CallTargets:
     """Every node a call site of *kind* reaches when its definition is at this position.
 
     Mirrors the engine's own definition strategy: an argument position is a method
@@ -238,20 +312,17 @@ def targets_for(
     base member dispatches to its overrides; a construction reaches the constructors.
     """
     call_graph = index.call_graph
-    include_parent = kind != ITERATED
-    resolved = nodes_at_location(index, file_path, line, character, include_parent)
-    if kind == METHOD_GROUP and resolved:
-        # A probe resolves to whatever declaration the name denotes; only a callable or a type
-        # declared exactly there is a method group. An enum member or property is not a node,
-        # and the type that encloses it must not stand in for it.
-        primary = resolved[0]
-        declared_here = (primary.line_start, primary.col_start) == (line + 1, character)
-        if not declared_here or not (
-            primary.is_callable()
-            or primary.is_class()
-            or index.inspector.declares_function_value(Path(file_path), line, character)
-        ):
-            return []
+    match = index.declaration_at(file_path, line, character)
+    if match.declaration is None:
+        return CallTargets.none()
+    if kind == METHOD_GROUP and not is_method_group_target(
+        match,
+        match.declaration.is_callable()
+        or match.declaration.is_class()
+        or index.inspector.declares_function_value(Path(file_path), line, character),
+    ):
+        return CallTargets.none()
+    resolved = _with_owning_class(index, match.declaration, include_owner=kind != ITERATED)
     targets: list[Node] = []
     for node in resolved:
         targets.append(node)
@@ -264,4 +335,4 @@ def targets_for(
             targets.extend(members_named(call_graph, node, "Add"))
         if constructing and adapter.expands_constructors and node.is_class():
             targets.extend(members_named(call_graph, node, node.fully_qualified_name.split(".")[-1].split("<")[0]))
-    return targets
+    return CallTargets(targets, implementation_positions(resolved))

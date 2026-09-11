@@ -286,12 +286,45 @@ class TestFindMemberModifiers:
         assert modifiers[("Derived", "Run")] == frozenset({"explicit"})
 
 
+class TestDeclaredNameAt:
+    def test_a_declaration_name_is_declared_here(self, tmp_path: Path):
+        source = tmp_path / "app.ts"
+        source.write_text("export function target() { return 1; }\n")
+
+        assert SourceInspector().declared_name_at(source, 0, 16) == "target"
+
+    def test_an_import_binding_is_not(self, tmp_path: Path):
+        """A server answers at an import binding as readily as at a declaration.
+
+        Reading the name there as one this file declares matches it to whatever the file
+        happens to declare under the same name -- a different function entirely.
+        """
+        source = tmp_path / "app.ts"
+        source.write_text('import { target as other } from "./b";\nexport function target() { return 2; }\n')
+
+        assert SourceInspector().declared_name_at(source, 0, 9) == ""
+
+    def test_a_python_aliased_import_is_not(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("from b import target as other\n\n\ndef target():\n    return 2\n")
+
+        assert SourceInspector().declared_name_at(source, 0, 14) == ""
+
+
 class TestTreeCacheEviction:
     def _write_project(self, tmp_path: Path, count: int) -> list[Path]:
+        """C#, so every file holds a construction site as well as a plain call."""
         files = []
         for i in range(count):
-            f = tmp_path / f"mod{i}.py"
-            f.write_text(f"def caller{i}():\n    target{i}()\n    return other{i}\n")
+            f = tmp_path / f"Mod{i}.cs"
+            f.write_text(
+                f"class Mod{i} {{\n"
+                f"    void Caller() {{\n"
+                f"        var made = new Target{i}();\n"
+                f"        Helper{i}(made);\n"
+                "    }\n"
+                "}\n"
+            )
             files.append(f)
         return files
 
@@ -314,10 +347,11 @@ class TestTreeCacheEviction:
         evicting = SourceInspector(tree_node_budget=1)
 
         for f in files:
-            assert evicting.find_call_sites(f) == unbounded.find_call_sites(f)
-            assert evicting.is_construction_site(CallSite(str(f), 2, 12)) == unbounded.is_construction_site(
-                CallSite(str(f), 2, 12)
-            )
+            sites = unbounded.find_call_sites(f)
+            assert [site for site in sites if unbounded.is_construction_site(site)], f"no construction in {f.name}"
+            assert evicting.find_call_sites(f) == sites
+            for site in sites:
+                assert evicting.is_construction_site(site) == unbounded.is_construction_site(site)
             assert evicting.get_file_lines(f) == unbounded.get_file_lines(f)
 
         assert evicting.cache_stats()["trees_evicted"] > 0

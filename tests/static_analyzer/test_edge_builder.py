@@ -18,6 +18,8 @@ from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.errors import StaticAnalysisFatalError
+from static_analyzer.graph_definitions import MatchRule
 
 from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 
@@ -29,9 +31,10 @@ class _DefinitionsTestAdapter(_TestAdapter):
 
 
 def _make_lsp() -> MagicMock:
+    """One result list per query, the shape ``_send_batch`` guarantees its callers."""
     lsp = MagicMock()
-    lsp.send_definition_batch.return_value = ([], set())
-    lsp.send_implementation_batch.return_value = ([], set())
+    lsp.send_definition_batch.side_effect = lambda queries: [[] for _ in queries]
+    lsp.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
     return lsp
 
 
@@ -122,7 +125,7 @@ def _index(symbols: list[SymbolInfo], inspector: SourceInspector | None = None) 
 class TestSymbolIndexResolve:
     def test_exact_match_with_location_format(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        assert _index([sym]).resolve(_definition("/p/a.py", 10, 4)) is sym
+        assert _index([sym]).resolve(_definition("/p/a.py", 10, 4)).declaration is sym
 
     def test_exact_match_with_location_link_format(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
@@ -132,38 +135,38 @@ class TestSymbolIndexResolve:
                 "targetSelectionRange": {"start": {"line": 10, "character": 4}},
             }
         )
-        assert result is sym
+        assert result.declaration is sym
 
     def test_symbol_declared_on_the_line_that_contains_the_position(self, tmp_path: Path):
         source = tmp_path / "a.ts"
         source.write_text("export class Box { hold(item: string) {} }\n")
         method = _sym("hold", "a.Box.hold", NodeType.METHOD, str(source), 0, 19, 0, 41)
         box = _sym("Box", "a.Box", NodeType.CLASS, str(source), 0, 13, 0, 42)
-        assert _index([box, method]).resolve(_definition(str(source), 0, 25)) is method
+        assert _index([box, method]).resolve(_definition(str(source), 0, 25)).declaration is method
 
     def test_symbol_whose_declaration_ends_above_the_position_is_not_a_match(self, tmp_path: Path):
         source = tmp_path / "a.py"
         source.write_text("def head():\n    pass\n\n\ndef tail():\n    pass\n")
         head = _sym("head", "a.head", NodeType.FUNCTION, str(source), 0, 4, 1, 8)
-        assert _index([head]).resolve(_definition(str(source), 4, 4)) is None
+        assert _index([head]).resolve(_definition(str(source), 4, 4)).declaration is None
 
     def test_parameter_line_does_not_bind_to_the_neighbouring_function(self, tmp_path: Path):
         source = tmp_path / "handlers.py"
         source.write_text("def handle(\n    payload,\n):\n    return payload\n")
         function = _sym("handle", "handlers.handle", NodeType.FUNCTION, str(source), 0, 4, 3, 18)
-        assert _index([function]).resolve(_definition(str(source), 1, 4)) is None
+        assert _index([function]).resolve(_definition(str(source), 1, 4)).declaration is None
 
     def test_local_variable_line_does_not_bind_to_the_neighbouring_function(self, tmp_path: Path):
         source = tmp_path / "calc.py"
         source.write_text("def total(items):\n    subtotal = 0\n    return subtotal\n")
         function = _sym("total", "calc.total", NodeType.FUNCTION, str(source), 0, 4, 2, 20)
-        assert _index([function]).resolve(_definition(str(source), 1, 4)) is None
+        assert _index([function]).resolve(_definition(str(source), 1, 4)).declaration is None
 
     def test_import_line_does_not_bind_to_the_neighbouring_function(self, tmp_path: Path):
         source = tmp_path / "app.py"
         source.write_text("from lib import helper\n\n\ndef run():\n    return helper()\n")
         function = _sym("run", "app.run", NodeType.FUNCTION, str(source), 3, 4, 4, 20)
-        assert _index([function]).resolve(_definition(str(source), 0, 16)) is None
+        assert _index([function]).resolve(_definition(str(source), 0, 16)).declaration is None
 
     def test_overload_signature_resolves_to_the_sole_declaration_of_that_name(self, tmp_path: Path):
         source = tmp_path / "teams.ts"
@@ -173,7 +176,7 @@ class TestSymbolIndexResolve:
             "export function getTeams(id: unknown): Team[] {\n  return [];\n}\n"
         )
         implementation = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 2, 16, 4, 1)
-        assert _index([implementation]).resolve(_definition(str(source), 0, 16)) is implementation
+        assert _index([implementation]).resolve(_definition(str(source), 0, 16)).declaration is implementation
 
     def test_two_declarations_of_the_name_are_ambiguous(self, tmp_path: Path):
         source = tmp_path / "teams.ts"
@@ -184,38 +187,41 @@ class TestSymbolIndexResolve:
         )
         free = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
         method = _sym("getTeams", "teams.Api.getTeams", NodeType.METHOD, str(source), 2, 12, 2, 26)
-        assert _index([free, method]).resolve(_definition(str(source), 0, 16)) is None
+        assert _index([free, method]).resolve(_definition(str(source), 0, 16)).declaration is None
 
     def test_dual_registration_at_one_position_is_one_declaration(self, tmp_path: Path):
         source = tmp_path / "teams.ts"
         source.write_text("export function getTeams(id: string): Team[];\nexport function getTeams() {}\n")
         short = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
         long = _sym("getTeams", "teams.index.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
-        assert _index([short, long]).resolve(_definition(str(source), 0, 16)) is long
+        assert _index([short, long]).resolve(_definition(str(source), 0, 16)).declaration is long
 
     def test_name_at_definition_only_considers_callables_and_classes(self, tmp_path: Path):
         source = tmp_path / "config.py"
         source.write_text("DEBUG = True\n\n\nDEBUG = False\n")
         first = _sym("DEBUG", "config.DEBUG", NodeType.CONSTANT, str(source), 0, 0, 0, 5)
-        assert _index([first]).resolve(_definition(str(source), 3, 0)) is None
+        assert _index([first]).resolve(_definition(str(source), 3, 0)).declaration is None
 
     def test_adjacent_line_is_no_longer_a_match(self, tmp_path: Path):
         source = tmp_path / "a.py"
         source.write_text("@decorator\ndef foo():\n    pass\n")
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, str(source), 1, 4, 2, 8)
-        assert _index([sym]).resolve(_definition(str(source), 0, 0)) is None
+        assert _index([sym]).resolve(_definition(str(source), 0, 0)).declaration is None
 
     def test_annotation_line_above_a_method_still_resolves_by_name(self, tmp_path: Path):
         source = tmp_path / "Service.java"
         source.write_text("class Service {\n  @Override\n  public void run() {}\n}\n")
         method = _sym("run()", "Service.run()", NodeType.METHOD, str(source), 2, 14, 2, 22)
-        assert _index([method]).resolve(_definition(str(source), 2, 14)) is method
+        assert _index([method]).resolve(_definition(str(source), 2, 14)).declaration is method
 
     def test_returns_none_for_invalid_uri(self):
-        assert _index([]).resolve({"uri": "invalid-uri", "range": {"start": {"line": 0, "character": 0}}}) is None
+        assert (
+            _index([]).resolve({"uri": "invalid-uri", "range": {"start": {"line": 0, "character": 0}}}).declaration
+            is None
+        )
 
     def test_returns_none_for_missing_position(self):
-        assert _index([]).resolve({"uri": Path("/p/a.py").as_uri(), "range": {}}) is None
+        assert _index([]).resolve({"uri": Path("/p/a.py").as_uri(), "range": {}}).declaration is None
 
     def test_counts_every_outcome(self, tmp_path: Path):
         source = tmp_path / "teams.ts"
@@ -226,8 +232,12 @@ class TestSymbolIndexResolve:
         index.resolve(_definition(str(source), 1, 20))
         index.resolve(_definition(str(source), 0, 16))
         index.resolve(_definition(str(source), 0, 0))
-        assert (index.counts.exact, index.counts.same_line) == (1, 1)
-        assert (index.counts.name_at_definition, index.counts.rejected) == (1, 1)
+        assert index.counts.by_rule == {
+            MatchRule.EXACT: 1,
+            MatchRule.SIGNATURE: 1,
+            MatchRule.NAME: 1,
+            MatchRule.NONE: 1,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +265,7 @@ class TestBuildEdgesViaDefinitions:
 
         # Call sites: main( at (0,4), helper( at (1,4), helper( def at (3,4)
         # helper( at (1,4) resolves to callee at (3,4)
-        def def_batch(queries: list) -> tuple[list, set[int]]:
+        def def_batch(queries: list) -> list:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}]
@@ -263,7 +273,7 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ], set()
+            ]
 
         lsp.send_definition_batch.side_effect = def_batch
 
@@ -286,13 +296,10 @@ class TestBuildEdgesViaDefinitions:
         st._primary_file_symbols[str(src)] = [caller]
         st.build_indices()
 
-        lsp.send_definition_batch.side_effect = lambda queries: (
-            [
-                [{"uri": other.as_uri(), "range": {"start": {"line": 7, "character": 4}}}] if line == 1 else []
-                for _, line, _ in queries
-            ],
-            set(),
-        )
+        lsp.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": other.as_uri(), "range": {"start": {"line": 7, "character": 4}}}] if line == 1 else []
+            for _, line, _ in queries
+        ]
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
 
@@ -313,12 +320,8 @@ class TestBuildEdgesViaDefinitions:
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert len(edges) == 0
 
-    def test_definition_batch_failure_does_not_crash(self, tmp_path: Path):
-        """A failed batch loses its edges without stopping the run.
-
-        Whether that is the right trade is decided on the fail-fast branch; here
-        the point is only that the run survives it.
-        """
+    def test_a_failed_definition_batch_fails_the_build(self, tmp_path: Path):
+        """Continuing would cache a graph missing every edge the batch would have named."""
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
         st = ctx.symbol_table
@@ -332,9 +335,10 @@ class TestBuildEdgesViaDefinitions:
         st._primary_file_symbols[str(src)] = [caller]
         st.build_indices()
 
-        lsp.send_definition_batch.side_effect = Exception("LSP crash")
+        lsp.send_definition_batch.side_effect = StaticAnalysisFatalError("2 of 2 requests went unanswered")
 
-        assert len(build_edges_via_definitions(adapter, ctx, [src])) == 0
+        with pytest.raises(StaticAnalysisFatalError, match="unanswered"):
+            build_edges_via_definitions(adapter, ctx, [src])
 
     def test_constructor_adds_parent_class_edge(self, tmp_path: Path):
         """When definition resolves to a constructor, also adds edge to parent class."""
@@ -365,7 +369,7 @@ class TestBuildEdgesViaDefinitions:
         st.build_indices()
 
         # Dog( at (1,4) resolves to __init__ at (4,8); other sites resolve to nothing
-        def def_batch(queries: list) -> tuple[list, set[int]]:
+        def def_batch(queries: list) -> list:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 4, "character": 8}}}]
@@ -373,10 +377,9 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ], set()
+            ]
 
         lsp.send_definition_batch.side_effect = def_batch
-        lsp.send_implementation_batch.return_value = ([[]], set())
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert ("app.main", "app.Dog.__init__") in edges
@@ -402,7 +405,7 @@ class TestBuildEdgesViaDefinitions:
         st.build_indices()
 
         # speak( at (1,4) resolves to speak def at (3,4); others to nothing
-        def def_batch(queries: list) -> tuple[list, set[int]]:
+        def def_batch(queries: list) -> list:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}]
@@ -410,21 +413,19 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ], set()
+            ]
 
         lsp.send_definition_batch.side_effect = def_batch
         # Implementation for speak resolves to dog_speak
-        lsp.send_implementation_batch.return_value = (
-            [[{"uri": src.as_uri(), "range": {"start": {"line": 6, "character": 4}}}]],
-            set(),
-        )
+        lsp.send_implementation_batch.side_effect = lambda queries: [
+            [{"uri": src.as_uri(), "range": {"start": {"line": 6, "character": 4}}}] for _ in queries
+        ]
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert ("app.main", "app.speak") in edges
         assert ("app.main", "app.dog_speak") in edges
 
-    def test_handles_implementation_batch_failure(self, tmp_path: Path):
-        """Implementation batch failure doesn't crash."""
+    def test_a_failed_implementation_batch_fails_the_build(self, tmp_path: Path):
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
         st = ctx.symbol_table
@@ -441,7 +442,7 @@ class TestBuildEdgesViaDefinitions:
         st.build_indices()
 
         # speak( at (1,4) resolves to speak def at (3,4)
-        def def_batch(queries: list) -> tuple[list, set[int]]:
+        def def_batch(queries: list) -> list:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}]
@@ -449,14 +450,13 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ], set()
+            ]
 
         lsp.send_definition_batch.side_effect = def_batch
-        lsp.send_implementation_batch.side_effect = Exception("LSP crash")
+        lsp.send_implementation_batch.side_effect = StaticAnalysisFatalError("1 of 1 requests went unanswered")
 
-        edges = build_edges_via_definitions(adapter, ctx, [src])
-        # Definition edge still present despite impl failure
-        assert ("app.main", "app.speak") in edges
+        with pytest.raises(StaticAnalysisFatalError, match="unanswered"):
+            build_edges_via_definitions(adapter, ctx, [src])
 
 
 # ---------------------------------------------------------------------------
@@ -481,7 +481,7 @@ def _register(ctx: EdgeBuildContext, path: Path, symbols: list[SymbolInfo]) -> N
 def _answer(lsp: MagicMock, answers: dict[tuple[int, int], tuple[int, int]], path: Path) -> None:
     """Resolve each queried position to the declaration position it maps to."""
 
-    def batch(queries: list) -> tuple[list, set[int]]:
+    def batch(queries: list) -> list:
         return [
             (
                 [{"uri": path.as_uri(), "range": {"start": {"line": at[0], "character": at[1]}}}]
@@ -489,7 +489,7 @@ def _answer(lsp: MagicMock, answers: dict[tuple[int, int], tuple[int, int]], pat
                 else []
             )
             for _, line, col in queries
-        ], set()
+        ]
 
     lsp.send_definition_batch.side_effect = batch
 

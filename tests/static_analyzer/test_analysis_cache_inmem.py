@@ -376,10 +376,10 @@ class TestWarmStartKeepsDefinitionsAnotherEngineOwns:
         graph.add_node(Node("Host.Configure()", NodeType.METHOD, str(changed), line_start=3, line_end=3, col_start=9))
         elsewhere = tmp_path / "framework" / "Builder.cs"
         client = MagicMock()
-        client.send_definition_batch.side_effect = lambda queries: (
-            [[{"uri": elsewhere.as_uri(), "range": {"start": {"line": 20, "character": 4}}}] for _ in queries],
-            set(),
-        )
+        client.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": elsewhere.as_uri(), "range": {"start": {"line": 20, "character": 4}}}] for _ in queries
+        ]
+        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
 
         external = _add_outbound_edges_from_changed_files(
             GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), CSharpAdapter()
@@ -406,21 +406,55 @@ class TestWarmStartCallShapes:
 
     def _run(self, graph: CallGraph, changed: Path, answers: dict[int, tuple[str, int, int]]) -> list[tuple[str, str]]:
         client = MagicMock()
-        client.send_definition_batch.side_effect = lambda queries: (
-            [
-                (
-                    [{"uri": Path(at[0]).as_uri(), "range": {"start": {"line": at[1], "character": at[2]}}}]
-                    if (at := answers.get(col)) is not None
-                    else []
-                )
-                for _, _line, col in queries
-            ],
-            set(),
-        )
+        client.send_definition_batch.side_effect = lambda queries: [
+            (
+                [{"uri": Path(at[0]).as_uri(), "range": {"start": {"line": at[1], "character": at[2]}}}]
+                if (at := answers.get(col)) is not None
+                else []
+            )
+            for _, _line, col in queries
+        ]
+        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
         _add_outbound_edges_from_changed_files(
             GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), self._typescript_adapter()
         )
         return [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
+
+    def test_a_call_reaches_the_implementations_of_the_declaration_it_resolves_to(self, tmp_path: Path) -> None:
+        """A full build follows every callable target with ``textDocument/implementation``.
+
+        This adapter does not expand virtual dispatch from source, so the server's answer is
+        the only route to the caller-to-implementation edge.
+        """
+        changed = tmp_path / "app.ts"
+        changed.write_text(
+            'import { Service } from "./api";\n\nexport function run(s: Service) {\n    s.handle();\n}\n'
+        )
+        api = tmp_path / "api.ts"
+        worker = tmp_path / "worker.ts"
+        graph = CallGraph(language="typescript")
+        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
+        graph.add_node(Node("api.Service.handle", NodeType.METHOD, str(api), line_start=2, line_end=2, col_start=4))
+        graph.add_node(
+            Node("worker.Worker.handle", NodeType.METHOD, str(worker), line_start=5, line_end=7, col_start=4)
+        )
+
+        client = MagicMock()
+        client.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": api.as_uri(), "range": {"start": {"line": 1, "character": 4}}}] for _ in queries
+        ]
+        client.send_implementation_batch.side_effect = lambda queries: [
+            [{"uri": worker.as_uri(), "range": {"start": {"line": 4, "character": 4}}}] for _ in queries
+        ]
+
+        _add_outbound_edges_from_changed_files(
+            GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), self._typescript_adapter()
+        )
+
+        asked = [query for call in client.send_implementation_batch.call_args_list for query in call.args[0]]
+        assert asked == [(api, 1, 4)]
+        edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
+        assert ("app.run", "worker.Worker.handle") in edges
 
     def test_a_callback_bound_to_a_const_is_a_method_group_target(self, tmp_path: Path) -> None:
         helpers = tmp_path / "helpers.ts"

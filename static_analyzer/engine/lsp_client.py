@@ -18,6 +18,7 @@ from pathlib import Path
 
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
 from static_analyzer.engine.utils import uri_to_path
+from static_analyzer.errors import StaticAnalysisFatalError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
@@ -341,16 +342,13 @@ class LSPClient:
 
     def send_definition_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple definition requests without waiting between them.
-
-        Returns ``(results, error_indices)`` — see :meth:`send_references_batch`.
-        """
+    ) -> list[list[dict]]:
+        """Send multiple definition requests without waiting between them."""
         return self._send_batch("textDocument/definition", queries, self._position_params, timeout=timeout)
 
     def send_type_definition_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
-    ) -> tuple[list[list[dict]], set[int]]:
+    ) -> list[list[dict]]:
         """Resolve each position to the *type* of the expression there.
 
         Distinct from ``definition``, which lands on the declaration: iterating
@@ -376,11 +374,8 @@ class LSPClient:
 
     def send_implementation_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple implementation requests without waiting between them.
-
-        Returns ``(results, error_indices)`` — see :meth:`send_references_batch`.
-        """
+    ) -> list[list[dict]]:
+        """Send multiple implementation requests without waiting between them."""
         return self._send_batch("textDocument/implementation", queries, self._position_params, timeout=timeout)
 
     def workspace_symbol(self, query: str) -> list[dict]:
@@ -516,14 +511,13 @@ class LSPClient:
         queries: list[tuple[Path, int, int]],
         build_params: Callable[[Path, int, int], dict],
         timeout: int | None = None,
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple LSP requests and collect results in order.
+    ) -> list[list[dict]]:
+        """Send multiple LSP requests and collect their results in query order.
 
-        Generic batch helper that eliminates duplication across
-        send_references_batch, send_definition_batch, and send_implementation_batch.
-
-        Returns ``(parsed_results, error_indices)`` where *error_indices*
-        is a set of 0-based query positions that received LSP errors.
+        Raises when a request was never answered, rather than returning a partial batch. It
+        would come back as an empty result list, indistinguishable from "nothing is declared
+        here", and every caller would have to remember to check a second return value to
+        avoid turning a server timeout into a missing edge nobody hears about.
         """
         req_ids: list[int] = []
         for file_path, line, character in queries:
@@ -538,12 +532,15 @@ class LSPClient:
             }
             self._write_message(message)
 
-        results, _, error_ids = self._collect_batch_responses(req_ids, timeout=timeout)
-
-        error_indices: set[int] = set()
-        for i, rid in enumerate(req_ids):
-            if rid in error_ids:
-                error_indices.add(i)
+        results, timed_out = self._collect_batch_responses(method, req_ids, timeout=timeout)
+        if timed_out:
+            first = queries[min(req_ids.index(req_id) for req_id in timed_out)]
+            raise StaticAnalysisFatalError(
+                f"{len(timed_out)} of {len(queries)} {method} requests were never answered, first at "
+                f"{first[0]}:{first[1] + 1}:{first[2] + 1}, within {timeout or self._default_timeout}s. "
+                "The server is likely overloaded or still indexing; reading them as empty would silently "
+                "drop call-graph edges."
+            )
 
         parsed: list[list[dict]] = []
         for rid in req_ids:
@@ -554,7 +551,7 @@ class LSPClient:
                 parsed.append(raw)
             else:
                 parsed.append([])
-        return parsed, error_indices
+        return parsed
 
     def _send_request(self, method: str, params: dict | list | None, timeout: int | None = None) -> dict | list | None:
         """Send a JSON-RPC request and wait for the response."""
@@ -642,21 +639,20 @@ class LSPClient:
         return message
 
     def _collect_batch_responses(
-        self, request_ids: list[int], timeout: int | None = None
-    ) -> tuple[dict[int, list[dict]], set[int], set[int]]:
+        self, method: str, request_ids: list[int], timeout: int | None = None
+    ) -> tuple[dict[int, list[dict]], set[int]]:
         """Collect responses for multiple pending request IDs.
 
-        Returns a tuple of (results, timed_out_ids, error_ids):
-        - results: dict mapping request_id -> result list
-        - timed_out_ids: set of request IDs that did not complete in time
-        - error_ids: set of request IDs that returned LSP errors
+        Returns ``(results, timed_out_ids)``. An error response is an answer: a server says
+        "not a method", "not an interface" or "unsupported" that way, and the empty result it
+        is paired with is the truth. A request that never came back is the one case a caller
+        must not read as "nothing is declared there", so only those are reported.
         """
         if timeout is None:
             timeout = self._default_timeout
 
         results: dict[int, list[dict]] = {}
         pending = set(request_ids)
-        error_ids: set[int] = set()
         error_messages: dict[str, int] = {}
         deadline = time.monotonic() + timeout
 
@@ -672,26 +668,24 @@ class LSPClient:
             pending.discard(msg_id)  # type: ignore[arg-type]
 
             if "error" in msg:
-                error_ids.add(msg_id)  # type: ignore[arg-type]
                 err = msg["error"]
+                results[msg_id] = []  # type: ignore[index]
                 err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
                 error_messages[err_msg] = error_messages.get(err_msg, 0) + 1
-                results[msg_id] = []  # type: ignore[index]
             else:
                 results[msg_id] = msg.get("result") or []  # type: ignore[index]
 
         for err_msg, count in error_messages.items():
             if count > 1:
-                logger.warning("LSP error (x%d): %s", count, err_msg)
+                logger.debug("LSP declined %s (x%d): %s", method, count, err_msg)
             else:
-                logger.warning("LSP error: %s", err_msg)
+                logger.debug("LSP declined %s: %s", method, err_msg)
 
-        timed_out = set(pending)
         for req_id in pending:
-            logger.warning("Timeout waiting for references request %d", req_id)
+            logger.warning("Timeout waiting for %s request %d", method, req_id)
             results[req_id] = []
 
-        return results, timed_out, error_ids
+        return results, set(pending)
 
     # ---- Background message reader ----
 
