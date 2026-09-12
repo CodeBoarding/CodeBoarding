@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 from static_analyzer import EngineConfig, StaticAnalyzer
 from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, merge_results
-from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
+from static_analyzer.analysis_result import AnalysisData, CallSiteLocation, InvalidatedEdge, StaticAnalysisResults
 from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.node import Node
@@ -415,7 +415,8 @@ class TestRestoringCachedEdges:
         graph.add_node(Node("Bag", NodeType.CLASS, str(bag), line_start=1, line_end=9, col_start=6))
         node = graph.nodes["Runner.Run(Bag)"]
         target = graph.nodes["Bag"]
-        invalidated = [("Runner.Run(Bag)", "Bag", node, target, [{"file": str(caller), "line": 5, "column": 30}])]
+        sites: list[CallSiteLocation] = [{"file": str(caller), "line": 5, "column": 30}]
+        invalidated: list[InvalidatedEdge] = [("Runner.Run(Bag)", "Bag", node, target, sites)]
 
         client = MagicMock()
         client.send_definition_batch.side_effect = lambda queries: [[] for _ in queries]

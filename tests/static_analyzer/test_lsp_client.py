@@ -357,7 +357,7 @@ class TestCollectBatchResponses:
         client._msg_queue.put({"jsonrpc": "2.0", "id": 2, "result": [{"b": 1}]})
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "result": [{"a": 1}]})
 
-        results, timed_out = client._collect_batch_responses("textDocument/definition", [1, 2], timeout=5)
+        results, timed_out, _ = client._collect_batch_responses("textDocument/definition", [1, 2], timeout=5)
 
         assert results[1] == [{"a": 1}]
         assert results[2] == [{"b": 1}]
@@ -371,7 +371,7 @@ class TestCollectBatchResponses:
         # Only queue one of two expected responses
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "result": [{"a": 1}]})
 
-        results, timed_out = client._collect_batch_responses("textDocument/definition", [1, 2], timeout=1)
+        results, timed_out, _ = client._collect_batch_responses("textDocument/definition", [1, 2], timeout=1)
 
         assert results[1] == [{"a": 1}]
         assert results[2] == []
@@ -386,7 +386,7 @@ class TestCollectBatchResponses:
         error = {"code": -32801, "message": "content modified"}
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
 
-        results, unserved = client._collect_batch_responses("textDocument/definition", [1], timeout=5)
+        results, unserved, _ = client._collect_batch_responses("textDocument/definition", [1], timeout=5)
         assert results[1] == []
         assert unserved == {1}
 
@@ -398,7 +398,7 @@ class TestCollectBatchResponses:
         error = {"code": -32601, "message": "Method not found"}
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
 
-        _, unserved = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
+        _, unserved, _ = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
         assert unserved == set()
 
     def test_an_error_is_an_answer_not_a_hole(self):
@@ -414,7 +414,7 @@ class TestCollectBatchResponses:
         error = {"code": 0, "message": "Add is a function, not a method"}
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
 
-        results, unserved = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
+        results, unserved, _ = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
         assert results[1] == []
         assert unserved == set()
 
@@ -431,7 +431,7 @@ class TestCollectBatchResponses:
         import logging
 
         with caplog.at_level(logging.DEBUG):
-            _, timed_out = client._collect_batch_responses("textDocument/definition", [1, 2, 3], timeout=5)
+            _, timed_out, _ = client._collect_batch_responses("textDocument/definition", [1, 2, 3], timeout=5)
 
         assert timed_out == set()
         declined = [r for r in caplog.records if "no package metadata" in r.message]

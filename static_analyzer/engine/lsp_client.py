@@ -14,6 +14,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
@@ -29,6 +30,10 @@ LSP_METHOD_NOT_FOUND = -32601
 # modified, request failed). A server's own application-level answer uses a code outside the
 # range -- gopls declines an implementation query on a free function with code 0.
 LSP_RESERVED_ERROR_CODE_MAX = -32000
+# Reserved codes whose remedy the protocol defines as "ask again": the server was still
+# settling the documents it had been sent, not refusing the question. rust-analyzer answers
+# ContentModified for every query issued while it is still indexing an opened file.
+LSP_RETRYABLE_ERROR_CODES = frozenset({-32800, -32801, -32802})  # RequestCancelled, ContentModified, ServerCancelled
 ProgressToken = str | int
 
 
@@ -48,6 +53,15 @@ class MethodNotFoundError(Exception):
     """Raised when the LSP server does not support a requested method."""
 
 
+@dataclass(frozen=True)
+class BatchAnswer:
+    """One query's answer: what came back, whether it was served, and whether to ask again."""
+
+    results: list[dict]
+    served: bool
+    retryable: bool
+
+
 def _is_protocol_failure(error: object) -> bool:
     """Whether an error response means the request could not be served at all.
 
@@ -58,6 +72,11 @@ def _is_protocol_failure(error: object) -> bool:
         return False
     code = error.get("code")
     return isinstance(code, int) and code <= LSP_RESERVED_ERROR_CODE_MAX and code != LSP_METHOD_NOT_FOUND
+
+
+def _is_retryable(error: object) -> bool:
+    """Whether the protocol's own remedy for this failure is to ask again."""
+    return isinstance(error, dict) and error.get("code") in LSP_RETRYABLE_ERROR_CODES
 
 
 class LSPClient:
@@ -531,11 +550,37 @@ class LSPClient:
     ) -> list[list[dict]]:
         """Send multiple LSP requests and collect their results in query order.
 
-        Raises when a request went unserved, rather than returning a partial batch. It would
-        come back as an empty result list, indistinguishable from "nothing is declared here",
-        and every caller would have to remember to check a second return value to avoid
-        turning a server timeout into a missing edge nobody hears about.
+        A request the server said it could not serve is asked once more when the protocol's
+        remedy for it is to ask again -- a server still settling the documents it was sent
+        answers that way, and the second answer is the real one. What is still unserved after
+        that raises, rather than coming back as an empty result list indistinguishable from
+        "nothing is declared here".
         """
+        by_query = self._ask(method, queries, build_params, timeout)
+        retry = [index for index, answer in enumerate(by_query) if answer.retryable]
+        if retry:
+            logger.info("Re-asking %d of %d %s requests the server had not settled", len(retry), len(queries), method)
+            for index, answer in zip(retry, self._ask(method, [queries[i] for i in retry], build_params, timeout)):
+                by_query[index] = answer
+
+        unserved = [index for index, answer in enumerate(by_query) if not answer.served]
+        if unserved:
+            first = queries[unserved[0]]
+            raise StaticAnalysisFatalError(
+                f"{len(unserved)} of {len(queries)} {method} requests went unserved, first at "
+                f"{first[0]}:{first[1] + 1}:{first[2] + 1}. The server timed out or failed the request "
+                "rather than declining it; reading those as empty would silently drop call-graph edges."
+            )
+        return [answer.results for answer in by_query]
+
+    def _ask(
+        self,
+        method: str,
+        queries: list[tuple[Path, int, int]],
+        build_params: Callable[[Path, int, int], dict],
+        timeout: int | None,
+    ) -> list[BatchAnswer]:
+        """Send one request per query and collect the answers in query order."""
         req_ids: list[int] = []
         for file_path, line, character in queries:
             self._request_id += 1
@@ -549,25 +594,18 @@ class LSPClient:
             }
             self._write_message(message)
 
-        results, unserved = self._collect_batch_responses(method, req_ids, timeout=timeout)
-        if unserved:
-            first = queries[min(req_ids.index(req_id) for req_id in unserved)]
-            raise StaticAnalysisFatalError(
-                f"{len(unserved)} of {len(queries)} {method} requests went unserved, first at "
-                f"{first[0]}:{first[1] + 1}:{first[2] + 1}. The server timed out or failed the request "
-                "rather than declining it; reading those as empty would silently drop call-graph edges."
-            )
-
-        parsed: list[list[dict]] = []
-        for rid in req_ids:
-            raw = results.get(rid, [])
+        results, unserved, retryable = self._collect_batch_responses(method, req_ids, timeout=timeout)
+        answers: list[BatchAnswer] = []
+        for req_id in req_ids:
+            raw = results.get(req_id, [])
             if isinstance(raw, dict):
-                parsed.append([raw])
+                parsed = [raw]
             elif isinstance(raw, list):
-                parsed.append(raw)
+                parsed = raw
             else:
-                parsed.append([])
-        return parsed
+                parsed = []
+            answers.append(BatchAnswer(parsed, req_id not in unserved, req_id in retryable))
+        return answers
 
     def _send_request(self, method: str, params: dict | list | None, timeout: int | None = None) -> dict | list | None:
         """Send a JSON-RPC request and wait for the response."""
@@ -656,14 +694,15 @@ class LSPClient:
 
     def _collect_batch_responses(
         self, method: str, request_ids: list[int], timeout: int | None = None
-    ) -> tuple[dict[int, list[dict]], set[int]]:
+    ) -> tuple[dict[int, list[dict]], set[int], set[int]]:
         """Collect responses for multiple pending request IDs.
 
-        Returns ``(results, unserved_ids)``. A server declines with an error of its own -- "not
-        a method", "not an interface", "no identifier found" -- and that is an answer, whose
-        empty result is the truth. A request that timed out, or failed with a reserved code,
-        was never served, and the caller must not read its empty list as "nothing is declared
-        there".
+        Returns ``(results, unserved_ids, retryable_ids)``. A server declines with an error of
+        its own -- "not a method", "not an interface", "no identifier found" -- and that is an
+        answer, whose empty result is the truth. A request that timed out, or failed with a
+        reserved code, was never served, and the caller must not read its empty list as
+        "nothing is declared there"; the subset whose reserved code the protocol answers with
+        "ask again" is reported separately.
         """
         if timeout is None:
             timeout = self._default_timeout
@@ -672,6 +711,7 @@ class LSPClient:
         pending = set(request_ids)
         declined: dict[str, int] = {}
         unserved: dict[int, str] = {}
+        retryable: set[int] = set()
         deadline = time.monotonic() + timeout
 
         while pending and time.monotonic() < deadline:
@@ -691,6 +731,8 @@ class LSPClient:
                 err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
                 if _is_protocol_failure(err):
                     unserved[msg_id] = err_msg  # type: ignore[index]
+                    if _is_retryable(err):
+                        retryable.add(msg_id)  # type: ignore[arg-type]
                 else:
                     declined[err_msg] = declined.get(err_msg, 0) + 1
             else:
@@ -703,12 +745,13 @@ class LSPClient:
                 logger.debug("LSP declined %s: %s", method, err_msg)
 
         for req_id, err_msg in unserved.items():
-            logger.warning("LSP could not serve %s request %d: %s", method, req_id, err_msg)
+            if req_id not in retryable:
+                logger.warning("LSP could not serve %s request %d: %s", method, req_id, err_msg)
         for req_id in pending:
             logger.warning("Timeout waiting for %s request %d", method, req_id)
             results[req_id] = []
 
-        return results, set(pending) | set(unserved)
+        return results, set(pending) | set(unserved), retryable
 
     # ---- Background message reader ----
 
