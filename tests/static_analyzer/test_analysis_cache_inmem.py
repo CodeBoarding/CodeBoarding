@@ -19,6 +19,7 @@ from static_analyzer.node import Node
 from static_analyzer.graph_definitions import GraphIndex, definition_nodes
 from static_analyzer.incremental_orchestrator import (
     _add_outbound_edges_from_changed_files,
+    _restore_inbound_edges_via_definitions,
     update_cfg_for_changed_files,
 )
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
@@ -389,6 +390,47 @@ class TestWarmStartKeepsDefinitionsAnotherEngineOwns:
         assert [(s.caller, s.file, s.line, s.character, s.kind) for s in external] == [
             ("Host.Configure()", str(elsewhere), 20, 4, "call")
         ]
+
+
+class TestRestoringCachedEdges:
+    """A cached site is re-asked as the shape it was written as, not as a plain call."""
+
+    def _csharp_adapter(self) -> CSharpAdapter:
+        return CSharpAdapter()
+
+    def test_an_enumerated_type_is_asked_for_with_a_type_query(self, tmp_path: Path) -> None:
+        """``foreach`` names a value; only a type query reaches the type it enumerates.
+
+        Asking for its definition returns the variable, so the cached edge into the type
+        can never be confirmed and the warm result silently drops it.
+        """
+        caller = tmp_path / "Runner.cs"
+        caller.write_text(
+            "class Runner\n{\n    void Run(Bag bag)\n    {\n        foreach (var item in bag) { }\n    }\n}\n"
+        )
+        bag = tmp_path / "Bag.cs"
+        graph = CallGraph(language="csharp")
+        graph.add_node(Node("Runner", NodeType.CLASS, str(caller), line_start=1, line_end=7, col_start=6))
+        graph.add_node(Node("Runner.Run(Bag)", NodeType.METHOD, str(caller), line_start=3, line_end=6, col_start=9))
+        graph.add_node(Node("Bag", NodeType.CLASS, str(bag), line_start=1, line_end=9, col_start=6))
+        node = graph.nodes["Runner.Run(Bag)"]
+        target = graph.nodes["Bag"]
+        invalidated = [("Runner.Run(Bag)", "Bag", node, target, [{"file": str(caller), "line": 5, "column": 30}])]
+
+        client = MagicMock()
+        client.send_definition_batch.side_effect = lambda queries: [[] for _ in queries]
+        client.send_type_definition_batch.side_effect = lambda queries: [
+            [{"uri": bag.as_uri(), "range": {"start": {"line": 0, "character": 6}}}] for _ in queries
+        ]
+        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
+
+        inspector = SourceInspector()
+        _restore_inbound_edges_via_definitions(
+            GraphIndex(graph, inspector), invalidated, set(), self._csharp_adapter(), client, inspector
+        )
+
+        assert client.send_type_definition_batch.called
+        assert [(edge.get_source(), edge.get_destination()) for edge in graph.edges] == [("Runner.Run(Bag)", "Bag")]
 
 
 class TestWarmStartCallShapes:
