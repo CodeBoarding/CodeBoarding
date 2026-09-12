@@ -153,7 +153,6 @@ _VALUE_FIELD_BY_BINDING = {
     "field_definition": "value",  # JavaScript class field
     "public_field_definition": "value",  # TypeScript class field
     "var_spec": "value",  # Go
-    "const_spec": "value",  # Go
 }
 _VALUE_BODY_NODE_TYPES = frozenset({"return_statement", "arrow_expression_clause"})
 _NAME_SHAPED_NODE_TYPES = frozenset(

@@ -74,8 +74,10 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v11: every language builds its call edges from definitions at the call site instead of
 # references at the declaration, so every graph changes; and graph nodes now record the
 # column their declaration ends at, which an older pickle has no value for.
+# v12: a call site's column counts UTF-16 code units, as LSP does, rather than the bytes
+# tree-sitter reports, so a stored site on a line holding non-ASCII text moved.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v11"
+_TAG_VERSION = "v12"
 
 
 class StaticAnalysisCache:
