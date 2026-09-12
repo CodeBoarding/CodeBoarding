@@ -18,6 +18,7 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.node import Node
 from static_analyzer.graph_definitions import GraphIndex, definition_nodes
 from static_analyzer.incremental_orchestrator import (
+    _call_shapes,
     _add_outbound_edges_from_changed_files,
     _restore_inbound_edges_via_definitions,
     update_cfg_for_changed_files,
@@ -432,6 +433,39 @@ class TestRestoringCachedEdges:
 
         assert client.send_type_definition_batch.called
         assert [(edge.get_source(), edge.get_destination()) for edge in graph.edges] == [("Runner.Run(Bag)", "Bag")]
+
+
+class TestCallShapesRequests:
+    """What a cached site is re-asked with, when the source says it has two shapes."""
+
+    def _adapter(self) -> MagicMock:
+        adapter = MagicMock()
+        adapter.resolves_method_groups = False
+        adapter.resolves_collection_initializers = False
+        adapter.resolves_iterated_types = True
+        return adapter
+
+    def test_a_loop_over_a_call_is_asked_both_ways(self, tmp_path: Path) -> None:
+        """The full build runs its call pass and its iteration pass over the same position.
+
+        Asking only for the type loses the caller-to-``GetItems`` edge; asking only for the
+        definition loses the enumerator edge.
+        """
+        source = tmp_path / "Loop.cs"
+        source.write_text(
+            "class A\n{\n    void Run()\n    {\n        foreach (var x in GetItems()) { }\n    }\n"
+            "    int[] GetItems() => new int[0];\n}\n"
+        )
+        shapes = _call_shapes(source, SourceInspector(), self._adapter())
+
+        assert shapes.requests_at((4, 26)) == [("definition", "call"), ("type_definition", "iterated")]
+
+    def test_a_loop_over_a_variable_is_asked_only_for_its_type(self, tmp_path: Path) -> None:
+        source = tmp_path / "Loop.cs"
+        source.write_text("class A\n{\n    void Run(int[] bag)\n    {\n        foreach (var x in bag) { }\n    }\n}\n")
+        shapes = _call_shapes(source, SourceInspector(), self._adapter())
+
+        assert shapes.requests_at((4, 26)) == [("type_definition", "iterated")]
 
 
 class TestWarmStartCallShapes:

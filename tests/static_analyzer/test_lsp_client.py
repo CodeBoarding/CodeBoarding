@@ -391,6 +391,17 @@ class TestCollectBatchResponses:
         assert results[1] == []
         assert unserved == {1}
 
+    def test_an_unimplemented_definition_method_is_fatal(self):
+        """Every call site would resolve to nothing and the run would report success."""
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": "Method not found"}})
+
+        with pytest.raises(StaticAnalysisFatalError):
+            client._collect_batch_responses("textDocument/definition", [1], timeout=5)
+
     def test_an_unimplemented_method_is_still_an_answer(self):
         client = LSPClient(["cmd"], Path("/root"))
         client._process = MagicMock()

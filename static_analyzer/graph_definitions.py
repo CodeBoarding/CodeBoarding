@@ -220,7 +220,11 @@ def containing_source_node(index: GraphIndex, file_path: str, line: int, char: i
     a constructor from outside any method, so a callable-only lookup finds nothing
     and the edge is dropped. The full rebuild attributes it to the enclosing class,
     and every later pass has to agree or it loses the edge on every edit to that file.
+    A decoration is redirected to the member it decorates for the same reason: the
+    engine's ``_caller_at`` does it, so a warm start that did not would credit a
+    class-member decorator to its class and a module-level one to nobody.
     """
+    line, char = index.inspector.attribution_position(Path(file_path), line, char)
     callable_node = most_specific_node_at_position(index, file_path, line, char, callable_only=True)
     if callable_node is not None:
         return callable_node

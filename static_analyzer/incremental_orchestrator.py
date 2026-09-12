@@ -202,12 +202,11 @@ def _restore_inbound_edges_via_definitions(
         for site in sites:
             file_path = str(site["file"])
             position = (int(site["line"]) - 1, int(site["column"]) - 1)
-            kind = shapes_by_file[file_path].kind_at(position)
             constructing = adapter.expands_constructors and source_inspector.is_construction_site(
                 CallSite(file_path, int(site["line"]), int(site["column"]))
             )
-            method = "type_definition" if kind == ITERATED else "definition"
-            by_request.setdefault(method, []).append((edge, site, kind, constructing))
+            for method, kind in shapes_by_file[file_path].requests_at(position):
+                by_request.setdefault(method, []).append((edge, site, kind, constructing))
 
     confirmed: dict[tuple[str, str], list[dict[str, str | int]]] = {}
     unproven: dict[tuple[str, int, int], list[tuple[tuple[str, str], dict[str, str | int]]]] = {}
@@ -273,14 +272,27 @@ class _CallShapes:
     collection: set[tuple[int, int]]
     iterated: set[tuple[int, int]]
 
-    def kind_at(self, position: tuple[int, int]) -> str:
-        if position in self.iterated:
-            return ITERATED
+    def definition_kind_at(self, position: tuple[int, int]) -> str:
+        """Which shape a definition query at this position resolves as."""
         if position in self.method_group:
             return METHOD_GROUP
         if position in self.collection:
             return COLLECTION_INITIALIZER
         return CALL
+
+    def requests_at(self, position: tuple[int, int]) -> list[tuple[str, str]]:
+        """The ``(LSP method, call-site kind)`` pairs a cached site here is owed.
+
+        Why more than one: a position can be two shapes at once -- ``foreach (var x in
+        GetItems())`` is a call and an iteration -- and the full build runs both passes
+        over it, so restoring the cached edge cannot ask only one of them.
+        """
+        if position not in self.iterated:
+            return [("definition", self.definition_kind_at(position))]
+        iterating = ("type_definition", ITERATED)
+        if not any((site.lsp_line, site.lsp_column) == position for site in self.call_sites):
+            return [iterating]
+        return [("definition", self.definition_kind_at(position)), iterating]
 
 
 def _call_shapes(file_path: Path, source_inspector: SourceInspector, adapter: LanguageAdapter) -> _CallShapes:
@@ -334,7 +346,7 @@ def _add_outbound_edges_from_changed_files(
             src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
             if src_node is None:
                 continue
-            kind = shapes.kind_at((site.lsp_line, site.lsp_column))
+            kind = shapes.definition_kind_at((site.lsp_line, site.lsp_column))
             constructing = adapter.expands_constructors and source_inspector.is_construction_site(site)
             reached = False
             for definition in definitions:

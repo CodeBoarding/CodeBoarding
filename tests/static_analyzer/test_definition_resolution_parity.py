@@ -18,6 +18,7 @@ from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.graph_definitions import (
     CALL,
+    containing_source_node,
     METHOD_GROUP,
     GraphIndex,
     is_method_group_target,
@@ -109,6 +110,23 @@ def _graph_index(module: Path) -> GraphIndex:
             Node(qualified_name, kind, str(module), line + 1, end_line + 1, col_start=column, col_end=end_char)
         )
     return GraphIndex(graph, SourceInspector())
+
+
+def test_a_decoration_is_credited_to_the_member_it_decorates(tmp_path: Path) -> None:
+    """The engine's ``_caller_at`` redirects a decoration; the graph side has to as well.
+
+    A warm start that looked the position up as written would credit a class-member
+    decorator to its class and a module-level one to nobody.
+    """
+    module = tmp_path / "m.py"
+    module.write_text("def register(f):\n    return f\n\n\n@register\ndef target():\n    return 1\n")
+    graph = CallGraph(language="python")
+    graph.add_node(Node("m.register", NodeType.FUNCTION, str(module), 1, 2, col_start=4, col_end=12))
+    graph.add_node(Node("m.target", NodeType.FUNCTION, str(module), 6, 7, col_start=4, col_end=10))
+
+    node = containing_source_node(GraphIndex(graph, SourceInspector()), str(module), 4, 1)
+
+    assert node is not None and node.fully_qualified_name == "m.target"
 
 
 @pytest.mark.parametrize("position,declaration,targets", CALL_CASES)

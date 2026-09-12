@@ -364,6 +364,34 @@ class TestValueBindings:
         assert {(5, 11), (8, 11)} <= self._sites(source)
 
 
+class TestDeclaresFunctionValueGo:
+    """gopls answers a method group with the variable a func literal was bound to."""
+
+    def test_a_package_level_func_literal(self, tmp_path: Path):
+        source = tmp_path / "app.go"
+        source.write_text("package main\n\nvar handler = func() {}\n")
+
+        assert SourceInspector().declares_function_value(source, 2, 4) is True
+
+    def test_a_short_declaration_of_a_func_literal(self, tmp_path: Path):
+        source = tmp_path / "app.go"
+        source.write_text("package main\n\nfunc run() {\n\tcb := func() {}\n\t_ = cb\n}\n")
+
+        assert SourceInspector().declares_function_value(source, 3, 1) is True
+
+
+class TestParseErrorsAreReported:
+    def test_a_file_the_grammar_cannot_parse_is_logged(self, tmp_path: Path, caplog):
+        """A call the parser swallowed is an edge lost, and a silent loss is the worst kind."""
+        source = tmp_path / "broken.py"
+        source.write_text("def run(:\n    helper(\n")
+
+        with caplog.at_level("WARNING"):
+            SourceInspector().find_call_sites(source)
+
+        assert any("error node" in record.getMessage() for record in caplog.records)
+
+
 class TestDeclaredNameAt:
     def test_a_declaration_name_is_declared_here(self, tmp_path: Path):
         source = tmp_path / "app.ts"

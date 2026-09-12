@@ -88,10 +88,19 @@ _DECORATOR_NAME_NODE_TYPES = frozenset({"identifier", "attribute", "member_expre
 # Declarations that hold a value, and the values that are functions: ``const f = () => ...``
 # is as callable a target as a declared function.
 _FUNCTION_VALUE_HOLDER_NODE_TYPES = frozenset(
-    {"variable_declarator", "public_field_definition", "field_definition", "pair", "assignment", "property_signature"}
+    {
+        "variable_declarator",
+        "public_field_definition",
+        "field_definition",
+        "pair",
+        "assignment",
+        "property_signature",
+        "var_spec",  # Go
+        "short_var_declaration",  # Go
+    }
 )
 _FUNCTION_LITERAL_NODE_TYPES = frozenset(
-    {"arrow_function", "function_expression", "function", "generator_function", "lambda"}
+    {"arrow_function", "function_expression", "function", "generator_function", "lambda", "func_literal"}
 )
 # ``receiver.member(...)``: the object field holds the receiver in both spellings.
 _MEMBER_ACCESS_NODE_TYPES = frozenset({"member_expression", "attribute"})
@@ -378,6 +387,9 @@ class SourceInspector:
         self._trees_evicted = 0
         self._parser_by_suffix: dict[str, Parser] = {}
         self._usage_index_cache: dict[str, SourceUsageIndex] = {}
+        # Files the grammar could not parse cleanly, and how badly. Kept so the warning
+        # is written once per file rather than again each time the tree is re-parsed.
+        self._parse_error_files: dict[str, int] = {}
 
     def cache_stats(self) -> dict[str, int]:
         """Retained per-file cache sizes, for the memory checkpoint log."""
@@ -736,6 +748,13 @@ class SourceInspector:
             return None
 
         parsed = ParsedSource(content=content, tree=self._parse_tree(parser, content, file_path.suffix.lower()))
+        if parsed.tree.root_node.has_error and file_key not in self._parse_error_files:
+            errors = _error_node_count(parsed.tree)
+            self._parse_error_files[file_key] = errors
+            # Not fatal: 13 of clap's 330 files parse with errors, and failing the run over
+            # syntax the bundled grammar is merely older than would be worse than the edges
+            # lost inside them. Logged so the loss is countable rather than silent.
+            logger.warning("Parsed %s with %d error node(s); calls inside them are not seen", file_path, errors)
         self._parsed_cache[file_key] = parsed
         self._parsed_nodes += parsed.tree.root_node.descendant_count
         self._evict_trees()
@@ -806,9 +825,14 @@ class SourceInspector:
         if node.type not in _FUNCTION_VALUE_HOLDER_NODE_TYPES:
             return None
         value = node.child_by_field_name("value") or node.child_by_field_name("right")
+        # Go wraps both sides of a declaration in an expression_list even when it holds one.
+        if value is not None and value.type in _VALUE_GROUP_NODE_TYPES and len(value.named_children) == 1:
+            value = value.named_children[0]
         if value is None or value.type not in _FUNCTION_LITERAL_NODE_TYPES:
             return None
         name = node.child_by_field_name("name") or node.child_by_field_name("key") or node.child_by_field_name("left")
+        if name is not None and name.type in _VALUE_GROUP_NODE_TYPES and len(name.named_children) == 1:
+            name = name.named_children[0]
         return name if name is not None and name.type in _NAME_NODE_TYPES else None
 
     def _parser_for(self, file_path: Path) -> Parser | None:

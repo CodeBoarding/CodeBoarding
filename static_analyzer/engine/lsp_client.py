@@ -31,6 +31,10 @@ LSP_METHOD_NOT_FOUND = -32601
 # outside them is the server answering for itself -- gopls declines an implementation query
 # on a free function with code 0 -- so only these two mean the request went unserved.
 LSP_RESERVED_ERROR_CODE_RANGES = ((-32899, -32800), (-32768, -32000))
+# The one request every language's call graph is built from. A server that does not
+# implement it cannot be worked around: its absence would resolve every call site to
+# nothing and leave a graph of symbols with no edges, reported as a success.
+LSP_REQUIRED_METHODS = frozenset({"textDocument/definition"})
 # Reserved codes whose remedy the protocol defines as "ask again": the server was still
 # settling the documents it had been sent, not refusing the question. rust-analyzer answers
 # ContentModified for every query issued while it is still indexing an opened file.
@@ -736,6 +740,11 @@ class LSPClient:
                 err = msg["error"]
                 results[msg_id] = []  # type: ignore[index]
                 err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                if isinstance(err, dict) and err.get("code") == LSP_METHOD_NOT_FOUND and method in LSP_REQUIRED_METHODS:
+                    raise StaticAnalysisFatalError(
+                        f"The language server does not implement {method}: {err_msg}. "
+                        "Reading that as an empty answer would build a graph of symbols with no edges."
+                    )
                 if _is_protocol_failure(err):
                     unserved[msg_id] = err_msg  # type: ignore[index]
                     if _is_retryable(err):
