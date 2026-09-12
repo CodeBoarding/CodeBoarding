@@ -193,14 +193,7 @@ class SymbolTable:
                 self._class_to_ctors.setdefault(sym.owner_qualified_name, []).append(sym.qualified_name)
 
     def find_containing_symbol(self, file_path: Path, line: int, character: int) -> SymbolInfo | None:
-        """Find the innermost symbol whose range contains the given position.
-
-        When the best match is a class-like symbol and the reference line falls
-        in the gap between methods (e.g. on a decorator line), narrow the result
-        to the nearest child method whose definition starts just after the
-        reference line.  This correctly attributes decorator references like
-        ``@trace`` to the decorated method rather than the enclosing class.
-        """
+        """The innermost symbol whose range contains the given position."""
         file_key = str(file_path)
         symbols = self._file_symbols.get(file_key, [])
 
@@ -219,29 +212,6 @@ class SymbolTable:
                 ):
                     best = sym
                     best_size = size
-
-        # If the best match is a class-like symbol, check if the reference line
-        # is actually a decorator/annotation for one of its child methods.
-        # This heuristic works across languages: Python decorators (@trace),
-        # Java annotations (@Override, @Inject), TypeScript decorators (@Component).
-        # These sit 1-3 lines before the method definition line (accounting for
-        # stacked decorators/annotations).  Attribute the reference to the
-        # nearest child method whose start_line is within a small window.
-        if best and self._naming.is_class_like(best.kind):
-            max_decorator_gap = 4
-            nearest_child: SymbolInfo | None = None
-            nearest_gap = max_decorator_gap + 1
-            for sym in symbols:
-                if not self._naming.is_callable(sym.kind):
-                    continue
-                if not sym.qualified_name.startswith(best.qualified_name + "."):
-                    continue
-                gap = sym.start_line - line
-                if 0 < gap < nearest_gap:
-                    nearest_child = sym
-                    nearest_gap = gap
-            if nearest_child is not None:
-                best = nearest_child
 
         return best
 

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
-from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_references
+from static_analyzer.engine.edge_builder import EdgeMap
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
@@ -46,8 +46,6 @@ def _make_adapter() -> MagicMock:
     adapter.build_qualified_name.side_effect = lambda fp, name, kind, chain, root, detail="": (
         ".".join(n for n, _ in chain) + "." + name if chain else f"{fp.stem}.{name}"
     )
-    adapter.references_batch_size = 50
-    adapter.references_per_query_timeout = 0
     adapter.get_all_packages.return_value = {"pkg"}
     adapter.get_package_for_file.return_value = "pkg"
     adapter.build_edges.return_value = set()
@@ -62,7 +60,6 @@ def _make_adapter() -> MagicMock:
 def _make_lsp() -> MagicMock:
     lsp = MagicMock()
     lsp.document_symbol.return_value = []
-    lsp.send_references_batch.return_value = ([], set())
     lsp.type_hierarchy_prepare.return_value = None
     return lsp
 
@@ -279,86 +276,6 @@ class TestBuild:
         assert result.source_files == []
         assert len(result.cfg.nodes) == 0
         assert len(result.cfg.edges) == 0
-
-
-class TestBuildEdges:
-    """Tests for the default references-based build_edges on LanguageAdapter."""
-
-    def _make_ctx(self, lsp: MagicMock, adapter: _TestAdapter) -> EdgeBuildContext:
-        return EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector())
-
-    def test_creates_edge_from_reference(self):
-        lsp = _make_lsp()
-        adapter = _TestAdapter()
-        ctx = self._make_ctx(lsp, adapter)
-
-        # Register two symbols
-        caller = SymbolInfo("main", "app.main", NodeType.FUNCTION, Path("/project/app.py"), 0, 0, 20, 0)
-        callee = SymbolInfo("helper", "app.helper", NodeType.FUNCTION, Path("/project/app.py"), 25, 0, 35, 0)
-        st = ctx.symbol_table
-        st._symbols["app.main"] = caller
-        st._symbols["app.helper"] = callee
-        st._file_symbols[str(Path("/project/app.py"))] = [caller, callee]
-        st._primary_file_symbols[str(Path("/project/app.py"))] = [caller, callee]
-        st.build_indices()
-
-        ref_to_helper = {
-            "uri": Path("/project/app.py").as_uri(),
-            "range": {
-                "start": {"line": 5, "character": 4},
-                "end": {"line": 5, "character": 10},
-            },
-        }
-        lsp.send_references_batch.return_value = ([[], [ref_to_helper]], set())
-
-        ctx.source_inspector = MagicMock()
-        ctx.source_inspector.is_invocation.return_value = True
-        ctx.source_inspector.is_callable_usage.return_value = True
-
-        edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
-
-        assert ("app.main", "app.helper") in edge_set
-
-    def test_skips_self_references(self):
-        lsp = _make_lsp()
-        adapter = _TestAdapter()
-        ctx = self._make_ctx(lsp, adapter)
-
-        sym = SymbolInfo("foo", "app.foo", NodeType.FUNCTION, Path("/project/app.py"), 0, 4, 10, 0)
-        st = ctx.symbol_table
-        st._symbols["app.foo"] = sym
-        st._file_symbols[str(Path("/project/app.py"))] = [sym]
-        st._primary_file_symbols[str(Path("/project/app.py"))] = [sym]
-        st.build_indices()
-
-        ref = {
-            "uri": Path("/project/app.py").as_uri(),
-            "range": {
-                "start": {"line": 0, "character": 4},
-                "end": {"line": 0, "character": 7},
-            },
-        }
-        lsp.send_references_batch.return_value = ([[ref]], set())
-
-        edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
-        assert len(edge_set) == 0
-
-    def test_handles_batch_failure(self):
-        lsp = _make_lsp()
-        adapter = _TestAdapter()
-        ctx = self._make_ctx(lsp, adapter)
-
-        sym = SymbolInfo("foo", "app.foo", NodeType.FUNCTION, Path("/project/app.py"), 0, 0, 10, 0)
-        st = ctx.symbol_table
-        st._symbols["app.foo"] = sym
-        st._file_symbols[str(Path("/project/app.py"))] = [sym]
-        st._primary_file_symbols[str(Path("/project/app.py"))] = [sym]
-        st.build_indices()
-
-        lsp.send_references_batch.side_effect = Exception("LSP crash")
-
-        edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
-        assert len(edge_set) == 0
 
 
 class TestPostprocessEdges:

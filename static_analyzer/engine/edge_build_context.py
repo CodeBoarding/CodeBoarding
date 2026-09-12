@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.lsp_recycler import LSPRecycler
 from static_analyzer.engine.models import ExternalCallSite
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
@@ -20,7 +19,6 @@ class EdgeBuildContext:
     source_inspector: SourceInspector
     # Set only for servers that may be restarted mid-phase; None means the
     # strategy runs against a single server process for the whole phase.
-    recycler: LSPRecycler | None = None
     # Calls the server resolved into files this engine has no symbols for; the
     # merged graph of every engine is where they can still become edges.
     external_call_sites: list[ExternalCallSite] = field(default_factory=list)

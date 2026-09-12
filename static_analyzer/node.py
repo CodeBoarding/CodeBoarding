@@ -16,6 +16,10 @@ from static_analyzer.config import (
 class Node:
     """Call-graph node for LSP SymbolKind. Use NodeType for type constants."""
 
+    # Unpickling restores ``__dict__`` without calling ``__init__``, so a graph written
+    # before this attribute existed has no value for it. 0 reads as "unbounded".
+    col_end: int = 0
+
     def __init__(
         self,
         fully_qualified_name: str,
@@ -24,12 +28,16 @@ class Node:
         line_start: int,
         line_end: int,
         col_start: int = 0,
+        col_end: int = 0,
     ) -> None:
         self.fully_qualified_name = fully_qualified_name
         self.file_path = file_path
         self.line_start = line_start
         self.line_end = line_end
         self.col_start = col_start
+        # Where the declaration ends on ``line_end``. 0 for a node built without one, which
+        # reads as "unbounded" so an older graph keeps resolving the way it did.
+        self.col_end = col_end
         self.type: NodeType = NodeType(node_type)
         self.methods_called_by_me: set[str] = set()
 

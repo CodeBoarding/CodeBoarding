@@ -14,15 +14,34 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
 from static_analyzer.engine.utils import uri_to_path
+from static_analyzer.errors import StaticAnalysisFatalError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
 
+# The unit every column in every request and response counts. LSP's own default, and the
+# only one this client converts tree-sitter's byte columns into.
+LSP_POSITION_ENCODING = "utf-16"
 LSP_METHOD_NOT_FOUND = -32601
+# The two bands the specifications keep for protocol and lifecycle failures: JSON-RPC's
+# (parse/invalid request, internal error, server not initialized) and, just below it, LSP's
+# own (request cancelled, content modified, server cancelled, request failed). Everything
+# outside them is the server answering for itself -- gopls declines an implementation query
+# on a free function with code 0 -- so only these two mean the request went unserved.
+LSP_RESERVED_ERROR_CODE_RANGES = ((-32899, -32800), (-32768, -32000))
+# The one request every language's call graph is built from. A server that does not
+# implement it cannot be worked around: its absence would resolve every call site to
+# nothing and leave a graph of symbols with no edges, reported as a success.
+LSP_REQUIRED_METHODS = frozenset({"textDocument/definition"})
+# Reserved codes whose remedy the protocol defines as "ask again": the server was still
+# settling the documents it had been sent, not refusing the question. rust-analyzer answers
+# ContentModified for every query issued while it is still indexing an opened file.
+LSP_RETRYABLE_ERROR_CODES = frozenset({-32800, -32801, -32802})  # RequestCancelled, ContentModified, ServerCancelled
 ProgressToken = str | int
 
 
@@ -40,6 +59,34 @@ def _progress_token(value: object) -> ProgressToken | None:
 
 class MethodNotFoundError(Exception):
     """Raised when the LSP server does not support a requested method."""
+
+
+@dataclass(frozen=True)
+class BatchAnswer:
+    """One query's answer: what came back, whether it was served, and whether to ask again."""
+
+    results: list[dict]
+    served: bool
+    retryable: bool
+
+
+def _is_protocol_failure(error: object) -> bool:
+    """Whether an error response means the request could not be served at all.
+
+    "Method not found" is the one reserved code that is still an answer: the server is
+    telling us it does not implement the request, and empty is the truth.
+    """
+    if not isinstance(error, dict):
+        return False
+    code = error.get("code")
+    if not isinstance(code, int) or code == LSP_METHOD_NOT_FOUND:
+        return False
+    return any(low <= code <= high for low, high in LSP_RESERVED_ERROR_CODE_RANGES)
+
+
+def _is_retryable(error: object) -> bool:
+    """Whether the protocol's own remedy for this failure is to ask again."""
+    return isinstance(error, dict) and error.get("code") in LSP_RETRYABLE_ERROR_CODES
 
 
 class LSPClient:
@@ -145,7 +192,10 @@ class LSPClient:
                 "hierarchicalDocumentSymbolSupport": True,
             },
             "references": {},
-            "definition": {},
+            # Why linkSupport: a plain Location carries the whole declaration's range, which
+            # starts at the modifiers, so the position never matches the name the symbol table
+            # is keyed on. A LocationLink names the declared symbol itself.
+            "definition": {"linkSupport": True},
             "typeHierarchy": {},
             "implementation": {},
             "callHierarchy": {},
@@ -160,6 +210,11 @@ class LSPClient:
         capabilities: dict = {
             "textDocument": text_doc_capabilities,
             "window": {"workDoneProgress": True},
+            # Why declared rather than left to the default: every column this client sends
+            # counts UTF-16 code units, and a server reading them as bytes lands somewhere
+            # else on any line holding non-ASCII text -- far enough to resolve the wrong
+            # name, or nothing. Naming the one encoding we speak makes the server say so.
+            "general": {"positionEncodings": [LSP_POSITION_ENCODING]},
         }
         # Shallow-merge adapter extras into the top-level capabilities. On
         # collision: dicts merge, scalars are overwritten by the adapter.
@@ -182,6 +237,8 @@ class LSPClient:
                 "initializationOptions": self._init_options,
             },
         )
+
+        self._negotiate_position_encoding(init_result)
 
         self._send_notification("initialized", {})
 
@@ -283,7 +340,12 @@ class LSPClient:
         if language_id is None:
             raise ValueError(f"No LSP language id for suffix {file_path.suffix!r}: {file_path}")
         try:
-            text = file_path.read_text(errors="replace")
+            # Why the encoding is named: without it Python decodes with the locale's, which
+            # is cp1252 on Windows. Source is UTF-8, so a line holding non-ASCII text reaches
+            # the server one character per extra byte longer than it is, and every column
+            # this client sends after it names a different place in the server's buffer than
+            # in the file tree-sitter read.
+            text = file_path.read_text(encoding="utf-8", errors="replace")
         except Exception:
             text = ""
         self._send_notification(
@@ -336,76 +398,15 @@ class LSPClient:
             return result
         return []
 
-    def references(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
-        """Find all references to the symbol at the given position."""
-        result = self._send_request(
-            "textDocument/references",
-            {
-                "textDocument": {"uri": file_path.resolve().as_uri()},
-                "position": {"line": line, "character": character},
-                "context": {"includeDeclaration": True},
-            },
-            timeout=timeout,
-        )
-        if isinstance(result, list):
-            return result
-        return []
-
-    def send_references_batch(
-        self, queries: list[tuple[Path, int, int]], per_query_timeout: int = 0
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple references requests without waiting between them.
-
-        Returns ``(results, error_indices)`` where *results* is a list of
-        result lists (one per query, same order) and *error_indices* is a set
-        of 0-based indices whose LSP responses were errors.
-
-        Args:
-            queries: List of (file_path, line, character) tuples.
-            per_query_timeout: Per-query timeout in seconds. When > 0, the batch
-                deadline is ``per_query_timeout * len(queries)`` instead of the
-                default timeout. Use this for servers that serialize requests
-                internally (e.g. JDTLS) where total time scales linearly.
-        """
-        timeout = per_query_timeout * len(queries) if per_query_timeout > 0 else None
-
-        def build_params(file_path: Path, line: int, character: int) -> dict:
-            return {
-                "textDocument": {"uri": file_path.resolve().as_uri()},
-                "position": {"line": line, "character": character},
-                "context": {"includeDeclaration": True},
-            }
-
-        return self._send_batch("textDocument/references", queries, build_params, timeout=timeout)
-
-    def definition(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
-        """Find the definition of the symbol at the given position."""
-        result = self._send_request(
-            "textDocument/definition",
-            {
-                "textDocument": {"uri": file_path.resolve().as_uri()},
-                "position": {"line": line, "character": character},
-            },
-            timeout=timeout,
-        )
-        if isinstance(result, list):
-            return result
-        if isinstance(result, dict):
-            return [result]
-        return []
-
     def send_definition_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple definition requests without waiting between them.
-
-        Returns ``(results, error_indices)`` — see :meth:`send_references_batch`.
-        """
+    ) -> list[list[dict]]:
+        """Send multiple definition requests without waiting between them."""
         return self._send_batch("textDocument/definition", queries, self._position_params, timeout=timeout)
 
     def send_type_definition_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
-    ) -> tuple[list[list[dict]], set[int]]:
+    ) -> list[list[dict]]:
         """Resolve each position to the *type* of the expression there.
 
         Distinct from ``definition``, which lands on the declaration: iterating
@@ -431,11 +432,8 @@ class LSPClient:
 
     def send_implementation_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple implementation requests without waiting between them.
-
-        Returns ``(results, error_indices)`` — see :meth:`send_references_batch`.
-        """
+    ) -> list[list[dict]]:
+        """Send multiple implementation requests without waiting between them."""
         return self._send_batch("textDocument/implementation", queries, self._position_params, timeout=timeout)
 
     def workspace_symbol(self, query: str) -> list[dict]:
@@ -571,15 +569,40 @@ class LSPClient:
         queries: list[tuple[Path, int, int]],
         build_params: Callable[[Path, int, int], dict],
         timeout: int | None = None,
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple LSP requests and collect results in order.
+    ) -> list[list[dict]]:
+        """Send multiple LSP requests and collect their results in query order.
 
-        Generic batch helper that eliminates duplication across
-        send_references_batch, send_definition_batch, and send_implementation_batch.
-
-        Returns ``(parsed_results, error_indices)`` where *error_indices*
-        is a set of 0-based query positions that received LSP errors.
+        A request the server said it could not serve is asked once more when the protocol's
+        remedy for it is to ask again -- a server still settling the documents it was sent
+        answers that way, and the second answer is the real one. What is still unserved after
+        that raises, rather than coming back as an empty result list indistinguishable from
+        "nothing is declared here".
         """
+        by_query = self._ask(method, queries, build_params, timeout)
+        retry = [index for index, answer in enumerate(by_query) if answer.retryable]
+        if retry:
+            logger.info("Re-asking %d of %d %s requests the server had not settled", len(retry), len(queries), method)
+            for index, answer in zip(retry, self._ask(method, [queries[i] for i in retry], build_params, timeout)):
+                by_query[index] = answer
+
+        unserved = [index for index, answer in enumerate(by_query) if not answer.served]
+        if unserved:
+            first = queries[unserved[0]]
+            raise StaticAnalysisFatalError(
+                f"{len(unserved)} of {len(queries)} {method} requests went unserved, first at "
+                f"{first[0]}:{first[1] + 1}:{first[2] + 1}. The server timed out or failed the request "
+                "rather than declining it; reading those as empty would silently drop call-graph edges."
+            )
+        return [answer.results for answer in by_query]
+
+    def _ask(
+        self,
+        method: str,
+        queries: list[tuple[Path, int, int]],
+        build_params: Callable[[Path, int, int], dict],
+        timeout: int | None,
+    ) -> list[BatchAnswer]:
+        """Send one request per query and collect the answers in query order."""
         req_ids: list[int] = []
         for file_path, line, character in queries:
             self._request_id += 1
@@ -593,23 +616,18 @@ class LSPClient:
             }
             self._write_message(message)
 
-        results, _, error_ids = self._collect_batch_responses(req_ids, timeout=timeout)
-
-        error_indices: set[int] = set()
-        for i, rid in enumerate(req_ids):
-            if rid in error_ids:
-                error_indices.add(i)
-
-        parsed: list[list[dict]] = []
-        for rid in req_ids:
-            raw = results.get(rid, [])
+        results, unserved, retryable = self._collect_batch_responses(method, req_ids, timeout=timeout)
+        answers: list[BatchAnswer] = []
+        for req_id in req_ids:
+            raw = results.get(req_id, [])
             if isinstance(raw, dict):
-                parsed.append([raw])
+                parsed = [raw]
             elif isinstance(raw, list):
-                parsed.append(raw)
+                parsed = raw
             else:
-                parsed.append([])
-        return parsed, error_indices
+                parsed = []
+            answers.append(BatchAnswer(parsed, req_id not in unserved, req_id in retryable))
+        return answers
 
     def _send_request(self, method: str, params: dict | list | None, timeout: int | None = None) -> dict | list | None:
         """Send a JSON-RPC request and wait for the response."""
@@ -658,6 +676,21 @@ class LSPClient:
         }
         self._write_message(message)
 
+    def _negotiate_position_encoding(self, init_result: dict | list | None) -> None:
+        """Refuse a server that counts columns differently from the ones we send."""
+        capabilities = init_result.get("capabilities", {}) if isinstance(init_result, dict) else {}
+        encoding = (
+            capabilities.get("positionEncoding", LSP_POSITION_ENCODING)
+            if isinstance(capabilities, dict)
+            else LSP_POSITION_ENCODING
+        )
+        if encoding != LSP_POSITION_ENCODING:
+            raise StaticAnalysisFatalError(
+                f"The language server answers positions in {encoding!r}, and this client sends "
+                f"{LSP_POSITION_ENCODING!r}. Every column on a line holding non-ASCII text would "
+                "name the wrong place."
+            )
+
     def _write_message(self, message: dict) -> None:
         """Write a JSON-RPC message with Content-Length header.
 
@@ -665,7 +698,9 @@ class LSPClient:
         initiated requests concurrently with the main thread.
         """
         if not self._process or not self._process.stdin:
-            raise RuntimeError("LSP server not running")
+            # Fatal, not a failed write: nothing this client is asked for afterwards can be
+            # answered, and a caller reading the failure as "no results" drops real edges.
+            raise StaticAnalysisFatalError("LSP server not running")
         body = json.dumps(message)
         header = f"Content-Length: {len(body)}\r\n\r\n"
         data = (header + body).encode("utf-8")
@@ -687,7 +722,9 @@ class LSPClient:
             message = self._msg_queue.get(timeout=min(remaining, 1.0))
         except queue.Empty:
             if self._process and self._process.poll() is not None:
-                raise RuntimeError(f"LSP server process exited with code {self._process.returncode}") from None
+                raise StaticAnalysisFatalError(
+                    f"LSP server process exited with code {self._process.returncode}"
+                ) from None
             return None
 
         # Skip notifications that leaked past the reader loop
@@ -697,22 +734,25 @@ class LSPClient:
         return message
 
     def _collect_batch_responses(
-        self, request_ids: list[int], timeout: int | None = None
+        self, method: str, request_ids: list[int], timeout: int | None = None
     ) -> tuple[dict[int, list[dict]], set[int], set[int]]:
         """Collect responses for multiple pending request IDs.
 
-        Returns a tuple of (results, timed_out_ids, error_ids):
-        - results: dict mapping request_id -> result list
-        - timed_out_ids: set of request IDs that did not complete in time
-        - error_ids: set of request IDs that returned LSP errors
+        Returns ``(results, unserved_ids, retryable_ids)``. A server declines with an error of
+        its own -- "not a method", "not an interface", "no identifier found" -- and that is an
+        answer, whose empty result is the truth. A request that timed out, or failed with a
+        reserved code, was never served, and the caller must not read its empty list as
+        "nothing is declared there"; the subset whose reserved code the protocol answers with
+        "ask again" is reported separately.
         """
         if timeout is None:
             timeout = self._default_timeout
 
         results: dict[int, list[dict]] = {}
         pending = set(request_ids)
-        error_ids: set[int] = set()
-        error_messages: dict[str, int] = {}
+        declined: dict[str, int] = {}
+        unserved: dict[int, str] = {}
+        retryable: set[int] = set()
         deadline = time.monotonic() + timeout
 
         while pending and time.monotonic() < deadline:
@@ -727,26 +767,37 @@ class LSPClient:
             pending.discard(msg_id)  # type: ignore[arg-type]
 
             if "error" in msg:
-                error_ids.add(msg_id)  # type: ignore[arg-type]
                 err = msg["error"]
-                err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
-                error_messages[err_msg] = error_messages.get(err_msg, 0) + 1
                 results[msg_id] = []  # type: ignore[index]
+                err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                if isinstance(err, dict) and err.get("code") == LSP_METHOD_NOT_FOUND and method in LSP_REQUIRED_METHODS:
+                    raise StaticAnalysisFatalError(
+                        f"The language server does not implement {method}: {err_msg}. "
+                        "Reading that as an empty answer would build a graph of symbols with no edges."
+                    )
+                if _is_protocol_failure(err):
+                    unserved[msg_id] = err_msg  # type: ignore[index]
+                    if _is_retryable(err):
+                        retryable.add(msg_id)  # type: ignore[arg-type]
+                else:
+                    declined[err_msg] = declined.get(err_msg, 0) + 1
             else:
                 results[msg_id] = msg.get("result") or []  # type: ignore[index]
 
-        for err_msg, count in error_messages.items():
+        for err_msg, count in declined.items():
             if count > 1:
-                logger.warning("LSP error (x%d): %s", count, err_msg)
+                logger.debug("LSP declined %s (x%d): %s", method, count, err_msg)
             else:
-                logger.warning("LSP error: %s", err_msg)
+                logger.debug("LSP declined %s: %s", method, err_msg)
 
-        timed_out = set(pending)
+        for req_id, err_msg in unserved.items():
+            if req_id not in retryable:
+                logger.warning("LSP could not serve %s request %d: %s", method, req_id, err_msg)
         for req_id in pending:
-            logger.warning("Timeout waiting for references request %d", req_id)
+            logger.warning("Timeout waiting for %s request %d", method, req_id)
             results[req_id] = []
 
-        return results, timed_out, error_ids
+        return results, set(pending) | set(unserved), retryable
 
     # ---- Background message reader ----
 

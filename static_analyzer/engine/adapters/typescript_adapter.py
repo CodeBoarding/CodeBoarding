@@ -30,6 +30,10 @@ class TypeScriptAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "typescript"
 
+    @property
+    def resolves_method_groups(self) -> bool:
+        return True
+
     def extract_package(self, qualified_name: str) -> str:
         return self._extract_deep_package(qualified_name)
 

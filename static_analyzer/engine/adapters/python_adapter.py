@@ -25,6 +25,10 @@ class PythonAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "python"
 
+    @property
+    def resolves_method_groups(self) -> bool:
+        return True
+
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         return {
             "python": {

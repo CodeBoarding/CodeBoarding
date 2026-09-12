@@ -71,8 +71,13 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # nested solution's files are named by its own engine only.
 # v9: a call into a project of another solution root is an edge.
 # v10: every name is spelled from the repository root; C# keeps ``src`` and Java its source root.
+# v11: every language builds its call edges from definitions at the call site instead of
+# references at the declaration, so every graph changes; and graph nodes now record the
+# column their declaration ends at, which an older pickle has no value for.
+# v12: a call site's column counts UTF-16 code units, as LSP does, rather than the bytes
+# tree-sitter reports, so a stored site on a line holding non-ASCII text moved.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v10"
+_TAG_VERSION = "v12"
 
 
 class StaticAnalysisCache:

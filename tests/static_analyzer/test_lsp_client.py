@@ -16,6 +16,7 @@ from static_analyzer.engine.lsp_client import (
     LSPClient,
     MethodNotFoundError,
 )
+from static_analyzer.errors import StaticAnalysisFatalError
 
 
 class TestLSPClientInit:
@@ -229,99 +230,6 @@ class TestDocumentSymbol:
         assert result == []
 
 
-class TestReferences:
-    def test_returns_list_result(self):
-        client = LSPClient(["cmd"], Path("/root"))
-        refs = [{"uri": "file:///test.py", "range": {}}]
-
-        with patch.object(client, "_send_request", return_value=refs):
-            result = client.references(Path("/root/test.py"), 5, 10)
-
-        assert result == refs
-
-    def test_returns_empty_for_none(self):
-        client = LSPClient(["cmd"], Path("/root"))
-
-        with patch.object(client, "_send_request", return_value=None):
-            result = client.references(Path("/root/test.py"), 5, 10)
-
-        assert result == []
-
-
-class TestSendReferencesBatch:
-    def test_sends_batch_and_collects_results(self):
-        client = LSPClient(["cmd"], Path("/root"))
-        client._request_id = 0
-
-        refs_a = [{"uri": "file:///a.py", "range": {}}]
-        refs_b = [{"uri": "file:///b.py", "range": {}}]
-
-        def mock_collect(req_ids, timeout=None):
-            return {req_ids[0]: refs_a, req_ids[1]: refs_b}, set(), set()
-
-        with (
-            patch.object(client, "_write_message"),
-            patch.object(client, "_collect_batch_responses", side_effect=mock_collect),
-        ):
-            results, error_indices = client.send_references_batch(
-                [
-                    (Path("/root/a.py"), 1, 0),
-                    (Path("/root/b.py"), 2, 0),
-                ]
-            )
-
-        assert len(results) == 2
-        assert results[0] == refs_a
-        assert results[1] == refs_b
-        assert error_indices == set()
-
-    def test_scales_batch_deadline_from_per_query_timeout(self):
-        client = LSPClient(["cmd"], Path("/root"))
-
-        def mock_collect(req_ids, timeout=None):
-            assert timeout == 30
-            return {req_id: [] for req_id in req_ids}, set(), set()
-
-        with (
-            patch.object(client, "_write_message"),
-            patch.object(client, "_collect_batch_responses", side_effect=mock_collect),
-        ):
-            client.send_references_batch(
-                [
-                    (Path("/root/a.py"), 1, 0),
-                    (Path("/root/b.py"), 2, 0),
-                    (Path("/root/c.py"), 3, 0),
-                ],
-                per_query_timeout=10,
-            )
-
-    def test_returns_error_indices_for_failed_requests(self):
-        client = LSPClient(["cmd"], Path("/root"))
-        client._request_id = 0
-
-        refs_a = [{"uri": "file:///a.py", "range": {}}]
-
-        def mock_collect(req_ids, timeout=None):
-            # Second request errored
-            return {req_ids[0]: refs_a, req_ids[1]: []}, set(), {req_ids[1]}
-
-        with (
-            patch.object(client, "_write_message"),
-            patch.object(client, "_collect_batch_responses", side_effect=mock_collect),
-        ):
-            results, error_indices = client.send_references_batch(
-                [
-                    (Path("/root/a.py"), 1, 0),
-                    (Path("/root/b.py"), 2, 0),
-                ]
-            )
-
-        assert len(results) == 2
-        assert results[0] == refs_a
-        assert results[1] == []
-        assert error_indices == {1}
-
-
 class TestTypeHierarchy:
     def test_prepare_returns_list(self):
         client = LSPClient(["cmd"], Path("/root"))
@@ -450,12 +358,11 @@ class TestCollectBatchResponses:
         client._msg_queue.put({"jsonrpc": "2.0", "id": 2, "result": [{"b": 1}]})
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "result": [{"a": 1}]})
 
-        results, timed_out, error_ids = client._collect_batch_responses([1, 2], timeout=5)
+        results, timed_out, _ = client._collect_batch_responses("textDocument/definition", [1, 2], timeout=5)
 
         assert results[1] == [{"a": 1}]
         assert results[2] == [{"b": 1}]
         assert timed_out == set()
-        assert error_ids == set()
 
     def test_reports_timed_out_ids(self):
         client = LSPClient(["cmd"], Path("/root"))
@@ -465,27 +372,153 @@ class TestCollectBatchResponses:
         # Only queue one of two expected responses
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "result": [{"a": 1}]})
 
-        results, timed_out, error_ids = client._collect_batch_responses([1, 2], timeout=1)
+        results, timed_out, _ = client._collect_batch_responses("textDocument/definition", [1, 2], timeout=1)
 
         assert results[1] == [{"a": 1}]
         assert results[2] == []
-        assert 2 in timed_out
-        assert error_ids == set()
+        assert timed_out == {2}
 
-    def test_handles_error_responses(self):
+    def test_a_reserved_error_code_means_the_request_was_not_served(self):
+        """``ContentModified`` and friends say the server could not answer, not that it did."""
         client = LSPClient(["cmd"], Path("/root"))
         client._process = MagicMock()
         client._process.poll.return_value = None
 
-        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": {"code": -1, "message": "fail"}})
+        error = {"code": -32801, "message": "content modified"}
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
 
-        results, timed_out, error_ids = client._collect_batch_responses([1], timeout=5)
+        results, unserved, _ = client._collect_batch_responses("textDocument/definition", [1], timeout=5)
         assert results[1] == []
-        assert timed_out == set()
-        assert 1 in error_ids
+        assert unserved == {1}
 
-    def test_deduplicates_error_logging(self, caplog):
-        """Repeated LSP errors are logged once with a count, not per-request."""
+    def test_the_text_sent_to_the_server_does_not_depend_on_the_locale(self, tmp_path: Path):
+        """Source is UTF-8 everywhere; the locale's encoding is cp1252 on Windows.
+
+        Decoded as cp1252 a line holding non-ASCII text reaches the server one character
+        per extra byte longer than it is, so every column this client sends after it names
+        a different place in the server's buffer than in the file tree-sitter read.
+        """
+        source = tmp_path / "app.py"
+        source.write_text('label = "café — αβγ"\ntarget()\n', encoding="utf-8")
+        client = LSPClient(["cmd"], Path(tmp_path))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        asked: list[str | None] = []
+        read_text = Path.read_text
+
+        def record(self: Path, encoding: str | None = None, errors: str | None = None) -> str:
+            asked.append(encoding)
+            return read_text(self, encoding=encoding, errors=errors)
+
+        with patch.object(Path, "read_text", record), patch.object(LSPClient, "_send_notification") as notify:
+            client.did_open(source)
+
+        assert asked == ["utf-8"]
+        assert notify.call_args.args[1]["textDocument"]["text"].splitlines()[0] == 'label = "café — αβγ"'
+
+    def test_a_server_answering_in_another_encoding_is_fatal(self):
+        """Every column on a line holding non-ASCII text would name the wrong place."""
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        answer = {"capabilities": {"positionEncoding": "utf-8"}}
+        with (
+            patch.object(LSPClient, "_send_request", return_value=answer),
+            patch.object(LSPClient, "_send_notification"),
+        ):
+            with pytest.raises(StaticAnalysisFatalError, match="utf-8"):
+                client._negotiate_position_encoding(answer)
+
+    def test_an_unimplemented_definition_method_is_fatal(self):
+        """Every call site would resolve to nothing and the run would report success."""
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": "Method not found"}})
+
+        with pytest.raises(StaticAnalysisFatalError):
+            client._collect_batch_responses("textDocument/definition", [1], timeout=5)
+
+    def test_an_unimplemented_method_is_still_an_answer(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        error = {"code": -32601, "message": "Method not found"}
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
+
+        _, unserved, _ = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
+        assert unserved == set()
+
+    def test_an_error_is_an_answer_not_a_hole(self):
+        """gopls declines an implementation query on a free function with an error.
+
+        "X is a function, not a method" is a complete negative answer, not a request that
+        went missing, so it must not fail the run the way a timeout does.
+        """
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        error = {"code": 0, "message": "Add is a function, not a method"}
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
+
+        results, unserved, _ = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
+        assert results[1] == []
+        assert unserved == set()
+
+    def test_an_application_error_code_below_the_reserved_bands_is_an_answer(self):
+        """The two reserved bands are bounded; a code outside them is the server's own.
+
+        Reading one as a protocol failure fails the whole run over a question the server
+        answered.
+        """
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": {"code": -40000, "message": "no target"}})
+
+        results, unserved, _ = client._collect_batch_responses("textDocument/definition", [1], timeout=5)
+        assert results[1] == []
+        assert unserved == set()
+
+    @pytest.mark.parametrize(
+        "code,served",
+        [
+            (-32900, True),  # below every reserved band
+            (-32899, False),  # lspReservedErrorRangeStart
+            (-32800, False),  # RequestCancelled, the band's end
+            (-32799, True),  # between the two bands
+            (-32768, False),  # the JSON-RPC band's start
+            (-32000, False),  # the JSON-RPC band's end
+            (-31999, True),  # above every reserved band
+        ],
+    )
+    def test_the_reserved_bands_have_edges(self, code: int, served: bool):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": {"code": code, "message": "x"}})
+
+        _, unserved, _ = client._collect_batch_responses("textDocument/definition", [1], timeout=5)
+        assert (unserved == set()) is served
+
+    def test_a_server_that_exited_is_fatal_not_a_missing_answer(self):
+        """Every later query is unanswerable, so a caller must not read the failure as empty."""
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = 1
+        client._process.returncode = 1
+
+        with pytest.raises(StaticAnalysisFatalError):
+            client._collect_batch_responses("textDocument/definition", [1], timeout=1)
+
+    def test_deduplicates_declined_request_logging(self, caplog):
+        """Repeated declines are logged once with a count, not per-request."""
         client = LSPClient(["cmd"], Path("/root"))
         client._process = MagicMock()
         client._process.poll.return_value = None
@@ -496,14 +529,13 @@ class TestCollectBatchResponses:
 
         import logging
 
-        with caplog.at_level(logging.WARNING):
-            _, _, error_ids = client._collect_batch_responses([1, 2, 3], timeout=5)
+        with caplog.at_level(logging.DEBUG):
+            _, timed_out, _ = client._collect_batch_responses("textDocument/definition", [1, 2, 3], timeout=5)
 
-        assert error_ids == {1, 2, 3}
-        # Should have a single deduplicated warning, not 3 separate ones
-        error_lines = [r for r in caplog.records if "no package metadata" in r.message]
-        assert len(error_lines) == 1
-        assert "x3" in error_lines[0].message
+        assert timed_out == set()
+        declined = [r for r in caplog.records if "no package metadata" in r.message]
+        assert len(declined) == 1
+        assert "x3" in declined[0].message
 
 
 class TestHandleNotification:
