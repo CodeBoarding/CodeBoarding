@@ -24,6 +24,9 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagno
 
 logger = logging.getLogger(__name__)
 
+# The unit every column in every request and response counts. LSP's own default, and the
+# only one this client converts tree-sitter's byte columns into.
+LSP_POSITION_ENCODING = "utf-16"
 LSP_METHOD_NOT_FOUND = -32601
 # The two bands the specifications keep for protocol and lifecycle failures: JSON-RPC's
 # (parse/invalid request, internal error, server not initialized) and, just below it, LSP's
@@ -207,6 +210,11 @@ class LSPClient:
         capabilities: dict = {
             "textDocument": text_doc_capabilities,
             "window": {"workDoneProgress": True},
+            # Why declared rather than left to the default: every column this client sends
+            # counts UTF-16 code units, and a server reading them as bytes lands somewhere
+            # else on any line holding non-ASCII text -- far enough to resolve the wrong
+            # name, or nothing. Naming the one encoding we speak makes the server say so.
+            "general": {"positionEncodings": [LSP_POSITION_ENCODING]},
         }
         # Shallow-merge adapter extras into the top-level capabilities. On
         # collision: dicts merge, scalars are overwritten by the adapter.
@@ -229,6 +237,8 @@ class LSPClient:
                 "initializationOptions": self._init_options,
             },
         )
+
+        self._negotiate_position_encoding(init_result)
 
         self._send_notification("initialized", {})
 
@@ -660,6 +670,21 @@ class LSPClient:
             "params": params,
         }
         self._write_message(message)
+
+    def _negotiate_position_encoding(self, init_result: dict | list | None) -> None:
+        """Refuse a server that counts columns differently from the ones we send."""
+        capabilities = init_result.get("capabilities", {}) if isinstance(init_result, dict) else {}
+        encoding = (
+            capabilities.get("positionEncoding", LSP_POSITION_ENCODING)
+            if isinstance(capabilities, dict)
+            else LSP_POSITION_ENCODING
+        )
+        if encoding != LSP_POSITION_ENCODING:
+            raise StaticAnalysisFatalError(
+                f"The language server answers positions in {encoding!r}, and this client sends "
+                f"{LSP_POSITION_ENCODING!r}. Every column on a line holding non-ASCII text would "
+                "name the wrong place."
+            )
 
     def _write_message(self, message: dict) -> None:
         """Write a JSON-RPC message with Content-Length header.

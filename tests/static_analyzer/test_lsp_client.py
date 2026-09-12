@@ -391,6 +391,16 @@ class TestCollectBatchResponses:
         assert results[1] == []
         assert unserved == {1}
 
+    def test_a_server_answering_in_another_encoding_is_fatal(self):
+        """Every column on a line holding non-ASCII text would name the wrong place."""
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        answer = {"capabilities": {"positionEncoding": "utf-8"}}
+        with patch.object(LSPClient, "_send_request", return_value=answer), patch.object(LSPClient, "_send_notification"):
+            with pytest.raises(StaticAnalysisFatalError, match="utf-8"):
+                client._negotiate_position_encoding(answer)
+
     def test_an_unimplemented_definition_method_is_fatal(self):
         """Every call site would resolve to nothing and the run would report success."""
         client = LSPClient(["cmd"], Path("/root"))
