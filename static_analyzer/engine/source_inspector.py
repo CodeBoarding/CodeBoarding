@@ -133,6 +133,9 @@ _NAME_NODE_TYPES = frozenset(
     }
 )
 _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
+# A body the grammar leaves as an unparsed token sequence: Rust hands a macro's
+# arguments over whole rather than parsing the calls written in them.
+_OPAQUE_ARGUMENT_NODE_TYPES = frozenset({"token_tree"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
 _ARGUMENT_NODE_TYPES = frozenset({"argument"})
@@ -273,6 +276,26 @@ def _error_node_count(tree: Tree) -> int:
             count += 1
         stack.extend(node.children)
     return count
+
+
+def _applied_inside_opaque_arguments(node: TreeSitterNode) -> bool:
+    """Whether *node* is a name applied to a parenthesised group inside an opaque body.
+
+    Why: a call written inside ``println!("{}", cat.speak())`` is in no ``call_expression``
+    -- the macro's arguments are one unparsed token sequence -- so only the syntax is
+    missing; the server expands the macro and answers at the position either way. In clap
+    that is 6797 call-shaped names the walk would otherwise never ask about.
+    """
+    parent = node.parent
+    if parent is None or parent.type not in _OPAQUE_ARGUMENT_NODE_TYPES:
+        return False
+    applied = node.next_sibling
+    return (
+        applied is not None
+        and applied.type in _OPAQUE_ARGUMENT_NODE_TYPES
+        and applied.text is not None
+        and applied.text.startswith(b"(")
+    )
 
 
 def _line_start_offsets(content: bytes) -> tuple[int, ...]:
@@ -845,6 +868,8 @@ class SourceInspector:
             named = node.named_children
             if named and named[0].type in _DECORATOR_NAME_NODE_TYPES:
                 return self._select_query_node(named[0])
+        if node.type in _NAME_NODE_TYPES and _applied_inside_opaque_arguments(node):
+            return node
         return None
 
     def _select_query_node(self, node: TreeSitterNode | None) -> TreeSitterNode | None:

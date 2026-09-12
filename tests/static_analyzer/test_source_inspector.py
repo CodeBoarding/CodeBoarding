@@ -133,6 +133,19 @@ class TestFindCallSites:
         si = SourceInspector()
         assert (1, 20) in _positions(si.find_call_sites(f))  # target
 
+    def test_a_call_inside_a_macro_invocation_is_a_site(self, tmp_path: Path):
+        """A macro's arguments are one unparsed token sequence, so no call node is written."""
+        f = tmp_path / "main.rs"
+        f.write_text('fn main() {\n    println!("{}", cat.speak());\n}\n')
+        si = SourceInspector()
+        assert (2, 24) in _positions(si.find_call_sites(f))  # speak
+
+    def test_a_bare_name_inside_a_macro_is_not_a_site(self, tmp_path: Path):
+        f = tmp_path / "main.rs"
+        f.write_text('fn main() {\n    println!("{}", label);\n}\n')
+        si = SourceInspector()
+        assert [(s.line, s.column) for s in si.find_call_sites(f)] == [(2, 5)]  # println! only
+
     def test_finds_method_reference(self, tmp_path: Path):
         f = tmp_path / "test.java"
         f.write_text("String::valueOf\n")
