@@ -225,7 +225,7 @@ class GoAdapter(LanguageAdapter):
     def _has_excluding_build_tag(file_path: Path) -> bool:
         """Check if a Go file has a build constraint with negation."""
         try:
-            with open(file_path, "r", errors="replace") as f:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 for line in f:
                     stripped = line.strip()
                     if not stripped or stripped.startswith("//"):

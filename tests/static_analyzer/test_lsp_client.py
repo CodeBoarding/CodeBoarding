@@ -391,13 +391,42 @@ class TestCollectBatchResponses:
         assert results[1] == []
         assert unserved == {1}
 
+    def test_the_text_sent_to_the_server_does_not_depend_on_the_locale(self, tmp_path: Path):
+        """Source is UTF-8 everywhere; the locale's encoding is cp1252 on Windows.
+
+        Decoded as cp1252 a line holding non-ASCII text reaches the server one character
+        per extra byte longer than it is, so every column this client sends after it names
+        a different place in the server's buffer than in the file tree-sitter read.
+        """
+        source = tmp_path / "app.py"
+        source.write_text('label = "café — αβγ"\ntarget()\n', encoding="utf-8")
+        client = LSPClient(["cmd"], Path(tmp_path))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        asked: list[str | None] = []
+        read_text = Path.read_text
+
+        def record(self: Path, encoding: str | None = None, errors: str | None = None) -> str:
+            asked.append(encoding)
+            return read_text(self, encoding=encoding, errors=errors)
+
+        with patch.object(Path, "read_text", record), patch.object(LSPClient, "_send_notification") as notify:
+            client.did_open(source)
+
+        assert asked == ["utf-8"]
+        assert notify.call_args.args[1]["textDocument"]["text"].splitlines()[0] == 'label = "café — αβγ"'
+
     def test_a_server_answering_in_another_encoding_is_fatal(self):
         """Every column on a line holding non-ASCII text would name the wrong place."""
         client = LSPClient(["cmd"], Path("/root"))
         client._process = MagicMock()
         client._process.poll.return_value = None
         answer = {"capabilities": {"positionEncoding": "utf-8"}}
-        with patch.object(LSPClient, "_send_request", return_value=answer), patch.object(LSPClient, "_send_notification"):
+        with (
+            patch.object(LSPClient, "_send_request", return_value=answer),
+            patch.object(LSPClient, "_send_notification"),
+        ):
             with pytest.raises(StaticAnalysisFatalError, match="utf-8"):
                 client._negotiate_position_encoding(answer)
 

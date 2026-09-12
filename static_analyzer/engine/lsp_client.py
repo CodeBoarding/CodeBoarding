@@ -340,7 +340,12 @@ class LSPClient:
         if language_id is None:
             raise ValueError(f"No LSP language id for suffix {file_path.suffix!r}: {file_path}")
         try:
-            text = file_path.read_text(errors="replace")
+            # Why the encoding is named: without it Python decodes with the locale's, which
+            # is cp1252 on Windows. Source is UTF-8, so a line holding non-ASCII text reaches
+            # the server one character per extra byte longer than it is, and every column
+            # this client sends after it names a different place in the server's buffer than
+            # in the file tree-sitter read.
+            text = file_path.read_text(encoding="utf-8", errors="replace")
         except Exception:
             text = ""
         self._send_notification(
