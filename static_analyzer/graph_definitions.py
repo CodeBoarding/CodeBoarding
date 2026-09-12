@@ -328,11 +328,13 @@ def targets_for(
         targets.append(node)
         if kind == ITERATED:
             targets.extend(members_named(call_graph, node, "GetEnumerator"))
-            continue
-        if adapter.expands_virtual_dispatch:
-            targets.extend(override_nodes(call_graph, node))
-        if kind == COLLECTION_INITIALIZER:
-            targets.extend(members_named(call_graph, node, "Add"))
+        else:
+            if adapter.expands_virtual_dispatch:
+                targets.extend(override_nodes(call_graph, node))
+            if kind == COLLECTION_INITIALIZER:
+                targets.extend(members_named(call_graph, node, "Add"))
+        # Independent of *kind*: the engine decides this per site too, so a construction
+        # that is also a collection initializer or a loop subject keeps its constructors.
         if constructing and adapter.expands_constructors and node.is_class():
             targets.extend(members_named(call_graph, node, node.fully_qualified_name.split(".")[-1].split("<")[0]))
     return CallTargets(targets, implementation_positions(resolved))

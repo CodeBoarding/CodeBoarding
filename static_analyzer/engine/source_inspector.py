@@ -11,7 +11,7 @@ from pathlib import Path
 
 from tree_sitter import Language as TreeSitterLanguage
 from tree_sitter import Node as TreeSitterNode
-from tree_sitter import Parser, Tree
+from tree_sitter import Parser, Point, Tree
 
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.models import CallSite
@@ -125,6 +125,7 @@ _NAME_NODE_TYPES = frozenset(
         "identifier",
         "name",
         "property_identifier",
+        "private_property_identifier",  # ECMAScript ``#member``
         "field_identifier",
         "type_identifier",
         "super",
@@ -147,6 +148,12 @@ _VALUE_FIELD_BY_BINDING = {
     "short_var_declaration": "right",  # Go
     "variable_declarator": "value",  # Java, JavaScript, TypeScript; C# names no field
     "let_declaration": "value",  # Rust
+    "default_parameter": "value",  # Python
+    "typed_default_parameter": "value",  # Python
+    "field_definition": "value",  # JavaScript class field
+    "public_field_definition": "value",  # TypeScript class field
+    "var_spec": "value",  # Go
+    "const_spec": "value",  # Go
 }
 _VALUE_BODY_NODE_TYPES = frozenset({"return_statement", "arrow_expression_clause"})
 _NAME_SHAPED_NODE_TYPES = frozenset(
@@ -269,10 +276,56 @@ def _error_node_count(tree: Tree) -> int:
     return count
 
 
+def _line_start_offsets(content: bytes) -> tuple[int, ...]:
+    """The byte offset at which each line of *content* begins."""
+    offsets = [0]
+    end = content.find(b"\n")
+    while end != -1:
+        offsets.append(end + 1)
+        end = content.find(b"\n", end + 1)
+    return tuple(offsets)
+
+
 @dataclass(frozen=True)
 class ParsedSource:
     content: bytes
     tree: Tree
+    # Where every line of ``content`` begins, kept only for a file that needs the
+    # conversion below.
+    line_starts: tuple[int, ...] = ()
+
+    def __post_init__(self) -> None:
+        # Why: tree-sitter counts a column in bytes, LSP in UTF-16 code units. The two
+        # agree for an all-ASCII file, which is almost every file, so the offsets exist
+        # only where they do not.
+        if not self.content.isascii():
+            object.__setattr__(self, "line_starts", _line_start_offsets(self.content))
+
+    def lsp_position(self, point: Point) -> tuple[int, int]:
+        """The line and character an LSP request must carry to name *point*."""
+        if not self.line_starts or point.row >= len(self.line_starts):
+            return point.row, point.column
+        start = self.line_starts[point.row]
+        prefix = self.content[start : start + point.column]
+        if prefix.isascii():
+            return point.row, point.column
+        return point.row, sum(2 if ord(char) > 0xFFFF else 1 for char in prefix.decode("utf8", "replace"))
+
+    def byte_column(self, line: int, character: int) -> int:
+        """The tree-sitter column that the LSP *character* of *line* falls at."""
+        if not self.line_starts or line >= len(self.line_starts):
+            return character
+        end = self.line_starts[line + 1] if line + 1 < len(self.line_starts) else len(self.content)
+        raw = self.content[self.line_starts[line] : end]
+        if raw.isascii():
+            return character
+        column = units = 0
+        for char in raw.decode("utf8", "replace"):
+            if units >= character:
+                break
+            units += 2 if ord(char) > 0xFFFF else 1
+            column += len(char.encode("utf8"))
+        return column + max(0, character - units)
 
 
 @dataclass(frozen=True)
@@ -377,7 +430,7 @@ class SourceInspector:
             target = self._call_target_node(node)
             if target is None:
                 continue
-            pos = (target.start_point.row, target.start_point.column)
+            pos = parsed.lsp_position(target.start_point)
             if pos in seen:
                 continue
             seen.add(pos)
@@ -408,7 +461,7 @@ class SourceInspector:
             target = self._call_target_node(node)
             if target is None:
                 continue
-            position = (target.start_point.row, target.start_point.column)
+            position = parsed.lsp_position(target.start_point)
             if position in seen:
                 continue
             seen.add(position)
@@ -434,7 +487,7 @@ class SourceInspector:
             iterated = self._select_query_node(node.child_by_field_name("right"))
             if iterated is None:
                 continue
-            position = (iterated.start_point.row, iterated.start_point.column)
+            position = parsed.lsp_position(iterated.start_point)
             if position in seen:
                 continue
             seen.add(position)
@@ -463,13 +516,14 @@ class SourceInspector:
         parsed = self._parse(file_path)
         if parsed is None:
             return (line, character)
-        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, character, character)
+        column = parsed.byte_column(line, character)
+        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, column, column)
         while node is not None and node.type not in _DECORATION_NODE_TYPES:
             node = node.parent
         while node is not None and node.parent is not None:
             declared = node.parent.child_by_field_name("name") or self._following_declaration_name(node)
             if declared is not None:
-                return (declared.start_point.row, declared.start_point.column)
+                return parsed.lsp_position(declared.start_point)
             node = node.parent
         return (line, character)
 
@@ -485,13 +539,14 @@ class SourceInspector:
         parsed = self._parse(file_path)
         if parsed is None:
             return False
-        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, character, character)
+        column = parsed.byte_column(line, character)
+        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, column, column)
         while node is not None:
             parent = node.parent
             # ``==``, not ``is``: tree-sitter hands back a fresh wrapper for the same node.
             if parent is not None and any(parent.child_by_field_name(field) == node for field in _BODY_FIELD_NAMES):
                 name = parent.child_by_field_name("name")
-                if name is not None and (name.start_point.row, name.start_point.column) == declaration:
+                if name is not None and parsed.lsp_position(name.start_point) == declaration:
                     return True
             node = parent
         return False
@@ -518,11 +573,12 @@ class SourceInspector:
             member = self._select_query_node(access)
             if receiver is None or receiver.type != "identifier" or member is None:
                 continue
+            receiver_line, receiver_column = parsed.lsp_position(receiver.start_point)
             calls.setdefault(
-                (member.start_point.row, member.start_point.column),
+                parsed.lsp_position(member.start_point),
                 ReceiverMember(
-                    line=receiver.start_point.row,
-                    column=receiver.start_point.column,
+                    line=receiver_line,
+                    column=receiver_column,
                     member=parsed.content[member.start_byte : member.end_byte].decode("utf8", "replace"),
                 ),
             )
@@ -549,7 +605,7 @@ class SourceInspector:
                 target = self._select_query_node(expression)
                 if target is None:
                     continue
-                pos = (target.start_point.row, target.start_point.column)
+                pos = parsed.lsp_position(target.start_point)
                 if pos in seen:
                     continue
                 seen.add(pos)
@@ -560,7 +616,8 @@ class SourceInspector:
         parsed = self._parse(file_path)
         if parsed is None:
             return False
-        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, character, character)
+        column = parsed.byte_column(line, character)
+        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, column, column)
         while node is not None:
             if node.type in _IMPORT_NODE_TYPES:
                 return True
@@ -708,11 +765,11 @@ class SourceInspector:
         for node in self._walk(parsed.tree.root_node):
             declared = self._function_value_name(node)
             if declared is not None:
-                function_value_positions.add((declared.start_point.row, declared.start_point.column))
+                function_value_positions.add(parsed.lsp_position(declared.start_point))
 
             target = self._call_target_node(node)
             if target is not None and self._runs_a_constructor(node):
-                construction_start_positions.add((target.start_point.row, target.start_point.column))
+                construction_start_positions.add(parsed.lsp_position(target.start_point))
 
         usage_index = SourceUsageIndex(
             construction_start_positions=construction_start_positions,
@@ -911,8 +968,9 @@ class SourceInspector:
             # Whitespace inside a literal is the literal; between tokens it is layout.
             return raw if node.type in _CSHARP_LITERAL_NODE_TYPES else " ".join(raw.split())
 
-        def point(row_col: tuple[int, int]) -> dict[str, int]:
-            return {"line": row_col[0], "character": row_col[1]}
+        def point(at: Point) -> dict[str, int]:
+            line, character = parsed.lsp_position(at)
+            return {"line": line, "character": character}
 
         def symbol(node: TreeSitterNode, name: str, kind: int, selection: TreeSitterNode, children: list[dict]) -> dict:
             return {

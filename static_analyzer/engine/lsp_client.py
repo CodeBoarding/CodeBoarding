@@ -25,11 +25,12 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagno
 logger = logging.getLogger(__name__)
 
 LSP_METHOD_NOT_FOUND = -32601
-# JSON-RPC and LSP reserve every code at or below this for protocol and lifecycle failures
-# (parse/invalid request, internal error, server not initialized, request cancelled, content
-# modified, request failed). A server's own application-level answer uses a code outside the
-# range -- gopls declines an implementation query on a free function with code 0.
-LSP_RESERVED_ERROR_CODE_MAX = -32000
+# The two bands the specifications keep for protocol and lifecycle failures: JSON-RPC's
+# (parse/invalid request, internal error, server not initialized) and, just below it, LSP's
+# own (request cancelled, content modified, server cancelled, request failed). Everything
+# outside them is the server answering for itself -- gopls declines an implementation query
+# on a free function with code 0 -- so only these two mean the request went unserved.
+LSP_RESERVED_ERROR_CODE_RANGES = ((-32899, -32800), (-32768, -32000))
 # Reserved codes whose remedy the protocol defines as "ask again": the server was still
 # settling the documents it had been sent, not refusing the question. rust-analyzer answers
 # ContentModified for every query issued while it is still indexing an opened file.
@@ -71,7 +72,9 @@ def _is_protocol_failure(error: object) -> bool:
     if not isinstance(error, dict):
         return False
     code = error.get("code")
-    return isinstance(code, int) and code <= LSP_RESERVED_ERROR_CODE_MAX and code != LSP_METHOD_NOT_FOUND
+    if not isinstance(code, int) or code == LSP_METHOD_NOT_FOUND:
+        return False
+    return any(low <= code <= high for low, high in LSP_RESERVED_ERROR_CODE_RANGES)
 
 
 def _is_retryable(error: object) -> bool:
@@ -661,7 +664,9 @@ class LSPClient:
         initiated requests concurrently with the main thread.
         """
         if not self._process or not self._process.stdin:
-            raise RuntimeError("LSP server not running")
+            # Fatal, not a failed write: nothing this client is asked for afterwards can be
+            # answered, and a caller reading the failure as "no results" drops real edges.
+            raise StaticAnalysisFatalError("LSP server not running")
         body = json.dumps(message)
         header = f"Content-Length: {len(body)}\r\n\r\n"
         data = (header + body).encode("utf-8")
@@ -683,7 +688,9 @@ class LSPClient:
             message = self._msg_queue.get(timeout=min(remaining, 1.0))
         except queue.Empty:
             if self._process and self._process.poll() is not None:
-                raise RuntimeError(f"LSP server process exited with code {self._process.returncode}") from None
+                raise StaticAnalysisFatalError(
+                    f"LSP server process exited with code {self._process.returncode}"
+                ) from None
             return None
 
         # Skip notifications that leaked past the reader loop

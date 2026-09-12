@@ -119,6 +119,20 @@ class TestFindCallSites:
         sites = si.find_call_sites(f)
         assert (1, 5) in _positions(sites)  # Dog in "new Dog("
 
+    def test_a_private_method_call_queries_the_member(self, tmp_path: Path):
+        """``this`` resolves to the class, so querying there names no method at all."""
+        f = tmp_path / "test.js"
+        f.write_text("class A {\n  #save() {}\n  run() { this.#save(); }\n}\n")
+        si = SourceInspector()
+        assert (3, 16) in _positions(si.find_call_sites(f))  # #save
+
+    def test_a_column_counts_utf16_units_not_bytes(self, tmp_path: Path):
+        """A server reads the character as UTF-16; bytes would land past the callee."""
+        f = tmp_path / "test.py"
+        f.write_text("s = 'héllo wörld'; target()\n", encoding="utf-8")
+        si = SourceInspector()
+        assert (1, 20) in _positions(si.find_call_sites(f))  # target
+
     def test_finds_method_reference(self, tmp_path: Path):
         f = tmp_path / "test.java"
         f.write_text("String::valueOf\n")
@@ -309,6 +323,32 @@ class TestValueBindings:
         source.write_text("fn handler() {}\n\nfn build() {\n    let cb = handler;\n    let _ = cb;\n}\n")
 
         assert (4, 14) in self._sites(source)
+
+    def test_python_parameter_default(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("def handler():\n    pass\n\n\ndef run(callback=handler, typed: int = handler):\n    pass\n")
+
+        assert {(5, 18), (5, 40)} <= self._sites(source)
+
+    def test_typescript_class_field(self, tmp_path: Path):
+        source = tmp_path / "app.ts"
+        source.write_text("function handler() {}\n\nclass Widget {\n  private cb = handler;\n}\n")
+
+        assert (4, 16) in self._sites(source)
+
+    def test_javascript_class_field(self, tmp_path: Path):
+        source = tmp_path / "app.js"
+        source.write_text("function handler() {}\n\nclass Widget {\n  cb = handler;\n}\n")
+
+        assert (4, 8) in self._sites(source)
+
+    def test_go_var_and_const_declarations(self, tmp_path: Path):
+        source = tmp_path / "app.go"
+        source.write_text(
+            "package main\n\nfunc handler() {}\n\nvar top = handler\n\nfunc build() {\n\tvar cb = handler\n\t_ = cb\n}\n"
+        )
+
+        assert {(5, 11), (8, 11)} <= self._sites(source)
 
 
 class TestDeclaredNameAt:

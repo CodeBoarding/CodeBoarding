@@ -499,6 +499,77 @@ class TestWarmStartCallShapes:
         edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
         assert ("app.run", "worker.Worker.handle") in edges
 
+    def test_a_collection_initializer_that_constructs_keeps_its_constructor_edge(self, tmp_path: Path) -> None:
+        """``new Bag { 1 }`` is one site with two shapes, and a full build gives it both.
+
+        The engine decides constructor expansion per site, from the source; deciding it from
+        the call-site kind instead leaves a warm start with the ``Add`` edge but no constructor.
+        """
+        changed = tmp_path / "app.cs"
+        changed.write_text("class App\n{\n    void Run()\n    {\n        var bag = new Bag { 1 };\n    }\n}\n")
+        bag = tmp_path / "bag.cs"
+        graph = CallGraph(language="csharp")
+        graph.add_node(Node("app.App.Run", NodeType.METHOD, str(changed), line_start=3, line_end=6, col_start=9))
+        graph.add_node(Node("bag.Bag", NodeType.CLASS, str(bag), line_start=1, line_end=4, col_start=6))
+        graph.add_node(Node("bag.Bag.Bag", NodeType.CONSTRUCTOR, str(bag), line_start=2, line_end=2, col_start=11))
+        graph.add_node(Node("bag.Bag.Add", NodeType.METHOD, str(bag), line_start=3, line_end=3, col_start=9))
+
+        adapter = MagicMock()
+        adapter.language_id = "csharp"
+        adapter.resolves_method_groups = False
+        adapter.resolves_collection_initializers = True
+        adapter.resolves_iterated_types = False
+        adapter.expands_virtual_dispatch = False
+        adapter.expands_constructors = True
+
+        client = MagicMock()
+        client.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": bag.as_uri(), "range": {"start": {"line": 0, "character": 6}}}] for _ in queries
+        ]
+        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
+
+        _add_outbound_edges_from_changed_files(
+            GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), adapter
+        )
+
+        edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
+        assert ("app.App.Run", "bag.Bag.Add") in edges
+        assert ("app.App.Run", "bag.Bag.Bag") in edges
+
+    def test_a_loop_over_a_construction_keeps_its_constructor_edge(self, tmp_path: Path) -> None:
+        """A loop subject can be a construction too, and a full build expands it as one."""
+        changed = tmp_path / "app.cs"
+        changed.write_text(
+            "class App\n{\n    void Run()\n    {\n        foreach (var x in new Bag { 1 }) { }\n    }\n}\n"
+        )
+        bag = tmp_path / "bag.cs"
+        graph = CallGraph(language="csharp")
+        graph.add_node(Node("app.App.Run", NodeType.METHOD, str(changed), line_start=3, line_end=6, col_start=9))
+        graph.add_node(Node("bag.Bag", NodeType.CLASS, str(bag), line_start=1, line_end=4, col_start=6))
+        graph.add_node(Node("bag.Bag.Bag", NodeType.CONSTRUCTOR, str(bag), line_start=2, line_end=2, col_start=11))
+
+        adapter = MagicMock()
+        adapter.language_id = "csharp"
+        adapter.resolves_method_groups = False
+        adapter.resolves_collection_initializers = False
+        adapter.resolves_iterated_types = True
+        adapter.expands_virtual_dispatch = False
+        adapter.expands_constructors = True
+
+        client = MagicMock()
+        client.send_type_definition_batch.side_effect = lambda queries: [
+            [{"uri": bag.as_uri(), "range": {"start": {"line": 0, "character": 6}}}] for _ in queries
+        ]
+        client.send_definition_batch.side_effect = lambda queries: [[] for _ in queries]
+        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
+
+        _add_outbound_edges_from_changed_files(
+            GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), adapter
+        )
+
+        edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
+        assert ("app.App.Run", "bag.Bag.Bag") in edges
+
     def test_an_implementation_in_a_changed_file_still_gets_its_edge(self, tmp_path: Path) -> None:
         """The caller and the implementation change together; their interface does not.
 

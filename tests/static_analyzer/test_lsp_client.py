@@ -16,6 +16,7 @@ from static_analyzer.engine.lsp_client import (
     LSPClient,
     MethodNotFoundError,
 )
+from static_analyzer.errors import StaticAnalysisFatalError
 
 
 class TestLSPClientInit:
@@ -417,6 +418,54 @@ class TestCollectBatchResponses:
         results, unserved, _ = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
         assert results[1] == []
         assert unserved == set()
+
+    def test_an_application_error_code_below_the_reserved_bands_is_an_answer(self):
+        """The two reserved bands are bounded; a code outside them is the server's own.
+
+        Reading one as a protocol failure fails the whole run over a question the server
+        answered.
+        """
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": {"code": -40000, "message": "no target"}})
+
+        results, unserved, _ = client._collect_batch_responses("textDocument/definition", [1], timeout=5)
+        assert results[1] == []
+        assert unserved == set()
+
+    @pytest.mark.parametrize(
+        "code,served",
+        [
+            (-32900, True),  # below every reserved band
+            (-32899, False),  # lspReservedErrorRangeStart
+            (-32800, False),  # RequestCancelled, the band's end
+            (-32799, True),  # between the two bands
+            (-32768, False),  # the JSON-RPC band's start
+            (-32000, False),  # the JSON-RPC band's end
+            (-31999, True),  # above every reserved band
+        ],
+    )
+    def test_the_reserved_bands_have_edges(self, code: int, served: bool):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": {"code": code, "message": "x"}})
+
+        _, unserved, _ = client._collect_batch_responses("textDocument/definition", [1], timeout=5)
+        assert (unserved == set()) is served
+
+    def test_a_server_that_exited_is_fatal_not_a_missing_answer(self):
+        """Every later query is unanswerable, so a caller must not read the failure as empty."""
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = 1
+        client._process.returncode = 1
+
+        with pytest.raises(StaticAnalysisFatalError):
+            client._collect_batch_responses("textDocument/definition", [1], timeout=1)
 
     def test_deduplicates_declined_request_logging(self, caplog):
         """Repeated declines are logged once with a count, not per-request."""

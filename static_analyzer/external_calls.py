@@ -14,7 +14,7 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import ExternalCallSite
 from static_analyzer.engine.source_inspector import SourceInspector
-from static_analyzer.graph_definitions import CALL, GraphIndex, targets_for
+from static_analyzer.graph_definitions import GraphIndex, targets_for
 from static_analyzer.internal_references import is_self_or_container_edge
 
 logger = logging.getLogger(__name__)
@@ -41,9 +41,7 @@ def link_external_call_sites(
         caller = call_graph.nodes.get(site.caller)
         if caller is None:
             continue
-        constructing = (
-            site.kind == CALL and adapter.expands_constructors and inspector.is_construction_site(site.call_site)
-        )
+        constructing = adapter.expands_constructors and inspector.is_construction_site(site.call_site)
         # ``targets.implementations`` is not expanded here: the server that could answer for
         # this file belongs to another engine, and by the time every graph is merged its
         # lifetime may already be over. A base-typed call across engines therefore reaches the

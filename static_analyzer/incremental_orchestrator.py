@@ -203,10 +203,8 @@ def _restore_inbound_edges_via_definitions(
             file_path = str(site["file"])
             position = (int(site["line"]) - 1, int(site["column"]) - 1)
             kind = shapes_by_file[file_path].kind_at(position)
-            constructing = (
-                kind == CALL
-                and adapter.expands_constructors
-                and source_inspector.is_construction_site(CallSite(file_path, int(site["line"]), int(site["column"])))
+            constructing = adapter.expands_constructors and source_inspector.is_construction_site(
+                CallSite(file_path, int(site["line"]), int(site["column"]))
             )
             method = "type_definition" if kind == ITERATED else "definition"
             by_request.setdefault(method, []).append((edge, site, kind, constructing))
@@ -337,7 +335,7 @@ def _add_outbound_edges_from_changed_files(
             if src_node is None:
                 continue
             kind = shapes.kind_at((site.lsp_line, site.lsp_column))
-            constructing = kind == CALL and adapter.expands_constructors and source_inspector.is_construction_site(site)
+            constructing = adapter.expands_constructors and source_inspector.is_construction_site(site)
             reached = False
             for definition in definitions:
                 location = definition_location(definition)
@@ -420,11 +418,14 @@ def _add_iterated_type_edges(
         src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
         if src_node is None:
             continue
+        constructing = adapter.expands_constructors and source_inspector.is_construction_site(site)
         for definition in definitions:
             location = definition_location(definition)
             if location is None:
                 continue
-            targets = targets_for(index, str(location[0]), location[1], location[2], ITERATED, adapter).nodes
+            targets = targets_for(
+                index, str(location[0]), location[1], location[2], ITERATED, adapter, constructing
+            ).nodes
             if not targets:
                 external.append(
                     ExternalCallSite(
