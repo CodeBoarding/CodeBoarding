@@ -24,6 +24,11 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagno
 logger = logging.getLogger(__name__)
 
 LSP_METHOD_NOT_FOUND = -32601
+# JSON-RPC and LSP reserve every code at or below this for protocol and lifecycle failures
+# (parse/invalid request, internal error, server not initialized, request cancelled, content
+# modified, request failed). A server's own application-level answer uses a code outside the
+# range -- gopls declines an implementation query on a free function with code 0.
+LSP_RESERVED_ERROR_CODE_MAX = -32000
 ProgressToken = str | int
 
 
@@ -41,6 +46,18 @@ def _progress_token(value: object) -> ProgressToken | None:
 
 class MethodNotFoundError(Exception):
     """Raised when the LSP server does not support a requested method."""
+
+
+def _is_protocol_failure(error: object) -> bool:
+    """Whether an error response means the request could not be served at all.
+
+    "Method not found" is the one reserved code that is still an answer: the server is
+    telling us it does not implement the request, and empty is the truth.
+    """
+    if not isinstance(error, dict):
+        return False
+    code = error.get("code")
+    return isinstance(code, int) and code <= LSP_RESERVED_ERROR_CODE_MAX and code != LSP_METHOD_NOT_FOUND
 
 
 class LSPClient:
@@ -514,10 +531,10 @@ class LSPClient:
     ) -> list[list[dict]]:
         """Send multiple LSP requests and collect their results in query order.
 
-        Raises when a request was never answered, rather than returning a partial batch. It
-        would come back as an empty result list, indistinguishable from "nothing is declared
-        here", and every caller would have to remember to check a second return value to
-        avoid turning a server timeout into a missing edge nobody hears about.
+        Raises when a request went unserved, rather than returning a partial batch. It would
+        come back as an empty result list, indistinguishable from "nothing is declared here",
+        and every caller would have to remember to check a second return value to avoid
+        turning a server timeout into a missing edge nobody hears about.
         """
         req_ids: list[int] = []
         for file_path, line, character in queries:
@@ -532,14 +549,13 @@ class LSPClient:
             }
             self._write_message(message)
 
-        results, timed_out = self._collect_batch_responses(method, req_ids, timeout=timeout)
-        if timed_out:
-            first = queries[min(req_ids.index(req_id) for req_id in timed_out)]
+        results, unserved = self._collect_batch_responses(method, req_ids, timeout=timeout)
+        if unserved:
+            first = queries[min(req_ids.index(req_id) for req_id in unserved)]
             raise StaticAnalysisFatalError(
-                f"{len(timed_out)} of {len(queries)} {method} requests were never answered, first at "
-                f"{first[0]}:{first[1] + 1}:{first[2] + 1}, within {timeout or self._default_timeout}s. "
-                "The server is likely overloaded or still indexing; reading them as empty would silently "
-                "drop call-graph edges."
+                f"{len(unserved)} of {len(queries)} {method} requests went unserved, first at "
+                f"{first[0]}:{first[1] + 1}:{first[2] + 1}. The server timed out or failed the request "
+                "rather than declining it; reading those as empty would silently drop call-graph edges."
             )
 
         parsed: list[list[dict]] = []
@@ -643,17 +659,19 @@ class LSPClient:
     ) -> tuple[dict[int, list[dict]], set[int]]:
         """Collect responses for multiple pending request IDs.
 
-        Returns ``(results, timed_out_ids)``. An error response is an answer: a server says
-        "not a method", "not an interface" or "unsupported" that way, and the empty result it
-        is paired with is the truth. A request that never came back is the one case a caller
-        must not read as "nothing is declared there", so only those are reported.
+        Returns ``(results, unserved_ids)``. A server declines with an error of its own -- "not
+        a method", "not an interface", "no identifier found" -- and that is an answer, whose
+        empty result is the truth. A request that timed out, or failed with a reserved code,
+        was never served, and the caller must not read its empty list as "nothing is declared
+        there".
         """
         if timeout is None:
             timeout = self._default_timeout
 
         results: dict[int, list[dict]] = {}
         pending = set(request_ids)
-        error_messages: dict[str, int] = {}
+        declined: dict[str, int] = {}
+        unserved: dict[int, str] = {}
         deadline = time.monotonic() + timeout
 
         while pending and time.monotonic() < deadline:
@@ -671,21 +689,26 @@ class LSPClient:
                 err = msg["error"]
                 results[msg_id] = []  # type: ignore[index]
                 err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
-                error_messages[err_msg] = error_messages.get(err_msg, 0) + 1
+                if _is_protocol_failure(err):
+                    unserved[msg_id] = err_msg  # type: ignore[index]
+                else:
+                    declined[err_msg] = declined.get(err_msg, 0) + 1
             else:
                 results[msg_id] = msg.get("result") or []  # type: ignore[index]
 
-        for err_msg, count in error_messages.items():
+        for err_msg, count in declined.items():
             if count > 1:
                 logger.debug("LSP declined %s (x%d): %s", method, count, err_msg)
             else:
                 logger.debug("LSP declined %s: %s", method, err_msg)
 
+        for req_id, err_msg in unserved.items():
+            logger.warning("LSP could not serve %s request %d: %s", method, req_id, err_msg)
         for req_id in pending:
             logger.warning("Timeout waiting for %s request %d", method, req_id)
             results[req_id] = []
 
-        return results, set(pending)
+        return results, set(pending) | set(unserved)
 
     # ---- Background message reader ----
 

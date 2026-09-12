@@ -377,6 +377,30 @@ class TestCollectBatchResponses:
         assert results[2] == []
         assert timed_out == {2}
 
+    def test_a_reserved_error_code_means_the_request_was_not_served(self):
+        """``ContentModified`` and friends say the server could not answer, not that it did."""
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        error = {"code": -32801, "message": "content modified"}
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
+
+        results, unserved = client._collect_batch_responses("textDocument/definition", [1], timeout=5)
+        assert results[1] == []
+        assert unserved == {1}
+
+    def test_an_unimplemented_method_is_still_an_answer(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        error = {"code": -32601, "message": "Method not found"}
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
+
+        _, unserved = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
+        assert unserved == set()
+
     def test_an_error_is_an_answer_not_a_hole(self):
         """gopls declines an implementation query on a free function with an error.
 
@@ -390,9 +414,9 @@ class TestCollectBatchResponses:
         error = {"code": 0, "message": "Add is a function, not a method"}
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
 
-        results, timed_out = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
+        results, unserved = client._collect_batch_responses("textDocument/implementation", [1], timeout=5)
         assert results[1] == []
-        assert timed_out == set()
+        assert unserved == set()
 
     def test_deduplicates_declined_request_logging(self, caplog):
         """Repeated declines are logged once with a count, not per-request."""

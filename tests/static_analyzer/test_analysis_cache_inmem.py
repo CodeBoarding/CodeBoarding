@@ -456,6 +456,45 @@ class TestWarmStartCallShapes:
         edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
         assert ("app.run", "worker.Worker.handle") in edges
 
+    def test_an_implementation_in_a_changed_file_still_gets_its_edge(self, tmp_path: Path) -> None:
+        """The caller and the implementation change together; their interface does not.
+
+        The partial build has no symbol for the unchanged interface, so it cannot make the
+        edge at all; treating the implementation's file as already handled loses it for good.
+        """
+        changed = tmp_path / "app.ts"
+        changed.write_text(
+            'import { Service } from "./api";\n\nexport function run(s: Service) {\n    s.handle();\n}\n'
+        )
+        worker = tmp_path / "worker.ts"
+        api = tmp_path / "api.ts"
+        graph = CallGraph(language="typescript")
+        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
+        graph.add_node(Node("api.Service.handle", NodeType.METHOD, str(api), line_start=2, line_end=2, col_start=4))
+        graph.add_node(
+            Node("worker.Worker.handle", NodeType.METHOD, str(worker), line_start=5, line_end=7, col_start=4)
+        )
+
+        client = MagicMock()
+        client.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": api.as_uri(), "range": {"start": {"line": 1, "character": 4}}}] for _ in queries
+        ]
+        client.send_implementation_batch.side_effect = lambda queries: [
+            [{"uri": worker.as_uri(), "range": {"start": {"line": 4, "character": 4}}}] for _ in queries
+        ]
+
+        # Both the caller and the implementation are in this edit.
+        _add_outbound_edges_from_changed_files(
+            GraphIndex(graph, SourceInspector()),
+            [changed, worker],
+            client,
+            SourceInspector(),
+            self._typescript_adapter(),
+        )
+
+        edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
+        assert ("app.run", "worker.Worker.handle") in edges
+
     def test_a_callback_bound_to_a_const_is_a_method_group_target(self, tmp_path: Path) -> None:
         helpers = tmp_path / "helpers.ts"
         helpers.write_text("export const handler = () => 1;\n")

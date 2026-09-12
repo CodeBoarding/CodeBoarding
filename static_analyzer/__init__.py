@@ -651,6 +651,9 @@ class StaticAnalyzer:
 
             logger.debug(f"Discovered {len(unique_paths)} dependencies for {file_path}")
             return list(unique_paths)
+        except StaticAnalysisFatalError:
+            # An unanswered batch is not an answer of "nothing"; the caller must hear it.
+            raise
         except Exception:
             logger.warning(f"Failed to discover dependencies for {file_path}", exc_info=True)
             return []

@@ -44,6 +44,10 @@ def link_external_call_sites(
         constructing = (
             site.kind == CALL and adapter.expands_constructors and inspector.is_construction_site(site.call_site)
         )
+        # ``targets.implementations`` is not expanded here: the server that could answer for
+        # this file belongs to another engine, and by the time every graph is merged its
+        # lifetime may already be over. A base-typed call across engines therefore reaches the
+        # declaration but not its overrides, unless the adapter derives them from the graph.
         targets = targets_for(index, site.file, site.line, site.character, site.kind, adapter, constructing).nodes
         if not targets:
             unresolved += 1

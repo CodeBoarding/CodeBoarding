@@ -286,6 +286,31 @@ class TestFindMemberModifiers:
         assert modifiers[("Derived", "Run")] == frozenset({"explicit"})
 
 
+class TestValueBindings:
+    """Binding a callable to a name passes it as a value; each grammar spells it its own way."""
+
+    def _sites(self, path: Path) -> set[tuple[int, int]]:
+        return {(site.line, site.column) for site in SourceInspector().find_method_group_sites(path)}
+
+    def test_python_assignment(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("def handler():\n    pass\n\n\ndef build():\n    callback = handler\n")
+
+        assert (6, 16) in self._sites(source)
+
+    def test_go_short_declaration(self, tmp_path: Path):
+        source = tmp_path / "app.go"
+        source.write_text("package main\n\nfunc handler() {}\n\nfunc build() {\n\tcb := handler\n\t_ = cb\n}\n")
+
+        assert (6, 8) in self._sites(source)
+
+    def test_rust_let(self, tmp_path: Path):
+        source = tmp_path / "app.rs"
+        source.write_text("fn handler() {}\n\nfn build() {\n    let cb = handler;\n    let _ = cb;\n}\n")
+
+        assert (4, 14) in self._sites(source)
+
+
 class TestDeclaredNameAt:
     def test_a_declaration_name_is_declared_here(self, tmp_path: Path):
         source = tmp_path / "app.ts"

@@ -137,7 +137,17 @@ _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
 _ARGUMENT_NODE_TYPES = frozenset({"argument"})
 # An argument that carries its parameter's name beside its value.
 _LABELLED_ARGUMENT_NODE_TYPES = frozenset({"keyword_argument"})
-_DECLARATOR_NODE_TYPES = frozenset({"variable_declarator"})
+# Node types that bind a name to a value, and the field the value sits in. Every grammar
+# spells the statement differently, so a callback bound to a name is only found per
+# spelling; C#'s declarator names no field at all, so there the value is the last child.
+_VALUE_FIELD_BY_BINDING = {
+    "assignment": "right",  # Python
+    "assignment_expression": "right",  # C#, Java, JavaScript, TypeScript, PHP
+    "assignment_statement": "right",  # Go
+    "short_var_declaration": "right",  # Go
+    "variable_declarator": "value",  # Java, JavaScript, TypeScript; C# names no field
+    "let_declaration": "value",  # Rust
+}
 _VALUE_BODY_NODE_TYPES = frozenset({"return_statement", "arrow_expression_clause"})
 _NAME_SHAPED_NODE_TYPES = frozenset(
     {
@@ -155,7 +165,18 @@ _NAME_SHAPED_NODE_TYPES = frozenset(
 # Literals that hold a group of values, each of which can be a name: a dispatch table is
 # written as one of these and every callable in it is reached through it.
 _VALUE_GROUP_NODE_TYPES = frozenset(
-    {"dictionary", "list", "tuple", "set", "object", "array", "pair", "keyword_argument", "array_creation_expression"}
+    {
+        "dictionary",
+        "list",
+        "tuple",
+        "set",
+        "object",
+        "array",
+        "pair",
+        "keyword_argument",
+        "array_creation_expression",
+        "expression_list",
+    }
 )
 _TYPE_DECLARATION_NODE_TYPES = frozenset(
     {"class_declaration", "interface_declaration", "record_declaration", "struct_declaration"}
@@ -555,10 +576,11 @@ class SourceInspector:
             # ``onClick={handler}`` passes the handler exactly as an argument would.
             return [name for child in node.named_children for name in self._value_names(child)]
 
-        if node.type == "assignment_expression":
-            candidate = node.child_by_field_name("right")
-        elif node.type in _DECLARATOR_NODE_TYPES:
-            candidate = node.named_children[-1] if len(node.named_children) > 1 else None
+        field = _VALUE_FIELD_BY_BINDING.get(node.type)
+        if field is not None:
+            candidate = node.child_by_field_name(field)
+            if candidate is None and len(node.named_children) > 1:
+                candidate = node.named_children[-1]
         elif node.type in _VALUE_BODY_NODE_TYPES:
             candidate = node.named_children[0] if node.named_children else None
         else:
