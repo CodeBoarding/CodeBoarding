@@ -398,8 +398,11 @@ class TestCollectBatchResponses:
         per extra byte longer than it is, so every column this client sends after it names
         a different place in the server's buffer than in the file tree-sitter read.
         """
+        # Why the escapes: tests/test_windows_encoding.py forbids source characters cp1252
+        # cannot encode, and Greek is outside it. The text still holds them at runtime.
+        line = 'label = "café — \u03b1\u03b2\u03b3"'
         source = tmp_path / "app.py"
-        source.write_text('label = "café — αβγ"\ntarget()\n', encoding="utf-8")
+        source.write_text(f"{line}\ntarget()\n", encoding="utf-8")
         client = LSPClient(["cmd"], Path(tmp_path))
         client._process = MagicMock()
         client._process.poll.return_value = None
@@ -415,7 +418,7 @@ class TestCollectBatchResponses:
             client.did_open(source)
 
         assert asked == ["utf-8"]
-        assert notify.call_args.args[1]["textDocument"]["text"].splitlines()[0] == 'label = "café — αβγ"'
+        assert notify.call_args.args[1]["textDocument"]["text"].splitlines()[0] == line
 
     def test_a_server_answering_in_another_encoding_is_fatal(self):
         """Every column on a line holding non-ASCII text would name the wrong place."""
