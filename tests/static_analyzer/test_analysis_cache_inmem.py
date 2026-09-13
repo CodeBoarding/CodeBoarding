@@ -283,7 +283,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
         )
         definition = {
             "uri": file_path.as_uri(),
-            "range": {"start": {"line": 9, "character": 8}, "end": {"line": 9, "character": 15}},
+            "range": {"start": {"line": 9, "character": 4}, "end": {"line": 9, "character": 11}},
         }
 
         matches = definition_nodes(GraphIndex(call_graph, SourceInspector()), definition, include_callable_parent=True)
@@ -643,6 +643,36 @@ class TestWarmStartCallShapes:
         edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
         assert ("app.run", "worker.Worker.handle") in edges
 
+    def test_a_changed_declaration_still_reaches_an_unchanged_implementation(self, tmp_path: Path) -> None:
+        """The partial build resolves the call into the changed interface but holds no implementation of it."""
+        changed = tmp_path / "app.ts"
+        changed.write_text(
+            'import { Service } from "./api";\n\nexport function run(s: Service) {\n    s.handle();\n}\n'
+        )
+        api = tmp_path / "api.ts"
+        worker = tmp_path / "worker.ts"
+        graph = CallGraph(language="typescript")
+        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
+        graph.add_node(Node("api.Service.handle", NodeType.METHOD, str(api), line_start=2, line_end=2, col_start=4))
+        graph.add_node(
+            Node("worker.Worker.handle", NodeType.METHOD, str(worker), line_start=5, line_end=7, col_start=4)
+        )
+
+        client = MagicMock()
+        client.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": api.as_uri(), "range": {"start": {"line": 1, "character": 4}}}] for _ in queries
+        ]
+        client.send_implementation_batch.side_effect = lambda queries: [
+            [{"uri": worker.as_uri(), "range": {"start": {"line": 4, "character": 4}}}] for _ in queries
+        ]
+
+        _add_outbound_edges_from_changed_files(
+            GraphIndex(graph, SourceInspector()), [changed, api], client, SourceInspector(), self._typescript_adapter()
+        )
+
+        edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
+        assert ("app.run", "worker.Worker.handle") in edges
+
     def test_a_callback_bound_to_a_const_is_a_method_group_target(self, tmp_path: Path) -> None:
         helpers = tmp_path / "helpers.ts"
         helpers.write_text("export const handler = () => 1;\n")
@@ -678,3 +708,19 @@ class TestWarmStartCallShapes:
         graph.add_node(Node("log.log.warn", NodeType.METHOD, str(logger_file), line_start=1, line_end=1, col_start=21))
 
         assert self._run(graph, changed, {4: (str(logger_file), 0, 13)}) == [("app.run", "log.log.warn")]
+
+    def test_a_member_reached_through_its_receiver_also_reaches_its_class(self, tmp_path: Path) -> None:
+        """The full build adds the class a called method belongs to, whichever route found the method."""
+        logger_file = tmp_path / "log.ts"
+        logger_file.write_text("export class Log { warn(m: string) {} }\n")
+        changed = tmp_path / "app.ts"
+        changed.write_text("import { Log } from './log';\n\nexport function run() {\n    Log.warn('x');\n}\n")
+        graph = CallGraph(language="typescript")
+        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
+        graph.add_node(Node("log.Log", NodeType.CLASS, str(logger_file), line_start=1, line_end=1, col_start=13))
+        graph.add_node(Node("log.Log.warn", NodeType.METHOD, str(logger_file), line_start=1, line_end=1, col_start=19))
+
+        assert sorted(self._run(graph, changed, {4: (str(logger_file), 0, 13)})) == [
+            ("app.run", "log.Log"),
+            ("app.run", "log.Log.warn"),
+        ]

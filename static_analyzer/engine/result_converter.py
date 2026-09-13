@@ -69,7 +69,6 @@ def convert_to_codeboarding_format(
             line_start=sym.start_line + 1,
             line_end=sym.end_line + 1,
             col_start=sym.start_char,
-            col_end=sym.end_char,
         )
         symbol_nodes[qname] = node
         call_graph.add_node(node)
@@ -152,8 +151,6 @@ def convert_to_codeboarding_format(
                 file_path=str(sym.file_path),
                 line_start=sym.start_line + 1,
                 line_end=sym.end_line + 1,
-                col_start=sym.start_char,
-                col_end=sym.end_char,
             )
             references.append(ref_node)
 

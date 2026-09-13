@@ -34,8 +34,8 @@ from static_analyzer.graph_definitions import (
     GraphIndex,
     containing_source_node,
     definition_nodes,
-    implementation_positions,
     targets_for,
+    targets_through,
 )
 from static_analyzer.cfg import CallGraph
 from static_analyzer.internal_references import is_self_or_container_edge
@@ -143,15 +143,13 @@ def _rebuild_changed_file_edges(
     _restore_inbound_edges_via_definitions(
         index, invalidated_edges, changed_file_strs, adapter, engine_client, source_inspector
     )
-    external = _add_outbound_edges_from_changed_files(
+    return _add_outbound_edges_from_changed_files(
         index,
         changed_source_files,
         engine_client,
         source_inspector,
         adapter,
     )
-    logger.info("Warm-start definition matches: %s", index.counts.summary())
-    return external
 
 
 def _restore_inbound_edges_via_definitions(
@@ -260,12 +258,7 @@ def _restore_inbound_edges_via_definitions(
 
 @dataclass(frozen=True)
 class _CallShapes:
-    """Which shape each call site in one file has, so a site resolves the way it was found.
-
-    The outbound pass reads them off a changed file it is about to query; the restoration
-    pass reads them off an unchanged caller whose cached sites it is re-asking. Both have to
-    reach the same answer or a cached edge comes back smaller than the one a rebuild builds.
-    """
+    """Which shape each call site in one file has, so outbound and restored sites resolve as the full build does."""
 
     call_sites: list[CallSite]
     method_group: set[tuple[int, int]]
@@ -363,18 +356,16 @@ def _add_outbound_edges_from_changed_files(
                     continue
                 reached = True
                 added += _add_edges(call_graph, src_node, targets.nodes, site, changed_file_strs)
-                if str(location[0]) not in changed_file_strs:
-                    # The partial build could not name this declaration, so nothing reached
-                    # through it is its business either -- however changed the file it lands in.
-                    for impl_position in targets.implementations:
-                        pending.setdefault(impl_position, []).append((src_node, site))
+                for impl_position in targets.implementations:
+                    pending.setdefault(impl_position, []).append((src_node, site))
             if not reached and kind == CALL:
                 unresolved.append(site)
         added += _add_receiver_member_edges(
-            index, file_path, unresolved, engine_client, source_inspector, changed_file_strs, pending
+            index, file_path, unresolved, engine_client, source_inspector, adapter, changed_file_strs, pending
         )
-    owned_by_partial: set[str] = set()
     for impl_position, nodes in _expand_implementations(index, engine_client, list(pending)).items():
+        # The partial build named an implementation only when it held both it and the declaration.
+        owned_by_partial = changed_file_strs if impl_position[0] in changed_file_strs else set()
         for src_node, site in pending[impl_position]:
             added += _add_edges(call_graph, src_node, nodes, site, owned_by_partial)
     if added:
@@ -387,10 +378,7 @@ def _expand_implementations(
 ) -> dict[tuple[str, int, int], list[Node]]:
     """The nodes implementing each declaration, keyed by the position it is declared at.
 
-    A full build follows every callable it resolves with ``textDocument/implementation`` and
-    gives the caller an edge to each result. Without the same step here an edit alone would
-    drop every caller-to-implementation edge, and the warm graph would differ from a rebuild
-    of the same tree.
+    Why: the full build follows every callable target with an implementation query.
     """
     found: dict[tuple[str, int, int], list[Node]] = {}
     for start in range(0, len(positions), _DEFINITION_BATCH_SIZE):
@@ -455,23 +443,14 @@ def _add_receiver_member_edges(
     unresolved: list[CallSite],
     engine_client: LSPClient,
     source_inspector: SourceInspector,
+    adapter: LanguageAdapter,
     changed_file_strs: set[str],
     pending_implementations: dict[tuple[str, int, int], list[tuple[Node, CallSite]]],
 ) -> int:
-    """``receiver.member(...)`` whose member left the repository: name it through the receiver.
-
-    The full rebuild does the same in ``edge_builder._resolve_through_receivers``; without it
-    here, every such edge in a changed file disappears until the next full run.
-    """
+    """``receiver.member(...)`` whose member left the repository, named through its receiver as the full build does."""
     if not unresolved:
         return 0
-    receivers = source_inspector.receiver_member_calls(file_path)
-    # One query per receiver, not per call: `log.warn` and `log.info` name the same object.
-    by_receiver: dict[tuple[int, int], list[tuple[CallSite, str]]] = {}
-    for site in unresolved:
-        found = receivers.get((site.lsp_line, site.lsp_column))
-        if found is not None:
-            by_receiver.setdefault((found.line, found.column), []).append((site, found.member))
+    by_receiver = source_inspector.receivers_of(file_path, unresolved)
     if not by_receiver:
         return 0
 
@@ -485,28 +464,25 @@ def _add_receiver_member_edges(
                 location = definition_location(definition)
                 if location is None:
                     continue
-                receiver = index.declaration_at(str(location[0]), location[1], location[2]).declaration
+                receiver = index.declaration_at(str(location[0]), location[1], location[2])
                 if receiver is None:
                     continue
-                for site, member in by_receiver[position]:
-                    target = index.call_graph.nodes.get(f"{receiver.fully_qualified_name}.{member}")
-                    src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
-                    if target is not None and src_node is not None:
-                        added += _add_edges(index.call_graph, src_node, [target], site, changed_file_strs)
-                        for impl_position in implementation_positions([target]):
-                            pending_implementations.setdefault(impl_position, []).append((src_node, site))
+                site, member = by_receiver[position]
+                target = index.call_graph.nodes.get(f"{receiver.fully_qualified_name}.{member}")
+                src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
+                if target is None or src_node is None:
+                    continue
+                reached = targets_through(index, target, CALL, adapter)
+                added += _add_edges(index.call_graph, src_node, reached.nodes, site, changed_file_strs)
+                for impl_position in reached.implementations:
+                    pending_implementations.setdefault(impl_position, []).append((src_node, site))
     return added
 
 
 def _add_edges(
     call_graph: CallGraph, src_node: Node, targets: list[Node], site: CallSite, owned_by_partial: set[str]
 ) -> int:
-    """Edges from *src_node* to *targets* with *site*.
-
-    ``owned_by_partial`` names the files whose edges the fresh partial analysis already built.
-    Pass it empty for a target the partial build had no route to, so that its file being
-    changed does not read as "already done".
-    """
+    """Edges from *src_node* to *targets* with *site*, except into files whose edges the partial build made."""
     added = 0
     for dst_node in targets:
         if dst_node.file_path in owned_by_partial:

@@ -416,6 +416,48 @@ class TestDeclaredNameAt:
 
         assert SourceInspector().declared_name_at(source, 0, 14) == ""
 
+    def test_a_parameter_sharing_a_declarations_name_is_not(self, tmp_path: Path):
+        source = tmp_path / "app.ts"
+        source.write_text("export function render(graph: Graph) { return graph; }\nexport function graph() {}\n")
+
+        assert SourceInspector().declared_name_at(source, 0, 23) == ""
+
+    def test_a_column_past_an_astral_character_counts_utf16_units(self, tmp_path: Path):
+        source = tmp_path / "app.ts"
+        source.write_text('const s = "\U0001f600"; export function target() {}\n', encoding="utf-8")
+
+        assert SourceInspector().declared_name_at(source, 0, 32) == "target"
+
+
+class TestReturnedAndGroupedValues:
+    """A callable handed back, or held in a literal, is passed as a value in each grammar's spelling."""
+
+    def _sites(self, path: Path) -> set[tuple[int, int]]:
+        return {(site.line, site.column) for site in SourceInspector().find_method_group_sites(path)}
+
+    def test_python_yield(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("def gen():\n    yield handler\n")
+
+        assert (2, 11) in self._sites(source)
+
+    def test_go_keyed_literal_passes_its_values_not_its_keys(self, tmp_path: Path):
+        source = tmp_path / "app.go"
+        source.write_text(
+            "package main\n\ntype Handlers struct{ Run func() }\n\n"
+            "func build() Handlers {\n\treturn Handlers{Run: handler}\n}\n"
+        )
+        sites = self._sites(source)
+
+        assert (6, 23) in sites  # handler
+        assert (6, 18) not in sites  # Run, the key
+
+    def test_rust_return(self, tmp_path: Path):
+        source = tmp_path / "app.rs"
+        source.write_text("fn build() -> fn() {\n    return handler;\n}\n")
+
+        assert (2, 12) in self._sites(source)
+
 
 class TestTreeCacheEviction:
     def _write_project(self, tmp_path: Path, count: int) -> list[Path]:
@@ -888,25 +930,29 @@ class TestDeclaresFunctionValue:
         assert si.declares_function_value(f, 0, 9) is False
 
 
-class TestReceiverMemberCalls:
-    def test_a_member_call_records_its_receiver(self, tmp_path: Path):
+class TestReceiversOf:
+    def test_each_call_on_a_bare_receiver_is_keyed_by_that_receiver(self, tmp_path: Path):
         f = tmp_path / "app.js"
-        f.write_text("import { log } from './log';\nexport function run() {\n  log.warn('x');\n}\n")
+        f.write_text("import { log } from './log';\nexport function run() {\n  log.warn('x');\n  log.info('y');\n}\n")
         si = SourceInspector()
 
-        assert si.receiver_member_calls(f)[(2, 6)].member == "warn"
-        assert (si.receiver_member_calls(f)[(2, 6)].line, si.receiver_member_calls(f)[(2, 6)].column) == (2, 2)
+        receivers = si.receivers_of(f, si.find_call_sites(f))
+
+        assert {at: (site.lsp_line, site.lsp_column, member) for at, (site, member) in receivers.items()} == {
+            (2, 2): (2, 6, "warn"),
+            (3, 2): (3, 6, "info"),
+        }
 
     def test_a_chained_receiver_is_not_a_bare_name(self, tmp_path: Path):
         f = tmp_path / "app.js"
         f.write_text("export function run() {\n  api.client.send('x');\n}\n")
         si = SourceInspector()
 
-        assert si.receiver_member_calls(f) == {}
+        assert si.receivers_of(f, si.find_call_sites(f)) == {}
 
     def test_a_plain_call_has_no_receiver(self, tmp_path: Path):
         f = tmp_path / "app.py"
         f.write_text("def run():\n    helper()\n")
         si = SourceInspector()
 
-        assert si.receiver_member_calls(f) == {}
+        assert si.receivers_of(f, si.find_call_sites(f)) == {}

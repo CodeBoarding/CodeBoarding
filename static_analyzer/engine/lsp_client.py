@@ -24,24 +24,15 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagno
 
 logger = logging.getLogger(__name__)
 
-# The unit every column in every request and response counts. LSP's own default, and the
-# only one this client converts tree-sitter's byte columns into.
-LSP_POSITION_ENCODING = "utf-16"
 LSP_METHOD_NOT_FOUND = -32601
-# The two bands the specifications keep for protocol and lifecycle failures: JSON-RPC's
-# (parse/invalid request, internal error, server not initialized) and, just below it, LSP's
-# own (request cancelled, content modified, server cancelled, request failed). Everything
-# outside them is the server answering for itself -- gopls declines an implementation query
-# on a free function with code 0 -- so only these two mean the request went unserved.
+# Codes LSP (-32899..-32800) and JSON-RPC (-32768..-32000) reserve for a request that went unserved;
+# any other code is the server declining for itself, as gopls does for a free function.
 LSP_RESERVED_ERROR_CODE_RANGES = ((-32899, -32800), (-32768, -32000))
-# The one request every language's call graph is built from. A server that does not
-# implement it cannot be worked around: its absence would resolve every call site to
-# nothing and leave a graph of symbols with no edges, reported as a success.
+# Call edges are built from this request, so a server without it cannot produce a graph.
 LSP_REQUIRED_METHODS = frozenset({"textDocument/definition"})
-# Reserved codes whose remedy the protocol defines as "ask again": the server was still
-# settling the documents it had been sent, not refusing the question. rust-analyzer answers
-# ContentModified for every query issued while it is still indexing an opened file.
-LSP_RETRYABLE_ERROR_CODES = frozenset({-32800, -32801, -32802})  # RequestCancelled, ContentModified, ServerCancelled
+# RequestCancelled, ContentModified, ServerCancelled: the protocol's remedy is to ask again.
+# Why: rust-analyzer answers ContentModified while it is still indexing an opened file.
+LSP_RETRYABLE_ERROR_CODES = frozenset({-32800, -32801, -32802})
 ProgressToken = str | int
 
 
@@ -71,11 +62,7 @@ class BatchAnswer:
 
 
 def _is_protocol_failure(error: object) -> bool:
-    """Whether an error response means the request could not be served at all.
-
-    "Method not found" is the one reserved code that is still an answer: the server is
-    telling us it does not implement the request, and empty is the truth.
-    """
+    """Whether an error response means the request went unserved; "method not found" is an answer."""
     if not isinstance(error, dict):
         return False
     code = error.get("code")
@@ -192,9 +179,8 @@ class LSPClient:
                 "hierarchicalDocumentSymbolSupport": True,
             },
             "references": {},
-            # Why linkSupport: a plain Location carries the whole declaration's range, which
-            # starts at the modifiers, so the position never matches the name the symbol table
-            # is keyed on. A LocationLink names the declared symbol itself.
+            # Why linkSupport: a plain Location may carry the whole declaration's range, starting at
+            # its modifiers; a LocationLink's selection range starts at the name symbols are keyed on.
             "definition": {"linkSupport": True},
             "typeHierarchy": {},
             "implementation": {},
@@ -210,11 +196,6 @@ class LSPClient:
         capabilities: dict = {
             "textDocument": text_doc_capabilities,
             "window": {"workDoneProgress": True},
-            # Why declared rather than left to the default: every column this client sends
-            # counts UTF-16 code units, and a server reading them as bytes lands somewhere
-            # else on any line holding non-ASCII text -- far enough to resolve the wrong
-            # name, or nothing. Naming the one encoding we speak makes the server say so.
-            "general": {"positionEncodings": [LSP_POSITION_ENCODING]},
         }
         # Shallow-merge adapter extras into the top-level capabilities. On
         # collision: dicts merge, scalars are overwritten by the adapter.
@@ -237,8 +218,6 @@ class LSPClient:
                 "initializationOptions": self._init_options,
             },
         )
-
-        self._negotiate_position_encoding(init_result)
 
         self._send_notification("initialized", {})
 
@@ -340,11 +319,8 @@ class LSPClient:
         if language_id is None:
             raise ValueError(f"No LSP language id for suffix {file_path.suffix!r}: {file_path}")
         try:
-            # Why the encoding is named: without it Python decodes with the locale's, which
-            # is cp1252 on Windows. Source is UTF-8, so a line holding non-ASCII text reaches
-            # the server one character per extra byte longer than it is, and every column
-            # this client sends after it names a different place in the server's buffer than
-            # in the file tree-sitter read.
+            # Why the encoding is named: the locale's is cp1252 on Windows, which shifts every
+            # column after a non-ASCII character away from the one tree-sitter reports.
             text = file_path.read_text(encoding="utf-8", errors="replace")
         except Exception:
             text = ""
@@ -572,11 +548,8 @@ class LSPClient:
     ) -> list[list[dict]]:
         """Send multiple LSP requests and collect their results in query order.
 
-        A request the server said it could not serve is asked once more when the protocol's
-        remedy for it is to ask again -- a server still settling the documents it was sent
-        answers that way, and the second answer is the real one. What is still unserved after
-        that raises, rather than coming back as an empty result list indistinguishable from
-        "nothing is declared here".
+        A retryable failure is asked once more; anything still unserved raises rather than
+        reading as "nothing is declared here".
         """
         by_query = self._ask(method, queries, build_params, timeout)
         retry = [index for index, answer in enumerate(by_query) if answer.retryable]
@@ -676,21 +649,6 @@ class LSPClient:
         }
         self._write_message(message)
 
-    def _negotiate_position_encoding(self, init_result: dict | list | None) -> None:
-        """Refuse a server that counts columns differently from the ones we send."""
-        capabilities = init_result.get("capabilities", {}) if isinstance(init_result, dict) else {}
-        encoding = (
-            capabilities.get("positionEncoding", LSP_POSITION_ENCODING)
-            if isinstance(capabilities, dict)
-            else LSP_POSITION_ENCODING
-        )
-        if encoding != LSP_POSITION_ENCODING:
-            raise StaticAnalysisFatalError(
-                f"The language server answers positions in {encoding!r}, and this client sends "
-                f"{LSP_POSITION_ENCODING!r}. Every column on a line holding non-ASCII text would "
-                "name the wrong place."
-            )
-
     def _write_message(self, message: dict) -> None:
         """Write a JSON-RPC message with Content-Length header.
 
@@ -698,8 +656,7 @@ class LSPClient:
         initiated requests concurrently with the main thread.
         """
         if not self._process or not self._process.stdin:
-            # Fatal, not a failed write: nothing this client is asked for afterwards can be
-            # answered, and a caller reading the failure as "no results" drops real edges.
+            # Fatal: a caller reading a dead server as "no results" drops real edges.
             raise StaticAnalysisFatalError("LSP server not running")
         body = json.dumps(message)
         header = f"Content-Length: {len(body)}\r\n\r\n"
@@ -738,12 +695,8 @@ class LSPClient:
     ) -> tuple[dict[int, list[dict]], set[int], set[int]]:
         """Collect responses for multiple pending request IDs.
 
-        Returns ``(results, unserved_ids, retryable_ids)``. A server declines with an error of
-        its own -- "not a method", "not an interface", "no identifier found" -- and that is an
-        answer, whose empty result is the truth. A request that timed out, or failed with a
-        reserved code, was never served, and the caller must not read its empty list as
-        "nothing is declared there"; the subset whose reserved code the protocol answers with
-        "ask again" is reported separately.
+        Returns ``(results, unserved_ids, retryable_ids)``. An error with a server-defined code is an
+        answer whose empty result is the truth; a timeout or a reserved code leaves the request unserved.
         """
         if timeout is None:
             timeout = self._default_timeout

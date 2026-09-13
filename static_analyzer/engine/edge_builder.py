@@ -22,17 +22,8 @@ from static_analyzer.engine.models import CallSite, ExternalCallSite, SymbolInfo
 from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.engine.utils import definition_location, uri_to_path
-from static_analyzer.graph_definitions import (
-    CALL,
-    COLLECTION_INITIALIZER,
-    ITERATED,
-    METHOD_GROUP,
-    Match,
-    MatchCounts,
-    MatchRule,
-    is_method_group_target,
-)
+from static_analyzer.engine.utils import definition_location
+from static_analyzer.graph_definitions import CALL, COLLECTION_INITIALIZER, ITERATED, METHOD_GROUP
 from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name, simple_name
 
 logger = logging.getLogger(__name__)
@@ -134,71 +125,37 @@ class CallEdgeSink:
 
 
 class SymbolIndex:
-    """The symbol table by position, by line and by name, for resolving definition results."""
+    """The symbol table by position and by name, for resolving definition results."""
 
     def __init__(self, st: SymbolTable, inspector: SourceInspector) -> None:
-        self.counts = MatchCounts()
         self._inspector = inspector
         self._by_position: dict[tuple[str, int, int], SymbolInfo] = {}
-        self._by_line: dict[tuple[str, int], list[SymbolInfo]] = {}
         self._by_name: dict[tuple[str, str], dict[tuple[str, int, int], SymbolInfo]] = {}
         for sym in st.symbols.values():
             position = sym.definition_location
             self._keep_most_specific(self._by_position, position, sym)
-            self._by_line.setdefault((str(sym.file_path), sym.start_line), []).append(sym)
             if sym.kind in CALLABLE_KINDS or sym.kind in CLASS_LIKE_KINDS:
                 at = self._by_name.setdefault((str(sym.file_path), simple_name(sym.qualified_name)), {})
                 self._keep_most_specific(at, position, sym)
 
-    def resolve(self, def_result: dict) -> Match[SymbolInfo]:
-        """The symbol a definition result names, and the rule that found it.
+    def resolve(self, def_result: dict) -> SymbolInfo | None:
+        """The symbol a definition result names.
 
-        Exact position, else the symbol whose signature covers the position on its own line,
-        else the sole callable or class the file declares under the name written there -- the
-        overload set a server answers with a signature line for.
+        Exact position, else the sole callable or class the file declares under the name declared
+        there -- an overload signature, which the symbol table does not hold.
         """
         location = definition_location(def_result)
         if location is None:
-            self.counts.record(MatchRule.NONE)
-            return Match.none()
+            return None
         file_path, line, char = location
-        file_key = str(file_path)
 
-        exact = self._by_position.get((file_key, line, char))
+        exact = self._by_position.get((str(file_path), line, char))
         if exact is not None:
-            return self._matched(exact, MatchRule.EXACT)
-
-        signature = max(
-            (
-                sym
-                for sym in self._by_line.get((file_key, line), [])
-                if self._signature_covers(sym, file_path, line, char)
-            ),
-            key=lambda sym: (sym.start_char, -sym.end_line, len(sym.qualified_name)),
-            default=None,
-        )
-        if signature is not None:
-            return self._matched(signature, MatchRule.SIGNATURE)
+            return exact
 
         name = self._inspector.declared_name_at(file_path, line, char)
-        declared = self._by_name.get((file_key, name)) if name else None
-        if declared is not None and len(declared) == 1:
-            return self._matched(next(iter(declared.values())), MatchRule.NAME)
-
-        self.counts.record(MatchRule.NONE)
-        return Match.none()
-
-    def _matched(self, symbol: SymbolInfo, rule: MatchRule) -> Match[SymbolInfo]:
-        self.counts.record(rule)
-        return Match(symbol, rule)
-
-    def _signature_covers(self, sym: SymbolInfo, file_path: Path, line: int, char: int) -> bool:
-        """Whether the position lies in this declaration's signature, past its name."""
-        if sym.start_char > char or sym.end_line < line:
-            return False
-        if sym.end_line == line and char > sym.end_char:
-            return False
-        return not self._inspector.in_declaration_body(file_path, (sym.start_line, sym.start_char), line, char)
+        declared = self._by_name.get((str(file_path), name)) if name else None
+        return next(iter(declared.values())) if declared is not None and len(declared) == 1 else None
 
     @staticmethod
     def _keep_most_specific(
@@ -234,7 +191,6 @@ def build_edges_via_definitions(
         total_iterated,
         len(resolution.edge_set),
     )
-    logger.info("Phase 2 definition matches: %s", index.counts.summary())
     return resolution.edge_set
 
 
@@ -268,7 +224,7 @@ def _resolve_iterated_types(
                 if caller is None:
                     continue
                 for result in results[offset]:
-                    target = index.resolve(result).declaration
+                    target = index.resolve(result)
                     if target is None:
                         _record_external_call_site(ctx, st.attribution_symbol(caller), result, site, ITERATED)
                         continue
@@ -353,19 +309,17 @@ def _resolve_definitions(
 
                 resolved_here = False
                 for def_result in defs:
-                    match = index.resolve(def_result)
-                    target = match.declaration
+                    target = index.resolve(def_result)
                     if target is None:
                         _record_external_call_site(ctx, st.attribution_symbol(caller), def_result, call_site, kind)
                         continue
                     total_resolved += 1
                     resolved_here = True
 
-                    if kind == METHOD_GROUP and not is_method_group_target(
-                        match,
+                    if kind == METHOD_GROUP and not (
                         adapter.is_callable(target.kind)
                         or adapter.is_class_like(target.kind)
-                        or si.declares_function_value(target.file_path, target.start_line, target.start_char),
+                        or si.declares_function_value(target.file_path, target.start_line, target.start_char)
                     ):
                         continue
 
@@ -404,13 +358,7 @@ def _resolve_through_receivers(
     if not unresolved:
         return 0
     st = ctx.symbol_table
-    receivers = ctx.source_inspector.receiver_member_calls(file_path)
-    # One query per receiver, not per call: `log.warn` and `log.info` name the same object.
-    by_receiver: dict[tuple[int, int], list[tuple[CallSite, str]]] = {}
-    for site in unresolved:
-        found = receivers.get((site.lsp_line, site.lsp_column))
-        if found is not None:
-            by_receiver.setdefault((found.line, found.column), []).append((site, found.member))
+    by_receiver = ctx.source_inspector.receivers_of(file_path, unresolved)
     if not by_receiver:
         return 0
 
@@ -421,18 +369,18 @@ def _resolve_through_receivers(
         results = ctx.lsp.send_definition_batch([(file_path, line, column) for line, column in batch])
         for i, position in enumerate(batch):
             for def_result in results[i]:
-                receiver = index.resolve(def_result).declaration
+                receiver = index.resolve(def_result)
                 if receiver is None:
                     continue
-                for call_site, member in by_receiver[position]:
-                    target = st.symbols.get(f"{receiver.qualified_name}.{member}")
-                    if target is None:
-                        continue
-                    caller = _caller_at(ctx, file_path, call_site.lsp_line, call_site.lsp_column)
-                    if caller is None:
-                        continue
-                    resolved += 1
-                    sink.add(caller, target, call_site)
+                call_site, member = by_receiver[position]
+                target = st.symbols.get(f"{receiver.qualified_name}.{member}")
+                if target is None:
+                    continue
+                caller = _caller_at(ctx, file_path, call_site.lsp_line, call_site.lsp_column)
+                if caller is None:
+                    continue
+                resolved += 1
+                sink.add(caller, target, call_site)
     return resolved
 
 
@@ -476,7 +424,7 @@ def _resolve_implementations(
             callers = target_pos_to_callers[tgt_key]
 
             for impl_result in impls:
-                impl_sym = index.resolve(impl_result).declaration
+                impl_sym = index.resolve(impl_result)
                 if impl_sym is None:
                     continue
                 total_impl_resolved += 1
@@ -526,15 +474,6 @@ def _record_external_call_site(
             kind=kind,
         )
     )
-
-
-def _call_site(file_path: Path, line: int, column: int) -> CallSite:
-    """Convert LSP's zero-based position to the public one-based call-site shape."""
-    return CallSite.from_lsp_position(file=str(file_path), line=line, column=column)
-
-
-def _add_edge_site(edge_set: EdgeMap, source: str, destination: str, file_path: Path, line: int, column: int) -> None:
-    _add_edge_call_site(edge_set, source, destination, _call_site(file_path, line, column))
 
 
 def _add_edge_call_site(edge_set: EdgeMap, source: str, destination: str, call_site: CallSite) -> None:

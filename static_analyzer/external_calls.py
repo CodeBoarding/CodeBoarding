@@ -42,10 +42,7 @@ def link_external_call_sites(
         if caller is None:
             continue
         constructing = adapter.expands_constructors and inspector.is_construction_site(site.call_site)
-        # ``targets.implementations`` is not expanded here: the server that could answer for
-        # this file belongs to another engine, and by the time every graph is merged its
-        # lifetime may already be over. A base-typed call across engines therefore reaches the
-        # declaration but not its overrides, unless the adapter derives them from the graph.
+        # Why no implementation query: the engine that owns this file has already shut its server down.
         targets = targets_for(index, site.file, site.line, site.character, site.kind, adapter, constructing).nodes
         if not targets:
             unresolved += 1
@@ -64,11 +61,10 @@ def link_external_call_sites(
                     package_dependencies, adapter, caller.fully_qualified_name, destination.fully_qualified_name
                 )
     logger.info(
-        "Cross-engine call sites: %d linked into %d new edges, %d point outside every engine's files (%s)",
+        "Cross-engine call sites: %d linked into %d new edges, %d point outside every engine's files",
         len(sites) - unresolved,
         added,
         unresolved,
-        index.counts.summary(),
     )
     return added
 
