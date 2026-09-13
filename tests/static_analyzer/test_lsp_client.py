@@ -13,9 +13,11 @@ import pytest
 
 from static_analyzer.engine.lsp_client import (
     LSP_METHOD_NOT_FOUND,
+    BatchAnswer,
     LSPClient,
     MethodNotFoundError,
 )
+from static_analyzer.engine.lsp_constants import REQUEST_BATCH_SIZE
 from static_analyzer.exceptions import StaticAnalysisFatalError
 
 
@@ -419,6 +421,22 @@ class TestCollectBatchResponses:
 
         assert asked == ["utf-8"]
         assert notify.call_args.args[1]["textDocument"]["text"].splitlines()[0] == line
+
+    def test_a_long_batch_is_asked_in_rounds_and_answered_in_order(self):
+        """A round per ``REQUEST_BATCH_SIZE`` queries, so no caller has to chunk a long file itself."""
+        client = LSPClient(["cmd"], Path("/root"))
+        rounds: list[int] = []
+
+        def ask(method, queries, build_params, timeout):
+            rounds.append(len(queries))
+            return [BatchAnswer([{"line": line}], served=True, retryable=False) for _, line, _ in queries]
+
+        count = REQUEST_BATCH_SIZE * 2 + 1
+        with patch.object(client, "_ask", side_effect=ask):
+            results = client.send_definition_batch([(Path("/root/a.py"), line, 0) for line in range(count)])
+
+        assert rounds == [REQUEST_BATCH_SIZE, REQUEST_BATCH_SIZE, 1]
+        assert [answer[0]["line"] for answer in results] == list(range(count))
 
     def test_an_unimplemented_definition_method_is_fatal(self):
         """Every call site would resolve to nothing and the run would report success."""

@@ -2,9 +2,9 @@
 
 Warm-start flow:
 1. Keep unchanged files from the pkl and invalidate changed/deleted files.
-2. Re-LSP existing changed files and merge their fresh nodes/references back in.
+2. Re-run the engine on the changed files and merge their nodes, references and edges back in.
 3. Restore cached inbound edges only when a definition query still proves them.
-4. Add new outbound edges by resolving changed-file call sites with definitions.
+4. Finish the changed files' calls into unchanged files from the answers step 2 kept.
 5. Keep unchanged-only edges cached and let ``StaticAnalyzer`` persist the new pkl.
 """
 
@@ -18,30 +18,18 @@ from static_analyzer.analysis_cache import (
     invalidate_files,
     merge_results,
 )
+from static_analyzer.cfg import CallGraph
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.models import CallSite
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
-from static_analyzer.engine.models import CallSite, ExternalCallSite
 from static_analyzer.engine.utils import definition_location
-from static_analyzer.graph_definitions import (
-    CALL,
-    ITERATED,
-    GraphIndex,
-    call_shapes,
-    containing_source_node,
-    definition_nodes,
-    targets_for,
-    targets_through,
-)
-from static_analyzer.cfg import CallGraph
-from static_analyzer.internal_references import is_self_or_container_edge
-from static_analyzer.node import Node
+from static_analyzer.external_calls import link_external_call_sites
+from static_analyzer.graph_definitions import GraphIndex, call_shapes, implemented_by, targets_for
 
 logger = logging.getLogger(__name__)
-
-_DEFINITION_BATCH_SIZE = 50
 
 
 def update_cfg_for_changed_files(
@@ -60,11 +48,13 @@ def update_cfg_for_changed_files(
     1. ``invalidate_files`` drops every node/edge/reference/class/package
        entry sourced from a changed file, leaving the cached state of every
        *unchanged* file intact.
-    2. The LSP re-analyses just the changed files (existing ones; deleted
-       files contribute nothing).
+    2. The engine re-analyses just the changed files (existing ones; deleted
+       files contribute nothing), keeping every answer that lands outside them.
     3. ``merge_results`` unions the kept-from-cache state with the fresh
        per-file result.
-    4. Surviving entries are filtered against the live filesystem so a
+    4. Cached callers into the changed files are re-proven, and the changed
+       files' calls into unchanged ones are linked from the answers step 2 kept.
+    5. Surviving entries are filtered against the live filesystem so a
        deleted file's references / classes / package members are removed
        from the merged dict.
 
@@ -102,6 +92,7 @@ def update_cfg_for_changed_files(
             "references": [],
             "source_files": [],
             "diagnostics": {},
+            "external_call_sites": [],
         }
 
     fresh_diagnostics = engine_client.get_collected_diagnostics()
@@ -109,45 +100,29 @@ def update_cfg_for_changed_files(
         new_analysis["diagnostics"] = fresh_diagnostics
 
     merged_analysis = merge_results(updated_cache.analysis, new_analysis)
-    external = _rebuild_changed_file_edges(
-        merged_analysis,
+    source_inspector = SourceInspector()
+    _restore_inbound_edges_via_definitions(
+        GraphIndex(merged_analysis.call_graph, source_inspector),
         updated_cache.invalidated_edges,
         updated_cache.invalidated_files,
-        changed_source_files,
         adapter,
+        engine_client,
+        source_inspector,
+    )
+    # Why the partial build's answers: it already asked every call site the changed files
+    # write, and what it could not name lies in files this merged graph holds. What is still
+    # unnamed here goes back to the caller, for the engines of other solution roots.
+    linked = link_external_call_sites(
+        merged_analysis.call_graph,
+        new_analysis["external_call_sites"],
+        adapter,
+        source_inspector,
+        {str(file_path) for file_path in changed_source_files},
         engine_client,
     )
     updated = _filter_to_live_files(merged_analysis).to_dict()
-    updated["external_call_sites"] = external
+    updated["external_call_sites"] = linked.unresolved
     return updated
-
-
-def _rebuild_changed_file_edges(
-    merged_analysis: AnalysisData,
-    invalidated_edges: list[InvalidatedEdge],
-    changed_file_strs: set[str],
-    changed_source_files: list[Path],
-    adapter: LanguageAdapter,
-    engine_client: LSPClient,
-) -> list[ExternalCallSite]:
-    """Restore and re-resolve the edges an edit touched; return the definitions this graph cannot name yet.
-
-    Why return them: a changed caller in one solution and its new destination in another are
-    updated by different engines, in either order, so a definition with no node here is only
-    finished once every engine's graph is merged.
-    """
-    source_inspector = SourceInspector()
-    index = GraphIndex(merged_analysis.call_graph, source_inspector)
-    _restore_inbound_edges_via_definitions(
-        index, invalidated_edges, changed_file_strs, adapter, engine_client, source_inspector
-    )
-    return _add_outbound_edges_from_changed_files(
-        index,
-        changed_source_files,
-        engine_client,
-        source_inspector,
-        adapter,
-    )
 
 
 def _restore_inbound_edges_via_definitions(
@@ -165,8 +140,8 @@ def _restore_inbound_edges_via_definitions(
     enough, an unchanged caller can still lose the edge when the destination's
     own declaration moves out from under it.
 
-    The outbound direction is absent here on purpose:
-    ``_add_outbound_edges_from_changed_files`` re-resolves those from live source.
+    The outbound direction is absent here on purpose: the partial build asks every
+    changed call site, and ``link_external_call_sites`` finishes what it could not name.
     """
     call_graph = index.call_graph
     pending: dict[tuple[str, str], list[dict[str, str | int]]] = {}
@@ -208,34 +183,32 @@ def _restore_inbound_edges_via_definitions(
             if method == "type_definition"
             else engine_client.send_definition_batch
         )
-        for start in range(0, len(entries), _DEFINITION_BATCH_SIZE):
-            batch = entries[start : start + _DEFINITION_BATCH_SIZE]
-            results = send(
-                [(Path(call_site.file), call_site.lsp_line, call_site.lsp_column) for _, _, call_site, _ in batch]
-            )
-            for (edge, site, call_site, kind), definitions in zip(batch, results):
-                # A polymorphic call resolves to the interface or base declaration, never
-                # to the implementation the cached edge names, so exact equality alone
-                # drops every caller-to-implementation edge whose implementation file
-                # changed -- silently, while the update reports success.
-                reachable: set[str] = set()
-                owed: list[tuple[str, int, int]] = []
-                for definition in definitions:
-                    location = definition_location(definition)
-                    if location is None:
-                        continue
-                    targets = targets_for(index, str(location[0]), location[1], location[2], kind, adapter, call_site)
-                    reachable.update(node.fully_qualified_name for node in targets.nodes)
-                    owed.extend(targets.implementations)
-                if edge[1] in reachable:
-                    confirmed.setdefault(edge, []).append(site)
+        answers = send(
+            [(Path(call_site.file), call_site.lsp_line, call_site.lsp_column) for _, _, call_site, _ in entries]
+        )
+        for (edge, site, call_site, kind), definitions in zip(entries, answers):
+            # A polymorphic call resolves to the interface or base declaration, never
+            # to the implementation the cached edge names, so exact equality alone
+            # drops every caller-to-implementation edge whose implementation file
+            # changed -- silently, while the update reports success.
+            reachable: set[str] = set()
+            owed: list[tuple[str, int, int]] = []
+            for definition in definitions:
+                location = definition_location(definition)
+                if location is None:
                     continue
-                for impl_position in owed:
-                    unproven.setdefault(impl_position, []).append((edge, site))
+                targets = targets_for(index, str(location[0]), location[1], location[2], kind, adapter, call_site)
+                reachable.update(node.fully_qualified_name for node in targets.nodes)
+                owed.extend(targets.implementations)
+            if edge[1] in reachable:
+                confirmed.setdefault(edge, []).append(site)
+                continue
+            for declaration in owed:
+                unproven.setdefault(declaration, []).append((edge, site))
 
-    for impl_position, nodes in _expand_implementations(index, engine_client, list(unproven)).items():
+    for declaration, nodes in implemented_by(index, engine_client, unproven).items():
         names = {node.fully_qualified_name for node in nodes}
-        for edge, site in unproven[impl_position]:
+        for edge, site in unproven[declaration]:
             if edge[1] in names:
                 confirmed.setdefault(edge, []).append(site)
 
@@ -248,193 +221,6 @@ def _restore_inbound_edges_via_definitions(
             logger.debug("Failed to restore edge %s -> %s", src_name, dst_name, exc_info=True)
 
     logger.info("Restored %d of %d cached inbound edge(s) via definitions", restored, len(pending))
-
-
-def _add_outbound_edges_from_changed_files(
-    index: GraphIndex,
-    changed_source_files: list[Path],
-    engine_client: LSPClient,
-    source_inspector: SourceInspector,
-    adapter: LanguageAdapter,
-) -> list[ExternalCallSite]:
-    call_graph = index.call_graph
-    external: list[ExternalCallSite] = []
-    if not changed_source_files:
-        return external
-    added = 0
-    changed_file_strs = {str(file_path) for file_path in changed_source_files}
-    pending: dict[tuple[str, int, int], list[tuple[Node, CallSite]]] = {}
-    for file_path in changed_source_files:
-        shapes = call_shapes(file_path, source_inspector, adapter, index.callable_names)
-        call_sites = shapes.call_sites
-        added += _add_iterated_type_edges(index, file_path, engine_client, source_inspector, adapter, external)
-        if not call_sites:
-            continue
-        queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
-        definition_results = engine_client.send_definition_batch(queries)
-        unresolved: list[CallSite] = []
-        for site, definitions in zip(call_sites, definition_results):
-            src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
-            if src_node is None:
-                continue
-            kind = shapes.definition_kind_at((site.lsp_line, site.lsp_column))
-            reached = False
-            for definition in definitions:
-                location = definition_location(definition)
-                if location is None:
-                    continue
-                targets = targets_for(index, str(location[0]), location[1], location[2], kind, adapter, site)
-                if not targets.nodes:
-                    external.append(
-                        ExternalCallSite(
-                            src_node.fully_qualified_name, str(location[0]), location[1], location[2], site, kind
-                        )
-                    )
-                    continue
-                reached = True
-                added += _add_edges(call_graph, src_node, targets.nodes, site, changed_file_strs)
-                for impl_position in targets.implementations:
-                    pending.setdefault(impl_position, []).append((src_node, site))
-            if not reached and kind == CALL:
-                unresolved.append(site)
-        added += _add_receiver_member_edges(
-            index, file_path, unresolved, engine_client, source_inspector, adapter, changed_file_strs, pending
-        )
-    for impl_position, nodes in _expand_implementations(index, engine_client, list(pending)).items():
-        # The partial build named an implementation only when it held both it and the declaration.
-        owned_by_partial = changed_file_strs if impl_position[0] in changed_file_strs else set()
-        for src_node, site in pending[impl_position]:
-            added += _add_edges(call_graph, src_node, nodes, site, owned_by_partial)
-    if added:
-        logger.info("Added %d new outbound edge(s) from changed files", added)
-    return external
-
-
-def _expand_implementations(
-    index: GraphIndex, engine_client: LSPClient, positions: list[tuple[str, int, int]]
-) -> dict[tuple[str, int, int], list[Node]]:
-    """The nodes implementing each declaration, keyed by the position it is declared at.
-
-    Why: the full build follows every callable target with an implementation query.
-    """
-    found: dict[tuple[str, int, int], list[Node]] = {}
-    for start in range(0, len(positions), _DEFINITION_BATCH_SIZE):
-        batch = positions[start : start + _DEFINITION_BATCH_SIZE]
-        results = engine_client.send_implementation_batch(
-            [(Path(file_path), line, character) for file_path, line, character in batch]
-        )
-        for position, implementations in zip(batch, results):
-            nodes = [node for result in implementations for node in definition_nodes(index, result)]
-            if nodes:
-                found[position] = nodes
-    return found
-
-
-def _add_iterated_type_edges(
-    index: GraphIndex,
-    file_path: Path,
-    engine_client: LSPClient,
-    source_inspector: SourceInspector,
-    adapter: LanguageAdapter,
-    external: list[ExternalCallSite],
-) -> int:
-    """``foreach (var x in bag)`` calls ``bag.GetEnumerator()`` with no call written.
-
-    A definition query at that position returns the variable, so the full
-    rebuild asks for the type instead. Without the same pass here, every
-    enumerator edge in a changed file disappears until a full rebuild.
-    """
-    if not adapter.resolves_iterated_types:
-        return 0
-    sites = source_inspector.find_iterated_expression_sites(file_path)
-    if not sites:
-        return 0
-    results = engine_client.send_type_definition_batch([(file_path, site.lsp_line, site.lsp_column) for site in sites])
-    added = 0
-    for site, definitions in zip(sites, results):
-        src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
-        if src_node is None:
-            continue
-        for definition in definitions:
-            location = definition_location(definition)
-            if location is None:
-                continue
-            targets = targets_for(index, str(location[0]), location[1], location[2], ITERATED, adapter, site).nodes
-            if not targets:
-                external.append(
-                    ExternalCallSite(
-                        src_node.fully_qualified_name, str(location[0]), location[1], location[2], site, ITERATED
-                    )
-                )
-                continue
-            added += _add_edges(index.call_graph, src_node, targets, site, {str(file_path)})
-    return added
-
-
-def _add_receiver_member_edges(
-    index: GraphIndex,
-    file_path: Path,
-    unresolved: list[CallSite],
-    engine_client: LSPClient,
-    source_inspector: SourceInspector,
-    adapter: LanguageAdapter,
-    changed_file_strs: set[str],
-    pending_implementations: dict[tuple[str, int, int], list[tuple[Node, CallSite]]],
-) -> int:
-    """``receiver.member(...)`` whose member left the repository, named through its receiver as the full build does."""
-    if not unresolved:
-        return 0
-    by_receiver = source_inspector.receivers_of(file_path, unresolved)
-    if not by_receiver:
-        return 0
-
-    positions = list(by_receiver)
-    added = 0
-    for start in range(0, len(positions), _DEFINITION_BATCH_SIZE):
-        batch = positions[start : start + _DEFINITION_BATCH_SIZE]
-        results = engine_client.send_definition_batch([(file_path, line, column) for line, column in batch])
-        for position, definitions in zip(batch, results):
-            for definition in definitions:
-                location = definition_location(definition)
-                if location is None:
-                    continue
-                receiver = index.declaration_at(str(location[0]), location[1], location[2])
-                if receiver is None:
-                    continue
-                site, member = by_receiver[position]
-                target = index.call_graph.nodes.get(f"{receiver.fully_qualified_name}.{member}")
-                src_node = containing_source_node(index, str(file_path), site.lsp_line, site.lsp_column)
-                if target is None or src_node is None:
-                    continue
-                reached = targets_through(index, target, CALL, adapter, site)
-                added += _add_edges(index.call_graph, src_node, reached.nodes, site, changed_file_strs)
-                for impl_position in reached.implementations:
-                    pending_implementations.setdefault(impl_position, []).append((src_node, site))
-    return added
-
-
-def _add_edges(
-    call_graph: CallGraph, src_node: Node, targets: list[Node], site: CallSite, owned_by_partial: set[str]
-) -> int:
-    """Edges from *src_node* to *targets* with *site*, except into files whose edges the partial build made."""
-    added = 0
-    for dst_node in targets:
-        if dst_node.file_path in owned_by_partial:
-            continue
-        if is_self_or_container_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name):
-            continue
-        try:
-            before = len(call_graph.edges)
-            call_graph.add_edge(
-                src_node.fully_qualified_name,
-                dst_node.fully_qualified_name,
-                call_sites=[{"file": site.file, "line": site.line, "column": site.column}],
-            )
-            if len(call_graph.edges) > before:
-                added += 1
-        except ValueError:
-            logger.debug("Failed to add edge %s -> %s", src_node.fully_qualified_name, dst_node.fully_qualified_name)
-    return added
 
 
 def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:

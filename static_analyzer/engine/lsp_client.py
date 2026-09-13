@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
+from static_analyzer.engine.lsp_constants import REQUEST_BATCH_SIZE
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.exceptions import StaticAnalysisFatalError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
@@ -546,27 +547,31 @@ class LSPClient:
         build_params: Callable[[Path, int, int], dict],
         timeout: int | None = None,
     ) -> list[list[dict]]:
-        """Send multiple LSP requests and collect their results in query order.
+        """Send LSP requests ``REQUEST_BATCH_SIZE`` at a time and collect their results in query order.
 
         A retryable failure is asked once more; anything still unserved raises rather than
         reading as "nothing is declared here".
         """
-        by_query = self._ask(method, queries, build_params, timeout)
-        retry = [index for index, answer in enumerate(by_query) if answer.retryable]
-        if retry:
-            logger.info("Re-asking %d of %d %s requests the server had not settled", len(retry), len(queries), method)
-            for index, answer in zip(retry, self._ask(method, [queries[i] for i in retry], build_params, timeout)):
-                by_query[index] = answer
+        results: list[list[dict]] = []
+        for start in range(0, len(queries), REQUEST_BATCH_SIZE):
+            chunk = queries[start : start + REQUEST_BATCH_SIZE]
+            by_query = self._ask(method, chunk, build_params, timeout)
+            retry = [index for index, answer in enumerate(by_query) if answer.retryable]
+            if retry:
+                logger.info("Re-asking %d of %d %s requests the server had not settled", len(retry), len(chunk), method)
+                for index, answer in zip(retry, self._ask(method, [chunk[i] for i in retry], build_params, timeout)):
+                    by_query[index] = answer
 
-        unserved = [index for index, answer in enumerate(by_query) if not answer.served]
-        if unserved:
-            first = queries[unserved[0]]
-            raise StaticAnalysisFatalError(
-                f"{len(unserved)} of {len(queries)} {method} requests went unserved, first at "
-                f"{first[0]}:{first[1] + 1}:{first[2] + 1}. The server timed out or failed the request "
-                "rather than declining it; reading those as empty would silently drop call-graph edges."
-            )
-        return [answer.results for answer in by_query]
+            unserved = [index for index, answer in enumerate(by_query) if not answer.served]
+            if unserved:
+                first = chunk[unserved[0]]
+                raise StaticAnalysisFatalError(
+                    f"{len(unserved)} of {len(chunk)} {method} requests went unserved, first at "
+                    f"{first[0]}:{first[1] + 1}:{first[2] + 1}. The server timed out or failed the request "
+                    "rather than declining it; reading those as empty would silently drop call-graph edges."
+                )
+            results.extend(answer.results for answer in by_query)
+        return results
 
     def _ask(
         self,

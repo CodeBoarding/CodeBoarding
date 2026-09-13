@@ -19,6 +19,7 @@ from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.exceptions import StaticAnalysisFatalError
+from static_analyzer.graph_definitions import IMPLEMENTATION, OVERRIDE, RECEIVER
 
 from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 
@@ -26,6 +27,12 @@ from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 class _DefinitionsTestAdapter(_TestAdapter):
     @property
     def resolves_method_groups(self) -> bool:
+        return True
+
+
+class _DispatchingTestAdapter(_TestAdapter):
+    @property
+    def expands_virtual_dispatch(self) -> bool:
         return True
 
 
@@ -321,6 +328,72 @@ class TestBuildEdgesViaDefinitions:
             ("app.main", str(other), 7, 4, "call")
         ]
         assert (ctx.external_call_sites[0].call_site.line, ctx.external_call_sites[0].call_site.column) == (2, 5)
+
+    def _main_calls_helper(self, ctx: EdgeBuildContext, lsp: MagicMock, tmp_path: Path) -> Path:
+        st = ctx.symbol_table
+        src = tmp_path / "app.py"
+        src.write_text("def main():\n    helper()\n\ndef helper():\n    pass\n")
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
+        callee = _sym("helper", "app.helper", NodeType.FUNCTION, str(src), 3, 4, 4)
+        st._symbols["app.main"] = caller
+        st._symbols["app.helper"] = callee
+        st._file_symbols[str(src)] = [caller, callee]
+        st._primary_file_symbols[str(src)] = [caller, callee]
+        st.build_indices()
+        lsp.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}] if (line, col) == (1, 4) else []
+            for _, line, col in queries
+        ]
+        return src
+
+    def test_an_implementation_in_a_file_this_engine_never_named_is_kept_for_the_merge(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _make_ctx(lsp)
+        src = self._main_calls_helper(ctx, lsp, tmp_path)
+        other = tmp_path / "plugins" / "impl.py"
+        lsp.send_implementation_batch.side_effect = lambda queries: [
+            [{"uri": other.as_uri(), "range": {"start": {"line": 2, "character": 4}}}] for _ in queries
+        ]
+
+        build_edges_via_definitions(adapter, ctx, [src])
+
+        assert [(s.caller, s.file, s.line, s.character, s.kind) for s in ctx.external_call_sites] == [
+            ("app.main", str(other), 2, 4, IMPLEMENTATION)
+        ]
+
+    def test_a_dispatched_call_is_kept_for_the_overrides_other_files_declare(self, tmp_path: Path):
+        """The dispatch index reads inheritance from these files alone."""
+        lsp = _make_lsp()
+        ctx, _ = _make_ctx(lsp)
+        src = self._main_calls_helper(ctx, lsp, tmp_path)
+
+        build_edges_via_definitions(_DispatchingTestAdapter(), ctx, [src])
+
+        assert [(s.caller, s.kind, s.member) for s in ctx.external_call_sites] == [("app.main", OVERRIDE, "app.helper")]
+
+    def test_a_receiver_in_a_file_this_engine_never_named_is_kept_for_the_merge(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _make_ctx(lsp)
+        st = ctx.symbol_table
+        src = tmp_path / "app.ts"
+        src.write_text("export function run() {\n    log.warn('x');\n}\n")
+        other = tmp_path / "log.ts"
+        caller = _sym("run", "app.run", NodeType.FUNCTION, str(src), 0, 16, 2)
+        st._symbols["app.run"] = caller
+        st._file_symbols[str(src)] = [caller]
+        st._primary_file_symbols[str(src)] = [caller]
+        st.build_indices()
+        lsp.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": other.as_uri(), "range": {"start": {"line": 0, "character": 13}}}] if col == 4 else []
+            for _, _line, col in queries
+        ]
+
+        build_edges_via_definitions(adapter, ctx, [src])
+
+        receivers = [
+            (s.caller, s.file, s.line, s.character, s.member) for s in ctx.external_call_sites if s.kind == RECEIVER
+        ]
+        assert receivers == [("app.run", str(other), 0, 13, "warn")]
 
     def test_no_call_sites_produces_empty(self, tmp_path: Path):
         """File with no call sites produces no edges."""

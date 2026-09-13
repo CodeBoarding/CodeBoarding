@@ -18,13 +18,25 @@ from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
     DISPATCHED_KINDS,
+    REQUEST_BATCH_SIZE,
 )
 from static_analyzer.engine.models import CallSite, ExternalCallSite, SymbolInfo
 from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.engine.utils import definition_location
-from static_analyzer.graph_definitions import CALL, ITERATED, MEMBER_READ, MEMBER_WRITE, METHOD_GROUP, call_shapes
+from static_analyzer.graph_definitions import (
+    CALL,
+    IMPLEMENTATION,
+    ITERATED,
+    MEMBER_READ,
+    MEMBER_WRITE,
+    METHOD_GROUP,
+    OVERRIDE,
+    RECEIVER,
+    call_shapes,
+    resolve_declaration,
+)
 from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name, simple_name
 
 logger = logging.getLogger(__name__)
@@ -35,6 +47,7 @@ EdgeMap = dict[tuple[str, str], list[CallSite]]
 @dataclass(frozen=True)
 class ImplementationQuery:
     caller_qname: str
+    target_qname: str
     target_file: Path
     target_line: int
     target_char: int
@@ -122,6 +135,7 @@ class CallEdgeSink:
             self.impl_queries.append(
                 ImplementationQuery(
                     caller_qname=attributed.qualified_name,
+                    target_qname=target.qualified_name,
                     target_file=target.file_path,
                     target_line=target.start_line,
                     target_char=target.start_char,
@@ -150,28 +164,20 @@ class SymbolIndex:
         self._files = {str(sym.file_path) for sym in st.symbols.values()}
 
     def resolve(self, def_result: dict) -> SymbolInfo | None:
-        """The symbol a definition result names.
-
-        Exact position, an overload signature standing for its implementation; else the declaration
-        at the function literal a name there is bound to; else the sole callable or class the file
-        declares under the name declared there.
-        """
+        """The symbol a definition result names, by ``resolve_declaration``."""
         location = definition_location(def_result)
         if location is None or str(location[0]) not in self._files:
             return None
         file_path, line, char = location
-        line, char = self._inspector.overload_implementations(file_path).get((line, char), (line, char))
-
-        exact = self._by_position.get((str(file_path), line, char))
-        if exact is None:
-            literal = self._inspector.function_values(file_path).get((line, char))
-            exact = self._by_position.get((str(file_path), *literal)) if literal is not None else None
-        if exact is not None:
-            return exact
-
-        name = self._inspector.declared_name_at(file_path, line, char)
-        declared = self._by_name.get((str(file_path), name)) if name else None
-        return next(iter(declared.values())) if declared is not None and len(declared) == 1 else None
+        file_key = str(file_path)
+        return resolve_declaration(
+            self._inspector,
+            file_path,
+            line,
+            char,
+            lambda at_line, at_char: self._by_position.get((file_key, at_line, at_char)),
+            lambda name: list(self._by_name.get((file_key, name), {}).values()),
+        )
 
     @staticmethod
     def _keep_most_specific(
@@ -192,6 +198,21 @@ def build_edges_via_definitions(
     index = SymbolIndex(ctx.symbol_table, ctx.source_inspector)
 
     resolution = _resolve_definitions(adapter, ctx, source_files, index)
+    if adapter.expands_virtual_dispatch:
+        # Why: the dispatch index reads inheritance from these files alone, so an override
+        # declared in a file another engine, or an earlier run, read is the merged graph's to add.
+        ctx.external_call_sites.extend(
+            ExternalCallSite(
+                caller=query.caller_qname,
+                file=str(query.target_file),
+                line=query.target_line,
+                character=query.target_char,
+                call_site=query.call_site,
+                kind=OVERRIDE,
+                member=query.target_qname,
+            )
+            for query in resolution.impl_queries_pending
+        )
 
     total_impl_resolved = _resolve_implementations(ctx, resolution.edge_set, resolution.impl_queries_pending, index)
 
@@ -223,39 +244,34 @@ def _resolve_iterated_types(
     names the type, so this is the only route to the edge.
     """
     st = ctx.symbol_table
-    batch_size = 50
     resolved = 0
 
     for file_path in source_files:
         sites = ctx.source_inspector.find_iterated_expression_sites(file_path)
         if not sites:
             continue
-        for start in range(0, len(sites), batch_size):
-            batch = sites[start : start + batch_size]
-            queries = [(file_path, site.lsp_line, site.lsp_column) for site in batch]
-            results = ctx.lsp.send_type_definition_batch(queries)
-
-            for offset, site in enumerate(batch):
-                caller = _caller_at(ctx, file_path, site.lsp_line, site.lsp_column)
-                if caller is None:
+        results = ctx.lsp.send_type_definition_batch([(file_path, site.lsp_line, site.lsp_column) for site in sites])
+        for site, definitions in zip(sites, results):
+            caller = _caller_at(ctx, file_path, site.lsp_line, site.lsp_column)
+            if caller is None:
+                continue
+            attributed = st.attribution_symbol(caller)
+            for result in definitions:
+                target = index.resolve(result)
+                if target is None:
+                    _record_external_call_site(ctx, attributed.qualified_name, result, site, ITERATED)
                     continue
-                for result in results[offset]:
-                    target = index.resolve(result)
-                    if target is None:
-                        _record_external_call_site(ctx, st.attribution_symbol(caller), result, site, ITERATED)
-                        continue
-                    if not _is_valid_edge(caller, target):
-                        continue
-                    resolved += 1
-                    attributed = st.attribution_symbol(caller)
-                    if not _is_valid_edge(attributed, target):
-                        continue
-                    _add_edge_call_site(edge_set, attributed.qualified_name, target.qualified_name, site)
-                    # The loop calls the enumerator, so name it too when the
-                    # type declares one rather than inheriting it.
-                    for enumerator in _members_named(target, st, "GetEnumerator"):
-                        if _is_valid_edge(caller, enumerator) and _is_valid_edge(attributed, enumerator):
-                            _add_edge_call_site(edge_set, attributed.qualified_name, enumerator.qualified_name, site)
+                if not _is_valid_edge(caller, target):
+                    continue
+                resolved += 1
+                if not _is_valid_edge(attributed, target):
+                    continue
+                _add_edge_call_site(edge_set, attributed.qualified_name, target.qualified_name, site)
+                # The loop calls the enumerator, so name it too when the
+                # type declares one rather than inheriting it.
+                for enumerator in _members_named(target, st, "GetEnumerator"):
+                    if _is_valid_edge(caller, enumerator) and _is_valid_edge(attributed, enumerator):
+                        _add_edge_call_site(edge_set, attributed.qualified_name, enumerator.qualified_name, site)
     return resolved
 
 
@@ -271,7 +287,6 @@ def _resolve_definitions(
     total_files = len(source_files)
     total_sites = 0
     total_resolved = 0
-    batch_size = 50
 
     dispatch = _build_dispatch_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else None
     sink = CallEdgeSink(adapter, st, si, dispatch)
@@ -287,51 +302,47 @@ def _resolve_definitions(
         total_sites += len(call_sites)
         unresolved: list[CallSite] = []
 
-        for batch_start in range(0, len(call_sites), batch_size):
-            batch = call_sites[batch_start : batch_start + batch_size]
-            queries = [(file_path, site.lsp_line, site.lsp_column) for site in batch]
+        results = ctx.lsp.send_definition_batch([(file_path, site.lsp_line, site.lsp_column) for site in call_sites])
+        for call_site, defs in zip(call_sites, results):
+            position = (call_site.lsp_line, call_site.lsp_column)
+            kind = shapes.definition_kind_at(position)
 
-            results = ctx.lsp.send_definition_batch(queries)
-
-            for i, call_site in enumerate(batch):
-                defs = results[i]
-                position = (call_site.lsp_line, call_site.lsp_column)
-                kind = shapes.definition_kind_at(position)
-
-                if not defs:
-                    if kind == CALL:
-                        unresolved.append(call_site)
-                    continue
-
-                caller = _caller_at(ctx, file_path, call_site.lsp_line, call_site.lsp_column)
-                if caller is None:
-                    continue
-
-                resolved_here = False
-                for def_result in defs:
-                    target = index.resolve(def_result)
-                    if target is None:
-                        _record_external_call_site(ctx, st.attribution_symbol(caller), def_result, call_site, kind)
-                        continue
-                    total_resolved += 1
-                    resolved_here = True
-
-                    if kind == METHOD_GROUP and not (
-                        adapter.is_callable(target.kind)
-                        or adapter.is_class_like(target.kind)
-                        or si.declares_function_value(target.file_path, target.start_line, target.start_char)
-                    ):
-                        continue
-                    if kind in (MEMBER_READ, MEMBER_WRITE) and not adapter.is_callable(target.kind):
-                        continue
-                    location = definition_location(def_result)
-                    if kind == MEMBER_WRITE and (location is None or not si.declares_setter(*location)):
-                        continue
-
-                    sink.add(caller, target, call_site, collection=position in shapes.collection)
-
-                if not resolved_here and kind == CALL:
+            if not defs:
+                if kind == CALL:
                     unresolved.append(call_site)
+                continue
+
+            caller = _caller_at(ctx, file_path, call_site.lsp_line, call_site.lsp_column)
+            if caller is None:
+                continue
+
+            resolved_here = False
+            for def_result in defs:
+                target = index.resolve(def_result)
+                if target is None:
+                    _record_external_call_site(
+                        ctx, st.attribution_symbol(caller).qualified_name, def_result, call_site, kind
+                    )
+                    continue
+                total_resolved += 1
+                resolved_here = True
+
+                if kind == METHOD_GROUP and not (
+                    adapter.is_callable(target.kind)
+                    or adapter.is_class_like(target.kind)
+                    or si.declares_function_value(target.file_path, target.start_line, target.start_char)
+                ):
+                    continue
+                if kind in (MEMBER_READ, MEMBER_WRITE) and not adapter.is_callable(target.kind):
+                    continue
+                location = definition_location(def_result)
+                if kind == MEMBER_WRITE and (location is None or not si.declares_setter(*location)):
+                    continue
+
+                sink.add(caller, target, call_site, collection=position in shapes.collection)
+
+            if not resolved_here and kind == CALL:
+                unresolved.append(call_site)
 
         total_resolved += _resolve_through_receivers(ctx, index, sink, file_path, unresolved)
 
@@ -368,24 +379,25 @@ def _resolve_through_receivers(
         return 0
 
     positions = list(by_receiver)
+    results = ctx.lsp.send_definition_batch([(file_path, line, column) for line, column in positions])
     resolved = 0
-    for batch_start in range(0, len(positions), 50):
-        batch = positions[batch_start : batch_start + 50]
-        results = ctx.lsp.send_definition_batch([(file_path, line, column) for line, column in batch])
-        for i, position in enumerate(batch):
-            for def_result in results[i]:
-                receiver = index.resolve(def_result)
-                if receiver is None:
-                    continue
-                call_site, member = by_receiver[position]
-                target = st.symbols.get(f"{receiver.qualified_name}.{member}")
-                if target is None:
-                    continue
-                caller = _caller_at(ctx, file_path, call_site.lsp_line, call_site.lsp_column)
-                if caller is None:
-                    continue
-                resolved += 1
-                sink.add(caller, target, call_site)
+    for position, definitions in zip(positions, results):
+        call_site, member = by_receiver[position]
+        caller = _caller_at(ctx, file_path, call_site.lsp_line, call_site.lsp_column)
+        if caller is None:
+            continue
+        for def_result in definitions:
+            receiver = index.resolve(def_result)
+            if receiver is None:
+                _record_external_call_site(
+                    ctx, st.attribution_symbol(caller).qualified_name, def_result, call_site, RECEIVER, member
+                )
+                continue
+            target = st.symbols.get(f"{receiver.qualified_name}.{member}")
+            if target is None:
+                continue
+            resolved += 1
+            sink.add(caller, target, call_site)
     return resolved
 
 
@@ -400,37 +412,31 @@ def _resolve_implementations(
     Adds implementation edges to edge_set in-place. Returns total_impl_resolved.
     """
     st = ctx.symbol_table
-    batch_size = 50
 
     target_pos_to_callers: dict[tuple[str, int, int], list[tuple[str, CallSite]]] = {}
     for query in impl_queries_pending:
         tgt_key = (str(query.target_file), query.target_line, query.target_char)
         target_pos_to_callers.setdefault(tgt_key, []).append((query.caller_qname, query.call_site))
 
-    unique_impl_targets = list(target_pos_to_callers.keys())
-    total_impl_queries = len(unique_impl_targets)
+    targets = list(target_pos_to_callers)
     logger.info(
-        "Phase 2b (implementations): %d unique targets from %d pending queries",
-        total_impl_queries,
-        len(impl_queries_pending),
+        "Phase 2b (implementations): %d unique targets from %d pending queries", len(targets), len(impl_queries_pending)
     )
 
     total_impl_resolved = 0
-
-    pbar = ProgressLogger("Phase 2b (impl)", total_impl_queries, unit="target")
-    for batch_start in range(0, len(unique_impl_targets), batch_size):
-        batch_keys = unique_impl_targets[batch_start : batch_start + batch_size]
-        queries = [(Path(fk), ln, ch) for fk, ln, ch in batch_keys]
-
-        impl_results = ctx.lsp.send_implementation_batch(queries)
-
-        for j, tgt_key in enumerate(batch_keys):
-            impls = impl_results[j]
+    # Why a round at a time here: on a large repository this is the longest phase, and progress is only
+    # reported between rounds.
+    pbar = ProgressLogger("Phase 2b (impl)", len(targets), unit="target")
+    for start in range(0, len(targets), REQUEST_BATCH_SIZE):
+        batch = targets[start : start + REQUEST_BATCH_SIZE]
+        impl_results = ctx.lsp.send_implementation_batch([(Path(file), line, char) for file, line, char in batch])
+        for tgt_key, impls in zip(batch, impl_results):
             callers = target_pos_to_callers[tgt_key]
-
             for impl_result in impls:
                 impl_sym = index.resolve(impl_result)
                 if impl_sym is None:
+                    for caller_qname, call_site in callers:
+                        _record_external_call_site(ctx, caller_qname, impl_result, call_site, IMPLEMENTATION)
                     continue
                 total_impl_resolved += 1
 
@@ -440,7 +446,7 @@ def _resolve_implementations(
                         _add_edge_call_site(edge_set, caller_qname, impl_sym.qualified_name, call_site)
 
         pbar.set_postfix(edges=len(edge_set), resolved=total_impl_resolved)
-        pbar.update(len(batch_keys))
+        pbar.update(len(batch))
     pbar.finish()
 
     return total_impl_resolved
@@ -463,20 +469,21 @@ def _caller_at(ctx: EdgeBuildContext, file_path: Path, line: int, column: int) -
 
 
 def _record_external_call_site(
-    ctx: EdgeBuildContext, caller: SymbolInfo, def_result: dict, call_site: CallSite, kind: str
+    ctx: EdgeBuildContext, caller: str, answer: dict, call_site: CallSite, kind: str, member: str = ""
 ) -> None:
-    """Keep a definition that landed in a file this engine never named, for the merged graph."""
-    location = definition_location(def_result)
+    """Keep an answer that landed in a file this engine never named, for the merged graph."""
+    location = definition_location(answer)
     if location is None or str(location[0]) in ctx.symbol_table.file_symbols:
         return
     ctx.external_call_sites.append(
         ExternalCallSite(
-            caller=caller.qualified_name,
+            caller=caller,
             file=str(location[0]),
             line=location[1],
             character=location[2],
             call_site=call_site,
             kind=kind,
+            member=member,
         )
     )
 

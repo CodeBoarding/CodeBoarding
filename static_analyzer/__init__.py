@@ -24,7 +24,7 @@ from static_analyzer.engine.result_converter import convert_to_codeboarding_form
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.exceptions import StaticAnalysisFatalError
-from static_analyzer.external_calls import link_external_call_sites
+from static_analyzer.external_calls import link_external_call_sites, record_package_imports
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -960,17 +960,17 @@ class StaticAnalyzer:
         Why after all of them: only the merged graph holds every engine's nodes, so a call into
         another solution's project can find its target, whichever engine ran first.
         """
-        pending: dict[Language, tuple[LanguageAdapter, list[ExternalCallSite]]] = {}
         for adapter, analysis in analyses:
-            language = adapter.results_language
-            self._absorb_into_results(results, language, analysis)
-            pending.setdefault(language, (adapter, []))[1].extend(analysis.get("external_call_sites", []))
+            self._absorb_into_results(results, adapter.results_language, analysis)
         inspector = SourceInspector()
-        for language, (adapter, sites) in pending.items():
-            if sites:
-                link_external_call_sites(
-                    results.get_cfg(language), sites, adapter, results.get_package_dependencies(language), inspector
-                )
+        for adapter, analysis in analyses:
+            sites: list[ExternalCallSite] = analysis.get("external_call_sites", [])
+            if not sites:
+                continue
+            language = adapter.results_language
+            analysed_files = {str(path) for path in analysis.get("source_files", [])}
+            linked = link_external_call_sites(results.get_cfg(language), sites, adapter, inspector, analysed_files)
+            record_package_imports(results.get_package_dependencies(language), adapter, linked.edges)
 
     def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:
         """Stuff one language's analysis-dict into the shared ``StaticAnalysisResults``."""

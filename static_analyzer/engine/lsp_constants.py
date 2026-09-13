@@ -29,6 +29,9 @@ DISPATCHED_KINDS: set[int] = {
 # Batch size for did_open to avoid overwhelming LSP servers
 DID_OPEN_BATCH_SIZE = 50
 
+# Position requests sent per round trip: a long list does not wait on one timeout.
+REQUEST_BATCH_SIZE = 50
+
 # Share of RAM one language server may hold. This leaves room for Python, other
 # language servers, and the operating system.
 MEMORY_BUDGET_FRACTION = 0.4

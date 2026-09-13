@@ -16,12 +16,14 @@ from static_analyzer.analysis_result import AnalysisData, CallSiteLocation, Inva
 from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.node import Node
-from static_analyzer.graph_definitions import GraphIndex, call_shapes, definition_nodes
+from static_analyzer.graph_definitions import GraphIndex, call_shapes, implemented_by
 from static_analyzer.incremental_orchestrator import (
-    _add_outbound_edges_from_changed_files,
     _restore_inbound_edges_via_definitions,
     update_cfg_for_changed_files,
 )
+from static_analyzer.engine.adapters.python_adapter import PythonAdapter
+from static_analyzer.engine.models import CallSite, ExternalCallSite
+from static_analyzer.engine.utils import definition_location
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
 from utils import CODEBOARDING_DIR_NAME
@@ -228,7 +230,12 @@ class TestWarmStartDeletion(unittest.TestCase):
             self.assertEqual([str(path) for path in updated["source_files"]], [str(live_file)])
 
 
-class TestWarmStartOutboundEdges(unittest.TestCase):
+def _declared(index: GraphIndex, definition: dict) -> Node | None:
+    location = definition_location(definition)
+    return index.declaration_at(str(location[0]), location[1], location[2]) if location else None
+
+
+class TestGraphDeclarations(unittest.TestCase):
     def test_a_link_result_names_the_declaration_its_whole_range_does_not(self) -> None:
         """``linkSupport`` is what makes this exact: a bare Location starts at ``function``."""
         file_path = Path("/repo/unchanged.php")
@@ -253,47 +260,9 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             "range": {"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 66}},
         }
 
-        self.assertEqual(
-            [node.fully_qualified_name for node in definition_nodes(index, link)], ["unchanged.unchanged_target"]
-        )
-        self.assertEqual(definition_nodes(index, whole_declaration), [])
-
-    def test_definition_resolution_includes_the_most_specific_node_and_its_class(self) -> None:
-        file_path = Path("/repo/pkg/converter.py")
-        call_graph = CallGraph(language="python")
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="pkg.converter.DocumentConverter",
-                node_type=NodeType.CLASS,
-                file_path=str(file_path),
-                line_start=1,
-                line_end=40,
-            )
-        )
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="pkg.converter.DocumentConverter.convert",
-                node_type=NodeType.METHOD,
-                file_path=str(file_path),
-                line_start=10,
-                line_end=20,
-                col_start=4,
-            )
-        )
-        definition = {
-            "uri": file_path.as_uri(),
-            "range": {"start": {"line": 9, "character": 4}, "end": {"line": 9, "character": 11}},
-        }
-
-        matches = definition_nodes(GraphIndex(call_graph, SourceInspector()), definition, include_callable_parent=True)
-
-        self.assertEqual(
-            [node.fully_qualified_name for node in matches],
-            [
-                "pkg.converter.DocumentConverter.convert",
-                "pkg.converter.DocumentConverter",
-            ],
-        )
+        declared = _declared(index, link)
+        self.assertEqual(declared.fully_qualified_name if declared else None, "unchanged.unchanged_target")
+        self.assertIsNone(_declared(index, whole_declaration))
 
     def test_a_position_before_every_declaration_on_the_line_names_none_of_them(self) -> None:
         file_path = Path("/repo/pkg/target.php")
@@ -323,11 +292,9 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 6}},
         }
 
-        matches = definition_nodes(GraphIndex(call_graph, SourceInspector()), definition)
+        self.assertIsNone(_declared(GraphIndex(call_graph, SourceInspector()), definition))
 
-        self.assertEqual(matches, [])
-
-    def test_definition_resolution_includes_constructor_parent_without_definition_strategy(self) -> None:
+    def test_an_implementing_constructor_reaches_its_class(self) -> None:
         file_path = Path("/repo/pkg/target.php")
         call_graph = CallGraph(language="php")
         call_graph.add_node(
@@ -349,16 +316,51 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
                 col_start=5,
             )
         )
-        definition = {
-            "uri": file_path.as_uri(),
-            "range": {"start": {"line": 1, "character": 5}, "end": {"line": 1, "character": 16}},
-        }
+        client = MagicMock()
+        client.send_implementation_batch.side_effect = lambda queries: [
+            [{"uri": file_path.as_uri(), "range": {"start": {"line": 1, "character": 5}}}] for _ in queries
+        ]
+        declaration = ("/repo/pkg/base.php", 0, 0)
 
-        matches = definition_nodes(GraphIndex(call_graph, SourceInspector()), definition)
+        found = implemented_by(GraphIndex(call_graph, SourceInspector()), client, [declaration])
 
         self.assertEqual(
-            [node.fully_qualified_name for node in matches],
+            [node.fully_qualified_name for node in found[declaration]],
             ["pkg.target.Target.__construct", "pkg.target.Target"],
+        )
+
+    def test_an_implementing_method_does_not_reach_its_class(self) -> None:
+        file_path = Path("/repo/pkg/converter.py")
+        call_graph = CallGraph(language="python")
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.converter.DocumentConverter",
+                node_type=NodeType.CLASS,
+                file_path=str(file_path),
+                line_start=1,
+                line_end=40,
+            )
+        )
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.converter.DocumentConverter.convert",
+                node_type=NodeType.METHOD,
+                file_path=str(file_path),
+                line_start=10,
+                line_end=20,
+                col_start=4,
+            )
+        )
+        client = MagicMock()
+        client.send_implementation_batch.side_effect = lambda queries: [
+            [{"uri": file_path.as_uri(), "range": {"start": {"line": 9, "character": 4}}}] for _ in queries
+        ]
+        declaration = ("/repo/pkg/base.py", 0, 0)
+
+        found = implemented_by(GraphIndex(call_graph, SourceInspector()), client, [declaration])
+
+        self.assertEqual(
+            [node.fully_qualified_name for node in found[declaration]], ["pkg.converter.DocumentConverter.convert"]
         )
 
 
@@ -366,30 +368,46 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestWarmStartKeepsDefinitionsAnotherEngineOwns:
-    def test_a_changed_caller_whose_definition_has_no_node_yet_is_handed_back(self, tmp_path: Path) -> None:
-        """Solution A's changed file calls something solution B adds in the same edit; B's node is
-        not in the graph when A is processed, so the site must survive until every engine merged."""
-        changed = tmp_path / "Host.cs"
-        changed.write_text("class Host\n{\n    void Configure() { Builder.UseAuditing(); }\n}\n")
-        graph = CallGraph(language="csharp")
-        graph.add_node(Node("Host", NodeType.CLASS, str(changed), line_start=1, line_end=4, col_start=0))
-        graph.add_node(Node("Host.Configure()", NodeType.METHOD, str(changed), line_start=3, line_end=3, col_start=9))
-        elsewhere = tmp_path / "framework" / "Builder.cs"
+class TestWarmStartLinksWhatThePartialBuildCouldNotName:
+    def test_calls_into_unchanged_files_are_linked_and_the_rest_handed_back(self, tmp_path: Path) -> None:
+        """The partial build holds only the changed files; the merged graph names the rest, and
+        what it cannot name either may belong to another solution's engine."""
+        lib = tmp_path / "lib.py"
+        lib.write_text("def helper():\n    return 1\n")
+        app = tmp_path / "app.py"
+        app.write_text("def main():\n    helper()\n")
+        cached_graph = CallGraph(language="python")
+        cached_graph.add_node(Node("lib.helper", NodeType.FUNCTION, str(lib), line_start=1, line_end=2, col_start=4))
+        cached = _result(cached_graph, source_files=[str(lib), str(app)])
+
+        partial_graph = CallGraph(language="python")
+        partial_graph.add_node(Node("app.main", NodeType.FUNCTION, str(app), line_start=1, line_end=2, col_start=4))
+        call = CallSite.from_lsp_position(str(app), 1, 4)
+        linkable = ExternalCallSite("app.main", str(lib), 0, 4, call)
+        elsewhere = ExternalCallSite("app.main", str(tmp_path / "vendor.py"), 3, 0, call)
+        partial = {
+            **_result(partial_graph, source_files=[str(app)]),
+            "diagnostics": {},
+            "external_call_sites": [linkable, elsewhere],
+        }
+
         client = MagicMock()
-        client.send_definition_batch.side_effect = lambda queries: [
-            [{"uri": elsewhere.as_uri(), "range": {"start": {"line": 20, "character": 4}}}] for _ in queries
-        ]
+        client.get_collected_diagnostics.return_value = {}
         client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
+        ignore_manager = MagicMock()
+        ignore_manager.should_ignore.return_value = False
 
-        external = _add_outbound_edges_from_changed_files(
-            GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), CSharpAdapter()
-        )
+        with (
+            patch("static_analyzer.incremental_orchestrator.CallGraphBuilder"),
+            patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format", return_value=partial),
+        ):
+            updated = update_cfg_for_changed_files(
+                cached, {app}, PythonAdapter(), tmp_path, tmp_path, client, ignore_manager
+            )
 
-        assert graph.edges == []
-        assert [(s.caller, s.file, s.line, s.character, s.kind) for s in external] == [
-            ("Host.Configure()", str(elsewhere), 20, 4, "call")
-        ]
+        edges = [(edge.get_source(), edge.get_destination()) for edge in updated["call_graph"].edges]
+        assert edges == [("app.main", "lib.helper")]
+        assert updated["external_call_sites"] == [elsewhere]
 
 
 class TestRestoringCachedEdges:
@@ -465,261 +483,3 @@ class TestCallShapesRequests:
         shapes = call_shapes(source, SourceInspector(), self._adapter(), set())
 
         assert shapes.requests_at((4, 26)) == [("type_definition", "iterated")]
-
-
-class TestWarmStartCallShapes:
-    """The shapes the full rebuild finds must survive an edit, or a warm start loses them."""
-
-    def _typescript_adapter(self) -> MagicMock:
-        adapter = MagicMock()
-        adapter.language_id = "typescript"
-        adapter.resolves_method_groups = True
-        adapter.resolves_collection_initializers = False
-        adapter.resolves_iterated_types = False
-        adapter.expands_virtual_dispatch = False
-        adapter.expands_constructors = False
-        return adapter
-
-    def _run(self, graph: CallGraph, changed: Path, answers: dict[int, tuple[str, int, int]]) -> list[tuple[str, str]]:
-        client = MagicMock()
-        client.send_definition_batch.side_effect = lambda queries: [
-            (
-                [{"uri": Path(at[0]).as_uri(), "range": {"start": {"line": at[1], "character": at[2]}}}]
-                if (at := answers.get(col)) is not None
-                else []
-            )
-            for _, _line, col in queries
-        ]
-        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
-        _add_outbound_edges_from_changed_files(
-            GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), self._typescript_adapter()
-        )
-        return [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
-
-    def test_a_call_reaches_the_implementations_of_the_declaration_it_resolves_to(self, tmp_path: Path) -> None:
-        """A full build follows every callable target with ``textDocument/implementation``.
-
-        This adapter does not expand virtual dispatch from source, so the server's answer is
-        the only route to the caller-to-implementation edge.
-        """
-        changed = tmp_path / "app.ts"
-        changed.write_text(
-            'import { Service } from "./api";\n\nexport function run(s: Service) {\n    s.handle();\n}\n'
-        )
-        api = tmp_path / "api.ts"
-        worker = tmp_path / "worker.ts"
-        graph = CallGraph(language="typescript")
-        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
-        graph.add_node(Node("api.Service.handle", NodeType.METHOD, str(api), line_start=2, line_end=2, col_start=4))
-        graph.add_node(
-            Node("worker.Worker.handle", NodeType.METHOD, str(worker), line_start=5, line_end=7, col_start=4)
-        )
-
-        client = MagicMock()
-        client.send_definition_batch.side_effect = lambda queries: [
-            [{"uri": api.as_uri(), "range": {"start": {"line": 1, "character": 4}}}] for _ in queries
-        ]
-        client.send_implementation_batch.side_effect = lambda queries: [
-            [{"uri": worker.as_uri(), "range": {"start": {"line": 4, "character": 4}}}] for _ in queries
-        ]
-
-        _add_outbound_edges_from_changed_files(
-            GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), self._typescript_adapter()
-        )
-
-        asked = [query for call in client.send_implementation_batch.call_args_list for query in call.args[0]]
-        assert asked == [(api, 1, 4)]
-        edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
-        assert ("app.run", "worker.Worker.handle") in edges
-
-    def test_a_collection_initializer_that_constructs_keeps_its_constructor_edge(self, tmp_path: Path) -> None:
-        """``new Bag { 1 }`` is one site with two shapes, and a full build gives it both.
-
-        The engine decides constructor expansion per site, from the source; deciding it from
-        the call-site kind instead leaves a warm start with the ``Add`` edge but no constructor.
-        """
-        changed = tmp_path / "app.cs"
-        changed.write_text("class App\n{\n    void Run()\n    {\n        var bag = new Bag { 1 };\n    }\n}\n")
-        bag = tmp_path / "bag.cs"
-        graph = CallGraph(language="csharp")
-        graph.add_node(Node("app.App.Run", NodeType.METHOD, str(changed), line_start=3, line_end=6, col_start=9))
-        graph.add_node(Node("bag.Bag", NodeType.CLASS, str(bag), line_start=1, line_end=4, col_start=6))
-        graph.add_node(Node("bag.Bag.Bag", NodeType.CONSTRUCTOR, str(bag), line_start=2, line_end=2, col_start=11))
-        graph.add_node(Node("bag.Bag.Add", NodeType.METHOD, str(bag), line_start=3, line_end=3, col_start=9))
-
-        adapter = MagicMock()
-        adapter.language_id = "csharp"
-        adapter.resolves_method_groups = False
-        adapter.resolves_collection_initializers = True
-        adapter.resolves_iterated_types = False
-        adapter.expands_virtual_dispatch = False
-        adapter.expands_constructors = True
-
-        client = MagicMock()
-        client.send_definition_batch.side_effect = lambda queries: [
-            [{"uri": bag.as_uri(), "range": {"start": {"line": 0, "character": 6}}}] for _ in queries
-        ]
-        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
-
-        _add_outbound_edges_from_changed_files(
-            GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), adapter
-        )
-
-        edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
-        assert ("app.App.Run", "bag.Bag.Add") in edges
-        assert ("app.App.Run", "bag.Bag.Bag") in edges
-
-    def test_a_loop_over_a_construction_keeps_its_constructor_edge(self, tmp_path: Path) -> None:
-        """A loop subject can be a construction too, and a full build expands it as one."""
-        changed = tmp_path / "app.cs"
-        changed.write_text(
-            "class App\n{\n    void Run()\n    {\n        foreach (var x in new Bag { 1 }) { }\n    }\n}\n"
-        )
-        bag = tmp_path / "bag.cs"
-        graph = CallGraph(language="csharp")
-        graph.add_node(Node("app.App.Run", NodeType.METHOD, str(changed), line_start=3, line_end=6, col_start=9))
-        graph.add_node(Node("bag.Bag", NodeType.CLASS, str(bag), line_start=1, line_end=4, col_start=6))
-        graph.add_node(Node("bag.Bag.Bag", NodeType.CONSTRUCTOR, str(bag), line_start=2, line_end=2, col_start=11))
-
-        adapter = MagicMock()
-        adapter.language_id = "csharp"
-        adapter.resolves_method_groups = False
-        adapter.resolves_collection_initializers = False
-        adapter.resolves_iterated_types = True
-        adapter.expands_virtual_dispatch = False
-        adapter.expands_constructors = True
-
-        client = MagicMock()
-        client.send_type_definition_batch.side_effect = lambda queries: [
-            [{"uri": bag.as_uri(), "range": {"start": {"line": 0, "character": 6}}}] for _ in queries
-        ]
-        client.send_definition_batch.side_effect = lambda queries: [[] for _ in queries]
-        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
-
-        _add_outbound_edges_from_changed_files(
-            GraphIndex(graph, SourceInspector()), [changed], client, SourceInspector(), adapter
-        )
-
-        edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
-        assert ("app.App.Run", "bag.Bag.Bag") in edges
-
-    def test_an_implementation_in_a_changed_file_still_gets_its_edge(self, tmp_path: Path) -> None:
-        """The caller and the implementation change together; their interface does not.
-
-        The partial build has no symbol for the unchanged interface, so it cannot make the
-        edge at all; treating the implementation's file as already handled loses it for good.
-        """
-        changed = tmp_path / "app.ts"
-        changed.write_text(
-            'import { Service } from "./api";\n\nexport function run(s: Service) {\n    s.handle();\n}\n'
-        )
-        worker = tmp_path / "worker.ts"
-        api = tmp_path / "api.ts"
-        graph = CallGraph(language="typescript")
-        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
-        graph.add_node(Node("api.Service.handle", NodeType.METHOD, str(api), line_start=2, line_end=2, col_start=4))
-        graph.add_node(
-            Node("worker.Worker.handle", NodeType.METHOD, str(worker), line_start=5, line_end=7, col_start=4)
-        )
-
-        client = MagicMock()
-        client.send_definition_batch.side_effect = lambda queries: [
-            [{"uri": api.as_uri(), "range": {"start": {"line": 1, "character": 4}}}] for _ in queries
-        ]
-        client.send_implementation_batch.side_effect = lambda queries: [
-            [{"uri": worker.as_uri(), "range": {"start": {"line": 4, "character": 4}}}] for _ in queries
-        ]
-
-        # Both the caller and the implementation are in this edit.
-        _add_outbound_edges_from_changed_files(
-            GraphIndex(graph, SourceInspector()),
-            [changed, worker],
-            client,
-            SourceInspector(),
-            self._typescript_adapter(),
-        )
-
-        edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
-        assert ("app.run", "worker.Worker.handle") in edges
-
-    def test_a_changed_declaration_still_reaches_an_unchanged_implementation(self, tmp_path: Path) -> None:
-        """The partial build resolves the call into the changed interface but holds no implementation of it."""
-        changed = tmp_path / "app.ts"
-        changed.write_text(
-            'import { Service } from "./api";\n\nexport function run(s: Service) {\n    s.handle();\n}\n'
-        )
-        api = tmp_path / "api.ts"
-        worker = tmp_path / "worker.ts"
-        graph = CallGraph(language="typescript")
-        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
-        graph.add_node(Node("api.Service.handle", NodeType.METHOD, str(api), line_start=2, line_end=2, col_start=4))
-        graph.add_node(
-            Node("worker.Worker.handle", NodeType.METHOD, str(worker), line_start=5, line_end=7, col_start=4)
-        )
-
-        client = MagicMock()
-        client.send_definition_batch.side_effect = lambda queries: [
-            [{"uri": api.as_uri(), "range": {"start": {"line": 1, "character": 4}}}] for _ in queries
-        ]
-        client.send_implementation_batch.side_effect = lambda queries: [
-            [{"uri": worker.as_uri(), "range": {"start": {"line": 4, "character": 4}}}] for _ in queries
-        ]
-
-        _add_outbound_edges_from_changed_files(
-            GraphIndex(graph, SourceInspector()), [changed, api], client, SourceInspector(), self._typescript_adapter()
-        )
-
-        edges = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
-        assert ("app.run", "worker.Worker.handle") in edges
-
-    def test_a_callback_bound_to_a_const_is_a_method_group_target(self, tmp_path: Path) -> None:
-        helpers = tmp_path / "helpers.ts"
-        helpers.write_text("export const handler = () => 1;\n")
-        changed = tmp_path / "app.ts"
-        changed.write_text(
-            "import { handler } from './helpers';\n\nexport function run() {\n    subscribe(handler);\n}\n"
-        )
-        graph = CallGraph(language="typescript")
-        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
-        graph.add_node(Node("helpers.handler", NodeType.VARIABLE, str(helpers), line_start=1, line_end=1, col_start=13))
-
-        assert self._run(graph, changed, {14: (str(helpers), 0, 13)}) == [("app.run", "helpers.handler")]
-
-    def test_a_constant_passed_as_an_argument_is_not_an_edge(self, tmp_path: Path) -> None:
-        helpers = tmp_path / "helpers.ts"
-        helpers.write_text("export const LIMIT = 5;\n")
-        changed = tmp_path / "app.ts"
-        changed.write_text("import { LIMIT } from './helpers';\n\nexport function run() {\n    subscribe(LIMIT);\n}\n")
-        graph = CallGraph(language="typescript")
-        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
-        graph.add_node(Node("helpers.LIMIT", NodeType.VARIABLE, str(helpers), line_start=1, line_end=1, col_start=13))
-
-        assert self._run(graph, changed, {14: (str(helpers), 0, 13)}) == []
-
-    def test_a_member_call_that_leaves_the_repository_resolves_through_its_receiver(self, tmp_path: Path) -> None:
-        logger_file = tmp_path / "log.ts"
-        logger_file.write_text("export const log = { warn(m: string) {} };\n")
-        changed = tmp_path / "app.ts"
-        changed.write_text("import { log } from './log';\n\nexport function run() {\n    log.warn('x');\n}\n")
-        graph = CallGraph(language="typescript")
-        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
-        graph.add_node(Node("log.log", NodeType.VARIABLE, str(logger_file), line_start=1, line_end=1, col_start=13))
-        graph.add_node(Node("log.log.warn", NodeType.METHOD, str(logger_file), line_start=1, line_end=1, col_start=21))
-
-        assert self._run(graph, changed, {4: (str(logger_file), 0, 13)}) == [("app.run", "log.log.warn")]
-
-    def test_a_member_reached_through_its_receiver_also_reaches_its_class(self, tmp_path: Path) -> None:
-        """The full build adds the class a called method belongs to, whichever route found the method."""
-        logger_file = tmp_path / "log.ts"
-        logger_file.write_text("export class Log { warn(m: string) {} }\n")
-        changed = tmp_path / "app.ts"
-        changed.write_text("import { Log } from './log';\n\nexport function run() {\n    Log.warn('x');\n}\n")
-        graph = CallGraph(language="typescript")
-        graph.add_node(Node("app.run", NodeType.FUNCTION, str(changed), line_start=3, line_end=5, col_start=16))
-        graph.add_node(Node("log.Log", NodeType.CLASS, str(logger_file), line_start=1, line_end=1, col_start=13))
-        graph.add_node(Node("log.Log.warn", NodeType.METHOD, str(logger_file), line_start=1, line_end=1, col_start=19))
-
-        assert sorted(self._run(graph, changed, {4: (str(logger_file), 0, 13)})) == [
-            ("app.run", "log.Log"),
-            ("app.run", "log.Log.warn"),
-        ]
