@@ -41,9 +41,8 @@ def link_external_call_sites(
         caller = call_graph.nodes.get(site.caller)
         if caller is None:
             continue
-        constructing = adapter.expands_constructors and inspector.is_construction_site(site.call_site)
         # Why no implementation query: the engine that owns this file has already shut its server down.
-        targets = targets_for(index, site.file, site.line, site.character, site.kind, adapter, constructing).nodes
+        targets = targets_for(index, site.file, site.line, site.character, site.kind, adapter, site.call_site).nodes
         if not targets:
             unresolved += 1
             continue

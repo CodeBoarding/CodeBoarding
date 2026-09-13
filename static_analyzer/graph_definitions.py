@@ -8,12 +8,16 @@ every engine's graph), so the two cannot disagree on which nodes a call site rea
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_constants import DISPATCHED_KINDS
+from static_analyzer.engine.models import CallSite
+from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location
 from static_analyzer.internal_references import parent_qualified_name, simple_name
@@ -22,8 +26,86 @@ from static_analyzer.node import Node
 # How a call site was found in source; it decides what a resolved definition may become.
 CALL = "call"
 METHOD_GROUP = "method_group"
+MEMBER_READ = "member_read"
+MEMBER_WRITE = "member_write"
 COLLECTION_INITIALIZER = "collection"
 ITERATED = "iterated"
+
+
+@dataclass(frozen=True)
+class CallShapes:
+    """Which shape each call site in one file has, so the full build and every update resolve it alike."""
+
+    call_sites: list[CallSite]
+    method_group: set[tuple[int, int]]
+    member_read: set[tuple[int, int]]
+    member_write: set[tuple[int, int]]
+    collection: set[tuple[int, int]]
+    iterated: set[tuple[int, int]]
+
+    def definition_kind_at(self, position: tuple[int, int]) -> str:
+        """Which shape a definition query at this position resolves as."""
+        if position in self.method_group:
+            return METHOD_GROUP
+        if position in self.member_read:
+            return MEMBER_READ
+        if position in self.member_write:
+            return MEMBER_WRITE
+        if position in self.collection:
+            return COLLECTION_INITIALIZER
+        return CALL
+
+    def requests_at(self, position: tuple[int, int]) -> list[tuple[str, str]]:
+        """The ``(LSP method, call-site kind)`` pairs a cached site here is owed.
+
+        Why more than one: a position can be two shapes at once -- ``foreach (var x in
+        GetItems())`` is a call and an iteration -- and the full build runs both passes
+        over it, so restoring the cached edge cannot ask only one of them.
+        """
+        if position not in self.iterated:
+            return [("definition", self.definition_kind_at(position))]
+        iterating = ("type_definition", ITERATED)
+        if not any((site.lsp_line, site.lsp_column) == position for site in self.call_sites):
+            return [iterating]
+        return [("definition", self.definition_kind_at(position)), iterating]
+
+
+def call_shapes(
+    file_path: Path, inspector: SourceInspector, adapter: EdgeBuildAdapter, callable_names: Collection[str]
+) -> CallShapes:
+    """Every call site the file writes, and the shape of each, by the adapter's capabilities.
+
+    *callable_names* are the names the graph declares callables under: a member named anything
+    else cannot reach one, so it is not worth a query.
+    """
+    call_sites = inspector.find_call_sites(file_path)
+    claimed = {(site.lsp_line, site.lsp_column) for site in call_sites}
+    method_group: set[tuple[int, int]] = set()
+    member_read: set[tuple[int, int]] = set()
+    member_write: set[tuple[int, int]] = set()
+    if adapter.resolves_method_groups:
+        reads, writes = inspector.find_member_sites(file_path, callable_names)
+        for shape, found in (
+            (method_group, inspector.find_method_group_sites(file_path)),
+            (member_read, reads),
+            (member_write, writes),
+        ):
+            for site in found:
+                position = (site.lsp_line, site.lsp_column)
+                if position in claimed:
+                    continue
+                claimed.add(position)
+                shape.add(position)
+                call_sites.append(site)
+    collection: set[tuple[int, int]] = set()
+    if adapter.resolves_collection_initializers:
+        collection = {
+            (site.lsp_line, site.lsp_column) for site in inspector.find_collection_initializer_sites(file_path)
+        }
+    iterated: set[tuple[int, int]] = set()
+    if adapter.resolves_iterated_types:
+        iterated = {(site.lsp_line, site.lsp_column) for site in inspector.find_iterated_expression_sites(file_path)}
+    return CallShapes(call_sites, method_group, member_read, member_write, collection, iterated)
 
 
 @dataclass(frozen=True)
@@ -52,16 +134,30 @@ class GraphIndex:
     def nodes_in(self, file_path: str) -> list[Node]:
         return self._by_file.get(file_path, [])
 
+    @cached_property
+    def callable_names(self) -> set[str]:
+        """The names the graph declares callables under."""
+        return {simple_name(node.fully_qualified_name) for node in self.call_graph.nodes.values() if node.is_callable()}
+
     def declaration_at(self, file_path: str, line: int, character: int) -> Node | None:
         """The node a definition result names, by the engine's matching rules.
 
-        Exact position, else the sole callable or class the file declares under the name declared
-        there -- an overload signature, which the graph does not hold. Anything else matches nothing.
+        Exact position; else the declaration at the function literal a name there is bound to; else
+        the sole callable or class the file declares under the name declared there -- an overload
+        signature, which the graph does not hold. Anything else matches nothing.
         """
-        exact = _innermost(
+        if not self.nodes_in(file_path):
+            return None
+        exact = self._declared_at(file_path, line, character)
+        if exact is None:
+            literal = self.inspector.function_values(Path(file_path)).get((line, character))
+            exact = self._declared_at(file_path, *literal) if literal is not None else None
+        return exact if exact is not None else self._sole_declaration_named(file_path, line, character)
+
+    def _declared_at(self, file_path: str, line: int, character: int) -> Node | None:
+        return _innermost(
             node for node in self.nodes_in(file_path) if (node.line_start, node.col_start) == (line + 1, character)
         )
-        return exact if exact is not None else self._sole_declaration_named(file_path, line, character)
 
     def _sole_declaration_named(self, file_path: str, line: int, character: int) -> Node | None:
         name = self.inspector.declared_name_at(Path(file_path), line, character)
@@ -209,14 +305,16 @@ def targets_for(
     character: int,
     kind: str,
     adapter: LanguageAdapter,
-    constructing: bool = False,
+    site: CallSite,
 ) -> CallTargets:
-    """Every node a call site of *kind* reaches when its definition is at this position.
+    """Every node the call *site*, of *kind*, reaches when its definition is at this position.
 
     Mirrors the engine's own definition strategy: an argument position is a method
-    group only when it resolves to something callable; a ``foreach`` calls the
-    enumerated type's ``GetEnumerator``; a collection initializer calls ``Add``; a
-    base member dispatches to its overrides; a construction reaches the constructors.
+    group only when it resolves to something callable; a member read only when it
+    resolves to a callable, and a member write only when it resolves to a setter; a
+    ``foreach`` calls the enumerated type's ``GetEnumerator``; a collection initializer
+    calls ``Add``; a base member dispatches to its overrides; a construction reaches the
+    constructors.
     """
     declaration = index.declaration_at(file_path, line, character)
     if declaration is None:
@@ -227,28 +325,39 @@ def targets_for(
         or index.inspector.declares_function_value(Path(file_path), line, character)
     ):
         return CallTargets.none()
-    return targets_through(index, declaration, kind, adapter, constructing)
+    if kind in (MEMBER_READ, MEMBER_WRITE) and not declaration.is_callable():
+        return CallTargets.none()
+    if kind == MEMBER_WRITE and not index.inspector.declares_setter(Path(file_path), line, character):
+        return CallTargets.none()
+    return targets_through(index, declaration, kind, adapter, site)
 
 
 def targets_through(
-    index: GraphIndex, declaration: Node, kind: str, adapter: LanguageAdapter, constructing: bool = False
+    index: GraphIndex, declaration: Node, kind: str, adapter: LanguageAdapter, site: CallSite
 ) -> CallTargets:
-    """Every node a call site of *kind* reaches through *declaration*, expanded as the full build expands it."""
+    """Every node the call *site*, of *kind*, reaches through *declaration*, expanded as the full build expands it."""
     call_graph = index.call_graph
+    constructing = adapter.expands_constructors and index.inspector.is_construction_site(site)
+    through_base = index.inspector.names_base_member(site)
     resolved = _with_owning_class(index, declaration, include_owner=kind != ITERATED)
     targets: list[Node] = []
     for node in resolved:
         targets.append(node)
+        dispatched = node.type in DISPATCHED_KINDS and not through_base
         if kind == ITERATED:
             targets.extend(members_named(call_graph, node, "GetEnumerator"))
         else:
-            if adapter.expands_virtual_dispatch:
+            if adapter.expands_virtual_dispatch and dispatched:
                 targets.extend(override_nodes(call_graph, node))
             if kind == COLLECTION_INITIALIZER:
                 targets.extend(members_named(call_graph, node, "Add"))
         # Independent of *kind*: the engine decides this per site too, so a construction
         # that is also a collection initializer or a loop subject keeps its constructors.
-        if constructing and adapter.expands_constructors and node.is_class():
+        if constructing and node.is_class():
             targets.extend(members_named(call_graph, node, node.fully_qualified_name.split(".")[-1].split("<")[0]))
-    implementations = [(node.file_path, node.line_start - 1, node.col_start) for node in resolved if node.is_callable()]
+    implementations = [
+        (node.file_path, node.line_start - 1, node.col_start)
+        for node in resolved
+        if node.type in DISPATCHED_KINDS and not through_base
+    ]
     return CallTargets(targets, implementations)

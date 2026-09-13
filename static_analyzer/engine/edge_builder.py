@@ -17,13 +17,14 @@ from static_analyzer.config import NodeType
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
+    DISPATCHED_KINDS,
 )
 from static_analyzer.engine.models import CallSite, ExternalCallSite, SymbolInfo
 from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.engine.utils import definition_location
-from static_analyzer.graph_definitions import CALL, COLLECTION_INITIALIZER, ITERATED, METHOD_GROUP
+from static_analyzer.graph_definitions import CALL, ITERATED, MEMBER_READ, MEMBER_WRITE, METHOD_GROUP, call_shapes
 from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name, simple_name
 
 logger = logging.getLogger(__name__)
@@ -81,11 +82,14 @@ class CallEdgeSink:
     a polymorphic call.
     """
 
-    def __init__(self, adapter: EdgeBuildAdapter, st: SymbolTable, dispatch: DispatchIndex | None) -> None:
+    def __init__(
+        self, adapter: EdgeBuildAdapter, st: SymbolTable, inspector: SourceInspector, dispatch: DispatchIndex | None
+    ) -> None:
         self.edges: EdgeMap = {}
         self.impl_queries: list[ImplementationQuery] = []
         self._adapter = adapter
         self._st = st
+        self._inspector = inspector
         self._dispatch = dispatch
 
     def add(self, caller: SymbolInfo, target: SymbolInfo, call_site: CallSite, collection: bool = False) -> None:
@@ -99,7 +103,9 @@ class CallEdgeSink:
 
         _add_edge_call_site(self.edges, attributed.qualified_name, target.qualified_name, call_site)
 
-        extra = list(_override_targets(target, self._st, self._dispatch))
+        # A constructor, or a member named on the base, runs exactly the declaration resolved.
+        dispatched = target.kind in DISPATCHED_KINDS and not self._inspector.names_base_member(call_site)
+        extra = _override_targets(target, self._st, self._dispatch) if dispatched else []
         if collection:
             extra.extend(_members_named(target, self._st, "Add"))
         if self._adapter.is_callable(target.kind) and target.parent_chain:
@@ -112,7 +118,7 @@ class CallEdgeSink:
             if _is_valid_edge(caller, other) and _is_valid_edge(attributed, other):
                 _add_edge_call_site(self.edges, attributed.qualified_name, other.qualified_name, call_site)
 
-        if self._adapter.is_callable(target.kind):
+        if dispatched:
             self.impl_queries.append(
                 ImplementationQuery(
                     caller_qname=attributed.qualified_name,
@@ -131,25 +137,34 @@ class SymbolIndex:
         self._inspector = inspector
         self._by_position: dict[tuple[str, int, int], SymbolInfo] = {}
         self._by_name: dict[tuple[str, str], dict[tuple[str, int, int], SymbolInfo]] = {}
+        self.callable_names: set[str] = set()
+        """The names the table declares callables under."""
         for sym in st.symbols.values():
             position = sym.definition_location
             self._keep_most_specific(self._by_position, position, sym)
             if sym.kind in CALLABLE_KINDS or sym.kind in CLASS_LIKE_KINDS:
                 at = self._by_name.setdefault((str(sym.file_path), simple_name(sym.qualified_name)), {})
                 self._keep_most_specific(at, position, sym)
+            if sym.kind in CALLABLE_KINDS:
+                self.callable_names.add(simple_name(sym.qualified_name))
+        self._files = {str(sym.file_path) for sym in st.symbols.values()}
 
     def resolve(self, def_result: dict) -> SymbolInfo | None:
         """The symbol a definition result names.
 
-        Exact position, else the sole callable or class the file declares under the name declared
-        there -- an overload signature, which the symbol table does not hold.
+        Exact position; else the declaration at the function literal a name there is bound to; else
+        the sole callable or class the file declares under the name declared there -- an overload
+        signature, which the symbol table does not hold.
         """
         location = definition_location(def_result)
-        if location is None:
+        if location is None or str(location[0]) not in self._files:
             return None
         file_path, line, char = location
 
         exact = self._by_position.get((str(file_path), line, char))
+        if exact is None:
+            literal = self._inspector.function_values(file_path).get((line, char))
+            exact = self._by_position.get((str(file_path), *literal)) if literal is not None else None
         if exact is not None:
             return exact
 
@@ -258,24 +273,12 @@ def _resolve_definitions(
     batch_size = 50
 
     dispatch = _build_dispatch_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else None
-    sink = CallEdgeSink(adapter, st, dispatch)
+    sink = CallEdgeSink(adapter, st, si, dispatch)
 
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
-        call_sites = si.find_call_sites(file_path)
-        method_group_positions: set[tuple[int, int]] = set()
-        if adapter.resolves_method_groups:
-            known = {(site.lsp_line, site.lsp_column) for site in call_sites}
-            for site in si.find_method_group_sites(file_path):
-                if (site.lsp_line, site.lsp_column) in known:
-                    continue
-                method_group_positions.add((site.lsp_line, site.lsp_column))
-                call_sites.append(site)
-        collection_positions: set[tuple[int, int]] = set()
-        if adapter.resolves_collection_initializers:
-            collection_positions = {
-                (site.lsp_line, site.lsp_column) for site in si.find_collection_initializer_sites(file_path)
-            }
+        shapes = call_shapes(file_path, si, adapter, index.callable_names)
+        call_sites = shapes.call_sites
         if not call_sites:
             pbar.update(1)
             continue
@@ -292,11 +295,7 @@ def _resolve_definitions(
             for i, call_site in enumerate(batch):
                 defs = results[i]
                 position = (call_site.lsp_line, call_site.lsp_column)
-                kind = CALL
-                if position in method_group_positions:
-                    kind = METHOD_GROUP
-                elif position in collection_positions:
-                    kind = COLLECTION_INITIALIZER
+                kind = shapes.definition_kind_at(position)
 
                 if not defs:
                     if kind == CALL:
@@ -322,8 +321,13 @@ def _resolve_definitions(
                         or si.declares_function_value(target.file_path, target.start_line, target.start_char)
                     ):
                         continue
+                    if kind in (MEMBER_READ, MEMBER_WRITE) and not adapter.is_callable(target.kind):
+                        continue
+                    location = definition_location(def_result)
+                    if kind == MEMBER_WRITE and (location is None or not si.declares_setter(*location)):
+                        continue
 
-                    sink.add(caller, target, call_site, collection=position in collection_positions)
+                    sink.add(caller, target, call_site, collection=position in shapes.collection)
 
                 if not resolved_here and kind == CALL:
                     unresolved.append(call_site)

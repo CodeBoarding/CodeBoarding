@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from pathlib import Path
 
 from static_analyzer.engine.protocols import SymbolNaming
@@ -11,6 +12,9 @@ from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
 from static_analyzer.engine.models import SymbolInfo
 
 logger = logging.getLogger(__name__)
+
+# Kinds a server files a named value under, which a function literal can be the value of.
+_VALUE_KINDS = frozenset({NodeType.VARIABLE, NodeType.CONSTANT, NodeType.PROPERTY, NodeType.FIELD})
 
 
 class SymbolTable:
@@ -31,6 +35,8 @@ class SymbolTable:
         self._primary_file_symbols: dict[str, list[SymbolInfo]] = {}
         # Reference key (lowercase) -> symbol info
         self._ref_key_to_symbol: dict[str, SymbolInfo] = {}
+        # Alias qualified name -> the qualified name it aliases
+        self._alias_of: dict[str, str] = {}
 
         # --- Lookup indices built after registration ---
         # (file_key, name) -> list of symbols with that name in that file
@@ -65,8 +71,12 @@ class SymbolTable:
         parent_chain: list[tuple[str, int]],
         project_root: Path,
         owner_qualified_name: str = "",
+        function_values: Collection[tuple[int, int]] = (),
     ) -> None:
-        """Recursively register symbols with dual registration."""
+        """Recursively register symbols with dual registration.
+
+        *function_values* are the positions of the names the file binds to a function literal.
+        """
         for sym in symbols:
             name = sym.get("name", "")
             kind = sym.get("kind", 0)
@@ -96,6 +106,16 @@ class SymbolTable:
             end_line = end.get("line", 0)
             end_char = end.get("character", 0)
 
+            # A class member bound to a function literal -- ``onMove = (e) => ...`` -- is a method,
+            # whichever kind the server files it under.
+            if (
+                kind in _VALUE_KINDS
+                and parent_chain
+                and self._naming.is_class_like(parent_chain[-1][1])
+                and (start_line, start_char) in function_values
+            ):
+                kind = NodeType.METHOD
+
             file_key = str(file_path)
 
             qualified_name = self._naming.build_qualified_name(
@@ -117,61 +137,25 @@ class SymbolTable:
             info.owner_qualified_name = owner_qualified_name
 
             self._symbols[qualified_name] = info
+            self._alias_of.pop(qualified_name, None)
             ref_key = self._naming.build_reference_key(qualified_name)
             self._ref_key_to_symbol[ref_key] = info
             self._file_symbols.setdefault(file_key, []).append(info)
             self._primary_file_symbols.setdefault(file_key, []).append(info)
 
-            # Dual registration: register unqualified form(s) for symbols with parents
+            # Dual registration: the unqualified form, then each partial parent chain.
             # Aliases go into _file_symbols but NOT _primary_file_symbols
             if parent_chain:
-                unqualified_name = self._naming.build_qualified_name(file_path, name, kind, [], project_root, detail)
-                if unqualified_name != qualified_name and unqualified_name not in self._symbols:
-                    unq_info = SymbolInfo(
-                        name=name,
-                        qualified_name=unqualified_name,
-                        kind=kind,
-                        file_path=file_path,
-                        start_line=start_line,
-                        start_char=start_char,
-                        end_line=end_line,
-                        end_char=end_char,
-                        promoted_from_variable=promoted,
-                    )
-                    unq_info.parent_chain = []
-                    self._symbols[unqualified_name] = unq_info
-                    unq_ref_key = self._naming.build_reference_key(unqualified_name)
-                    self._ref_key_to_symbol[unq_ref_key] = unq_info
-                    self._file_symbols[file_key].append(unq_info)
+                chains: list[list[tuple[str, int]]] = [[]] + [
+                    parent_chain[skip:] for skip in range(1, len(parent_chain))
+                ]
+                for chain in chains:
+                    alias = self._naming.build_qualified_name(file_path, name, kind, chain, project_root, detail)
+                    self._register_alias(alias, info, chain)
 
-                if len(parent_chain) >= 2:
-                    for skip in range(1, len(parent_chain)):
-                        partial_chain = parent_chain[skip:]
-                        partial_name = self._naming.build_qualified_name(
-                            file_path, name, kind, partial_chain, project_root, detail
-                        )
-                        if partial_name != qualified_name and partial_name not in self._symbols:
-                            p_info = SymbolInfo(
-                                name=name,
-                                qualified_name=partial_name,
-                                kind=kind,
-                                file_path=file_path,
-                                start_line=start_line,
-                                start_char=start_char,
-                                end_line=end_line,
-                                end_char=end_char,
-                                promoted_from_variable=promoted,
-                            )
-                            p_info.parent_chain = list(partial_chain)
-                            self._symbols[partial_name] = p_info
-                            p_ref_key = self._naming.build_reference_key(partial_name)
-                            self._ref_key_to_symbol[p_ref_key] = p_info
-                            self._file_symbols[file_key].append(p_info)
-
-            children = sym.get("children", [])
             if children:
                 child_chain = parent_chain + [(name, kind)]
-                self.register_symbols(file_path, children, child_chain, project_root, qualified_name)
+                self.register_symbols(file_path, children, child_chain, project_root, qualified_name, function_values)
 
     def build_indices(self) -> None:
         """Build optimized lookup indices after symbol registration.
@@ -333,6 +317,37 @@ class SymbolTable:
                 return True
 
         return False
+
+    def _register_alias(self, alias_name: str, primary: SymbolInfo, chain: list[tuple[str, int]]) -> None:
+        """Register *alias_name* for *primary*, unless the name is a different declaration's.
+
+        Why an alias follows its name being registered again by the same kind: overloads and accessor
+        pairs register one member once per declaration, and an alias left on the first would name a
+        position the table no longer holds under that name. A different kind under the same name --
+        a local and the returned object's shorthand property -- is a different declaration, which the
+        alias keeps naming.
+        """
+        if alias_name == primary.qualified_name:
+            return
+        held = self._symbols.get(alias_name)
+        if held is not None and (self._alias_of.get(alias_name) != primary.qualified_name or held.kind != primary.kind):
+            return
+        alias = SymbolInfo(
+            name=primary.name,
+            qualified_name=alias_name,
+            kind=primary.kind,
+            file_path=primary.file_path,
+            start_line=primary.start_line,
+            start_char=primary.start_char,
+            end_line=primary.end_line,
+            end_char=primary.end_char,
+            parent_chain=list(chain),
+            promoted_from_variable=primary.promoted_from_variable,
+        )
+        self._symbols[alias_name] = alias
+        self._alias_of[alias_name] = primary.qualified_name
+        self._ref_key_to_symbol[self._naming.build_reference_key(alias_name)] = alias
+        self._file_symbols[str(primary.file_path)].append(alias)
 
     def _is_unnameable(self, sym: SymbolInfo) -> bool:
         """Whether this symbol's own name is not one a reader would use as a caller."""

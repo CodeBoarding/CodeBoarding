@@ -929,6 +929,18 @@ class TestDeclaresFunctionValue:
 
         assert si.declares_function_value(f, 0, 9) is False
 
+    def test_both_names_of_a_chained_assignment_map_to_the_one_literal(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("var allocate = (Mod.allocate = function () {\n  return 0;\n});\n")
+
+        assert SourceInspector().function_values(f) == {(0, 4): (0, 31), (0, 20): (0, 31)}
+
+    def test_a_member_assigned_a_lambda(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("class A:\n    def __init__(self):\n        self.on_move = lambda event: event\n")
+
+        assert SourceInspector().declares_function_value(f, 2, 13) is True
+
 
 class TestReceiversOf:
     def test_each_call_on_a_bare_receiver_is_keyed_by_that_receiver(self, tmp_path: Path):
@@ -956,3 +968,104 @@ class TestReceiversOf:
         si = SourceInspector()
 
         assert si.receivers_of(f, si.find_call_sites(f)) == {}
+
+
+class TestNamesBaseMember:
+    def _bound(self, path: Path, source: str, line: int, column: int) -> bool:
+        path.write_text(source)
+        return SourceInspector().names_base_member(CallSite.from_lsp_position(str(path), line, column))
+
+    def test_a_base_member_read_rather_than_called(self, tmp_path: Path):
+        source = "class A extends B {\n  m() {\n    super.m.apply(this, arguments);\n  }\n}\n"
+
+        assert self._bound(tmp_path / "a.ts", source, 2, 10)
+        assert not self._bound(tmp_path / "a.ts", source, 2, 12)
+
+    def test_typescript_super_member(self, tmp_path: Path):
+        assert self._bound(tmp_path / "a.ts", "class A extends B {\n  m() {\n    super.m();\n  }\n}\n", 2, 10)
+
+    def test_python_super_call_member(self, tmp_path: Path):
+        assert self._bound(tmp_path / "a.py", "class A(B):\n    def m(self):\n        super().m()\n", 2, 16)
+
+    def test_java_super_member(self, tmp_path: Path):
+        assert self._bound(tmp_path / "A.java", "class A extends B {\n  void m() {\n    super.m();\n  }\n}\n", 2, 10)
+
+    def test_csharp_base_member(self, tmp_path: Path):
+        source = "class A : B\n{\n    void M()\n    {\n        base.M();\n    }\n}\n"
+        assert self._bound(tmp_path / "A.cs", source, 4, 13)
+
+    def test_php_parent_member(self, tmp_path: Path):
+        source = "<?php\nclass A extends B {\n  function m() {\n    parent::m();\n  }\n}\n"
+        assert self._bound(tmp_path / "a.php", source, 3, 12)
+
+    def test_a_member_on_this_or_another_receiver_dispatches(self, tmp_path: Path):
+        f = tmp_path / "a.ts"
+        source = "class A extends B {\n  constructor() {\n    super();\n    this.m();\n    other.m();\n  }\n}\n"
+
+        # ``super()`` itself constructs; the target's kind, not the receiver, rules that out.
+        assert not self._bound(f, source, 2, 4)
+        assert not self._bound(f, source, 3, 9)
+        assert not self._bound(f, source, 4, 10)
+
+
+class TestFindMemberSites:
+    def test_reads_and_writes_under_a_listed_name(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text(
+            "class Panel {\n"
+            "  connect(fast: boolean) {\n"
+            "    const bound = this.redraw.bind(this);\n"
+            "    this.model.size = 3;\n"
+            "    return fast ? this.redraw : this.other;\n"
+            "  }\n"
+            "}\n"
+        )
+
+        reads, writes = SourceInspector().find_member_sites(f, {"redraw", "size"})
+
+        assert _positions(reads) == {(3, 24), (5, 24)}
+        assert _positions(writes) == {(4, 16)}
+
+    def test_a_python_attribute_read(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("def run(engine):\n    if engine.dirs:\n        return engine.name\n")
+
+        reads, writes = SourceInspector().find_member_sites(f, {"dirs"})
+
+        assert _positions(reads) == {(2, 15)}
+        assert writes == []
+
+    def test_a_member_named_in_a_type_is_not_read(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text(
+            "type Icon = ReturnType<typeof graphic.createIcon>;\nfunction draw(make: typeof graphic.createIcon) {}\n"
+        )
+
+        assert SourceInspector().find_member_sites(f, {"createIcon"}) == ([], [])
+
+    def test_a_python_annotation_is_not_read(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("def run(engine: mod.Engine) -> mod.Engine:\n    return engine\n")
+
+        assert SourceInspector().find_member_sites(f, {"Engine"}) == ([], [])
+
+
+class TestDeclaresSetter:
+    def test_a_typescript_set_accessor(self, tmp_path: Path):
+        f = tmp_path / "m.ts"
+        f.write_text("class M {\n  get size() { return 1; }\n  set size(v: number) {}\n}\n")
+        si = SourceInspector()
+
+        assert si.declares_setter(f, 2, 6) is True
+        assert si.declares_setter(f, 1, 6) is False
+
+    def test_a_python_property_setter(self, tmp_path: Path):
+        f = tmp_path / "m.py"
+        f.write_text(
+            "class M:\n    @property\n    def size(self):\n        return 1\n\n"
+            "    @size.setter\n    def size(self, value):\n        pass\n"
+        )
+        si = SourceInspector()
+
+        assert si.declares_setter(f, 6, 8) is True
+        assert si.declares_setter(f, 2, 8) is False

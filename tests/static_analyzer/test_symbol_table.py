@@ -163,6 +163,71 @@ class TestRegisterSymbols:
         all_qnames = {s.qualified_name for s in st.file_symbols.get("mod.py", [])}
         assert "mod.inner_func" in all_qnames
 
+    def test_a_class_member_bound_to_a_function_is_a_method(self):
+        st = SymbolTable(_make_adapter())
+        st.register_symbols(
+            Path("mod.ts"),
+            _class_with_child("on_move", NodeType.PROPERTY),
+            parent_chain=[],
+            project_root=Path("/root"),
+            function_values={(0, 0)},
+        )
+        assert st.symbols["MyClass.on_move"].kind == NodeType.METHOD
+
+    def test_a_class_member_holding_a_value_keeps_its_kind(self):
+        st = SymbolTable(_make_adapter())
+        st.register_symbols(
+            Path("mod.ts"), _class_with_child("limit", NodeType.PROPERTY), parent_chain=[], project_root=Path("/root")
+        )
+        assert st.symbols["MyClass.limit"].kind == NodeType.PROPERTY
+
+    def test_a_module_variable_bound_to_a_function_keeps_its_kind(self):
+        st = SymbolTable(_make_adapter())
+        span = {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 20}}
+        symbols = [{"name": "handler", "kind": NodeType.VARIABLE, "range": span}]
+        st.register_symbols(
+            Path("mod.ts"), symbols, parent_chain=[], project_root=Path("/root"), function_values={(0, 0)}
+        )
+        assert st.symbols["mod.handler"].kind == NodeType.VARIABLE
+
+    def test_an_alias_follows_its_name_to_the_last_overload(self):
+        st = SymbolTable(_make_adapter())
+        st.register_symbols(
+            Path("model.ts"), [self._class("Model", [1, 2, 3])], parent_chain=[], project_root=Path("/root")
+        )
+        assert st.symbols["Model.get"].start_line == 3
+        assert st.symbols["model.get"].start_line == 3
+
+    def test_an_alias_never_takes_a_name_another_declaration_holds(self):
+        st = SymbolTable(_make_adapter())
+        function = {"name": "get", "kind": NodeType.FUNCTION, "range": self._span(0)}
+        st.register_symbols(
+            Path("model.ts"), [function, self._class("Model", [2, 3])], parent_chain=[], project_root=Path("/root")
+        )
+        assert st.symbols["model.get"].kind == NodeType.FUNCTION
+        assert st.symbols["model.get"].start_line == 0
+
+    def test_a_different_kind_under_the_same_name_keeps_the_alias_on_the_first(self):
+        st = SymbolTable(_make_adapter())
+        members = [
+            {"name": "add", "kind": NodeType.CONSTANT, "range": self._span(2)},
+            {"name": "add", "kind": NodeType.PROPERTY, "range": self._span(7)},
+        ]
+        span = {"start": {"line": 0, "character": 0}, "end": {"line": 9, "character": 0}}
+        hook = {"name": "useChat", "kind": NodeType.CLASS, "range": span, "children": members}
+        st.register_symbols(Path("mod.ts"), [hook], parent_chain=[], project_root=Path("/root"))
+        assert st.symbols["useChat.add"].start_line == 7
+        assert st.symbols["mod.add"].start_line == 2
+
+    @staticmethod
+    def _span(line: int) -> dict:
+        return {"start": {"line": line, "character": 2}, "end": {"line": line, "character": 20}}
+
+    def _class(self, name: str, overload_lines: list[int]) -> dict:
+        overloads = [{"name": "get", "kind": NodeType.METHOD, "range": self._span(line)} for line in overload_lines]
+        span = {"start": {"line": 0, "character": 0}, "end": {"line": 9, "character": 0}}
+        return {"name": name, "kind": NodeType.CLASS, "range": span, "children": overloads}
+
     def test_skips_symbols_with_empty_name(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)

@@ -13,12 +13,13 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.config import NodeType
 from static_analyzer.engine.adapters.python_adapter import PythonAdapter
 from static_analyzer.engine.edge_builder import SymbolIndex
-from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.graph_definitions import (
     CALL,
     containing_source_node,
+    MEMBER_READ,
     METHOD_GROUP,
     GraphIndex,
     targets_for,
@@ -82,6 +83,12 @@ METHOD_GROUP_CASES = [
     ((16, 0), []),  # a constant passed by name is a value, not a call
 ]
 
+# A member read is a call only when it reaches a callable: a getter, or a method handed on.
+MEMBER_READ_CASES = [
+    ((7, 8), ["m.Box.hold", "m.Box"]),
+    ((16, 0), []),  # a constant read is a value
+]
+
 
 @pytest.fixture
 def module(tmp_path: Path) -> Path:
@@ -138,7 +145,8 @@ def test_both_resolvers_name_the_same_declaration(
     definition = {"uri": module.as_uri(), "range": {"start": {"line": line, "character": character}}}
 
     match = _symbol_index(module).resolve(definition)
-    nodes = targets_for(_graph_index(module), str(module), line, character, CALL, PythonAdapter()).nodes
+    site = CallSite.from_lsp_position(str(module), line, character)
+    nodes = targets_for(_graph_index(module), str(module), line, character, CALL, PythonAdapter(), site).nodes
 
     assert (match.qualified_name if match else "") == declaration
     assert [node.fully_qualified_name for node in nodes] == targets
@@ -154,7 +162,45 @@ def test_both_resolvers_agree_on_what_a_name_passed_as_a_value_reaches(
 
     match = _symbol_index(module).resolve(definition)
     engine_target = match is not None and adapter.is_callable(match.kind)
-    nodes = targets_for(_graph_index(module), str(module), line, character, METHOD_GROUP, adapter).nodes
+    site = CallSite.from_lsp_position(str(module), line, character)
+    nodes = targets_for(_graph_index(module), str(module), line, character, METHOD_GROUP, adapter, site).nodes
 
     assert engine_target == bool(targets)
     assert [node.fully_qualified_name for node in nodes] == targets
+
+
+@pytest.mark.parametrize("position,targets", MEMBER_READ_CASES)
+def test_both_resolvers_agree_on_what_a_member_read_reaches(
+    module: Path, position: tuple[int, int], targets: list[str]
+) -> None:
+    line, character = position
+    definition = {"uri": module.as_uri(), "range": {"start": {"line": line, "character": character}}}
+    adapter = PythonAdapter()
+
+    match = _symbol_index(module).resolve(definition)
+    engine_target = match is not None and adapter.is_callable(match.kind)
+    site = CallSite.from_lsp_position(str(module), line, character)
+    nodes = targets_for(_graph_index(module), str(module), line, character, MEMBER_READ, adapter, site).nodes
+
+    assert engine_target == bool(targets)
+    assert [node.fully_qualified_name for node in nodes] == targets
+
+
+def test_a_member_named_on_the_base_is_owed_no_implementation_query(tmp_path: Path) -> None:
+    module = tmp_path / "m.py"
+    module.write_text(
+        "class Base:\n    def describe(self):\n        return 1\n\n\n"
+        "class Child(Base):\n    def describe(self):\n        return super().describe()\n\n"
+        "    def show(self):\n        return self.describe()\n"
+    )
+    graph = CallGraph(language="python")
+    graph.add_node(Node("m.Base", NodeType.CLASS, str(module), 1, 3, col_start=6))
+    graph.add_node(Node("m.Base.describe", NodeType.METHOD, str(module), 2, 3, col_start=8))
+    index = GraphIndex(graph, SourceInspector())
+    adapter = PythonAdapter()
+
+    through_super = CallSite.from_lsp_position(str(module), 7, 23)
+    through_self = CallSite.from_lsp_position(str(module), 10, 20)
+
+    assert targets_for(index, str(module), 1, 8, CALL, adapter, through_super).implementations == []
+    assert targets_for(index, str(module), 1, 8, CALL, adapter, through_self).implementations == [(str(module), 1, 8)]

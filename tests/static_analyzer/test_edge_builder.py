@@ -122,6 +122,13 @@ def _index(symbols: list[SymbolInfo], inspector: SourceInspector | None = None) 
 
 
 class TestSymbolIndexResolve:
+    def test_a_name_bound_to_a_function_resolves_to_the_declaration_at_the_literal(self, tmp_path: Path):
+        f = tmp_path / "panel.ts"
+        f.write_text("var allocate = (Mod.allocate = function () {\n  return 0;\n});\n")
+        literal = _sym("allocate", "panel.allocate.allocate", NodeType.FUNCTION, str(f), 0, 31, 2, 2)
+
+        assert _index([literal]).resolve(_definition(str(f), 0, 20)) is literal
+
     def test_exact_match_with_location_format(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
         assert _index([sym]).resolve(_definition("/p/a.py", 10, 4)) is sym
@@ -506,6 +513,132 @@ class TestFunctionValuedTargets:
         _answer(lsp, {(3, 14): (0, 6)}, src)
 
         assert build_edges_via_definitions(adapter, ctx, [src]) == {}
+
+
+class TestOnlyDispatchedCallsExpand:
+    def test_a_constructor_or_a_member_named_on_the_base_is_owed_no_implementation_query(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text(
+            "class Model {\n"
+            "  constructor() {}\n"
+            '  describe() { return ""; }\n'
+            "}\n"
+            "class Series extends Model {\n"
+            "  constructor() { super(); }\n"
+            "  describe() { return super.describe(); }\n"
+            "  show() { return this.describe(); }\n"
+            "}\n"
+        )
+        model: list[tuple[str, int]] = [("Model", NodeType.CLASS)]
+        series: list[tuple[str, int]] = [("Series", NodeType.CLASS)]
+        _register(
+            ctx,
+            src,
+            [
+                _sym("Model", "app.Model", NodeType.CLASS, str(src), 0, 6, 3, 1),
+                _sym("constructor", "app.Model.constructor", NodeType.CONSTRUCTOR, str(src), 1, 2, 1, 19, model),
+                _sym("describe", "app.Model.describe", NodeType.METHOD, str(src), 2, 2, 2, 28, model),
+                _sym("Series", "app.Series", NodeType.CLASS, str(src), 4, 6, 8, 1),
+                _sym("constructor", "app.Series.constructor", NodeType.CONSTRUCTOR, str(src), 5, 2, 5, 29, series),
+                _sym("describe", "app.Series.describe", NodeType.METHOD, str(src), 6, 2, 6, 42, series),
+                _sym("show", "app.Series.show", NodeType.METHOD, str(src), 7, 2, 7, 37, series),
+            ],
+        )
+        _answer(lsp, {(5, 18): (1, 2), (6, 28): (2, 2), (7, 23): (6, 2)}, src)
+
+        edges = build_edges_via_definitions(adapter, ctx, [src])
+
+        asked = {(line, col) for call in lsp.send_implementation_batch.call_args_list for _, line, col in call.args[0]}
+        assert asked == {(6, 2)}
+        assert ("app.Series.constructor", "app.Model.constructor") in edges
+        assert ("app.Series.describe", "app.Model.describe") in edges
+
+
+class TestMemberReads:
+    def test_a_property_read_is_a_call_to_its_getter(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.py"
+        src.write_text(
+            "class Engine:\n    @property\n    def dirs(self):\n        return []\n\n\n"
+            "def run(engine):\n    if engine.dirs:\n        return 1\n"
+        )
+        engine: list[tuple[str, int]] = [("Engine", NodeType.CLASS)]
+        _register(
+            ctx,
+            src,
+            [
+                _sym("Engine", "app.Engine", NodeType.CLASS, str(src), 0, 6, 3, 17),
+                _sym("dirs", "app.Engine.dirs", NodeType.METHOD, str(src), 2, 8, 3, 17, engine),
+                _sym("run", "app.run", NodeType.FUNCTION, str(src), 6, 4, 8, 16),
+            ],
+        )
+        _answer(lsp, {(7, 14): (2, 8)}, src)
+
+        edges = build_edges_via_definitions(adapter, ctx, [src])
+
+        assert ("app.run", "app.Engine.dirs") in edges
+        assert ("app.run", "app.Engine") in edges
+
+    def test_a_write_calls_a_setter_but_not_a_method_it_replaces(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text(
+            "class Model {\n"
+            "  set size(value: number) {}\n"
+            "  render() {}\n"
+            "}\n"
+            "function run(model: Model) {\n"
+            "  model.size = 3;\n"
+            "  model.render = () => {};\n"
+            "}\n"
+        )
+        model: list[tuple[str, int]] = [("Model", NodeType.CLASS)]
+        _register(
+            ctx,
+            src,
+            [
+                _sym("Model", "app.Model", NodeType.CLASS, str(src), 0, 6, 3, 1),
+                _sym("size", "app.Model.size", NodeType.METHOD, str(src), 1, 6, 1, 28, model),
+                _sym("render", "app.Model.render", NodeType.METHOD, str(src), 2, 2, 2, 13, model),
+                _sym("run", "app.run", NodeType.FUNCTION, str(src), 4, 9, 7, 1),
+            ],
+        )
+        _answer(lsp, {(5, 8): (1, 6), (6, 8): (2, 2)}, src)
+
+        edges = build_edges_via_definitions(adapter, ctx, [src])
+
+        assert ("app.run", "app.Model.size") in edges
+        assert ("app.run", "app.Model.render") not in edges
+
+    def test_a_member_read_that_resolves_to_a_value_is_not_an_edge(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.py"
+        src.write_text(
+            "class Config:\n    dirs = []\n\ndef dirs():\n    return 1\n\n"
+            "def run(config):\n    if config.dirs:\n        return 1\n"
+        )
+        _register(
+            ctx,
+            src,
+            [
+                _sym("Config", "app.Config", NodeType.CLASS, str(src), 0, 6, 1, 13),
+                _sym("dirs", "app.Config.dirs", NodeType.VARIABLE, str(src), 1, 4, 1, 13, [("Config", NodeType.CLASS)]),
+                _sym("dirs", "app.dirs", NodeType.FUNCTION, str(src), 3, 4, 4, 12),
+                _sym("run", "app.run", NodeType.FUNCTION, str(src), 6, 4, 8, 16),
+            ],
+        )
+        _answer(lsp, {(7, 14): (1, 4)}, src)
+
+        edges = build_edges_via_definitions(adapter, ctx, [src])
+
+        asked = {(line, col) for call in lsp.send_definition_batch.call_args_list for _, line, col in call.args[0]}
+        assert (7, 14) in asked
+        assert edges == {}
 
 
 class TestReceiverMemberFallback:

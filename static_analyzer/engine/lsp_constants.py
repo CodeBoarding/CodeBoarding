@@ -20,6 +20,12 @@ CALLABLE_KINDS: set[int] = {
     NodeType.CONSTRUCTOR,
 }
 
+# Callables a call can dispatch to an override of. A constructor runs exactly the class it names.
+DISPATCHED_KINDS: set[int] = {
+    NodeType.FUNCTION,
+    NodeType.METHOD,
+}
+
 # Batch size for did_open to avoid overwhelming LSP servers
 DID_OPEN_BATCH_SIZE = 50
 
