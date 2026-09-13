@@ -122,6 +122,17 @@ def _index(symbols: list[SymbolInfo], inspector: SourceInspector | None = None) 
 
 
 class TestSymbolIndexResolve:
+    def test_an_overload_signature_resolves_to_the_implementation_of_its_own_class(self, tmp_path: Path):
+        f = tmp_path / "graph.ts"
+        f.write_text(
+            "class Node {\n  getModel(): number;\n  getModel(path?: string): number { return 1; }\n}\n"
+            "class Edge {\n  getModel(path?: string): number { return 2; }\n}\n"
+        )
+        node = _sym("getModel", "graph.Node.getModel", NodeType.METHOD, str(f), 2, 2, 2, 46)
+        edge = _sym("getModel", "graph.Edge.getModel", NodeType.METHOD, str(f), 5, 2, 5, 46)
+
+        assert _index([node, edge]).resolve(_definition(str(f), 1, 2)) is node
+
     def test_a_name_bound_to_a_function_resolves_to_the_declaration_at_the_literal(self, tmp_path: Path):
         f = tmp_path / "panel.ts"
         f.write_text("var allocate = (Mod.allocate = function () {\n  return 0;\n});\n")
@@ -190,7 +201,7 @@ class TestSymbolIndexResolve:
         implementation = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 2, 16, 4, 1)
         assert _index([implementation]).resolve(_definition(str(source), 0, 16)) is implementation
 
-    def test_two_declarations_of_the_name_are_ambiguous(self, tmp_path: Path):
+    def test_a_signature_resolves_to_the_implementation_below_it_not_a_namesake(self, tmp_path: Path):
         source = tmp_path / "teams.ts"
         source.write_text(
             "export function getTeams(id: string): Team[];\n"
@@ -199,7 +210,16 @@ class TestSymbolIndexResolve:
         )
         free = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
         method = _sym("getTeams", "teams.Api.getTeams", NodeType.METHOD, str(source), 2, 12, 2, 26)
-        assert _index([free, method]).resolve(_definition(str(source), 0, 16)) is None
+        assert _index([free, method]).resolve(_definition(str(source), 0, 16)) is free
+
+    def test_two_declarations_of_a_name_declared_where_no_implementation_follows_are_ambiguous(self, tmp_path: Path):
+        source = tmp_path / "teams.ts"
+        source.write_text(
+            "function getTeams() {}\nclass Api { getTeams() {} }\ndeclare const x: { getTeams(): void };\n"
+        )
+        free = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 0, 9, 0, 22)
+        method = _sym("getTeams", "teams.Api.getTeams", NodeType.METHOD, str(source), 1, 12, 1, 26)
+        assert _index([free, method]).resolve(_definition(str(source), 2, 19)) is None
 
     def test_dual_registration_at_one_position_is_one_declaration(self, tmp_path: Path):
         source = tmp_path / "teams.ts"

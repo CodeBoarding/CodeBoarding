@@ -152,14 +152,15 @@ class SymbolIndex:
     def resolve(self, def_result: dict) -> SymbolInfo | None:
         """The symbol a definition result names.
 
-        Exact position; else the declaration at the function literal a name there is bound to; else
-        the sole callable or class the file declares under the name declared there -- an overload
-        signature, which the symbol table does not hold.
+        Exact position, an overload signature standing for its implementation; else the declaration
+        at the function literal a name there is bound to; else the sole callable or class the file
+        declares under the name declared there.
         """
         location = definition_location(def_result)
         if location is None or str(location[0]) not in self._files:
             return None
         file_path, line, char = location
+        line, char = self._inspector.overload_implementations(file_path).get((line, char), (line, char))
 
         exact = self._by_position.get((str(file_path), line, char))
         if exact is None:

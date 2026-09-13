@@ -108,6 +108,8 @@ _ASSIGNMENT_NODE_TYPES = frozenset(
 )
 # A member named in a type is not read at run time: ``ReturnType<typeof api.load>``, ``x: mod.Base``.
 _TYPE_POSITION_NODE_TYPES = frozenset({"type", "type_annotation", "type_query"})
+# Declarations without a body: an overload signature, completed by the implementation that follows it.
+_SIGNATURE_NODE_TYPES = frozenset({"method_signature", "function_signature"})
 # Nodes that run a constructor. Java's `super(...)`/`this(...)` is a call node rather than a
 # creation one, and `Dog::new` is a method reference that has to be told from `Dog::speak`.
 _CONSTRUCTION_NODE_TYPES = (
@@ -359,6 +361,8 @@ class SourceUsageIndex:
     function_values: dict[tuple[int, int], tuple[int, int]]
     base_member_positions: set[tuple[int, int]]
     setter_positions: set[tuple[int, int]]
+    # Each overload signature's name, to the name of the implementation it overloads.
+    overload_implementations: dict[tuple[int, int], tuple[int, int]]
 
 
 class SourceInspector:
@@ -384,6 +388,7 @@ class SourceInspector:
             + len(index.function_values)
             + len(index.base_member_positions)
             + len(index.setter_positions)
+            + len(index.overload_implementations)
             for index in self._usage_index_cache.values()
         )
         return {
@@ -543,6 +548,11 @@ class SourceInspector:
         """Each name the file binds to a function literal, mapped to where that literal starts."""
         usage_index = self._usage_index(file_path)
         return usage_index.function_values if usage_index is not None else {}
+
+    def overload_implementations(self, file_path: Path) -> dict[tuple[int, int], tuple[int, int]]:
+        """Each overload signature the file declares, by its name's position, to where its implementation is named."""
+        usage_index = self._usage_index(file_path)
+        return usage_index.overload_implementations if usage_index is not None else {}
 
     def declares_setter(self, file_path: Path, line: int, character: int) -> bool:
         """Whether the name declared at this position is a setter, which writing the member calls."""
@@ -801,6 +811,7 @@ class SourceInspector:
         function_values: dict[tuple[int, int], tuple[int, int]] = {}
         base_member_positions: set[tuple[int, int]] = set()
         setter_positions: set[tuple[int, int]] = set()
+        overload_implementations: dict[tuple[int, int], tuple[int, int]] = {}
         for node in self._walk(parsed.tree.root_node):
             binding = self._function_value_binding(node)
             if binding is not None:
@@ -810,6 +821,13 @@ class SourceInspector:
             setter = self._setter_name(node)
             if setter is not None:
                 setter_positions.add(parsed.lsp_position(setter.start_point))
+
+            overload = self._overload_implementation(node)
+            if overload is not None:
+                signature, implementation = overload
+                overload_implementations[parsed.lsp_position(signature.start_point)] = parsed.lsp_position(
+                    implementation.start_point
+                )
 
             target = self._call_target_node(node)
             if target is not None and self._runs_a_constructor(node):
@@ -827,6 +845,7 @@ class SourceInspector:
             function_values=function_values,
             base_member_positions=base_member_positions,
             setter_positions=setter_positions,
+            overload_implementations=overload_implementations,
         )
         self._usage_index_cache[file_key] = usage_index
         return usage_index
@@ -854,6 +873,31 @@ class SourceInspector:
         if name is not None and name.type in _MEMBER_ACCESS_NODE_TYPES:
             name = self._select_query_node(name)
         return (name, value) if name is not None and name.type in _NAME_NODE_TYPES else None
+
+    @staticmethod
+    def _overload_implementation(node: TreeSitterNode) -> tuple[TreeSitterNode, TreeSitterNode] | None:
+        """The name an overload signature declares and the name of the implementation it is completed by.
+
+        Why the next declarations and not the file: overloads are written consecutively right above their
+        implementation, and two classes in one file can both overload a member of the same name.
+        """
+        if node.type not in _SIGNATURE_NODE_TYPES:
+            return None
+        name = node.child_by_field_name("name")
+        written = node.parent if node.parent is not None and node.parent.type == "export_statement" else node
+        sibling = written.next_named_sibling
+        while name is not None and sibling is not None:
+            declaration = sibling.child_by_field_name("declaration") if sibling.type == "export_statement" else sibling
+            declared = declaration.child_by_field_name("name") if declaration is not None else None
+            if sibling.type == "comment":
+                sibling = sibling.next_named_sibling
+                continue
+            if declared is None or declared.text != name.text:
+                return None
+            if declaration is not None and declaration.child_by_field_name("body") is not None:
+                return name, declared
+            sibling = sibling.next_named_sibling
+        return None
 
     @staticmethod
     def _setter_name(node: TreeSitterNode) -> TreeSitterNode | None:

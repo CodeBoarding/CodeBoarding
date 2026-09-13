@@ -186,6 +186,35 @@ def test_both_resolvers_agree_on_what_a_member_read_reaches(
     assert [node.fully_qualified_name for node in nodes] == targets
 
 
+def test_both_resolvers_take_an_overload_signature_to_its_own_class_implementation(tmp_path: Path) -> None:
+    module = tmp_path / "graph.ts"
+    module.write_text(
+        "class Node {\n  getModel(): number;\n  getModel(path?: string): number { return 1; }\n}\n"
+        "class Edge {\n  getModel(path?: string): number { return 2; }\n}\n"
+    )
+    table = SymbolTable(PythonAdapter())
+    graph = CallGraph(language="typescript")
+    for qualified_name, line in (("graph.Node.getModel", 2), ("graph.Edge.getModel", 5)):
+        table.symbols[qualified_name] = SymbolInfo(
+            name="getModel",
+            qualified_name=qualified_name,
+            kind=NodeType.METHOD,
+            file_path=module,
+            start_line=line,
+            start_char=2,
+            end_line=line,
+            end_char=46,
+        )
+        graph.add_node(Node(qualified_name, NodeType.METHOD, str(module), line + 1, line + 1, col_start=2))
+    definition = {"uri": module.as_uri(), "range": {"start": {"line": 1, "character": 2}}}
+
+    match = SymbolIndex(table, SourceInspector()).resolve(definition)
+    node = GraphIndex(graph, SourceInspector()).declaration_at(str(module), 1, 2)
+
+    assert match is not None and match.qualified_name == "graph.Node.getModel"
+    assert node is not None and node.fully_qualified_name == "graph.Node.getModel"
+
+
 def test_a_member_named_on_the_base_is_owed_no_implementation_query(tmp_path: Path) -> None:
     module = tmp_path / "m.py"
     module.write_text(

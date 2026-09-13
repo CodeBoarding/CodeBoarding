@@ -35,8 +35,6 @@ class SymbolTable:
         self._primary_file_symbols: dict[str, list[SymbolInfo]] = {}
         # Reference key (lowercase) -> symbol info
         self._ref_key_to_symbol: dict[str, SymbolInfo] = {}
-        # Alias qualified name -> the qualified name it aliases
-        self._alias_of: dict[str, str] = {}
 
         # --- Lookup indices built after registration ---
         # (file_key, name) -> list of symbols with that name in that file
@@ -137,7 +135,6 @@ class SymbolTable:
             info.owner_qualified_name = owner_qualified_name
 
             self._symbols[qualified_name] = info
-            self._alias_of.pop(qualified_name, None)
             ref_key = self._naming.build_reference_key(qualified_name)
             self._ref_key_to_symbol[ref_key] = info
             self._file_symbols.setdefault(file_key, []).append(info)
@@ -319,18 +316,13 @@ class SymbolTable:
         return False
 
     def _register_alias(self, alias_name: str, primary: SymbolInfo, chain: list[tuple[str, int]]) -> None:
-        """Register *alias_name* for *primary*, unless the name is a different declaration's.
+        """Register *alias_name* for *primary*, unless a declaration registered first already holds the name.
 
-        Why an alias follows its name being registered again by the same kind: overloads and accessor
-        pairs register one member once per declaration, and an alias left on the first would name a
-        position the table no longer holds under that name. A different kind under the same name --
-        a local and the returned object's shorthand property -- is a different declaration, which the
-        alias keeps naming.
+        Why the first keeps it: a name registered twice -- a Rust type's trait impls each declaring
+        ``fmt``, a hook's local and the property returning it -- is two declarations, and the alias is
+        what keeps the first one reachable once the second takes the qualified name.
         """
-        if alias_name == primary.qualified_name:
-            return
-        held = self._symbols.get(alias_name)
-        if held is not None and (self._alias_of.get(alias_name) != primary.qualified_name or held.kind != primary.kind):
+        if alias_name == primary.qualified_name or alias_name in self._symbols:
             return
         alias = SymbolInfo(
             name=primary.name,
@@ -345,7 +337,6 @@ class SymbolTable:
             promoted_from_variable=primary.promoted_from_variable,
         )
         self._symbols[alias_name] = alias
-        self._alias_of[alias_name] = primary.qualified_name
         self._ref_key_to_symbol[self._naming.build_reference_key(alias_name)] = alias
         self._file_symbols[str(primary.file_path)].append(alias)
 

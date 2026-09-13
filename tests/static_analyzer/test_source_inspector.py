@@ -1050,6 +1050,35 @@ class TestFindMemberSites:
         assert SourceInspector().find_member_sites(f, {"Engine"}) == ([], [])
 
 
+class TestOverloadImplementations:
+    def test_each_signature_maps_to_the_implementation_below_it(self, tmp_path: Path):
+        f = tmp_path / "graph.ts"
+        f.write_text(
+            "class Node {\n"
+            "  getModel(): number;\n"
+            "  getModel(path: string): number;\n"
+            "  getModel(path?: string): number { return 1; }\n"
+            "}\n"
+            "class Edge {\n"
+            "  getModel(): number;\n"
+            "  getModel(path?: string): number { return 2; }\n"
+            "}\n"
+            "export function make(a: string): void;\n"
+            "export function make(a: any): void {}\n"
+            "interface Api {\n"
+            "  load(x: string): void;\n"
+            "  load(x: number): void;\n"
+            "}\n"
+        )
+
+        assert SourceInspector().overload_implementations(f) == {
+            (1, 2): (3, 2),
+            (2, 2): (3, 2),
+            (6, 2): (7, 2),
+            (9, 16): (10, 16),
+        }
+
+
 class TestDeclaresSetter:
     def test_a_typescript_set_accessor(self, tmp_path: Path):
         f = tmp_path / "m.ts"

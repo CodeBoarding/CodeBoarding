@@ -142,12 +142,15 @@ class GraphIndex:
     def declaration_at(self, file_path: str, line: int, character: int) -> Node | None:
         """The node a definition result names, by the engine's matching rules.
 
-        Exact position; else the declaration at the function literal a name there is bound to; else
-        the sole callable or class the file declares under the name declared there -- an overload
-        signature, which the graph does not hold. Anything else matches nothing.
+        Exact position, an overload signature standing for its implementation; else the declaration
+        at the function literal a name there is bound to; else the sole callable or class the file
+        declares under the name declared there. Anything else matches nothing.
         """
         if not self.nodes_in(file_path):
             return None
+        line, character = self.inspector.overload_implementations(Path(file_path)).get(
+            (line, character), (line, character)
+        )
         exact = self._declared_at(file_path, line, character)
         if exact is None:
             literal = self.inspector.function_values(Path(file_path)).get((line, character))

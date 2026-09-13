@@ -190,13 +190,13 @@ class TestRegisterSymbols:
         )
         assert st.symbols["mod.handler"].kind == NodeType.VARIABLE
 
-    def test_an_alias_follows_its_name_to_the_last_overload(self):
+    def test_an_alias_keeps_the_first_declaration_registered_under_its_name(self):
         st = SymbolTable(_make_adapter())
         st.register_symbols(
-            Path("model.ts"), [self._class("Model", [1, 2, 3])], parent_chain=[], project_root=Path("/root")
+            Path("model.rs"), [self._class("Model", [1, 2, 3])], parent_chain=[], project_root=Path("/root")
         )
         assert st.symbols["Model.get"].start_line == 3
-        assert st.symbols["model.get"].start_line == 3
+        assert st.symbols["model.get"].start_line == 1
 
     def test_an_alias_never_takes_a_name_another_declaration_holds(self):
         st = SymbolTable(_make_adapter())
