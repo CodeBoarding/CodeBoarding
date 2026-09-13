@@ -324,9 +324,9 @@ class LanguageAdapter(ABC):
 
     @property
     def resolves_method_groups(self) -> bool:
-        """Whether to query bare identifiers passed as call arguments as well, and keep
-        only the targets that are callable, class-like or a name bound to a function."""
-        return False
+        """Whether to also query names passed as values and members read without a call, keeping only
+        what resolves to something callable -- ``app.MapGet("/items", GetAllItems)``, ``this.redraw.bind(this)``."""
+        return True
 
     @property
     def expands_virtual_dispatch(self) -> bool:

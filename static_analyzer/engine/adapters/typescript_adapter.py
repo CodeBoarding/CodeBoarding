@@ -31,10 +31,6 @@ class TypeScriptAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "typescript"
 
-    @property
-    def resolves_method_groups(self) -> bool:
-        return True
-
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         # Why: by default a syntax-only server answers while the project still loads, and a definition
         # that needs an inferred type -- ``.then(t => t.serialize())`` -- comes back empty on a cold start.

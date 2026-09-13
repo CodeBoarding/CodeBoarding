@@ -23,7 +23,7 @@ from static_analyzer.engine.models import ExternalCallSite
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.errors import StaticAnalysisFatalError
+from static_analyzer.exceptions import StaticAnalysisFatalError
 from static_analyzer.external_calls import link_external_call_sites
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner

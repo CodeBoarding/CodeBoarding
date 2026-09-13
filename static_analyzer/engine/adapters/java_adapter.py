@@ -249,6 +249,12 @@ class JavaAdapter(LanguageAdapter):
         """JDTLS resolves ``new Dog()`` to the class, so the constructor needs adding."""
         return True
 
+    @property
+    def resolves_method_groups(self) -> bool:
+        """Java hands a method on only as a method reference (``Dog::speak``), already a call site;
+        a bare argument or a field read never names a callable, so asking JDTLS would be pure cost."""
+        return False
+
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 

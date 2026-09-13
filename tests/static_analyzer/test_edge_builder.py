@@ -18,7 +18,7 @@ from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.errors import StaticAnalysisFatalError
+from static_analyzer.exceptions import StaticAnalysisFatalError
 
 from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 

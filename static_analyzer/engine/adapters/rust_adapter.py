@@ -131,10 +131,6 @@ class RustAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "rust"
 
-    @property
-    def resolves_method_groups(self) -> bool:
-        return True
-
     def get_lsp_command(self, project_root: Path) -> list[str]:
         """Fail fast if cargo is missing.
 

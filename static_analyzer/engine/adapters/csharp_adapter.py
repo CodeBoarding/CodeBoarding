@@ -287,12 +287,6 @@ class CSharpAdapter(LanguageAdapter):
         return True
 
     @property
-    def resolves_method_groups(self) -> bool:
-        """Minimal-API routing (``app.MapGet("/items", GetAllItems)``) passes
-        handlers as values, so the invocation walk alone would miss them."""
-        return True
-
-    @property
     def expands_virtual_dispatch(self) -> bool:
         """csharp-ls answers ``textDocument/implementation`` for interface members
         but returns nothing for abstract or virtual *class* members, so a call

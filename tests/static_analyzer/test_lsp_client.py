@@ -16,7 +16,7 @@ from static_analyzer.engine.lsp_client import (
     LSPClient,
     MethodNotFoundError,
 )
-from static_analyzer.errors import StaticAnalysisFatalError
+from static_analyzer.exceptions import StaticAnalysisFatalError
 
 
 class TestLSPClientInit:

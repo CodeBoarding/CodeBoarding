@@ -19,7 +19,7 @@ from pathlib import Path
 
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.errors import StaticAnalysisFatalError
+from static_analyzer.exceptions import StaticAnalysisFatalError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)

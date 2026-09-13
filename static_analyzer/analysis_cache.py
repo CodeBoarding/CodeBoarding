@@ -72,9 +72,8 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v9: a call into a project of another solution root is an edge.
 # v10: every name is spelled from the repository root; C# keeps ``src`` and Java its source root.
 # v11: every language builds its call edges from definitions at the call site.
-# v12: a call site's column counts UTF-16 code units, as LSP does, not tree-sitter's bytes.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v12"
+_TAG_VERSION = "v11"
 
 
 class StaticAnalysisCache:

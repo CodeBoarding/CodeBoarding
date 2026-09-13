@@ -104,10 +104,6 @@ class GoAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "go"
 
-    @property
-    def resolves_method_groups(self) -> bool:
-        return True
-
     def get_lsp_command(self, project_root: Path) -> list[str]:
         """Fail fast if the Go toolchain is missing.
 
