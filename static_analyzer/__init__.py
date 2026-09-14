@@ -25,6 +25,7 @@ from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.exceptions import StaticAnalysisFatalError
 from static_analyzer.external_calls import link_external_call_sites, record_package_imports
+from static_analyzer.graph_definitions import GraphIndex
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -613,7 +614,7 @@ class StaticAnalyzer:
 
         Returns:
             Deduplicated list of absolute file paths that the file depends on.
-            Returns an empty list if no matching client is found or on failure.
+            Returns an empty list if no client serves the file; a failed query raises.
         """
         suffix = file_path.suffix
         client = next(
@@ -627,36 +628,29 @@ class StaticAnalyzer:
         if client is None:
             return []
 
-        try:
-            call_sites = SourceInspector().find_call_sites(file_path)
-            if not call_sites:
-                return []
-
-            queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
-            results = client.send_definition_batch(queries)
-
-            resolved = file_path.resolve()
-            unique_paths: set[str] = set()
-            for definitions in results:
-                for defn in definitions:
-                    uri = defn.get("targetUri", defn.get("uri", ""))
-                    if not uri.startswith("file://"):
-                        continue
-                    dep_path_obj = uri_to_path(uri)
-                    if dep_path_obj is None:
-                        continue
-                    dep_path = str(dep_path_obj)
-                    if dep_path != str(resolved):
-                        unique_paths.add(dep_path)
-
-            logger.debug(f"Discovered {len(unique_paths)} dependencies for {file_path}")
-            return list(unique_paths)
-        except StaticAnalysisFatalError:
-            # An unanswered batch is not an answer of "nothing"; the caller must hear it.
-            raise
-        except Exception:
-            logger.warning(f"Failed to discover dependencies for {file_path}", exc_info=True)
+        call_sites = SourceInspector().find_call_sites(file_path)
+        if not call_sites:
             return []
+
+        queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
+        results = client.send_definition_batch(queries)
+
+        resolved = file_path.resolve()
+        unique_paths: set[str] = set()
+        for definitions in results:
+            for defn in definitions:
+                uri = defn.get("targetUri", defn.get("uri", ""))
+                if not uri.startswith("file://"):
+                    continue
+                dep_path_obj = uri_to_path(uri)
+                if dep_path_obj is None:
+                    continue
+                dep_path = str(dep_path_obj)
+                if dep_path != str(resolved):
+                    unique_paths.add(dep_path)
+
+        logger.debug(f"Discovered {len(unique_paths)} dependencies for {file_path}")
+        return list(unique_paths)
 
     def analyze(
         self,
@@ -969,7 +963,8 @@ class StaticAnalyzer:
                 continue
             language = adapter.results_language
             analysed_files = {str(path) for path in analysis.get("source_files", [])}
-            linked = link_external_call_sites(results.get_cfg(language), sites, adapter, inspector, analysed_files)
+            index = GraphIndex(results.get_cfg(language))
+            linked = link_external_call_sites(index, sites, adapter, inspector, analysed_files)
             record_package_imports(results.get_package_dependencies(language), adapter, linked.edges)
 
     def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:

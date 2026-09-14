@@ -432,7 +432,7 @@ class TestCollectBatchResponses:
             return [BatchAnswer([{"line": line}], served=True, retryable=False) for _, line, _ in queries]
 
         count = REQUEST_BATCH_SIZE * 2 + 1
-        with patch.object(client, "_ask", side_effect=ask):
+        with patch.object(client, "_send_round", side_effect=ask):
             results = client.send_definition_batch([(Path("/root/a.py"), line, 0) for line in range(count)])
 
         assert rounds == [REQUEST_BATCH_SIZE, REQUEST_BATCH_SIZE, 1]

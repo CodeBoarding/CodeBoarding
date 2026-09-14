@@ -110,6 +110,8 @@ _ASSIGNMENT_NODE_TYPES = frozenset(
 _TYPE_POSITION_NODE_TYPES = frozenset({"type", "type_annotation", "type_query"})
 # Declarations without a body: an overload signature, completed by the implementation that follows it.
 _SIGNATURE_NODE_TYPES = frozenset({"method_signature", "function_signature"})
+# The last code point one UTF-16 unit holds; any above it takes a surrogate pair, two units.
+_MAX_SINGLE_UTF16_UNIT_CODE_POINT = 0xFFFF
 # Nodes that run a constructor. Java's `super(...)`/`this(...)` is a call node rather than a
 # creation one, and `Dog::new` is a method reference that has to be told from `Dog::speak`.
 _CONSTRUCTION_NODE_TYPES = (
@@ -335,7 +337,9 @@ class ParsedSource:
         prefix = self.content[start : start + point.column]
         if prefix.isascii():
             return point.row, point.column
-        return point.row, sum(2 if ord(char) > 0xFFFF else 1 for char in prefix.decode("utf8", "replace"))
+        return point.row, sum(
+            2 if ord(char) > _MAX_SINGLE_UTF16_UNIT_CODE_POINT else 1 for char in prefix.decode("utf8", "replace")
+        )
 
     def byte_column(self, line: int, character: int) -> int:
         """The tree-sitter column that the LSP *character* of *line* falls at."""
@@ -349,7 +353,7 @@ class ParsedSource:
         for char in raw.decode("utf8", "replace"):
             if units >= character:
                 break
-            units += 2 if ord(char) > 0xFFFF else 1
+            units += 2 if ord(char) > _MAX_SINGLE_UTF16_UNIT_CODE_POINT else 1
             column += len(char.encode("utf8"))
         return column + max(0, character - units)
 

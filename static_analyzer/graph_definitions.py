@@ -39,8 +39,14 @@ OVERRIDE = "override"
 
 
 @dataclass(frozen=True)
-class CallShapes:
-    """Which shape each call site in one file has, so the full build and every update resolve it alike."""
+class PotentialCalls:
+    """The positions in one file that may be calls, and how each is written.
+
+    Tree-sitter finds candidates -- a call, a method passed as a value, a member read or write,
+    a collection initializer, a loop -- and a definition answer at the position decides whether
+    it is a call, by the rule for how it is written. The full build and every update read the
+    same candidates, so they resolve them alike.
+    """
 
     call_sites: list[CallSite]
     method_group: set[tuple[int, int]]
@@ -76,9 +82,9 @@ class CallShapes:
         return [("definition", self.definition_kind_at(position)), iterating]
 
 
-def call_shapes(
+def potential_calls(
     file_path: Path, inspector: SourceInspector, adapter: EdgeBuildAdapter, callable_names: Collection[str]
-) -> CallShapes:
+) -> PotentialCalls:
     """Every call site the file writes, and the shape of each, by the adapter's capabilities.
 
     *callable_names* are the names the graph declares callables under: a member named anything
@@ -111,7 +117,7 @@ def call_shapes(
     iterated: set[tuple[int, int]] = set()
     if adapter.resolves_iterated_types:
         iterated = {(site.lsp_line, site.lsp_column) for site in inspector.find_iterated_expression_sites(file_path)}
-    return CallShapes(call_sites, method_group, member_read, member_write, collection, iterated)
+    return PotentialCalls(call_sites, method_group, member_read, member_write, collection, iterated)
 
 
 def resolve_declaration[T](
@@ -155,9 +161,8 @@ class CallTargets:
 class GraphIndex:
     """A graph's nodes by file, so a position lookup does not scan every node."""
 
-    def __init__(self, call_graph: CallGraph, inspector: SourceInspector) -> None:
+    def __init__(self, call_graph: CallGraph) -> None:
         self.call_graph = call_graph
-        self.inspector = inspector
         self._by_file: dict[str, list[Node]] = defaultdict(list)
         for node in call_graph.nodes.values():
             self._by_file[node.file_path].append(node)
@@ -181,13 +186,13 @@ class GraphIndex:
                 derived[ref.dst].append(node)
         return derived
 
-    def declaration_at(self, file_path: str, line: int, character: int) -> Node | None:
+    def declaration_at(self, inspector: SourceInspector, file_path: str, line: int, character: int) -> Node | None:
         """The node a definition result names, by ``resolve_declaration``."""
         nodes = self.nodes_in(file_path)
         if not nodes:
             return None
         return resolve_declaration(
-            self.inspector,
+            inspector,
             Path(file_path),
             line,
             character,
@@ -239,7 +244,7 @@ def _with_owning_class(index: GraphIndex, target: Node, include_owner: bool) -> 
 
 
 def implemented_by(
-    index: GraphIndex, client: LSPClient, declarations: Collection[tuple[str, int, int]]
+    index: GraphIndex, inspector: SourceInspector, client: LSPClient, declarations: Collection[tuple[str, int, int]]
 ) -> dict[tuple[str, int, int], list[Node]]:
     """The nodes implementing each declaration, keyed by the position it is declared at."""
     positions = list(declarations)
@@ -251,7 +256,9 @@ def implemented_by(
         nodes: list[Node] = []
         for implementation in implementations:
             location = definition_location(implementation)
-            declaration = index.declaration_at(str(location[0]), location[1], location[2]) if location else None
+            declaration = (
+                index.declaration_at(inspector, str(location[0]), location[1], location[2]) if location else None
+            )
             if declaration is not None:
                 nodes.extend(_with_owning_class(index, declaration, include_owner=False))
         if nodes:
@@ -291,6 +298,7 @@ def override_nodes(index: GraphIndex, target: Node) -> list[Node]:
 
 def targets_for(
     index: GraphIndex,
+    inspector: SourceInspector,
     file_path: str,
     line: int,
     character: int,
@@ -307,7 +315,7 @@ def targets_for(
     calls ``Add``; a base member dispatches to its overrides; a construction reaches the
     constructors; an implementation answer reaches only the declaration it names.
     """
-    declaration = index.declaration_at(file_path, line, character)
+    declaration = index.declaration_at(inspector, file_path, line, character)
     if declaration is None:
         return CallTargets.none()
     if kind == IMPLEMENTATION:
@@ -315,23 +323,28 @@ def targets_for(
     if kind == METHOD_GROUP and not (
         declaration.is_callable()
         or declaration.is_class()
-        or index.inspector.declares_function_value(Path(file_path), line, character)
+        or inspector.declares_function_value(Path(file_path), line, character)
     ):
         return CallTargets.none()
     if kind in (MEMBER_READ, MEMBER_WRITE) and not declaration.is_callable():
         return CallTargets.none()
-    if kind == MEMBER_WRITE and not index.inspector.declares_setter(Path(file_path), line, character):
+    if kind == MEMBER_WRITE and not inspector.declares_setter(Path(file_path), line, character):
         return CallTargets.none()
-    return targets_through(index, declaration, kind, adapter, site)
+    return targets_through(index, inspector, declaration, kind, adapter, site)
 
 
 def targets_through(
-    index: GraphIndex, declaration: Node, kind: str, adapter: LanguageAdapter, site: CallSite
+    index: GraphIndex,
+    inspector: SourceInspector,
+    declaration: Node,
+    kind: str,
+    adapter: LanguageAdapter,
+    site: CallSite,
 ) -> CallTargets:
     """Every node the call *site*, of *kind*, reaches through *declaration*, expanded as the full build expands it."""
     call_graph = index.call_graph
-    constructing = adapter.expands_constructors and index.inspector.is_construction_site(site)
-    through_base = index.inspector.names_base_member(site)
+    constructing = adapter.expands_constructors and inspector.is_construction_site(site)
+    through_base = inspector.names_base_member(site)
     resolved = _with_owning_class(index, declaration, include_owner=kind != ITERATED)
     targets: list[Node] = []
     for node in resolved:

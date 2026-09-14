@@ -116,7 +116,7 @@ def _graph_index(module: Path) -> GraphIndex:
     graph = CallGraph(language="python")
     for qualified_name, kind, line, column, end_line, _end_char in DECLARATIONS:
         graph.add_node(Node(qualified_name, kind, str(module), line + 1, end_line + 1, col_start=column))
-    return GraphIndex(graph, SourceInspector())
+    return GraphIndex(graph)
 
 
 @pytest.mark.parametrize("position,declaration,targets", CALL_CASES)
@@ -128,7 +128,9 @@ def test_both_resolvers_name_the_same_declaration(
 
     match = _symbol_index(module).resolve(definition)
     site = CallSite.from_lsp_position(str(module), line, character)
-    nodes = targets_for(_graph_index(module), str(module), line, character, CALL, PythonAdapter(), site).nodes
+    nodes = targets_for(
+        _graph_index(module), SourceInspector(), str(module), line, character, CALL, PythonAdapter(), site
+    ).nodes
 
     assert (match.qualified_name if match else "") == declaration
     assert [node.fully_qualified_name for node in nodes] == targets
@@ -145,7 +147,9 @@ def test_both_resolvers_agree_on_what_a_name_passed_as_a_value_reaches(
     match = _symbol_index(module).resolve(definition)
     engine_target = match is not None and adapter.is_callable(match.kind)
     site = CallSite.from_lsp_position(str(module), line, character)
-    nodes = targets_for(_graph_index(module), str(module), line, character, METHOD_GROUP, adapter, site).nodes
+    nodes = targets_for(
+        _graph_index(module), SourceInspector(), str(module), line, character, METHOD_GROUP, adapter, site
+    ).nodes
 
     assert engine_target == bool(targets)
     assert [node.fully_qualified_name for node in nodes] == targets
@@ -162,7 +166,9 @@ def test_both_resolvers_agree_on_what_a_member_read_reaches(
     match = _symbol_index(module).resolve(definition)
     engine_target = match is not None and adapter.is_callable(match.kind)
     site = CallSite.from_lsp_position(str(module), line, character)
-    nodes = targets_for(_graph_index(module), str(module), line, character, MEMBER_READ, adapter, site).nodes
+    nodes = targets_for(
+        _graph_index(module), SourceInspector(), str(module), line, character, MEMBER_READ, adapter, site
+    ).nodes
 
     assert engine_target == bool(targets)
     assert [node.fully_qualified_name for node in nodes] == targets
@@ -191,7 +197,7 @@ def test_both_resolvers_take_an_overload_signature_to_its_own_class_implementati
     definition = {"uri": module.as_uri(), "range": {"start": {"line": 1, "character": 2}}}
 
     match = SymbolIndex(table, SourceInspector()).resolve(definition)
-    node = GraphIndex(graph, SourceInspector()).declaration_at(str(module), 1, 2)
+    node = GraphIndex(graph).declaration_at(SourceInspector(), str(module), 1, 2)
 
     assert match is not None and match.qualified_name == "graph.Node.getModel"
     assert node is not None and node.fully_qualified_name == "graph.Node.getModel"
@@ -207,11 +213,13 @@ def test_a_member_named_on_the_base_is_owed_no_implementation_query(tmp_path: Pa
     graph = CallGraph(language="python")
     graph.add_node(Node("m.Base", NodeType.CLASS, str(module), 1, 3, col_start=6))
     graph.add_node(Node("m.Base.describe", NodeType.METHOD, str(module), 2, 3, col_start=8))
-    index = GraphIndex(graph, SourceInspector())
+    index = GraphIndex(graph)
     adapter = PythonAdapter()
 
     through_super = CallSite.from_lsp_position(str(module), 7, 23)
     through_self = CallSite.from_lsp_position(str(module), 10, 20)
 
-    assert targets_for(index, str(module), 1, 8, CALL, adapter, through_super).implementations == []
-    assert targets_for(index, str(module), 1, 8, CALL, adapter, through_self).implementations == [(str(module), 1, 8)]
+    assert targets_for(index, SourceInspector(), str(module), 1, 8, CALL, adapter, through_super).implementations == []
+    assert targets_for(index, SourceInspector(), str(module), 1, 8, CALL, adapter, through_self).implementations == [
+        (str(module), 1, 8)
+    ]

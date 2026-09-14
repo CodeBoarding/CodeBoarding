@@ -4,7 +4,8 @@ Warm-start flow:
 1. Keep unchanged files from the pkl and invalidate changed/deleted files.
 2. Re-run the engine on the changed files and merge their nodes, references and edges back in.
 3. Restore cached inbound edges only when a definition query still proves them.
-4. Finish the changed files' calls into unchanged files from the answers step 2 kept.
+4. Link the changed files' calls into unchanged files from the answers step 2 kept, then ask the
+   server for the implementations those calls are owed and link them.
 5. Keep unchanged-only edges cached and let ``StaticAnalyzer`` persist the new pkl.
 """
 
@@ -26,8 +27,8 @@ from static_analyzer.engine.models import CallSite
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location
-from static_analyzer.external_calls import link_external_call_sites
-from static_analyzer.graph_definitions import GraphIndex, call_shapes, implemented_by, targets_for
+from static_analyzer.external_calls import link_external_call_sites, link_implementations
+from static_analyzer.graph_definitions import GraphIndex, implemented_by, potential_calls, targets_for
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,10 @@ def update_cfg_for_changed_files(
 
     if changed_source_files:
         builder = CallGraphBuilder(engine_client, adapter, project_path, repository_path)
-        engine_result = builder.build(changed_source_files)
+        # Why the cached names: a changed file's member read of a callable declared in an unchanged
+        # file is probed only if the build knows that name, as a full build does.
+        known_callable_names = GraphIndex(updated_cache.analysis.call_graph).callable_names
+        engine_result = builder.build(changed_source_files, known_callable_names=known_callable_names)
         new_analysis = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
     else:
         new_analysis = {
@@ -101,8 +105,9 @@ def update_cfg_for_changed_files(
 
     merged_analysis = merge_results(updated_cache.analysis, new_analysis)
     source_inspector = SourceInspector()
+    index = GraphIndex(merged_analysis.call_graph)
     _restore_inbound_edges_via_definitions(
-        GraphIndex(merged_analysis.call_graph, source_inspector),
+        index,
         updated_cache.invalidated_edges,
         updated_cache.invalidated_files,
         adapter,
@@ -113,13 +118,16 @@ def update_cfg_for_changed_files(
     # write, and what it could not name lies in files this merged graph holds. What is still
     # unnamed here goes back to the caller, for the engines of other solution roots.
     linked = link_external_call_sites(
-        merged_analysis.call_graph,
+        index,
         new_analysis["external_call_sites"],
         adapter,
         source_inspector,
         {str(file_path) for file_path in changed_source_files},
-        engine_client,
     )
+    # Why ask the server again: a full build queries the implementations of every declaration it
+    # holds, and the declarations in unchanged files are held only by this merged graph.
+    implementations = implemented_by(index, source_inspector, engine_client, linked.owed)
+    link_implementations(merged_analysis.call_graph, linked.owed, implementations)
     updated = _filter_to_live_files(merged_analysis).to_dict()
     updated["external_call_sites"] = linked.unresolved
     return updated
@@ -164,15 +172,17 @@ def _restore_inbound_edges_via_definitions(
     # A cached site is re-asked as the shape it was written as: a construction reaches the
     # constructors, a collection initializer reaches ``Add``, a loop asks for the type it
     # enumerates. The caller's file is unchanged, so its source still says which is which.
-    shapes_by_file = {
-        file_path: call_shapes(Path(file_path), source_inspector, adapter, index.callable_names)
+    potential_by_file = {
+        file_path: potential_calls(Path(file_path), source_inspector, adapter, index.callable_names)
         for file_path in {str(site["file"]) for sites in pending.values() for site in sites}
     }
     by_request: dict[str, list[tuple[tuple[str, str], dict[str, str | int], CallSite, str]]] = {}
     for edge, sites in pending.items():
         for site in sites:
             call_site = CallSite(str(site["file"]), int(site["line"]), int(site["column"]))
-            for method, kind in shapes_by_file[call_site.file].requests_at((call_site.lsp_line, call_site.lsp_column)):
+            for method, kind in potential_by_file[call_site.file].requests_at(
+                (call_site.lsp_line, call_site.lsp_column)
+            ):
                 by_request.setdefault(method, []).append((edge, site, call_site, kind))
 
     confirmed: dict[tuple[str, str], list[dict[str, str | int]]] = {}
@@ -197,7 +207,9 @@ def _restore_inbound_edges_via_definitions(
                 location = definition_location(definition)
                 if location is None:
                     continue
-                targets = targets_for(index, str(location[0]), location[1], location[2], kind, adapter, call_site)
+                targets = targets_for(
+                    index, source_inspector, str(location[0]), location[1], location[2], kind, adapter, call_site
+                )
                 reachable.update(node.fully_qualified_name for node in targets.nodes)
                 owed.extend(targets.implementations)
             if edge[1] in reachable:
@@ -206,7 +218,7 @@ def _restore_inbound_edges_via_definitions(
             for declaration in owed:
                 unproven.setdefault(declaration, []).append((edge, site))
 
-    for declaration, nodes in implemented_by(index, engine_client, unproven).items():
+    for declaration, nodes in implemented_by(index, source_inspector, engine_client, unproven).items():
         names = {node.fully_qualified_name for node in nodes}
         for edge, site in unproven[declaration]:
             if edge[1] in names:

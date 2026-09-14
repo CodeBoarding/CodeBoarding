@@ -19,7 +19,7 @@ from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.exceptions import StaticAnalysisFatalError
-from static_analyzer.graph_definitions import IMPLEMENTATION, OVERRIDE, RECEIVER
+from static_analyzer.graph_definitions import IMPLEMENTATION, MEMBER_READ, OVERRIDE, RECEIVER
 
 from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 
@@ -394,6 +394,31 @@ class TestBuildEdgesViaDefinitions:
             (s.caller, s.file, s.line, s.character, s.member) for s in ctx.external_call_sites if s.kind == RECEIVER
         ]
         assert receivers == [("app.run", str(other), 0, 13, "warn")]
+
+    @pytest.mark.parametrize("known,probed", [(frozenset(), False), (frozenset({"size"}), True)])
+    def test_a_member_read_is_probed_under_a_name_declared_outside_the_analysed_files(
+        self, tmp_path: Path, known: frozenset[str], probed: bool
+    ):
+        """A warm start reads only the changed files, so the getter's name comes from the cached graph."""
+        lsp = _make_lsp()
+        ctx, _ = _make_ctx(lsp)
+        ctx.known_callable_names = known
+        st = ctx.symbol_table
+        src = tmp_path / "app.ts"
+        src.write_text("export function run(box) {\n    const total = box.size + 1;\n    return total;\n}\n")
+        other = tmp_path / "box.ts"
+        caller = _sym("run", "app.run", NodeType.FUNCTION, str(src), 0, 16, 3)
+        st._symbols["app.run"] = caller
+        st._file_symbols[str(src)] = [caller]
+        st._primary_file_symbols[str(src)] = [caller]
+        st.build_indices()
+        lsp.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": other.as_uri(), "range": {"start": {"line": 1, "character": 6}}}] for _ in queries
+        ]
+
+        build_edges_via_definitions(_DefinitionsTestAdapter(), ctx, [src])
+
+        assert any(site.kind == MEMBER_READ for site in ctx.external_call_sites) is probed
 
     def test_no_call_sites_produces_empty(self, tmp_path: Path):
         """File with no call sites produces no edges."""

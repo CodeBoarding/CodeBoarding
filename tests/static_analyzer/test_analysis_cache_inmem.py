@@ -16,7 +16,7 @@ from static_analyzer.analysis_result import AnalysisData, CallSiteLocation, Inva
 from static_analyzer.config import Language, NodeType
 from static_analyzer.cfg import CallGraph
 from static_analyzer.node import Node
-from static_analyzer.graph_definitions import GraphIndex, call_shapes, implemented_by
+from static_analyzer.graph_definitions import GraphIndex, potential_calls, implemented_by
 from static_analyzer.incremental_orchestrator import (
     _restore_inbound_edges_via_definitions,
     update_cfg_for_changed_files,
@@ -232,7 +232,7 @@ class TestWarmStartDeletion(unittest.TestCase):
 
 def _declared(index: GraphIndex, definition: dict) -> Node | None:
     location = definition_location(definition)
-    return index.declaration_at(str(location[0]), location[1], location[2]) if location else None
+    return index.declaration_at(SourceInspector(), str(location[0]), location[1], location[2]) if location else None
 
 
 class TestGraphDeclarations(unittest.TestCase):
@@ -250,7 +250,7 @@ class TestGraphDeclarations(unittest.TestCase):
                 col_start=9,
             )
         )
-        index = GraphIndex(call_graph, SourceInspector())
+        index = GraphIndex(call_graph)
         link = {
             "targetUri": file_path.as_uri(),
             "targetSelectionRange": {"start": {"line": 2, "character": 9}, "end": {"line": 2, "character": 24}},
@@ -292,7 +292,7 @@ class TestGraphDeclarations(unittest.TestCase):
             "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 6}},
         }
 
-        self.assertIsNone(_declared(GraphIndex(call_graph, SourceInspector()), definition))
+        self.assertIsNone(_declared(GraphIndex(call_graph), definition))
 
     def test_an_implementing_constructor_reaches_its_class(self) -> None:
         file_path = Path("/repo/pkg/target.php")
@@ -322,7 +322,7 @@ class TestGraphDeclarations(unittest.TestCase):
         ]
         declaration = ("/repo/pkg/base.php", 0, 0)
 
-        found = implemented_by(GraphIndex(call_graph, SourceInspector()), client, [declaration])
+        found = implemented_by(GraphIndex(call_graph), SourceInspector(), client, [declaration])
 
         self.assertEqual(
             [node.fully_qualified_name for node in found[declaration]],
@@ -357,7 +357,7 @@ class TestGraphDeclarations(unittest.TestCase):
         ]
         declaration = ("/repo/pkg/base.py", 0, 0)
 
-        found = implemented_by(GraphIndex(call_graph, SourceInspector()), client, [declaration])
+        found = implemented_by(GraphIndex(call_graph), SourceInspector(), client, [declaration])
 
         self.assertEqual(
             [node.fully_qualified_name for node in found[declaration]], ["pkg.converter.DocumentConverter.convert"]
@@ -445,14 +445,14 @@ class TestRestoringCachedEdges:
 
         inspector = SourceInspector()
         _restore_inbound_edges_via_definitions(
-            GraphIndex(graph, inspector), invalidated, set(), self._csharp_adapter(), client, inspector
+            GraphIndex(graph), invalidated, set(), self._csharp_adapter(), client, inspector
         )
 
         assert client.send_type_definition_batch.called
         assert [(edge.get_source(), edge.get_destination()) for edge in graph.edges] == [("Runner.Run(Bag)", "Bag")]
 
 
-class TestCallShapesRequests:
+class TestPotentialCallsRequests:
     """What a cached site is re-asked with, when the source says it has two shapes."""
 
     def _adapter(self) -> MagicMock:
@@ -473,13 +473,13 @@ class TestCallShapesRequests:
             "class A\n{\n    void Run()\n    {\n        foreach (var x in GetItems()) { }\n    }\n"
             "    int[] GetItems() => new int[0];\n}\n"
         )
-        shapes = call_shapes(source, SourceInspector(), self._adapter(), set())
+        potential = potential_calls(source, SourceInspector(), self._adapter(), set())
 
-        assert shapes.requests_at((4, 26)) == [("definition", "call"), ("type_definition", "iterated")]
+        assert potential.requests_at((4, 26)) == [("definition", "call"), ("type_definition", "iterated")]
 
     def test_a_loop_over_a_variable_is_asked_only_for_its_type(self, tmp_path: Path) -> None:
         source = tmp_path / "Loop.cs"
         source.write_text("class A\n{\n    void Run(int[] bag)\n    {\n        foreach (var x in bag) { }\n    }\n}\n")
-        shapes = call_shapes(source, SourceInspector(), self._adapter(), set())
+        potential = potential_calls(source, SourceInspector(), self._adapter(), set())
 
-        assert shapes.requests_at((4, 26)) == [("type_definition", "iterated")]
+        assert potential.requests_at((4, 26)) == [("type_definition", "iterated")]

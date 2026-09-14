@@ -34,7 +34,7 @@ from static_analyzer.graph_definitions import (
     METHOD_GROUP,
     OVERRIDE,
     RECEIVER,
-    call_shapes,
+    potential_calls,
     resolve_declaration,
 )
 from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name, simple_name
@@ -291,10 +291,11 @@ def _resolve_definitions(
     dispatch = _build_dispatch_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else None
     sink = CallEdgeSink(adapter, st, si, dispatch)
 
+    callable_names = index.callable_names | ctx.known_callable_names
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
-        shapes = call_shapes(file_path, si, adapter, index.callable_names)
-        call_sites = shapes.call_sites
+        potential = potential_calls(file_path, si, adapter, callable_names)
+        call_sites = potential.call_sites
         if not call_sites:
             pbar.update(1)
             continue
@@ -305,7 +306,7 @@ def _resolve_definitions(
         results = ctx.lsp.send_definition_batch([(file_path, site.lsp_line, site.lsp_column) for site in call_sites])
         for call_site, defs in zip(call_sites, results):
             position = (call_site.lsp_line, call_site.lsp_column)
-            kind = shapes.definition_kind_at(position)
+            kind = potential.definition_kind_at(position)
 
             if not defs:
                 if kind == CALL:
@@ -339,7 +340,7 @@ def _resolve_definitions(
                 if kind == MEMBER_WRITE and (location is None or not si.declares_setter(*location)):
                     continue
 
-                sink.add(caller, target, call_site, collection=position in shapes.collection)
+                sink.add(caller, target, call_site, collection=position in potential.collection)
 
             if not resolved_here and kind == CALL:
                 unresolved.append(call_site)

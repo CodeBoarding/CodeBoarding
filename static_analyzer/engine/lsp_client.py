@@ -218,6 +218,7 @@ class LSPClient:
                 ],
                 "initializationOptions": self._init_options,
             },
+            timeout=self._default_timeout,
         )
 
         self._send_notification("initialized", {})
@@ -369,7 +370,7 @@ class LSPClient:
         result = self._send_request(
             "textDocument/documentSymbol",
             {"textDocument": {"uri": file_path.resolve().as_uri()}},
-            timeout=timeout,
+            timeout=self._default_timeout if timeout is None else timeout,
         )
         if isinstance(result, list):
             return result
@@ -379,7 +380,12 @@ class LSPClient:
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
     ) -> list[list[dict]]:
         """Send multiple definition requests without waiting between them."""
-        return self._send_batch("textDocument/definition", queries, self._position_params, timeout=timeout)
+        return self._send_batch(
+            "textDocument/definition",
+            queries,
+            self._position_params,
+            self._default_timeout if timeout is None else timeout,
+        )
 
     def send_type_definition_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
@@ -389,7 +395,12 @@ class LSPClient:
         Distinct from ``definition``, which lands on the declaration: iterating
         a value is a call on its type, and only this request names that type.
         """
-        return self._send_batch("textDocument/typeDefinition", queries, self._position_params, timeout=timeout)
+        return self._send_batch(
+            "textDocument/typeDefinition",
+            queries,
+            self._position_params,
+            self._default_timeout if timeout is None else timeout,
+        )
 
     def implementation(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
         """Find implementations of the symbol at the given position."""
@@ -399,7 +410,7 @@ class LSPClient:
                 "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
             },
-            timeout=timeout,
+            timeout=self._default_timeout if timeout is None else timeout,
         )
         if isinstance(result, list):
             return result
@@ -411,11 +422,16 @@ class LSPClient:
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
     ) -> list[list[dict]]:
         """Send multiple implementation requests without waiting between them."""
-        return self._send_batch("textDocument/implementation", queries, self._position_params, timeout=timeout)
+        return self._send_batch(
+            "textDocument/implementation",
+            queries,
+            self._position_params,
+            self._default_timeout if timeout is None else timeout,
+        )
 
     def workspace_symbol(self, query: str) -> list[dict]:
         """Symbols declared anywhere in the loaded workspace whose name matches *query*."""
-        result = self._send_request("workspace/symbol", {"query": query})
+        result = self._send_request("workspace/symbol", {"query": query}, self._default_timeout)
         if isinstance(result, list):
             return result
         return []
@@ -428,6 +444,7 @@ class LSPClient:
                 "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
             },
+            self._default_timeout,
         )
         if isinstance(result, list):
             return result
@@ -435,14 +452,14 @@ class LSPClient:
 
     def type_hierarchy_supertypes(self, item: dict) -> list[dict]:
         """Get supertypes for a type hierarchy item."""
-        result = self._send_request("typeHierarchy/supertypes", {"item": item})
+        result = self._send_request("typeHierarchy/supertypes", {"item": item}, self._default_timeout)
         if isinstance(result, list):
             return result
         return []
 
     def type_hierarchy_subtypes(self, item: dict) -> list[dict]:
         """Get subtypes for a type hierarchy item."""
-        result = self._send_request("typeHierarchy/subtypes", {"item": item})
+        result = self._send_request("typeHierarchy/subtypes", {"item": item}, self._default_timeout)
         if isinstance(result, list):
             return result
         return []
@@ -545,7 +562,7 @@ class LSPClient:
         method: str,
         queries: list[tuple[Path, int, int]],
         build_params: Callable[[Path, int, int], dict],
-        timeout: int | None = None,
+        timeout: int,
     ) -> list[list[dict]]:
         """Send LSP requests ``REQUEST_BATCH_SIZE`` at a time and collect their results in query order.
 
@@ -555,11 +572,13 @@ class LSPClient:
         results: list[list[dict]] = []
         for start in range(0, len(queries), REQUEST_BATCH_SIZE):
             chunk = queries[start : start + REQUEST_BATCH_SIZE]
-            by_query = self._ask(method, chunk, build_params, timeout)
+            by_query = self._send_round(method, chunk, build_params, timeout)
             retry = [index for index, answer in enumerate(by_query) if answer.retryable]
             if retry:
                 logger.info("Re-asking %d of %d %s requests the server had not settled", len(retry), len(chunk), method)
-                for index, answer in zip(retry, self._ask(method, [chunk[i] for i in retry], build_params, timeout)):
+                for index, answer in zip(
+                    retry, self._send_round(method, [chunk[i] for i in retry], build_params, timeout)
+                ):
                     by_query[index] = answer
 
             unserved = [index for index, answer in enumerate(by_query) if not answer.served]
@@ -573,12 +592,12 @@ class LSPClient:
             results.extend(answer.results for answer in by_query)
         return results
 
-    def _ask(
+    def _send_round(
         self,
         method: str,
         queries: list[tuple[Path, int, int]],
         build_params: Callable[[Path, int, int], dict],
-        timeout: int | None,
+        timeout: int,
     ) -> list[BatchAnswer]:
         """Send one request per query and collect the answers in query order."""
         req_ids: list[int] = []
@@ -607,10 +626,8 @@ class LSPClient:
             answers.append(BatchAnswer(parsed, req_id not in unserved, req_id in retryable))
         return answers
 
-    def _send_request(self, method: str, params: dict | list | None, timeout: int | None = None) -> dict | list | None:
+    def _send_request(self, method: str, params: dict | list | None, timeout: int) -> dict | list | None:
         """Send a JSON-RPC request and wait for the response."""
-        if timeout is None:
-            timeout = self._default_timeout
         self._request_id += 1
         req_id = self._request_id
 
@@ -696,16 +713,13 @@ class LSPClient:
         return message
 
     def _collect_batch_responses(
-        self, method: str, request_ids: list[int], timeout: int | None = None
+        self, method: str, request_ids: list[int], timeout: int
     ) -> tuple[dict[int, list[dict]], set[int], set[int]]:
         """Collect responses for multiple pending request IDs.
 
         Returns ``(results, unserved_ids, retryable_ids)``. An error with a server-defined code is an
         answer whose empty result is the truth; a timeout or a reserved code leaves the request unserved.
         """
-        if timeout is None:
-            timeout = self._default_timeout
-
         results: dict[int, list[dict]] = {}
         pending = set(request_ids)
         declined: dict[str, int] = {}

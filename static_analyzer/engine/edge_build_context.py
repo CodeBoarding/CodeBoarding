@@ -17,8 +17,9 @@ class EdgeBuildContext:
     lsp: LSPClient
     symbol_table: SymbolTable
     source_inspector: SourceInspector
-    # Set only for servers that may be restarted mid-phase; None means the
-    # strategy runs against a single server process for the whole phase.
     # Calls the server resolved into files this engine has no symbols for; the
     # merged graph of every engine is where they can still become edges.
     external_call_sites: list[ExternalCallSite] = field(default_factory=list)
+    # Callable names declared outside the analysed files. Why: a member read is probed only under
+    # a callable name, and a warm start's own table names only the changed files.
+    known_callable_names: frozenset[str] = frozenset()

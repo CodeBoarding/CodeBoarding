@@ -5,6 +5,14 @@ project outside the caller's solution resolves to a file only the other engine n
 warm start re-analyses only the changed files, and a call into an unchanged one resolves to
 a file that analysis never named. Each engine keeps those answers; once the graphs are
 merged, they are resolved here the way the engine resolves its own.
+
+Linking asks the language server nothing. Where it runs:
+
+- Full build: ``StaticAnalyzer._absorb_and_link``, after every engine merged. The owning
+  servers may already be down, so implementations a linked call is still owed are not asked.
+- Warm start: ``update_cfg_for_changed_files`` links the partial build's answers, asks the live
+  server for the implementations they are owed (``implemented_by``), and links those with
+  ``link_implementations``.
 """
 
 from __future__ import annotations
@@ -15,7 +23,6 @@ from dataclasses import dataclass
 
 from static_analyzer.cfg import CallGraph
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.models import CallSite, ExternalCallSite
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.graph_definitions import (
@@ -24,7 +31,6 @@ from static_analyzer.graph_definitions import (
     RECEIVER,
     CallTargets,
     GraphIndex,
-    implemented_by,
     override_nodes,
     targets_for,
     targets_through,
@@ -34,34 +40,36 @@ from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
+ImplementationsOwed = dict[tuple[str, int, int], list[tuple[Node, CallSite]]]
+"""Declarations still owed an implementation query, by position, with the calls that reached them."""
+
 
 @dataclass(frozen=True)
 class LinkedCalls:
-    """The edges linking added, and the sites no node in the graph could finish."""
+    """The edges linking added, the sites no node in the graph could finish, and the queries still owed."""
 
     edges: list[tuple[str, str]]
     unresolved: list[ExternalCallSite]
+    owed: ImplementationsOwed
 
 
 def link_external_call_sites(
-    call_graph: CallGraph,
+    index: GraphIndex,
     sites: list[ExternalCallSite],
     adapter: LanguageAdapter,
     inspector: SourceInspector,
     analysed_files: Collection[str],
-    client: LSPClient | None = None,
 ) -> LinkedCalls:
-    """Add the edges whose targets *call_graph* holds.
+    """Add the edges whose targets the indexed graph holds.
 
     *analysed_files* are the files the recording engine read, whose overrides it expanded itself.
-    *client*, while its server is up, finishes the implementations a reached declaration is
-    owed. A receiver site stands in only for a call no definition finished, as in the engine.
+    A receiver site stands in only for a call no definition finished, as in the engine.
     """
-    index = GraphIndex(call_graph, inspector)
+    call_graph = index.call_graph
     edges: list[tuple[str, str]] = []
     unresolved: list[ExternalCallSite] = []
     reached: set[tuple[str, str, int, int]] = set()
-    owed: dict[tuple[str, int, int], list[tuple[Node, CallSite]]] = {}
+    owed: ImplementationsOwed = {}
     dispatched: dict[str, list[tuple[Node, CallSite]]] = {}
     for site in sorted(sites, key=lambda site: site.kind == RECEIVER):
         caller = call_graph.nodes.get(site.caller)
@@ -73,7 +81,7 @@ def link_external_call_sites(
         written = (site.caller, site.call_site.file, site.call_site.line, site.call_site.column)
         if site.kind == RECEIVER and written in reached:
             continue
-        targets = _targets(index, site, adapter)
+        targets = _targets(index, inspector, site, adapter)
         if not targets.nodes:
             unresolved.append(site)
             continue
@@ -81,11 +89,6 @@ def link_external_call_sites(
         edges.extend(_add_edges(call_graph, caller, targets.nodes, site.call_site))
         for declaration in targets.implementations:
             owed.setdefault(declaration, []).append((caller, site.call_site))
-
-    if client is not None and owed:
-        for declaration, implementations in implemented_by(index, client, owed).items():
-            for caller, call_site in owed[declaration]:
-                edges.extend(_add_edges(call_graph, caller, implementations, call_site))
 
     for qualified_name, calls in dispatched.items():
         dispatched_from = call_graph.nodes.get(qualified_name)
@@ -100,7 +103,18 @@ def link_external_call_sites(
         len(edges),
         len(unresolved),
     )
-    return LinkedCalls(edges, unresolved)
+    return LinkedCalls(edges, unresolved, owed)
+
+
+def link_implementations(
+    call_graph: CallGraph, owed: ImplementationsOwed, implementations: dict[tuple[str, int, int], list[Node]]
+) -> list[tuple[str, str]]:
+    """Add an edge from every call that reached a declaration to each node implementing it."""
+    edges: list[tuple[str, str]] = []
+    for declaration, nodes in implementations.items():
+        for caller, call_site in owed.get(declaration, []):
+            edges.extend(_add_edges(call_graph, caller, nodes, call_site))
+    return edges
 
 
 def record_package_imports(
@@ -121,12 +135,14 @@ def record_package_imports(
             dst_info["imported_by"].sort()
 
 
-def _targets(index: GraphIndex, site: ExternalCallSite, adapter: LanguageAdapter) -> CallTargets:
+def _targets(
+    index: GraphIndex, inspector: SourceInspector, site: ExternalCallSite, adapter: LanguageAdapter
+) -> CallTargets:
     if site.kind != RECEIVER:
-        return targets_for(index, site.file, site.line, site.character, site.kind, adapter, site.call_site)
-    receiver = index.declaration_at(site.file, site.line, site.character)
+        return targets_for(index, inspector, site.file, site.line, site.character, site.kind, adapter, site.call_site)
+    receiver = index.declaration_at(inspector, site.file, site.line, site.character)
     member = index.call_graph.nodes.get(f"{receiver.fully_qualified_name}.{site.member}") if receiver else None
-    return targets_through(index, member, CALL, adapter, site.call_site) if member else CallTargets.none()
+    return targets_through(index, inspector, member, CALL, adapter, site.call_site) if member else CallTargets.none()
 
 
 def _add_edges(call_graph: CallGraph, caller: Node, targets: list[Node], call_site: CallSite) -> list[tuple[str, str]]:

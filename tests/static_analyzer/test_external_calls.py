@@ -7,7 +7,12 @@ from static_analyzer.config import NodeType
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.models import CallSite, ExternalCallSite
 from static_analyzer.engine.source_inspector import SourceInspector
-from static_analyzer.external_calls import LinkedCalls, link_external_call_sites, record_package_imports
+from static_analyzer.external_calls import (
+    LinkedCalls,
+    link_external_call_sites,
+    link_implementations,
+    record_package_imports,
+)
 from static_analyzer.graph_definitions import (
     COLLECTION_INITIALIZER,
     IMPLEMENTATION,
@@ -16,7 +21,7 @@ from static_analyzer.graph_definitions import (
     OVERRIDE,
     RECEIVER,
     GraphIndex,
-    call_shapes,
+    potential_calls,
 )
 from static_analyzer.node import Node
 
@@ -59,9 +64,8 @@ def _link(
     graph: CallGraph,
     sites: list[ExternalCallSite],
     analysed: frozenset[str] = frozenset({HOST}),
-    client: MagicMock | None = None,
 ) -> LinkedCalls:
-    return link_external_call_sites(graph, sites, CSharpAdapter(), SourceInspector(), analysed, client)
+    return link_external_call_sites(GraphIndex(graph), sites, CSharpAdapter(), SourceInspector(), analysed)
 
 
 def _destinations(graph: CallGraph) -> set[str]:
@@ -70,12 +74,6 @@ def _destinations(graph: CallGraph) -> set[str]:
 
 def _edges(graph: CallGraph) -> list[tuple[str, str]]:
     return [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
-
-
-def _answering(answers: list[dict]) -> MagicMock:
-    client = MagicMock()
-    client.send_implementation_batch.side_effect = lambda queries: [answers for _ in queries]
-    return client
 
 
 def test_a_definition_in_another_engines_file_becomes_an_edge_with_its_call_site():
@@ -216,25 +214,26 @@ def test_an_implementation_answer_reaches_only_the_implementation():
     assert _destinations(graph) == {"Framework.Loud.UseAuditing(App app)"}
 
 
-def test_a_reached_declaration_is_owed_its_implementations_while_the_server_is_up():
+def test_a_reached_declaration_is_owed_its_implementations():
+    """Linking asks the server nothing; the caller holding a live one asks for these."""
     graph = _graph()
-    client = _answering([{"uri": Path(BAG).as_uri(), "range": {"start": {"line": 7, "character": 4}}}])
 
-    _link(graph, [_site(BUILDER, 19, 4)], client=client)
+    linked = _link(graph, [_site(BUILDER, 19, 4)])
 
-    asked = [query for call in client.send_implementation_batch.call_args_list for query in call.args[0]]
-    assert asked == [(Path(BUILDER), 19, 4)]
-    assert "Framework.Bag.Add(int item)" in _destinations(graph)
+    assert [
+        (declaration, [(caller.fully_qualified_name, site.line) for caller, site in calls])
+        for declaration, calls in linked.owed.items()
+    ] == [((BUILDER, 19, 4), [(CALLER, 12)])]
 
 
-def test_an_implementation_in_a_file_the_engine_read_is_still_an_edge():
+def test_an_implementation_links_to_every_call_owed_it_even_in_a_file_the_engine_read():
     """The engine held no node for the declaration, so it could not have made this edge either."""
     graph = _graph()
-    client = _answering([{"uri": Path(BAG).as_uri(), "range": {"start": {"line": 7, "character": 4}}}])
+    linked = _link(graph, [_site(BUILDER, 19, 4)], analysed=frozenset({HOST, BAG}))
 
-    _link(graph, [_site(BUILDER, 19, 4)], analysed=frozenset({HOST, BAG}), client=client)
+    added = link_implementations(graph, linked.owed, {(BUILDER, 19, 4): [graph.nodes["Framework.Bag.Add(int item)"]]})
 
-    assert "Framework.Bag.Add(int item)" in _destinations(graph)
+    assert added == [(CALLER, "Framework.Bag.Add(int item)")]
 
 
 def test_a_receiver_names_the_member_it_calls():
@@ -307,17 +306,17 @@ class TestShapesTheEngineKept:
         answer: Callable[[int], tuple[str, int, int] | None],
     ) -> list[ExternalCallSite]:
         """The sites the engine keeps for *changed*: each answer, by column, in a file it never read."""
-        shapes = call_shapes(changed, SourceInspector(), adapter, GraphIndex(graph, SourceInspector()).callable_names)
+        potential = potential_calls(changed, SourceInspector(), adapter, GraphIndex(graph).callable_names)
         sites = []
-        for site in shapes.call_sites:
+        for site in potential.call_sites:
             at = answer(site.lsp_column)
             if at is not None:
-                kind = shapes.definition_kind_at((site.lsp_line, site.lsp_column))
+                kind = potential.definition_kind_at((site.lsp_line, site.lsp_column))
                 sites.append(ExternalCallSite(caller, at[0], at[1], at[2], site, kind))
         return sites
 
     def _link(self, graph: CallGraph, changed: Path, sites: list[ExternalCallSite], adapter: MagicMock) -> None:
-        link_external_call_sites(graph, sites, adapter, SourceInspector(), {str(changed)})
+        link_external_call_sites(GraphIndex(graph), sites, adapter, SourceInspector(), {str(changed)})
 
     def test_a_collection_initializer_that_constructs_keeps_its_constructor_edge(self, tmp_path: Path) -> None:
         """``new Bag { 1 }`` is one site with two shapes, and a full build gives it both.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Collection
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
@@ -44,7 +45,12 @@ class CallGraphBuilder:
         """Public access to the symbol table for result conversion."""
         return self._symbol_table
 
-    def build(self, source_files: list[Path], skip_hierarchy: bool = False) -> LanguageAnalysisResult:
+    def build(
+        self,
+        source_files: list[Path],
+        skip_hierarchy: bool = False,
+        known_callable_names: Collection[str] = frozenset(),
+    ) -> LanguageAnalysisResult:
         """Run the full analysis pipeline and return results.
 
         Args:
@@ -52,6 +58,8 @@ class CallGraphBuilder:
             skip_hierarchy: If True, skip Phase 3 (class hierarchy). Default False:
                 the hierarchy now feeds INHERITS reference edges that complete the
                 graph for clustering (see ``EdgeKind``).
+            known_callable_names: Callable names declared in files this build does not read,
+                so a member read of one is still probed.
         """
         t_pipeline = time.monotonic()
 
@@ -63,7 +71,12 @@ class CallGraphBuilder:
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
-        ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
+        ctx = EdgeBuildContext(
+            self._lsp,
+            self._symbol_table,
+            self._source_inspector,
+            known_callable_names=frozenset(known_callable_names),
+        )
         edge_set = build_edges_via_definitions(self._adapter, ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
         t_edges_done = time.monotonic()
