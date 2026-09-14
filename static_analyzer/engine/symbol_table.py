@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from pathlib import Path
 
 from static_analyzer.engine.protocols import SymbolNaming
@@ -11,6 +12,9 @@ from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
 from static_analyzer.engine.models import SymbolInfo
 
 logger = logging.getLogger(__name__)
+
+# Kinds a server files a named value under, which a function literal can be the value of.
+_VALUE_KINDS = frozenset({NodeType.VARIABLE, NodeType.CONSTANT, NodeType.PROPERTY, NodeType.FIELD})
 
 
 class SymbolTable:
@@ -65,8 +69,12 @@ class SymbolTable:
         parent_chain: list[tuple[str, int]],
         project_root: Path,
         owner_qualified_name: str = "",
+        function_values: Collection[tuple[int, int]] = (),
     ) -> None:
-        """Recursively register symbols with dual registration."""
+        """Recursively register symbols with dual registration.
+
+        *function_values* are the positions of the names the file binds to a function literal.
+        """
         for sym in symbols:
             name = sym.get("name", "")
             kind = sym.get("kind", 0)
@@ -96,6 +104,16 @@ class SymbolTable:
             end_line = end.get("line", 0)
             end_char = end.get("character", 0)
 
+            # A class member bound to a function literal -- ``onMove = (e) => ...`` -- is a method,
+            # whichever kind the server files it under.
+            if (
+                kind in _VALUE_KINDS
+                and parent_chain
+                and self._naming.is_class_like(parent_chain[-1][1])
+                and (start_line, start_char) in function_values
+            ):
+                kind = NodeType.METHOD
+
             file_key = str(file_path)
 
             qualified_name = self._naming.build_qualified_name(
@@ -122,56 +140,19 @@ class SymbolTable:
             self._file_symbols.setdefault(file_key, []).append(info)
             self._primary_file_symbols.setdefault(file_key, []).append(info)
 
-            # Dual registration: register unqualified form(s) for symbols with parents
+            # Dual registration: the unqualified form, then each partial parent chain.
             # Aliases go into _file_symbols but NOT _primary_file_symbols
             if parent_chain:
-                unqualified_name = self._naming.build_qualified_name(file_path, name, kind, [], project_root, detail)
-                if unqualified_name != qualified_name and unqualified_name not in self._symbols:
-                    unq_info = SymbolInfo(
-                        name=name,
-                        qualified_name=unqualified_name,
-                        kind=kind,
-                        file_path=file_path,
-                        start_line=start_line,
-                        start_char=start_char,
-                        end_line=end_line,
-                        end_char=end_char,
-                        promoted_from_variable=promoted,
-                    )
-                    unq_info.parent_chain = []
-                    self._symbols[unqualified_name] = unq_info
-                    unq_ref_key = self._naming.build_reference_key(unqualified_name)
-                    self._ref_key_to_symbol[unq_ref_key] = unq_info
-                    self._file_symbols[file_key].append(unq_info)
+                chains: list[list[tuple[str, int]]] = [[]] + [
+                    parent_chain[skip:] for skip in range(1, len(parent_chain))
+                ]
+                for chain in chains:
+                    alias = self._naming.build_qualified_name(file_path, name, kind, chain, project_root, detail)
+                    self._register_alias(alias, info, chain)
 
-                if len(parent_chain) >= 2:
-                    for skip in range(1, len(parent_chain)):
-                        partial_chain = parent_chain[skip:]
-                        partial_name = self._naming.build_qualified_name(
-                            file_path, name, kind, partial_chain, project_root, detail
-                        )
-                        if partial_name != qualified_name and partial_name not in self._symbols:
-                            p_info = SymbolInfo(
-                                name=name,
-                                qualified_name=partial_name,
-                                kind=kind,
-                                file_path=file_path,
-                                start_line=start_line,
-                                start_char=start_char,
-                                end_line=end_line,
-                                end_char=end_char,
-                                promoted_from_variable=promoted,
-                            )
-                            p_info.parent_chain = list(partial_chain)
-                            self._symbols[partial_name] = p_info
-                            p_ref_key = self._naming.build_reference_key(partial_name)
-                            self._ref_key_to_symbol[p_ref_key] = p_info
-                            self._file_symbols[file_key].append(p_info)
-
-            children = sym.get("children", [])
             if children:
                 child_chain = parent_chain + [(name, kind)]
-                self.register_symbols(file_path, children, child_chain, project_root, qualified_name)
+                self.register_symbols(file_path, children, child_chain, project_root, qualified_name, function_values)
 
     def build_indices(self) -> None:
         """Build optimized lookup indices after symbol registration.
@@ -193,14 +174,7 @@ class SymbolTable:
                 self._class_to_ctors.setdefault(sym.owner_qualified_name, []).append(sym.qualified_name)
 
     def find_containing_symbol(self, file_path: Path, line: int, character: int) -> SymbolInfo | None:
-        """Find the innermost symbol whose range contains the given position.
-
-        When the best match is a class-like symbol and the reference line falls
-        in the gap between methods (e.g. on a decorator line), narrow the result
-        to the nearest child method whose definition starts just after the
-        reference line.  This correctly attributes decorator references like
-        ``@trace`` to the decorated method rather than the enclosing class.
-        """
+        """The innermost symbol whose range contains the given position."""
         file_key = str(file_path)
         symbols = self._file_symbols.get(file_key, [])
 
@@ -219,29 +193,6 @@ class SymbolTable:
                 ):
                     best = sym
                     best_size = size
-
-        # If the best match is a class-like symbol, check if the reference line
-        # is actually a decorator/annotation for one of its child methods.
-        # This heuristic works across languages: Python decorators (@trace),
-        # Java annotations (@Override, @Inject), TypeScript decorators (@Component).
-        # These sit 1-3 lines before the method definition line (accounting for
-        # stacked decorators/annotations).  Attribute the reference to the
-        # nearest child method whose start_line is within a small window.
-        if best and self._naming.is_class_like(best.kind):
-            max_decorator_gap = 4
-            nearest_child: SymbolInfo | None = None
-            nearest_gap = max_decorator_gap + 1
-            for sym in symbols:
-                if not self._naming.is_callable(sym.kind):
-                    continue
-                if not sym.qualified_name.startswith(best.qualified_name + "."):
-                    continue
-                gap = sym.start_line - line
-                if 0 < gap < nearest_gap:
-                    nearest_child = sym
-                    nearest_gap = gap
-            if nearest_child is not None:
-                best = nearest_child
 
         return best
 
@@ -363,6 +314,31 @@ class SymbolTable:
                 return True
 
         return False
+
+    def _register_alias(self, alias_name: str, primary: SymbolInfo, chain: list[tuple[str, int]]) -> None:
+        """Register *alias_name* for *primary*, unless a declaration registered first already holds the name.
+
+        Why the first keeps it: a name registered twice -- a Rust type's trait impls each declaring
+        ``fmt``, a hook's local and the property returning it -- is two declarations, and the alias is
+        what keeps the first one reachable once the second takes the qualified name.
+        """
+        if alias_name == primary.qualified_name or alias_name in self._symbols:
+            return
+        alias = SymbolInfo(
+            name=primary.name,
+            qualified_name=alias_name,
+            kind=primary.kind,
+            file_path=primary.file_path,
+            start_line=primary.start_line,
+            start_char=primary.start_char,
+            end_line=primary.end_line,
+            end_char=primary.end_char,
+            parent_chain=list(chain),
+            promoted_from_variable=primary.promoted_from_variable,
+        )
+        self._symbols[alias_name] = alias
+        self._ref_key_to_symbol[self._naming.build_reference_key(alias_name)] = alias
+        self._file_symbols[str(primary.file_path)].append(alias)
 
     def _is_unnameable(self, sym: SymbolInfo) -> bool:
         """Whether this symbol's own name is not one a reader would use as a caller."""

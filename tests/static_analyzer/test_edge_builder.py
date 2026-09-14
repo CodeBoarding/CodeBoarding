@@ -7,35 +7,40 @@ from unittest.mock import MagicMock, patch
 
 from static_analyzer.engine.edge_builder import (
     EdgeMap,
-    _best_candidate,
+    SymbolIndex,
     _is_valid_edge,
-    _process_references_for_position,
     _build_dispatch_index,
     _override_targets,
-    _resolve_definition_to_symbol,
     build_edges_via_definitions,
-    build_edges_via_references,
 )
 from static_analyzer.config import NodeType
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.exceptions import StaticAnalysisFatalError
+from static_analyzer.graph_definitions import IMPLEMENTATION, MEMBER_READ, OVERRIDE, RECEIVER
 
 from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 
 
-class _ExpressionBodyTestAdapter(_TestAdapter):
+class _DefinitionsTestAdapter(_TestAdapter):
     @property
-    def include_references_on_declaration_line(self) -> bool:
+    def resolves_method_groups(self) -> bool:
+        return True
+
+
+class _DispatchingTestAdapter(_TestAdapter):
+    @property
+    def expands_virtual_dispatch(self) -> bool:
         return True
 
 
 def _make_lsp() -> MagicMock:
+    """One result list per query, the shape ``_send_batch`` guarantees its callers."""
     lsp = MagicMock()
-    lsp.send_references_batch.return_value = ([], set())
-    lsp.send_definition_batch.return_value = ([], set())
-    lsp.send_implementation_batch.return_value = ([], set())
+    lsp.send_definition_batch.side_effect = lambda queries: [[] for _ in queries]
+    lsp.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
     return lsp
 
 
@@ -69,246 +74,6 @@ def _sym(
         end_char=end_char,
         parent_chain=parent_chain or [],
     )
-
-
-def test_reference_call_in_expression_body_produces_edge(tmp_path: Path):
-    source = tmp_path / "Caller.cs"
-    source.write_text("public static string Caller() => Target();\n")
-    target_file = tmp_path / "Target.cs"
-    target_file.write_text('public static string Target() => "target";\n')
-
-    adapter = _ExpressionBodyTestAdapter()
-    ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
-    caller = _sym("Caller", "Caller.Caller", NodeType.METHOD, str(source), 0, 0, 0, 42)
-    target_class = _sym("Target", "Target", NodeType.CLASS, str(target_file), 0, 0, 0, 45)
-    target = _sym("Target", "Target.Target", NodeType.METHOD, str(target_file), 0, 21, 0, 27)
-    ctx.symbol_table.symbols[target_class.qualified_name] = target_class
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
-    edge_set: EdgeMap = {}
-    reference = {
-        "uri": source.as_uri(),
-        "range": {"start": {"line": 0, "character": 33}, "end": {"line": 0, "character": 39}},
-    }
-
-    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
-
-    assert (caller.qualified_name, target.qualified_name) in edge_set
-    assert (caller.qualified_name, target_class.qualified_name) not in edge_set
-
-
-def test_reference_in_constructor_initializer_is_not_a_call_edge(tmp_path: Path):
-    source = tmp_path / "Cat.cs"
-    source_text = "class Cat : Animal { public Cat(string name) : base(name) {} }\n"
-    source.write_text(source_text)
-    target_file = tmp_path / "Animal.cs"
-    target_file.write_text("protected Animal(string name) {}\n")
-
-    adapter = _ExpressionBodyTestAdapter()
-    ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
-    caller_start = source_text.index("Cat(string")
-    caller = _sym("Cat", "Cat.Cat", NodeType.CONSTRUCTOR, str(source), 0, caller_start, 0, len(source_text))
-    target = _sym("Animal", "Animal.Animal", NodeType.CONSTRUCTOR, str(target_file), 0, 10, 0, 30)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
-    edge_set: EdgeMap = {}
-    ref_start = source_text.index("base")
-    reference = {
-        "uri": source.as_uri(),
-        "range": {
-            "start": {"line": 0, "character": ref_start},
-            "end": {"line": 0, "character": ref_start + len("base")},
-        },
-    }
-
-    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
-
-    assert edge_set == {}
-
-
-def test_reference_at_caller_declaration_position_is_not_an_edge(tmp_path: Path):
-    source = tmp_path / "Caller.ts"
-    source.write_text("interface Caller { target(): void; }\n")
-    target_file = tmp_path / "Target.ts"
-    target_file.write_text("export function target(): void {}\n")
-
-    ctx, adapter = _make_ctx()
-    caller = _sym("target", "Caller.target", NodeType.METHOD, str(source), 0, 19, 0, 25)
-    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
-    reference = {
-        "uri": source.as_uri(),
-        "range": {"start": {"line": 0, "character": 19}, "end": {"line": 0, "character": 25}},
-    }
-    edge_set: EdgeMap = {}
-
-    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
-
-    assert edge_set == {}
-
-
-def test_a_typescript_concise_arrow_body_is_an_edge(tmp_path: Path):
-    # `const caller = () => target()` is a call from caller, even though the reference shares
-    # a line with caller's own declaration. The declaration-line guard arrived with #427 to
-    # narrow C# incremental edges; suppressing this shape for TypeScript was a side effect.
-    source = tmp_path / "Caller.ts"
-    source.write_text("const caller = () => target();\n")
-    target_file = tmp_path / "Target.ts"
-    target_file.write_text("export function target(): void {}\n")
-
-    ctx, adapter = _make_ctx()
-    caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 6, 0, 30)
-    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
-    reference = {
-        "uri": source.as_uri(),
-        "range": {"start": {"line": 0, "character": 21}, "end": {"line": 0, "character": 27}},
-    }
-    edge_set: EdgeMap = {}
-
-    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
-
-    assert set(edge_set) == {("Caller.caller", "Target.target")}
-
-
-def test_a_csharp_declaration_line_reference_is_still_ignored_by_default(tmp_path: Path):
-    # The rule is scoped to the TypeScript/JavaScript grammars, so every other language keeps
-    # the #427 default and its explicit opt-in.
-    source = tmp_path / "Caller.cs"
-    source.write_text("class C { string Call() => Target(); }\n")
-    target_file = tmp_path / "Target.cs"
-    target_file.write_text("class T { public static string Target() { return null; } }\n")
-
-    ctx, adapter = _make_ctx()
-    caller = _sym("Call", "C.Call", NodeType.METHOD, str(source), 0, 17, 0, 36)
-    target = _sym("Target", "T.Target", NodeType.METHOD, str(target_file), 0, 30, 0, 36)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
-    reference = {
-        "uri": source.as_uri(),
-        "range": {"start": {"line": 0, "character": 27}, "end": {"line": 0, "character": 33}},
-    }
-    edge_set: EdgeMap = {}
-
-    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
-
-    assert edge_set == {}
-
-
-def test_a_call_interpolated_into_a_concise_arrow_body_is_an_edge(tmp_path: Path):
-    source = tmp_path / "Caller.ts"
-    source.write_text("const caller = () => `value: ${target()}`;\n")
-    target_file = tmp_path / "Target.ts"
-    target_file.write_text("export function target(): void {}\n")
-
-    ctx, adapter = _make_ctx()
-    caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 6, 0, 42)
-    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
-    reference = {
-        "uri": source.as_uri(),
-        "range": {"start": {"line": 0, "character": 31}, "end": {"line": 0, "character": 37}},
-    }
-    edge_set: EdgeMap = {}
-
-    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
-
-    # A template interpolation in a concise arrow body is still the body: caller calls target.
-    assert set(edge_set) == {("Caller.caller", "Target.target")}
-
-
-def test_reference_in_same_line_block_body_is_an_edge(tmp_path: Path):
-    source = tmp_path / "Caller.ts"
-    source.write_text("export function caller() { return target(); }\n")
-    target_file = tmp_path / "Target.ts"
-    target_file.write_text("export function target(): void {}\n")
-
-    ctx, adapter = _make_ctx()
-    caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 16, 0, 44)
-    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
-    reference = {
-        "uri": source.as_uri(),
-        "range": {"start": {"line": 0, "character": 34}, "end": {"line": 0, "character": 40}},
-    }
-    edge_set: EdgeMap = {}
-
-    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
-
-    assert (caller.qualified_name, target.qualified_name) in edge_set
-
-
-def test_non_call_reference_in_same_line_block_body_is_not_an_edge(tmp_path: Path):
-    source = tmp_path / "Caller.ts"
-    source.write_text("export function caller() { const callback = target; }\n")
-    target_file = tmp_path / "Target.ts"
-    target_file.write_text("export function target(): void {}\n")
-
-    ctx, adapter = _make_ctx()
-    caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 16, 0, 53)
-    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
-    reference_start = source.read_text().index("target")
-    reference = {
-        "uri": source.as_uri(),
-        "range": {
-            "start": {"line": 0, "character": reference_start},
-            "end": {"line": 0, "character": reference_start + len("target")},
-        },
-    }
-    edge_set: EdgeMap = {}
-
-    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
-
-    assert edge_set == {}
-
-
-def test_callback_reference_in_multiline_body_is_an_edge(tmp_path: Path):
-    source = tmp_path / "Caller.ts"
-    source.write_text("export function caller() {\n  const callbacks = [target];\n}\n")
-    target_file = tmp_path / "Target.ts"
-    target_file.write_text("export function target(): void {}\n")
-
-    ctx, adapter = _make_ctx()
-    caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 16, 2, 1)
-    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
-    reference_start = source.read_text().splitlines()[1].index("target")
-    reference = {
-        "uri": source.as_uri(),
-        "range": {
-            "start": {"line": 1, "character": reference_start},
-            "end": {"line": 1, "character": reference_start + len("target")},
-        },
-    }
-    edge_set: EdgeMap = {}
-
-    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
-
-    assert (caller.qualified_name, target.qualified_name) in edge_set
-
-
-def test_non_call_reference_in_expression_body_is_not_an_edge(tmp_path: Path):
-    source = tmp_path / "Caller.cs"
-    source.write_text("public static Func<string> Caller() => Target;\n")
-    target_file = tmp_path / "Target.cs"
-    target_file.write_text('public static string Target() => "target";\n')
-
-    adapter = _ExpressionBodyTestAdapter()
-    ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
-    caller = _sym("Caller", "Caller.Caller", NodeType.METHOD, str(source), 0, 0, 0, 47)
-    target = _sym("Target", "Target.Target", NodeType.METHOD, str(target_file), 0, 21, 0, 27)
-    ctx.symbol_table.file_symbols[str(source)] = [caller]
-    reference_start = source.read_text().index("Target;")
-    reference = {
-        "uri": source.as_uri(),
-        "range": {
-            "start": {"line": 0, "character": reference_start},
-            "end": {"line": 0, "character": reference_start + len("Target")},
-        },
-    }
-    edge_set: EdgeMap = {}
-
-    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
-
-    assert edge_set == {}
 
 
 # ---------------------------------------------------------------------------
@@ -348,106 +113,151 @@ class TestIsValidEdge:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_definition_to_symbol
+# SymbolIndex.resolve
 # ---------------------------------------------------------------------------
 
 
-class TestResolveDefinitionToSymbol:
+def _definition(path: str, line: int, char: int) -> dict:
+    return {"uri": Path(path).as_uri(), "range": {"start": {"line": line, "character": char}}}
+
+
+def _index(symbols: list[SymbolInfo], inspector: SourceInspector | None = None) -> SymbolIndex:
+    table = SymbolTable(_TestAdapter())
+    for sym in symbols:
+        table.symbols[sym.qualified_name] = sym
+    return SymbolIndex(table, inspector or SourceInspector())
+
+
+class TestSymbolIndexResolve:
+    def test_an_overload_signature_resolves_to_the_implementation_of_its_own_class(self, tmp_path: Path):
+        f = tmp_path / "graph.ts"
+        f.write_text(
+            "class Node {\n  getModel(): number;\n  getModel(path?: string): number { return 1; }\n}\n"
+            "class Edge {\n  getModel(path?: string): number { return 2; }\n}\n"
+        )
+        node = _sym("getModel", "graph.Node.getModel", NodeType.METHOD, str(f), 2, 2, 2, 46)
+        edge = _sym("getModel", "graph.Edge.getModel", NodeType.METHOD, str(f), 5, 2, 5, 46)
+
+        assert _index([node, edge]).resolve(_definition(str(f), 1, 2)) is node
+
+    def test_a_name_bound_to_a_function_resolves_to_the_declaration_at_the_literal(self, tmp_path: Path):
+        f = tmp_path / "panel.ts"
+        f.write_text("var allocate = (Mod.allocate = function () {\n  return 0;\n});\n")
+        literal = _sym("allocate", "panel.allocate.allocate", NodeType.FUNCTION, str(f), 0, 31, 2, 2)
+
+        assert _index([literal]).resolve(_definition(str(f), 0, 20)) is literal
+
     def test_exact_match_with_location_format(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        pos_to_sym = {(str(Path("/p/a.py")), 10, 4): sym}
-        result = _resolve_definition_to_symbol(
-            {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 4}}},
-            pos_to_sym,
-            {},
-        )
-        assert result is sym
+        assert _index([sym]).resolve(_definition("/p/a.py", 10, 4)) is sym
 
     def test_exact_match_with_location_link_format(self):
         sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        pos_to_sym = {(str(Path("/p/a.py")), 10, 4): sym}
-        result = _resolve_definition_to_symbol(
+        result = _index([sym]).resolve(
             {
                 "targetUri": Path("/p/a.py").as_uri(),
                 "targetSelectionRange": {"start": {"line": 10, "character": 4}},
-            },
-            pos_to_sym,
-            {},
+            }
         )
         assert result is sym
 
-    def test_fuzzy_match_on_same_line(self):
-        sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        line_to_syms = {(str(Path("/p/a.py")), 10): [sym]}
-        result = _resolve_definition_to_symbol(
-            {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 0}}},
-            {},
-            line_to_syms,
-        )
-        assert result is sym
+    def test_a_parameter_on_the_declaration_line_is_not_the_declaration(self, tmp_path: Path):
+        source = tmp_path / "a.ts"
+        source.write_text("export class Box { hold(item: string) {} }\n")
+        method = _sym("hold", "a.Box.hold", NodeType.METHOD, str(source), 0, 19, 0, 41)
+        box = _sym("Box", "a.Box", NodeType.CLASS, str(source), 0, 13, 0, 42)
+        assert _index([box, method]).resolve(_definition(str(source), 0, 24)) is None
 
-    def test_fuzzy_match_on_adjacent_line(self):
-        sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 11, 4)
-        line_to_syms = {(str(Path("/p/a.py")), 11): [sym]}
-        result = _resolve_definition_to_symbol(
-            {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 0}}},
-            {},
-            line_to_syms,
+    def test_symbol_whose_declaration_ends_above_the_position_is_not_a_match(self, tmp_path: Path):
+        source = tmp_path / "a.py"
+        source.write_text("def head():\n    pass\n\n\ndef tail():\n    pass\n")
+        head = _sym("head", "a.head", NodeType.FUNCTION, str(source), 0, 4, 1, 8)
+        assert _index([head]).resolve(_definition(str(source), 4, 4)) is None
+
+    def test_parameter_line_does_not_bind_to_the_neighbouring_function(self, tmp_path: Path):
+        source = tmp_path / "handlers.py"
+        source.write_text("def handle(\n    payload,\n):\n    return payload\n")
+        function = _sym("handle", "handlers.handle", NodeType.FUNCTION, str(source), 0, 4, 3, 18)
+        assert _index([function]).resolve(_definition(str(source), 1, 4)) is None
+
+    def test_local_variable_line_does_not_bind_to_the_neighbouring_function(self, tmp_path: Path):
+        source = tmp_path / "calc.py"
+        source.write_text("def total(items):\n    subtotal = 0\n    return subtotal\n")
+        function = _sym("total", "calc.total", NodeType.FUNCTION, str(source), 0, 4, 2, 20)
+        assert _index([function]).resolve(_definition(str(source), 1, 4)) is None
+
+    def test_a_parameter_named_like_a_declaration_is_not_it(self, tmp_path: Path):
+        source = tmp_path / "render.py"
+        source.write_text("def render(graph):\n    return graph\n\n\ndef graph():\n    return 1\n")
+        function = _sym("graph", "render.graph", NodeType.FUNCTION, str(source), 4, 4, 5, 12)
+        assert _index([function]).resolve(_definition(str(source), 0, 11)) is None
+
+    def test_import_line_does_not_bind_to_the_neighbouring_function(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("from lib import helper\n\n\ndef run():\n    return helper()\n")
+        function = _sym("run", "app.run", NodeType.FUNCTION, str(source), 3, 4, 4, 20)
+        assert _index([function]).resolve(_definition(str(source), 0, 16)) is None
+
+    def test_overload_signature_resolves_to_the_sole_declaration_of_that_name(self, tmp_path: Path):
+        source = tmp_path / "teams.ts"
+        source.write_text(
+            "export function getTeams(id: string): Team[];\n"
+            "export function getTeams(id: number): Team[];\n"
+            "export function getTeams(id: unknown): Team[] {\n  return [];\n}\n"
         )
-        assert result is sym
+        implementation = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 2, 16, 4, 1)
+        assert _index([implementation]).resolve(_definition(str(source), 0, 16)) is implementation
+
+    def test_a_signature_resolves_to_the_implementation_below_it_not_a_namesake(self, tmp_path: Path):
+        source = tmp_path / "teams.ts"
+        source.write_text(
+            "export function getTeams(id: string): Team[];\n"
+            "export function getTeams() {}\n"
+            "class Api { getTeams() {} }\n"
+        )
+        free = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
+        method = _sym("getTeams", "teams.Api.getTeams", NodeType.METHOD, str(source), 2, 12, 2, 26)
+        assert _index([free, method]).resolve(_definition(str(source), 0, 16)) is free
+
+    def test_two_declarations_of_a_name_declared_where_no_implementation_follows_are_ambiguous(self, tmp_path: Path):
+        source = tmp_path / "teams.ts"
+        source.write_text(
+            "function getTeams() {}\nclass Api { getTeams() {} }\ndeclare const x: { getTeams(): void };\n"
+        )
+        free = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 0, 9, 0, 22)
+        method = _sym("getTeams", "teams.Api.getTeams", NodeType.METHOD, str(source), 1, 12, 1, 26)
+        assert _index([free, method]).resolve(_definition(str(source), 2, 19)) is None
+
+    def test_dual_registration_at_one_position_is_one_declaration(self, tmp_path: Path):
+        source = tmp_path / "teams.ts"
+        source.write_text("export function getTeams(id: string): Team[];\nexport function getTeams() {}\n")
+        short = _sym("getTeams", "teams.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
+        long = _sym("getTeams", "teams.index.getTeams", NodeType.FUNCTION, str(source), 1, 16, 1, 29)
+        assert _index([short, long]).resolve(_definition(str(source), 0, 16)) is long
+
+    def test_name_at_definition_only_considers_callables_and_classes(self, tmp_path: Path):
+        source = tmp_path / "config.py"
+        source.write_text("DEBUG = True\n\n\nDEBUG = False\n")
+        first = _sym("DEBUG", "config.DEBUG", NodeType.CONSTANT, str(source), 0, 0, 0, 5)
+        assert _index([first]).resolve(_definition(str(source), 3, 0)) is None
+
+    def test_adjacent_line_is_no_longer_a_match(self, tmp_path: Path):
+        source = tmp_path / "a.py"
+        source.write_text("@decorator\ndef foo():\n    pass\n")
+        sym = _sym("foo", "a.foo", NodeType.FUNCTION, str(source), 1, 4, 2, 8)
+        assert _index([sym]).resolve(_definition(str(source), 0, 0)) is None
+
+    def test_annotation_line_above_a_method_still_resolves_by_name(self, tmp_path: Path):
+        source = tmp_path / "Service.java"
+        source.write_text("class Service {\n  @Override\n  public void run() {}\n}\n")
+        method = _sym("run()", "Service.run()", NodeType.METHOD, str(source), 2, 14, 2, 22)
+        assert _index([method]).resolve(_definition(str(source), 2, 14)) is method
 
     def test_returns_none_for_invalid_uri(self):
-        result = _resolve_definition_to_symbol(
-            {"uri": "invalid-uri", "range": {"start": {"line": 0, "character": 0}}},
-            {},
-            {},
-        )
-        assert result is None
+        assert _index([]).resolve({"uri": "invalid-uri", "range": {"start": {"line": 0, "character": 0}}}) is None
 
     def test_returns_none_for_missing_position(self):
-        result = _resolve_definition_to_symbol(
-            {"uri": Path("/p/a.py").as_uri(), "range": {}},
-            {},
-            {},
-        )
-        assert result is None
-
-    def test_returns_none_when_no_match(self):
-        result = _resolve_definition_to_symbol(
-            {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 100, "character": 0}}},
-            {},
-            {},
-        )
-        assert result is None
-
-
-# ---------------------------------------------------------------------------
-# _best_candidate
-# ---------------------------------------------------------------------------
-
-
-class TestBestCandidate:
-    def test_prefers_callable_over_class(self):
-        cls = _sym("Foo", "a.Foo", NodeType.CLASS, "/p/a.py", 0)
-        method = _sym("foo", "a.Foo.foo", NodeType.METHOD, "/p/a.py", 5)
-        assert _best_candidate([cls, method]) is method
-
-    def test_prefers_class_over_variable(self):
-        var = _sym("x", "a.x", NodeType.VARIABLE, "/p/a.py", 0)
-        cls = _sym("Foo", "a.Foo", NodeType.CLASS, "/p/a.py", 0)
-        assert _best_candidate([var, cls]) is cls
-
-    def test_prefers_longest_qualified_name(self):
-        short = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 0)
-        long = _sym("foo", "a.b.c.foo", NodeType.FUNCTION, "/p/a.py", 0)
-        assert _best_candidate([short, long]) is long
-
-    def test_empty_list(self):
-        assert _best_candidate([]) is None
-
-    def test_single_variable(self):
-        var = _sym("x", "a.x", NodeType.VARIABLE, "/p/a.py", 0)
-        assert _best_candidate([var]) is var
+        assert _index([]).resolve({"uri": Path("/p/a.py").as_uri(), "range": {}}) is None
 
 
 # ---------------------------------------------------------------------------
@@ -475,7 +285,7 @@ class TestBuildEdgesViaDefinitions:
 
         # Call sites: main( at (0,4), helper( at (1,4), helper( def at (3,4)
         # helper( at (1,4) resolves to callee at (3,4)
-        def def_batch(queries: list) -> tuple[list, set[int]]:
+        def def_batch(queries: list) -> list:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}]
@@ -483,7 +293,7 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ], set()
+            ]
 
         lsp.send_definition_batch.side_effect = def_batch
 
@@ -506,13 +316,10 @@ class TestBuildEdgesViaDefinitions:
         st._primary_file_symbols[str(src)] = [caller]
         st.build_indices()
 
-        lsp.send_definition_batch.side_effect = lambda queries: (
-            [
-                [{"uri": other.as_uri(), "range": {"start": {"line": 7, "character": 4}}}] if line == 1 else []
-                for _, line, _ in queries
-            ],
-            set(),
-        )
+        lsp.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": other.as_uri(), "range": {"start": {"line": 7, "character": 4}}}] if line == 1 else []
+            for _, line, _ in queries
+        ]
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
 
@@ -521,6 +328,97 @@ class TestBuildEdgesViaDefinitions:
             ("app.main", str(other), 7, 4, "call")
         ]
         assert (ctx.external_call_sites[0].call_site.line, ctx.external_call_sites[0].call_site.column) == (2, 5)
+
+    def _main_calls_helper(self, ctx: EdgeBuildContext, lsp: MagicMock, tmp_path: Path) -> Path:
+        st = ctx.symbol_table
+        src = tmp_path / "app.py"
+        src.write_text("def main():\n    helper()\n\ndef helper():\n    pass\n")
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
+        callee = _sym("helper", "app.helper", NodeType.FUNCTION, str(src), 3, 4, 4)
+        st._symbols["app.main"] = caller
+        st._symbols["app.helper"] = callee
+        st._file_symbols[str(src)] = [caller, callee]
+        st._primary_file_symbols[str(src)] = [caller, callee]
+        st.build_indices()
+        lsp.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}] if (line, col) == (1, 4) else []
+            for _, line, col in queries
+        ]
+        return src
+
+    def test_an_implementation_in_a_file_this_engine_never_named_is_kept_for_the_merge(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _make_ctx(lsp)
+        src = self._main_calls_helper(ctx, lsp, tmp_path)
+        other = tmp_path / "plugins" / "impl.py"
+        lsp.send_implementation_batch.side_effect = lambda queries: [
+            [{"uri": other.as_uri(), "range": {"start": {"line": 2, "character": 4}}}] for _ in queries
+        ]
+
+        build_edges_via_definitions(adapter, ctx, [src])
+
+        assert [(s.caller, s.file, s.line, s.character, s.kind) for s in ctx.external_call_sites] == [
+            ("app.main", str(other), 2, 4, IMPLEMENTATION)
+        ]
+
+    def test_a_dispatched_call_is_kept_for_the_overrides_other_files_declare(self, tmp_path: Path):
+        """The dispatch index reads inheritance from these files alone."""
+        lsp = _make_lsp()
+        ctx, _ = _make_ctx(lsp)
+        src = self._main_calls_helper(ctx, lsp, tmp_path)
+
+        build_edges_via_definitions(_DispatchingTestAdapter(), ctx, [src])
+
+        assert [(s.caller, s.kind, s.member) for s in ctx.external_call_sites] == [("app.main", OVERRIDE, "app.helper")]
+
+    def test_a_receiver_in_a_file_this_engine_never_named_is_kept_for_the_merge(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _make_ctx(lsp)
+        st = ctx.symbol_table
+        src = tmp_path / "app.ts"
+        src.write_text("export function run() {\n    log.warn('x');\n}\n")
+        other = tmp_path / "log.ts"
+        caller = _sym("run", "app.run", NodeType.FUNCTION, str(src), 0, 16, 2)
+        st._symbols["app.run"] = caller
+        st._file_symbols[str(src)] = [caller]
+        st._primary_file_symbols[str(src)] = [caller]
+        st.build_indices()
+        lsp.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": other.as_uri(), "range": {"start": {"line": 0, "character": 13}}}] if col == 4 else []
+            for _, _line, col in queries
+        ]
+
+        build_edges_via_definitions(adapter, ctx, [src])
+
+        receivers = [
+            (s.caller, s.file, s.line, s.character, s.member) for s in ctx.external_call_sites if s.kind == RECEIVER
+        ]
+        assert receivers == [("app.run", str(other), 0, 13, "warn")]
+
+    @pytest.mark.parametrize("known,probed", [(frozenset(), False), (frozenset({"size"}), True)])
+    def test_a_member_read_is_probed_under_a_name_declared_outside_the_analysed_files(
+        self, tmp_path: Path, known: frozenset[str], probed: bool
+    ):
+        """A warm start reads only the changed files, so the getter's name comes from the cached graph."""
+        lsp = _make_lsp()
+        ctx, _ = _make_ctx(lsp)
+        ctx.known_callable_names = known
+        st = ctx.symbol_table
+        src = tmp_path / "app.ts"
+        src.write_text("export function run(box) {\n    const total = box.size + 1;\n    return total;\n}\n")
+        other = tmp_path / "box.ts"
+        caller = _sym("run", "app.run", NodeType.FUNCTION, str(src), 0, 16, 3)
+        st._symbols["app.run"] = caller
+        st._file_symbols[str(src)] = [caller]
+        st._primary_file_symbols[str(src)] = [caller]
+        st.build_indices()
+        lsp.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": other.as_uri(), "range": {"start": {"line": 1, "character": 6}}}] for _ in queries
+        ]
+
+        build_edges_via_definitions(_DefinitionsTestAdapter(), ctx, [src])
+
+        assert any(site.kind == MEMBER_READ for site in ctx.external_call_sites) is probed
 
     def test_no_call_sites_produces_empty(self, tmp_path: Path):
         """File with no call sites produces no edges."""
@@ -533,12 +431,8 @@ class TestBuildEdgesViaDefinitions:
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert len(edges) == 0
 
-    def test_definition_batch_failure_does_not_crash(self, tmp_path: Path):
-        """A failed batch loses its edges without stopping the run.
-
-        Whether that is the right trade is decided on the fail-fast branch; here
-        the point is only that the run survives it.
-        """
+    def test_a_failed_definition_batch_fails_the_build(self, tmp_path: Path):
+        """Continuing would cache a graph missing every edge the batch would have named."""
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
         st = ctx.symbol_table
@@ -552,9 +446,10 @@ class TestBuildEdgesViaDefinitions:
         st._primary_file_symbols[str(src)] = [caller]
         st.build_indices()
 
-        lsp.send_definition_batch.side_effect = Exception("LSP crash")
+        lsp.send_definition_batch.side_effect = StaticAnalysisFatalError("2 of 2 requests went unanswered")
 
-        assert len(build_edges_via_definitions(adapter, ctx, [src])) == 0
+        with pytest.raises(StaticAnalysisFatalError, match="unanswered"):
+            build_edges_via_definitions(adapter, ctx, [src])
 
     def test_constructor_adds_parent_class_edge(self, tmp_path: Path):
         """When definition resolves to a constructor, also adds edge to parent class."""
@@ -585,7 +480,7 @@ class TestBuildEdgesViaDefinitions:
         st.build_indices()
 
         # Dog( at (1,4) resolves to __init__ at (4,8); other sites resolve to nothing
-        def def_batch(queries: list) -> tuple[list, set[int]]:
+        def def_batch(queries: list) -> list:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 4, "character": 8}}}]
@@ -593,10 +488,9 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ], set()
+            ]
 
         lsp.send_definition_batch.side_effect = def_batch
-        lsp.send_implementation_batch.return_value = ([[]], set())
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert ("app.main", "app.Dog.__init__") in edges
@@ -622,7 +516,7 @@ class TestBuildEdgesViaDefinitions:
         st.build_indices()
 
         # speak( at (1,4) resolves to speak def at (3,4); others to nothing
-        def def_batch(queries: list) -> tuple[list, set[int]]:
+        def def_batch(queries: list) -> list:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}]
@@ -630,21 +524,19 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ], set()
+            ]
 
         lsp.send_definition_batch.side_effect = def_batch
         # Implementation for speak resolves to dog_speak
-        lsp.send_implementation_batch.return_value = (
-            [[{"uri": src.as_uri(), "range": {"start": {"line": 6, "character": 4}}}]],
-            set(),
-        )
+        lsp.send_implementation_batch.side_effect = lambda queries: [
+            [{"uri": src.as_uri(), "range": {"start": {"line": 6, "character": 4}}}] for _ in queries
+        ]
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert ("app.main", "app.speak") in edges
         assert ("app.main", "app.dog_speak") in edges
 
-    def test_handles_implementation_batch_failure(self, tmp_path: Path):
-        """Implementation batch failure doesn't crash."""
+    def test_a_failed_implementation_batch_fails_the_build(self, tmp_path: Path):
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
         st = ctx.symbol_table
@@ -661,7 +553,7 @@ class TestBuildEdgesViaDefinitions:
         st.build_indices()
 
         # speak( at (1,4) resolves to speak def at (3,4)
-        def def_batch(queries: list) -> tuple[list, set[int]]:
+        def def_batch(queries: list) -> list:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}]
@@ -669,316 +561,246 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ], set()
+            ]
 
         lsp.send_definition_batch.side_effect = def_batch
-        lsp.send_implementation_batch.side_effect = Exception("LSP crash")
+        lsp.send_implementation_batch.side_effect = StaticAnalysisFatalError("1 of 1 requests went unanswered")
+
+        with pytest.raises(StaticAnalysisFatalError, match="unanswered"):
+            build_edges_via_definitions(adapter, ctx, [src])
+
+
+# ---------------------------------------------------------------------------
+# Generic call shapes: function-valued targets and the receiver fallback
+# ---------------------------------------------------------------------------
+
+
+def _definitions_ctx(lsp: MagicMock) -> tuple[EdgeBuildContext, _DefinitionsTestAdapter]:
+    adapter = _DefinitionsTestAdapter()
+    return EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector()), adapter
+
+
+def _register(ctx: EdgeBuildContext, path: Path, symbols: list[SymbolInfo]) -> None:
+    st = ctx.symbol_table
+    for sym in symbols:
+        st._symbols[sym.qualified_name] = sym
+    st._file_symbols[str(path)] = symbols
+    st._primary_file_symbols[str(path)] = symbols
+    st.build_indices()
+
+
+def _answer(lsp: MagicMock, answers: dict[tuple[int, int], tuple[int, int]], path: Path) -> None:
+    """Resolve each queried position to the declaration position it maps to."""
+
+    def batch(queries: list) -> list:
+        return [
+            (
+                [{"uri": path.as_uri(), "range": {"start": {"line": at[0], "character": at[1]}}}]
+                if (at := answers.get((line, col))) is not None
+                else []
+            )
+            for _, line, col in queries
+        ]
+
+    lsp.send_definition_batch.side_effect = batch
+
+
+class TestFunctionValuedTargets:
+    def test_a_callback_bound_to_a_const_is_a_method_group_target(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text("const handler = () => 1;\n\nexport function run() {\n    subscribe(handler);\n}\n")
+
+        run = _sym("run", "app.run", NodeType.FUNCTION, str(src), 2, 16, 4)
+        handler = _sym("handler", "app.handler", NodeType.VARIABLE, str(src), 0, 6, 0, 23)
+        _register(ctx, src, [run, handler])
+        _answer(lsp, {(3, 14): (0, 6)}, src)
+
+        assert ("app.run", "app.handler") in build_edges_via_definitions(adapter, ctx, [src])
+
+    def test_a_constant_passed_as_an_argument_is_not_an_edge(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text("const LIMIT = 5;\n\nexport function run() {\n    subscribe(LIMIT);\n}\n")
+
+        run = _sym("run", "app.run", NodeType.FUNCTION, str(src), 2, 16, 4)
+        limit = _sym("LIMIT", "app.LIMIT", NodeType.VARIABLE, str(src), 0, 6, 0, 15)
+        _register(ctx, src, [run, limit])
+        _answer(lsp, {(3, 14): (0, 6)}, src)
+
+        assert build_edges_via_definitions(adapter, ctx, [src]) == {}
+
+
+class TestOnlyDispatchedCallsExpand:
+    def test_a_constructor_or_a_member_named_on_the_base_is_owed_no_implementation_query(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text(
+            "class Model {\n"
+            "  constructor() {}\n"
+            '  describe() { return ""; }\n'
+            "}\n"
+            "class Series extends Model {\n"
+            "  constructor() { super(); }\n"
+            "  describe() { return super.describe(); }\n"
+            "  show() { return this.describe(); }\n"
+            "}\n"
+        )
+        model: list[tuple[str, int]] = [("Model", NodeType.CLASS)]
+        series: list[tuple[str, int]] = [("Series", NodeType.CLASS)]
+        _register(
+            ctx,
+            src,
+            [
+                _sym("Model", "app.Model", NodeType.CLASS, str(src), 0, 6, 3, 1),
+                _sym("constructor", "app.Model.constructor", NodeType.CONSTRUCTOR, str(src), 1, 2, 1, 19, model),
+                _sym("describe", "app.Model.describe", NodeType.METHOD, str(src), 2, 2, 2, 28, model),
+                _sym("Series", "app.Series", NodeType.CLASS, str(src), 4, 6, 8, 1),
+                _sym("constructor", "app.Series.constructor", NodeType.CONSTRUCTOR, str(src), 5, 2, 5, 29, series),
+                _sym("describe", "app.Series.describe", NodeType.METHOD, str(src), 6, 2, 6, 42, series),
+                _sym("show", "app.Series.show", NodeType.METHOD, str(src), 7, 2, 7, 37, series),
+            ],
+        )
+        _answer(lsp, {(5, 18): (1, 2), (6, 28): (2, 2), (7, 23): (6, 2)}, src)
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
-        # Definition edge still present despite impl failure
-        assert ("app.main", "app.speak") in edges
+
+        asked = {(line, col) for call in lsp.send_implementation_batch.call_args_list for _, line, col in call.args[0]}
+        assert asked == {(6, 2)}
+        assert ("app.Series.constructor", "app.Model.constructor") in edges
+        assert ("app.Series.describe", "app.Model.describe") in edges
 
 
-# ---------------------------------------------------------------------------
-# build_edges_via_references (additional coverage beyond test_call_graph_builder)
-# ---------------------------------------------------------------------------
-
-
-class TestBuildEdgesViaReferencesExtra:
-    def test_filters_class_non_invocations(self):
-        """References to a class that aren't invocations are filtered out."""
+class TestMemberReads:
+    def test_a_property_read_is_a_call_to_its_getter(self, tmp_path: Path):
         lsp = _make_lsp()
-        ctx, adapter = _make_ctx(lsp)
-        st = ctx.symbol_table
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.py"
+        src.write_text(
+            "class Engine:\n    @property\n    def dirs(self):\n        return []\n\n\n"
+            "def run(engine):\n    if engine.dirs:\n        return 1\n"
+        )
+        engine: list[tuple[str, int]] = [("Engine", NodeType.CLASS)]
+        _register(
+            ctx,
+            src,
+            [
+                _sym("Engine", "app.Engine", NodeType.CLASS, str(src), 0, 6, 3, 17),
+                _sym("dirs", "app.Engine.dirs", NodeType.METHOD, str(src), 2, 8, 3, 17, engine),
+                _sym("run", "app.run", NodeType.FUNCTION, str(src), 6, 4, 8, 16),
+            ],
+        )
+        _answer(lsp, {(7, 14): (2, 8)}, src)
 
-        caller = _sym("main", "app.main", NodeType.FUNCTION, "/project/app.py", 0, 0, 20)
-        cls = _sym("Dog", "app.Dog", NodeType.CLASS, "/project/app.py", 25, 0, 50)
-        st._symbols["app.main"] = caller
-        st._symbols["app.Dog"] = cls
-        st._file_symbols[str(Path("/project/app.py"))] = [caller, cls]
-        st._primary_file_symbols[str(Path("/project/app.py"))] = [caller, cls]
-        st.build_indices()
+        edges = build_edges_via_definitions(adapter, ctx, [src])
 
-        # Reference to Dog that is NOT an invocation (e.g., type annotation)
-        ref = {
-            "uri": Path("/project/app.py").as_uri(),
-            "range": {"start": {"line": 5, "character": 4}, "end": {"line": 5, "character": 7}},
-        }
-        lsp.send_references_batch.return_value = ([[], [ref]], set())
+        assert ("app.run", "app.Engine.dirs") in edges
+        assert ("app.run", "app.Engine") in edges
 
-        ctx.source_inspector = MagicMock()
-        ctx.source_inspector.is_invocation.return_value = False  # Not a call
-
-        edges = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
-        assert ("app.main", "app.Dog") not in edges
-
-    def test_skips_nested_symbol_edges(self):
-        """Edges where the target is nested inside the caller are skipped."""
+    def test_a_write_calls_a_setter_but_not_a_method_it_replaces(self, tmp_path: Path):
         lsp = _make_lsp()
-        ctx, adapter = _make_ctx(lsp)
-        st = ctx.symbol_table
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text(
+            "class Model {\n"
+            "  set size(value: number) {}\n"
+            "  render() {}\n"
+            "}\n"
+            "function run(model: Model) {\n"
+            "  model.size = 3;\n"
+            "  model.render = () => {};\n"
+            "}\n"
+        )
+        model: list[tuple[str, int]] = [("Model", NodeType.CLASS)]
+        _register(
+            ctx,
+            src,
+            [
+                _sym("Model", "app.Model", NodeType.CLASS, str(src), 0, 6, 3, 1),
+                _sym("size", "app.Model.size", NodeType.METHOD, str(src), 1, 6, 1, 28, model),
+                _sym("render", "app.Model.render", NodeType.METHOD, str(src), 2, 2, 2, 13, model),
+                _sym("run", "app.run", NodeType.FUNCTION, str(src), 4, 9, 7, 1),
+            ],
+        )
+        _answer(lsp, {(5, 8): (1, 6), (6, 8): (2, 2)}, src)
 
-        outer = _sym("outer", "app.outer", NodeType.FUNCTION, "/project/app.py", 0, 0, 20)
-        inner = _sym("inner", "app.outer.inner", NodeType.FUNCTION, "/project/app.py", 5, 4, 10)
-        st._symbols["app.outer"] = outer
-        st._symbols["app.outer.inner"] = inner
-        st._file_symbols[str(Path("/project/app.py"))] = [outer, inner]
-        st._primary_file_symbols[str(Path("/project/app.py"))] = [outer, inner]
-        st.build_indices()
+        edges = build_edges_via_definitions(adapter, ctx, [src])
 
-        # Reference to inner from within outer
-        ref = {
-            "uri": Path("/project/app.py").as_uri(),
-            "range": {"start": {"line": 3, "character": 4}, "end": {"line": 3, "character": 9}},
-        }
-        lsp.send_references_batch.return_value = ([[], [ref]], set())
+        assert ("app.run", "app.Model.size") in edges
+        assert ("app.run", "app.Model.render") not in edges
 
-        ctx.source_inspector = MagicMock()
-        ctx.source_inspector.is_invocation.return_value = True
-
-        edges = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
-        # inner is nested inside outer, so edge should be skipped
-        assert ("app.outer", "app.outer.inner") not in edges
-
-    def test_empty_symbols_no_crash(self):
-        """Empty symbol table produces no edges and no crash."""
+    def test_a_member_read_that_resolves_to_a_value_is_not_an_edge(self, tmp_path: Path):
         lsp = _make_lsp()
-        ctx, adapter = _make_ctx(lsp)
-        edges = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
-        assert len(edges) == 0
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.py"
+        src.write_text(
+            "class Config:\n    dirs = []\n\ndef dirs():\n    return 1\n\n"
+            "def run(config):\n    if config.dirs:\n        return 1\n"
+        )
+        _register(
+            ctx,
+            src,
+            [
+                _sym("Config", "app.Config", NodeType.CLASS, str(src), 0, 6, 1, 13),
+                _sym("dirs", "app.Config.dirs", NodeType.VARIABLE, str(src), 1, 4, 1, 13, [("Config", NodeType.CLASS)]),
+                _sym("dirs", "app.dirs", NodeType.FUNCTION, str(src), 3, 4, 4, 12),
+                _sym("run", "app.run", NodeType.FUNCTION, str(src), 6, 4, 8, 16),
+            ],
+        )
+        _answer(lsp, {(7, 14): (1, 4)}, src)
 
-    def test_skips_error_producing_files_in_subsequent_batches(self):
-        """When a file produces LSP errors, its symbols are skipped in later batches."""
+        edges = build_edges_via_definitions(adapter, ctx, [src])
+
+        asked = {(line, col) for call in lsp.send_definition_batch.call_args_list for _, line, col in call.args[0]}
+        assert (7, 14) in asked
+        assert edges == {}
+
+
+class TestReceiverMemberFallback:
+    def test_a_member_call_that_leaves_the_repository_resolves_through_its_receiver(self, tmp_path: Path):
         lsp = _make_lsp()
-        # Use a mock adapter with batch_size=1 so each symbol is its own batch.
-        # Symbols sort as: bad.bad_fn1, bad.bad_fn2, good.good_fn
-        # Batch 1: bad_fn1 -> error -> bad.py added to skip_files
-        # Batch 2: bad_fn2 -> skipped (bad.py in skip_files)
-        # Batch 3: good_fn -> queried normally
-        adapter = MagicMock()
-        adapter.should_track_for_edges.side_effect = lambda k: k in (NodeType.FUNCTION, NodeType.METHOD)
-        adapter.is_class_like.return_value = False
-        adapter.is_callable.return_value = True
-        adapter.references_batch_size = 1
-        adapter.references_per_query_timeout = 0
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text("export const log = { warn(m: string) {} };\n\nexport function run() {\n    log.warn('x');\n}\n")
 
-        st = SymbolTable(_TestAdapter())
-        ctx = EdgeBuildContext(lsp, st, SourceInspector())
+        run = _sym("run", "app.run", NodeType.FUNCTION, str(src), 2, 16, 4)
+        log = _sym("log", "app.log", NodeType.VARIABLE, str(src), 0, 13, 0, 41)
+        warn = _sym("warn", "app.log.warn", NodeType.METHOD, str(src), 0, 21, 0, 39)
+        _register(ctx, src, [run, log, warn])
+        # The member resolves nowhere; only the receiver at (3, 4) answers.
+        _answer(lsp, {(3, 4): (0, 13)}, src)
 
-        good_func = _sym("good_fn", "good.good_fn", NodeType.FUNCTION, "/project/good.py", 0, 0, 10)
-        bad_func1 = _sym("bad_fn1", "bad.bad_fn1", NodeType.FUNCTION, "/project/bad.py", 0, 0, 10)
-        bad_func2 = _sym("bad_fn2", "bad.bad_fn2", NodeType.FUNCTION, "/project/bad.py", 15, 0, 25)
+        assert ("app.run", "app.log.warn") in build_edges_via_definitions(adapter, ctx, [src])
 
-        st._symbols["good.good_fn"] = good_func
-        st._symbols["bad.bad_fn1"] = bad_func1
-        st._symbols["bad.bad_fn2"] = bad_func2
-        for key in [str(Path("/project/good.py")), str(Path("/project/bad.py"))]:
-            st._file_symbols[key] = []
-            st._primary_file_symbols[key] = []
-        st._file_symbols[str(Path("/project/good.py"))] = [good_func]
-        st._primary_file_symbols[str(Path("/project/good.py"))] = [good_func]
-        st._file_symbols[str(Path("/project/bad.py"))] = [bad_func1, bad_func2]
-        st._primary_file_symbols[str(Path("/project/bad.py"))] = [bad_func1, bad_func2]
-        st.build_indices()
+    def test_a_receiver_that_holds_no_such_member_adds_nothing(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text("export const log = { info(m: string) {} };\n\nexport function run() {\n    log.warn('x');\n}\n")
 
-        def mock_refs_with_errors(queries, per_query_timeout=0):
-            error_indices: set[int] = set()
-            results: list[list[dict]] = []
-            for i, (fp, _, _) in enumerate(queries):
-                if "bad.py" in str(fp):
-                    results.append([])
-                    error_indices.add(i)
-                else:
-                    results.append([])
-            return results, error_indices
+        run = _sym("run", "app.run", NodeType.FUNCTION, str(src), 2, 16, 4)
+        log = _sym("log", "app.log", NodeType.VARIABLE, str(src), 0, 13, 0, 41)
+        info = _sym("info", "app.log.info", NodeType.METHOD, str(src), 0, 21, 0, 39)
+        _register(ctx, src, [run, log, info])
+        _answer(lsp, {(3, 4): (0, 13)}, src)
 
-        lsp.send_references_batch.side_effect = mock_refs_with_errors
+        assert build_edges_via_definitions(adapter, ctx, [src]) == {}
 
-        edges = build_edges_via_references(adapter, ctx, [Path("/project/good.py"), Path("/project/bad.py")])
+    def test_a_member_call_the_engine_already_resolved_is_not_asked_again(self, tmp_path: Path):
+        lsp = _make_lsp()
+        ctx, adapter = _definitions_ctx(lsp)
+        src = tmp_path / "app.ts"
+        src.write_text("export const log = { warn(m: string) {} };\n\nexport function run() {\n    log.warn('x');\n}\n")
 
-        # Collect all files that were actually queried via LSP
-        all_queried_files: list[str] = []
-        for call_args in lsp.send_references_batch.call_args_list:
-            for fp, _, _ in call_args[0][0]:
-                all_queried_files.append(str(fp))
+        run = _sym("run", "app.run", NodeType.FUNCTION, str(src), 2, 16, 4)
+        log = _sym("log", "app.log", NodeType.VARIABLE, str(src), 0, 13, 0, 41)
+        warn = _sym("warn", "app.log.warn", NodeType.METHOD, str(src), 0, 21, 0, 39)
+        _register(ctx, src, [run, log, warn])
+        _answer(lsp, {(3, 8): (0, 21)}, src)
 
-        # bad_fn1 was queried (error discovered), but bad_fn2 should be skipped
-        bad_queries = [f for f in all_queried_files if "bad.py" in f]
-        assert len(bad_queries) == 1, f"Expected 1 query for bad.py, got {len(bad_queries)}"
-        # good.py should still be queried
-        good_queries = [f for f in all_queried_files if "good.py" in f]
-        assert len(good_queries) == 1
-        assert len(edges) == 0
-
-
-class _CSharpishAdapter(_TestAdapter):
-    """Stands in for the C# adapter: the only one on both dispatch capabilities."""
-
-    @property
-    def resolves_method_groups(self) -> bool:
-        return True
-
-    @property
-    def expands_virtual_dispatch(self) -> bool:
-        return True
-
-
-def _csharp_ctx() -> tuple[EdgeBuildContext, _CSharpishAdapter, MagicMock]:
-    adapter = _CSharpishAdapter()
-    lsp = _make_lsp()
-    return EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector()), adapter, lsp
-
-
-class TestMethodGroupArguments:
-    def _definitions_at(self, src: Path, hits: dict[tuple[int, int], tuple[int, int]]):
-        def def_batch(queries: list) -> tuple[list, set[int]]:
-            return [
-                (
-                    [
-                        {
-                            "uri": src.as_uri(),
-                            "range": {"start": {"line": hits[(line, col)][0], "character": hits[(line, col)][1]}},
-                        }
-                    ]
-                    if (line, col) in hits
-                    else []
-                )
-                for _, line, col in queries
-            ], set()
-
-        return def_batch
-
-    def test_handler_passed_as_an_argument_becomes_an_edge(self, tmp_path: Path):
-        ctx, adapter, lsp = _csharp_ctx()
-        st = ctx.symbol_table
-        src = tmp_path / "Program.cs"
-        src.write_text('class P {\n  void Main(){ Map("/i", Handle); }\n  void Handle(){}\n}\n')
-
-        caller = _sym("Main", "P.Main", NodeType.METHOD, str(src), 1, 7, 1)
-        handler = _sym("Handle", "P.Handle", NodeType.METHOD, str(src), 2, 7, 2)
-        st._symbols.update({"P.Main": caller, "P.Handle": handler})
-        st._file_symbols[str(src)] = [caller, handler]
-        st._primary_file_symbols[str(src)] = [caller, handler]
-        st.build_indices()
-
-        lsp.send_definition_batch.side_effect = self._definitions_at(src, {(1, 25): (2, 7)})
-
-        assert ("P.Main", "P.Handle") in build_edges_via_definitions(adapter, ctx, [src])
-
-    def test_ordinary_argument_resolving_to_a_local_is_not_an_edge(self, tmp_path: Path):
-        ctx, adapter, lsp = _csharp_ctx()
-        st = ctx.symbol_table
-        src = tmp_path / "Program.cs"
-        src.write_text("class P {\n  void Main(){ int total = 1; Send(total); }\n  int total;\n}\n")
-
-        caller = _sym("Main", "P.Main", NodeType.METHOD, str(src), 1, 7, 1)
-        field = _sym("total", "P.total", NodeType.FIELD, str(src), 2, 6, 2)
-        st._symbols.update({"P.Main": caller, "P.total": field})
-        st._file_symbols[str(src)] = [caller, field]
-        st._primary_file_symbols[str(src)] = [caller, field]
-        st.build_indices()
-
-        lsp.send_definition_batch.side_effect = self._definitions_at(src, {(1, 34): (2, 6)})
-
-        assert ("P.Main", "P.total") not in build_edges_via_definitions(adapter, ctx, [src])
-
-    def test_invoked_delegate_field_is_still_an_edge(self, tmp_path: Path):
-        """The method-group filter must not reach real invocation sites."""
-        ctx, adapter, lsp = _csharp_ctx()
-        st = ctx.symbol_table
-        src = tmp_path / "Middleware.cs"
-        src.write_text("class M {\n  void Invoke(){ _next(); }\n  RequestDelegate _next;\n}\n")
-
-        caller = _sym("Invoke", "M.Invoke", NodeType.METHOD, str(src), 1, 7, 1)
-        field = _sym("_next", "M._next", NodeType.FIELD, str(src), 2, 18, 2)
-        st._symbols.update({"M.Invoke": caller, "M._next": field})
-        st._file_symbols[str(src)] = [caller, field]
-        st._primary_file_symbols[str(src)] = [caller, field]
-        st.build_indices()
-
-        lsp.send_definition_batch.side_effect = self._definitions_at(src, {(1, 17): (2, 18)})
-
-        assert ("M.Invoke", "M._next") in build_edges_via_definitions(adapter, ctx, [src])
-
-
-class TestOverrideTargets:
-    def _index(self, tmp_path: Path, files: dict[str, str], classes: dict[str, str]):
-        adapter = _CSharpishAdapter()
-        ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
-        paths = []
-        for name, text in files.items():
-            path = tmp_path / name
-            path.write_text(text)
-            paths.append(path)
-        for qname, file_name in classes.items():
-            simple = qname.rsplit(".", 1)[-1]
-            ctx.symbol_table._symbols[qname] = _sym(simple, qname, NodeType.CLASS, str(tmp_path / file_name), 0)
-        return _build_dispatch_index(adapter, ctx, paths), ctx.symbol_table
-
-    def test_expands_to_an_override(self, tmp_path: Path):
-        dispatch, st = self._index(
-            tmp_path,
-            {
-                "Animal.cs": "abstract class Animal { public abstract void Speak(); }\n",
-                "Dog.cs": "class Dog : Animal { public override void Speak() {} }\n",
-            },
-            {"Animal": "Animal.cs", "Dog": "Dog.cs"},
-        )
-        st._symbols["Animal.Speak"] = _sym("Speak", "Animal.Speak", NodeType.METHOD, str(tmp_path / "Animal.cs"), 0)
-        st._symbols["Dog.Speak"] = _sym("Speak", "Dog.Speak", NodeType.METHOD, str(tmp_path / "Dog.cs"), 0)
-
-        targets = _override_targets(st._symbols["Animal.Speak"], st, dispatch)
-        assert [t.qualified_name for t in targets] == ["Dog.Speak"]
-
-    def test_skips_a_hidden_member(self, tmp_path: Path):
-        dispatch, st = self._index(
-            tmp_path,
-            {
-                "Base.cs": "class Base { public void Plain() {} }\n",
-                "Derived.cs": "class Derived : Base { public new void Plain() {} }\n",
-            },
-            {"Base": "Base.cs", "Derived": "Derived.cs"},
-        )
-        st._symbols["Base.Plain"] = _sym("Plain", "Base.Plain", NodeType.METHOD, str(tmp_path / "Base.cs"), 0)
-        st._symbols["Derived.Plain"] = _sym("Plain", "Derived.Plain", NodeType.METHOD, str(tmp_path / "Derived.cs"), 0)
-
-        assert _override_targets(st._symbols["Base.Plain"], st, dispatch) == []
-
-    def test_interface_member_reaches_an_implicit_implementation(self, tmp_path: Path):
-        dispatch, st = self._index(
-            tmp_path,
-            {
-                "IThing.cs": "interface IThing { void Run(); }\n",
-                "Impl.cs": "class Impl : IThing { public void Run() {} }\n",
-            },
-            {"IThing": "IThing.cs", "Impl": "Impl.cs"},
-        )
-        st._symbols["IThing"] = _sym("IThing", "IThing", NodeType.INTERFACE, str(tmp_path / "IThing.cs"), 0)
-        st._symbols["IThing.Run"] = _sym("Run", "IThing.Run", NodeType.METHOD, str(tmp_path / "IThing.cs"), 0)
-        st._symbols["Impl.Run"] = _sym("Run", "Impl.Run", NodeType.METHOD, str(tmp_path / "Impl.cs"), 0)
-
-        targets = _override_targets(st._symbols["IThing.Run"], st, dispatch)
-        assert [t.qualified_name for t in targets] == ["Impl.Run"]
-
-    def test_base_name_declared_twice_is_not_expanded(self, tmp_path: Path):
-        """`Alpha.Base` and `Beta.Base` are both just `Base` in source."""
-        dispatch, st = self._index(
-            tmp_path,
-            {
-                "AlphaBase.cs": "namespace Alpha { abstract class Base { public abstract void Run(); } }\n",
-                "BetaBase.cs": "namespace Beta { abstract class Base { public abstract void Run(); } }\n",
-                "Other.cs": "namespace Beta { class Other : Base { public override void Run() {} } }\n",
-            },
-            {
-                "Alpha.Base": "AlphaBase.cs",
-                "Beta.Base": "BetaBase.cs",
-                "Beta.Other": "Other.cs",
-            },
-        )
-        st._symbols["Alpha.Base.Run"] = _sym(
-            "Run", "Alpha.Base.Run", NodeType.METHOD, str(tmp_path / "AlphaBase.cs"), 0
-        )
-        st._symbols["Beta.Other.Run"] = _sym("Run", "Beta.Other.Run", NodeType.METHOD, str(tmp_path / "Other.cs"), 0)
-
-        assert "Base" in dispatch.ambiguous
-        assert _override_targets(st._symbols["Alpha.Base.Run"], st, dispatch) == []
+        build_edges_via_definitions(adapter, ctx, [src])
+        queried = {(line, col) for call in lsp.send_definition_batch.call_args_list for _, line, col in call.args[0]}
+        assert (3, 4) not in queried

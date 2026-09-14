@@ -36,15 +36,6 @@ class EdgeBuildAdapter(Protocol):
     """Methods needed by edge-building strategies to query adapter config."""
 
     @property
-    def include_references_on_declaration_line(self) -> bool: ...
-
-    @property
-    def references_batch_size(self) -> int: ...
-
-    @property
-    def references_per_query_timeout(self) -> int: ...
-
-    @property
     def resolves_method_groups(self) -> bool: ...
 
     @property

@@ -201,16 +201,6 @@ class GoAdapter(LanguageAdapter):
         """
         return {"GOGC": "50"}
 
-    @property
-    def references_batch_size(self) -> int:
-        """Limit concurrent gopls reference searches to avoid request backlogs."""
-        return 10
-
-    @property
-    def references_per_query_timeout(self) -> int:
-        """Give each serialized gopls reference search a modest time budget."""
-        return 10
-
     def discover_source_files(
         self, project_root: Path, ignore_manager: RepoIgnoreManager, nested_roots: Sequence[Path] = ()
     ) -> list[Path]:
@@ -231,7 +221,7 @@ class GoAdapter(LanguageAdapter):
     def _has_excluding_build_tag(file_path: Path) -> bool:
         """Check if a Go file has a build constraint with negation."""
         try:
-            with open(file_path, "r", errors="replace") as f:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 for line in f:
                     stripped = line.strip()
                     if not stripped or stripped.startswith("//"):

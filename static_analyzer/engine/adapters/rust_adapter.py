@@ -85,12 +85,6 @@ class RustAdapter(LanguageAdapter):
         return Language.RUST
 
     @property
-    def references_per_query_timeout(self) -> int:
-        """Non-zero gates the Phase-1.5 warmup probe so rust-analyzer builds
-        its ``ide_db::search`` index before Phase 2 fans out queries."""
-        return 60
-
-    @property
     def wait_for_workspace_ready(self) -> bool:
         """Block on ``experimental/serverStatus`` quiescent before Phase 2.
 

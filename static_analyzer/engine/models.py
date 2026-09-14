@@ -96,13 +96,14 @@ class CallFlowGraph:
 @dataclass
 @dataclass(frozen=True)
 class ExternalCallSite:
-    """A call whose definition the server placed in a file this engine holds no symbols for.
+    """An answer the server placed in a file this engine holds no symbols for.
 
-    Why: a repository with several solutions runs one engine per solution, and a call
-    into another solution's project resolves to a file only that other engine named.
-    The position is kept so the merged graph can finish the edge, and how the site
-    was found (a call, a method-group probe, a collection initializer, a ``foreach``)
-    so it is finished the way the engine would have.
+    Why: a repository with several solutions runs one engine per solution, and a warm start
+    re-analyses only the changed files, so a call can resolve to a file only another engine,
+    or the cache, named. The position is kept so the merged graph can finish the edge, and
+    what the answer was to (a call, a method-group probe, a collection initializer, a
+    ``foreach``, an implementation query, a receiver) so it is finished the way the engine
+    would have.
     """
 
     caller: str
@@ -111,6 +112,9 @@ class ExternalCallSite:
     character: int
     call_site: CallSite
     kind: str = "call"
+    # The member a receiver site calls on the declaration at this position; for an override
+    # site, the qualified name of the declaration it dispatches from.
+    member: str = ""
 
 
 @dataclass

@@ -5,13 +5,13 @@ from __future__ import annotations
 import logging
 import re
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import Path
 
 from tree_sitter import Language as TreeSitterLanguage
 from tree_sitter import Node as TreeSitterNode
-from tree_sitter import Parser, Tree
+from tree_sitter import Parser, Point, Tree
 
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.models import CallSite
@@ -56,6 +56,7 @@ _CALL_NODE_TYPES = frozenset(
         "call_expression",
         "function_call_expression",
         "member_call_expression",
+        "nullsafe_member_call_expression",
         "scoped_call_expression",
         "method_invocation",
         "invocation_expression",
@@ -74,6 +75,43 @@ _OBJECT_INITIALIZER_NODE_TYPES = frozenset({"assignment_expression"})
 # Loops whose ``right`` field is a value whose type gets enumerated.
 _ITERATION_NODE_TYPES = frozenset({"foreach_statement", "for_each_statement", "enhanced_for_statement"})
 _METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference"})
+# Expanding a macro runs its body, and the module declaring it is a real dependency.
+_MACRO_INVOCATION_NODE_TYPES = frozenset({"macro_invocation"})
+# Rendering an element runs its component; the closing tag is the same element named twice.
+_JSX_ELEMENT_NODE_TYPES = frozenset({"jsx_opening_element", "jsx_self_closing_element"})
+# Applying a decorator calls it. ``@cache(...)`` is already a call node, so only a bare
+# name is a site of its own.
+_DECORATOR_NODE_TYPES = frozenset({"decorator"})
+# Everything a grammar writes above a declaration to decorate it.
+_DECORATION_NODE_TYPES = frozenset({"decorator", "annotation", "marker_annotation", "attribute_list"})
+_DECORATOR_NAME_NODE_TYPES = frozenset({"identifier", "attribute", "member_expression"})
+# Values that are functions: ``const f = () => ...`` is as callable a target as a declared function.
+_FUNCTION_LITERAL_NODE_TYPES = frozenset(
+    {"arrow_function", "function_expression", "function", "generator_function", "lambda", "func_literal"}
+)
+# ``receiver.member``, in every grammar's spelling.
+_MEMBER_ACCESS_NODE_TYPES = frozenset(
+    {
+        "member_expression",  # JavaScript, TypeScript
+        "attribute",  # Python
+        "member_access_expression",  # C#, PHP
+        "field_access",  # Java
+        "selector_expression",  # Go
+        "field_expression",  # Rust
+    }
+)
+# Receivers naming the enclosing class's base: a member named on one is not dispatched.
+_BASE_RECEIVER_NODE_TYPES = frozenset({"super", "base"})
+# A member is written, not read, as the ``left`` of one of these.
+_ASSIGNMENT_NODE_TYPES = frozenset(
+    {"assignment", "assignment_expression", "augmented_assignment", "augmented_assignment_expression"}
+)
+# A member named in a type is not read at run time: ``ReturnType<typeof api.load>``, ``x: mod.Base``.
+_TYPE_POSITION_NODE_TYPES = frozenset({"type", "type_annotation", "type_query"})
+# Declarations without a body: an overload signature, completed by the implementation that follows it.
+_SIGNATURE_NODE_TYPES = frozenset({"method_signature", "function_signature"})
+# The last code point one UTF-16 unit holds; any above it takes a surrogate pair, two units.
+_MAX_SINGLE_UTF16_UNIT_CODE_POINT = 0xFFFF
 # Nodes that run a constructor. Java's `super(...)`/`this(...)` is a call node rather than a
 # creation one, and `Dog::new` is a method reference that has to be told from `Dog::speak`.
 _CONSTRUCTION_NODE_TYPES = (
@@ -89,6 +127,7 @@ _NAME_NODE_TYPES = frozenset(
         "identifier",
         "name",
         "property_identifier",
+        "private_property_identifier",  # ECMAScript ``#member``
         "field_identifier",
         "type_identifier",
         "super",
@@ -96,12 +135,68 @@ _NAME_NODE_TYPES = frozenset(
     }
 )
 _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
+# A body the grammar leaves as an unparsed token sequence: Rust hands a macro's
+# arguments over whole rather than parsing the calls written in them.
+_OPAQUE_ARGUMENT_NODE_TYPES = frozenset({"token_tree"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
 _ARGUMENT_NODE_TYPES = frozenset({"argument"})
-_DECLARATOR_NODE_TYPES = frozenset({"variable_declarator"})
-_VALUE_BODY_NODE_TYPES = frozenset({"return_statement", "arrow_expression_clause"})
-_NAME_SHAPED_NODE_TYPES = frozenset({"identifier", "member_access_expression", "generic_name", "qualified_name"})
+# Node types that bind a name to a value, and the field the value sits in. C#'s declarator
+# names no field, so there the value is the last child.
+_VALUE_FIELD_BY_BINDING = {
+    "assignment": "right",  # Python
+    "assignment_expression": "right",  # C#, Java, JavaScript, TypeScript, PHP
+    "assignment_statement": "right",  # Go
+    "short_var_declaration": "right",  # Go
+    "variable_declarator": "value",  # Java, JavaScript, TypeScript; C# names no field
+    "let_declaration": "value",  # Rust
+    "default_parameter": "value",  # Python
+    "typed_default_parameter": "value",  # Python
+    "field_definition": "value",  # JavaScript class field
+    "public_field_definition": "value",  # TypeScript class field
+    "var_spec": "value",  # Go
+}
+# A binding, or an object literal's ``key: value``, can name a function literal.
+_FUNCTION_VALUE_HOLDER_NODE_TYPES = frozenset(_VALUE_FIELD_BY_BINDING) | {"pair"}
+# What a ``return``, a ``yield`` or C#'s expression body hands back is passed as a value.
+_VALUE_BODY_NODE_TYPES = frozenset(
+    {"return_statement", "return_expression", "yield", "yield_expression", "arrow_expression_clause"}
+)
+_NAME_SHAPED_NODE_TYPES = frozenset(
+    {
+        "identifier",
+        "member_access_expression",
+        "generic_name",
+        "qualified_name",
+        "attribute",
+        "member_expression",
+        "scoped_identifier",
+        "field_access",
+        "selector_expression",
+    }
+)
+# Literals that hold a group of values, each of which can be a name: a dispatch table is
+# written as one of these and every callable in it is reached through it.
+_VALUE_GROUP_NODE_TYPES = frozenset(
+    {
+        "dictionary",  # Python
+        "list",
+        "tuple",
+        "set",
+        "pair",
+        "keyword_argument",
+        "object",  # JavaScript, TypeScript
+        "array",
+        "array_creation_expression",  # C#
+        "expression_list",  # Go
+        "composite_literal",
+        "literal_value",
+        "literal_element",
+        "keyed_element",
+        "array_expression",  # Rust
+        "tuple_expression",
+    }
+)
 _TYPE_DECLARATION_NODE_TYPES = frozenset(
     {"class_declaration", "interface_declaration", "record_declaration", "struct_declaration"}
 )
@@ -172,18 +267,6 @@ _MEMBER_DECLARATION_NODE_TYPES = frozenset(
 # Restricted to languages where ``#`` opens a directive rather than a comment.
 _DIRECTIVE_LINE = re.compile(rb"(?m)^[ \t]*#[^\n]*")
 _PREPROCESSOR_SUFFIXES = frozenset({".cs"})
-_DECLARATION_BLOCK_NODE_TYPES = frozenset({"block", "compound_statement", "statement_block"})
-_EXPRESSION_BODY_NODE_TYPES = frozenset({"arrow_expression_clause"})
-# Fields holding a declaration's body or initialiser rather than its signature.
-# Why only TS/JS: a one-line `onClick={() => f()}` puts the call on its own declaration's
-# line, out of the block-node test's reach. Python's `def g(x=f())` occupies `value` too but
-# the enclosing scope evaluates it, so the rule stays off the other grammars.
-_BODY_FIELD_NAMES = ("body", "value")
-BODY_DECLARATION_LANGUAGES = (Language.TYPESCRIPT, Language.JAVASCRIPT)
-_BODY_FIELD_SUFFIXES = frozenset(
-    suffix for language in BODY_DECLARATION_LANGUAGES for suffix in LANGUAGE_EXTENSIONS[language]
-)
-
 # Ceiling on retained tree-sitter nodes. Trees are by far the largest thing this
 # class touches — retaining one per file cost 2.2GB on a 5k-file C# repo — and
 # the common path needs each exactly once, to build that file's usage index,
@@ -203,17 +286,87 @@ def _error_node_count(tree: Tree) -> int:
     return count
 
 
+def _applied_inside_opaque_arguments(node: TreeSitterNode) -> bool:
+    """Whether *node* is a name applied to a parenthesised group inside an opaque body.
+
+    Why: ``println!("{}", cat.speak())`` keeps its arguments as one unparsed token sequence,
+    but the server expands the macro and answers at the position all the same.
+    """
+    parent = node.parent
+    if parent is None or parent.type not in _OPAQUE_ARGUMENT_NODE_TYPES:
+        return False
+    applied = node.next_sibling
+    return (
+        applied is not None
+        and applied.type in _OPAQUE_ARGUMENT_NODE_TYPES
+        and applied.text is not None
+        and applied.text.startswith(b"(")
+    )
+
+
+def _line_start_offsets(content: bytes) -> tuple[int, ...]:
+    """The byte offset at which each line of *content* begins."""
+    offsets = [0]
+    end = content.find(b"\n")
+    while end != -1:
+        offsets.append(end + 1)
+        end = content.find(b"\n", end + 1)
+    return tuple(offsets)
+
+
 @dataclass(frozen=True)
 class ParsedSource:
     content: bytes
     tree: Tree
+    # Where every line of ``content`` begins, kept only for a file that needs the
+    # conversion below.
+    line_starts: tuple[int, ...] = ()
+
+    def __post_init__(self) -> None:
+        # Why: tree-sitter counts a column in bytes, LSP in UTF-16 code units. The two
+        # agree for an all-ASCII file, which is almost every file, so the offsets exist
+        # only where they do not.
+        if not self.content.isascii():
+            object.__setattr__(self, "line_starts", _line_start_offsets(self.content))
+
+    def lsp_position(self, point: Point) -> tuple[int, int]:
+        """The line and character an LSP request must carry to name *point*."""
+        if not self.line_starts or point.row >= len(self.line_starts):
+            return point.row, point.column
+        start = self.line_starts[point.row]
+        prefix = self.content[start : start + point.column]
+        if prefix.isascii():
+            return point.row, point.column
+        return point.row, sum(
+            2 if ord(char) > _MAX_SINGLE_UTF16_UNIT_CODE_POINT else 1 for char in prefix.decode("utf8", "replace")
+        )
+
+    def byte_column(self, line: int, character: int) -> int:
+        """The tree-sitter column that the LSP *character* of *line* falls at."""
+        if not self.line_starts or line >= len(self.line_starts):
+            return character
+        end = self.line_starts[line + 1] if line + 1 < len(self.line_starts) else len(self.content)
+        raw = self.content[self.line_starts[line] : end]
+        if raw.isascii():
+            return character
+        column = units = 0
+        for char in raw.decode("utf8", "replace"):
+            if units >= character:
+                break
+            units += 2 if ord(char) > _MAX_SINGLE_UTF16_UNIT_CODE_POINT else 1
+            column += len(char.encode("utf8"))
+        return column + max(0, character - units)
 
 
 @dataclass(frozen=True)
 class SourceUsageIndex:
-    invocation_end_positions: set[tuple[int, int]]
-    callable_ranges: set[tuple[int, int, int]]
     construction_start_positions: set[tuple[int, int]]
+    # Each name bound to a function literal, to where the literal starts.
+    function_values: dict[tuple[int, int], tuple[int, int]]
+    base_member_positions: set[tuple[int, int]]
+    setter_positions: set[tuple[int, int]]
+    # Each overload signature's name, to the name of the implementation it overloads.
+    overload_implementations: dict[tuple[int, int], tuple[int, int]]
 
 
 class SourceInspector:
@@ -229,11 +382,17 @@ class SourceInspector:
         self._trees_evicted = 0
         self._parser_by_suffix: dict[str, Parser] = {}
         self._usage_index_cache: dict[str, SourceUsageIndex] = {}
+        # Files already warned about, so a re-parse after eviction does not warn again.
+        self._parse_error_files: dict[str, int] = {}
 
     def cache_stats(self) -> dict[str, int]:
         """Retained per-file cache sizes, for the memory checkpoint log."""
         usage_entries = sum(
-            len(index.invocation_end_positions) + len(index.callable_ranges)
+            len(index.construction_start_positions)
+            + len(index.function_values)
+            + len(index.base_member_positions)
+            + len(index.setter_positions)
+            + len(index.overload_implementations)
             for index in self._usage_index_cache.values()
         )
         return {
@@ -263,71 +422,47 @@ class SourceInspector:
             self._file_content_cache[file_key] = content.decode(errors="replace").splitlines()
         return self._file_content_cache[file_key]
 
-    def is_invocation(self, file_path: Path, ref_line: int, ref_end_char: int) -> bool:
-        """Check whether a reference is the target of a call-like AST node."""
-        usage_index = self._usage_index(file_path)
-        if usage_index is None:
-            return True
-        return (ref_line, ref_end_char) in usage_index.invocation_end_positions
+    def declared_name_at(self, file_path: Path, line: int, character: int) -> str:
+        """The name of the callable or class declared at a zero-based position, or empty when none is.
+
+        Why it must name a declaration with parameters or a body: a parameter, a local or an
+        import binding can share its name with a declaration elsewhere in the file without being it.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return ""
+        column = parsed.byte_column(line, character)
+        name = parsed.tree.root_node.named_descendant_for_point_range((line, column), (line, column))
+        declaration = name.parent if name is not None else None
+        if (
+            name is None
+            or declaration is None
+            or name.start_point != (line, column)
+            or declaration.child_by_field_name("name") != name
+            or (
+                declaration.child_by_field_name("parameters") is None
+                and declaration.child_by_field_name("body") is None
+            )
+        ):
+            return ""
+        return parsed.content[name.start_byte : name.end_byte].decode("utf8", "replace")
 
     def is_construction_site(self, site: CallSite) -> bool:
         """Whether the call at *site* runs a constructor.
 
-        Why not permissive when the file cannot be parsed, as ``is_invocation`` is: this
-        gates *synthesising* constructor edges, so an unreadable file should add none rather
-        than one for every class a caller merely mentions.
+        Why not permissive when the file cannot be parsed: this gates *synthesising*
+        constructor edges, so an unreadable file should add none rather than one for every
+        class a caller merely mentions.
         """
         usage_index = self._usage_index(Path(site.file))
         if usage_index is None:
             return False
         return (site.line - 1, site.column - 1) in usage_index.construction_start_positions
 
-    def is_callable_usage(self, file_path: Path, ref_line: int, ref_start_char: int, ref_end_char: int) -> bool:
-        """Check whether a variable/constant reference is used in a callable context."""
-        usage_index = self._usage_index(file_path)
-        if usage_index is None:
-            return True
-        return (ref_line, ref_start_char, ref_end_char) in usage_index.callable_ranges
-
-    def is_reference_in_declaration_body(
-        self,
-        file_path: Path,
-        declaration_line: int,
-        declaration_start_char: int,
-        ref_line: int,
-        ref_start_char: int,
-        ref_end_char: int,
-        *,
-        include_expression_body: bool = False,
-    ) -> bool:
-        """Check whether a reference is structurally inside a declaration body."""
-        parsed = self._parse(file_path)
-        if parsed is None:
-            return False
-
-        body_fields = file_path.suffix in _BODY_FIELD_SUFFIXES
-        passed_a_call = False
-        node = self._smallest_named_node_covering_range(
-            parsed.tree.root_node,
-            ref_line,
-            ref_start_char,
-            ref_end_char,
-        )
-        while node is not None:
-            body_starts_in_declaration = node.start_point.row > declaration_line or (
-                node.start_point.row == declaration_line and node.start_point.column >= declaration_start_char
-            )
-            if body_starts_in_declaration and node.type in _DECLARATION_BLOCK_NODE_TYPES:
-                return True
-            if body_starts_in_declaration and include_expression_body and node.type in _EXPRESSION_BODY_NODE_TYPES:
-                return True
-            if node.type in _CALL_NODE_TYPES or node.type in _CONSTRUCTOR_NODE_TYPES:
-                # The reference is part of a call; an enclosing body or initialiser now counts.
-                passed_a_call = True
-            if body_starts_in_declaration and body_fields and passed_a_call and self._occupies_body_field(node):
-                return True
-            node = node.parent
-        return False
+    def names_base_member(self, site: CallSite) -> bool:
+        """Whether *site* names its member on the base class -- ``super.m()``, ``super.m.apply(...)`` -- so no override runs."""
+        usage_index = self._usage_index(Path(site.file))
+        return usage_index is not None and (site.lsp_line, site.lsp_column) in usage_index.base_member_positions
 
     def find_call_sites(self, file_path: Path) -> list[CallSite]:
         """Find definition-query positions for identifiers used at call sites."""
@@ -341,7 +476,7 @@ class SourceInspector:
             target = self._call_target_node(node)
             if target is None:
                 continue
-            pos = (target.start_point.row, target.start_point.column)
+            pos = parsed.lsp_position(target.start_point)
             if pos in seen:
                 continue
             seen.add(pos)
@@ -372,7 +507,7 @@ class SourceInspector:
             target = self._call_target_node(node)
             if target is None:
                 continue
-            position = (target.start_point.row, target.start_point.column)
+            position = parsed.lsp_position(target.start_point)
             if position in seen:
                 continue
             seen.add(position)
@@ -398,12 +533,83 @@ class SourceInspector:
             iterated = self._select_query_node(node.child_by_field_name("right"))
             if iterated is None:
                 continue
-            position = (iterated.start_point.row, iterated.start_point.column)
+            position = parsed.lsp_position(iterated.start_point)
             if position in seen:
                 continue
             seen.add(position)
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=position[0], column=position[1]))
         return sites
+
+    def declares_function_value(self, file_path: Path, line: int, character: int) -> bool:
+        """Whether the declaration at this position is a name bound to a function literal.
+
+        Why: ``const handler = () => ...`` is a callable target a server reports as a
+        variable, so a method group resolving to it would otherwise be discarded as a value.
+        """
+        return (line, character) in self.function_values(file_path)
+
+    def function_values(self, file_path: Path) -> dict[tuple[int, int], tuple[int, int]]:
+        """Each name the file binds to a function literal, mapped to where that literal starts."""
+        usage_index = self._usage_index(file_path)
+        return usage_index.function_values if usage_index is not None else {}
+
+    def overload_implementations(self, file_path: Path) -> dict[tuple[int, int], tuple[int, int]]:
+        """Each overload signature the file declares, by its name's position, to where its implementation is named."""
+        usage_index = self._usage_index(file_path)
+        return usage_index.overload_implementations if usage_index is not None else {}
+
+    def declares_setter(self, file_path: Path, line: int, character: int) -> bool:
+        """Whether the name declared at this position is a setter, which writing the member calls."""
+        usage_index = self._usage_index(file_path)
+        return usage_index is not None and (line, character) in usage_index.setter_positions
+
+    def attribution_position(self, file_path: Path, line: int, character: int) -> tuple[int, int]:
+        """The position that decides which declaration a call written here belongs to.
+
+        Why: a decorator, annotation or attribute runs where it is written but belongs to the
+        member it decorates, so the lookup is redirected to that member's name.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return (line, character)
+        column = parsed.byte_column(line, character)
+        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, column, column)
+        while node is not None and node.type not in _DECORATION_NODE_TYPES:
+            node = node.parent
+        while node is not None and node.parent is not None:
+            declared = node.parent.child_by_field_name("name") or self._following_declaration_name(node)
+            if declared is not None:
+                return parsed.lsp_position(declared.start_point)
+            node = node.parent
+        return (line, character)
+
+    def receivers_of(self, file_path: Path, sites: list[CallSite]) -> dict[tuple[int, int], tuple[CallSite, str]]:
+        """The *sites* that call ``receiver.member(...)`` on a bare-name receiver, by the receiver's position.
+
+        Why: when the member's own definition leaves the repository -- an object typed as
+        ``console``, a re-export -- the receiver still names something this repository declares.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None or not sites:
+            return {}
+
+        wanted = {(site.lsp_line, site.lsp_column): site for site in sites}
+        receivers: dict[tuple[int, int], tuple[CallSite, str]] = {}
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _CALL_NODE_TYPES:
+                continue
+            access = node.child_by_field_name("function") or node.child_by_field_name("name")
+            if access is None or access.type not in _MEMBER_ACCESS_NODE_TYPES:
+                continue
+            receiver = access.child_by_field_name("object")
+            member = self._select_query_node(access)
+            if receiver is None or receiver.type != "identifier" or member is None:
+                continue
+            site = wanted.get(parsed.lsp_position(member.start_point))
+            if site is not None:
+                name = parsed.content[member.start_byte : member.end_byte].decode("utf8", "replace")
+                receivers[parsed.lsp_position(receiver.start_point)] = (site, name)
+        return receivers
 
     def find_method_group_sites(self, file_path: Path) -> list[CallSite]:
         """Positions where naming a method passes it as a value rather than calling it.
@@ -426,34 +632,106 @@ class SourceInspector:
                 target = self._select_query_node(expression)
                 if target is None:
                     continue
-                pos = (target.start_point.row, target.start_point.column)
+                pos = parsed.lsp_position(target.start_point)
                 if pos in seen:
                     continue
                 seen.add(pos)
                 sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
 
-    def _method_group_candidates(self, node: TreeSitterNode) -> list[TreeSitterNode]:
-        """Expressions in a position where a bare name would be a method group."""
-        if node.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(node):
-            # Only the argument itself: a named argument (``f(handler: H)``)
-            # keeps its label as the first named child.
-            return [
-                child.named_children[-1] if child.type in _ARGUMENT_NODE_TYPES and child.named_children else child
-                for child in node.named_children
-            ]
+    def find_member_sites(self, file_path: Path, names: Collection[str]) -> tuple[list[CallSite], list[CallSite]]:
+        """Positions of the members read, and of the members written, under one of *names*.
 
-        # A value position accepts any expression, so unlike an argument it is
-        # only worth a query when it is already shaped like a name.
-        if node.type == "assignment_expression":
-            candidate = node.child_by_field_name("right")
-        elif node.type in _DECLARATOR_NODE_TYPES:
-            candidate = node.named_children[-1] if len(node.named_children) > 1 else None
+        Why: reading a property runs its getter and writing one its setter, and a method read
+        without a call is handed on -- ``this.redraw.bind(this)`` -- yet none of them is a call site
+        or a position that passes a value. A member named in a type is not read at run time.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None or not names:
+            return [], []
+
+        reads: list[CallSite] = []
+        writes: list[CallSite] = []
+        stack = [parsed.tree.root_node]
+        while stack:
+            node = stack.pop()
+            if node.type in _TYPE_POSITION_NODE_TYPES:
+                continue
+            stack.extend(reversed(node.children))
+            if node.type not in _MEMBER_ACCESS_NODE_TYPES:
+                continue
+            member = self._select_query_node(node)
+            if (
+                member is None
+                or parsed.content[member.start_byte : member.end_byte].decode("utf8", "replace") not in names
+            ):
+                continue
+            pos = parsed.lsp_position(member.start_point)
+            parent = node.parent
+            written = (
+                parent is not None
+                and parent.type in _ASSIGNMENT_NODE_TYPES
+                and parent.child_by_field_name("left") == node
+            )
+            (writes if written else reads).append(
+                CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1])
+            )
+        return reads, writes
+
+    def _method_group_candidates(self, node: TreeSitterNode) -> list[TreeSitterNode]:
+        """Names in a position where naming something callable passes it as a value."""
+        if node.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(node):
+            return [name for child in node.named_children for name in self._value_names(child)]
+
+        if node.type == "jsx_expression" and node.parent is not None and node.parent.type == "jsx_attribute":
+            # ``onClick={handler}`` passes the handler exactly as an argument would.
+            return [name for child in node.named_children for name in self._value_names(child)]
+
+        field = _VALUE_FIELD_BY_BINDING.get(node.type)
+        if field is not None:
+            candidate = node.child_by_field_name(field)
+            if candidate is None and len(node.named_children) > 1:
+                candidate = node.named_children[-1]
         elif node.type in _VALUE_BODY_NODE_TYPES:
             candidate = node.named_children[0] if node.named_children else None
         else:
             return []
-        return [candidate] if candidate is not None and candidate.type in _NAME_SHAPED_NODE_TYPES else []
+        return self._value_names(candidate) if candidate is not None else []
+
+    def _value_names(self, value: TreeSitterNode) -> list[TreeSitterNode]:
+        """The names this value is, or holds, that could denote something callable.
+
+        A bare name is one; a group of values (a dispatch table, a list of handlers, a labelled
+        argument) is each of the names inside it. Anything else -- an arithmetic expression, a
+        call, a string -- is a value in its own right and names nothing that is being passed.
+        """
+        if value.type in _NAME_SHAPED_NODE_TYPES:
+            return [value]
+        if value.type in _ARGUMENT_NODE_TYPES:
+            held = value.named_children[-1:]
+        elif value.type in _VALUE_GROUP_NODE_TYPES:
+            # A labelled element -- ``key=handler``, ``run: handler`` -- passes its value, not its label.
+            labelled = value.child_by_field_name("value")
+            held = [labelled] if labelled is not None else value.named_children
+        else:
+            return []
+        return [name for child in held for name in self._value_names(child)]
+
+    @staticmethod
+    def _following_declaration_name(node: TreeSitterNode) -> TreeSitterNode | None:
+        """The name of the first sibling declared after *node*.
+
+        Why: some grammars keep a decoration beside what it decorates rather than inside it.
+        """
+        parent = node.parent
+        if parent is None:
+            return None
+        for sibling in parent.named_children:
+            if sibling.start_byte >= node.end_byte:
+                name = sibling.child_by_field_name("name")
+                if name is not None:
+                    return name
+        return None
 
     @staticmethod
     def _read_file_bytes(file_path: Path) -> bytes | None:
@@ -481,6 +759,12 @@ class SourceInspector:
             return None
 
         parsed = ParsedSource(content=content, tree=self._parse_tree(parser, content, file_path.suffix.lower()))
+        if parsed.tree.root_node.has_error and file_key not in self._parse_error_files:
+            errors = _error_node_count(parsed.tree)
+            self._parse_error_files[file_key] = errors
+            # Why not fatal: syntax newer than the bundled grammar should cost the calls inside
+            # the error, not the whole run; the warning keeps that loss visible.
+            logger.warning("Parsed %s with %d error node(s); calls inside them are not seen", file_path, errors)
         self._parsed_cache[file_key] = parsed
         self._parsed_nodes += parsed.tree.root_node.descendant_count
         self._evict_trees()
@@ -527,30 +811,127 @@ class SourceInspector:
         if parsed is None:
             return None
 
-        invocation_end_positions: set[tuple[int, int]] = set()
-        callable_ranges: set[tuple[int, int, int]] = set()
         construction_start_positions: set[tuple[int, int]] = set()
+        function_values: dict[tuple[int, int], tuple[int, int]] = {}
+        base_member_positions: set[tuple[int, int]] = set()
+        setter_positions: set[tuple[int, int]] = set()
+        overload_implementations: dict[tuple[int, int], tuple[int, int]] = {}
         for node in self._walk(parsed.tree.root_node):
-            target = self._call_target_node(node)
-            if target is not None:
-                invocation_end_positions.add((target.end_point.row, target.end_point.column))
-                callable_ranges.add((target.start_point.row, target.start_point.column, target.end_point.column))
-                if self._runs_a_constructor(node):
-                    construction_start_positions.add((target.start_point.row, target.start_point.column))
-                continue
+            binding = self._function_value_binding(node)
+            if binding is not None:
+                name, literal = binding
+                function_values[parsed.lsp_position(name.start_point)] = parsed.lsp_position(literal.start_point)
 
-            if not node.is_named:
-                continue
-            if self._node_is_return_value(node) or self._node_is_call_argument(node):
-                callable_ranges.add((node.start_point.row, node.start_point.column, node.end_point.column))
+            setter = self._setter_name(node)
+            if setter is not None:
+                setter_positions.add(parsed.lsp_position(setter.start_point))
+
+            overload = self._overload_implementation(node)
+            if overload is not None:
+                signature, implementation = overload
+                overload_implementations[parsed.lsp_position(signature.start_point)] = parsed.lsp_position(
+                    implementation.start_point
+                )
+
+            target = self._call_target_node(node)
+            if target is not None and self._runs_a_constructor(node):
+                construction_start_positions.add(parsed.lsp_position(target.start_point))
+
+            # Named as a member access, or by a call that holds its receiver itself (``parent::m()``).
+            member = self._select_query_node(node) if node.type in _MEMBER_ACCESS_NODE_TYPES else None
+            if node.type in _CALL_NODE_TYPES:
+                member = target
+            if member is not None and self._names_base_receiver(node):
+                base_member_positions.add(parsed.lsp_position(member.start_point))
 
         usage_index = SourceUsageIndex(
-            invocation_end_positions=invocation_end_positions,
-            callable_ranges=callable_ranges,
             construction_start_positions=construction_start_positions,
+            function_values=function_values,
+            base_member_positions=base_member_positions,
+            setter_positions=setter_positions,
+            overload_implementations=overload_implementations,
         )
         self._usage_index_cache[file_key] = usage_index
         return usage_index
+
+    def _function_value_binding(self, node: TreeSitterNode) -> tuple[TreeSitterNode, TreeSitterNode] | None:
+        """The name a binding declares and the function literal it binds that name to, when it binds one."""
+        if node.type not in _FUNCTION_VALUE_HOLDER_NODE_TYPES:
+            return None
+        value = node.child_by_field_name(_VALUE_FIELD_BY_BINDING.get(node.type, "value"))
+        # Go wraps both sides of a declaration in an expression_list even when it holds one.
+        if value is not None and value.type in _VALUE_GROUP_NODE_TYPES and len(value.named_children) == 1:
+            value = value.named_children[0]
+        # ``var a = (M.a = function () {})`` binds both names to the one literal.
+        while value is not None and (value.type == "parenthesized_expression" or value.type in _VALUE_FIELD_BY_BINDING):
+            if value.type == "parenthesized_expression":
+                value = value.named_children[0] if value.named_children else None
+            else:
+                value = value.child_by_field_name(_VALUE_FIELD_BY_BINDING[value.type])
+        if value is None or value.type not in _FUNCTION_LITERAL_NODE_TYPES:
+            return None
+        name = node.child_by_field_name("name") or node.child_by_field_name("key") or node.child_by_field_name("left")
+        if name is not None and name.type in _VALUE_GROUP_NODE_TYPES and len(name.named_children) == 1:
+            name = name.named_children[0]
+        # ``this.onMove = () => ...`` binds the member.
+        if name is not None and name.type in _MEMBER_ACCESS_NODE_TYPES:
+            name = self._select_query_node(name)
+        return (name, value) if name is not None and name.type in _NAME_NODE_TYPES else None
+
+    @staticmethod
+    def _overload_implementation(node: TreeSitterNode) -> tuple[TreeSitterNode, TreeSitterNode] | None:
+        """The name an overload signature declares and the name of the implementation it is completed by.
+
+        Why the next declarations and not the file: overloads are written consecutively right above their
+        implementation, and two classes in one file can both overload a member of the same name.
+        """
+        if node.type not in _SIGNATURE_NODE_TYPES:
+            return None
+        name = node.child_by_field_name("name")
+        written = node.parent if node.parent is not None and node.parent.type == "export_statement" else node
+        sibling = written.next_named_sibling
+        while name is not None and sibling is not None:
+            declaration = sibling.child_by_field_name("declaration") if sibling.type == "export_statement" else sibling
+            declared = declaration.child_by_field_name("name") if declaration is not None else None
+            if sibling.type == "comment":
+                sibling = sibling.next_named_sibling
+                continue
+            if declared is None or declared.text != name.text:
+                return None
+            if declaration is not None and declaration.child_by_field_name("body") is not None:
+                return name, declared
+            sibling = sibling.next_named_sibling
+        return None
+
+    @staticmethod
+    def _setter_name(node: TreeSitterNode) -> TreeSitterNode | None:
+        """The name a setter declares: ``set title(value)``, or a definition decorated ``@title.setter``."""
+        if node.type == "method_definition" and any(child.type == "set" for child in node.children):
+            return node.child_by_field_name("name")
+        if node.type == "decorated_definition":
+            definition = node.child_by_field_name("definition")
+            decorators = [child for child in node.children if child.type == "decorator"]
+            if definition is not None and any(d.text is not None and d.text.endswith(b".setter") for d in decorators):
+                return definition.child_by_field_name("name")
+        return None
+
+    @staticmethod
+    def _names_base_receiver(node: TreeSitterNode) -> bool:
+        """Whether *node* names its member on the base class: ``super.m``, ``super().m``, ``base.M``, ``parent::m()``."""
+        access = node.child_by_field_name("function") or node
+        receiver = next(
+            (found for field in ("object", "scope", "expression") if (found := access.child_by_field_name(field))),
+            # C# leaves ``base`` in ``base.M`` under no field.
+            access.children[0] if access.type in _MEMBER_ACCESS_NODE_TYPES and access.children else None,
+        )
+        if receiver is None:
+            return False
+        if receiver.type == "relative_scope":
+            return receiver.text in (b"parent", b"self")
+        if receiver.type in _CALL_NODE_TYPES:
+            function = receiver.child_by_field_name("function")
+            return function is not None and function.text == b"super"
+        return receiver.type in _BASE_RECEIVER_NODE_TYPES
 
     def _parser_for(self, file_path: Path) -> Parser | None:
         suffix = file_path.suffix.lower()
@@ -601,6 +982,16 @@ class SourceInspector:
             return next((child for child in node.children if child.type == "new"), None)
         if node.type in _METHOD_REFERENCE_NODE_TYPES:
             return self._last_named_child_of_type(node, _NAME_NODE_TYPES)
+        if node.type in _MACRO_INVOCATION_NODE_TYPES:
+            return self._select_query_node(node.child_by_field_name("macro"))
+        if node.type in _JSX_ELEMENT_NODE_TYPES:
+            return self._select_query_node(node.child_by_field_name("name"))
+        if node.type in _DECORATOR_NODE_TYPES:
+            named = node.named_children
+            if named and named[0].type in _DECORATOR_NAME_NODE_TYPES:
+                return self._select_query_node(named[0])
+        if node.type in _NAME_NODE_TYPES and _applied_inside_opaque_arguments(node):
+            return node
         return None
 
     def _select_query_node(self, node: TreeSitterNode | None) -> TreeSitterNode | None:
@@ -616,15 +1007,6 @@ class SourceInspector:
         if node.type in _NAME_NODE_TYPES:
             return node
         return self._last_named_child_of_type(node, _NAME_NODE_TYPES)
-
-    def _node_is_call_target(self, target: TreeSitterNode) -> bool:
-        node = target
-        while node.parent is not None:
-            parent = node.parent
-            if self._call_target_node(parent) == target:
-                return True
-            node = parent
-        return False
 
     def find_type_bases(self, file_path: Path) -> list[tuple[str, list[str]]]:
         """Return ``(declared type name, base type names)`` for each type in the file.
@@ -723,8 +1105,9 @@ class SourceInspector:
             # Whitespace inside a literal is the literal; between tokens it is layout.
             return raw if node.type in _CSHARP_LITERAL_NODE_TYPES else " ".join(raw.split())
 
-        def point(row_col: tuple[int, int]) -> dict[str, int]:
-            return {"line": row_col[0], "character": row_col[1]}
+        def point(at: Point) -> dict[str, int]:
+            line, character = parsed.lsp_position(at)
+            return {"line": line, "character": character}
 
         def symbol(node: TreeSitterNode, name: str, kind: int, selection: TreeSitterNode, children: list[dict]) -> dict:
             return {
@@ -845,58 +1228,11 @@ class SourceInspector:
         return [file_symbol] if file_symbol["children"] else []
 
     @staticmethod
-    def _occupies_body_field(node: TreeSitterNode) -> bool:
-        """Whether *node* is its parent's body or initialiser rather than part of its signature."""
-        parent = node.parent
-        if parent is None:
-            return False
-        return any(
-            (child := parent.child_by_field_name(field)) is not None and child.id == node.id
-            for field in _BODY_FIELD_NAMES
-        )
-
-    @staticmethod
-    def _node_is_return_value(target: TreeSitterNode) -> bool:
-        node = target
-        while node.parent is not None:
-            parent = node.parent
-            if parent.type in {"return_statement", "return_statement2"}:
-                return True
-            if parent.type in _CALLABLE_USAGE_ANCESTORS:
-                return False
-            node = parent
-        return False
-
-    def _node_is_call_argument(self, target: TreeSitterNode) -> bool:
-        node = target
-        while node.parent is not None:
-            parent = node.parent
-            if parent.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(parent):
-                return True
-            if self._call_target_node(parent) == target:
-                return False
-            node = parent
-        return False
-
-    @staticmethod
     def _parent_is_call_like(node: TreeSitterNode) -> bool:
         parent = node.parent
         if parent is None:
             return False
         return parent.type in _CALL_NODE_TYPES or parent.type in _CONSTRUCTOR_NODE_TYPES
-
-    def _smallest_named_node_ending_at(self, node: TreeSitterNode, line: int, column: int) -> TreeSitterNode | None:
-        best: TreeSitterNode | None = None
-        if not self._node_contains_point(node, line, column):
-            return None
-        candidates = [node]
-        while candidates:
-            candidate = candidates.pop()
-            if candidate.is_named and candidate.end_point.row == line and candidate.end_point.column == column:
-                if best is None or self._node_size(candidate) < self._node_size(best):
-                    best = candidate
-            candidates.extend(child for child in candidate.children if self._node_contains_point(child, line, column))
-        return best
 
     def _smallest_named_node_covering_range(
         self, node: TreeSitterNode, line: int, start_column: int, end_column: int
@@ -907,25 +1243,12 @@ class SourceInspector:
         candidates = [node]
         while candidates:
             candidate = candidates.pop()
-            if candidate.is_named:
-                if best is None or self._node_size(candidate) < self._node_size(best):
-                    best = candidate
+            if candidate.is_named and (best is None or self._node_size(candidate) < self._node_size(best)):
+                best = candidate
             candidates.extend(
                 child for child in candidate.children if self._node_covers_range(child, line, start_column, end_column)
             )
         return best
-
-    @staticmethod
-    def _node_contains_point(node: TreeSitterNode, line: int, column: int) -> bool:
-        start = node.start_point
-        end = node.end_point
-        if start.row > line or end.row < line:
-            return False
-        if start.row == line and start.column > column:
-            return False
-        if end.row == line and end.column < column:
-            return False
-        return True
 
     @staticmethod
     def _node_covers_range(node: TreeSitterNode, line: int, start_column: int, end_column: int) -> bool:

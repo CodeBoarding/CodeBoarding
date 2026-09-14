@@ -13,7 +13,6 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
-    EdgeStrategy,
 )
 from static_analyzer.engine.utils import total_ram_gb
 from static_analyzer.java_utils import create_jdtls_command, find_java_21_or_later
@@ -246,14 +245,15 @@ class JavaAdapter(LanguageAdapter):
         }
 
     @property
-    def edge_strategy(self) -> EdgeStrategy:
-        """Use definition-based edges — JDTLS serializes references requests."""
-        return EdgeStrategy.DEFINITIONS
-
-    @property
     def expands_constructors(self) -> bool:
         """JDTLS resolves ``new Dog()`` to the class, so the constructor needs adding."""
         return True
+
+    @property
+    def resolves_method_groups(self) -> bool:
+        """Java hands a method on only as a method reference (``Dog::speak``), already a call site;
+        a bare argument or a field read never names a callable, so asking JDTLS would be pure cost."""
+        return False
 
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})

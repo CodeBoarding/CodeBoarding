@@ -29,6 +29,11 @@ def parent_qualified_name(qualified_name: str) -> str:
     return parent.split("(", 1)[0]
 
 
+def simple_name(qualified_name: str) -> str:
+    """The declared name at the tail of a qualified name, without signature or type arguments."""
+    return qualified_name.split("(", 1)[0].rpartition(".")[2].split("<", 1)[0]
+
+
 def is_self_or_container_edge(caller_qualified_name: str, target_qualified_name: str) -> bool:
     """Whether an edge between these two names is a symbol pointing at itself or
     at something it already contains (a method and its own class, either way round).

@@ -23,7 +23,9 @@ from static_analyzer.engine.models import ExternalCallSite
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.external_calls import link_external_call_sites
+from static_analyzer.exceptions import StaticAnalysisFatalError
+from static_analyzer.external_calls import link_external_call_sites, record_package_imports
+from static_analyzer.graph_definitions import GraphIndex
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -53,10 +55,6 @@ class EngineConfig:
     source_files: list[Path] = field(default_factory=list)
     # Retain discovery exclusions for incremental edits, including deleted files.
     excluded_roots: list[Path] = field(default_factory=list)
-
-
-class StaticAnalysisFatalError(RuntimeError):
-    """Raised when continuing would produce misleading cached analysis."""
 
 
 MAX_CONCURRENT_ENGINES_ENV_VAR = "CODEBOARDING_MAX_CONCURRENT_ENGINES"
@@ -616,7 +614,7 @@ class StaticAnalyzer:
 
         Returns:
             Deduplicated list of absolute file paths that the file depends on.
-            Returns an empty list if no matching client is found or on failure.
+            Returns an empty list if no client serves the file; a failed query raises.
         """
         suffix = file_path.suffix
         client = next(
@@ -630,33 +628,29 @@ class StaticAnalyzer:
         if client is None:
             return []
 
-        try:
-            call_sites = SourceInspector().find_call_sites(file_path)
-            if not call_sites:
-                return []
-
-            queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
-            results, _ = client.send_definition_batch(queries)
-
-            resolved = file_path.resolve()
-            unique_paths: set[str] = set()
-            for definitions in results:
-                for defn in definitions:
-                    uri = defn.get("targetUri", defn.get("uri", ""))
-                    if not uri.startswith("file://"):
-                        continue
-                    dep_path_obj = uri_to_path(uri)
-                    if dep_path_obj is None:
-                        continue
-                    dep_path = str(dep_path_obj)
-                    if dep_path != str(resolved):
-                        unique_paths.add(dep_path)
-
-            logger.debug(f"Discovered {len(unique_paths)} dependencies for {file_path}")
-            return list(unique_paths)
-        except Exception:
-            logger.warning(f"Failed to discover dependencies for {file_path}", exc_info=True)
+        call_sites = SourceInspector().find_call_sites(file_path)
+        if not call_sites:
             return []
+
+        queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
+        results = client.send_definition_batch(queries)
+
+        resolved = file_path.resolve()
+        unique_paths: set[str] = set()
+        for definitions in results:
+            for defn in definitions:
+                uri = defn.get("targetUri", defn.get("uri", ""))
+                if not uri.startswith("file://"):
+                    continue
+                dep_path_obj = uri_to_path(uri)
+                if dep_path_obj is None:
+                    continue
+                dep_path = str(dep_path_obj)
+                if dep_path != str(resolved):
+                    unique_paths.add(dep_path)
+
+        logger.debug(f"Discovered {len(unique_paths)} dependencies for {file_path}")
+        return list(unique_paths)
 
     def analyze(
         self,
@@ -960,17 +954,18 @@ class StaticAnalyzer:
         Why after all of them: only the merged graph holds every engine's nodes, so a call into
         another solution's project can find its target, whichever engine ran first.
         """
-        pending: dict[Language, tuple[LanguageAdapter, list[ExternalCallSite]]] = {}
         for adapter, analysis in analyses:
-            language = adapter.results_language
-            self._absorb_into_results(results, language, analysis)
-            pending.setdefault(language, (adapter, []))[1].extend(analysis.get("external_call_sites", []))
+            self._absorb_into_results(results, adapter.results_language, analysis)
         inspector = SourceInspector()
-        for language, (adapter, sites) in pending.items():
-            if sites:
-                link_external_call_sites(
-                    results.get_cfg(language), sites, adapter, results.get_package_dependencies(language), inspector
-                )
+        for adapter, analysis in analyses:
+            sites: list[ExternalCallSite] = analysis.get("external_call_sites", [])
+            if not sites:
+                continue
+            language = adapter.results_language
+            analysed_files = {str(path) for path in analysis.get("source_files", [])}
+            index = GraphIndex(results.get_cfg(language))
+            linked = link_external_call_sites(index, sites, adapter, inspector, analysed_files)
+            record_package_imports(results.get_package_dependencies(language), adapter, linked.edges)
 
     def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:
         """Stuff one language's analysis-dict into the shared ``StaticAnalysisResults``."""
@@ -1056,7 +1051,6 @@ class StaticAnalyzer:
             adapter,
             project_path,
             self.repository_path,
-            memory_budget_bytes=per_engine_memory_budget(max(max_concurrent_engines(), 1)),
         )
         engine_result = builder.build(source_files)
         logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")
