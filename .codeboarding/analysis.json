@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-09-11T13:09:12.030948+00:00",
+    "generated_at": "2026-09-14T23:05:59.006721+00:00",
     "source_tree_hash": "deb9e7f5645c467483c73d1ce27ef465ddffe1d5c279549d2bc3a3c8d64d9440",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
@@ -30565,17 +30565,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
-          "target": "agents/agent_responses.py|agents.agent_responses.Relation",
-          "call_sites": [
-            {
-              "line": 195,
-              "column": 24
-            }
-          ],
-          "description": "Constructs semantic relation records between component clusters."
-        },
-        {
           "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
           "target": "agents/agent_responses.py|agents.agent_responses.RelationEdge.from_edge",
           "call_sites": [
@@ -30585,6 +30574,17 @@
             }
           ],
           "description": "converts static call graph edges into component relation edges"
+        },
+        {
+          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
+          "target": "agents/agent_responses.py|agents.agent_responses.Relation",
+          "call_sites": [
+            {
+              "line": 195,
+              "column": 24
+            }
+          ],
+          "description": "Constructs semantic relation records between component clusters."
         }
       ],
       "src_id": "1.3",
@@ -33889,6 +33889,17 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
+          "target": "clustering_ids.py|clustering_ids.is_self_or_descendant",
+          "call_sites": [
+            {
+              "line": 1817,
+              "column": 16
+            }
+          ],
+          "description": "identifies descendant clusters for removed subtrees"
+        },
+        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._fully_unchanged_component_ids",
           "target": "clustering_ids.py|clustering_ids.is_self_or_descendant",
           "call_sites": [
@@ -33909,17 +33920,6 @@
             }
           ],
           "description": "Sorts cluster identifiers into hierarchical order"
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-          "target": "clustering_ids.py|clustering_ids.is_self_or_descendant",
-          "call_sites": [
-            {
-              "line": 1817,
-              "column": 16
-            }
-          ],
-          "description": "identifies descendant clusters for removed subtrees"
         }
       ],
       "src_id": "3.1",
@@ -36123,17 +36123,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "codeboarding_cli/commands/incremental_analysis.py|codeboarding_cli.commands.incremental_analysis.run_from_args",
-          "target": "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext.resolve",
-          "call_sites": [
-            {
-              "line": 48,
-              "column": 30
-            }
-          ],
-          "description": "Resolves analysis context and execution configuration"
-        },
-        {
           "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.resolve_local_run_paths",
           "target": "diagram_analysis/run_context.py|diagram_analysis.run_context.RunPaths",
           "call_sites": [
@@ -36143,6 +36132,17 @@
             }
           ],
           "description": "resolves run paths for local execution"
+        },
+        {
+          "source": "codeboarding_cli/commands/incremental_analysis.py|codeboarding_cli.commands.incremental_analysis.run_from_args",
+          "target": "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext.resolve",
+          "call_sites": [
+            {
+              "line": 48,
+              "column": 30
+            }
+          ],
+          "description": "Resolves analysis context and execution configuration"
         }
       ],
       "src_id": "4.1",
