@@ -31,7 +31,7 @@ jobs:
        startsWith(github.event.comment.body, '/codeboarding') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     steps:
-      - uses: CodeBoarding/CodeBoarding-action@v1.15.0
+      - uses: CodeBoarding/CodeBoarding-action@v1
         with:
           # Cap review analysis at depth 4, including baseline bootstrapping.
           # Requires the licensed tier (the free tier caps depth at 3).
