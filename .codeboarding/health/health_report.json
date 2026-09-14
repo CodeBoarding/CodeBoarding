@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-14T23:05:57.387865+00:00",
-  "overall_score": 0.8690330477356181,
+  "timestamp": "2026-09-14T23:14:18.535401+00:00",
+  "overall_score": 0.8677281077770974,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1420,
+      "total_entities_checked": 1417,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -19,9 +19,9 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 214,
-      "findings_count": 214,
-      "warning_count": 78,
+      "total_entities_checked": 216,
+      "findings_count": 216,
+      "warning_count": 80,
       "score": 0.0,
       "finding_groups": [
         {
@@ -633,37 +633,9 @@
             },
             {
               "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/php_adapter.py",
-              "line_start": 65,
-              "line_end": 65,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
               "file_path": "static_analyzer/engine/adapters/python_adapter.py",
               "line_start": 28,
               "line_end": 28,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
-              "line_start": 187,
-              "line_end": 187,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
-              "line_start": 212,
-              "line_end": 212,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
-              "line_start": 215,
-              "line_end": 215,
               "metric_value": 0.0
             },
             {
@@ -692,34 +664,6 @@
               "file_path": "static_analyzer/lsp_client/__init__.py",
               "line_start": 11,
               "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
-              "file_path": "static_analyzer/engine/lsp_client.py",
-              "line_start": 109,
-              "line_end": 109,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-              "line_start": 125,
-              "line_end": 125,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"receiver_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-              "line_start": 136,
-              "line_end": 136,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"project_root\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-              "line_start": 194,
-              "line_end": 194,
               "metric_value": 0.0
             },
             {
@@ -807,17 +751,31 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"role_words\" is not accessed",
+              "file_path": "static_analyzer/clustering/names/replay.py",
+              "line_start": 80,
+              "line_end": 80,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"per_engine_memory_budget\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 21,
+              "line_end": 21,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
               "file_path": "static_analyzer/__init__.py",
-              "line_start": 298,
-              "line_end": 298,
+              "line_start": 296,
+              "line_end": 296,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"language\" is not accessed",
               "file_path": "static_analyzer/__init__.py",
-              "line_start": 746,
-              "line_end": 746,
+              "line_start": 740,
+              "line_end": 740,
               "metric_value": 0.0
             },
             {
@@ -828,129 +786,171 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_cached_sites\" is not accessed",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 182,
-              "line_end": 182,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"exc\" is not accessed",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 201,
-              "line_end": 201,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"_old_dst_node\" is not accessed",
               "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 248,
-              "line_end": 248,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"role_words\" is not accessed",
-              "file_path": "static_analyzer/clustering/names/replay.py",
-              "line_start": 80,
-              "line_end": 80,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"source_files\" is not accessed",
-              "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 83,
-              "line_end": 83,
+              "line_start": 156,
+              "line_end": 156,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"project_root\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 78,
-              "line_end": 78,
+              "line_start": 72,
+              "line_end": 72,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 101,
-              "line_end": 101,
+              "line_start": 95,
+              "line_end": 95,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"detail\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 104,
-              "line_end": 104,
+              "line_start": 98,
+              "line_end": 98,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 153,
-              "line_end": 153,
+              "line_start": 147,
+              "line_end": 147,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"client\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 234,
-              "line_end": 234,
+              "line_start": 225,
+              "line_end": 225,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"client\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 251,
-              "line_end": 251,
+              "line_start": 242,
+              "line_end": 242,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"project_root\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 255,
-              "line_end": 255,
+              "line_start": 246,
+              "line_end": 246,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"project_root\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 259,
-              "line_end": 259,
+              "line_start": 250,
+              "line_end": 250,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"file_path\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 369,
-              "line_end": 369,
+              "line_start": 351,
+              "line_end": 351,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"file_path\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 377,
-              "line_end": 377,
+              "line_start": 359,
+              "line_end": 359,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/engine/lsp_client.py",
+              "line_start": 144,
+              "line_end": 144,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
               "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
-              "line_start": 266,
-              "line_end": 266,
+              "line_start": 261,
+              "line_end": 261,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
+              "line_start": 125,
+              "line_end": 125,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"receiver_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
+              "line_start": 136,
+              "line_end": 136,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
+              "line_start": 194,
+              "line_end": 194,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
               "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 139,
-              "line_end": 139,
+              "line_start": 138,
+              "line_end": 138,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"detail\" is not accessed",
               "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 142,
-              "line_end": 142,
+              "line_start": 141,
+              "line_end": 141,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_env_int\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/php_adapter.py",
+              "line_start": 13,
+              "line_end": 13,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/php_adapter.py",
+              "line_start": 55,
+              "line_end": 55,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+              "line_start": 181,
+              "line_end": 181,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+              "line_start": 206,
+              "line_end": 206,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+              "line_start": 209,
+              "line_end": 209,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/typescript_adapter.py",
+              "line_start": 34,
+              "line_end": 34,
               "metric_value": 0.0
             }
           ]
@@ -1500,6 +1500,13 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_import] Import \"per_engine_memory_budget\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 21,
+              "line_end": 21,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_import] Import \"Node\" is not accessed",
               "file_path": "static_analyzer/analysis_cache.py",
               "line_start": 37,
@@ -1539,6 +1546,20 @@
               "file_path": "static_analyzer/node.py",
               "line_start": 69,
               "line_end": 69,
+              "metric_value": 0.0
+            }
+          ]
+        },
+        {
+          "severity": "warning",
+          "threshold": 0,
+          "description": "Functions/methods defined but never called",
+          "entities": [
+            {
+              "entity_name": "[unused_function] Function \"_env_int\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/php_adapter.py",
+              "line_start": 13,
+              "line_end": 13,
               "metric_value": 0.0
             }
           ]
@@ -1590,6 +1611,12 @@
       "composite_risk_score": 50.0
     },
     {
+      "file_path": "static_analyzer/__init__.py",
+      "total_findings": 4,
+      "warning_findings": 1,
+      "composite_risk_score": 45.0
+    },
+    {
       "file_path": "monitoring/callbacks.py",
       "total_findings": 4,
       "warning_findings": 0,
@@ -1602,10 +1629,10 @@
       "composite_risk_score": 35.0
     },
     {
-      "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+      "file_path": "static_analyzer/engine/adapters/php_adapter.py",
       "total_findings": 3,
-      "warning_findings": 0,
-      "composite_risk_score": 30.0
+      "warning_findings": 1,
+      "composite_risk_score": 35.0
     },
     {
       "file_path": "static_analyzer/engine/adapters/go_adapter.py",
@@ -1614,7 +1641,7 @@
       "composite_risk_score": 30.0
     },
     {
-      "file_path": "static_analyzer/incremental_orchestrator.py",
+      "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
       "total_findings": 3,
       "warning_findings": 0,
       "composite_risk_score": 30.0
@@ -1639,12 +1666,6 @@
     },
     {
       "file_path": "agents/llm_config.py",
-      "total_findings": 2,
-      "warning_findings": 0,
-      "composite_risk_score": 20.0
-    },
-    {
-      "file_path": "static_analyzer/__init__.py",
       "total_findings": 2,
       "warning_findings": 0,
       "composite_risk_score": 20.0
