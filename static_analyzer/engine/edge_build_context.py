@@ -20,6 +20,3 @@ class EdgeBuildContext:
     # Calls the server resolved into files this engine has no symbols for; the
     # merged graph of every engine is where they can still become edges.
     external_call_sites: list[ExternalCallSite] = field(default_factory=list)
-    # Callable names declared outside the analysed files. Why: a member read is probed only under
-    # a callable name, and a warm start's own table names only the changed files.
-    known_callable_names: frozenset[str] = frozenset()

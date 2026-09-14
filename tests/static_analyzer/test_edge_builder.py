@@ -395,14 +395,11 @@ class TestBuildEdgesViaDefinitions:
         ]
         assert receivers == [("app.run", str(other), 0, 13, "warn")]
 
-    @pytest.mark.parametrize("known,probed", [(frozenset(), False), (frozenset({"size"}), True)])
-    def test_a_member_read_is_probed_under_a_name_declared_outside_the_analysed_files(
-        self, tmp_path: Path, known: frozenset[str], probed: bool
-    ):
-        """A warm start reads only the changed files, so the getter's name comes from the cached graph."""
+    @pytest.mark.parametrize("known", [False, True])
+    def test_a_member_read_is_probed_under_a_name_a_known_declaration_holds(self, tmp_path: Path, known: bool):
+        """A warm start reads only the changed files; the getter is known from the cached graph."""
         lsp = _make_lsp()
         ctx, _ = _make_ctx(lsp)
-        ctx.known_callable_names = known
         st = ctx.symbol_table
         src = tmp_path / "app.ts"
         src.write_text("export function run(box) {\n    const total = box.size + 1;\n    return total;\n}\n")
@@ -411,14 +408,43 @@ class TestBuildEdgesViaDefinitions:
         st._symbols["app.run"] = caller
         st._file_symbols[str(src)] = [caller]
         st._primary_file_symbols[str(src)] = [caller]
+        if known:
+            st.register_known([_sym("size", "box.Box.size", NodeType.METHOD, str(other), 1, 6, 3)])
         st.build_indices()
         lsp.send_definition_batch.side_effect = lambda queries: [
             [{"uri": other.as_uri(), "range": {"start": {"line": 1, "character": 6}}}] for _ in queries
         ]
 
-        build_edges_via_definitions(_DefinitionsTestAdapter(), ctx, [src])
+        edges = build_edges_via_definitions(_DefinitionsTestAdapter(), ctx, [src])
 
-        assert any(site.kind == MEMBER_READ for site in ctx.external_call_sites) is probed
+        assert (("app.run", "box.Box.size") in edges) is known
+        assert not any(site.kind == MEMBER_READ for site in ctx.external_call_sites)
+
+    def test_a_call_into_a_known_declaration_resolves_here_and_asks_for_its_implementations(self, tmp_path: Path):
+        """The implementation query a full build sends for the declaration, sent by the warm start's own phase."""
+        lsp = _make_lsp()
+        ctx, adapter = _make_ctx(lsp)
+        st = ctx.symbol_table
+        src = tmp_path / "app.py"
+        src.write_text("def main():\n    helper()\n")
+        other = tmp_path / "lib.py"
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
+        st._symbols["app.main"] = caller
+        st._file_symbols[str(src)] = [caller]
+        st._primary_file_symbols[str(src)] = [caller]
+        st.register_known([_sym("helper", "lib.helper", NodeType.FUNCTION, str(other), 3, 4, 4)])
+        st.build_indices()
+        lsp.send_definition_batch.side_effect = lambda queries: [
+            [{"uri": other.as_uri(), "range": {"start": {"line": 3, "character": 4}}}] if (line, col) == (1, 4) else []
+            for _, line, col in queries
+        ]
+
+        edges = build_edges_via_definitions(adapter, ctx, [src])
+
+        asked = [query for call in lsp.send_implementation_batch.call_args_list for query in call.args[0]]
+        assert ("app.main", "lib.helper") in edges
+        assert asked == [(other, 3, 4)]
+        assert ctx.external_call_sites == []
 
     def test_no_call_sites_produces_empty(self, tmp_path: Path):
         """File with no call sites produces no edges."""
@@ -631,6 +657,27 @@ class TestFunctionValuedTargets:
         _answer(lsp, {(3, 14): (0, 6)}, src)
 
         assert build_edges_via_definitions(adapter, ctx, [src]) == {}
+
+
+class TestDispatchReadsKnownDeclarations:
+    def test_a_subclass_known_only_from_the_cache_still_overrides(self, tmp_path: Path):
+        """On a warm start the override lives in an unchanged file the build never opens."""
+        base_file = tmp_path / "Base.cs"
+        base_file.write_text('public class Base\n{\n    public virtual string Validate() => "";\n}\n')
+        derived_file = tmp_path / "Derived.cs"
+        derived_file.write_text('public class Derived : Base\n{\n    public override string Validate() => "x";\n}\n')
+        ctx, adapter = _make_ctx()
+        st = ctx.symbol_table
+        base = _sym("Base", "Base", NodeType.CLASS, str(base_file), 0, 13, 3)
+        st._symbols["Base"] = base
+        st._file_symbols[str(base_file)] = [base]
+        st._primary_file_symbols[str(base_file)] = [base]
+        derived = _sym("Derived", "Derived", NodeType.CLASS, str(derived_file), 0, 13, 3)
+        st.register_known([derived])
+
+        dispatch = _build_dispatch_index(adapter, ctx, [base_file])
+
+        assert dispatch.subclasses.get("Base") == [derived]
 
 
 class TestOnlyDispatchedCallsExpand:

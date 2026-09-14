@@ -283,6 +283,39 @@ class TestBuildIndices:
         assert sum(len(ctors) for ctors in st._class_to_ctors.values()) == 1
 
 
+class TestRegisterKnown:
+    def test_a_known_declaration_resolves_but_is_not_this_builds_own(self):
+        st = SymbolTable(_make_adapter())
+        known = _sym("helper", "lib.helper", NodeType.FUNCTION, "lib.py", 3, 4, 4)
+
+        st.register_known([known])
+
+        assert st.symbols["lib.helper"] is known
+        assert st.file_symbols["lib.py"] == [known]
+        assert st.primary_file_symbols == {}
+        assert st.known == [known]
+
+    def test_a_name_the_build_read_itself_keeps_its_own_symbol(self):
+        st = SymbolTable(_make_adapter())
+        st.register_symbols(Path("mod.py"), _class_with_child("run", NodeType.METHOD), [], Path("/root"))
+
+        st.register_known([_sym("MyClass", "mod.MyClass", NodeType.CLASS, "other.py")])
+
+        assert st.symbols["mod.MyClass"].file_path == Path("mod.py")
+        assert st.known == []
+
+    def test_a_known_constructor_is_indexed_under_its_class(self):
+        """A full build expands a construction to its constructors; a warm start must too."""
+        st = SymbolTable(_make_adapter())
+        ctor = _sym("__init__", "lib.Box.__init__", NodeType.CONSTRUCTOR, "lib.py", 2, 8, 3)
+        ctor.owner_qualified_name = "lib.Box"
+
+        st.register_known([ctor])
+        st.build_indices()
+
+        assert st.class_to_ctors["lib.Box"] == ["lib.Box.__init__"]
+
+
 # ---- find_containing_symbol ----
 
 

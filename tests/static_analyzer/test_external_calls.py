@@ -10,7 +10,6 @@ from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.external_calls import (
     LinkedCalls,
     link_external_call_sites,
-    link_implementations,
     record_package_imports,
 )
 from static_analyzer.graph_definitions import (
@@ -212,28 +211,6 @@ def test_an_implementation_answer_reaches_only_the_implementation():
     _link(graph, [_site(LOUD, 7, 4, IMPLEMENTATION)])
 
     assert _destinations(graph) == {"Framework.Loud.UseAuditing(App app)"}
-
-
-def test_a_reached_declaration_is_owed_its_implementations():
-    """Linking asks the server nothing; the caller holding a live one asks for these."""
-    graph = _graph()
-
-    linked = _link(graph, [_site(BUILDER, 19, 4)])
-
-    assert [
-        (declaration, [(caller.fully_qualified_name, site.line) for caller, site in calls])
-        for declaration, calls in linked.owed.items()
-    ] == [((BUILDER, 19, 4), [(CALLER, 12)])]
-
-
-def test_an_implementation_links_to_every_call_owed_it_even_in_a_file_the_engine_read():
-    """The engine held no node for the declaration, so it could not have made this edge either."""
-    graph = _graph()
-    linked = _link(graph, [_site(BUILDER, 19, 4)], analysed=frozenset({HOST, BAG}))
-
-    added = link_implementations(graph, linked.owed, {(BUILDER, 19, 4): [graph.nodes["Framework.Bag.Add(int item)"]]})
-
-    assert added == [(CALLER, "Framework.Bag.Add(int item)")]
 
 
 def test_a_receiver_names_the_member_it_calls():

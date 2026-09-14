@@ -291,10 +291,9 @@ def _resolve_definitions(
     dispatch = _build_dispatch_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else None
     sink = CallEdgeSink(adapter, st, si, dispatch)
 
-    callable_names = index.callable_names | ctx.known_callable_names
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
-        potential = potential_calls(file_path, si, adapter, callable_names)
+        potential = potential_calls(file_path, si, adapter, index.callable_names)
         call_sites = potential.call_sites
         if not call_sites:
             pbar.update(1)
@@ -517,7 +516,11 @@ def _build_dispatch_index(
 
     subclasses: dict[str, list[SymbolInfo]] = {}
     modifiers: dict[tuple[str, str], frozenset[str]] = {}
-    for file_path in source_files:
+    # Why the known declarations' files too: on a warm start a subclass declared in an unchanged file
+    # still overrides what a changed file calls.
+    read = set(source_files)
+    known_files = sorted({sym.file_path for sym in st.known if adapter.is_class_like(sym.kind)} - read)
+    for file_path in [*source_files, *known_files]:
         declared = classes_by_file.get(str(file_path))
         if not declared:
             continue

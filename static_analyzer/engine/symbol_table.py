@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from pathlib import Path
 
 from static_analyzer.engine.protocols import SymbolNaming
@@ -41,6 +41,8 @@ class SymbolTable:
         self._file_name_index: dict[tuple[str, str], list[SymbolInfo]] = {}
         # class qualified_name -> list of constructor qualified_names
         self._class_to_ctors: dict[str, list[str]] = {}
+        # Declarations of files this build does not read: resolvable, never output.
+        self._known: list[SymbolInfo] = []
 
     @property
     def symbols(self) -> dict[str, SymbolInfo]:
@@ -61,6 +63,25 @@ class SymbolTable:
     def class_to_ctors(self) -> dict[str, list[str]]:
         """Class qualified name -> list of constructor qualified names."""
         return self._class_to_ctors
+
+    @property
+    def known(self) -> list[SymbolInfo]:
+        """Declarations registered for lookup only, from files this build does not read."""
+        return self._known
+
+    def register_known(self, declarations: Iterable[SymbolInfo]) -> None:
+        """Make *declarations* resolvable without making them this build's own.
+
+        Why: a warm start reads only the changed files, and a call from one into an unchanged file
+        must resolve the way a full build resolves it. They stay out of the primary symbols, so
+        references and hierarchies are still built from the files read.
+        """
+        for sym in declarations:
+            if sym.qualified_name in self._symbols:
+                continue
+            self._symbols[sym.qualified_name] = sym
+            self._file_symbols.setdefault(str(sym.file_path), []).append(sym)
+            self._known.append(sym)
 
     def register_symbols(
         self,
@@ -169,7 +190,7 @@ class SymbolTable:
         # Class -> constructors, keyed on the declaring symbol.
         # Why not a slice at the first "(": that names the class only where the scheme
         # doubles it, and it cannot tell a primary symbol from an alias.
-        for sym in (s for syms in self._primary_file_symbols.values() for s in syms):
+        for sym in [*(s for syms in self._primary_file_symbols.values() for s in syms), *self._known]:
             if sym.kind == NodeType.CONSTRUCTOR and sym.owner_qualified_name:
                 self._class_to_ctors.setdefault(sym.owner_qualified_name, []).append(sym.qualified_name)
 

@@ -10,9 +10,8 @@ Linking asks the language server nothing. Where it runs:
 
 - Full build: ``StaticAnalyzer._absorb_and_link``, after every engine merged. The owning
   servers may already be down, so implementations a linked call is still owed are not asked.
-- Warm start: ``update_cfg_for_changed_files`` links the partial build's answers, asks the live
-  server for the implementations they are owed (``implemented_by``), and links those with
-  ``link_implementations``.
+- Warm start: the partial build resolves against the unchanged declarations itself, so only its
+  answers in other engines' files reach here, at that same final merge.
 """
 
 from __future__ import annotations
@@ -40,17 +39,13 @@ from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
-ImplementationsOwed = dict[tuple[str, int, int], list[tuple[Node, CallSite]]]
-"""Declarations still owed an implementation query, by position, with the calls that reached them."""
-
 
 @dataclass(frozen=True)
 class LinkedCalls:
-    """The edges linking added, the sites no node in the graph could finish, and the queries still owed."""
+    """The edges linking added, and the sites no node in the graph could finish."""
 
     edges: list[tuple[str, str]]
     unresolved: list[ExternalCallSite]
-    owed: ImplementationsOwed
 
 
 def link_external_call_sites(
@@ -69,7 +64,6 @@ def link_external_call_sites(
     edges: list[tuple[str, str]] = []
     unresolved: list[ExternalCallSite] = []
     reached: set[tuple[str, str, int, int]] = set()
-    owed: ImplementationsOwed = {}
     dispatched: dict[str, list[tuple[Node, CallSite]]] = {}
     for site in sorted(sites, key=lambda site: site.kind == RECEIVER):
         caller = call_graph.nodes.get(site.caller)
@@ -87,8 +81,6 @@ def link_external_call_sites(
             continue
         reached.add(written)
         edges.extend(_add_edges(call_graph, caller, targets.nodes, site.call_site))
-        for declaration in targets.implementations:
-            owed.setdefault(declaration, []).append((caller, site.call_site))
 
     for qualified_name, calls in dispatched.items():
         dispatched_from = call_graph.nodes.get(qualified_name)
@@ -103,18 +95,7 @@ def link_external_call_sites(
         len(edges),
         len(unresolved),
     )
-    return LinkedCalls(edges, unresolved, owed)
-
-
-def link_implementations(
-    call_graph: CallGraph, owed: ImplementationsOwed, implementations: dict[tuple[str, int, int], list[Node]]
-) -> list[tuple[str, str]]:
-    """Add an edge from every call that reached a declaration to each node implementing it."""
-    edges: list[tuple[str, str]] = []
-    for declaration, nodes in implementations.items():
-        for caller, call_site in owed.get(declaration, []):
-            edges.extend(_add_edges(call_graph, caller, nodes, call_site))
-    return edges
+    return LinkedCalls(edges, unresolved)
 
 
 def record_package_imports(

@@ -18,6 +18,7 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.node import Node
 from static_analyzer.graph_definitions import GraphIndex, potential_calls, implemented_by
 from static_analyzer.incremental_orchestrator import (
+    _declarations,
     _restore_inbound_edges_via_definitions,
     update_cfg_for_changed_files,
 )
@@ -368,10 +369,11 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestWarmStartLinksWhatThePartialBuildCouldNotName:
-    def test_calls_into_unchanged_files_are_linked_and_the_rest_handed_back(self, tmp_path: Path) -> None:
-        """The partial build holds only the changed files; the merged graph names the rest, and
-        what it cannot name either may belong to another solution's engine."""
+class TestWarmStartResolvesAgainstCachedDeclarations:
+    def test_the_partial_build_gets_the_unchanged_declarations_and_hands_back_what_lies_outside(
+        self, tmp_path: Path
+    ) -> None:
+        """Calls into unchanged files resolve inside the engine; only other engines' answers go back."""
         lib = tmp_path / "lib.py"
         lib.write_text("def helper():\n    return 1\n")
         app = tmp_path / "app.py"
@@ -382,32 +384,60 @@ class TestWarmStartLinksWhatThePartialBuildCouldNotName:
 
         partial_graph = CallGraph(language="python")
         partial_graph.add_node(Node("app.main", NodeType.FUNCTION, str(app), line_start=1, line_end=2, col_start=4))
+        partial_graph.add_node(Node("lib.helper", NodeType.FUNCTION, str(lib), line_start=1, line_end=2, col_start=4))
+        partial_graph.add_edge("app.main", "lib.helper", call_sites=[{"file": str(app), "line": 2, "column": 5}])
         call = CallSite.from_lsp_position(str(app), 1, 4)
-        linkable = ExternalCallSite("app.main", str(lib), 0, 4, call)
         elsewhere = ExternalCallSite("app.main", str(tmp_path / "vendor.py"), 3, 0, call)
         partial = {
             **_result(partial_graph, source_files=[str(app)]),
             "diagnostics": {},
-            "external_call_sites": [linkable, elsewhere],
+            "external_call_sites": [elsewhere],
         }
 
         client = MagicMock()
         client.get_collected_diagnostics.return_value = {}
-        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
         ignore_manager = MagicMock()
         ignore_manager.should_ignore.return_value = False
 
         with (
-            patch("static_analyzer.incremental_orchestrator.CallGraphBuilder"),
+            patch("static_analyzer.incremental_orchestrator.CallGraphBuilder") as builder,
             patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format", return_value=partial),
         ):
             updated = update_cfg_for_changed_files(
                 cached, {app}, PythonAdapter(), tmp_path, tmp_path, client, ignore_manager
             )
 
-        edges = [(edge.get_source(), edge.get_destination()) for edge in updated["call_graph"].edges]
-        assert edges == [("app.main", "lib.helper")]
+        known = builder.return_value.build.call_args.kwargs["known_declarations"]
+        assert [(sym.qualified_name, sym.start_line, sym.start_char) for sym in known] == [("lib.helper", 0, 4)]
+        assert [(e.get_source(), e.get_destination()) for e in updated["call_graph"].edges] == [
+            ("app.main", "lib.helper")
+        ]
         assert updated["external_call_sites"] == [elsewhere]
+        client.send_implementation_batch.assert_not_called()
+
+
+class TestCachedDeclarations:
+    def test_a_node_becomes_a_lookup_symbol_at_the_engines_position_under_its_owner(self) -> None:
+        graph = CallGraph(language="csharp")
+        graph.add_node(Node("Shop.Basket", NodeType.CLASS, "/repo/Basket.cs", line_start=3, line_end=30, col_start=13))
+        graph.add_node(
+            Node(
+                "Shop.Basket.Add(Item item)",
+                NodeType.METHOD,
+                "/repo/Basket.cs",
+                line_start=8,
+                line_end=10,
+                col_start=16,
+            )
+        )
+
+        by_name = {sym.qualified_name: sym for sym in _declarations(graph)}
+
+        method = by_name["Shop.Basket.Add(Item item)"]
+        assert (method.name, method.start_line, method.start_char, method.end_line) == ("Add(Item item)", 7, 16, 9)
+        assert (method.parent_chain, method.owner_qualified_name) == ([("Basket", NodeType.CLASS)], "Shop.Basket")
+        owner = by_name["Shop.Basket"]
+        assert (owner.name, owner.parent_chain, owner.owner_qualified_name) == ("Basket", [], "")
 
 
 class TestRestoringCachedEdges:

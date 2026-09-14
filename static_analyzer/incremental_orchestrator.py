@@ -2,11 +2,10 @@
 
 Warm-start flow:
 1. Keep unchanged files from the pkl and invalidate changed/deleted files.
-2. Re-run the engine on the changed files and merge their nodes, references and edges back in.
+2. Re-run the engine on the changed files, resolving against the unchanged declarations, and merge
+   its nodes, references and edges back in.
 3. Restore cached inbound edges only when a definition query still proves them.
-4. Link the changed files' calls into unchanged files from the answers step 2 kept, then ask the
-   server for the implementations those calls are owed and link them.
-5. Keep unchanged-only edges cached and let ``StaticAnalyzer`` persist the new pkl.
+4. Keep unchanged-only edges cached and let ``StaticAnalyzer`` persist the new pkl.
 """
 
 import logging
@@ -23,11 +22,10 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.models import CallSite
+from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location
-from static_analyzer.external_calls import link_external_call_sites, link_implementations
 from static_analyzer.graph_definitions import GraphIndex, implemented_by, potential_calls, targets_for
 
 logger = logging.getLogger(__name__)
@@ -50,11 +48,11 @@ def update_cfg_for_changed_files(
        entry sourced from a changed file, leaving the cached state of every
        *unchanged* file intact.
     2. The engine re-analyses just the changed files (existing ones; deleted
-       files contribute nothing), keeping every answer that lands outside them.
+       files contribute nothing) against the unchanged declarations, keeping every
+       answer that lands outside this language's files for the final merge.
     3. ``merge_results`` unions the kept-from-cache state with the fresh
        per-file result.
-    4. Cached callers into the changed files are re-proven, and the changed
-       files' calls into unchanged ones are linked from the answers step 2 kept.
+    4. Cached callers into the changed files are re-proven.
     5. Surviving entries are filtered against the live filesystem so a
        deleted file's references / classes / package members are removed
        from the merged dict.
@@ -83,10 +81,11 @@ def update_cfg_for_changed_files(
 
     if changed_source_files:
         builder = CallGraphBuilder(engine_client, adapter, project_path, repository_path)
-        # Why the cached names: a changed file's member read of a callable declared in an unchanged
-        # file is probed only if the build knows that name, as a full build does.
-        known_callable_names = GraphIndex(updated_cache.analysis.call_graph).callable_names
-        engine_result = builder.build(changed_source_files, known_callable_names=known_callable_names)
+        # Why the unchanged declarations: a changed file's call into an unchanged one then resolves
+        # inside the engine's phases, exactly as a full build resolves it.
+        engine_result = builder.build(
+            changed_source_files, known_declarations=_declarations(updated_cache.analysis.call_graph)
+        )
         new_analysis = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
     else:
         new_analysis = {
@@ -114,22 +113,9 @@ def update_cfg_for_changed_files(
         engine_client,
         source_inspector,
     )
-    # Why the partial build's answers: it already asked every call site the changed files
-    # write, and what it could not name lies in files this merged graph holds. What is still
-    # unnamed here goes back to the caller, for the engines of other solution roots.
-    linked = link_external_call_sites(
-        index,
-        new_analysis["external_call_sites"],
-        adapter,
-        source_inspector,
-        {str(file_path) for file_path in changed_source_files},
-    )
-    # Why ask the server again: a full build queries the implementations of every declaration it
-    # holds, and the declarations in unchanged files are held only by this merged graph.
-    implementations = implemented_by(index, source_inspector, engine_client, linked.owed)
-    link_implementations(merged_analysis.call_graph, linked.owed, implementations)
     updated = _filter_to_live_files(merged_analysis).to_dict()
-    updated["external_call_sites"] = linked.unresolved
+    # What still lies outside is another engine's, for the final merge to link.
+    updated["external_call_sites"] = new_analysis["external_call_sites"]
     return updated
 
 
@@ -148,8 +134,8 @@ def _restore_inbound_edges_via_definitions(
     enough, an unchanged caller can still lose the edge when the destination's
     own declaration moves out from under it.
 
-    The outbound direction is absent here on purpose: the partial build asks every
-    changed call site, and ``link_external_call_sites`` finishes what it could not name.
+    The outbound direction is absent here on purpose: the partial build resolves every
+    changed call site against the unchanged declarations.
     """
     call_graph = index.call_graph
     pending: dict[tuple[str, str], list[dict[str, str | int]]] = {}
@@ -269,3 +255,30 @@ def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
     merged_analysis.package_relations = filtered_packages
 
     return merged_analysis
+
+
+def _declarations(call_graph: CallGraph) -> list[SymbolInfo]:
+    """The graph's nodes as symbols a partial build resolves against but never outputs.
+
+    Positions are the engine's own: a zero-based line and the name's column. A declaration's owner is
+    the node its qualified name nests under, which a call on a member reaches along with it.
+    """
+    declarations: list[SymbolInfo] = []
+    for qualified_name, node in call_graph.nodes.items():
+        owner_name = qualified_name.split("(", 1)[0].rpartition(".")[0]
+        owner = call_graph.nodes.get(owner_name) if owner_name else None
+        declarations.append(
+            SymbolInfo(
+                name=qualified_name[len(owner_name) + 1 :] if owner_name else qualified_name,
+                qualified_name=qualified_name,
+                kind=node.type,
+                file_path=Path(node.file_path),
+                start_line=node.line_start - 1,
+                start_char=node.col_start,
+                end_line=node.line_end - 1,
+                end_char=0,
+                parent_chain=[(owner_name.rpartition(".")[2], owner.type)] if owner is not None else [],
+                owner_qualified_name=owner_name if owner is not None else "",
+            )
+        )
+    return declarations
