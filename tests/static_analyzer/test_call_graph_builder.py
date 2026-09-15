@@ -204,7 +204,12 @@ class TestDiscoverSymbols:
         builder._discover_symbols(files)
 
         calls = [(item[0], item.args[0]) for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
-        assert calls == [("document_symbol", files[0]), ("document_symbol", files[1]), ("did_open", files[0])]
+        assert calls == [
+            ("document_symbol", files[0]),
+            ("document_symbol", files[1]),
+            ("did_open", files[0]),
+            ("document_symbol", files[0]),
+        ]
         adapter.read_document_symbols.assert_called_once_with(files[1], builder._source_inspector, lsp)
         assert {"a.A", "shared.Shared"} <= set(builder.symbol_table.symbols)
 
@@ -234,8 +239,34 @@ class TestDiscoverSymbols:
             ("did_open", files[1]),
             ("document_symbol", files[1]),
             ("did_open", files[0]),
+            ("document_symbol", files[0]),
         ]
         assert {"a.A", "loose.Loose"} <= set(builder.symbol_table.symbols)
+
+    def test_bulk_open_ends_with_a_drain_barrier(self):
+        """Why: the didOpen backlog is drained by whatever request comes next, so the
+        barrier travels with the bulk open instead of sitting at a fixed phase."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        adapter.workspace_owns_documents = True
+        files = [Path("/project/a.cs"), Path("/project/b.cs")]
+        served = {"name": "A", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        lsp.document_symbol.return_value = [served]
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
+
+        builder._discover_symbols(files)
+
+        calls = [(item[0], item.args[0]) for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == [
+            ("document_symbol", files[0]),
+            ("document_symbol", files[1]),
+            ("did_open", files[0]),
+            ("did_open", files[1]),
+            ("document_symbol", files[0]),
+        ]
+        # The barrier gets the scaled probe timeout, not the per-request default.
+        assert lsp.document_symbol.call_args_list[-1].kwargs.get("timeout") == 64
 
 
 def _range(start_line: int, end_line: int) -> dict:
