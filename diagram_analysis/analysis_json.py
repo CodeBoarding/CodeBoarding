@@ -219,22 +219,26 @@ def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path) -> RelationEdgeJs
     return RelationEdgeJson(
         source=_source_reference_method_key(edge.source, repo_dir),
         target=_source_reference_method_key(edge.target, repo_dir),
-        call_sites=edge.call_sites,
+        call_sites=[
+            site.model_copy(update={"file": normalize_repo_path(site.file, repo_dir)}) if site.file else site
+            for site in edge.call_sites
+        ],
         description=edge.description,
         kind=None if edge.kind is EdgeKind.CALL else edge.kind,
     )
 
 
 def _default_label_to_json(relation: Relation) -> bool | None:
-    """The flag as stored: only where the wording alone could not tell a reader.
+    """The flag as stored: only where the wording alone would tell a reader the wrong thing.
 
-    A ``calls`` relation is read as the default with or without the flag, so writing it there
-    would change every document for nothing; a default verb such as ``routes to`` must be
-    marked, or a later run would carry it as if someone had written it.
+    A reader without the flag judges the verb — ``calls`` is the static default and anything
+    else was written — so a default verb such as ``routes to`` is marked ``true`` and a
+    ``calls`` someone authored is marked ``false``. Everywhere else the flag is absent and the
+    document is unchanged.
     """
-    if relation.has_default_label and relation.relation != EdgeKind.CALL.relation_label:
-        return True
-    return None
+    if relation.relation == EdgeKind.CALL.relation_label:
+        return None if relation.has_default_label else False
+    return True if relation.has_default_label else None
 
 
 def _read_default_label(row: dict) -> bool | None:

@@ -4,7 +4,7 @@ import networkx as nx
 
 from static_analyzer.config import NodeType
 from static_analyzer.node import Node
-from static_analyzer.cfg import CallGraph, DEFAULT_REFERENCE_KINDS, Edge
+from static_analyzer.cfg import CallGraph, CallSiteLocation, DEFAULT_REFERENCE_KINDS, Edge, EdgeKind, ReferenceEdge
 
 
 class TestNode(unittest.TestCase):
@@ -386,3 +386,29 @@ class TestCallGraph(unittest.TestCase):
         self.assertEqual(len(graph2.nodes), 1)
         self.assertIn("pkg.mod.bar", graph2.nodes)
         self.assertTrue(graph2.has_node("bar"))
+
+
+def _reference_graph(*sites: CallSiteLocation) -> CallGraph:
+    graph = CallGraph()
+    graph.add_node(Node("a.f", NodeType.FUNCTION, "src/a.py", 1, 2))
+    graph.add_node(Node("b.g", NodeType.FUNCTION, "src/b.py", 3, 4))
+    graph.add_reference_edge(ReferenceEdge("a.f", "b.g", EdgeKind.USES, sites))
+    return graph
+
+
+class TestReferenceEdgeCarry(unittest.TestCase):
+    def test_union_keeps_the_sites_of_both_matching_edges(self):
+        """Sites are outside an edge's identity, so deduping on the edge alone drops one side's silently."""
+        merged = _reference_graph({"line": 4, "file": "compose.yml"}).union(
+            _reference_graph({"line": 9, "file": "app.yml"})
+        )
+
+        (edge,) = merged.reference_edges
+        self.assertEqual(edge.sites, ({"line": 4, "file": "compose.yml"}, {"line": 9, "file": "app.yml"}))
+
+    def test_a_site_both_sides_hold_is_carried_once(self):
+        shared: CallSiteLocation = {"line": 4, "file": "compose.yml"}
+        merged = _reference_graph(shared).union(_reference_graph(shared, {"line": 9, "file": "app.yml"}))
+
+        (edge,) = merged.reference_edges
+        self.assertEqual(edge.sites, ({"line": 4, "file": "compose.yml"}, {"line": 9, "file": "app.yml"}))

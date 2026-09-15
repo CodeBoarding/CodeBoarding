@@ -1,7 +1,9 @@
 import unittest
 
 from agents.agent_responses import Relation, RelationEdge, SourceCodeReference, static_relation_label
-from static_analyzer.cfg import EdgeKind
+from static_analyzer.cfg import Edge, EdgeKind
+from static_analyzer.config import NodeType
+from static_analyzer.node import Node
 
 
 def _edge(kind: EdgeKind, target: str = "b.T") -> RelationEdge:
@@ -53,3 +55,22 @@ class TestDefaultLabel(unittest.TestCase):
         self.assertIs(RelationEdge.from_dict({**row, "kind": "routes_to"}, {}).kind, EdgeKind.ROUTES_TO)
         with self.assertRaises(ValueError):
             RelationEdge.from_dict({**row, "kind": "teleports"}, {})
+
+
+class TestRelationCallSites(unittest.TestCase):
+    SOURCE = Node("a.S", NodeType.FUNCTION, "src/a.py", 1, 10)
+    TARGET = Node("b.T", NodeType.FUNCTION, "src/b.py", 20, 30)
+
+    def test_a_wiring_site_keeps_its_file_and_defaults_to_the_first_column(self) -> None:
+        edge = RelationEdge.from_reference(
+            self.SOURCE, self.TARGET, EdgeKind.USES, ({"line": 4, "file": "ops/compose.yml"},)
+        )
+        (site,) = edge.call_sites
+        self.assertEqual((site.line, site.column, site.file), (4, 1, "ops/compose.yml"))
+
+    def test_a_call_site_is_line_and_column_only(self) -> None:
+        """Every call site in a real graph carries a file, so reading one would change every document."""
+        edge = Edge(self.SOURCE, self.TARGET, [{"line": 12, "column": 8, "file": "src/a.py"}])
+        (site,) = RelationEdge.from_edge(edge).call_sites
+        self.assertEqual(site.file, "")
+        self.assertEqual(site.model_dump(), {"line": 12, "column": 8})

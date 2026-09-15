@@ -123,7 +123,7 @@ def normalize_call_site(call_site: Mapping[str, Hashable]) -> CallSiteLocation:
     file = call_site.get("file", call_site.get("file_path"))
     line = call_site.get("line")
     column = call_site.get("column")
-    if not isinstance(line, int):
+    if not isinstance(line, int) or line < 1:
         raise ValueError("Call sites require a one-based integer line")
     location = CallSiteLocation(line=line)
     if file is not None:
@@ -131,7 +131,7 @@ def normalize_call_site(call_site: Mapping[str, Hashable]) -> CallSiteLocation:
             raise ValueError("Call-site files must be strings")
         location["file"] = file
     if column is not None:
-        if not isinstance(column, int):
+        if not isinstance(column, int) or column < 1:
             raise ValueError("Call-site columns must be one-based integers")
         location["column"] = column
     return location

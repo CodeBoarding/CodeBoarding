@@ -10,6 +10,7 @@ from static_analyzer.cfg import (
     EdgeKind,
     ReferenceEdge,
 )
+from static_analyzer.cfg.edge import normalize_call_site
 from static_analyzer.config import NodeType
 from static_analyzer.node import Node
 
@@ -75,6 +76,17 @@ class TestReferenceEdge(unittest.TestCase):
         self.assertEqual(moved.sites, ({"line": 1, "file": "/repo/app.yml"}, {"line": 2}))
         bare = ReferenceEdge("a", "b", EdgeKind.USES, ({"line": 2},))
         self.assertIs(bare.visit_paths(lambda path: f"/repo/{path}"), bare)
+
+
+class TestCallSiteNormalisation(unittest.TestCase):
+    def test_a_row_or_column_below_one_is_not_a_location(self) -> None:
+        """One-based is the contract every consumer reads; a zero would point them a row or a column off."""
+        for site in ({"line": 0}, {"line": -1, "column": 2}, {"line": 4, "column": 0}, {"line": 4, "column": -2}):
+            with self.assertRaises(ValueError, msg=str(site)):
+                normalize_call_site(site)
+
+    def test_the_first_row_and_column_are_a_location(self) -> None:
+        self.assertEqual(normalize_call_site({"line": 1, "column": 1}), {"line": 1, "column": 1})
 
 
 class TestCallGraphKeepsSites(unittest.TestCase):

@@ -54,8 +54,9 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
   `application*.y*ml`, `bootstrap*.y*ml`), nginx configuration. It reads these even where
   `.codeboardingignore` ignores dotfiles and `*.config.*`, read-only, and never reads
   `node_modules`, `bin`, `obj`, `dist`, `.git` or a test directory.
-- **Cost:** under a second on every ruler (the P0 probes take 0.1–8 s), against static phases of
-  one to ten minutes. The budget is 5 % of the static phase.
+- **Cost:** the pass stays under 5 % of the static phase of the same repository, and that is the
+  whole acceptance rule. The P0 probes take 0.1–8 s; those timings say how fast the readers are,
+  not what the pass may spend.
 
 ## 4. Nodes
 
@@ -97,8 +98,10 @@ Rules that follow from the table:
   declaration order (`static_relation_label`).
 - **A default label is remembered as such.** A relation whose label is the static verb carries
   `default_label`; a later run recomputes it rather than carrying it as if someone had written it.
-  In `analysis.json` the flag is written only when the verb is not `calls`, so documents with only
-  calls in them do not change.
+  In `analysis.json` the flag is written only where the wording would tell a reader the wrong
+  thing — a default verb that is not `calls`, and a `calls` someone authored — so documents with
+  only calls in them do not change. A document without the flag is judged by its wording: `calls`
+  is the static default, any other verb was written.
 - **Kind on the edge.** Every `key_edges`/`all_edges` entry carries `kind` when it is not a call;
   a call edge is written as today. The wrapper's edge identity excludes the kind, so an upgraded
   document does not show every edge as changed.
@@ -166,7 +169,8 @@ nothing.
 `analysis.json` gains, additively:
 
 - `kind` on relation edges when it is not `call` (§5).
-- `default_label: true` on a relation whose verb is the static default and not `calls` (§5).
+- `default_label` where the verb alone reads wrong: `true` for a static default that is not
+  `calls`, `false` for a `calls` someone wrote (§5).
 - `resources` (PR 5): one entry per resource node — `key`, `kind`, `name`, `declared_by` (the
   files), `home` (a component id, or none for a shared resource at the root), `children` (`key`,
   `kind`, `name`, `owner`).
@@ -225,7 +229,7 @@ and the scorer in `codeboarding_evals.reference.arrows`.
 | partition guard | boxes on eShop, abp, modulify with the flag on and off | byte-identical partitions |
 | negative set | `wiring_negative` on the nine release repositories other than eShop | no resource node, no wiring edge, tree specification unchanged |
 | determinism | two runs, macOS and the action's Linux container | identical edge sets |
-| cost | static-phase timing with the flag on and off | under 5 % |
+| cost | static-phase timing with the flag on and off, per repository | under 5 % of that repository's static phase |
 
 Dev rulers, looked at while a rule is written: eShop, Spring PetClinic. Hold-outs, scored blind
 once per phase exit: piggymetrics, Zulip, Bank of Anthos, pitstop, Nango. A rule that helps the dev

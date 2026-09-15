@@ -7,7 +7,7 @@ from collections import Counter
 from collections.abc import Hashable, Sequence
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, model_serializer
 
 from clustering_ids import ComponentId
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodIndexEntry
@@ -78,6 +78,22 @@ class RelationCallSite(BaseModel):
 
     line: int = Field(description="One-based line number of the call site in the source file.")
     column: int = Field(description="One-based column number of the call site in the source file.")
+    file: str = Field(
+        default="",
+        description="Repository-relative file this occurrence sits in; empty when the endpoints already name it.",
+    )
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler: SerializerFunctionWrapHandler) -> dict:
+        """Drop ``file`` when there is none, on every path that reaches a document.
+
+        Why: a call site is located by the edge's own endpoints, so writing an empty key
+        would change every existing document for nothing.
+        """
+        data = handler(self)
+        if not self.file:
+            data.pop("file", None)
+        return data
 
 
 class RelationEdge(LLMBaseModel):
@@ -127,14 +143,19 @@ class RelationEdge(LLMBaseModel):
                 reference_start_line=edge.dst_node.line_start,
                 reference_end_line=edge.dst_node.line_end,
             ),
-            call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.call_sites],
+            # Line and column only: a call site names the file its endpoints already name.
+            call_sites=[RelationCallSite(line=site["line"], column=site["column"]) for site in edge.call_sites],
         )
 
     @classmethod
     def from_reference(
         cls, source: Node, target: Node, kind: EdgeKind, sites: Sequence[CallSiteLocation] = ()
     ) -> RelationEdge:
-        """An edge backed by a reference edge rather than a call, described by its kind's verb."""
+        """An edge backed by a reference edge rather than a call, described by its kind's verb.
+
+        A wiring site is a place in a manifest rather than a call, so it may name only a file
+        and a line; column 1 stands for the whole line instead of dropping the site.
+        """
         return cls(
             source=SourceCodeReference(
                 qualified_name=source.fully_qualified_name,
@@ -149,7 +170,10 @@ class RelationEdge(LLMBaseModel):
                 reference_end_line=target.line_end,
             ),
             description=kind.relation_label,
-            call_sites=[RelationCallSite.model_validate(site) for site in sites if "column" in site],
+            call_sites=[
+                RelationCallSite(line=site["line"], column=site.get("column", 1), file=site.get("file", ""))
+                for site in sites
+            ],
             kind=kind,
         )
 
@@ -168,6 +192,20 @@ class RelationEdge(LLMBaseModel):
             self.target.reference_end_line,
             tuple(sorted((site.line, site.column) for site in self.call_sites)),
         )
+
+
+def static_relation_label(edges: Sequence[RelationEdge]) -> str:
+    """The label a relation gets from its static edges alone.
+
+    A single call outranks any reference, because a call is the strongest thing two components
+    can do to each other. Otherwise the kind with the most edges names the relation, ties broken
+    by the kinds' declaration order, so two runs over one graph agree.
+    """
+    counts = Counter(edge.kind for edge in edges)
+    if not counts or EdgeKind.CALL in counts:
+        return EdgeKind.CALL.relation_label
+    order = list(EdgeKind)
+    return max(counts, key=lambda kind: (counts[kind], -order.index(kind))).relation_label
 
 
 def _relation_endpoint_from_key(
@@ -190,20 +228,6 @@ def _relation_endpoint_from_key(
         qualified_name=qualified_name,
         reference_file=file_path or None,
     )
-
-
-def static_relation_label(edges: Sequence[RelationEdge]) -> str:
-    """The label a relation gets from its static edges alone.
-
-    A single call outranks any reference, because a call is the strongest thing two components
-    can do to each other. Otherwise the kind with the most edges names the relation, ties broken
-    by the kinds' declaration order, so two runs over one graph agree.
-    """
-    counts = Counter(edge.kind for edge in edges)
-    if not counts or EdgeKind.CALL in counts:
-        return EdgeKind.CALL.relation_label
-    order = list(EdgeKind)
-    return max(counts, key=lambda kind: (counts[kind], -order.index(kind))).relation_label
 
 
 class Relation(LLMBaseModel):

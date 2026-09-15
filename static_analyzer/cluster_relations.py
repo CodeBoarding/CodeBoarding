@@ -201,8 +201,11 @@ def build_global_relations(
         else:
             inherited_key_edges = _relation_key_edges_for_pair(llm_relation, src_id, dst_id, node_to_component)
             key_edges, all_edges = ground_relation_edges(inherited_key_edges, static_rel.all_edges)
+            # Only wording someone wrote is carried. A default verb is recomputed over today's
+            # edges, or the pair keeps reporting a kind that no longer connects it.
+            carries_default = llm_relation.has_default_label
             relation = Relation(
-                relation=llm_relation.relation,
+                relation=static_relation_label(static_rel.all_edges) if carries_default else llm_relation.relation,
                 src_name=id_to_name.get(src_id, src_id),
                 dst_name=id_to_name.get(dst_id, dst_id),
                 evidence=llm_relation.evidence,
@@ -211,7 +214,7 @@ def build_global_relations(
                 dst_id=dst_id,
                 is_static=True,
                 all_edges=all_edges,
-                default_label=llm_relation.default_label,
+                default_label=carries_default,
             )
         global_relations[(src_id, dst_id)] = relation
 
