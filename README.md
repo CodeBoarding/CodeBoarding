@@ -151,7 +151,7 @@ Two environment variables tune the static analysis itself:
 
 | Variable | Effect |
 |---|---|
-| `CODEBOARDING_LSP_REQUEST_TIMEOUT` | Seconds a single language-server request may block, overriding the per-language default (120s for C#, 60s elsewhere). Applies to every language in the run. Unset by default; an unusable value fails the run rather than falling back. |
+| `CODEBOARDING_LSP_REQUEST_TIMEOUT` | Seconds a language-server request may block *when it uses the per-language default* (120s for C#, 60s elsewhere). Not a hard cap on every request: the indexing and didOpen-drain probes pass their own scaled budget (60s plus 2s per file, capped at 1800s) and are unaffected. Applies to every language in the run. Unset or empty leaves the defaults alone; any other unusable value fails the run rather than falling back. |
 | `CODEBOARDING_MAX_CONCURRENT_ENGINES` | How many language servers may be resident at once. `0` (the default) leaves the bound off. |
 
 ## Common commands

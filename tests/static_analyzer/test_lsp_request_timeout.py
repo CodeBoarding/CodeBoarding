@@ -1,10 +1,16 @@
 """Tests for the per-request LSP timeout override."""
 
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer import LSP_REQUEST_TIMEOUT_ENV_VAR, lsp_request_timeout_override
+from static_analyzer import (
+    LSP_REQUEST_TIMEOUT_ENV_VAR,
+    EngineConfig,
+    StaticAnalyzer,
+    lsp_request_timeout_override,
+)
 
 
 class TestLspRequestTimeoutOverride:
@@ -32,3 +38,37 @@ class TestLspRequestTimeoutOverride:
         with patch.dict("os.environ", {LSP_REQUEST_TIMEOUT_ENV_VAR: raw}):
             with pytest.raises(ValueError, match="whole number of seconds"):
                 lsp_request_timeout_override()
+
+
+def _spawn_with_env(tmp_path: Path, env: dict[str, str]) -> MagicMock:
+    """Start one engine under ``env`` and hand back the patched LSPClient class."""
+    adapter = MagicMock(name="CSharpAdapter")
+    adapter.language = "CSharp"
+    adapter.get_lsp_default_timeout.return_value = 120
+    adapter.get_lsp_command.return_value = ["csharp-ls"]
+    adapter.get_lsp_init_options.return_value = {}
+    adapter.get_lsp_env.return_value = {}
+    adapter.get_workspace_settings.return_value = {}
+    adapter.wait_for_workspace_ready = False
+    adapter.discover_source_files.return_value = [tmp_path / "a.cs"]
+
+    with patch.dict("os.environ", env, clear=True):
+        with patch("static_analyzer.ProjectScanner") as scanner_cls:
+            scanner_cls.return_value.scan.return_value = []
+            analyzer = StaticAnalyzer(tmp_path)
+        analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
+        with patch("static_analyzer.LSPClient") as client_cls:
+            analyzer.start_clients()
+    return client_cls
+
+
+class TestOverrideReachesTheSpawnedClient:
+    def test_override_is_passed_as_default_timeout(self, tmp_path):
+        client_cls = _spawn_with_env(tmp_path, {LSP_REQUEST_TIMEOUT_ENV_VAR: "900"})
+
+        assert client_cls.call_args.kwargs["default_timeout"] == 900
+
+    def test_without_the_override_the_adapter_decides(self, tmp_path):
+        client_cls = _spawn_with_env(tmp_path, {})
+
+        assert client_cls.call_args.kwargs["default_timeout"] == 120
