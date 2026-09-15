@@ -16,6 +16,7 @@ from agents.agent_responses import (
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry, MethodIndexEntry
 from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
+from run_diagnostics import RunDiagnosticsReport
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,12 @@ class AnalysisMetadata(BaseModel):
         "and words each component owns. Drafted on a full analysis; incremental and partial runs "
         "replay it, so the partition cannot move underneath unchanged code. Empty on an analysis "
         "written before it existed.",
+    )
+    run_diagnostics: RunDiagnosticsReport = Field(
+        default_factory=RunDiagnosticsReport,
+        description="What the run that produced this document had to leave out. Empty entries mean "
+        "the run completed clean; a degraded entry means the diagram is missing structure a clean "
+        "run would have had, and every surface that renders this document should say so.",
     )
 
 
@@ -459,6 +466,7 @@ def build_unified_analysis_json(
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
     tree_spec: dict | None = None,
+    run_diagnostics: RunDiagnosticsReport | None = None,
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -495,6 +503,7 @@ def build_unified_analysis_json(
             depth_cap=depth_cap,
             file_coverage_summary=summary,
             tree_spec=tree_spec or {},
+            run_diagnostics=run_diagnostics or RunDiagnosticsReport(),
         ),
         description=analysis.description,
         files=_build_file_entry_json_from_files(files_index),

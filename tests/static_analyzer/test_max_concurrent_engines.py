@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from run_diagnostics import RunDiagnostics
 from static_analyzer.config import Language
 from static_analyzer import (
     MAX_CONCURRENT_ENGINES_ENV_VAR,
@@ -158,6 +159,7 @@ class TestBoundedFullPass:
         analyzer = StaticAnalyzer.__new__(StaticAnalyzer)
         analyzer.repository_path = tmp_path
         analyzer.collected_diagnostics = {}
+        analyzer.run_diagnostics = RunDiagnostics()
         analyzer._engine_clients = []
         analyzer._engine_configs = []
         for i in range(engines):

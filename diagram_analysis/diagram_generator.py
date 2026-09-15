@@ -67,6 +67,8 @@ from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
+from run_diagnostics import RunDiagnostics
+from run_diagnostics.catalog import names_not_generated
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -620,6 +622,9 @@ class DiagramGenerator:
         self._naming_counts_lock = threading.Lock()
         self._scopes_enriched = 0
         self._scopes_unnamed = 0
+        # Everything this run had to leave out, from static analysis and from here.
+        # Written into the saved document so the surfaces that render it can say so.
+        self.run_diagnostics = RunDiagnostics()
         # Settled component names by id, so a child scope is told the names it sits inside.
         self._names_by_id: dict[str, str] = {}
         self.incremental_updater: IncrementalUpdater | None = None
@@ -664,6 +669,7 @@ class DiagramGenerator:
             static_analysis = self._get_static_with_new_analyzer()
 
         self.static_analysis = static_analysis
+        self.run_diagnostics.absorb(static_analysis.run_diagnostics)
         depth = hierarchy_depth if hierarchy_depth is not None else self.depth_cap
         if incremental:
             root_analysis = persisted_scopes.get(ROOT_SCOPE_ID)
@@ -1503,6 +1509,7 @@ class DiagramGenerator:
                 self._scopes_unnamed,
                 self._scopes_enriched,
             )
+            self.run_diagnostics.record(names_not_generated(self._scopes_unnamed, self._scopes_enriched))
         if persist_side_artifacts:
             source_tree_hash = self._source_tree_hash()
         else:
@@ -1526,6 +1533,7 @@ class DiagramGenerator:
             sub_expandable_ids=sub_expandable_ids,
             depth_cap=self.depth_cap,
             tree_spec=self._tree_spec_dict(),
+            run_diagnostics=self.run_diagnostics.report(),
         ).resolve()
         if persist_side_artifacts:
             self._write_file_coverage()

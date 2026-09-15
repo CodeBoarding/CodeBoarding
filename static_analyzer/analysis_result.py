@@ -11,6 +11,7 @@ from static_analyzer.config import FAMILY_OWNER, SOURCE_EXTENSION_TO_LANGUAGE, L
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
+from run_diagnostics import RunDiagnostics
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,9 @@ class StaticAnalysisResults:
 
     results: dict[Language, LanguageResults] = field(default_factory=dict)
     diagnostics: dict[Language, FileDiagnosticsMap] = field(default_factory=dict)
+    # What this run had to leave out (a server that never started, a language with
+    # nothing to index). Belongs to the run, not the cache, so the pickle drops it.
+    run_diagnostics: RunDiagnostics = field(default_factory=RunDiagnostics)
     # Runtime-only warm-start base; never persisted into the static-analysis cache.
     incremental_base_results: "StaticAnalysisResults | None" = None
 
