@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-09-15T14:45:59.912408+00:00",
-    "source_tree_hash": "0545c1a5d3accdb8247e9f4f0b5e8e8f236afe4298ffefe02a12041de029c269",
+    "generated_at": "2026-09-15T21:34:03.917434+00:00",
+    "source_tree_hash": "880aeb7ba31e6f533d27d1a37e612f14e6c570cd3a873ee40b00a8d599d4b31b",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -2686,7 +2686,7 @@
         "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._postprocess_edges",
         "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._build_package_deps"
       ],
-      "content_hash": "0b4ddecd465b8a92",
+      "content_hash": "c163a810ae3acda2",
       "module_hash": "c9aa8888063978f8"
     },
     "static_analyzer/engine/edge_build_context.py": {
@@ -8080,9 +8080,9 @@
       "file_path": "static_analyzer/engine/call_graph_builder.py",
       "qualified_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder",
       "start_line": 24,
-      "end_line": 375,
+      "end_line": 379,
       "type": "CLASS",
-      "content_hash": "bfc4ca1c38844590"
+      "content_hash": "51b91294e2b33296"
     },
     "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder.__init__": {
       "file_path": "static_analyzer/engine/call_graph_builder.py",
@@ -8120,39 +8120,39 @@
       "file_path": "static_analyzer/engine/call_graph_builder.py",
       "qualified_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
       "start_line": 149,
-      "end_line": 222,
+      "end_line": 221,
       "type": "METHOD",
-      "content_hash": "e1af496685eab6ae"
+      "content_hash": "8571151135febc0b"
     },
     "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._bulk_did_open": {
       "file_path": "static_analyzer/engine/call_graph_builder.py",
       "qualified_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._bulk_did_open",
-      "start_line": 224,
-      "end_line": 236,
+      "start_line": 223,
+      "end_line": 240,
       "type": "METHOD",
-      "content_hash": "1aff34c8e594aeb9"
+      "content_hash": "7b3def5fef6047d6"
     },
     "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._send_sync_probe": {
       "file_path": "static_analyzer/engine/call_graph_builder.py",
       "qualified_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._send_sync_probe",
-      "start_line": 238,
-      "end_line": 250,
+      "start_line": 242,
+      "end_line": 254,
       "type": "METHOD",
-      "content_hash": "89575c06cc421e1a"
+      "content_hash": "28d8b20a1ac14c2c"
     },
     "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._postprocess_edges": {
       "file_path": "static_analyzer/engine/call_graph_builder.py",
       "qualified_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._postprocess_edges",
-      "start_line": 252,
-      "end_line": 347,
+      "start_line": 256,
+      "end_line": 351,
       "type": "METHOD",
       "content_hash": "7acf9f4a3160e751"
     },
     "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder._build_package_deps": {
       "file_path": "static_analyzer/engine/call_graph_builder.py",
       "qualified_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._build_package_deps",
-      "start_line": 349,
-      "end_line": 375,
+      "start_line": 353,
+      "end_line": 379,
       "type": "METHOD",
       "content_hash": "de69e751d3991fce"
     },
@@ -19290,7 +19290,7 @@
               "qualified_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder",
               "reference_file": "static_analyzer/engine/call_graph_builder.py",
               "reference_start_line": 24,
-              "reference_end_line": 375
+              "reference_end_line": 379
             }
           ],
           "source_cluster_ids": [
@@ -20625,1304 +20625,6 @@
       ],
       "components_relations": [
         {
-          "relation": "scans project structure and links external call sites",
-          "src_name": "LSP Engine and Language Adapters",
-          "dst_name": "Project Scanning and Analysis Cache",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-              "target": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner",
-              "call_sites": [
-                {
-                  "line": 278,
-                  "column": 34
-                }
-              ],
-              "description": "StaticAnalyzer initializes ProjectScanner to detect project build configs and sources"
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
-              "target": "static_analyzer/external_calls.py|static_analyzer.external_calls.link_external_call_sites",
-              "call_sites": [
-                {
-                  "line": 967,
-                  "column": 22
-                }
-              ],
-              "description": "StaticAnalyzer links external call sites and package imports across project boundaries"
-            }
-          ],
-          "src_id": "1.1",
-          "dst_id": "1.2",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
-              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.GraphIndex",
-              "call_sites": [
-                {
-                  "line": 966,
-                  "column": 21
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._live_clients",
-              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
-              "call_sites": [
-                {
-                  "line": 490,
-                  "column": 15
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
-              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
-              "call_sites": [
-                {
-                  "line": 1058,
-                  "column": 19
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._validate_analysis_results",
-              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
-              "call_sites": [
-                {
-                  "line": 1086,
-                  "column": 23
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache",
-              "call_sites": [
-                {
-                  "line": 686,
-                  "column": 17
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.load_with_sha",
-              "call_sites": [
-                {
-                  "line": 692,
-                  "column": 32
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.pkl_path",
-              "call_sites": [
-                {
-                  "line": 698,
-                  "column": 61
-                },
-                {
-                  "line": 700,
-                  "column": 34
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.sha_path",
-              "call_sites": [
-                {
-                  "line": 698,
-                  "column": 89
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
-              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
-              "call_sites": [
-                {
-                  "line": 699,
-                  "column": 27
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache",
-              "call_sites": [
-                {
-                  "line": 544,
-                  "column": 33
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.get",
-              "call_sites": [
-                {
-                  "line": 545,
-                  "column": 48
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._collect_batch_responses",
-              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
-              "call_sites": [
-                {
-                  "line": 746,
-                  "column": 27
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._next_response",
-              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
-              "call_sites": [
-                {
-                  "line": 704,
-                  "column": 23
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._send_batch",
-              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
-              "call_sites": [
-                {
-                  "line": 587,
-                  "column": 23
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._write_message",
-              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
-              "call_sites": [
-                {
-                  "line": 682,
-                  "column": 19
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._handle_notification",
-              "target": "static_analyzer/lsp_client/diagnostics.py|static_analyzer.lsp_client.diagnostics.LSPDiagnostic.from_lsp_dict",
-              "call_sites": [
-                {
-                  "line": 839,
-                  "column": 48
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_lsp_command",
-              "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.create_jdtls_command",
-              "call_sites": [
-                {
-                  "line": 72,
-                  "column": 16
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_lsp_command",
-              "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.find_java_21_or_later",
-              "call_sites": [
-                {
-                  "line": 66,
-                  "column": 21
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-              "target": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner",
-              "call_sites": [
-                {
-                  "line": 278,
-                  "column": 34
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-              "target": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner.scan",
-              "call_sites": [
-                {
-                  "line": 278,
-                  "column": 71
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__._adapter_names_for",
-              "target": "static_analyzer/programming_language.py|static_analyzer.programming_language.ProgrammingLanguage.is_supported_lang",
-              "call_sites": [
-                {
-                  "line": 113,
-                  "column": 19
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
-              "target": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner",
-              "call_sites": [
-                {
-                  "line": 211,
-                  "column": 34
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
-              "target": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.scan",
-              "call_sites": [
-                {
-                  "line": 212,
-                  "column": 50
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
-              "target": "static_analyzer/java_config_scanner.py|static_analyzer.java_config_scanner.JavaConfigScanner",
-              "call_sites": [
-                {
-                  "line": 197,
-                  "column": 39
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
-              "target": "static_analyzer/java_config_scanner.py|static_analyzer.java_config_scanner.JavaConfigScanner.scan",
-              "call_sites": [
-                {
-                  "line": 198,
-                  "column": 53
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
-              "target": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner",
-              "call_sites": [
-                {
-                  "line": 159,
-                  "column": 37
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
-              "target": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.find_typescript_projects",
-              "call_sites": [
-                {
-                  "line": 160,
-                  "column": 57
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
-              "target": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.find_unclaimed_family_files",
-              "call_sites": [
-                {
-                  "line": 187,
-                  "column": 51
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
-              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
-              "call_sites": [
-                {
-                  "line": 181,
-                  "column": 26
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
-              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
-              "call_sites": [
-                {
-                  "line": 380,
-                  "column": 23
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
-              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.system_dotnet_env",
-              "call_sites": [
-                {
-                  "line": 386,
-                  "column": 15
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
-              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
-              "call_sites": [
-                {
-                  "line": 354,
-                  "column": 26
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
-              "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.solution_projects",
-              "call_sites": [
-                {
-                  "line": 367,
-                  "column": 20
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__._csharp_solution_members",
-              "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.solution_projects",
-              "call_sites": [
-                {
-                  "line": 134,
-                  "column": 82
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
-              "target": "static_analyzer/node.py|static_analyzer.node.Node",
-              "call_sites": [
-                {
-                  "line": 69,
-                  "column": 16
-                },
-                {
-                  "line": 152,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
-              "target": "static_analyzer/external_calls.py|static_analyzer.external_calls.link_external_call_sites",
-              "call_sites": [
-                {
-                  "line": 967,
-                  "column": 22
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
-              "target": "static_analyzer/external_calls.py|static_analyzer.external_calls.record_package_imports",
-              "call_sites": [
-                {
-                  "line": 968,
-                  "column": 13
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder.CallEdgeSink.add",
-              "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.parent_qualified_name",
-              "call_sites": [
-                {
-                  "line": 127,
-                  "column": 47
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder.SymbolIndex.__init__",
-              "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.simple_name",
-              "call_sites": [
-                {
-                  "line": 160,
-                  "column": 68
-                },
-                {
-                  "line": 163,
-                  "column": 41
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder.SymbolIndex.resolve",
-              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.resolve_declaration",
-              "call_sites": [
-                {
-                  "line": 173,
-                  "column": 16
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._is_valid_edge",
-              "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.is_self_or_container_edge",
-              "call_sites": [
-                {
-                  "line": 606,
-                  "column": 8
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._member_owner_prefixes",
-              "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.parent_qualified_name",
-              "call_sites": [
-                {
-                  "line": 564,
-                  "column": 14
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._override_targets",
-              "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.parent_qualified_name",
-              "call_sites": [
-                {
-                  "line": 583,
-                  "column": 19
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
-              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.PotentialCalls.definition_kind_at",
-              "call_sites": [
-                {
-                  "line": 308,
-                  "column": 30
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
-              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "call_sites": [
-                {
-                  "line": 296,
-                  "column": 21
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "maps symbol kinds to node types",
-          "src_name": "LSP Engine and Language Adapters",
-          "dst_name": "Architecture Clustering and Configuration",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter._map_symbol_kind",
-              "target": "static_analyzer/config.py|static_analyzer.config.NodeType",
-              "call_sites": [
-                {
-                  "line": 216,
-                  "column": 16
-                }
-              ],
-              "description": "Maps symbol kinds from result conversion to architectural node types"
-            }
-          ],
-          "src_id": "1.1",
-          "dst_id": "1.3",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter._map_symbol_kind",
-              "target": "static_analyzer/config.py|static_analyzer.config.NodeType",
-              "call_sites": [
-                {
-                  "line": 216,
-                  "column": 16
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "aggregates graph structures and dependencies into analysis results",
-          "src_name": "LSP Engine and Language Adapters",
-          "dst_name": "Call Graph and Incremental Orchestration",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
-              "call_sites": [
-                {
-                  "line": 974,
-                  "column": 17
-                }
-              ],
-              "description": "Aggregates extracted CFGs and hierarchies into the main analysis result container"
-            }
-          ],
-          "src_id": "1.1",
-          "dst_id": "1.4",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
-              "call_sites": [
-                {
-                  "line": 974,
-                  "column": 17
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
-              "call_sites": [
-                {
-                  "line": 975,
-                  "column": 17
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_package_dependencies",
-              "call_sites": [
-                {
-                  "line": 976,
-                  "column": 17
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_references",
-              "call_sites": [
-                {
-                  "line": 972,
-                  "column": 17
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_source_files",
-              "call_sites": [
-                {
-                  "line": 977,
-                  "column": 17
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph",
-              "call_sites": [
-                {
-                  "line": 973,
-                  "column": 52
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "call_sites": [
-                {
-                  "line": 929,
-                  "column": 41
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_hierarchy",
-              "call_sites": [
-                {
-                  "line": 933,
-                  "column": 48
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
-              "call_sites": [
-                {
-                  "line": 937,
-                  "column": 48
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_source_files",
-              "call_sites": [
-                {
-                  "line": 941,
-                  "column": 64
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.iter_reference_nodes",
-              "call_sites": [
-                {
-                  "line": 940,
-                  "column": 43
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph",
-              "call_sites": [
-                {
-                  "line": 931,
-                  "column": 26
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph",
-              "call_sites": [
-                {
-                  "line": 1038,
-                  "column": 31
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults",
-              "call_sites": [
-                {
-                  "line": 727,
-                  "column": 19
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "call_sites": [
-                {
-                  "line": 821,
-                  "column": 31
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 819,
-                  "column": 33
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_source_files",
-              "call_sites": [
-                {
-                  "line": 828,
-                  "column": 50
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.iter_reference_nodes",
-              "call_sites": [
-                {
-                  "line": 829,
-                  "column": 43
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._update_cached_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults",
-              "call_sites": [
-                {
-                  "line": 854,
-                  "column": 19
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._validate_analysis_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "call_sites": [
-                {
-                  "line": 1082,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._validate_analysis_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_source_files",
-              "call_sites": [
-                {
-                  "line": 1078,
-                  "column": 36
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "call_sites": [
-                {
-                  "line": 966,
-                  "column": 40
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
-              "call_sites": [
-                {
-                  "line": 968,
-                  "column": 44
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter._add_reference_edges",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
-              "call_sites": [
-                {
-                  "line": 189,
-                  "column": 28
-                },
-                {
-                  "line": 195,
-                  "column": 24
-                },
-                {
-                  "line": 200,
-                  "column": 20
-                },
-                {
-                  "line": 202,
-                  "column": 20
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter._add_reference_edges",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.ReferenceEdge",
-              "call_sites": [
-                {
-                  "line": 189,
-                  "column": 47
-                },
-                {
-                  "line": 195,
-                  "column": 43
-                },
-                {
-                  "line": 200,
-                  "column": 39
-                },
-                {
-                  "line": 202,
-                  "column": 39
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph",
-              "call_sites": [
-                {
-                  "line": 44,
-                  "column": 18
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_edge",
-              "call_sites": [
-                {
-                  "line": 89,
-                  "column": 32
-                },
-                {
-                  "line": 103,
-                  "column": 32
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_node",
-              "call_sites": [
-                {
-                  "line": 78,
-                  "column": 20
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.has_node",
-              "call_sites": [
-                {
-                  "line": 86,
-                  "column": 23
-                },
-                {
-                  "line": 86,
-                  "column": 52
-                },
-                {
-                  "line": 168,
-                  "column": 91
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._update_cached_results",
-              "target": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "call_sites": [
-                {
-                  "line": 879,
-                  "column": 28
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "queries LSP client and invokes language adapters for external resolution",
-          "src_name": "Project Scanning and Analysis Cache",
-          "dst_name": "LSP Engine and Language Adapters",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
-              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
-              "call_sites": [
-                {
-                  "line": 251,
-                  "column": 22
-                }
-              ],
-              "description": "Queries LSP implementations and invokes language adapters during external call resolution"
-            },
-            {
-              "source": "static_analyzer/external_calls.py|static_analyzer.external_calls.record_package_imports",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.extract_package",
-              "call_sites": [
-                {
-                  "line": 106,
-                  "column": 36
-                },
-                {
-                  "line": 106,
-                  "column": 69
-                }
-              ],
-              "description": "Extracts package identities via language-specific adapters"
-            }
-          ],
-          "src_id": "1.2",
-          "dst_id": "1.1",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.PotentialCalls.requests_at",
-              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_column",
-              "call_sites": [
-                {
-                  "line": 80,
-                  "column": 41
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.PotentialCalls.requests_at",
-              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_line",
-              "call_sites": [
-                {
-                  "line": 80,
-                  "column": 26
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
-              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
-              "call_sites": [
-                {
-                  "line": 251,
-                  "column": 22
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_column",
-              "call_sites": [
-                {
-                  "line": 94,
-                  "column": 37
-                },
-                {
-                  "line": 106,
-                  "column": 49
-                },
-                {
-                  "line": 115,
-                  "column": 34
-                },
-                {
-                  "line": 119,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_line",
-              "call_sites": [
-                {
-                  "line": 94,
-                  "column": 22
-                },
-                {
-                  "line": 106,
-                  "column": 34
-                },
-                {
-                  "line": 115,
-                  "column": 19
-                },
-                {
-                  "line": 119,
-                  "column": 27
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "target": "static_analyzer/engine/protocols.py|static_analyzer.engine.protocols.EdgeBuildAdapter.resolves_collection_initializers",
-              "call_sites": [
-                {
-                  "line": 113,
-                  "column": 16
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "target": "static_analyzer/engine/protocols.py|static_analyzer.engine.protocols.EdgeBuildAdapter.resolves_iterated_types",
-              "call_sites": [
-                {
-                  "line": 118,
-                  "column": 16
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "target": "static_analyzer/engine/protocols.py|static_analyzer.engine.protocols.EdgeBuildAdapter.resolves_method_groups",
-              "call_sites": [
-                {
-                  "line": 98,
-                  "column": 16
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.find_call_sites",
-              "call_sites": [
-                {
-                  "line": 93,
-                  "column": 28
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.find_collection_initializer_sites",
-              "call_sites": [
-                {
-                  "line": 115,
-                  "column": 68
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.find_iterated_expression_sites",
-              "call_sites": [
-                {
-                  "line": 119,
-                  "column": 76
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.find_member_sites",
-              "call_sites": [
-                {
-                  "line": 99,
-                  "column": 35
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.find_method_group_sites",
-              "call_sites": [
-                {
-                  "line": 101,
-                  "column": 38
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.resolve_declaration",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.declared_name_at",
-              "call_sites": [
-                {
-                  "line": 144,
-                  "column": 22
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.resolve_declaration",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.function_values",
-              "call_sites": [
-                {
-                  "line": 140,
-                  "column": 29
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.resolve_declaration",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.overload_implementations",
-              "call_sites": [
-                {
-                  "line": 137,
-                  "column": 33
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_for",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.declares_function_value",
-              "call_sites": [
-                {
-                  "line": 326,
-                  "column": 22
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_for",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.declares_setter",
-              "call_sites": [
-                {
-                  "line": 331,
-                  "column": 47
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_through",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.expands_constructors",
-              "call_sites": [
-                {
-                  "line": 346,
-                  "column": 28
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_through",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.expands_virtual_dispatch",
-              "call_sites": [
-                {
-                  "line": 356,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_through",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.is_construction_site",
-              "call_sites": [
-                {
-                  "line": 346,
-                  "column": 63
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_through",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.names_base_member",
-              "call_sites": [
-                {
-                  "line": 347,
-                  "column": 30
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
-              "target": "static_analyzer/engine/utils.py|static_analyzer.engine.utils.definition_location",
-              "call_sites": [
-                {
-                  "line": 258,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/external_calls.py|static_analyzer.external_calls.record_package_imports",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.extract_package",
-              "call_sites": [
-                {
-                  "line": 106,
-                  "column": 36
-                },
-                {
-                  "line": 106,
-                  "column": 69
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
           "relation": "references language and node type definitions",
           "src_name": "Project Scanning and Analysis Cache",
           "dst_name": "Architecture Clustering and Configuration",
@@ -22601,225 +21303,6 @@
           ]
         },
         {
-          "relation": "queries LSP definitions and extracts symbol declarations for incremental re-analysis",
-          "src_name": "Call Graph and Incremental Orchestration",
-          "dst_name": "LSP Engine and Language Adapters",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
-              "call_sites": [
-                {
-                  "line": 180,
-                  "column": 32
-                }
-              ],
-              "description": "Queries LSP definition batches to re-verify inbound edges for changed files"
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._declarations",
-              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.SymbolInfo",
-              "call_sites": [
-                {
-                  "line": 271,
-                  "column": 13
-                }
-              ],
-              "description": "Builds symbol info declarations from existing call graph nodes for incremental resolution"
-            }
-          ],
-          "src_id": "1.4",
-          "dst_id": "1.1",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder",
-              "call_sites": [
-                {
-                  "line": 83,
-                  "column": 19
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder.build",
-              "call_sites": [
-                {
-                  "line": 86,
-                  "column": 33
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder.symbol_table",
-              "call_sites": [
-                {
-                  "line": 89,
-                  "column": 63
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
-              "call_sites": [
-                {
-                  "line": 89,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.did_open",
-              "call_sites": [
-                {
-                  "line": 154,
-                  "column": 27
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
-              "call_sites": [
-                {
-                  "line": 180,
-                  "column": 32
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_type_definition_batch",
-              "call_sites": [
-                {
-                  "line": 178,
-                  "column": 27
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite",
-              "call_sites": [
-                {
-                  "line": 168,
-                  "column": 25
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_column",
-              "call_sites": [
-                {
-                  "line": 170,
-                  "column": 48
-                },
-                {
-                  "line": 183,
-                  "column": 67
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_line",
-              "call_sites": [
-                {
-                  "line": 170,
-                  "column": 28
-                },
-                {
-                  "line": 183,
-                  "column": 47
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
-              "call_sites": [
-                {
-                  "line": 79,
-                  "column": 58
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.language",
-              "call_sites": [
-                {
-                  "line": 92,
-                  "column": 54
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.get_collected_diagnostics",
-              "call_sites": [
-                {
-                  "line": 101,
-                  "column": 39
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector",
-              "call_sites": [
-                {
-                  "line": 106,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/engine/utils.py|static_analyzer.engine.utils.definition_location",
-              "call_sites": [
-                {
-                  "line": 193,
-                  "column": 28
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._declarations",
-              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.SymbolInfo",
-              "call_sites": [
-                {
-                  "line": 271,
-                  "column": 13
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
           "relation": "merges language results and updates cached analysis structures",
           "src_name": "Call Graph and Incremental Orchestration",
           "dst_name": "Project Scanning and Analysis Cache",
@@ -23013,6 +21496,1534 @@
                 {
                   "line": 107,
                   "column": 13
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "scans project structure and links external call sites",
+          "src_name": "LSP Engine and Language Adapters",
+          "dst_name": "Project Scanning and Analysis Cache",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+              "target": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner",
+              "call_sites": [
+                {
+                  "line": 278,
+                  "column": 34
+                }
+              ],
+              "description": "Initializes project scanner during static analysis setup"
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+              "target": "static_analyzer/external_calls.py|static_analyzer.external_calls.link_external_call_sites",
+              "call_sites": [
+                {
+                  "line": 967,
+                  "column": 22
+                }
+              ],
+              "description": "Resolves and links cross-file external call sites"
+            }
+          ],
+          "src_id": "1.1",
+          "dst_id": "1.2",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.GraphIndex",
+              "call_sites": [
+                {
+                  "line": 966,
+                  "column": 21
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._live_clients",
+              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
+              "call_sites": [
+                {
+                  "line": 490,
+                  "column": 15
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
+              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
+              "call_sites": [
+                {
+                  "line": 1058,
+                  "column": 19
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._validate_analysis_results",
+              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
+              "call_sites": [
+                {
+                  "line": 1086,
+                  "column": 23
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
+              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache",
+              "call_sites": [
+                {
+                  "line": 686,
+                  "column": 17
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
+              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.load_with_sha",
+              "call_sites": [
+                {
+                  "line": 692,
+                  "column": 32
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
+              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.pkl_path",
+              "call_sites": [
+                {
+                  "line": 698,
+                  "column": 61
+                },
+                {
+                  "line": 700,
+                  "column": 34
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
+              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.sha_path",
+              "call_sites": [
+                {
+                  "line": 698,
+                  "column": 89
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.analyze",
+              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
+              "call_sites": [
+                {
+                  "line": 699,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
+              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache",
+              "call_sites": [
+                {
+                  "line": 544,
+                  "column": 33
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.load_cached_analysis",
+              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.StaticAnalysisCache.get",
+              "call_sites": [
+                {
+                  "line": 545,
+                  "column": 48
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._collect_batch_responses",
+              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
+              "call_sites": [
+                {
+                  "line": 746,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._next_response",
+              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
+              "call_sites": [
+                {
+                  "line": 704,
+                  "column": 23
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._send_batch",
+              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
+              "call_sites": [
+                {
+                  "line": 587,
+                  "column": 23
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._write_message",
+              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
+              "call_sites": [
+                {
+                  "line": 682,
+                  "column": 19
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._handle_notification",
+              "target": "static_analyzer/lsp_client/diagnostics.py|static_analyzer.lsp_client.diagnostics.LSPDiagnostic.from_lsp_dict",
+              "call_sites": [
+                {
+                  "line": 839,
+                  "column": 48
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_lsp_command",
+              "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.create_jdtls_command",
+              "call_sites": [
+                {
+                  "line": 72,
+                  "column": 16
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_lsp_command",
+              "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.find_java_21_or_later",
+              "call_sites": [
+                {
+                  "line": 66,
+                  "column": 21
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+              "target": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner",
+              "call_sites": [
+                {
+                  "line": 278,
+                  "column": 34
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+              "target": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner.scan",
+              "call_sites": [
+                {
+                  "line": 278,
+                  "column": 71
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__._adapter_names_for",
+              "target": "static_analyzer/programming_language.py|static_analyzer.programming_language.ProgrammingLanguage.is_supported_lang",
+              "call_sites": [
+                {
+                  "line": 113,
+                  "column": 19
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
+              "target": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner",
+              "call_sites": [
+                {
+                  "line": 211,
+                  "column": 34
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
+              "target": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.scan",
+              "call_sites": [
+                {
+                  "line": 212,
+                  "column": 50
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
+              "target": "static_analyzer/java_config_scanner.py|static_analyzer.java_config_scanner.JavaConfigScanner",
+              "call_sites": [
+                {
+                  "line": 197,
+                  "column": 39
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
+              "target": "static_analyzer/java_config_scanner.py|static_analyzer.java_config_scanner.JavaConfigScanner.scan",
+              "call_sites": [
+                {
+                  "line": 198,
+                  "column": 53
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
+              "target": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner",
+              "call_sites": [
+                {
+                  "line": 159,
+                  "column": 37
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
+              "target": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.find_typescript_projects",
+              "call_sites": [
+                {
+                  "line": 160,
+                  "column": 57
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__._create_engine_configs",
+              "target": "static_analyzer/typescript_config_scanner.py|static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.find_unclaimed_family_files",
+              "call_sites": [
+                {
+                  "line": 187,
+                  "column": 51
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
+              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+              "call_sites": [
+                {
+                  "line": 181,
+                  "column": 26
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
+              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+              "call_sites": [
+                {
+                  "line": 380,
+                  "column": 23
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
+              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.system_dotnet_env",
+              "call_sites": [
+                {
+                  "line": 386,
+                  "column": 15
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
+              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+              "call_sites": [
+                {
+                  "line": 354,
+                  "column": 26
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
+              "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.solution_projects",
+              "call_sites": [
+                {
+                  "line": 367,
+                  "column": 20
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__._csharp_solution_members",
+              "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.solution_projects",
+              "call_sites": [
+                {
+                  "line": 134,
+                  "column": 82
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
+              "target": "static_analyzer/node.py|static_analyzer.node.Node",
+              "call_sites": [
+                {
+                  "line": 69,
+                  "column": 16
+                },
+                {
+                  "line": 152,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+              "target": "static_analyzer/external_calls.py|static_analyzer.external_calls.link_external_call_sites",
+              "call_sites": [
+                {
+                  "line": 967,
+                  "column": 22
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+              "target": "static_analyzer/external_calls.py|static_analyzer.external_calls.record_package_imports",
+              "call_sites": [
+                {
+                  "line": 968,
+                  "column": 13
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder.CallEdgeSink.add",
+              "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.parent_qualified_name",
+              "call_sites": [
+                {
+                  "line": 127,
+                  "column": 47
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder.SymbolIndex.__init__",
+              "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.simple_name",
+              "call_sites": [
+                {
+                  "line": 160,
+                  "column": 68
+                },
+                {
+                  "line": 163,
+                  "column": 41
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder.SymbolIndex.resolve",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.resolve_declaration",
+              "call_sites": [
+                {
+                  "line": 173,
+                  "column": 16
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._is_valid_edge",
+              "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.is_self_or_container_edge",
+              "call_sites": [
+                {
+                  "line": 606,
+                  "column": 8
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._member_owner_prefixes",
+              "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.parent_qualified_name",
+              "call_sites": [
+                {
+                  "line": 564,
+                  "column": 14
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._override_targets",
+              "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.parent_qualified_name",
+              "call_sites": [
+                {
+                  "line": 583,
+                  "column": 19
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.PotentialCalls.definition_kind_at",
+              "call_sites": [
+                {
+                  "line": 308,
+                  "column": 30
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder._resolve_definitions",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "call_sites": [
+                {
+                  "line": 296,
+                  "column": 21
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "maps symbol kinds to node types",
+          "src_name": "LSP Engine and Language Adapters",
+          "dst_name": "Architecture Clustering and Configuration",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter._map_symbol_kind",
+              "target": "static_analyzer/config.py|static_analyzer.config.NodeType",
+              "call_sites": [
+                {
+                  "line": 216,
+                  "column": 16
+                }
+              ],
+              "description": "Maps language server symbol kinds to analyzer node types"
+            }
+          ],
+          "src_id": "1.1",
+          "dst_id": "1.3",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter._map_symbol_kind",
+              "target": "static_analyzer/config.py|static_analyzer.config.NodeType",
+              "call_sites": [
+                {
+                  "line": 216,
+                  "column": 16
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "aggregates graph structures and dependencies into analysis results",
+          "src_name": "LSP Engine and Language Adapters",
+          "dst_name": "Call Graph and Incremental Orchestration",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
+              "call_sites": [
+                {
+                  "line": 974,
+                  "column": 17
+                }
+              ],
+              "description": "Adds language-specific control flow graphs to cumulative analysis results"
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 966,
+                  "column": 40
+                }
+              ],
+              "description": "Retrieves call graphs to perform external call linking"
+            }
+          ],
+          "src_id": "1.1",
+          "dst_id": "1.4",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
+              "call_sites": [
+                {
+                  "line": 974,
+                  "column": 17
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
+              "call_sites": [
+                {
+                  "line": 975,
+                  "column": 17
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_package_dependencies",
+              "call_sites": [
+                {
+                  "line": 976,
+                  "column": 17
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_references",
+              "call_sites": [
+                {
+                  "line": 972,
+                  "column": 17
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_source_files",
+              "call_sites": [
+                {
+                  "line": 977,
+                  "column": 17
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph",
+              "call_sites": [
+                {
+                  "line": 973,
+                  "column": 52
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 929,
+                  "column": 41
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_hierarchy",
+              "call_sites": [
+                {
+                  "line": 933,
+                  "column": 48
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
+              "call_sites": [
+                {
+                  "line": 937,
+                  "column": 48
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_source_files",
+              "call_sites": [
+                {
+                  "line": 941,
+                  "column": 64
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.iter_reference_nodes",
+              "call_sites": [
+                {
+                  "line": 940,
+                  "column": 43
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._extract_language_dict",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph",
+              "call_sites": [
+                {
+                  "line": 931,
+                  "column": 26
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph",
+              "call_sites": [
+                {
+                  "line": 1038,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults",
+              "call_sites": [
+                {
+                  "line": 727,
+                  "column": 19
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 821,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 819,
+                  "column": 33
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_source_files",
+              "call_sites": [
+                {
+                  "line": 828,
+                  "column": 50
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.iter_reference_nodes",
+              "call_sites": [
+                {
+                  "line": 829,
+                  "column": 43
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._update_cached_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults",
+              "call_sites": [
+                {
+                  "line": 854,
+                  "column": 19
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._validate_analysis_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 1082,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._validate_analysis_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_source_files",
+              "call_sites": [
+                {
+                  "line": 1078,
+                  "column": 36
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 966,
+                  "column": 40
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_package_dependencies",
+              "call_sites": [
+                {
+                  "line": 968,
+                  "column": 44
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter._add_reference_edges",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
+              "call_sites": [
+                {
+                  "line": 189,
+                  "column": 28
+                },
+                {
+                  "line": 195,
+                  "column": 24
+                },
+                {
+                  "line": 200,
+                  "column": 20
+                },
+                {
+                  "line": 202,
+                  "column": 20
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter._add_reference_edges",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.ReferenceEdge",
+              "call_sites": [
+                {
+                  "line": 189,
+                  "column": 47
+                },
+                {
+                  "line": 195,
+                  "column": 43
+                },
+                {
+                  "line": 200,
+                  "column": 39
+                },
+                {
+                  "line": 202,
+                  "column": 39
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph",
+              "call_sites": [
+                {
+                  "line": 44,
+                  "column": 18
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_edge",
+              "call_sites": [
+                {
+                  "line": 89,
+                  "column": 32
+                },
+                {
+                  "line": 103,
+                  "column": 32
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_node",
+              "call_sites": [
+                {
+                  "line": 78,
+                  "column": 20
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.has_node",
+              "call_sites": [
+                {
+                  "line": 86,
+                  "column": 23
+                },
+                {
+                  "line": 86,
+                  "column": 52
+                },
+                {
+                  "line": 168,
+                  "column": 91
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._update_cached_results",
+              "target": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "call_sites": [
+                {
+                  "line": 879,
+                  "column": 28
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "queries LSP client and invokes language adapters for external resolution",
+          "src_name": "Project Scanning and Analysis Cache",
+          "dst_name": "LSP Engine and Language Adapters",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
+              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
+              "call_sites": [
+                {
+                  "line": 251,
+                  "column": 22
+                }
+              ],
+              "description": "Dispatches batch implementation requests to LSP server"
+            },
+            {
+              "source": "static_analyzer/external_calls.py|static_analyzer.external_calls.record_package_imports",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.extract_package",
+              "call_sites": [
+                {
+                  "line": 106,
+                  "column": 36
+                },
+                {
+                  "line": 106,
+                  "column": 69
+                }
+              ],
+              "description": "Uses language adapters to extract package information from imports"
+            }
+          ],
+          "src_id": "1.2",
+          "dst_id": "1.1",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.PotentialCalls.requests_at",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_column",
+              "call_sites": [
+                {
+                  "line": 80,
+                  "column": 41
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.PotentialCalls.requests_at",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_line",
+              "call_sites": [
+                {
+                  "line": 80,
+                  "column": 26
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
+              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
+              "call_sites": [
+                {
+                  "line": 251,
+                  "column": 22
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_column",
+              "call_sites": [
+                {
+                  "line": 94,
+                  "column": 37
+                },
+                {
+                  "line": 106,
+                  "column": 49
+                },
+                {
+                  "line": 115,
+                  "column": 34
+                },
+                {
+                  "line": 119,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_line",
+              "call_sites": [
+                {
+                  "line": 94,
+                  "column": 22
+                },
+                {
+                  "line": 106,
+                  "column": 34
+                },
+                {
+                  "line": 115,
+                  "column": 19
+                },
+                {
+                  "line": 119,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "target": "static_analyzer/engine/protocols.py|static_analyzer.engine.protocols.EdgeBuildAdapter.resolves_collection_initializers",
+              "call_sites": [
+                {
+                  "line": 113,
+                  "column": 16
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "target": "static_analyzer/engine/protocols.py|static_analyzer.engine.protocols.EdgeBuildAdapter.resolves_iterated_types",
+              "call_sites": [
+                {
+                  "line": 118,
+                  "column": 16
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "target": "static_analyzer/engine/protocols.py|static_analyzer.engine.protocols.EdgeBuildAdapter.resolves_method_groups",
+              "call_sites": [
+                {
+                  "line": 98,
+                  "column": 16
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.find_call_sites",
+              "call_sites": [
+                {
+                  "line": 93,
+                  "column": 28
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.find_collection_initializer_sites",
+              "call_sites": [
+                {
+                  "line": 115,
+                  "column": 68
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.find_iterated_expression_sites",
+              "call_sites": [
+                {
+                  "line": 119,
+                  "column": 76
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.find_member_sites",
+              "call_sites": [
+                {
+                  "line": 99,
+                  "column": 35
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.find_method_group_sites",
+              "call_sites": [
+                {
+                  "line": 101,
+                  "column": 38
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.resolve_declaration",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.declared_name_at",
+              "call_sites": [
+                {
+                  "line": 144,
+                  "column": 22
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.resolve_declaration",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.function_values",
+              "call_sites": [
+                {
+                  "line": 140,
+                  "column": 29
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.resolve_declaration",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.overload_implementations",
+              "call_sites": [
+                {
+                  "line": 137,
+                  "column": 33
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_for",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.declares_function_value",
+              "call_sites": [
+                {
+                  "line": 326,
+                  "column": 22
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_for",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.declares_setter",
+              "call_sites": [
+                {
+                  "line": 331,
+                  "column": 47
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_through",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.expands_constructors",
+              "call_sites": [
+                {
+                  "line": 346,
+                  "column": 28
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_through",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.expands_virtual_dispatch",
+              "call_sites": [
+                {
+                  "line": 356,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_through",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.is_construction_site",
+              "call_sites": [
+                {
+                  "line": 346,
+                  "column": 63
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_through",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector.names_base_member",
+              "call_sites": [
+                {
+                  "line": 347,
+                  "column": 30
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
+              "target": "static_analyzer/engine/utils.py|static_analyzer.engine.utils.definition_location",
+              "call_sites": [
+                {
+                  "line": 258,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/external_calls.py|static_analyzer.external_calls.record_package_imports",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.extract_package",
+              "call_sites": [
+                {
+                  "line": 106,
+                  "column": 36
+                },
+                {
+                  "line": 106,
+                  "column": 69
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "re-queries LSP client and symbol definitions for incremental graph restoration",
+          "src_name": "Call Graph and Incremental Orchestration",
+          "dst_name": "LSP Engine and Language Adapters",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
+              "call_sites": [
+                {
+                  "line": 180,
+                  "column": 32
+                }
+              ],
+              "description": "Queries LSP definitions to restore inbound call graph edges"
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._declarations",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.SymbolInfo",
+              "call_sites": [
+                {
+                  "line": 271,
+                  "column": 13
+                }
+              ],
+              "description": "Instantiates symbol information models for parsed declarations"
+            }
+          ],
+          "src_id": "1.4",
+          "dst_id": "1.1",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
+              "call_sites": [
+                {
+                  "line": 89,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.did_open",
+              "call_sites": [
+                {
+                  "line": 154,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
+              "call_sites": [
+                {
+                  "line": 180,
+                  "column": 32
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_type_definition_batch",
+              "call_sites": [
+                {
+                  "line": 178,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite",
+              "call_sites": [
+                {
+                  "line": 168,
+                  "column": 25
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_column",
+              "call_sites": [
+                {
+                  "line": 170,
+                  "column": 48
+                },
+                {
+                  "line": 183,
+                  "column": 67
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.CallSite.lsp_line",
+              "call_sites": [
+                {
+                  "line": 170,
+                  "column": 28
+                },
+                {
+                  "line": 183,
+                  "column": 47
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
+              "call_sites": [
+                {
+                  "line": 79,
+                  "column": 58
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.language",
+              "call_sites": [
+                {
+                  "line": 92,
+                  "column": 54
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.get_collected_diagnostics",
+              "call_sites": [
+                {
+                  "line": 101,
+                  "column": 39
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/source_inspector.py|static_analyzer.engine.source_inspector.SourceInspector",
+              "call_sites": [
+                {
+                  "line": 106,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/engine/utils.py|static_analyzer.engine.utils.definition_location",
+              "call_sites": [
+                {
+                  "line": 193,
+                  "column": 28
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._declarations",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.SymbolInfo",
+              "call_sites": [
+                {
+                  "line": 271,
+                  "column": 13
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder",
+              "call_sites": [
+                {
+                  "line": 83,
+                  "column": 19
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder.build",
+              "call_sites": [
+                {
+                  "line": 86,
+                  "column": 33
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder.symbol_table",
+              "call_sites": [
+                {
+                  "line": 89,
+                  "column": 63
                 }
               ],
               "description": ""
@@ -28817,17 +28828,6 @@
           "description": "Merges extracted CFG graphs into cumulative analysis results"
         },
         {
-          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
-          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_package_dependencies",
-          "call_sites": [
-            {
-              "line": 976,
-              "column": 17
-            }
-          ],
-          "description": "Merges package dependencies into cumulative analysis results"
-        },
-        {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
           "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
           "call_sites": [
@@ -28837,6 +28837,17 @@
             }
           ],
           "description": "Retrieves existing CFG from analysis results to link call targets"
+        },
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_package_dependencies",
+          "call_sites": [
+            {
+              "line": 976,
+              "column": 17
+            }
+          ],
+          "description": "Merges package dependencies into cumulative analysis results"
         }
       ],
       "src_id": "1.1",
@@ -31017,17 +31028,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
-          "target": "agents/agent_responses.py|agents.agent_responses.Relation",
-          "call_sites": [
-            {
-              "line": 195,
-              "column": 24
-            }
-          ],
-          "description": "Constructs semantic relation records between component clusters."
-        },
-        {
           "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
           "target": "agents/agent_responses.py|agents.agent_responses.RelationEdge.from_edge",
           "call_sites": [
@@ -31037,6 +31037,43 @@
             }
           ],
           "description": "converts static call graph edges into component relation edges"
+        },
+        {
+          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_node_to_component_map",
+          "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights.node_owners",
+          "call_sites": [
+            {
+              "line": 42,
+              "column": 39
+            },
+            {
+              "line": 44,
+              "column": 53
+            }
+          ],
+          "description": "Populates node owner mappings for component insights"
+        },
+        {
+          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
+          "target": "agents/agent_responses.py|agents.agent_responses.Relation.from_edges",
+          "call_sites": [
+            {
+              "line": 183,
+              "column": 33
+            }
+          ],
+          "description": "Instantiates global relation models across analyzed component boundaries"
+        },
+        {
+          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
+          "target": "agents/agent_responses.py|agents.agent_responses.Relation",
+          "call_sites": [
+            {
+              "line": 195,
+              "column": 24
+            }
+          ],
+          "description": "Constructs semantic relation records between component clusters."
         }
       ],
       "src_id": "1.3",
@@ -31126,15 +31163,19 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.next_id",
-          "target": "clustering_ids.py|clustering_ids.CodeBoardingClusterIds.prefix_for_scope",
+          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
+          "target": "clustering_ids.py|clustering_ids.is_self_or_descendant",
           "call_sites": [
             {
-              "line": 105,
-              "column": 41
+              "line": 177,
+              "column": 21
+            },
+            {
+              "line": 178,
+              "column": 21
             }
           ],
-          "description": "Computes qualified cluster IDs using cluster ID prefixing helpers."
+          "description": "Checks hierarchical ancestry for cross-component relations"
         },
         {
           "source": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.next_id",
@@ -31146,6 +31187,17 @@
             }
           ],
           "description": "qualifies local scope cluster IDs"
+        },
+        {
+          "source": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.next_id",
+          "target": "clustering_ids.py|clustering_ids.CodeBoardingClusterIds.prefix_for_scope",
+          "call_sites": [
+            {
+              "line": 105,
+              "column": 41
+            }
+          ],
+          "description": "Computes qualified cluster IDs using cluster ID prefixing helpers."
         }
       ],
       "src_id": "1.3",
@@ -31297,39 +31349,6 @@
       "all_edges": [
         {
           "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-          "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder",
-          "call_sites": [
-            {
-              "line": 83,
-              "column": 19
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-          "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder.build",
-          "call_sites": [
-            {
-              "line": 86,
-              "column": 33
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-          "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder.symbol_table",
-          "call_sites": [
-            {
-              "line": 89,
-              "column": 63
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
           "target": "static_analyzer/engine/result_converter.py|static_analyzer.engine.result_converter.convert_to_codeboarding_format",
           "call_sites": [
             {
@@ -31475,6 +31494,39 @@
             {
               "line": 271,
               "column": 13
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+          "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder",
+          "call_sites": [
+            {
+              "line": 83,
+              "column": 19
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+          "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder.build",
+          "call_sites": [
+            {
+              "line": 86,
+              "column": 33
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+          "target": "static_analyzer/engine/call_graph_builder.py|static_analyzer.engine.call_graph_builder.CallGraphBuilder.symbol_table",
+          "call_sites": [
+            {
+              "line": 89,
+              "column": 63
             }
           ],
           "description": ""
@@ -32287,6 +32339,17 @@
       "key_edges": [
         {
           "source": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
+          "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+          "call_sites": [
+            {
+              "line": 57,
+              "column": 74
+            }
+          ],
+          "description": "Reads call edge source and destination nodes during LLM rendering"
+        },
+        {
+          "source": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
           "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
           "call_sites": [
             {
@@ -32808,17 +32871,6 @@
       "key_edges": [
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
-          "target": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService",
-          "call_sites": [
-            {
-              "line": 1255,
-              "column": 19
-            }
-          ],
-          "description": "Invokes static clustering service and resolves symbol references"
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
           "target": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.build_scope_hierarchy",
           "call_sites": [
             {
@@ -32827,6 +32879,17 @@
             }
           ],
           "description": "builds scope hierarchy using clustering service"
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
+          "target": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService",
+          "call_sites": [
+            {
+              "line": 1255,
+              "column": 19
+            }
+          ],
+          "description": "Invokes static clustering service and resolves symbol references"
         }
       ],
       "src_id": "3.1",
@@ -33086,7 +33149,19 @@
       "src_name": "Analysis Orchestration and Serialization",
       "dst_name": "Call Graph and Incremental Orchestration",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs",
+          "call_sites": [
+            {
+              "line": 1250,
+              "column": 39
+            }
+          ],
+          "description": "Queries available control flow graphs from static analysis results"
+        }
+      ],
       "src_id": "3.1",
       "dst_id": "1.4",
       "is_static": true,
@@ -38695,17 +38770,6 @@
           "description": "retrieves display label for node type in Markdown rendering"
         },
         {
-          "source": "output_generators/markdown.py|output_generators.markdown.generate_markdown",
-          "target": "static_analyzer/config.py|static_analyzer.config.NodeType.from_name",
-          "call_sites": [
-            {
-              "line": 110,
-              "column": 38
-            }
-          ],
-          "description": "Looks up node type classifications when formatting Markdown diagrams."
-        },
-        {
           "source": "output_generators/mdx.py|output_generators.mdx.generate_mdx",
           "target": "static_analyzer/config.py|static_analyzer.config.NodeType.from_name",
           "call_sites": [
@@ -38715,6 +38779,28 @@
             }
           ],
           "description": "Parses node type identifiers when rendering MDX documentation."
+        },
+        {
+          "source": "output_generators/sphinx.py|output_generators.sphinx.generate_rst",
+          "target": "static_analyzer/config.py|static_analyzer.config.NodeType.from_name",
+          "call_sites": [
+            {
+              "line": 153,
+              "column": 38
+            }
+          ],
+          "description": "Translates static analyzer node types into Sphinx documentation nodes"
+        },
+        {
+          "source": "output_generators/markdown.py|output_generators.markdown.generate_markdown",
+          "target": "static_analyzer/config.py|static_analyzer.config.NodeType.from_name",
+          "call_sites": [
+            {
+              "line": 110,
+              "column": 38
+            }
+          ],
+          "description": "Looks up node type classifications when formatting Markdown diagrams."
         },
         {
           "source": "output_generators/mdx.py|output_generators.mdx.generate_mdx",

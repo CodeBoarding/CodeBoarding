@@ -142,7 +142,7 @@
     "static_analyzer/engine/symbol_table.py": "7c0e809899fb0478",
     "static_analyzer/engine/protocols.py": "10ccdca52e819b24",
     "static_analyzer/engine/lsp_recycler.py": "3135937e44a16e32",
-    "static_analyzer/engine/call_graph_builder.py": "0b4ddecd465b8a92",
+    "static_analyzer/engine/call_graph_builder.py": "c163a810ae3acda2",
     "static_analyzer/engine/result_converter.py": "6a23f6d44462c858",
     "static_analyzer/engine/progress.py": "de73e05549e87c13",
     "static_analyzer/engine/lsp_constants.py": "192a5189b55ecd65",
