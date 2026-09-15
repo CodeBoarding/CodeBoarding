@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-14T23:14:18.535401+00:00",
-  "overall_score": 0.8677281077770974,
+  "timestamp": "2026-09-15T14:45:24.410265+00:00",
+  "overall_score": 0.8678899082568807,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1417,
+      "total_entities_checked": 1419,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -786,13 +786,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_old_dst_node\" is not accessed",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 156,
-              "line_end": 156,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"project_root\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
               "line_start": 72,
@@ -951,6 +944,13 @@
               "file_path": "static_analyzer/engine/adapters/typescript_adapter.py",
               "line_start": 34,
               "line_end": 34,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_old_dst_node\" is not accessed",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 142,
+              "line_end": 142,
               "metric_value": 0.0
             }
           ]
