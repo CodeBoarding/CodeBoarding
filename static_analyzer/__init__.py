@@ -58,6 +58,7 @@ class EngineConfig:
 
 
 MAX_CONCURRENT_ENGINES_ENV_VAR = "CODEBOARDING_MAX_CONCURRENT_ENGINES"
+LSP_REQUEST_TIMEOUT_ENV_VAR = "CODEBOARDING_LSP_REQUEST_TIMEOUT"
 
 
 # An engine costs ~3 cores: the server's own peak (~1.9, measured on csharp-ls),
@@ -87,6 +88,24 @@ def max_concurrent_engines() -> int:
         logger.warning("Ignoring negative %s=%r; the bound stays off", MAX_CONCURRENT_ENGINES_ENV_VAR, raw)
         return 0
     return value
+
+
+def lsp_request_timeout_override() -> int | None:
+    """Seconds from ``CODEBOARDING_LSP_REQUEST_TIMEOUT``, or None when it is unset.
+
+    Why it raises rather than falling back: the fallback is the adapter ceiling the
+    operator set the variable to escape, so the run would time out as if ignored.
+    """
+    raw = os.environ.get(LSP_REQUEST_TIMEOUT_ENV_VAR, "").strip()
+    if not raw:
+        return None
+    try:
+        seconds = int(raw)
+    except ValueError:
+        raise ValueError(f"{LSP_REQUEST_TIMEOUT_ENV_VAR} must be a whole number of seconds, got {raw!r}") from None
+    if seconds <= 0:
+        raise ValueError(f"{LSP_REQUEST_TIMEOUT_ENV_VAR} must be a positive number of seconds, got {raw!r}")
+    return seconds
 
 
 def recommended_engine_concurrency(engine_count: int) -> int:
@@ -288,6 +307,11 @@ class StaticAnalyzer:
         # e.g. the incremental fingerprint diff. ``None`` means "detect via git"
         # (the legacy CLI-on-a-real-checkout path); an empty set re-LSPs nothing.
         self.changed_files = changed_files
+        # Resolved here so an unusable value fails before any engine starts, where
+        # the per-language handlers would turn it into "skip this language".
+        self._request_timeout_override = lsp_request_timeout_override()
+        if self._request_timeout_override is not None:
+            logger.info("Per-request LSP timeout overridden to %ds", self._request_timeout_override)
 
     def __enter__(self) -> "StaticAnalyzer":
         self.start_clients()
@@ -436,7 +460,7 @@ class StaticAnalyzer:
             command=command,
             project_root=project_path,
             init_options=init_options,
-            default_timeout=adapter.get_lsp_default_timeout(),
+            default_timeout=self._request_timeout_override or adapter.get_lsp_default_timeout(),
             collect_diagnostics=True,
             extra_env=extra_env,
             workspace_settings=adapter.get_workspace_settings(),

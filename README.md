@@ -147,6 +147,13 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 
 Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, and `OLLAMA_BASE_URL` take precedence over the config file. For private repositories, set `GITHUB_TOKEN` in your environment.
 
+Two environment variables tune the static analysis itself:
+
+| Variable | Effect |
+|---|---|
+| `CODEBOARDING_LSP_REQUEST_TIMEOUT` | Seconds a single language-server request may block, overriding the per-language default (120s for C#, 60s elsewhere). Applies to every language in the run. Unset by default; an unusable value fails the run rather than falling back. |
+| `CODEBOARDING_MAX_CONCURRENT_ENGINES` | How many language servers may be resident at once. `0` (the default) leaves the bound off. |
+
 ## Common commands
 
 ```bash
