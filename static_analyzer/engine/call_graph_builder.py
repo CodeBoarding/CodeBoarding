@@ -168,10 +168,9 @@ class CallGraphBuilder:
         elif self._adapter.probe_before_open or interleave_open:
             probe_result = self._send_sync_probe(source_files, probe_timeout)
             if not interleave_open:
-                self._bulk_did_open(source_files)
+                probe_result = self._bulk_did_open(source_files, probe_timeout)
         else:
-            self._bulk_did_open(source_files)
-            probe_result = self._send_sync_probe(source_files, probe_timeout)
+            probe_result = self._bulk_did_open(source_files, probe_timeout)
 
         # Phase 1: extract symbols from each file
         read_from_source: list[Path] = []
@@ -212,7 +211,7 @@ class CallGraphBuilder:
         pbar.finish()
         if owns_documents:
             already = set(read_from_source) | set(opened_early)
-            self._bulk_did_open([file_path for file_path in source_files if file_path not in already])
+            self._bulk_did_open([file_path for file_path in source_files if file_path not in already], probe_timeout)
         if read_from_source:
             logger.info(
                 "Phase 1: %d file(s) compiled into more than one project were read from source",
@@ -221,8 +220,12 @@ class CallGraphBuilder:
 
         logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
 
-    def _bulk_did_open(self, source_files: list[Path]) -> None:
-        """Phase 0: Send didOpen for all files so the LSP server can index them."""
+    def _bulk_did_open(self, source_files: list[Path], probe_timeout: int) -> list[dict]:
+        """Phase 0: open every file, then block until the server has drained them.
+
+        Why the trailing probe: didOpen queues work proportional to the file count,
+        so the next request pays for it — on the scaled timeout, wherever it lands.
+        """
         total = len(source_files)
         t_open_start = time.monotonic()
         pbar = ProgressLogger("Phase 0 (open)", total, unit="file")
@@ -234,11 +237,12 @@ class CallGraphBuilder:
             time.sleep(0.1)
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
+        return self._send_sync_probe(source_files, probe_timeout, label="overlay processing")
 
-    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> list[dict]:
-        """Send a documentSymbol probe to wait for the LSP server to finish indexing."""
+    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int, label: str = "indexing") -> list[dict]:
+        """Send a documentSymbol probe to wait for the LSP server to finish ``label``."""
         probe_result: list[dict] = []
-        logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
+        logger.info("Waiting for LSP server %s (timeout=%ds)...", label, probe_timeout)
         t_probe = time.monotonic()
         if source_files:
             probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
