@@ -1,3 +1,4 @@
+import copy
 import logging
 import json
 from datetime import datetime, timezone
@@ -18,6 +19,10 @@ from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
+
+# Documents at this version omit fields that are recoverable from what remains
+# (see ``expand_analysis_document``). Version 1 documents spelled them all out.
+ANALYSIS_FORMAT_VERSION = 2
 
 
 class RelationEdgeJson(BaseModel):
@@ -116,6 +121,10 @@ class AnalysisMetadata(BaseModel):
         "replay it, so the partition cannot move underneath unchanged code. Empty on an analysis "
         "written before it existed.",
     )
+    format_version: int = Field(
+        default=ANALYSIS_FORMAT_VERSION,
+        description="Document format version. Absent or 1 means every derivable field is spelled out.",
+    )
 
 
 class ComponentFileMethodGroupJson(BaseModel):
@@ -126,16 +135,24 @@ class ComponentFileMethodGroupJson(BaseModel):
     )
 
 
-class FileEntryJson(BaseModel):
-    """Persisted file entry — stores only method-index keys.
+class MethodIndexEntryJson(BaseModel):
+    """Persisted method entry — its file path and qualified name are the two halves of its own key."""
 
-    Full method metadata lives in ``methods_index``; this avoids duplication.
+    start_line: int = Field(description="Starting line number in the file.")
+    end_line: int = Field(description="Ending line number in the file.")
+    type: str = Field(description="Node type name (METHOD, FUNCTION, CLASS, ...).")
+    content_hash: str = Field(
+        default="",
+        description="Truncated SHA-256 of the method's source lines; '' when unknown.",
+    )
+
+
+class FileEntryJson(BaseModel):
+    """Persisted file entry — hashes only.
+
+    The file's methods are the ``methods_index`` keys prefixed with this path.
     """
 
-    method_keys: list[str] = Field(
-        default_factory=list,
-        description="Keys into ``methods_index`` ('<file_path>|<qualified_name>'), in declaration order.",
-    )
     content_hash: str = Field(
         default="",
         description="Truncated SHA-256 of the entire file's bytes; '' when unknown.",
@@ -155,7 +172,7 @@ class UnifiedAnalysisJson(BaseModel):
         default_factory=dict,
         description="Top-level file index keyed by relative file path.",
     )
-    methods_index: dict[str, MethodIndexEntry] = Field(
+    methods_index: dict[str, MethodIndexEntryJson] = Field(
         default_factory=dict,
         description="Canonical method metadata keyed by '<file_path>|<qualified_name>'.",
     )
@@ -180,7 +197,14 @@ def _build_files_index_from_analysis(
 
 
 def _method_key(file_path: str, qualified_name: str) -> str:
-    """Canonical ``methods_index`` key ('<file_path>|<qualified_name>')."""
+    """Canonical ``methods_index`` key ('<file_path>|<qualified_name>').
+
+    Why: readers recover both halves by splitting on the first '|', so a pipe in the
+    path would make the key ambiguous. Qualified names may contain one (C# default
+    parameter lists do) — only the left half has to be pipe-free.
+    """
+    if "|" in file_path:
+        raise ValueError(f"File path contains the method-key separator '|': {file_path!r}")
     return f"{file_path}|{qualified_name}"
 
 
@@ -242,13 +266,11 @@ def _method_refs_to_placeholders(method_names: list[str]) -> list[MethodEntry]:
     ]
 
 
-def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[str, MethodIndexEntry]:
-    methods_index: dict[str, MethodIndexEntry] = {}
+def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[str, MethodIndexEntryJson]:
+    methods_index: dict[str, MethodIndexEntryJson] = {}
     for file_path, entry in files_index.items():
         for method in entry.methods:
-            methods_index[_method_key(file_path, method.qualified_name)] = MethodIndexEntry(
-                file_path=file_path,
-                qualified_name=method.qualified_name,
+            methods_index[_method_key(file_path, method.qualified_name)] = MethodIndexEntryJson(
                 start_line=method.start_line,
                 end_line=method.end_line,
                 type=method.node_type,
@@ -259,11 +281,7 @@ def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[s
 
 def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict[str, FileEntryJson]:
     return {
-        file_path: FileEntryJson(
-            method_keys=[_method_key(file_path, m.qualified_name) for m in entry.methods],
-            content_hash=entry.content_hash,
-            module_hash=entry.module_hash,
-        )
+        file_path: FileEntryJson(content_hash=entry.content_hash, module_hash=entry.module_hash)
         for file_path, entry in files_index.items()
         if file_path
     }
@@ -363,13 +381,16 @@ def from_component_to_json_component(
             for r in merge_relations_by_pair(sub_analysis.components_relations, include_relation=True)
         ]
 
+    # A parent's members are exactly the union of its children's, so only leaves carry them.
+    file_methods = [] if nested_components else _to_component_file_method_refs(component.file_methods)
+
     return ComponentJson(
         name=component.name,
         component_id=component.component_id,
         description=component.description,
         key_entities=_relativize_key_entities(component.key_entities, repo_dir),
         source_cluster_ids=component.source_cluster_ids,
-        file_methods=_to_component_file_method_refs(component.file_methods),
+        file_methods=file_methods,
         can_expand=can_expand,
         components=nested_components,
         components_relations=nested_relations,
@@ -505,15 +526,51 @@ def build_unified_analysis_json(
     return unified.model_dump_json(indent=2, exclude_none=True)
 
 
+def expand_analysis_document(data: dict) -> dict:
+    """Return *data* with every field the lean format omits written back out.
+
+    Restores the pre-v2 shape: each ``methods_index`` value regains the two halves of its
+    own key, each file regains its ``method_keys``, and each parent component regains the
+    union of its children's ``file_methods``. Version 1 documents already carry all three
+    and pass through untouched. The result is what ``codeboarding expand`` writes.
+    """
+    expanded = copy.deepcopy(data)
+    methods_index = expanded.get("methods_index") or {}
+
+    for key, entry in methods_index.items():
+        if "file_path" in entry and "qualified_name" in entry:
+            continue
+        file_path, separator, qualified_name = key.partition("|")
+        if not separator:
+            raise ValueError(f"Malformed methods_index key (no '|' separator): {key!r}")
+        entry["file_path"] = file_path
+        entry["qualified_name"] = qualified_name
+
+    keys_by_file: dict[str, list[str]] = {}
+    for key in methods_index:
+        keys_by_file.setdefault(key.partition("|")[0], []).append(key)
+    for file_path, entry in (expanded.get("files") or {}).items():
+        entry.setdefault("method_keys", keys_by_file.get(file_path, []))
+
+    # Only v2 writers drop a parent's members; in v1 an empty list is a real value.
+    if (expanded.get("metadata") or {}).get("format_version", 1) >= 2:
+        _restore_parent_file_methods(expanded.get("components") or [])
+
+    return expanded
+
+
 def parse_unified_analysis(
     data: dict,
 ) -> tuple[AnalysisInsights, dict[str, AnalysisInsights]]:
     """Parse a unified analysis JSON dict into root AnalysisInsights and sub-analyses.
 
+    Accepts both the lean (v2) and fully-spelled-out (v1) document shapes.
+
     Returns:
         (root_analysis, sub_analyses_dict) where sub_analyses_dict maps component_id
         to its nested AnalysisInsights.
     """
+    data = expand_analysis_document(data)
     methods_index_raw = data.get("methods_index", {})
     methods_index: dict[str, MethodIndexEntry] = {
         key: MethodIndexEntry(**entry) for key, entry in methods_index_raw.items()
@@ -532,6 +589,23 @@ def parse_unified_analysis(
         _hydrate_component_methods_from_refs(sub, methods_index)
 
     return root_analysis, sub_analyses
+
+
+def _restore_parent_file_methods(components: list[dict]) -> list[dict]:
+    """Rebuild each parent's ``file_methods`` bottom-up; returns this level's groups merged.
+
+    Groups are emitted in path order so the same document always expands identically.
+    """
+    merged: dict[str, list[str]] = {}
+    for component in components:
+        children = component.get("components") or []
+        groups = _restore_parent_file_methods(children) if children else (component.get("file_methods") or [])
+        if children:
+            component["file_methods"] = groups
+        for group in groups:
+            seen = merged.setdefault(group["file_path"], [])
+            seen.extend(m for m in group.get("methods", []) if m not in seen)
+    return [{"file_path": path, "methods": methods} for path, methods in sorted(merged.items())]
 
 
 def _reconstruct_files_index(
