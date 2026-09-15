@@ -14,7 +14,7 @@ from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
-from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult
+from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
@@ -49,7 +49,7 @@ class CallGraphBuilder:
         self,
         source_files: list[Path],
         skip_hierarchy: bool = False,
-        known_callable_names: Collection[str] = frozenset(),
+        known_declarations: Collection[SymbolInfo] = (),
     ) -> LanguageAnalysisResult:
         """Run the full analysis pipeline and return results.
 
@@ -58,12 +58,13 @@ class CallGraphBuilder:
             skip_hierarchy: If True, skip Phase 3 (class hierarchy). Default False:
                 the hierarchy now feeds INHERITS reference edges that complete the
                 graph for clustering (see ``EdgeKind``).
-            known_callable_names: Callable names declared in files this build does not read,
-                so a member read of one is still probed.
+            known_declarations: Declarations of files this build does not read, resolvable
+                but never output, so a call into one resolves as a full build resolves it.
         """
         t_pipeline = time.monotonic()
 
         self._discover_symbols(source_files)
+        self._symbol_table.register_known(known_declarations)
         t_symbols_done = time.monotonic()
         logger.info("Phase 1 total (discover symbols): %.1fs", t_symbols_done - t_pipeline)
 
@@ -71,12 +72,7 @@ class CallGraphBuilder:
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
-        ctx = EdgeBuildContext(
-            self._lsp,
-            self._symbol_table,
-            self._source_inspector,
-            known_callable_names=frozenset(known_callable_names),
-        )
+        ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
         edge_set = build_edges_via_definitions(self._adapter, ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
         t_edges_done = time.monotonic()

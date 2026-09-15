@@ -54,7 +54,11 @@ def convert_to_codeboarding_format(
 
     # Build Node objects from the engine's symbol table
     symbol_nodes: dict[str, Node] = {}
+    known = {sym.qualified_name for sym in symbol_table.known}
     for qname, sym in symbol_table.symbols.items():
+        # A declaration known only from the cache is output only as an edge's endpoint; the cache keeps its node.
+        if qname in known and qname not in edge_participants:
+            continue
         node_type = _map_symbol_kind(sym.kind)
         # Include symbols that are graph node types OR that participate in edges
         if node_type not in GRAPH_NODE_TYPES and qname not in edge_participants:
@@ -111,7 +115,7 @@ def convert_to_codeboarding_format(
         language,
     )
 
-    _add_reference_edges(call_graph, result)
+    _add_reference_edges(call_graph, result, known)
 
     logger.info(
         "Reference edges for %s: %d (%s)",
@@ -165,7 +169,7 @@ def convert_to_codeboarding_format(
     }
 
 
-def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult) -> None:
+def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult, known: set[str]) -> None:
     """Complete the graph with non-call relationship edges (see ``EdgeKind``).
 
     CONTAINS and INHERITS need no extra LSP work — they come from the qualified-name
@@ -176,7 +180,7 @@ def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult) 
 
     # CONTAINS: each method / nested symbol -> its innermost enclosing class node.
     for qname in call_graph.nodes:
-        if qname in class_qnames:
+        if qname in class_qnames or qname in known:
             continue
         parts = qname.split(".")
         for i in range(len(parts) - 1, 0, -1):
