@@ -224,7 +224,7 @@ class CallGraphBuilder:
         """Phase 0: open every file, then block until the server has drained them.
 
         Why the trailing probe: didOpen queues work proportional to the file count,
-        so the next request pays for it — on the scaled timeout, wherever it lands.
+        so the next request pays for it, on the scaled timeout wherever it lands.
         """
         total = len(source_files)
         t_open_start = time.monotonic()
@@ -237,7 +237,7 @@ class CallGraphBuilder:
             time.sleep(0.1)
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
-        return self._send_sync_probe(source_files, probe_timeout, label="overlay processing")
+        return self._send_sync_probe(source_files, probe_timeout, label="didOpen drain")
 
     def _send_sync_probe(self, source_files: list[Path], probe_timeout: int, label: str = "indexing") -> list[dict]:
         """Send a documentSymbol probe to wait for the LSP server to finish ``label``."""
