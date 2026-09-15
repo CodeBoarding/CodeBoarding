@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-15T21:33:31.948758+00:00",
-  "overall_score": 0.8678899082568807,
+  "timestamp": "2026-09-15T22:09:29.079633+00:00",
+  "overall_score": 0.8679706601466992,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1419,
+      "total_entities_checked": 1420,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -758,27 +758,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"per_engine_memory_budget\" is not accessed",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 21,
-              "line_end": 21,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 296,
-              "line_end": 296,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"language\" is not accessed",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 740,
-              "line_end": 740,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"Node\" is not accessed",
               "file_path": "static_analyzer/analysis_cache.py",
               "line_start": 37,
@@ -951,6 +930,27 @@
               "file_path": "static_analyzer/incremental_orchestrator.py",
               "line_start": 142,
               "line_end": 142,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"per_engine_memory_budget\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 21,
+              "line_end": 21,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 320,
+              "line_end": 320,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"language\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 764,
+              "line_end": 764,
               "metric_value": 0.0
             }
           ]
@@ -1500,17 +1500,17 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"per_engine_memory_budget\" is not accessed",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 21,
-              "line_end": 21,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_import] Import \"Node\" is not accessed",
               "file_path": "static_analyzer/analysis_cache.py",
               "line_start": 37,
               "line_end": 37,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"per_engine_memory_budget\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 21,
+              "line_end": 21,
               "metric_value": 0.0
             }
           ]
