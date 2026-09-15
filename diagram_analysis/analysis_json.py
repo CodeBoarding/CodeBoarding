@@ -16,6 +16,7 @@ from agents.agent_responses import (
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry, MethodIndexEntry
 from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
+from static_analyzer.cfg.edge import EdgeKind
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,10 @@ class RelationEdgeJson(BaseModel):
     target: str = Field(description="Key into methods_index for the target method.")
     call_sites: list[RelationCallSite] = Field(default_factory=list)
     description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
+    kind: EdgeKind | None = Field(
+        default=None,
+        description="The static edge behind this one when it is not a call; absent for a call.",
+    )
 
 
 class RelationJson(Relation):
@@ -40,6 +45,10 @@ class RelationJson(Relation):
     all_edges: list[RelationEdgeJson] = Field(
         default_factory=list,
         description="All known source-to-target edges for this relation.",
+    )
+    default_label: bool | None = Field(
+        default=None,
+        description="True when the label is the static edges' own verb and that verb is not `calls`; absent otherwise.",
     )
 
 
@@ -212,7 +221,25 @@ def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path) -> RelationEdgeJs
         target=_source_reference_method_key(edge.target, repo_dir),
         call_sites=edge.call_sites,
         description=edge.description,
+        kind=None if edge.kind is EdgeKind.CALL else edge.kind,
     )
+
+
+def _default_label_to_json(relation: Relation) -> bool | None:
+    """The flag as stored: only where the wording alone could not tell a reader.
+
+    A ``calls`` relation is read as the default with or without the flag, so writing it there
+    would change every document for nothing; a default verb such as ``routes to`` must be
+    marked, or a later run would carry it as if someone had written it.
+    """
+    if relation.has_default_label and relation.relation != EdgeKind.CALL.relation_label:
+        return True
+    return None
+
+
+def _read_default_label(row: dict) -> bool | None:
+    stored = row.get("default_label")
+    return None if stored is None else bool(stored)
 
 
 def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list[ComponentFileMethodGroupJson]:
@@ -316,6 +343,7 @@ def _relation_to_json(r: Relation, repo_dir: Path) -> RelationJson:
         dst_id=r.dst_id,
         is_static=r.is_static,
         all_edges=[_relation_edge_to_json(edge, repo_dir) for edge in r.all_edges],
+        default_label=_default_label_to_json(r),
     )
 
 
@@ -399,7 +427,7 @@ def from_analysis_to_json(
         "files": {fp: entry.model_dump() for fp, entry in files_json.items()},
         "methods_index": {k: v.model_dump() for k, v in methods_index.items()},
         "components": [c.model_dump(exclude_none=True) for c in components_json],
-        "components_relations": [r.model_dump() for r in relations_json],
+        "components_relations": [r.model_dump(exclude_none=True) for r in relations_json],
     }
 
     return json.dumps(data, indent=2)
@@ -658,6 +686,7 @@ def _extract_analysis_recursive(
                 dst_id=r.get("dst_id", ""),
                 is_static=r.get("is_static", False),
                 all_edges=all_edges,
+                default_label=_read_default_label(r),
             )
         )
 
