@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass, field
 
 from static_analyzer.wiring.images import ImageBuild, image_ref
-from static_analyzer.wiring.scan import FileKind, Scan, parent_dir, repo_path
+from static_analyzer.wiring.scan import FileKind, Scan, listing, mapping, parent_dir, repo_path
 from static_analyzer.wiring_results import DiagnosticCode, UnitKind
 
 _ASSEMBLY_NAME = re.compile(r"<AssemblyName>\s*([^<$]+?)\s*</AssemblyName>")
@@ -387,12 +387,12 @@ def _read_npm(scan: Scan, reading: Reading) -> None:
             members |= _workspace_members(scan, parent_dir(path), patterns)
     for path in scan.paths_of(FileKind.PNPM_WORKSPACE):
         for document in scan.documents(path):
-            patterns = [entry for entry in document.get("packages") or [] if isinstance(entry, str)]
+            patterns = [entry for entry in listing(document.get("packages")) if isinstance(entry, str)]
             if patterns:
                 roots.add(parent_dir(path))
                 members |= _workspace_members(scan, parent_dir(path), patterns)
     for path in scan.paths_of(FileKind.LERNA):
-        patterns = [entry for entry in scan.json_object(path).get("packages") or [] if isinstance(entry, str)]
+        patterns = [entry for entry in listing(scan.json_object(path).get("packages")) if isinstance(entry, str)]
         if patterns:
             roots.add(parent_dir(path))
             members |= _workspace_members(scan, parent_dir(path), patterns)
@@ -418,7 +418,7 @@ def _npm_declaration(scan: Scan, path: str) -> Declaration | None:
 def _workspace_patterns(declared: object) -> list[str]:
     if isinstance(declared, dict):
         declared = declared.get("packages")
-    return [entry for entry in declared or [] if isinstance(entry, str)] if isinstance(declared, list) else []
+    return [entry for entry in listing(declared) if isinstance(entry, str)]
 
 
 def _workspace_members(scan: Scan, base: str, patterns: list[str]) -> set[str]:
@@ -464,14 +464,16 @@ def _read_python(scan: Scan, reading: Reading) -> None:
         declaration = _python_declaration(scan, path)
         if declaration is not None:
             reading.declarations.append(declaration)
+    declared = {parent_dir(path) for path in scan.paths_of(FileKind.PYTHON_PROJECT)}
     for path in scan.paths_of(FileKind.REQUIREMENTS):
         directory = parent_dir(path)
-        has_project = any(
-            scan.files.get(f"{directory}/{name}" if directory else name, None) is not None
-            and scan.files[f"{directory}/{name}" if directory else name].kind is FileKind.PYTHON_PROJECT
-            for name in scan.names_in(directory)
-        )
-        if not has_project and any(name.endswith(".py") for name in scan.names_in(directory)):
+        if directory in declared:
+            continue
+        # A requirements file is a unit's when code sits anywhere below it (a `src/` layout) or a
+        # Dockerfile beside it installs it; one at the root of a docs tree declares nothing.
+        beside = {scan.files[f"{directory}/{n}" if directory else n].kind for n in scan.names_in(directory)
+                  if (f"{directory}/{n}" if directory else n) in scan.files}  # fmt: skip
+        if FileKind.DOCKERFILE in beside or any(path.endswith(".py") for path in scan.paths_below(directory)):
             reading.declarations.append(Declaration(directory=directory, kind=UnitKind.PYTHON, manifest=path))
 
 
@@ -488,9 +490,8 @@ def _python_declaration(scan: Scan, path: str) -> Declaration | None:
             aliases=_names([found.group(1) if found else ""]),
         )
     data = _toml(scan, path)
-    tools = data.get("tool")
-    tables = [data.get("project"), tools.get("poetry") if isinstance(tools, dict) else None]
-    declared = [table["name"] for table in tables if isinstance(table, dict) and isinstance(table.get("name"), str)]
+    tables = [mapping(data.get("project")), mapping(mapping(data.get("tool")).get("poetry"))]
+    declared = [table["name"] for table in tables if isinstance(table.get("name"), str)]
     if not declared:
         return None
     name = declared[0]

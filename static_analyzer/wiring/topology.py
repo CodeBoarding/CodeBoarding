@@ -13,9 +13,16 @@ import re
 from typing import Any
 
 from static_analyzer.wiring.compose import ComposeProject, ComposeService
-from static_analyzer.wiring.images import ImageBuild, ImageIndex, build_directory, image_ref, read_dockerfile
+from static_analyzer.wiring.images import (
+    Dockerfile,
+    ImageBuild,
+    ImageIndex,
+    build_directory,
+    image_ref,
+    read_dockerfile,
+)
 from static_analyzer.wiring.manifests import Declaration, Reading, project_references
-from static_analyzer.wiring.scan import FileKind, Scan, parent_dir, repo_path
+from static_analyzer.wiring.scan import FileKind, Scan, listing, mapping, parent_dir, repo_path
 from static_analyzer.wiring_results import DiagnosticCode, UnitKind
 
 #: The Aspire hosting calls that name a directory of this repository, and the argument that holds it.
@@ -25,7 +32,8 @@ _ADD_APP = re.compile(
     r"Add(?:NpmApp|ViteApp|NodeApp|PythonApp|PythonModule|UvicornApp|JavaApp|GolangApp|Dockerfile)"
     r"\s*\(\s*\"([^\"]+)\"\s*,\s*\"([^\"]+)\""
 )
-_ASPIRE_HOST = ("Aspire.AppHost.Sdk", "Aspire.Hosting.AppHost", "<IsAspireHost>true")
+#: What a project says when it is an Aspire AppHost rather than an ordinary .NET project.
+ASPIRE_HOST = ("Aspire.AppHost.Sdk", "Aspire.Hosting.AppHost", "<IsAspireHost>true")
 _WORKLOADS = ("Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Job", "CronJob", "Pod")
 
 #: `${{ ... }}`, and the actions whose inputs say what image a workflow builds.
@@ -57,14 +65,23 @@ def compose_builds(scan: Scan, projects: list[ComposeProject]) -> list[ImageBuil
 
 
 def builds_source(scan: Scan, service: ComposeService) -> bool:
-    """Whether a service's build brings any file of this repository into the image.
+    """Whether a service's build brings code of this repository into the image.
 
-    A Dockerfile that is not here builds nothing here (a template's, a stale path), and one that
-    copies nothing from its context is a toolchain or dev-container image (§6).
+    A Dockerfile that is not here builds nothing here (a template's, a stale path); one that copies
+    nothing from its context is a toolchain or dev-container image, and one that copies only
+    configuration customises the image it starts from (§6).
     """
-    if not service.dockerfile or not scan.has_file(service.dockerfile):
+    if not service.dockerfile or not scan.on_disk(service.dockerfile):
         return False
-    return read_dockerfile(scan, service.dockerfile).copies_context
+    return read_dockerfile(scan, service.dockerfile, service.context).copies_source
+
+
+def configures_image(scan: Scan, service: ComposeService) -> Dockerfile | None:
+    """The Dockerfile a service builds when it copies configuration and no code onto a stock image (§6)."""
+    if not service.dockerfile or not scan.on_disk(service.dockerfile):
+        return None
+    read = read_dockerfile(scan, service.dockerfile, service.context)
+    return read if read.copies_context and not read.copies_source else None
 
 
 def compose_units(scan: Scan, projects: list[ComposeProject], index: ImageIndex, repo_name: str) -> Reading:
@@ -73,6 +90,18 @@ def compose_units(scan: Scan, projects: list[ComposeProject], index: ImageIndex,
     for project in projects:
         declared = 0
         for service in project.services:
+            configured = configures_image(scan, service)
+            if configured is not None:
+                # A Prometheus with its scrape list, a Grafana with its dashboards: the image it
+                # starts from is what runs, and the directory holds its settings, not a unit's code.
+                declared += 1
+                scan.diagnose(
+                    DiagnosticCode.CONFIGURED_IMAGE,
+                    f"{configured.path} configures {configured.base_image or 'an image'} "
+                    "and builds no code of this repository",
+                    configured.path,
+                )
+                continue
             directory = _service_directory(scan, service, index, repo_name)
             if directory is None:
                 continue
@@ -129,22 +158,6 @@ def skaffold_units(scan: Scan, index: ImageIndex) -> Reading:
     return reading
 
 
-def _skaffold_artifacts(scan: Scan) -> list[tuple[str, dict, str | None]]:
-    """Each artifact with the directory it builds, or None when that directory is not here."""
-    found = []
-    for path in scan.paths_of(FileKind.SKAFFOLD):
-        for document in scan.documents(path):
-            for artifact in _artifacts(document):
-                context = repo_path(parent_dir(path), str(artifact.get("context") or "."))
-                found.append((path, artifact, _artifact_directory(scan, artifact, context)))
-    return found
-
-
-def _image_alias(index: ImageIndex, repository: str) -> str:
-    """An image name is a unit's own name only when one directory here builds it (§6 rule 1)."""
-    return repository if repository and index.sole_builder(repository) else ""
-
-
 def kubernetes(scan: Scan, index: ImageIndex, repo_name: str) -> Reading:
     """Kubernetes workloads running an image of this repository, named by workload and Service."""
     workloads: list[tuple[str, dict, list, str]] = []
@@ -155,20 +168,17 @@ def kubernetes(scan: Scan, index: ImageIndex, repo_name: str) -> Reading:
             continue
         for document in scan.documents(path):
             kind = document.get("kind")
-            declared, described = document.get("metadata"), document.get("spec")
-            metadata: dict = declared if isinstance(declared, dict) else {}
-            specification: dict = described if isinstance(described, dict) else {}
+            metadata, specification = mapping(document.get("metadata")), mapping(document.get("spec"))
             name = metadata.get("name")
             if not isinstance(name, str) or not specification:
                 continue
             if kind in _WORKLOADS:
-                template = _pod_template(kind, specification, metadata)
-                labels = (template.get("metadata") or {}).get("labels") or {}
-                containers = (template.get("spec") or {}).get("containers") or []
-                workloads.append((name, labels if isinstance(labels, dict) else {}, containers, path))
+                template = pod_template(kind, specification, metadata)
+                labels = mapping(mapping(template.get("metadata")).get("labels"))
+                containers = listing(mapping(template.get("spec")).get("containers"))
+                workloads.append((name, labels, containers, path))
             elif kind == "Service":
-                selector = specification.get("selector")
-                services.append((name, selector if isinstance(selector, dict) else {}))
+                services.append((name, mapping(specification.get("selector"))))
 
     reading = Reading()
     for name, labels, containers, path in workloads:
@@ -191,6 +201,16 @@ def kubernetes(scan: Scan, index: ImageIndex, repo_name: str) -> Reading:
             )
         )
     return reading
+
+
+def pod_template(kind: object, specification: dict, metadata: dict) -> dict:
+    """The pod a workload runs, whichever nesting its kind uses; a bare Pod is its own template."""
+    if kind == "CronJob":
+        specification = mapping(mapping(specification.get("jobTemplate")).get("spec"))
+    template = specification.get("template")
+    if isinstance(template, dict):
+        return template
+    return {"spec": specification, "metadata": metadata} if kind == "Pod" else {}
 
 
 def helm(scan: Scan, index: ImageIndex, repo_name: str) -> Reading:
@@ -220,7 +240,7 @@ def helm(scan: Scan, index: ImageIndex, repo_name: str) -> Reading:
 def aspire(scan: Scan) -> Reading:
     """An Aspire AppHost: every resource it registers names the project or directory behind it."""
     reading = Reading()
-    for host in _apphost_projects(scan):
+    for host in apphost_projects(scan):
         directory = parent_dir(host)
         by_identifier = {
             re.sub(r"[^A-Za-z0-9_]", "_", reference.rsplit("/", 1)[-1].rsplit(".", 1)[0]): parent_dir(reference)
@@ -239,14 +259,18 @@ def aspire(scan: Scan) -> Reading:
     return reading
 
 
+def apphost_projects(scan: Scan) -> list[str]:
+    """The .NET projects that are Aspire AppHosts: manifests written in C#, one per topology."""
+    return [path for path in scan.paths_of(FileKind.DOTNET_PROJECT) if any(m in scan.text(path) for m in ASPIRE_HOST)]
+
+
 def workflow_builds(scan: Scan) -> list[ImageBuild]:
     """The images a CI workflow builds, and the directory each one's Dockerfile sits in."""
     builds: list[ImageBuild] = []
     for path in scan.paths_of(FileKind.WORKFLOW):
         for document in scan.documents(path):
             workflow_env = _strings(document.get("env"))
-            jobs = document.get("jobs") if isinstance(document.get("jobs"), dict) else {}
-            for job in (jobs or {}).values():
+            for job in mapping(document.get("jobs")).values():
                 if not isinstance(job, dict):
                     continue
                 environment = {**workflow_env, **_strings(job.get("env"))}
@@ -258,21 +282,21 @@ def workflow_builds(scan: Scan) -> list[ImageBuild]:
 def _job_builds(
     scan: Scan, path: str, job: dict, matrix: dict[str, str], environment: dict[str, str]
 ) -> list[ImageBuild]:
-    steps = [step for step in job.get("steps") or [] if isinstance(step, dict)]
+    steps = [step for step in listing(job.get("steps")) if isinstance(step, dict)]
     metadata_images = [
         image
         for step in steps
         if _METADATA_ACTION in str(step.get("uses") or "")
-        for image in _lines(_expand(str((step.get("with") or {}).get("images") or ""), matrix, environment))
+        for image in _lines(_expand(str(mapping(step.get("with")).get("images") or ""), matrix, environment))
     ]
     builds = []
     for step in steps:
         uses = str(step.get("uses") or "")
-        inputs = step.get("with") if isinstance(step.get("with"), dict) else {}
+        inputs = mapping(step.get("with"))
         if any(action in uses for action in _BUILD_ACTIONS):
-            images = _step_images(inputs or {}, matrix, environment) or metadata_images
-            context = _workflow_context(_expand(str((inputs or {}).get("context") or ""), matrix, environment))
-            dockerfile = repo_path(context, _expand(str((inputs or {}).get("file") or ""), matrix, environment))
+            images = _step_images(inputs, matrix, environment) or metadata_images
+            context = _workflow_context(_expand(str(inputs.get("context") or ""), matrix, environment))
+            dockerfile = repo_path(context, _expand(str(inputs.get("file") or ""), matrix, environment))
             builds += _image_builds(scan, path, images, context, dockerfile)
             continue
         for arguments in _DOCKER_BUILD.findall(_expand(str(step.get("run") or ""), matrix, environment)):
@@ -285,7 +309,7 @@ def _job_builds(
 
 
 def _image_builds(scan: Scan, path: str, images: list[str], context: str, dockerfile: str) -> list[ImageBuild]:
-    if dockerfile and not scan.has_file(dockerfile):
+    if dockerfile and not scan.on_disk(dockerfile):
         return []
     directory = build_directory(scan, context, dockerfile)
     if not scan.has_dir(directory):
@@ -300,8 +324,8 @@ def _image_builds(scan: Scan, path: str, images: list[str], context: str, docker
 
 def _step_images(inputs: dict, matrix: dict[str, str], environment: dict[str, str]) -> list[str]:
     """The images a build step names, in `tags` or in the `name=` of a buildx output."""
-    images = _lines(_expand(str((inputs or {}).get("tags") or ""), matrix, environment))
-    outputs = _expand(str((inputs or {}).get("outputs") or ""), matrix, environment)
+    images = _lines(_expand(str(inputs.get("tags") or ""), matrix, environment))
+    outputs = _expand(str(inputs.get("outputs") or ""), matrix, environment)
     for part in re.split(r"[,\n]", outputs):
         key, separator, value = part.strip().partition("=")
         if separator and key.strip() == "name" and value:
@@ -311,10 +335,8 @@ def _step_images(inputs: dict, matrix: dict[str, str], environment: dict[str, st
 
 def _matrix_rows(job: dict) -> list[dict[str, str]]:
     """One row per `matrix.include` entry, so a matrix build reads as the builds it expands into."""
-    strategy = job.get("strategy") if isinstance(job.get("strategy"), dict) else {}
-    matrix = (strategy or {}).get("matrix") if isinstance(strategy, dict) else {}
-    included = (matrix or {}).get("include") if isinstance(matrix, dict) else None
-    rows = [_strings(entry) for entry in included or [] if isinstance(entry, dict)]
+    included = listing(mapping(mapping(job.get("strategy")).get("matrix")).get("include"))
+    rows = [_strings(entry) for entry in included if isinstance(entry, dict)]
     return rows or [{}]
 
 
@@ -351,6 +373,22 @@ def _workflow_context(value: str) -> str:
     return repo_path("", cleaned or ".")
 
 
+def _skaffold_artifacts(scan: Scan) -> list[tuple[str, dict, str | None]]:
+    """Each artifact with the directory it builds, or None when that directory is not here."""
+    found = []
+    for path in scan.paths_of(FileKind.SKAFFOLD):
+        for document in scan.documents(path):
+            for artifact in _artifacts(document):
+                context = repo_path(parent_dir(path), str(artifact.get("context") or "."))
+                found.append((path, artifact, _artifact_directory(scan, artifact, context)))
+    return found
+
+
+def _image_alias(index: ImageIndex, repository: str) -> str:
+    """An image name is a unit's own name only when one directory here builds it (§6 rule 1)."""
+    return repository if repository and index.sole_builder(repository) else ""
+
+
 def _service_directory(scan: Scan, service: ComposeService, index: ImageIndex, repo_name: str) -> str | None:
     if service.context or service.dockerfile:
         directory = build_directory(scan, service.context, service.dockerfile)
@@ -367,33 +405,20 @@ def _image_directory(image: str, index: ImageIndex, repo_name: str) -> str | Non
 
 
 def _artifact_directory(scan: Scan, artifact: dict, context: str) -> str | None:
-    jib = artifact.get("jib") if isinstance(artifact.get("jib"), dict) else {}
-    project = str((jib or {}).get("project") or "")
+    project = str(mapping(artifact.get("jib")).get("project") or "")
     if project:
         target = repo_path(context, project)
         return target if target and scan.has_dir(target) else None
-    docker = artifact.get("docker") if isinstance(artifact.get("docker"), dict) else {}
-    dockerfile = repo_path(context, str((docker or {}).get("dockerfile") or ""))
+    dockerfile = repo_path(context, str(mapping(artifact.get("docker")).get("dockerfile") or ""))
     directory = build_directory(scan, context, dockerfile)
     return directory if scan.has_dir(directory) else None
 
 
 def _artifacts(document: dict) -> list[dict]:
-    build = document.get("build") if isinstance(document.get("build"), dict) else {}
-    artifacts = list((build or {}).get("artifacts") or [])
-    for profile in document.get("profiles") or []:
-        inner = (profile or {}).get("build") if isinstance(profile, dict) else {}
-        artifacts += list((inner or {}).get("artifacts") or [])
+    artifacts = list(listing(mapping(document.get("build")).get("artifacts")))
+    for profile in listing(document.get("profiles")):
+        artifacts += list(listing(mapping(mapping(profile).get("build")).get("artifacts")))
     return [artifact for artifact in artifacts if isinstance(artifact, dict) and artifact.get("image")]
-
-
-def _pod_template(kind: object, specification: dict, metadata: dict) -> dict:
-    if kind == "CronJob":
-        specification = ((specification.get("jobTemplate") or {}).get("spec")) or {}
-    template = specification.get("template")
-    if isinstance(template, dict):
-        return template
-    return {"spec": specification, "metadata": metadata} if kind == "Pod" else {}
 
 
 def _selects(selector: dict, labels: dict) -> bool:
@@ -420,14 +445,6 @@ def _values_images(document: dict) -> list[str]:
     return images
 
 
-def _apphost_projects(scan: Scan) -> list[str]:
-    return [
-        path
-        for path in scan.paths_of(FileKind.DOTNET_PROJECT)
-        if any(marker in scan.text(path) for marker in _ASPIRE_HOST)
-    ]
-
-
 def _sources_under(scan: Scan, directory: str, suffix: str) -> list[str]:
     prefix = f"{directory}/" if directory else ""
     return sorted(
@@ -443,10 +460,12 @@ def _aspire_unit(directory: str, name: str, source: str) -> Declaration:
     return Declaration(directory=directory, kind=UnitKind.ASPIRE, aliases=_names([name]), builds=(source,))
 
 
-def _strings(mapping: object) -> dict[str, str]:
-    if not isinstance(mapping, dict):
-        return {}
-    return {str(key): str(value) for key, value in mapping.items() if isinstance(value, (str, int, float))}
+def _strings(mapping_node: object) -> dict[str, str]:
+    return {
+        str(key): str(value)
+        for key, value in mapping(mapping_node).items()
+        if isinstance(value, (str, int, float)) and not isinstance(value, bool)
+    }
 
 
 def _lines(text: str) -> list[str]:

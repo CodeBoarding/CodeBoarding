@@ -19,7 +19,15 @@ the arrows and the resource nodes the maintainers' own pictures draw. Three rule
 - **No model call anywhere.** A verb comes from an edge's kind, a node's name from what the
   repository declares.
 - **Deterministic.** Two runs over one tree produce identical edge sets, on macOS and in the
-  action's Linux container, with no toolchain installed.
+  action's Linux container, with no toolchain installed, and in two processes with different hash
+  seeds: every list the pass writes is sorted on a complete key, and a test runs the pass under
+  `PYTHONHASHSEED=1` and `=7` and diffs the dumps.
+- **It can never break an analysis.** `StaticAnalyzer.analyze` runs it through `run_or_report`:
+  whatever it raises becomes one logged `unreadable_manifest` diagnostic and an empty result. Inside,
+  a manifest is read through `mapping()` and `listing()` — a scalar where a mapping was expected, a
+  `services:` written as a list, a service with no name — so a mistake in a file is a row, never a
+  crash. The repository's own name comes from its git remote (`owner/name`), never from the
+  checkout directory, which is whatever the machine called it.
 - **Wiring edges never move a box.** They draw arrows and pick verbs. The partition is decided by
   the structure the clustering already reads. (Measured: with shared-contract references allowed
   to move files, eShop's Payment service folded into the bus.)
@@ -63,11 +71,19 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
 - **What it will not read:** `node_modules`, `vendor`, build output (`bin`, `obj`, `dist`, `out`,
   `target`), every hidden directory but `.github/workflows`, a test directory, a file named as a
   test, and a project template (a tree holding `.template.config`, `cookiecutter.json`, or a `{{ }}`
-  in a path). `.gitignore` decides what is in the tree at all, so a developer's untracked `.env`
-  cannot make a local run disagree with the same commit in CI. `.codeboardingignore` excludes the
-  directories its user excluded; its file patterns do not hide a manifest the allowlist names,
-  which is how the pass reads the dotfiles and `*.config.*` files the template ignores. Each of
-  these is a diagnostic row — one per excluded place, not one per file.
+  in a path). A test directory is one named as such (`test`, `tests`, `__tests__`, `spec`, `e2e`,
+  `testdata`, `fixtures`, `mocks`, `testing`) or named for what it tests with a plural suffix in
+  either spelling (`ui-tests`, `Basket.FunctionalTests`, `Acme.Tests`); a singular suffix is a name
+  (`ABTest`, `plugin-chart-paired-t-test`), because losing a unit costs a box while keeping one
+  costs an entry nothing joins. `.gitignore` decides what is in the tree at all, applied to
+  directories during the walk and to files, so a developer's untracked `.env` cannot make a local
+  run disagree with the same commit in CI. `.codeboardingignore` excludes the directories its user
+  excluded; its file patterns do not hide a manifest the allowlist names, which is how the pass
+  reads the dotfiles and `*.config.*` files the template ignores. Each of these is a diagnostic
+  row — one per excluded place, not one per file — and so is every other directory the walk leaves
+  out, except the repository's own `.git`. A Dockerfile a manifest names by path is resolved on the
+  filesystem even under a directory the walk left out (`build/package/Dockerfile`, the Go standard
+  layout), because a build that names a file means that file.
 - **Cost:** the pass stays under 5 % of the static phase of the same repository, and that is the
   whole acceptance rule. The P0 probes take 0.1–8 s; those timings say how fast the readers are,
   not what the pass may spend.
@@ -169,7 +185,8 @@ Two more, from the P0 ceilings:
 
 **What declares a unit.** A build manifest declares the directory it sits in, except where it
 builds nothing itself: a Maven aggregator (`packaging=pom`), a Cargo workspace root, a
-`package.json` with no name. An npm package is a unit when a workspace lists it or it is the
+`package.json` with no name. A `requirements.txt` declares its directory when a `.py` sits anywhere
+below it or a Dockerfile beside it installs it; one at the root of a docs tree declares nothing. An npm package is a unit when a workspace lists it or it is the
 repository's own root package, and a workspace glob is a glob — a package nested inside a member is
 not itself a member. A deployment file declares the directory it builds, which is the Dockerfile's
 own directory whenever the Dockerfile sits inside the build context: a context is what is sent to
@@ -178,7 +195,10 @@ the daemon and is often the whole tree, while the Dockerfile sits with the thing
 **What declares nothing.** A build whose Dockerfile or context is not in the repository — a
 template's, a stale path. A build whose Dockerfile copies nothing from its context: it brings no
 file of this repository into the image, so it is a toolchain or dev-container image rather than the
-product. A compose project in which no service is built from the repository and none runs an image
+product (a `RUN --mount=type=bind` without `from=` reads the context and counts as copying it). A
+build whose Dockerfile copies only configuration — a Prometheus with its scrape list, a Grafana
+with its dashboards — customises the image it starts `FROM` and builds no code: it is reported as
+`configured_image`, and it is a resource of that image's kind rather than a unit (§7). A compose project in which no service is built from the repository and none runs an image
 this repository builds — per-test infrastructure, dev containers, CI build images — which is
 ignored with `ignored_manifest` and its reason. A deployment file naming the repository root, unless
 a manifest there builds it: otherwise a CI image that mounts the tree reads as the product. Test
@@ -249,7 +269,7 @@ diffs; today its method-level differ drops an edge whose end is not a file.
             "manifest": "<repo-relative path>", "aliases": ["<name>", "..."],
             "builds": ["<repo-relative path of a Dockerfile, manifest or deployment file that builds it>"],
             "variant": ["<a compose profile it only runs under>"]}],
- "diagnostics": [{"code": "ambiguous_alias|ambiguous_image|ignored_manifest|unit_without_manifest|unreadable_manifest|unresolved_image",
+ "diagnostics": [{"code": "ambiguous_alias|ambiguous_image|configured_image|ignored_manifest|unit_without_manifest|unreadable_manifest|unresolved_image",
                   "message": "...", "paths": ["..."]}]}
 ```
 

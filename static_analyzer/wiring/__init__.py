@@ -2,8 +2,9 @@
 
 `docs/design/wiring.md` is the contract. The pass runs at the end of `StaticAnalyzer.analyze`, after
 the per-engine results are merged, because its edges cross engines: a compose file wires a Python
-service to a Java one. It calls no model, reads no source — manifests, deployment topology and
-configuration only — and is off unless `CODEBOARDING_WIRING=1`.
+service to a Java one. It calls no model, and at this stage of the stack reads no source — build
+manifests, deployment topology and compose files only — and is off unless `CODEBOARDING_WIRING=1`.
+It can never break an analysis: `run_or_report` turns anything it raises into one diagnostic.
 
 `CODEBOARDING_WIRING_DUMP=<dir>` writes what the evals checks grade before any arrow exists:
 `units.json` and `diagnostics.json` in the schema of §8.
@@ -22,7 +23,7 @@ from pathlib import Path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.wiring.scan import Scan
 from static_analyzer.wiring.units import build_units
-from static_analyzer.wiring_results import Diagnostic, WiringResults
+from static_analyzer.wiring_results import Diagnostic, DiagnosticCode, WiringResults
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +45,14 @@ def dump_dir() -> Path | None:
 
 
 def run(results: StaticAnalysisResults, repo_root: Path, *, dump: Path | None = None) -> WiringResults:
-    """Read what wires this repository together. Deterministic: one tree, one answer, sorted."""
+    """Read what wires this repository together. Deterministic: one tree, one answer, sorted.
+
+    ``results`` is the analysis the pass runs after; later stages of the stack read its graphs to
+    know which units hold analysed code.
+    """
     started = time.monotonic()
     scan = Scan(repo_root)
-    units = build_units(scan, repo_root.name)
+    units = build_units(scan, repository_name(repo_root))
     wiring = WiringResults(units=units, diagnostics=sorted(scan.diagnostics, key=_order))
     logger.info(
         "wiring: %d files read, %d units, %d diagnostics in %.2fs",
@@ -61,6 +66,16 @@ def run(results: StaticAnalysisResults, repo_root: Path, *, dump: Path | None = 
     return wiring
 
 
+def run_or_report(results: StaticAnalysisResults, repo_root: Path, *, dump: Path | None = None) -> WiringResults:
+    """``run``, except that a failure is one diagnostic and an empty result: the pass never breaks an analysis."""
+    try:
+        return run(results, repo_root, dump=dump)
+    except Exception as error:  # noqa: BLE001 - whatever it was, the analysis goes on without wiring
+        logger.exception("wiring: the pass failed and the analysis continues without it")
+        message = f"the wiring pass failed and was skipped: {type(error).__name__}: {error}"
+        return WiringResults(diagnostics=[Diagnostic(code=DiagnosticCode.UNREADABLE_MANIFEST, message=message)])
+
+
 def write_dump(wiring: WiringResults, repo_root: Path, directory: Path) -> None:
     """The debug dumps of §8, keyed by the repository and commit so a grader knows what it reads."""
     directory.mkdir(parents=True, exist_ok=True)
@@ -71,6 +86,15 @@ def write_dump(wiring: WiringResults, repo_root: Path, directory: Path) -> None:
         {**heading, "units": [unit.to_json() for unit in wiring.units], "diagnostics": diagnostics},
     )
     _write(directory / "diagnostics.json", {**heading, "diagnostics": diagnostics})
+
+
+def repository_name(repo_root: Path) -> str:
+    """The repository's own name, from the remote rather than the checkout directory.
+
+    Why: a clone is checked out under whatever name the machine gave it (`wt-3`, `repo-main`),
+    and the image a repository publishes is named after the repository.
+    """
+    return repository_slug(repo_root).rsplit("/", 1)[-1]
 
 
 def repository_slug(repo_root: Path) -> str:

@@ -16,10 +16,11 @@ import re
 from dataclasses import dataclass, replace
 from typing import Any
 
-from static_analyzer.wiring.scan import FileKind, Scan, parent_dir, parse_dotenv, repo_path
+from static_analyzer.wiring.scan import FileKind, Scan, listing, mapping, parent_dir, parse_dotenv, repo_path
+from static_analyzer.wiring_results import DiagnosticCode
 
-#: `$VAR`, `${VAR}`, `${VAR:-default}`, `${VAR-default}`, `${VAR:?error}`, and `$$` for a literal `$`.
-_VARIABLE = re.compile(r"\$(\$)|\$\{([A-Za-z_]\w*)(?::?[-?]([^{}]*))?\}|\$([A-Za-z_]\w*)")
+#: `$VAR`, `${VAR}`, and the specification's six forms of `${VAR<op>word}`; `$$` is a literal `$`.
+_VARIABLE = re.compile(r"\$(\$)|\$\{([A-Za-z_]\w*)(?:(:?[-?+])([^{}]*))?\}|\$([A-Za-z_]\w*)")
 
 #: The files compose itself would read first, in its own order; the rest follow, overrides last.
 _BASE_NAMES = ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml")
@@ -74,16 +75,26 @@ def compose_projects(scan: Scan) -> list[ComposeProject]:
 
 
 def interpolate(value: str, environment: dict[str, str]) -> str:
-    """A compose value with its variables substituted; an unset one with no default stays as written."""
+    """A compose value with its variables substituted, each form as the specification reads it.
+
+    `${VAR:-word}` and `${VAR-word}` fall back to the word; `${VAR:+word}` and `${VAR+word}` are
+    the word only when the variable is set; `${VAR:?err}` and `${VAR?err}` would stop compose, so
+    the text stays as written. An unset variable with no word stays as written too.
+    """
 
     def replace_one(match: re.Match[str]) -> str:
         if match.group(1):
             return "$"
-        name = match.group(2) or match.group(4) or ""
-        default = match.group(3)
-        if name in environment:
+        name = match.group(2) or match.group(5) or ""
+        operator, word = match.group(3) or "", match.group(4) or ""
+        set_enough = name in environment and (environment[name] != "" or not operator.startswith(":"))
+        if operator.endswith("+"):
+            return word if set_enough else ""
+        if set_enough:
             return environment[name]
-        return default if default is not None else match.group(0)
+        if operator.endswith("-"):
+            return word
+        return match.group(0)
 
     # One pass, as compose itself substitutes: a second would read `$$TAG`, an escaped literal,
     # as the variable it deliberately is not.
@@ -116,10 +127,10 @@ def _read_file(
             target = repo_path(parent_dir(path), included)
             if target and scan.has_file(target) and target not in read:
                 _read_file(scan, target, _environment(scan, parent_dir(target)), merged, read)
-        services = document.get("services")
-        if not isinstance(services, dict):
-            continue
-        for name, raw in sorted(services.items()):
+        for name, raw in sorted(mapping(document.get("services")).items(), key=lambda item: str(item[0])):
+            if not isinstance(name, (str, int)) or isinstance(name, bool):
+                scan.diagnose(DiagnosticCode.UNREADABLE_MANIFEST, f"{path} declares a service with no name", path)
+                continue
             if not isinstance(raw, dict):
                 continue
             resolved = _service(scan, str(name), path, _extended(scan, path, raw, environment, set()), environment)
@@ -127,14 +138,12 @@ def _read_file(
 
 
 def _includes(document: dict) -> list[str]:
-    entries = document.get("include")
     paths: list[str] = []
-    for entry in entries if isinstance(entries, list) else []:
+    for entry in listing(document.get("include")):
         if isinstance(entry, str):
             paths.append(entry)
         elif isinstance(entry, dict):
-            target = entry.get("path")
-            paths += [target] if isinstance(target, str) else [p for p in target or [] if isinstance(p, str)]
+            paths += [target for target in listing(entry.get("path")) if isinstance(target, str)]
     return paths
 
 
@@ -152,8 +161,7 @@ def _extended(scan: Scan, path: str, raw: dict, environment: dict[str, str], see
         return raw
     seen.add(key)
     for document in scan.documents(base_path):
-        services = document.get("services")
-        base = (services or {}).get(extends["service"]) if isinstance(services, dict) else None
+        base = mapping(document.get("services")).get(extends["service"])
         if isinstance(base, dict):
             resolved_base = _extended(scan, base_path, base, environment, seen)
             return {**resolved_base, **raw}
@@ -170,7 +178,9 @@ def _service(scan: Scan, name: str, path: str, raw: dict, environment: dict[str,
         named = _text(build.get("dockerfile", ""), environment) if isinstance(build, dict) else ""
         beside = f"{context}/Dockerfile" if context else "Dockerfile"
         dockerfile = repo_path(context, named) if named else (beside if scan.has_file(beside) else "")
-    profiles = tuple(_text(profile, environment) for profile in raw.get("profiles") or [] if isinstance(profile, str))
+    profiles = tuple(
+        _text(profile, environment) for profile in listing(raw.get("profiles")) if isinstance(profile, str)
+    )
     return ComposeService(
         name=name,
         project=directory,
@@ -186,12 +196,9 @@ def _service(scan: Scan, name: str, path: str, raw: dict, environment: dict[str,
 
 
 def _network_aliases(raw: dict, environment: dict[str, str]) -> tuple[str, ...]:
-    networks = raw.get("networks")
-    if not isinstance(networks, dict):
-        return ()
     aliases = []
-    for settings in networks.values():
-        for alias in (settings or {}).get("aliases") or [] if isinstance(settings, dict) else []:
+    for settings in mapping(raw.get("networks")).values():
+        for alias in listing(mapping(settings).get("aliases")):
             if isinstance(alias, str):
                 aliases.append(_text(alias, environment))
     return tuple(dict.fromkeys(aliases))

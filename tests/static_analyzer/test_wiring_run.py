@@ -1,15 +1,20 @@
 """The pass as a whole: the flag, the bucket it fills, the dumps, and the same answer twice."""
 
+import filecmp
 import json
+import os
 import pickle
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
+from static_analyzer import wiring
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.wiring import dump_dir, enabled, head_commit, repository_slug, run, write_dump
-from static_analyzer.wiring_results import WiringResults
+from static_analyzer.wiring import dump_dir, enabled, head_commit, repository_name, repository_slug, run, write_dump
+from static_analyzer.wiring_results import DiagnosticCode, WiringResults
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "wiring"
 
@@ -77,6 +82,47 @@ class TestDump(unittest.TestCase):
             (second / "units.json").read_bytes(),
         )
 
+    def test_two_processes_with_different_hash_seeds_write_the_same_bytes(self) -> None:
+        """Every list the pass writes is sorted on a complete key, or a set's order would leak into the dumps."""
+        dumps = []
+        for seed in ("1", "7"):
+            directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+            script = (
+                "from pathlib import Path\n"
+                "from static_analyzer.analysis_result import StaticAnalysisResults\n"
+                "from static_analyzer.wiring import run, write_dump\n"
+                f"repository = Path({str(FIXTURES / 'test-shapes')!r}).parent / 'compose-own-image'\n"
+                f"write_dump(run(StaticAnalysisResults(), repository), repository, Path({str(directory)!r}))\n"
+            )
+            subprocess.run(
+                [sys.executable, "-c", script],
+                check=True,
+                env={**os.environ, "PYTHONHASHSEED": seed, "PYTHONPATH": str(Path(__file__).resolve().parents[2])},
+                cwd=Path(__file__).resolve().parents[2],
+            )
+            dumps.append(directory)
+        names = sorted(path.name for path in dumps[0].iterdir())
+
+        self.assertTrue(names)
+        same, different, missing = filecmp.cmpfiles(dumps[0], dumps[1], names, shallow=False)
+        self.assertEqual((sorted(same), different, missing), (names, [], []))
+
+
+class TestGuard(unittest.TestCase):
+    def test_a_failing_pass_is_one_row_and_never_a_broken_analysis(self) -> None:
+        with mock.patch.object(wiring, "run", side_effect=KeyError("services")):
+            found = wiring.run_or_report(StaticAnalysisResults(), FIXTURES / "compose-merge")
+
+        self.assertEqual(found.units, [])
+        self.assertEqual([d.code for d in found.diagnostics], [DiagnosticCode.UNREADABLE_MANIFEST])
+        self.assertIn("KeyError", found.diagnostics[0].message)
+
+    def test_a_working_pass_is_passed_through(self) -> None:
+        self.assertEqual(
+            [unit.dir for unit in wiring.run_or_report(StaticAnalysisResults(), FIXTURES / "compose-merge").units],
+            ["api"],
+        )
+
 
 class TestRepositoryMetadata(unittest.TestCase):
     """The dump names the repository and the commit, read from the git directory, never from git."""
@@ -102,6 +148,7 @@ class TestRepositoryMetadata(unittest.TestCase):
         )
 
         self.assertEqual(repository_slug(root), "dotnet/eShop")
+        self.assertEqual(repository_name(root), "eShop")
         self.assertEqual(head_commit(root), "a" * 40)
 
     def test_a_packed_ref_and_an_https_remote(self) -> None:
@@ -119,6 +166,7 @@ class TestRepositoryMetadata(unittest.TestCase):
 
         self.assertEqual(head_commit(root), "c" * 40)
         self.assertEqual(repository_slug(root), root.name)
+        self.assertEqual(repository_name(root), root.name)
 
 
 if __name__ == "__main__":

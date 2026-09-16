@@ -7,6 +7,8 @@ from static_analyzer.wiring.scan import (
     MAX_BYTES,
     Scan,
     classify,
+    listing,
+    mapping,
     parse_dotenv,
     repo_path,
 )
@@ -125,6 +127,56 @@ class TestWalk(unittest.TestCase):
             [".github/workflows/tests.yaml", "docs/spec.yaml", "latest/go.mod", "src/package.json"],
         )
 
+    def test_under_dot_github_only_the_workflows_are_walked(self) -> None:
+        """A script beside the workflows is the forge's tooling, and a key it reads is nobody's deployment."""
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        write(root, ".github/workflows/build.yml", "jobs: {}\n")
+        write(root, ".github/scripts/seo.py", "import os\nKEY = os.environ['OPENAI_API_KEY']\n")
+        write(root, "pyproject.toml", "[project]\nname = 'thing'\n")
+
+        scan = Scan(root)
+
+        self.assertFalse(scan.has_dir(".github/scripts"))
+        self.assertIn(
+            (".github/scripts is inside a hidden directory", (".github/scripts",)),
+            [(d.message, d.paths) for d in scan.diagnostics],
+        )
+
+    def test_a_test_directory_is_plural_in_either_spelling_and_a_singular_suffix_is_a_name(self) -> None:
+        """Losing a unit costs a box; keeping one costs an entry nothing joins."""
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        for directory in ("ABTest", "plugin-chart-paired-t-test", "contests", "ui-tests", "Acme.Tests", "E2ETests"):
+            write(root, f"{directory}/package.json", '{"name": "x"}')
+
+        scan = Scan(root)
+
+        self.assertEqual(
+            sorted(scan.files),
+            ["ABTest/package.json", "contests/package.json", "plugin-chart-paired-t-test/package.json"],
+        )
+
+    def test_every_directory_the_walk_leaves_out_is_a_row(self) -> None:
+        """One row per excluded place, so nothing is dropped silently — the repository's `.git` aside."""
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        for directory in ("node_modules", "testing", "fixtures", "mocks", "e2e", "Acme.Tests", ".idea", ".git", "src"):
+            write(root, f"{directory}/package.json", '{"name": "x"}')
+
+        scan = Scan(root)
+
+        self.assertEqual(sorted(scan.files), ["src/package.json"])
+        self.assertEqual(
+            sorted(d.message for d in scan.diagnostics if d.code is DiagnosticCode.IGNORED_MANIFEST),
+            [
+                ".idea is a hidden directory",
+                "Acme.Tests is a test directory",
+                "e2e is a test directory",
+                "fixtures is a test directory",
+                "mocks is a test directory",
+                "node_modules is a dependency or build directory",
+                "testing is a test directory",
+            ],
+        )
+
     def test_a_vendored_client_library_is_not_scanned(self) -> None:
         """LibMan installs client libraries into `wwwroot/lib`, so what lands there is vendored."""
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -151,10 +203,39 @@ class TestWalk(unittest.TestCase):
         self.assertEqual(
             excluded,
             [
-                (".env is excluded by .gitignore (1 file)", (".env",)),
-                ("vendor-ui is excluded by .codeboardingignore (2 files)", ("vendor-ui",)),
+                (".codeboarding is a hidden directory", (".codeboarding",)),
+                (".env is excluded by .gitignore", (".env",)),
+                ("vendor-ui is excluded by .codeboardingignore", ("vendor-ui",)),
             ],
         )
+
+    def test_gitignore_prunes_a_directory_during_the_walk(self) -> None:
+        """One row for the place, not one per file under it, and nothing below it is read."""
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        write(root, ".gitignore", "generated/\n")
+        write(root, "generated/a/package.json", '{"name": "a"}')
+        write(root, "generated/b/package.json", '{"name": "b"}')
+        write(root, "src/package.json", '{"name": "src"}')
+
+        scan = Scan(root)
+
+        self.assertEqual(sorted(scan.files), ["src/package.json"])
+        self.assertEqual(
+            [(d.message, d.paths) for d in scan.diagnostics], [("generated is excluded by .gitignore", ("generated",))]
+        )
+        self.assertFalse(scan.has_dir("generated/a"))
+
+    def test_a_file_named_by_a_manifest_is_found_even_under_a_pruned_directory(self) -> None:
+        """The Go standard layout keeps its Dockerfiles under `build/`, which the walk leaves out."""
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        write(root, "build/package/Dockerfile", "FROM golang:1.23\nCOPY . /src\n")
+        write(root, "go.mod", "module acme/thing\n")
+
+        scan = Scan(root)
+
+        self.assertFalse(scan.has_file("build/package/Dockerfile"))
+        self.assertTrue(scan.on_disk("build/package/Dockerfile"))
+        self.assertFalse(scan.on_disk("build/package/Containerfile"))
 
     def test_a_manifest_over_the_cap_is_reported_rather_than_read(self) -> None:
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -188,6 +269,23 @@ class TestReading(unittest.TestCase):
 
         (document,) = Scan(root).documents("compose.yaml")
         self.assertEqual(document["services"]["api"]["image"], "acme/api")
+
+    def test_a_file_is_parsed_once(self) -> None:
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        write(root, "compose.yaml", "services:\n  api:\n    image: acme/api\n")
+        scan = Scan(root)
+
+        self.assertIs(scan.documents("compose.yaml"), scan.documents("compose.yaml"))
+
+    def test_a_mistake_in_a_manifest_is_read_as_nothing_rather_than_raised(self) -> None:
+        self.assertEqual(mapping("text"), {})
+        self.assertEqual(mapping(None), {})
+        self.assertEqual(mapping({"a": 1}), {"a": 1})
+        self.assertEqual(listing("debug"), ["debug"])
+        self.assertEqual(listing(8080), [8080])
+        self.assertEqual(listing(None), [])
+        self.assertEqual(listing(True), [])
+        self.assertEqual(listing(["a"]), ["a"])
 
 
 if __name__ == "__main__":

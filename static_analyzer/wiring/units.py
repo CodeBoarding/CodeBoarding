@@ -56,6 +56,11 @@ def build_units(scan: Scan, repo_name: str) -> list[Unit]:
     return _table(scan, _built_here(scan, declarations))
 
 
+def alias_key(alias: str) -> str:
+    """A name as a join compares it: `mobile-bff`, `Mobile.BFF` and `mobilebff` are one name."""
+    return _NOT_A_NAME.sub("", alias.lower())
+
+
 def _built_here(scan: Scan, declarations: list[Declaration]) -> list[Declaration]:
     """Drop what only a deployment file says about the repository root.
 
@@ -73,11 +78,6 @@ def _built_here(scan: Scan, declarations: list[Declaration]) -> list[Declaration
             *dropped,
         )
     return rootless
-
-
-def alias_key(alias: str) -> str:
-    """A name as a join compares it: `mobile-bff`, `Mobile.BFF` and `mobilebff` are one name."""
-    return _NOT_A_NAME.sub("", alias.lower())
 
 
 def _table(scan: Scan, declarations: list[Declaration]) -> list[Unit]:

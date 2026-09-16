@@ -714,7 +714,7 @@ class StaticAnalyzer:
                 results = self._update_cached_results(cached_results, cached_sha)
 
         if wiring.enabled():
-            results.wiring = wiring.run(results, self.repository_path, dump=wiring.dump_dir())
+            results.wiring = wiring.run_or_report(results, self.repository_path, dump=wiring.dump_dir())
 
         self._validate_analysis_results(results)
         results.diagnostics = self.collected_diagnostics

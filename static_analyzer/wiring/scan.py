@@ -8,6 +8,7 @@ Two ignore files, two jobs. `.gitignore` decides what is in the tree at all, so 
 untracked `.env` cannot make a local run disagree with the same commit in CI. `.codeboardingignore`
 decides what the user wants analysed, so its directory exclusions hold here too; its file patterns
 (`*.config.*`, `*.test.*`) do not, because they would hide the very files this pass exists to read.
+Every place the walk leaves out is one diagnostic row, so nothing is dropped silently.
 """
 
 from __future__ import annotations
@@ -59,11 +60,10 @@ WORKFLOWS_DIR = ".github/workflows"
 #: A directory whose name says its contents are tests: `src/test` (Maven), `__tests__` (jest).
 TEST_DIR = re.compile(r"(?i)^(?:tests?|__tests__|specs?|e2e|testdata|fixtures?|mocks?|__mocks__|testing)$")
 
-#: A directory named for what it tests: `ui-tests`, `Basket.FunctionalTests`. A separator or a
-#: capital is what keeps `latest` out of it, and the plural is what keeps a real unit whose name
-#: ends in a singular `-test` (`plugin-chart-paired-t-test`) out of it: losing a unit costs a box,
-#: while keeping one costs an entry nothing joins.
-TEST_DIR_SUFFIX = re.compile(r"[._-]tests$|[A-Za-z0-9]*Tests?$")
+#: A directory named for what it tests: `ui-tests`, `Basket.FunctionalTests`, `Acme.Tests`. Plural
+#: only, in both spellings: a singular `-test` or `Test` is a name (`plugin-chart-paired-t-test`,
+#: `ABTest`), and losing a unit costs a box while keeping one costs an entry nothing joins.
+TEST_DIR_SUFFIX = re.compile(r"[._-]tests$|[A-Za-z0-9._-]Tests$")
 
 #: A file named as a test, which anchors nothing (`docs/design/wiring.md` §6).
 TEST_FILE = re.compile(
@@ -159,6 +159,23 @@ def parent_dir(path: str) -> str:
     return os.path.dirname(path)
 
 
+def mapping(node: object) -> dict:
+    """*node* when it is a mapping, else an empty one, so a `.get` chain over hand-written YAML never raises.
+
+    Why: a scalar where a manifest expects a mapping (`spec: {template: metadata}` written as text,
+    a `services:` that is a list) is a mistake in the file, and the pass reports files rather than
+    crashing on them.
+    """
+    return node if isinstance(node, dict) else {}
+
+
+def listing(node: object) -> list:
+    """*node* as the list a manifest meant: a list as is, a scalar as its one entry, nothing otherwise."""
+    if isinstance(node, list):
+        return node
+    return [node] if isinstance(node, (str, int, float)) and not isinstance(node, bool) else []
+
+
 def parse_dotenv(text: str) -> dict[str, str]:
     """A `.env` file as compose reads it: `KEY=value`, `export` allowed, quotes stripped."""
     values: dict[str, str] = {}
@@ -177,6 +194,21 @@ def parse_dotenv(text: str) -> dict[str, str]:
     return values
 
 
+def classify(directory: str, name: str) -> FileKind | None:
+    """What the pass would read this file as, or None when it is not on the allowlist."""
+    if directory == WORKFLOWS_DIR:
+        return FileKind.WORKFLOW if re.fullmatch(r"(?i)[\w.-]+\.ya?ml", name) else None
+    if directory.startswith(".github"):
+        return None
+    lowered = name.lower()
+    if lowered in _BY_NAME:
+        return _BY_NAME[lowered]
+    for pattern, kind in _BY_PATTERN:
+        if pattern.fullmatch(name):
+            return kind
+    return None
+
+
 @dataclass(frozen=True)
 class ScannedFile:
     path: str
@@ -193,9 +225,8 @@ class Scan:
         self.by_dir: dict[str, list[str]] = {}
         self.diagnostics: list[Diagnostic] = []
         self._ignore = RepoIgnoreManager(repo_root)
-        self._ignored_dirs: dict[str, str] = {}
-        self._ignored_scopes: dict[tuple[str, str], int] = {}
         self._text: dict[str, str] = {}
+        self._documents: dict[str, list[dict]] = {}
         self._walk()
 
     def paths_of(self, *kinds: FileKind) -> tuple[str, ...]:
@@ -207,11 +238,29 @@ class Scan:
         """The file names directly inside *directory*, whether the allowlist names them or not."""
         return tuple(self.by_dir.get(directory, ()))
 
+    def paths_below(self, directory: str) -> tuple[str, ...]:
+        """Every file inside *directory* and the directories under it that the walk reached."""
+        prefix = f"{directory}/" if directory else ""
+        return tuple(
+            f"{where}/{name}" if where else name
+            for where, names in sorted(self.by_dir.items())
+            if where == directory or where.startswith(prefix)
+            for name in names
+        )
+
     def has_file(self, path: str) -> bool:
         return os.path.basename(path) in self.by_dir.get(parent_dir(path), ())
 
     def has_dir(self, directory: str) -> bool:
         return directory in self.by_dir
+
+    def on_disk(self, path: str) -> bool:
+        """Whether a file a manifest names by path exists, even under a directory the walk left out.
+
+        Why: the Go standard layout keeps its Dockerfiles under `build/`, and a build that names one
+        explicitly means that file and not whatever the walk skipped past.
+        """
+        return self.has_file(path) or (bool(path) and (self.repo_root / path).is_file())
 
     def text(self, path: str) -> str:
         """The file's text, or an empty string when it is missing, unreadable or over the cap."""
@@ -221,22 +270,26 @@ class Scan:
         return self._text[path]
 
     def documents(self, path: str) -> list[dict]:
-        """Every YAML mapping in the file; empty when it does not parse.
+        """Every YAML mapping in the file; empty when it does not parse. Parsed once per file.
 
         A Go template — a Helm chart's `templates/` — is not YAML and is not reported as broken:
         its braces already say why. A file that merely mentions `{{defaultContext}}`, as a workflow
         does, is ordinary YAML and parses like any other.
         """
+        if path in self._documents:
+            return self._documents[path]
         text = self.text(path)
-        if not text:
-            return []
-        try:
-            loaded = list(yaml.load_all(text, Loader=_Loader))
-        except (yaml.YAMLError, RecursionError) as error:
-            if "{{" not in text:
-                self.diagnose(DiagnosticCode.UNREADABLE_MANIFEST, f"{path} is not YAML: {type(error).__name__}", path)
-            return []
-        return [document for document in loaded if isinstance(document, dict)]
+        loaded: list = []
+        if text:
+            try:
+                loaded = list(yaml.load_all(text, Loader=_Loader))
+            except (yaml.YAMLError, RecursionError) as error:
+                if "{{" not in text:
+                    self.diagnose(
+                        DiagnosticCode.UNREADABLE_MANIFEST, f"{path} is not YAML: {type(error).__name__}", path
+                    )
+        self._documents[path] = [document for document in loaded if isinstance(document, dict)]
+        return self._documents[path]
 
     def json_object(self, path: str) -> dict:
         """The file's top-level JSON object; empty when it does not parse."""
@@ -285,16 +338,42 @@ class Scan:
                 )
                 directories[:] = []
                 continue
-            directories[:] = sorted(name for name in directories if _walkable(relative, name))
+            kept = []
+            for name in sorted(directories):
+                reason = self._pruned(relative, name)
+                if reason is None:
+                    kept.append(name)
+                elif reason:
+                    place = f"{relative}/{name}" if relative else name
+                    self.diagnose(DiagnosticCode.IGNORED_MANIFEST, f"{place} is {reason}", place)
+            directories[:] = kept
             self.by_dir[relative] = sorted(names)
             for name in sorted(names):
                 self._keep(relative, name)
-        for (scope, reason), count in sorted(self._ignored_scopes.items()):
-            self.diagnose(
-                DiagnosticCode.IGNORED_MANIFEST,
-                f"{scope} is excluded by {reason} ({count} {'file' if count == 1 else 'files'})",
-                scope,
-            )
+
+    def _pruned(self, directory: str, name: str) -> str | None:
+        """Why the walk leaves a directory out, empty for the repository's own metadata, None to walk it."""
+        path = f"{directory}/{name}" if directory else name
+        if name in SKIP_DIRS:
+            return "a dependency or build directory"
+        if TEST_DIR.fullmatch(name) or TEST_DIR_SUFFIX.search(name):
+            return "a test directory"
+        if "{{" in name:
+            return "a template path"
+        if name == "lib" and directory.endswith("wwwroot"):
+            return "a vendored client library directory"
+        if name.startswith("."):
+            if (not directory and name == ".github") or (directory == ".github" and name == "workflows"):
+                return None
+            return "" if path == ".git" else "a hidden directory"
+        if directory == ".github" and name != "workflows":
+            # Only the workflows say what a repository builds; a script beside them is the forge's tooling.
+            return "inside a hidden directory"
+        if self._ignore.gitignore_spec.match_file(path + "/"):
+            return "excluded by .gitignore"
+        if self._ignore.codeboardingignore_spec.match_file(path + "/"):
+            return "excluded by .codeboardingignore"
+        return None
 
     def _keep(self, directory: str, name: str) -> None:
         kind = classify(directory, name)
@@ -304,9 +383,8 @@ class Scan:
         if TEST_FILE.search(name):
             self.diagnose(DiagnosticCode.IGNORED_MANIFEST, f"{path} is named as a test", path)
             return
-        scope, reason = self._ignored(path)
-        if reason:
-            self._ignored_scopes[(scope, reason)] = self._ignored_scopes.get((scope, reason), 0) + 1
+        if self._ignore.gitignore_spec.match_file(path):
+            self.diagnose(DiagnosticCode.IGNORED_MANIFEST, f"{path} is excluded by .gitignore", path)
             return
         try:
             size = (self.repo_root / path).stat().st_size
@@ -314,51 +392,9 @@ class Scan:
             return
         self.files[path] = ScannedFile(path=path, kind=kind, size=size)
 
-    def _ignored(self, path: str) -> tuple[str, str]:
-        """What hides *path* from the pass: the place the user excluded, and which file said so."""
-        if self._ignore.gitignore_spec.match_file(path):
-            return path, ".gitignore"
-        excluded = self._excluded_root(parent_dir(path))
-        return (excluded, ".codeboardingignore") if excluded else ("", "")
-
-    def _excluded_root(self, directory: str) -> str:
-        """The highest directory above a file that `.codeboardingignore` excludes; one decision, one row."""
-        if not directory:
-            return ""
-        if directory not in self._ignored_dirs:
-            above = self._excluded_root(parent_dir(directory))
-            matched = self._ignore.codeboardingignore_spec.match_file(directory + "/")
-            self._ignored_dirs[directory] = above or (directory if matched else "")
-        return self._ignored_dirs[directory]
-
     def _relative(self, absolute: str) -> str:
         relative = os.path.relpath(absolute, self.repo_root).replace(os.sep, "/")
         return "" if relative == "." else relative
-
-
-def classify(directory: str, name: str) -> FileKind | None:
-    """What the pass would read this file as, or None when it is not on the allowlist."""
-    if directory == WORKFLOWS_DIR:
-        return FileKind.WORKFLOW if re.fullmatch(r"(?i)[\w.-]+\.ya?ml", name) else None
-    if directory.startswith(".github"):
-        return None
-    lowered = name.lower()
-    if lowered in _BY_NAME:
-        return _BY_NAME[lowered]
-    for pattern, kind in _BY_PATTERN:
-        if pattern.fullmatch(name):
-            return kind
-    return None
-
-
-def _walkable(directory: str, name: str) -> bool:
-    if name in SKIP_DIRS or TEST_DIR.fullmatch(name) or TEST_DIR_SUFFIX.search(name) or "{{" in name:
-        return False
-    if name == "lib" and directory.endswith("wwwroot"):
-        return False
-    if name.startswith("."):
-        return (not directory and name == ".github") or (directory == ".github" and name == "workflows")
-    return True
 
 
 class _Loader(yaml.SafeLoader):

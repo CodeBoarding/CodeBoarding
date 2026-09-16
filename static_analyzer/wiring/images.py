@@ -8,21 +8,39 @@ records the directory it builds from, so a service that only runs `langfuse/lang
 on the directory whose Dockerfile makes it.
 
 A build that copies nothing from its context builds no source of this repository: a toolchain image
-that mounts the tree at run time, a dev container. It is recorded as such rather than dropped, so
-the image it names resolves to nothing instead of falling through to a guess.
+that mounts the tree at run time, a dev container. One that copies only configuration customises
+the image it starts from — a Prometheus with its scrape list, a Grafana with its dashboards — and
+builds no code either. Both are recorded as such rather than dropped, so the image each one names
+resolves to nothing instead of falling through to a guess.
 """
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 
-from static_analyzer.wiring.scan import Scan, parent_dir
+from static_analyzer.wiring.scan import FileKind, Scan, classify, parent_dir, repo_path
 
 #: `COPY --from=build`, `COPY --chown=x` and so on. A source outside the context is not this repository.
 _FLAG = re.compile(r"^--[\w-]+(?:=\S*)?$")
 _CONTINUED = re.compile(r"\\\s*$")
 _DOCKERFILE_NAME = re.compile(r"(?i)^(?:dockerfile|containerfile)|\.(?:dockerfile|containerfile)$")
+#: `RUN --mount=type=bind,source=go.sum,target=go.sum go mod download`: the context, read at build time.
+_BIND_MOUNT = re.compile(r"--mount=([^\s]+)")
+
+#: What a file is when it is not code: settings, dashboards, certificates, scripts that run an image.
+CONFIGURATION_SUFFIXES = frozenset(
+    {".yml", ".yaml", ".json", ".ini", ".conf", ".cfg", ".toml", ".properties", ".env", ".txt", ".xml",
+     ".tmpl", ".template", ".sh", ".sql", ".crt", ".pem", ".key", ".md", ".html", ".css", ".csv"}
+)  # fmt: skip
+
+#: A manifest shares a configuration suffix (`package.json`, `pyproject.toml`) and is code's, not an image's.
+_MANIFEST_KINDS = frozenset(
+    {FileKind.DOTNET_PROJECT, FileKind.MAVEN, FileKind.GRADLE, FileKind.NPM, FileKind.PYTHON_PROJECT,
+     FileKind.REQUIREMENTS, FileKind.GO_MODULE, FileKind.CARGO, FileKind.COMPOSER, FileKind.GEMFILE,
+     FileKind.GEMSPEC, FileKind.MIX}
+)  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -49,8 +67,12 @@ class ImageBuild:
 
 @dataclass(frozen=True)
 class Dockerfile:
+    """What a Dockerfile brings in: anything from its context, and whether any of it is code."""
+
     path: str
     copies_context: bool
+    copies_source: bool = True
+    base_image: str = ""
 
 
 def image_ref(image: str) -> ImageRef:
@@ -71,11 +93,23 @@ def image_ref(image: str) -> ImageRef:
     return ImageRef(repository="/".join(parts).lower(), tag=tag.lower())
 
 
-def read_dockerfile(scan: Scan, path: str) -> Dockerfile:
-    """A Dockerfile, and whether any instruction brings a file of this repository into the image."""
+def read_dockerfile(scan: Scan, path: str, context: str = "") -> Dockerfile:
+    """A Dockerfile: the image it starts from, and what it copies in from *context*.
+
+    `copies_context` is any `COPY`, `ADD` or bind mount of the context; `copies_source` is one that
+    brings something other than configuration — code, a manifest, a whole directory of them.
+    """
     text = scan.text(path)
-    copies = False
+    base = ""
+    copied: list[str] = []
     for instruction, arguments in _instructions(text):
+        if instruction == "FROM" and not base:
+            words = [word for word in arguments.split() if not _FLAG.fullmatch(word)]
+            base = words[0] if words and words[0].lower() != "scratch" else ""
+            continue
+        if instruction == "RUN":
+            copied += _bind_mounts(arguments)
+            continue
         if instruction not in ("COPY", "ADD"):
             continue
         words = [word for word in arguments.split() if not _FLAG.fullmatch(word)]
@@ -83,8 +117,13 @@ def read_dockerfile(scan: Scan, path: str) -> Dockerfile:
         if any(flag.startswith("--from=") for flag in flags):
             continue
         sources = words[:-1] if len(words) > 1 else words
-        copies = copies or any("://" not in source and not source.startswith("git@") for source in sources)
-    return Dockerfile(path=path, copies_context=copies)
+        copied += [source for source in sources if "://" not in source and not source.startswith("git@")]
+    return Dockerfile(
+        path=path,
+        copies_context=bool(copied),
+        copies_source=any(not _configuration_only(scan, context or parent_dir(path), source) for source in copied),
+        base_image=base,
+    )
 
 
 def build_directory(scan: Scan, context: str, dockerfile: str) -> str:
@@ -100,10 +139,6 @@ def build_directory(scan: Scan, context: str, dockerfile: str) -> str:
     if context and not inside.startswith(context + "/"):
         return context
     return inside if _holds_more_than_dockerfiles(scan, inside) else context
-
-
-def _holds_more_than_dockerfiles(scan: Scan, directory: str) -> bool:
-    return any(not _DOCKERFILE_NAME.match(name) for name in scan.names_in(directory))
 
 
 class ImageIndex:
@@ -158,12 +193,50 @@ class ImageIndex:
         """Whether an image nothing here builds is named after this repository.
 
         The last fallback of §6: `apache/superset` in a chart of the superset repository is that
-        repository's own image. It never overrides a build, so a name a builder claims stays with it.
+        repository's own image. The repository's name is the remote's, never the checkout
+        directory's, so a clone named `wt-3` still owns its image. It never overrides a build.
         """
         ref = image_ref(image)
         if not ref.repository or self.build_of(image) is not None:
             return False
         return ref.repository.split("/")[-1] == repo_name.lower()
+
+
+def _holds_more_than_dockerfiles(scan: Scan, directory: str) -> bool:
+    return any(not _DOCKERFILE_NAME.match(name) for name in scan.names_in(directory))
+
+
+def _bind_mounts(arguments: str) -> list[str]:
+    """The context paths a `RUN --mount=type=bind` reads; a mount `from=` another stage is not the context."""
+    found = []
+    for mount in _BIND_MOUNT.findall(arguments):
+        options = dict(part.partition("=")[::2] for part in mount.split(","))
+        if options.get("type", "bind") == "bind" and "from" not in options:
+            found.append(options.get("source") or options.get("src") or ".")
+    return found
+
+
+def _configuration_only(scan: Scan, context: str, source: str) -> bool:
+    """Whether a copied path holds nothing but configuration, judged by what the walk found under it."""
+    cleaned = source.strip("\"'")
+    target = repo_path(context, cleaned) if cleaned not in (".", "./", "/") else context
+    if cleaned in (".", "./", "/") or scan.has_dir(target):
+        # The Dockerfile copies itself along with its directory; that is not what it brings in.
+        paths = [path for path in scan.paths_below(target) if not _DOCKERFILE_NAME.match(os.path.basename(path))]
+    elif scan.has_file(target) or "*" in cleaned:
+        paths = [target]
+    else:
+        return False
+    return bool(paths) and all(_is_configuration(path) for path in paths)
+
+
+def _is_configuration(path: str) -> bool:
+    name = os.path.basename(path)
+    if name == ".dockerignore":
+        return True
+    if os.path.splitext(name)[1].lower() not in CONFIGURATION_SUFFIXES:
+        return False
+    return classify(parent_dir(path), name) not in _MANIFEST_KINDS
 
 
 def _instructions(text: str) -> list[tuple[str, str]]:
