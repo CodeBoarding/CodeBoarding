@@ -268,13 +268,22 @@ name is the repository root. An image name is a unit's alias only where one dire
   `postgres`, `mysql`, `mssql/server`, `mongo` → db; `redis`, `memcached` → cache; `minio`, S3 → store;
   `rabbitmq`, `kafka`, `nats` → broker; `nginx`, `envoy`, YARP → gateway; a third-party endpoint →
   api; a browser or a customer's application → actor. The same catalogue gives a display name
-  (`mssql/server` → SQL Server); the model may describe, never rename.
+  (`mssql/server` → SQL Server); the model may describe, never rename. A resource's `name` stays
+  the one the repository declares — the compose service, the Aspire resource, the server a
+  connection string names — because that is what a picture is matched by; the display name is for
+  rendering a node whose declared name would tell a reader nothing.
 - **Children.** Connection strings name the databases on a server, route tables the routes on a
   gateway. A server with several databases is one node with children; the scorer accepts either
-  rendering, one node with an arrow per user or each child inside its owner.
+  rendering, one node with an arrow per user or each child inside its owner. A child is of its
+  parent's kind — a database on a server, a model deployment on a provider — because what holds it
+  is what it is a piece of. A key that names a resource is a way of reaching it and never a second
+  resource: `spring.ai.openai.api-key` and `OPENAI_API_KEY` name one thing, so the name is the
+  segment that named it rather than the key.
 - **Home** — the box a resource belongs to: the owner of its content-defining declaration (the
   migrations, the exchange setup, the route table), else its sole user, else the lowest common
-  ancestor of its users. A manifest that only runs a resource does not decide its home.
+  ancestor of its users. A manifest that only runs a resource does not decide its home. In P1 this
+  is a unit, because a component is the clustering's answer and the clustering has not run when the
+  pass does; the PR that places these nodes resolves it to a component id.
 - **Level.** A shared resource is a peer where its users meet. A level draws at most 15 nodes, and
   code boxes, resource nodes, grouped nodes and actors all count toward it. Over the cap, fold in
   this order: private resources into their owner (a badge, shown when the owner expands); registry,
@@ -428,7 +437,12 @@ one-line PR that flips the flag once the action path runs with it on.
 - No resolver with a model in it. P1 joins what the files say and reports what it could not.
 - No routes from code, no clients from code, no messaging from code: those are P2.
 
-Open, decided before the PR that needs them: the display-name catalogue's home (PR 5).
+**The catalogue lives in `static_analyzer/wiring/resources.py`** (decided in PR 5), as one table
+keyed by the bare word each vocabulary reduces to, carrying the kind and the display name in one
+row. Why one table and not three: an image (`openzipkin/zipkin`), an Aspire constructor
+(`AddRedis`) and a URL scheme (`amqp://`) are three ways of naming the same thing, and a catalogue
+that decides the kind has already decided the word. Why code and not data: it is a rule, and a rule
+comes from a specification rather than from a repository.
 
 **`DEPENDS_ON` is not drawn in P1** (decided in PR 4, reversed in its review round). The kind stays
 in `wiring.edges` and `edges.json` for P3, and the policy table's `drawn` says no. Measured: on

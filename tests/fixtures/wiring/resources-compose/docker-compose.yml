@@ -1,0 +1,12 @@
+services:
+  api:
+    build: ./api
+    environment:
+      # The only thing naming the cache, which is what makes the api its user.
+      - CACHE_URL=redis://cache:6379
+
+  cache:
+    image: redis:7
+
+  broker:
+    image: rabbitmq:3-management
