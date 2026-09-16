@@ -1,0 +1,17 @@
+name: release
+env:
+  SERVICE_IMAGE: ${{ vars.SERVICE_IMAGE || 'acme/svc' }}
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image_env: 'SERVICE_IMAGE'
+            file: 'svc/Dockerfile'
+    steps:
+      - uses: docker/build-push-action@v6
+        with:
+          context: '{{defaultContext}}'
+          file: ${{ matrix.file }}
+          tags: ${{ env[matrix.image_env] }}:latest

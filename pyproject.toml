@@ -95,6 +95,7 @@ packages = [
     "static_analyzer.engine",
     "static_analyzer.engine.adapters",
     "static_analyzer.lsp_client",
+    "static_analyzer.wiring",
     "tool_registry",
     "codeboarding_cli",
     "codeboarding_cli.commands",

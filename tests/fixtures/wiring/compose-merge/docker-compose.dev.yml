@@ -1,0 +1,4 @@
+services:
+  api:
+    build:
+      context: ./api

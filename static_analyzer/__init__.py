@@ -32,6 +32,7 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
+from static_analyzer import wiring
 from telemetry.events import track_lsp_result
 from tool_registry import ensure_node_on_path
 from utils import get_artifact_dir
@@ -711,6 +712,9 @@ class StaticAnalyzer:
                     "supplied" if self.changed_files is not None else "git",
                 )
                 results = self._update_cached_results(cached_results, cached_sha)
+
+        if wiring.enabled():
+            results.wiring = wiring.run(results, self.repository_path, dump=wiring.dump_dir())
 
         self._validate_analysis_results(results)
         results.diagnostics = self.collected_diagnostics

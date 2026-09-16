@@ -1,0 +1,3 @@
+image:
+  repository: acme/web
+  tag: "1"

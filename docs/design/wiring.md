@@ -32,7 +32,7 @@ the arrows and the resource nodes the maintainers' own pictures draw. Three rule
 | anchor | a place in the repository where a wiring key is declared (`def`) or used (`use`): a file, a line, the key as written, the key normalised, the unit the file belongs to |
 | join | matching a `use` anchor to a `def` anchor of the same family by normalised key, in dependency order (§6) |
 | resource node | a thing the code talks to that holds no source here: a database, cache, store, broker, gateway, third-party API, or actor |
-| family | which kind of file a key lives in: A1 build graph, A2 deployment topology, A3 interface contracts, C1 environment and configuration keys, C2 service names, base URLs and gateway routes, C3 HTTP routes in code, C4 string-keyed messaging, D1 type-keyed messaging, E2 generated code, F3 database access |
+| family | which kind of file a key lives in: `build_manifest`, `deployment`, `configuration`, `service_names`, `http_in_code`, `messaging`, `generated`, `data_access`. The research appendices number these A1, A2, C1, C2, C3, C4/D1, E2 and F3; the code and the dumps spell them out, and the evals graders read both spellings through one alias map |
 | tier | T1 an exact key, T2 a template (a route with parameters collapsed), T3 a heuristic. Only T1 and T2 make edges |
 
 ## 3. Where it runs
@@ -47,13 +47,27 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
 - **Storage:** a sibling bucket `StaticAnalysisResults.wiring`, never a `Language` key (a
   synthetic language trips the `LANGUAGE_EXTENSIONS` assertion). It holds the unit table, the
   anchors, the edges, the resource nodes and the diagnostics. The pickle tag bumps once for the
-  layout (v12).
-- **Files it reads:** manifests (`*.csproj`, `*.sln`, `pom.xml`, `package.json`, `pyproject.toml`),
-  deployment (`docker-compose*.y*ml`, `compose*.y*ml`, Kubernetes manifests, `skaffold*.yaml`,
-  Helm charts, Dockerfiles, an Aspire AppHost), configuration (`.env*`, `appsettings*.json`,
-  `application*.y*ml`, `bootstrap*.y*ml`), nginx configuration. It reads these even where
-  `.codeboardingignore` ignores dotfiles and `*.config.*`, read-only, and never reads
-  `node_modules`, `bin`, `obj`, `dist`, `.git` or a test directory.
+  layout (v12), and a pickle written before the bucket existed loads as a run with no wiring. The
+  types are `static_analyzer/wiring_results.py`, beside the other buckets, so the results object
+  carries them without importing the pass; the pass is `static_analyzer/wiring/`, one module per
+  question: `scan` what may be read, `images` what this repository builds, `compose` what a compose
+  project says, `manifests` and `topology` what declares a unit, `units` the table, `__init__` the
+  entry point and the dumps.
+- **Files it reads:** an allowlist, never source. Build manifests (`*.csproj`, `*.sln`, `pom.xml`,
+  `build.gradle`, `package.json`, `pnpm-workspace.yaml`, `pyproject.toml`, `setup.py`,
+  `requirements*.txt`, `go.mod`, `Cargo.toml`, `composer.json`, `Gemfile`, `*.gemspec`, `mix.exs`),
+  deployment (`docker-compose*.y*ml`, `compose*.y*ml`, Kubernetes manifests, `skaffold*.y*ml`,
+  Helm charts, Dockerfiles, an Aspire AppHost's own `.cs`, `.github/workflows/*.y*ml`),
+  configuration (`.env*`, `appsettings*.json`, `application*.y*ml`, `bootstrap*.y*ml`), nginx
+  configuration. A file the allowlist does not name is never opened, and nothing over 2 MB is read.
+- **What it will not read:** `node_modules`, `vendor`, build output (`bin`, `obj`, `dist`, `out`,
+  `target`), every hidden directory but `.github/workflows`, a test directory, a file named as a
+  test, and a project template (a tree holding `.template.config`, `cookiecutter.json`, or a `{{ }}`
+  in a path). `.gitignore` decides what is in the tree at all, so a developer's untracked `.env`
+  cannot make a local run disagree with the same commit in CI. `.codeboardingignore` excludes the
+  directories its user excluded; its file patterns do not hide a manifest the allowlist names,
+  which is how the pass reads the dotfiles and `*.config.*` files the template ignores. Each of
+  these is a diagnostic row — one per excluded place, not one per file.
 - **Cost:** the pass stays under 5 % of the static phase of the same repository, and that is the
   whole acceptance rule. The P0 probes take 0.1–8 s; those timings say how fast the readers are,
   not what the pass may spend.
@@ -63,11 +77,20 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
 | node | key | where it sits |
 |---|---|---|
 | code symbol | as today, `file\|qualified name` | its component |
-| artifact file | a node of type FILE whose qualified name is its repository-relative path — the compose file, the manifest, the configuration file an edge is anchored in | the component owning its directory; a per-service Dockerfile or manifest goes with the unit it builds (P3) |
+| artifact file | a node of type FILE whose qualified name is its repository-relative path — a unit's own manifest or configuration file, which is where an edge that starts or ends at that unit lands | the component that owns its directory |
 | resource | `resource:<kind>:<name>`, and `resource:<kind>:<name>/<kind>:<child>` for a database on a server or a route on a gateway | a resource node is never a code component and never counts toward the component budget; where it is drawn is §7 |
 
 A resource's `name` is what the repository declares for it — the compose service, the Kubernetes
 workload, the Aspire resource — never the image. The image decides the kind.
+
+**A shared file is a site, not an endpoint.** The arrow a root compose file, an Aspire AppHost or a
+Kubernetes manifest directory declares joins the two units it names; the file and the line are the
+edge's site. Such a file belongs to no box, and it counts as analysed. A file inside a unit's
+directory — its own manifest, `application.yml`, `appsettings.json`, its Dockerfile — belongs to
+that unit's component like every other file there, and is the unit's endpoint whenever the anchor
+is not in code; where the anchor is a literal in code, the endpoint is the enclosing code symbol. A
+directory that builds or deploys something is a unit and can be a box: Bank of Anthos draws its two
+database directories that way.
 
 ## 5. Edge kinds
 
@@ -125,8 +148,15 @@ Seven rules, each paid for by a measured failure in the research appendices.
    confidence signal, and attribution is what the scorer reports.
 6. **Environment variants are unioned, not chosen.** Edges from `appsettings.Production.json`,
    `.env.production`, a Kustomize overlay or a compose override carry the environments they hold
-   in. Compose files are merged by service name the way compose itself merges them, so a service
-   is one unit whether its image and its build context come from one file or two.
+   in. The compose files in one directory are one project, merged by service name the way compose
+   merges a file and its override — a later file wins a scalar, names accumulate — so a service is
+   one unit whether its image and its build context come from one file or two. `${VAR}` and
+   `${VAR:-default}` interpolate from the `.env` beside the file and from nothing else: this
+   machine's environment would make a local run disagree with the same commit in CI. `env_file`
+   fills a service's environment, which the compose specification does not interpolate from.
+   `extends` is followed, `include` brings another file's services in, YAML anchors and merge keys
+   are ordinary YAML, and a service with `profiles` is a variant — recorded in the unit table with
+   its profiles, and not drawn.
 7. **Ambiguity produces no edge.** One key with several providers emits nothing and reports both
    candidates.
 
@@ -137,10 +167,33 @@ Two more, from the P0 ceilings:
 9. **A host resolves to a unit only when it is a name the topology declares.** A public FQDN in a
    documentation URL never falls back to its first DNS label.
 
-A compose file describes no system when no service in it is built from the repository: per-test
-infrastructure, dev containers, CI build images and templates produce no units and no resources.
-Test directories and files named as tests (`*.test.*`, `*.spec.*`, `*_test.*`, `*Tests/`) anchor
-nothing.
+**What declares a unit.** A build manifest declares the directory it sits in, except where it
+builds nothing itself: a Maven aggregator (`packaging=pom`), a Cargo workspace root, a
+`package.json` with no name. An npm package is a unit when a workspace lists it or it is the
+repository's own root package, and a workspace glob is a glob — a package nested inside a member is
+not itself a member. A deployment file declares the directory it builds, which is the Dockerfile's
+own directory whenever the Dockerfile sits inside the build context: a context is what is sent to
+the daemon and is often the whole tree, while the Dockerfile sits with the thing it builds.
+
+**What declares nothing.** A build whose Dockerfile or context is not in the repository — a
+template's, a stale path. A build whose Dockerfile copies nothing from its context: it brings no
+file of this repository into the image, so it is a toolchain or dev-container image rather than the
+product. A compose project in which no service is built from the repository and none runs an image
+this repository builds — per-test infrastructure, dev containers, CI build images — which is
+ignored with `ignored_manifest` and its reason. A deployment file naming the repository root, unless
+a manifest there builds it: otherwise a CI image that mounts the tree reads as the product. Test
+directories, files named as tests (`*.test.*`, `*.spec.*`, `*_test.*`, `*Tests/`) and project
+templates anchor nothing.
+
+**Which directory an image is.** An image belongs to a unit when something here builds and tags it:
+a compose service with both `build` and `image`, a skaffold artifact, a Maven plugin's tag
+(resolved per module, since a parent declares the plugin once and `${project.artifactId}` differs
+in each), or a CI workflow's build step — its `tags`, or the `name=` of a buildx output, with
+`matrix` and the workflow's own `env` substituted. `vars` and `secrets` are not written down
+anywhere, so an expression falls through them to whatever literal its `||` offers. A repository and
+tag match first and the repository alone second, because a workflow tags `:latest` what a compose
+file pins at `:2.1`. Failing all of that, an image whose last path segment is the repository's own
+name is the repository root. An image name is a unit's alias only where one directory builds it.
 
 ## 7. Resources
 
@@ -155,12 +208,17 @@ nothing.
 - **Home** — the box a resource belongs to: the owner of its content-defining declaration (the
   migrations, the exchange setup, the route table), else its sole user, else the lowest common
   ancestor of its users. A manifest that only runs a resource does not decide its home.
-- **Level.** A shared resource is a peer where its users meet. A level draws at most 15 nodes,
-  resources counted, actors counted. Over the cap, fold in this order: private resources into their
-  owner (a badge, shown when the owner expands); registry, configuration and telemetry resources
-  into one Infrastructure node that expands; remaining third parties into one External services
-  node. On PetClinic this renders 13 nodes with three badges where the picture draws 16 peers; the
-  scorer accepts both.
+- **Level.** A shared resource is a peer where its users meet. A level draws at most 15 nodes, and
+  code boxes, resource nodes, grouped nodes and actors all count toward it. Over the cap, fold in
+  this order: private resources into their owner (a badge, shown when the owner expands); registry,
+  configuration and telemetry resources into one Infrastructure node that expands; remaining third
+  parties into one External services node; and, if resources still take more than half the level,
+  shared data stores into one Data stores node. The clustering's limit for that level then becomes
+  15 minus the resource nodes that remain, and the level is clustered once more — one pass
+  suffices, because merging code boxes can only turn a shared resource private. This is the only
+  way wiring changes a partition, and the guard reads: boxes identical wherever a level is under
+  the cap. On PetClinic this renders 13 nodes with three badges where the picture draws 16 peers;
+  the scorer accepts both.
 - **Infrastructure** flows (`REGISTERS_WITH`, `FETCHES_CONFIG`, `REPORTS_TO`) are drawn
   de-emphasised and collapsible: a star of such arrows says the same thing about every service.
 
@@ -185,24 +243,28 @@ diffs; today its method-level differ drops an edge whose end is not a file.
 ```json
 // units.json
 {"repo": "owner/name", "commit": "<sha>",
- "units": [{"id": "<stable id>", "dir": "<repo-relative directory>",
-            "kind": "csproj|maven|npm|python|go|compose|k8s|skaffold|aspire|other",
+ "units": [{"id": "<the unit's directory, which is what makes it stable>",
+            "dir": "<repo-relative directory, `.` for the repository itself>",
+            "kind": "csproj|maven|gradle|go|rust|python|npm|ruby|php|elixir|compose|skaffold|aspire|k8s|helm|docker|other",
             "manifest": "<repo-relative path>", "aliases": ["<name>", "..."],
-            "builds": ["<repo-relative path of a Dockerfile or manifest that builds it>"]}],
- "diagnostics": [{"code": "ambiguous_alias|unit_without_manifest|unreadable_manifest|ignored_manifest",
+            "builds": ["<repo-relative path of a Dockerfile, manifest or deployment file that builds it>"],
+            "variant": ["<a compose profile it only runs under>"]}],
+ "diagnostics": [{"code": "ambiguous_alias|ambiguous_image|ignored_manifest|unit_without_manifest|unreadable_manifest|unresolved_image",
                   "message": "...", "paths": ["..."]}]}
 ```
 
 ```json
 // anchors.json
 {"repo": "owner/name", "commit": "<sha>",
- "anchors": [{"family": "A1|A2|A3|C1|C2|C3|C4|D1|E2|F3", "role": "def|use",
-              "key": "<as written>", "norm_key": "<normalised>",
+ "anchors": [{"family": "build_manifest|deployment|configuration|service_names|http_in_code|messaging|generated|data_access",
+              "role": "def|use", "key": "<as written>", "norm_key": "<normalised>",
               "file": "<repo-relative path>", "line": 12, "unit": "<unit id or null>", "tier": "T1|T2|T3"}]}
 ```
 
 `diagnostics.json` lists every unresolved use, every unused definition, every ambiguous key and
-every ignored file with the reason, in the same shape as the `diagnostics` list above.
+every ignored place with the reason, in the same shape as the `diagnostics` list above. It is also
+the shape a resolver with a model in it would read one day — for an unresolved use, the anchor's
+file, line and key, the lines around it, and the unit names in play — and nothing in P1 calls one.
 
 ## 9. Incremental
 
@@ -255,7 +317,10 @@ one-line PR that flips the flag once the action path runs with it on.
 - No affinity for any wiring kind; ownership edges may gain it in P3, behind the ladder gate,
   measured per kind.
 - No proto contract nodes until a graded ruler needs one.
-- No Go readers; the rulers are C#, Java, Python and TypeScript.
+- No reader reads Go, Rust, Ruby, PHP or Elixir *source*; their manifests are units like any other,
+  because a directory that builds is a directory that builds. The rulers are C#, Java, Python and
+  TypeScript.
+- No resolver with a model in it. P1 joins what the files say and reports what it could not.
 - No routes from code, no clients from code, no messaging from code: those are P2.
 
 Open, decided before the PR that needs them: the display-name catalogue's home (PR 5); whether

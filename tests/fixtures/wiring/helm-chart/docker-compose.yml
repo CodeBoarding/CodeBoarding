@@ -1,0 +1,4 @@
+services:
+  web:
+    build: ./web
+    image: acme/web

@@ -1,0 +1,6 @@
+services:
+  api:
+    image: acme/api
+    container_name: api-box
+  db:
+    image: postgres:16
