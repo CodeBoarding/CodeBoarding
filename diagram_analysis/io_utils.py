@@ -31,6 +31,7 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from diagram_analysis.run_context import DEFAULT_DEPTH_CAP
+from static_analyzer.wiring_results import Resource
 from utils import ANALYSIS_FILENAME, FINGERPRINT_FILENAME
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,7 @@ class _AnalysisFileStore:
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
         tree_spec: dict | None = None,
+        resources: list[Resource] | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -122,6 +124,7 @@ class _AnalysisFileStore:
                 sub_expandable_ids,
                 depth_cap,
                 tree_spec,
+                resources,
             )
 
     def _write_with_lock_held(
@@ -136,6 +139,7 @@ class _AnalysisFileStore:
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
         tree_spec: dict | None = None,
+        resources: list[Resource] | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # A caller-provided set is authoritative: it already reflects the run's expansion
@@ -229,6 +233,7 @@ class _AnalysisFileStore:
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
             tree_spec=tree_spec or {},
+            resources=resources,
         )
         write_text_atomic(self._analysis_path, payload)
         return self._analysis_path
@@ -352,6 +357,7 @@ def save_analysis(
     sub_expandable_ids: dict[str, list[str]] | None = None,
     depth_cap: int | None = None,
     tree_spec: dict | None = None,
+    resources: list[Resource] | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 
@@ -371,4 +377,5 @@ def save_analysis(
         sub_expandable_ids,
         depth_cap,
         tree_spec,
+        resources,
     )

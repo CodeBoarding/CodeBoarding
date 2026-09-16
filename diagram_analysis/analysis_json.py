@@ -17,6 +17,7 @@ from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry, Me
 from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg.edge import EdgeKind
+from static_analyzer.wiring_results import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,30 @@ class FileEntryJson(BaseModel):
     )
 
 
+class ResourceChildJson(BaseModel):
+    """A database on a server, a model deployment on a provider: grounded substructure of a resource."""
+
+    key: str = Field(description="`resource:<kind>:<name>/<kind>:<child>`.")
+    kind: str = Field(description="Its parent's kind, because what holds it is what it is a piece of.")
+    name: str = Field(description="What the repository calls it.")
+    owner: str = Field(default="", description="The unit whose declaration defines it, where one does.")
+
+
+class ResourceJson(BaseModel):
+    """A thing the code talks to that holds no source here (`docs/design/wiring.md` §7)."""
+
+    key: str = Field(description="`resource:<kind>:<name>`.")
+    kind: str = Field(description="db, cache, store, broker, gateway, api or actor, from the catalogue.")
+    name: str = Field(description="What the repository declares for it, never the image (§4).")
+    declared_by: list[str] = Field(default_factory=list, description="The files that declare it.")
+    home: str = Field(
+        default="",
+        description="Whose it is: the owner of its content-defining declaration, else its only user. A unit "
+        "in P1, because a component is the clustering's answer and the clustering has not run when the pass does.",
+    )
+    children: list[ResourceChildJson] = Field(default_factory=list, description="What it holds.")
+
+
 class UnifiedAnalysisJson(BaseModel):
     metadata: AnalysisMetadata = Field(description="Metadata about the analysis run.")
     description: str = Field(
@@ -170,6 +195,12 @@ class UnifiedAnalysisJson(BaseModel):
     )
     components: list[ComponentJson] = Field(description="List of the components identified in the project.")
     components_relations: list[RelationJson] = Field(description="List of relations among the components.")
+    resources: list[ResourceJson] | None = Field(
+        default=None,
+        description="What the repository talks to and builds none of (§7). Absent, rather than empty, where "
+        "the pass found none or never ran — so a document from a run without wiring is byte-identical to one "
+        "written before the section existed.",
+    )
 
 
 def _build_files_index_from_analysis(
@@ -225,6 +256,21 @@ def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path) -> RelationEdgeJs
         ],
         description=edge.description,
         kind=None if edge.kind is EdgeKind.CALL else edge.kind,
+    )
+
+
+def _resource_to_json(resource: Resource) -> ResourceJson:
+    """A resource as §8 writes it down. The pass produces plain data; the shape belongs here."""
+    return ResourceJson(
+        key=resource.key,
+        kind=resource.kind.value,
+        name=resource.name,
+        declared_by=list(resource.declared_by),
+        home=resource.home,
+        children=[
+            ResourceChildJson(key=child.key, kind=child.kind.value, name=child.name, owner=child.owner)
+            for child in resource.children
+        ],
     )
 
 
@@ -491,6 +537,7 @@ def build_unified_analysis_json(
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
     tree_spec: dict | None = None,
+    resources: list[Resource] | None = None,
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -533,6 +580,9 @@ def build_unified_analysis_json(
         methods_index=methods_index,
         components=components_json,
         components_relations=relations_json,
+        # An empty list becomes None so `exclude_none` drops the key entirely: a run that found no
+        # resource writes exactly the document it wrote before this section existed.
+        resources=[_resource_to_json(one) for one in resources or ()] or None,
     )
     return unified.model_dump_json(indent=2, exclude_none=True)
 
