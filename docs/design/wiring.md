@@ -275,6 +275,12 @@ name is the repository root. An image name is a unit's alias only where one dire
   the one the repository declares — the compose service, the Aspire resource, the server a
   connection string names — because that is what a picture is matched by; the display name is for
   rendering a node whose declared name would tell a reader nothing.
+- **What has resources at all.** A repository that deploys nothing declares no resources from its
+  configuration: a library reading `OPENAI_API_KEY` offers an option to whoever imports it rather
+  than standing beside a service it calls, and every library of the negative set — this repository
+  included — drew a node until this rule existed. A compose project or an Aspire host is what makes
+  a key a fact about a running system. An image a compose file runs, and a server a connection
+  string names, are declarations either way, so neither is gated.
 - **Children.** Connection strings name the databases on a server, route tables the routes on a
   gateway. A server with several databases is one node with children; the scorer accepts either
   rendering, one node with an arrow per user or each child inside its owner. A child is of its
