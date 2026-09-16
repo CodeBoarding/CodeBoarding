@@ -42,7 +42,7 @@ def to_json(anchor: Anchor) -> dict:
         "file": anchor.file,
         "line": anchor.line,
         "column": anchor.column,
-        "unit": anchor.unit or None,
+        "unit": anchor.unit,
         "tier": anchor.tier.value,
     }
 

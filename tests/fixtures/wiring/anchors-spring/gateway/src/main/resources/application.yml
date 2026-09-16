@@ -19,3 +19,8 @@ spring:
 ---
 fallback:
   uri: configserver:http://config-server:8888
+---
+upstream:
+  timeout: 300
+downstream:
+  timeout: 30

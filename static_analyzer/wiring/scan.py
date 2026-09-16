@@ -362,7 +362,7 @@ class Scan:
         start = 0
         while key and (index := text.find(key, start)) >= 0:
             end = text.find("\n", index)
-            if value in text[index : end if end >= 0 else len(text)]:
+            if _holds(text[index : end if end >= 0 else len(text)], value):
                 return text.count("\n", 0, index) + 1
             start = index + 1
         return self.line_of(path, value) if value else self.line_of(path, key)
@@ -453,6 +453,17 @@ class Scan:
     def _relative(self, absolute: str) -> str:
         relative = os.path.relpath(absolute, self.repo_root).replace(os.sep, "/")
         return "" if relative == "." else relative
+
+
+def _holds(line: str, value: str) -> bool:
+    """Whether the line writes this value, rather than a longer one it is a fragment of.
+
+    Why: `30` reads as written on a line setting `300`, and a setting's own line is the one thing
+    its value is supposed to identify.
+    """
+    if not value:
+        return True
+    return re.search(rf"(?<![\w.]){re.escape(value)}(?![\w.])", line) is not None
 
 
 class _Loader(yaml.SafeLoader):

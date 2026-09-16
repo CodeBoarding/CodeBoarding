@@ -68,9 +68,10 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
   Helm charts, Dockerfiles, an Aspire AppHost's own `.cs`, `.github/workflows/*.y*ml`),
   configuration (`.env*`, `appsettings*.json`, `application*.y*ml`, `bootstrap*.y*ml`), nginx
   configuration. A file the allowlist does not name is never opened, and nothing over 2 MB is read.
-  A configuration file states a handful of facts, so a YAML over 128 KB is a catalogue — a provider
-  list, an API specification, a generated schema — and is data rather than configuration: it
-  declares no wiring and costs more to read than everything that does.
+  A configuration file states a handful of facts, so one over 128 KB is a catalogue — a provider
+  list, an API specification, a generated schema — and is data rather than configuration, in
+  whatever notation it is written: it declares no wiring and costs more to read than everything
+  that does.
 - **Source, for two readers only:** a literal service name (`http://vets-service`, `lb://`, a
   `@FeignClient`, a discovery lookup, a registry annotation) and an environment read (`os.environ`,
   `process.env`, `Configuration["…"]`, `System.getenv`, `@Value("${…}")`), together with the client

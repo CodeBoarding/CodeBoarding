@@ -41,12 +41,20 @@ STORE_SCHEME = re.compile(
 SCHEMA_DIRS = ("db", "database", "migrations", "migration", "schema", "sql", "initdb", "changelog")
 _SCHEMA_SUFFIXES = (".sql", ".ddl", ".xml", ".yaml", ".yml", ".json", ".py", ".rb", ".cs", ".java")
 
+#: A file whose own name says it defines the schema, rather than one that merely mentions the word:
+#: `schema.sql` declares, while `0041_create_attachments.py` and `FixOrderSchema.Designer.cs` are a
+#: point in a history that happens to contain it.
+_DECLARES_SCHEMA = re.compile(r"(?i)^(?:schema|create|init|initial)[\w.-]*\.")
+
 
 def read(scan: Scan, owners: Owners) -> list[Anchor]:
     """Every anchor a configuration file writes down, plus the schema directories units keep."""
     found: list[Anchor] = []
     for path in scan.paths_of(FileKind.SPRING_CONFIG, FileKind.PROPERTIES, FileKind.DOTNET_SETTINGS, FileKind.DOTENV):
-        found += _file(scan, path, owners.of(path))
+        # A catalogue is a catalogue in whatever notation it is written: the cap is about how much a
+        # file declares, not about YAML.
+        if scan.files[path].size <= MAX_CONFIGURATION_BYTES:
+            found += _file(scan, path, owners.of(path))
     for path in scan.paths_of(FileKind.YAML):
         # A unit's own YAML is configuration; a catalogue or a lockfile sitting in one is data.
         if not owners.of(path) or scan.files[path].size > MAX_CONFIGURATION_BYTES:
@@ -106,7 +114,7 @@ def _connection(key: str, value: str, path: str, line: int, unit: str) -> list[A
         return []
     found = []
     for part, target in _CONNECTION_PART.findall(value):
-        if target.strip().lower() in LOCAL_HOSTS:
+        if _local(target):
             continue
         found.append(
             _anchor(
@@ -137,7 +145,9 @@ def _schemas(scan: Scan, owners: Owners) -> list[Anchor]:
         segments = directory.split("/")
         depth = next((index for index, part in enumerate(segments) if part.lower() in SCHEMA_DIRS), -1)
         schema = "/".join(segments[: depth + 1]) if depth >= 0 else ""
-        files = sorted(name for name in names if name.lower().endswith(_SCHEMA_SUFFIXES))
+        files = sorted(
+            name for name in names if name.lower().endswith(_SCHEMA_SUFFIXES) and not GENERATED_FILE.search(name)
+        )
         if not schema or schema in seen or not files:
             continue
         # One anchor per schema directory, wherever its files sit inside it: what a database holds
@@ -145,7 +155,7 @@ def _schemas(scan: Scan, owners: Owners) -> list[Anchor]:
         seen.add(schema)
         # The place is the key: three services each keep a `db`, and a bare `db` tells them apart
         # from nothing (§6 rule 1).
-        declaring = [name for name in files if "schema" in name.lower() or "create" in name.lower()]
+        declaring = [name for name in files if _DECLARES_SCHEMA.match(name)]
         path = f"{directory}/{(declaring or files)[0]}"
         found.append(
             _anchor(AnchorFamily.DATA_ACCESS, AnchorRole.DEF, schema, alias_key(schema), path, 1, owners.of(path))
@@ -155,6 +165,12 @@ def _schemas(scan: Scan, owners: Owners) -> list[Anchor]:
 
 def _anchor(family: AnchorFamily, role: AnchorRole, key: str, norm_key: str, path: str, line: int, unit: str) -> Anchor:
     return Anchor(family=family, role=role, key=key, norm_key=norm_key, file=path, line=line, unit=unit, tier=Tier.T1)
+
+
+def _local(target: str) -> bool:
+    """Whether a connection part names this machine: `localhost`, `localhost,1433`, `localhost\\SQLEXPRESS`."""
+    cleaned = target.strip().strip("\"'")
+    return cleaned.lower() in LOCAL_HOSTS or re.split(r"[\\,:/]", cleaned, maxsplit=1)[0].strip().lower() in LOCAL_HOSTS
 
 
 def _expanded(value: str) -> str:

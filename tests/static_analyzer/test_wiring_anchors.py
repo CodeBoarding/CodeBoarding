@@ -8,8 +8,9 @@ from pathlib import Path
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.wiring import run, write_dump
+from static_analyzer.wiring.anchors.configuration import entries
 from static_analyzer.wiring.anchors.keys import Names, Owners, env_key, hosts_in, service_host
-from static_analyzer.wiring.scan import MAX_CONFIGURATION_BYTES
+from static_analyzer.wiring.scan import MAX_CONFIGURATION_BYTES, Scan
 from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, Tier, Unit, UnitKind
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "wiring"
@@ -115,7 +116,7 @@ class TestConfiguration(unittest.TestCase):
 
         self.assertIn(("configuration", "def", "ConnectionStrings.EventBus", f"{settings}:4", "src/Catalog"), found)
         self.assertIn(("service_names", "use", "rabbitmq", f"{settings}:4", "src/Catalog"), found)
-        self.assertIn(("service_names", "use", "identity-api", f"{settings}:8", "src/Catalog"), found)
+        self.assertIn(("service_names", "use", "identity-api", f"{settings}:9", "src/Catalog"), found)
 
     def test_a_connection_string_names_a_server_and_a_database(self) -> None:
         found = rows("anchors-dotnet")
@@ -129,8 +130,9 @@ class TestConfiguration(unittest.TestCase):
         found = rows("anchors-dotnet")
         settings = "src/Catalog/appsettings.json"
 
-        self.assertNotIn(("data_access", "use", "server=localhost", f"{settings}:6", "src/Catalog"), found)
+        self.assertEqual([key for _, _, key, _, _ in found if key.startswith("server=local")], [])
         self.assertIn(("data_access", "use", "database=devdb", f"{settings}:6", "src/Catalog"), found)
+        self.assertIn(("data_access", "use", "database=sqldb", f"{settings}:7", "src/Catalog"), found)
 
     def test_a_catalogue_is_data_rather_than_configuration(self) -> None:
         """A provider list declares no wiring and costs more to read than everything that does."""
@@ -140,12 +142,38 @@ class TestConfiguration(unittest.TestCase):
         catalogue.write_text(
             "".join(f"provider-{number}:\n  base_url: https://api-{number}.example.com\n" for number in range(4000))
         )
+        # A catalogue is a catalogue in whatever notation it is written.
+        (directory / "vets" / "src" / "main" / "resources" / "catalogue.properties").write_text(
+            "".join(f"provider.{number}.url=https://api-{number}.example.com\n" for number in range(4000))
+        )
 
         found = {anchor.file for anchor in run(StaticAnalysisResults(), directory).anchors}
 
         self.assertGreater(catalogue.stat().st_size, MAX_CONFIGURATION_BYTES)
         self.assertNotIn("vets/src/main/resources/providers.yml", found)
+        self.assertNotIn("vets/src/main/resources/catalogue.properties", found)
         self.assertIn("vets/src/main/resources/application.properties", found)
+
+    def test_a_value_is_not_read_inside_a_longer_one(self) -> None:
+        """`30` occurs inside `300`, and a setting's own line is the one thing its value identifies."""
+        path = "gateway/src/main/resources/application.yml"
+        lines = {key: line for key, _, line in entries(Scan(FIXTURES / "anchors-spring"), path)}
+
+        self.assertEqual(lines["upstream.timeout"], 24)
+        self.assertEqual(lines["downstream.timeout"], 26)
+
+    def test_a_schema_directory_is_named_by_a_file_someone_wrote(self) -> None:
+        """Where no file declares the schema, the anchor still must not land on a generated one."""
+        migrations = [
+            anchor
+            for anchor in anchors_of("anchors-dotnet")
+            if anchor.family is AnchorFamily.DATA_ACCESS and anchor.role is AnchorRole.DEF
+        ]
+
+        self.assertEqual(
+            [anchor.file for anchor in migrations],
+            ["src/Catalog/Migrations/20231021004633_FixOrderitemseqSchema.cs"],
+        )
 
     def test_a_service_name_is_not_a_store(self) -> None:
         """`lb://vets-service` names a unit; only a store's scheme makes a data-access anchor."""
@@ -240,6 +268,7 @@ class TestKeys(unittest.TestCase):
         """`maui://authcallback` is a deep link the phone answers, not a service anything reaches."""
         self.assertEqual(service_host("maui://authcallback"), "")
         self.assertEqual(service_host("grpc://ledger:9090"), "ledger")
+        self.assertEqual(service_host("nats://broker:4222"), "broker")
 
     def test_several_hosts_in_one_value(self) -> None:
         self.assertEqual(hosts_in("kafka-1:9092,kafka-2:9092", "bootstrap-servers"), ["kafka-1", "kafka-2"])
@@ -283,6 +312,8 @@ class TestDump(unittest.TestCase):
             ["column", "family", "file", "key", "line", "norm_key", "role", "tier", "unit"],
         )
         self.assertEqual(len(dumped["anchors"]), len(wiring.anchors))
+        # An anchor about no unit says so with the empty string the field always holds.
+        self.assertEqual({type(anchor["unit"]) for anchor in dumped["anchors"]}, {str})
 
     def test_two_runs_over_one_tree_find_the_same_anchors(self) -> None:
         self.assertEqual(anchors_of("anchors-spring"), anchors_of("anchors-spring"))
