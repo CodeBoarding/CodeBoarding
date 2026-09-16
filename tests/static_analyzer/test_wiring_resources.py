@@ -78,6 +78,16 @@ class TestConfigured(unittest.TestCase):
 
         self.assertEqual([(one.key, one.kind.value) for one in found], [("resource:api:openai", "api")])
         self.assertEqual(found[0].declared_by, ("svc/app.py", "svc/application.yml"))
+        # The unit that names a thing uses it, whichever spelling the key is normalised by.
+        self.assertEqual(found[0].home, "svc")
+
+    def test_a_repository_that_deploys_nothing_talks_to_nothing(self) -> None:
+        """The same key, in a library: an option offered to whoever imports it, not a system (§7).
+
+        Without this the negative set drew a node on every library that reads an API key — this
+        repository included.
+        """
+        self.assertEqual(resources_of("resources-library"), [])
 
 
 class TestNothingToFind(unittest.TestCase):

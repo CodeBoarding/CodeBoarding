@@ -35,6 +35,12 @@ RESOURCE_CLIENT = re.compile(
     r"CosmosClient|BlobServiceClient|ServiceBusClient|IConnectionMultiplexer|IDistributedCache)\b"
 )
 
+#: What a file writes down without meaning it: a docstring's usage example, a block comment, a
+#: commented-out line. `os.environ["OPENAI_API_KEY"] = "your-key"` inside a class docstring tells a
+#: reader how to call the code; it is not the code reading anything, and taking it for a
+#: declaration put an OpenAI on a library that deploys nothing.
+_ASIDE = re.compile(r"\"\"\"[\s\S]*?\"\"\"|'''[\s\S]*?'''|/\*[\s\S]*?\*/|^[ \t]*#[^\n]*", re.M)
+
 _TRIGGERS = ("environ", "getenv", "Getenv", "process.env", "import.meta.env", "Configuration[", "@Value(",
              "GetConnectionString", "GetValue<", "ENV[", "ENV.fetch",
              "Store", "Template", "Client", "DbContext", "DataSource", "Cache")  # fmt: skip
@@ -43,7 +49,9 @@ _TRIGGERS = ("environ", "getenv", "Getenv", "process.env", "import.meta.env", "C
 def read(sources: Sequence[tuple[str, str]], owners: Owners) -> list[Anchor]:
     """Every environment key the code asks for by name."""
     found: list[Anchor] = []
-    for path, text in sources:
+    for path, raw in sources:
+        # Blanked rather than removed, so every line and column still says where it is.
+        text = _ASIDE.sub(lambda aside: re.sub(r"[^\n]", " ", aside.group()), raw)
         if not any(trigger in text for trigger in _TRIGGERS):
             continue
         unit = owners.of(path)

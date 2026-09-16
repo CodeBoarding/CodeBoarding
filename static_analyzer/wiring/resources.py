@@ -147,9 +147,21 @@ def discover(scan: Scan, projects: list[ComposeProject], units: list[Unit], anch
     names = Names(units)
     owners = Owners(units)
     aspire, aspire_children = _aspire(scan, owners, names)
-    declared = [*_compose(projects, names), *aspire, *_stores(anchors), *_configured(anchors, names)]
+    # A repository that deploys nothing talks to nothing this layer can draw. A library reading
+    # `OPENAI_API_KEY` offers an option to whoever imports it; it does not stand beside a service.
+    # Without this, every library in the negative set acquired a node — this repository included.
+    deployed = bool(projects) or bool(aspire)
+    naming = [*_stores(anchors), *(_configured(anchors, names) if deployed else [])]
+    declared = [*_compose(projects, names), *aspire, *naming]
     children = _merge(_children(anchors), aspire_children)
     users = _users(anchors)
+    for entry in naming:
+        # The unit that names a thing uses it; a manifest that merely runs it decides nothing (§7).
+        # Why not the anchor's own key: a configuration key is normalised for relaxed binding and a
+        # name for the unit table, and the two spellings can never meet.
+        unit = owners.of(entry.file)
+        if unit and unit != ".":
+            users.setdefault(alias_key(entry.name), set()).add(unit)
     schemas = _schemas(anchors)
 
     found: dict[str, Resource] = {}

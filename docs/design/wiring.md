@@ -89,7 +89,10 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
   project's own wrapper (`mustMapEnv`, `GetRequiredValue`) is that project's, and no rule names
   one repository's helper. A file whose name says a tool wrote it — `*.designer.*`, `*.g.*`,
   `*.generated.*`, a model snapshot, a compiled proto, a lockfile — is skipped wherever it sits,
-  as source and as configuration: nothing in it is a decision anyone made.
+  as source and as configuration: nothing in it is a decision anyone made. Neither is a docstring,
+  a block comment or a commented-out line: `os.environ["OPENAI_API_KEY"]` inside a usage example
+  tells a reader how to call the code, and taking it for a declaration drew a third-party node on
+  a library that deploys nothing.
 - **What it will not read:** `node_modules`, `vendor`, build output (`bin`, `obj`, `dist`, `out`,
   `target`), every hidden directory but `.github/workflows`, a test directory, a file named as a
   test, and a project template (a tree holding `.template.config`, `cookiecutter.json`, or a `{{ }}`
