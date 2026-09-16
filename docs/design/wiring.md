@@ -68,6 +68,12 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
   Helm charts, Dockerfiles, an Aspire AppHost's own `.cs`, `.github/workflows/*.y*ml`),
   configuration (`.env*`, `appsettings*.json`, `application*.y*ml`, `bootstrap*.y*ml`), nginx
   configuration. A file the allowlist does not name is never opened, and nothing over 2 MB is read.
+- **Source, for two readers only:** a literal service name (`http://vets-service`, `lb://`, a
+  `@FeignClient`, a discovery lookup, a registry annotation) and an environment read (`os.environ`,
+  `process.env`, `Configuration["…"]`, `System.getenv`, `@Value("${…}")`), together with the client
+  type that says what a unit talks to (`VectorStore`, `MongoTemplate`). Structure in source is the
+  language servers' work and this pass never touches it; a `*.config.*` file is tooling rather than
+  service code, and is skipped.
 - **What it will not read:** `node_modules`, `vendor`, build output (`bin`, `obj`, `dist`, `out`,
   `target`), every hidden directory but `.github/workflows`, a test directory, a file named as a
   test, and a project template (a tree holding `.template.config`, `cookiecutter.json`, or a `{{ }}`
@@ -278,8 +284,16 @@ diffs; today its method-level differ drops an edge whose end is not a file.
 {"repo": "owner/name", "commit": "<sha>",
  "anchors": [{"family": "build_manifest|deployment|configuration|service_names|http_in_code|messaging|generated|data_access",
               "role": "def|use", "key": "<as written>", "norm_key": "<normalised>",
-              "file": "<repo-relative path>", "line": 12, "unit": "<unit id or null>", "tier": "T1|T2|T3"}]}
+              "file": "<repo-relative path>", "line": 12, "column": 1,
+              "unit": "<the unit it is about>", "tier": "T1|T2|T3"}]}
 ```
+
+An anchor's `unit` is the unit it is **about**, not the unit whose file it is: a root compose file
+belongs to no box, and the variable it sets belongs to the service it sets it on. Its `norm_key` is
+normalised the way its family is compared — an environment or configuration key the way Spring's
+relaxed binding and ASP.NET's `A__B` rule compare it (`spring.datasource.url` is
+`SPRINGDATASOURCEURL`), a name the way the unit table spells the names a unit answers to. A route
+is the one T2 anchor: its path is a template with its parameters collapsed.
 
 `diagnostics.json` lists every unresolved use, every unused definition, every ambiguous key and
 every ignored place with the reason, in the same shape as the `diagnostics` list above. It is also

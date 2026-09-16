@@ -71,6 +71,13 @@ TEST_FILE = re.compile(
     r"|[._-](?:tests?|specs?)\.[^.]+$|[._-][A-Za-z0-9]*Tests?\.(?:csproj|fsproj|java|kt|cs)$"
 )
 
+#: What a reader may open for a literal service name or an environment read (`docs/design/wiring.md` §3).
+#: Source is never scanned for structure — that is the language servers' work — only for these two.
+SOURCE_SUFFIXES = frozenset(
+    {".cs", ".java", ".kt", ".scala", ".groovy", ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+     ".go", ".rb", ".php", ".rs", ".vue", ".svelte"}
+)  # fmt: skip
+
 #: A directory holding one of these is a template to instantiate, not a system to read.
 TEMPLATE_MARKERS = frozenset({".template.config", "cookiecutter.json", "copier.yml", "copier.yaml"})
 
@@ -101,6 +108,9 @@ class FileKind(StrEnum):
     GEMSPEC = "gemspec"
     MIX = "mix"
     SPRING_CONFIG = "spring_config"
+    DOTNET_SETTINGS = "dotnet_settings"
+    PROPERTIES = "properties"
+    NGINX = "nginx"
     DOTENV = "dotenv"
 
 
@@ -125,6 +135,9 @@ _BY_NAME: dict[str, FileKind] = {
     "chart.yml": FileKind.HELM_CHART,
 }
 
+#: Where nginx keeps configuration that has no extension: `conf.d`, `sites-enabled`, an include dir.
+_NGINX_DIR = re.compile(r"(?i)(?:^|/)(?:nginx[\w.-]*|conf\.d|sites-(?:enabled|available))(?:/|$)")
+
 _BY_PATTERN: tuple[tuple[re.Pattern[str], FileKind], ...] = (
     (re.compile(r"(?i)^(?:docker-)?compose[\w.-]*\.ya?ml$"), FileKind.COMPOSE),
     (re.compile(r"(?i)^skaffold[\w.-]*\.ya?ml$"), FileKind.SKAFFOLD),
@@ -136,6 +149,9 @@ _BY_PATTERN: tuple[tuple[re.Pattern[str], FileKind], ...] = (
     (re.compile(r"(?i)^[\w.-]+\.gemspec$"), FileKind.GEMSPEC),
     (re.compile(r"(?i)^[\w.-]+\.(?:cs|fs)proj$"), FileKind.DOTNET_PROJECT),
     (re.compile(r"(?i)^[\w.-]+\.slnx?$"), FileKind.DOTNET_SOLUTION),
+    (re.compile(r"(?i)^appsettings[\w.-]*\.json$"), FileKind.DOTNET_SETTINGS),
+    (re.compile(r"(?i)^[\w.-]*\.properties$"), FileKind.PROPERTIES),
+    (re.compile(r"(?i)^nginx[\w.-]*\.conf$|^[\w.-]+\.conf$"), FileKind.NGINX),
     (re.compile(r"^\.env(?:\.[\w.-]+)?$"), FileKind.DOTENV),
     (re.compile(r"(?i)^[\w.-]*\.ya?ml$"), FileKind.YAML),
 )
@@ -201,6 +217,8 @@ def classify(directory: str, name: str) -> FileKind | None:
     if directory.startswith(".github"):
         return None
     lowered = name.lower()
+    if "." not in name and _NGINX_DIR.search(directory):
+        return FileKind.NGINX
     if lowered in _BY_NAME:
         return _BY_NAME[lowered]
     for pattern, kind in _BY_PATTERN:
@@ -233,6 +251,21 @@ class Scan:
         """Every scanned path of these kinds, sorted, so a reader's output order is the tree's."""
         wanted = set(kinds)
         return tuple(sorted(path for path, file in self.files.items() if file.kind in wanted))
+
+    def sources(self, inside: str = "") -> tuple[str, ...]:
+        """The source files a reader may look inside: never a test, never an excluded place."""
+        prefix = f"{inside}/" if inside else ""
+        found = []
+        for directory, names in sorted(self.by_dir.items()):
+            if inside and directory != inside and not directory.startswith(prefix):
+                continue
+            for name in names:
+                path = f"{directory}/{name}" if directory else name
+                tooling = ".config." in name or name.startswith(".")
+                if os.path.splitext(name)[1] in SOURCE_SUFFIXES and not TEST_FILE.search(name) and not tooling:
+                    if not self._ignore.gitignore_spec.match_file(path):
+                        found.append(path)
+        return tuple(found)
 
     def names_in(self, directory: str) -> tuple[str, ...]:
         """The file names directly inside *directory*, whether the allowlist names them or not."""
@@ -322,7 +355,7 @@ class Scan:
             self.diagnose(DiagnosticCode.IGNORED_MANIFEST, f"{path} is larger than {MAX_BYTES // 1_000_000} MB", path)
             return ""
         try:
-            return target.read_text(encoding="utf-8", errors="replace")
+            return target.read_text(encoding="utf-8-sig", errors="replace")
         except OSError as error:
             self.diagnose(DiagnosticCode.UNREADABLE_MANIFEST, f"{path} could not be read: {error.strerror}", path)
             return ""

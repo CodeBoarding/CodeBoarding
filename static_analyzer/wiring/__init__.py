@@ -21,6 +21,8 @@ import time
 from pathlib import Path
 
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.wiring.anchors import collect, to_json
+from static_analyzer.wiring.compose import compose_projects
 from static_analyzer.wiring.scan import Scan
 from static_analyzer.wiring.units import build_units
 from static_analyzer.wiring_results import Diagnostic, DiagnosticCode, WiringResults
@@ -52,12 +54,15 @@ def run(results: StaticAnalysisResults, repo_root: Path, *, dump: Path | None = 
     """
     started = time.monotonic()
     scan = Scan(repo_root)
-    units = build_units(scan, repository_name(repo_root))
-    wiring = WiringResults(units=units, diagnostics=sorted(scan.diagnostics, key=_order))
+    projects = compose_projects(scan)
+    units = build_units(scan, repository_name(repo_root), projects)
+    anchors = collect(scan, units, projects)
+    wiring = WiringResults(units=units, anchors=anchors, diagnostics=sorted(scan.diagnostics, key=_order))
     logger.info(
-        "wiring: %d files read, %d units, %d diagnostics in %.2fs",
+        "wiring: %d files read, %d units, %d anchors, %d diagnostics in %.2fs",
         len(scan.files),
         len(wiring.units),
+        len(wiring.anchors),
         len(wiring.diagnostics),
         time.monotonic() - started,
     )
@@ -85,6 +90,7 @@ def write_dump(wiring: WiringResults, repo_root: Path, directory: Path) -> None:
         directory / "units.json",
         {**heading, "units": [unit.to_json() for unit in wiring.units], "diagnostics": diagnostics},
     )
+    _write(directory / "anchors.json", {**heading, "anchors": [to_json(anchor) for anchor in wiring.anchors]})
     _write(directory / "diagnostics.json", {**heading, "diagnostics": diagnostics})
 
 
