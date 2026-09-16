@@ -41,6 +41,10 @@ STORE_SCHEME = re.compile(
 SCHEMA_DIRS = ("db", "database", "migrations", "migration", "schema", "sql", "initdb", "changelog")
 _SCHEMA_SUFFIXES = (".sql", ".ddl", ".xml", ".yaml", ".yml", ".json", ".py", ".rb", ".cs", ".java")
 
+#: How SQL Server spells the way to reach a host, before it names the host: `tcp:`, `np:` (a named
+#: pipe), `lpc:` (shared memory). None of them is part of the name.
+_NETWORK_PROTOCOL = re.compile(r"(?i)^(?:tcp|np|lpc|admin):")
+
 #: A file whose own name says it defines the schema, rather than one that merely mentions the word:
 #: `schema.sql` declares, while `0041_create_attachments.py` and `FixOrderSchema.Designer.cs` are a
 #: point in a history that happens to contain it.
@@ -168,8 +172,9 @@ def _anchor(family: AnchorFamily, role: AnchorRole, key: str, norm_key: str, pat
 
 
 def _local(target: str) -> bool:
-    """Whether a connection part names this machine: `localhost`, `localhost,1433`, `localhost\\SQLEXPRESS`."""
-    cleaned = target.strip().strip("\"'")
+    """Whether a connection part names this machine, in any of the spellings a driver accepts:
+    `localhost`, `localhost,1433`, `localhost\\SQLEXPRESS`, `tcp:localhost,1433`, `np:\\localhost\\pipe`."""
+    cleaned = _NETWORK_PROTOCOL.sub("", target.strip().strip("\"'").lstrip("\\")).lstrip("\\")
     return cleaned.lower() in LOCAL_HOSTS or re.split(r"[\\,:/]", cleaned, maxsplit=1)[0].strip().lower() in LOCAL_HOSTS
 
 

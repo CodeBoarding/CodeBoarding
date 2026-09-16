@@ -126,11 +126,11 @@ class TestConfiguration(unittest.TestCase):
         self.assertIn(("data_access", "use", "database=catalogdb", f"{settings}:5", "src/Catalog"), found)
 
     def test_a_local_server_is_the_machine_talking_to_itself(self) -> None:
-        """`Server=localhost` names no unit, so it is not a thing a resource could be made of."""
+        """`localhost` names no unit in any spelling a driver accepts, `tcp:` and a port included."""
         found = rows("anchors-dotnet")
         settings = "src/Catalog/appsettings.json"
 
-        self.assertEqual([key for _, _, key, _, _ in found if key.startswith("server=local")], [])
+        self.assertEqual([key for _, _, key, _, _ in found if "localhost" in key], [])
         self.assertIn(("data_access", "use", "database=devdb", f"{settings}:6", "src/Catalog"), found)
         self.assertIn(("data_access", "use", "database=sqldb", f"{settings}:7", "src/Catalog"), found)
 
