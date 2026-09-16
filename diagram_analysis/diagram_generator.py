@@ -690,12 +690,17 @@ class DiagramGenerator:
 
         # The wiring layer's endpoints join the boxes that already exist: a manifest an arrow lands
         # on becomes a member of the component owning its directory, and no partition moves.
-        place(
-            self.clustering_hierarchy,
-            static_analysis.wiring.units,
-            static_analysis.wiring.edges,
-            self.repo_location,
-        )
+        #
+        # An incremental run leaves the hierarchy unbuilt here — it carries a preparation instead —
+        # and there is nothing to place on a scope that does not exist yet. Wiring an incremental
+        # run is PR 7's subject, so this skips rather than guesses.
+        if self.clustering_hierarchy is not None:
+            place(
+                self.clustering_hierarchy,
+                static_analysis.wiring.units,
+                static_analysis.wiring.edges,
+                self.repo_location,
+            )
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
