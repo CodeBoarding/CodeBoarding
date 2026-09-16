@@ -49,6 +49,11 @@ class CallGraph:
         self.reference_edges: list[ReferenceEdge] = []
 
     def add_node(self, node: Node) -> None:
+        if not node.file_path:
+            # A node with no file — a resource the wiring layer draws (§7) — has no location for
+            # another name to share, so it is never an alias of anything.
+            self.nodes.setdefault(node.fully_qualified_name, node)
+            return
         loc_key = LocationKey(node.file_path, node.line_start, node.line_end, node.type.value, node.col_start)
         existing_name = self._location_index.get(loc_key)
 

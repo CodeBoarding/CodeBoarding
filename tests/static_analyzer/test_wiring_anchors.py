@@ -82,6 +82,23 @@ class TestDeployment(unittest.TestCase):
         self.assertIn(("service_names", "use", "identity-api", "src/AppHost/Program.cs:7", "src/Basket.Api"), found)
 
 
+class TestResourceConfiguration(unittest.TestCase):
+    def test_a_configured_image_s_directory_is_that_resource_s_configuration(self) -> None:
+        """`docker/prometheus/prometheus.yml` is about the Prometheus, which is what its anchors' unit says (§6)."""
+        found = rows("resources-compose")
+
+        self.assertIn(
+            ("service_names", "use", "api", "monitoring/prometheus/prometheus.yml:5", "resource:api:metrics"), found
+        )
+
+    def test_a_gateway_s_chain_names_what_it_routes_to(self) -> None:
+        """`builder.AddYarp("edge").WithReference(catalogApi)`: the proxy keeps no handle and is still the
+        subject of its own statement, so the project it names is a use by the gateway."""
+        (anchor,) = [anchor for anchor in anchors_of("resources-aspire") if anchor.unit == "resource:gateway:edge"]
+
+        self.assertEqual((anchor.key, anchor.setting, anchor.role.value), ("catalog-api", "AddYarp", "use"))
+
+
 class TestConfiguration(unittest.TestCase):
     def test_a_gateway_route_table_gives_a_name_and_a_template(self) -> None:
         found = rows("anchors-spring")

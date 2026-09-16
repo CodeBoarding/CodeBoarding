@@ -20,6 +20,7 @@ from agents.relation_edges import (
 )
 from clustering_ids import is_self_or_descendant
 from static_analyzer.cfg import RELATION_REFERENCE_KINDS, CallGraph
+from static_analyzer.wiring_results import is_resource
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,10 @@ def build_global_node_to_component_map(
         live = {component.component_id for component in root_analysis.components}
         live.update(component.component_id for analysis in sub_analyses.values() for component in analysis.components)
         for node_name, component_id in endpoints.items():
+            if is_resource(component_id):
+                # A resource node is its own end of a relation: it belongs to no box (§7).
+                node_to_component[node_name] = component_id
+                continue
             expanded = next((ancestor for ancestor in iter_ancestor_ids(component_id) if ancestor in live), "")
             if expanded:
                 node_to_component[node_name] = expanded
@@ -180,16 +185,19 @@ def build_global_relations(
     sub_analyses: dict[str, AnalysisInsights],
     cfg_graphs: dict[str, CallGraph],
     endpoints: Mapping[str, str] = _NO_ENDPOINTS,
+    labels: Mapping[str, str] = _NO_ENDPOINTS,
 ) -> list[Relation]:
     """Build deterministic project-wide relations at the current expansion frontier.
 
     ``cfg_graphs`` is every graph with edges to draw, the wiring layer's own graph included; the
-    key is never read. ``endpoints`` places that graph's artifact nodes on their components.
+    key is never read. ``endpoints`` places that graph's artifact nodes on their components, and
+    ``labels`` names its resource nodes, which are relation ends and not components.
     """
     node_to_component = build_global_node_to_component_map(root_analysis, sub_analyses, endpoints)
     static_relations = build_component_relations(node_to_component, cfg_graphs)
     id_to_name = _collect_component_names(root_analysis, sub_analyses)
     live_ids = set(id_to_name)
+    id_to_name = {**labels, **id_to_name}
     llm_relations = _collect_authoritative_relations(root_analysis, sub_analyses)
 
     global_relations: dict[tuple[str, str], Relation] = {}

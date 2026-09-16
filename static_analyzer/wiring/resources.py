@@ -14,8 +14,11 @@ children rather than resources of their own. **Whose is it**: the unit whose dec
 its content, else its only user, else the directory its users share — a manifest that merely runs
 a resource decides nothing (§7).
 
-Nothing here draws anything. Placement, the level cap and the arrows into these nodes are §7's
-remaining half and belong to the PR after this one.
+Every place a unit names one of these is a *use*, and the uses are what the join turns into arrows
+(§6): the resource is the other end. A driver or a client type names a kind of thing; when the
+deployment runs exactly one thing of that kind, that is the thing the driver talks to, so the two
+declarations are one resource under the name the repository gave it. Nothing here draws anything:
+placement and the level cap are the wiring graph's (§7).
 """
 
 from __future__ import annotations
@@ -26,6 +29,15 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from static_analyzer.wiring.anchors.keys import Names, Owners
+from static_analyzer.wiring.catalogue import (
+    CATALOGUE,
+    DRIVERS,
+    classify,
+    classify_image,
+    classify_word,
+    resource_key,
+    word_of,
+)
 from static_analyzer.wiring.compose import ComposeProject
 from static_analyzer.wiring.images import image_ref
 from static_analyzer.wiring.manifests import dependencies
@@ -42,137 +54,8 @@ from static_analyzer.wiring_results import (
     ResourceChild,
     ResourceKind,
     Unit,
+    is_resource,
 )
-
-#: The one catalogue (§7). A row is reached by an image name, an Aspire constructor, a URL scheme,
-#: a driver or a client type, and it carries both the kind and the name a reader sees, so the two
-#: can never disagree. Keys are the bare word each vocabulary reduces to; §12 records that this
-#: table is its home.
-CATALOGUE: dict[str, tuple[ResourceKind, str]] = {
-    "postgres": (ResourceKind.DB, "PostgreSQL"),
-    "postgresql": (ResourceKind.DB, "PostgreSQL"),
-    "postgis": (ResourceKind.DB, "PostgreSQL"),
-    "pgvector": (ResourceKind.DB, "PostgreSQL"),
-    "timescaledb": (ResourceKind.DB, "TimescaleDB"),
-    "mysql": (ResourceKind.DB, "MySQL"),
-    "mariadb": (ResourceKind.DB, "MariaDB"),
-    "mssql": (ResourceKind.DB, "SQL Server"),
-    "sqlserver": (ResourceKind.DB, "SQL Server"),
-    "mongo": (ResourceKind.DB, "MongoDB"),
-    "mongodb": (ResourceKind.DB, "MongoDB"),
-    "cassandra": (ResourceKind.DB, "Cassandra"),
-    "scylla": (ResourceKind.DB, "ScyllaDB"),
-    "cockroach": (ResourceKind.DB, "CockroachDB"),
-    "cockroachdb": (ResourceKind.DB, "CockroachDB"),
-    "couchdb": (ResourceKind.DB, "CouchDB"),
-    "couchbase": (ResourceKind.DB, "Couchbase"),
-    "oracle": (ResourceKind.DB, "Oracle"),
-    "hsqldb": (ResourceKind.DB, "HSQLDB"),
-    "sqlite": (ResourceKind.DB, "SQLite"),
-    "clickhouse": (ResourceKind.DB, "ClickHouse"),
-    "neo4j": (ResourceKind.DB, "Neo4j"),
-    "cosmos": (ResourceKind.DB, "Azure Cosmos DB"),
-    "qdrant": (ResourceKind.DB, "Qdrant"),
-    "weaviate": (ResourceKind.DB, "Weaviate"),
-    "milvus": (ResourceKind.DB, "Milvus"),
-    "chroma": (ResourceKind.DB, "Chroma"),
-    "vectorstore": (ResourceKind.DB, "Vector store"),
-    "jdbc": (ResourceKind.DB, "SQL database"),
-    "redis": (ResourceKind.CACHE, "Redis"),
-    "valkey": (ResourceKind.CACHE, "Valkey"),
-    "dragonfly": (ResourceKind.CACHE, "Dragonfly"),
-    "keydb": (ResourceKind.CACHE, "KeyDB"),
-    "memcached": (ResourceKind.CACHE, "Memcached"),
-    "connectionmultiplexer": (ResourceKind.CACHE, "Redis"),
-    "minio": (ResourceKind.STORE, "MinIO"),
-    "s3": (ResourceKind.STORE, "S3"),
-    "azurite": (ResourceKind.STORE, "Azure Storage"),
-    "blob": (ResourceKind.STORE, "Azure Blob Storage"),
-    "fakegcs": (ResourceKind.STORE, "Cloud Storage"),
-    "etcd": (ResourceKind.STORE, "etcd"),
-    "git": (ResourceKind.STORE, "Git repository"),
-    "elasticsearch": (ResourceKind.STORE, "Elasticsearch"),
-    "opensearch": (ResourceKind.STORE, "OpenSearch"),
-    "rabbitmq": (ResourceKind.BROKER, "RabbitMQ"),
-    "rabbit": (ResourceKind.BROKER, "RabbitMQ"),
-    "amqp": (ResourceKind.BROKER, "AMQP broker"),
-    "kafka": (ResourceKind.BROKER, "Kafka"),
-    "redpanda": (ResourceKind.BROKER, "Redpanda"),
-    "nats": (ResourceKind.BROKER, "NATS"),
-    "pulsar": (ResourceKind.BROKER, "Pulsar"),
-    "activemq": (ResourceKind.BROKER, "ActiveMQ"),
-    "artemis": (ResourceKind.BROKER, "ActiveMQ Artemis"),
-    "zookeeper": (ResourceKind.BROKER, "ZooKeeper"),
-    "azureservicebus": (ResourceKind.BROKER, "Azure Service Bus"),
-    "servicebus": (ResourceKind.BROKER, "Azure Service Bus"),
-    "mosquitto": (ResourceKind.BROKER, "Mosquitto"),
-    "nginx": (ResourceKind.GATEWAY, "nginx"),
-    "envoy": (ResourceKind.GATEWAY, "Envoy"),
-    "traefik": (ResourceKind.GATEWAY, "Traefik"),
-    "haproxy": (ResourceKind.GATEWAY, "HAProxy"),
-    "kong": (ResourceKind.GATEWAY, "Kong"),
-    "caddy": (ResourceKind.GATEWAY, "Caddy"),
-    "yarp": (ResourceKind.GATEWAY, "YARP"),
-    "zipkin": (ResourceKind.API, "Zipkin"),
-    "jaeger": (ResourceKind.API, "Jaeger"),
-    "prometheus": (ResourceKind.API, "Prometheus"),
-    "grafana": (ResourceKind.API, "Grafana"),
-    "opentelemetry": (ResourceKind.API, "OpenTelemetry"),
-    "otel": (ResourceKind.API, "OpenTelemetry"),
-    "otlp": (ResourceKind.API, "OpenTelemetry"),
-    "kibana": (ResourceKind.API, "Kibana"),
-    "logstash": (ResourceKind.API, "Logstash"),
-    "fluentd": (ResourceKind.API, "Fluentd"),
-    "loki": (ResourceKind.API, "Loki"),
-    "tempo": (ResourceKind.API, "Tempo"),
-    "seq": (ResourceKind.API, "Seq"),
-    "temporal": (ResourceKind.API, "Temporal"),
-    "keycloak": (ResourceKind.API, "Keycloak"),
-    "vault": (ResourceKind.API, "Vault"),
-    "ollama": (ResourceKind.API, "Ollama"),
-    "openai": (ResourceKind.API, "OpenAI"),
-    "azureopenai": (ResourceKind.API, "Azure OpenAI"),
-    "foundry": (ResourceKind.API, "Azure AI Foundry"),
-    "anthropic": (ResourceKind.API, "Anthropic"),
-    "bedrock": (ResourceKind.API, "Bedrock"),
-    "sentry": (ResourceKind.API, "Sentry"),
-    "sendgrid": (ResourceKind.API, "SendGrid"),
-    "twilio": (ResourceKind.API, "Twilio"),
-    "stripe": (ResourceKind.API, "Stripe"),
-    "mailhog": (ResourceKind.API, "MailHog"),
-    "maildev": (ResourceKind.API, "MailDev"),
-    "mailpit": (ResourceKind.API, "Mailpit"),
-    "localstack": (ResourceKind.API, "LocalStack"),
-}
-
-#: The driver a manifest depends on, by its package name in Maven Central, NuGet or npm, and the
-#: catalogue word it names: a `pom.xml` that depends on `hsqldb` talks to an HSQLDB.
-DRIVERS: dict[str, str] = {
-    "hsqldb": "hsqldb",
-    "mysql-connector-j": "mysql",
-    "mysql-connector-java": "mysql",
-    "mariadb-java-client": "mariadb",
-    "postgresql": "postgres",
-    "npgsql": "postgres",
-    "pg": "postgres",
-    "mysql2": "mysql",
-    "ioredis": "redis",
-    "redis": "redis",
-    "jedis": "redis",
-    "lettuce-core": "redis",
-    "stackexchange.redis": "redis",
-    "mongodb": "mongodb",
-    "mongodb-driver-sync": "mongodb",
-    "mongodb.driver": "mongodb",
-    "microsoft.data.sqlclient": "sqlserver",
-    "system.data.sqlclient": "sqlserver",
-    "rabbitmq.client": "rabbitmq",
-    "amqp-client": "rabbitmq",
-    "amqplib": "rabbitmq",
-    "kafka-clients": "kafka",
-    "kafkajs": "kafka",
-    "confluent.kafka": "kafka",
-}
 
 #: `var cache = builder.AddRedis("redis")` — the variable it binds, the constructor that says the
 #: kind, and the name the repository gives it. The binding is optional, because
@@ -202,69 +85,119 @@ SERVER_PART = re.compile(r"(?i)^(?:server|host|data source|datasource)=(.+)$")
 DATABASE_PART = re.compile(r"(?i)^(?:database|initial catalog)=(.+)$")
 
 #: A tag or a digest is how an image is pinned, never part of what it is.
-_VERSIONED = re.compile(r"(?i)[-_.]?(?:v?\d[\w.]*|alpine|slim|latest|bookworm|bullseye|focal|jammy)$")
 _CONNECTION_SETTING = re.compile(r"(?i)connectionstring|datasource|jdbc")
-_LONGEST_FIRST = sorted(CATALOGUE, key=len, reverse=True)
+
+
+@dataclass(frozen=True)
+class Use:
+    """One place where a unit — or a resource's own configuration — names a resource or a child of one.
+
+    ``source`` is the unit it is about, or the resource whose configuration it is; ``target`` the
+    resource or child key. The join decides the kind from ``setting`` and ``key`` (§6).
+    """
+
+    source: str
+    target: str
+    file: str
+    line: int
+    column: int
+    key: str
+    setting: str
+    family: AnchorFamily
 
 
 @dataclass(frozen=True)
 class _Declared:
-    """One thing a topology named, before it is known whether the repository builds it."""
+    """One thing a topology named, before it is known whether the repository builds it.
+
+    ``named`` says whether the repository spelled the name (a compose service, an Aspire resource, the
+    host of a connection string) or the catalogue did (a driver, a client type, a configured key),
+    which decides which of two declarations of one thing keeps its name.
+    """
 
     name: str
     kind: ResourceKind
     display_name: str
     file: str
-    users: tuple[str, ...] = ()
+    line: int = 0
+    named: bool = True
+
+
+@dataclass(frozen=True)
+class _Naming:
+    """A place naming something by a name: what the uses are before the thing named has a key."""
+
+    unit: str
+    name: str
+    file: str
+    line: int
+    column: int
+    key: str
+    setting: str
+    family: AnchorFamily
 
 
 def discover(
     scan: Scan, projects: list[ComposeProject], units: list[Unit], anchors: list[Anchor]
-) -> tuple[list[Resource], list[Diagnostic]]:
-    """Every resource this repository declares and builds none of, sorted, with its children; and every image
-    or constructor the catalogue did not know."""
+) -> tuple[list[Resource], list[Use], list[Diagnostic]]:
+    """Every resource this repository declares and builds none of, sorted, with its children and its
+    users; every use of one; and every image or constructor the catalogue did not know."""
     names = Names(units)
     owners = Owners(units)
     aspire, aspire_children, rows = _aspire(scan, owners, names)
     declared, unknown = _compose(scan, projects, names)
     rows += unknown
     declared += aspire
-    declared += _stores(anchors)
+    stores, namings = _stores(anchors)
+    declared += stores
     # A unit that nothing runs talks to nothing this layer can draw. A library reading
     # `OPENAI_API_KEY`, depending on `pg` or holding a `VectorStore` offers an option to whoever
     # imports it; it does not stand beside a service. A framework's sample app does run.
     running = _deployed_units(scan, projects, units, names)
-    declared += _drivers(scan, [unit for unit in units if unit.id in running])
-    declared += _clients([anchor for anchor in anchors if anchor.unit in running])
-    declared += _configured([anchor for anchor in anchors if anchor.unit in running], names)
+    for more, named_by in (
+        _drivers(scan, [unit for unit in units if unit.id in running]),
+        _clients([anchor for anchor in anchors if anchor.unit in running]),
+        _configured([anchor for anchor in anchors if anchor.unit in running], names),
+    ):
+        declared += more
+        namings += named_by
+    canonical = _canonical(declared)
     children = _merge(_children(anchors), aspire_children)
-    users = _users(anchors, children)
+    parent_of = {alias_key(child): parent for parent, held in children.items() for child in held}
+    namings += _named(anchors, canonical, parent_of)
+
+    # A unit uses a resource when its own setting, driver or client names it or names one of its
+    # children; a compose file or an AppHost that merely runs it decides nothing (§7), and a
+    # resource's own configuration naming another is an arrow, never a user.
+    users: dict[str, set[str]] = {}
+    for naming in namings:
+        parent = canonical.get(alias_key(naming.name)) or canonical.get(parent_of.get(alias_key(naming.name), ""))
+        if parent and naming.unit and naming.unit != "." and not is_resource(naming.unit):
+            users.setdefault(parent, set()).add(naming.unit)
     for held in children.values():
         for child, owner in held.items():
             # A child declared by an AppHost is owned by the one unit that takes a reference to it.
-            naming = users.get(alias_key(child), set())
-            if not owner and len(naming) == 1:
-                held[child] = next(iter(naming))
-    for entry in declared:
-        # The unit whose setting, driver or client names a thing uses it; a compose file or an
-        # AppHost that merely runs it decides nothing (§7), so those declare with no user.
-        users.setdefault(alias_key(entry.name), set()).update(entry.users)
-    schemas = _schemas(anchors)
-
+            naming_units = {
+                n.unit for n in namings if alias_key(n.name) == alias_key(child) and n.unit and n.unit != "."
+            }
+            if not owner and len(naming_units) == 1:
+                held[child] = next(iter(naming_units))
     found: dict[str, Resource] = {}
-    for entry in declared:
-        key = f"resource:{entry.kind.value}:{alias_key(entry.name)}"
+    for entry in sorted(declared, key=lambda entry: (entry.kind.value, entry.name, entry.file, entry.line)):
+        name = canonical[alias_key(entry.name)]
+        key = resource_key(entry.kind, name)
         existing = found.get(key)
         declared_by = tuple(sorted({*(existing.declared_by if existing else ()), entry.file}))
-        using = sorted(users.get(alias_key(entry.name), set()))
+        using = tuple(sorted(users.get(name, set())))
         found[key] = Resource(
             key=key,
             kind=entry.kind,
             # What the repository calls it, never the image (§4).
-            name=entry.name,
-            display_name=entry.display_name,
+            name=name,
+            display_name=existing.display_name if existing else entry.display_name,
             declared_by=declared_by,
-            home_unit=_home(using, schemas),
+            users=using,
+            home_unit=_home(using),
             children=tuple(
                 # A child is of its parent's kind: a database on a server, a model on a provider.
                 ResourceChild(
@@ -273,47 +206,83 @@ def discover(
                     name=child,
                     owner=owner,
                 )
-                for child, owner in sorted(children.get(alias_key(entry.name), {}).items())
+                for child, owner in sorted(children.get(alias_key(name), {}).items())
             ),
         )
-    return [found[key] for key in sorted(found)], rows
+    resources = [found[key] for key in sorted(found)]
+    return resources, _uses(namings, resources, canonical, parent_of), rows
 
 
-def classify(token: str) -> tuple[ResourceKind | None, str]:
-    """What a word says a thing is, and what to call it: the word itself, or the longest catalogue word inside it.
-
-    `bitnami/postgresql-repmgr` and `SimpleVectorStore` carry their word; `openai-key` and
-    `vaultwarden` carry one too, which is why a compose service name and a client type are read
-    this way and an Aspire constructor is not (`classify_word`).
-    """
-    word = _reduce(token)
-    if word in CATALOGUE:
-        return CATALOGUE[word]
-    for known in _LONGEST_FIRST:
-        if known in word:
-            return CATALOGUE[known]
-    return None, ""
-
-
-def classify_word(token: str) -> tuple[ResourceKind | None, str]:
-    """What a word says when it must be the whole word: an Aspire constructor, a configuration key segment."""
-    return CATALOGUE.get(_reduce(token), (None, ""))
+def _canonical(declared: list[_Declared]) -> dict[str, str]:
+    """The name each declared name resolves to: its own, or the deployment's when a catalogue word
+    names a kind of thing the deployment runs exactly one of (`postgresql` in a `pom.xml` is the
+    compose file's `db` when that is the one PostgreSQL there)."""
+    named: dict[tuple[ResourceKind, str], set[str]] = {}
+    for entry in declared:
+        if entry.named:
+            named.setdefault((entry.kind, entry.display_name), set()).add(entry.name)
+    canonical: dict[str, str] = {}
+    for entry in sorted(declared, key=lambda entry: (not entry.named, entry.name)):
+        alias = alias_key(entry.name)
+        if alias in canonical:
+            continue
+        instances = named.get((entry.kind, entry.display_name), set())
+        canonical[alias] = entry.name if entry.named or len(instances) != 1 else next(iter(instances))
+    return canonical
 
 
-def classify_image(repository: str) -> tuple[ResourceKind | None, str]:
-    """What an image is, from any of its path segments, the last first: `mssql/server` is a SQL Server."""
-    for segment in reversed(repository.split("/")):
-        kind, display = classify(segment)
-        if kind is not None:
-            return kind, display
-    return None, ""
+def _named(anchors: list[Anchor], canonical: dict[str, str], parent_of: dict[str, str]) -> list[_Naming]:
+    """Every anchor naming a resource or a child by name: a host in a setting, a reference in an AppHost,
+    a configuration key that is a child's own name (`textEmbeddingModel`)."""
+    found = []
+    for anchor in anchors:
+        if anchor.role is not AnchorRole.USE or anchor.family not in (
+            AnchorFamily.SERVICE_NAMES,
+            AnchorFamily.CONFIGURATION,
+        ):
+            continue
+        spelled = (
+            [anchor.key, *re.split(r"__|[.:\[\]]", anchor.key)]
+            if anchor.family is AnchorFamily.CONFIGURATION
+            else [anchor.key]
+        )
+        name = next((s for s in spelled if alias_key(s) in canonical or alias_key(s) in parent_of), "")
+        if name:
+            found.append(
+                _Naming(
+                    anchor.unit,
+                    name,
+                    anchor.file,
+                    anchor.line,
+                    anchor.column,
+                    anchor.key,
+                    anchor.setting,
+                    anchor.family,
+                )
+            )
+    return found
 
 
-def _reduce(token: str) -> str:
-    """A word from an image, a constructor or a scheme, reduced to what the catalogue is keyed on."""
-    word = token.strip().lower().rsplit("/", 1)[-1]
-    word = _VERSIONED.sub("", word)
-    return re.sub(r"[^a-z0-9]", "", word)
+def _uses(
+    namings: list[_Naming], resources: list[Resource], canonical: dict[str, str], parent_of: dict[str, str]
+) -> list[Use]:
+    """Each naming as a use of the key it names, sorted, one per place."""
+    keys = {alias_key(resource.name): resource.key for resource in resources}
+    for resource in resources:
+        for child in resource.children:
+            keys[alias_key(child.name)] = child.key
+    found = set()
+    for naming in namings:
+        if not naming.unit or naming.unit == ".":
+            continue
+        alias = alias_key(naming.name)
+        target = keys.get(alias_key(canonical.get(alias, ""))) or keys.get(alias)
+        if target is None:
+            continue
+        found.add(
+            Use(naming.unit, target, naming.file, naming.line, naming.column, naming.key, naming.setting, naming.family)
+        )
+    return sorted(found, key=lambda use: (use.source, use.target, use.file, use.line, use.column, use.key, use.setting))
 
 
 def _compose(scan: Scan, projects: list[ComposeProject], names: Names) -> tuple[list[_Declared], list[Diagnostic]]:
@@ -420,18 +389,18 @@ def _aspire(
     return found, children, rows
 
 
-def _stores(anchors: list[Anchor]) -> list[_Declared]:
+def _stores(anchors: list[Anchor]) -> tuple[list[_Declared], list[_Naming]]:
     """A store named only in a connection string: its scheme, its own name or its setting says what it is."""
     hosts = {
-        (anchor.file, anchor.line): anchor.key
+        (anchor.file, anchor.line): anchor
         for anchor in anchors
         if anchor.family is AnchorFamily.SERVICE_NAMES and anchor.role is AnchorRole.USE
     }
-    found = []
+    found: list[_Declared] = []
+    namings: list[_Naming] = []
     for anchor in anchors:
         if anchor.family is not AnchorFamily.DATA_ACCESS or anchor.role is not AnchorRole.USE:
             continue
-        users = (anchor.unit,) if anchor.unit and anchor.unit != "." else ()
         server = SERVER_PART.match(anchor.key)
         if server is not None:
             kind, display = classify(server.group(1))
@@ -439,22 +408,25 @@ def _stores(anchors: list[Anchor]) -> list[_Declared]:
                 # A `Server=` inside a connection string is a database server whatever it is called.
                 kind, display = ResourceKind.DB, "SQL database"
             if kind is not None:
-                found.append(_Declared(server.group(1), kind, display, anchor.file, users))
+                found.append(_Declared(server.group(1), kind, display, anchor.file, anchor.line))
+                namings.append(_naming(anchor, server.group(1)))
         elif ": " in anchor.key:
             # `ConnectionStrings.EventBus: amqp` — the scheme is the kind, and the host written on
             # the same line is the name the repository gave it.
-            host = hosts.get((anchor.file, anchor.line), "")
-            kind, display = classify(host) if host else (None, "")
+            host = hosts.get((anchor.file, anchor.line))
+            kind, display = classify(host.key) if host else (None, "")
             if host and kind is None:
                 kind, display = classify_word(anchor.key.rsplit(": ", 1)[1].split(":")[0])
             if host and kind is not None:
-                found.append(_Declared(host, kind, display, anchor.file, users))
-    return found
+                found.append(_Declared(host.key, kind, display, anchor.file, anchor.line))
+                namings.append(_naming(anchor, host.key))
+    return found, namings
 
 
-def _drivers(scan: Scan, units: list[Unit]) -> list[_Declared]:
+def _drivers(scan: Scan, units: list[Unit]) -> tuple[list[_Declared], list[_Naming]]:
     """A driver a manifest depends on declares a resource of its kind, used by that unit (§7)."""
-    found = []
+    found: list[_Declared] = []
+    namings: list[_Naming] = []
     for unit in units:
         if not unit.manifest:
             continue
@@ -463,25 +435,28 @@ def _drivers(scan: Scan, units: list[Unit]) -> list[_Declared]:
             if word is None:
                 continue
             kind, display = CATALOGUE[word]
-            found.append(_Declared(name=word, kind=kind, display_name=display, file=unit.manifest, users=(unit.id,)))
-    return found
+            line = _line_of(scan.text(unit.manifest), dependency)
+            found.append(_Declared(word, kind, display, unit.manifest, line, named=False))
+            namings.append(_Naming(unit.id, word, unit.manifest, line, 1, dependency, "", AnchorFamily.BUILD_MANIFEST))
+    return found, namings
 
 
-def _clients(anchors: list[Anchor]) -> list[_Declared]:
+def _clients(anchors: list[Anchor]) -> tuple[list[_Declared], list[_Naming]]:
     """A vector-store client type in code declares a db: nothing else names it (§7)."""
-    found = []
+    found: list[_Declared] = []
+    namings: list[_Naming] = []
     for anchor in anchors:
         if anchor.family is not AnchorFamily.DATA_ACCESS or anchor.role is not AnchorRole.USE or "=" in anchor.key:
             continue
-        if ": " in anchor.key or "vectorstore" not in _reduce(anchor.key):
+        if ": " in anchor.key or "vectorstore" not in word_of(anchor.key):
             continue
         kind, display = CATALOGUE["vectorstore"]
-        users = (anchor.unit,) if anchor.unit and anchor.unit != "." else ()
-        found.append(_Declared(name="vectorstore", kind=kind, display_name=display, file=anchor.file, users=users))
-    return found
+        found.append(_Declared("vectorstore", kind, display, anchor.file, anchor.line, named=False))
+        namings.append(_naming(anchor, "vectorstore"))
+    return found, namings
 
 
-def _configured(anchors: list[Anchor], names: Names) -> list[_Declared]:
+def _configured(anchors: list[Anchor], names: Names) -> tuple[list[_Declared], list[_Naming]]:
     """A third party a key names: `spring.ai.openai.api-key`, `OTEL_EXPORTER_OTLP_ENDPOINT` (§7).
 
     The name is the segment that named it, never the whole key: `spring.ai.openai.api-key` and
@@ -489,17 +464,40 @@ def _configured(anchors: list[Anchor], names: Names) -> list[_Declared]:
     than a second resource to draw. The first known segment wins, because `spring.ai.azure.openai`
     names an OpenAI rather than an Azure.
     """
-    found = []
+    found: list[_Declared] = []
+    namings: list[_Naming] = []
     for anchor in anchors:
         if anchor.family is not AnchorFamily.CONFIGURATION:
             continue
         segments = [segment for segment in re.split(r"[.:_\-\[\]]+", anchor.key) if segment]
-        known = next((segment for segment in segments if _reduce(segment) in CATALOGUE), "")
+        known = next((segment for segment in segments if word_of(segment) in CATALOGUE), "")
         if known and not names.unit_of(known):
-            kind, display = CATALOGUE[_reduce(known)]
-            users = (anchor.unit,) if anchor.unit and anchor.unit != "." else ()
-            found.append(_Declared(name=known, kind=kind, display_name=display, file=anchor.file, users=users))
-    return found
+            kind, display = CATALOGUE[word_of(known)]
+            found.append(_Declared(known, kind, display, anchor.file, anchor.line, named=False))
+            namings.append(_naming(anchor, known))
+    return found, namings
+
+
+def _naming(anchor: Anchor, name: str) -> _Naming:
+    return _Naming(
+        anchor.unit,
+        name,
+        anchor.file,
+        anchor.line,
+        anchor.column,
+        anchor.key,
+        anchor.setting or anchor.key,
+        anchor.family,
+    )
+
+
+def _line_of(text: str, needle: str) -> int:
+    """The first line naming *needle*, so a dependency's site is where it is written; 1 when unknown."""
+    lowered = needle.lower()
+    for number, line in enumerate(text.split("\n"), 1):
+        if lowered in line.lower():
+            return number
+    return 1
 
 
 def _deployed_units(scan: Scan, projects: list[ComposeProject], units: list[Unit], names: Names) -> set[str]:
@@ -548,35 +546,10 @@ def _children(anchors: list[Anchor]) -> dict[str, dict[str, str]]:
     }
 
 
-def _users(anchors: list[Anchor], children: dict[str, dict[str, str]]) -> dict[str, set[str]]:
-    """Which units name each thing, a child's users counted for its parent: what makes a resource shared or private."""
-    parent_of = {alias_key(child): parent for parent, held in children.items() for child in held}
-    found: dict[str, set[str]] = {}
-    for anchor in anchors:
-        if anchor.role is not AnchorRole.USE or not anchor.unit or anchor.unit == ".":
-            continue
-        name = alias_key(anchor.key) if anchor.family is AnchorFamily.SERVICE_NAMES else anchor.norm_key
-        found.setdefault(name, set()).add(anchor.unit)
-        if name in parent_of:
-            found.setdefault(parent_of[name], set()).add(anchor.unit)
-    return found
-
-
-def _schemas(anchors: list[Anchor]) -> set[str]:
-    """The units that keep a migration or DDL directory, which is a declaration of content."""
-    return {
-        anchor.unit
-        for anchor in anchors
-        if anchor.family is AnchorFamily.DATA_ACCESS and anchor.role is AnchorRole.DEF and anchor.unit
-    }
-
-
-def _home(users: Sequence[str], schemas: set[str]) -> str:
-    """Whose resource it is: the unit whose declaration defines its content, else its only user, else
-    the directory its users share (§7). A unit in P1; PR 6 resolves it to a component."""
-    declaring = sorted(set(users) & schemas)
-    if len(declaring) == 1:
-        return declaring[0]
+def _home(users: Sequence[str]) -> str:
+    """Whose resource it is: its only user, else the directory its users share (§7). A unit here; the
+    placement resolves it to a component. A content-defining declaration — a migration directory — names
+    a database and never the server that holds it, so it decides a child's owner and not a parent's home."""
     if len(users) == 1:
         return users[0]
     if not users:

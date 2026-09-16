@@ -12,12 +12,13 @@ from __future__ import annotations
 import re
 
 from static_analyzer.wiring.anchors.keys import Names, Owners, env_key, hosts_in
+from static_analyzer.wiring.catalogue import resource_key
 from static_analyzer.wiring.compose import ComposeProject, ComposeService
 from static_analyzer.wiring.images import image_ref
 from static_analyzer.wiring.scan import FileKind, Scan, listing, mapping, parent_dir
 from static_analyzer.wiring.topology import ASPIRE_HOST
 from static_analyzer.wiring.units import alias_key
-from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, Tier
+from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, ResourceKind, Tier
 
 #: `var basket = builder.AddProject<Projects.Basket_API>("basket-api")`, and the endpoint of one.
 _ASPIRE_RESOURCE = re.compile(
@@ -35,6 +36,7 @@ _WITH_REFERENCE = re.compile(r"\.\s*(?:WithReference|WaitFor)\s*\(\s*(\w+)")
 _DECLARED = re.compile(r"(?:var|let)\s+(\w+)\s*=")
 _RECEIVER = re.compile(r"\s*(\w+)\s*\.")
 _ASPIRE_CALL = re.compile(r"\bAdd(?:Project|NpmApp|Container|Yarp|Connection)")
+_GATEWAY = re.compile(r"\bAddYarp\s*\(\s*\"([^\"]+)\"")
 _HOLDERS = ("ConfigMap", "Secret")
 
 
@@ -252,6 +254,16 @@ def _aspire_source(source: str, text: str, names: Names) -> list[Anchor]:
         declared, receiver = _DECLARED.search(statement), _RECEIVER.match(statement)
         subject = declared.group(1) if declared else (receiver.group(1) if receiver else "")
         unit = names.unit_of(resources.get(subject, subject))
+        gateway = _GATEWAY.search(statement)
+        if not unit and gateway is not None and not names.unit_of(gateway.group(1)):
+            # A reverse proxy's chain names the projects it is configured with, and a proxy that
+            # keeps no handle is still the subject of its own statement (§7).
+            source_key = resource_key(ResourceKind.GATEWAY, gateway.group(1))
+            for token in dict.fromkeys(re.findall(r"\w+", statement)):
+                if token in resources and resources[token] != gateway.group(1):
+                    line = text.count("\n", 0, start + statement.index(token)) + 1
+                    found += _referenced(token, resources, source, line, source_key, "AddYarp")
+            continue
         if not unit:
             continue
         for match in _WITH_ENVIRONMENT.finditer(statement):

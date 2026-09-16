@@ -1,0 +1,12 @@
+services:
+  api:
+    build: ./api
+
+  db:
+    image: postgres:16
+
+  cache-a:
+    image: redis:7
+
+  cache-b:
+    image: redis:7

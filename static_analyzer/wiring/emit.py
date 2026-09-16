@@ -15,7 +15,7 @@ relations are built.
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -26,7 +26,7 @@ from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES, NodeType
 from static_analyzer.node import Node
 from static_analyzer.wiring.join import Join
 from static_analyzer.wiring.scan import SOURCE_SUFFIXES
-from static_analyzer.wiring_results import Diagnostic, DiagnosticCode, Unit
+from static_analyzer.wiring_results import Diagnostic, DiagnosticCode, Resource, Unit
 
 #: The graph the wiring layer's edges live in. Never a language: nothing about it is code.
 WIRING_GRAPH = "wiring"
@@ -34,20 +34,25 @@ WIRING_GRAPH = "wiring"
 
 @dataclass
 class Placement:
-    """The wiring graph and, for each artifact node in it, the component owning its unit's directory."""
+    """The wiring graph; for each artifact node in it, the component owning its unit's directory, and
+    for each resource node its own key; for each resource and child, the component it is drawn in
+    (``homes``, empty at the top) and the name it is drawn with (``labels``)."""
 
     graph: CallGraph = field(default_factory=lambda: CallGraph(language=WIRING_GRAPH))
     owners: dict[str, str] = field(default_factory=dict)
+    homes: dict[str, str] = field(default_factory=dict)
+    labels: dict[str, str] = field(default_factory=dict)
 
 
 def emit(
-    joins: list[Join], units: list[Unit], graphs: Mapping[str, CallGraph], repo_dir: Path
+    joins: list[Join], units: list[Unit], resources: Sequence[Resource], graphs: Mapping[str, CallGraph], repo_dir: Path
 ) -> tuple[list[ReferenceEdge], list[Diagnostic]]:
-    """One reference edge per joined pair and kind, between the endpoints of the two units.
+    """One reference edge per joined pair and kind, between the endpoints of the two ends.
 
-    A unit that takes part in a join and has no endpoint is a row: nothing is dropped silently.
+    An end is a unit's manifest, the code symbol a literal sits in, or a resource node (§7). A unit
+    that takes part in a join and has no endpoint is a row: nothing is dropped silently.
     """
-    endpoints = endpoint_nodes(units, graphs, repo_dir)
+    endpoints = {**endpoint_nodes(units, graphs, repo_dir), **resource_nodes(resources)}
     symbols = _symbols_by_file(graphs, repo_dir)
     by_id = {unit.id: unit for unit in units}
     sites: dict[tuple[str, str, object], list[dict]] = {}
@@ -69,6 +74,21 @@ def emit(
         for source, target, kind in sorted(sites, key=lambda key: (str(key[0]), str(key[1]), str(key[2])))
     ]
     return edges, [_no_box(unit, graphs, repo_dir) for _, unit in sorted(unreached.items())]
+
+
+def resource_nodes(resources: Sequence[Resource]) -> dict[str, Node]:
+    """The node an arrow lands on for each resource and each child of one, keyed by its key.
+
+    Its type is ``OBJECT``: a thing, not a symbol. That type is in neither ``CALLABLE_TYPES`` nor
+    ``CLASS_TYPES`` and is not ``FILE``, so no member index, file coverage or symbol count reads
+    the node as code, and it has no file, so nothing opens one.
+    """
+    found = {}
+    for resource in resources:
+        found[resource.key] = Node(resource.key, NodeType.OBJECT, "", 1, 1)
+        for child in resource.children:
+            found[child.key] = Node(child.key, NodeType.OBJECT, "", 1, 1)
+    return found
 
 
 def endpoint_nodes(units: list[Unit], graphs: Mapping[str, CallGraph], repo_dir: Path) -> dict[str, Node]:
@@ -105,37 +125,86 @@ def languages_by_unit(units: list[Unit], graphs: Mapping[str, CallGraph], repo_d
     return counted
 
 
-def place(hierarchy: ClusterScopeResult, units: list[Unit], edges: list[ReferenceEdge], repo_dir: Path) -> Placement:
-    """The wiring graph for this hierarchy: every drawn edge with its two endpoint nodes, and their owners.
+def place(
+    hierarchy: ClusterScopeResult,
+    units: list[Unit],
+    edges: list[ReferenceEdge],
+    resources: Sequence[Resource],
+    repo_dir: Path,
+) -> Placement:
+    """The wiring graph for this hierarchy: every drawn edge with its two end nodes, their owners, and
+    where each resource is drawn.
 
     An endpoint's owner is the deepest component whose files are inside the unit's directory, by
     plurality at every depth, so a relation between two services' children lands on the children
     rather than on their parents. A code symbol endpoint needs no owner: its component already owns
-    it. A unit whose only edges are of an undrawn kind gets no node.
+    it. A resource node owns itself: it is its own end of a relation (§7). A unit whose only edges
+    are of an undrawn kind gets no node. A resource's home is the component of the unit whose
+    declaration defines it or that alone uses it, else the deepest component all its users' boxes
+    sit in, else the top (§7).
     """
     placement = Placement()
+    drawn = [edge for edge in edges if edge.kind.drawn]
+    if not drawn and not resources:
+        return placement
     graphs = hierarchy.graphs_by_language
     by_name = {node.fully_qualified_name: unit_id for unit_id, node in endpoint_nodes(units, graphs, repo_dir).items()}
+    nodes = resource_nodes(resources)
     directories = {unit.id: unit.dir for unit in units}
     paths: dict[str, str] = {}
-    for edge in edges:
-        if not edge.kind.drawn:
-            continue
+    owners: dict[str, str] = {}
+
+    def owner_of(unit_id: str) -> str:
+        if unit_id not in owners:
+            directory = directories.get(unit_id, "")
+            owners[unit_id] = (
+                _owner(hierarchy, f"{directory}/", repo_dir, paths) if directory and directory != "." else ""
+            )
+        return owners[unit_id]
+
+    for edge in drawn:
         for name in (edge.src, edge.dst):
             if name in placement.graph.nodes:
                 continue
             if name in by_name:
                 placement.graph.add_node(Node(name, NodeType.FILE, str(repo_dir / name), 1, 1))
-                owner = _owner(hierarchy, f"{directories[by_name[name]]}/", repo_dir, paths)
+                owner = owner_of(by_name[name])
                 if owner:
                     placement.owners[name] = owner
+            elif name in nodes:
+                placement.graph.add_node(nodes[name])
+                placement.owners[name] = name
             else:
                 symbol = next((graph.nodes[name] for graph in graphs.values() if name in graph.nodes), None)
                 if symbol is not None:
                     placement.graph.add_node(symbol)
         if edge.src in placement.graph.nodes and edge.dst in placement.graph.nodes:
             placement.graph.add_reference_edge(edge)
+    for resource in resources:
+        placement.labels[resource.key] = resource.display_name or resource.name
+        if resource.home_unit in directories:
+            home = owner_of(resource.home_unit)
+        else:
+            home = common_ancestor([owner_of(user) for user in resource.users])
+        placement.homes[resource.key] = home
+        for child in resource.children:
+            placement.labels[child.key] = child.name
+            placement.homes[child.key] = owner_of(child.owner) if child.owner else home
     return placement
+
+
+def common_ancestor(component_ids: Sequence[str]) -> str:
+    """The deepest component every one of these sits in, or empty when they meet only at the top."""
+    known = [component_id for component_id in component_ids if component_id]
+    if not known or len(known) != len(component_ids):
+        return ""
+    chains = [component_id.split(".") for component_id in known]
+    shared: list[str] = []
+    for parts in zip(*chains):
+        if len(set(parts)) != 1:
+            break
+        shared.append(parts[0])
+    return ".".join(shared)
 
 
 def _owner(scope: ClusterScopeResult, prefix: str, repo_dir: Path, paths: dict[str, str]) -> str:

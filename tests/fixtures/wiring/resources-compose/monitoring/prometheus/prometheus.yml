@@ -1,1 +1,5 @@
-scrape_configs: []
+scrape_configs:
+- job_name: api
+  metrics_path: /metrics
+  static_configs:
+  - targets: ['api:8000']

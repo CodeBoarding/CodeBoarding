@@ -4,7 +4,7 @@ import os
 import threading
 import time
 from collections import Counter, defaultdict
-from collections.abc import Collection, Iterable, Iterator, Mapping
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
@@ -85,6 +85,8 @@ from static_analyzer.clustering.names import AffinityGrouper, Grouper, KinshipGr
 from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
 from static_analyzer.wiring.emit import WIRING_GRAPH, Placement, place
+from static_analyzer.wiring.level import layout
+from static_analyzer.wiring_results import Resource
 from agents.tree_planner_agent import TreePlannerAgent
 from user_config import GROUPER_ENV, GROUPERS
 from static_analyzer.scanner import ProjectScanner
@@ -704,6 +706,7 @@ class DiagramGenerator:
                 self.clustering_hierarchy,
                 static_analysis.wiring.units,
                 static_analysis.wiring.edges,
+                static_analysis.wiring.resources,
                 self.repo_location,
             )
 
@@ -964,6 +967,21 @@ class DiagramGenerator:
 
     def _tree_spec_dict(self) -> dict | None:
         return self.tree_spec.to_dict() if self.tree_spec is not None else None
+
+    def _placed_resources(
+        self, root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]
+    ) -> Sequence[Resource]:
+        """The wiring layer's resources with where each is drawn in this tree (§7); as found when
+        nothing was placed, which is how a document written before placement read."""
+        if self.static_analysis is None:
+            return ()
+        resources = self.static_analysis.wiring.resources
+        if self._wiring is None or not resources:
+            return resources
+        children = {"": [component.component_id for component in root_analysis.components]}
+        for scope_id, sub_analysis in sub_analyses.items():
+            children[scope_id] = [component.component_id for component in sub_analysis.components]
+        return layout(resources, self._wiring, children).resources
 
     def agent_init(self) -> None:
         """Initialize analysis helpers after deterministic analysis."""
@@ -1362,7 +1380,7 @@ class DiagramGenerator:
                             sub_expandable_ids=sub_expandable_ids,
                             depth_cap=self.depth_cap,
                             tree_spec=self._tree_spec_dict(),
-                            resources=self.static_analysis.wiring.resources if self.static_analysis else (),
+                            resources=self._placed_resources(analysis, sub_analyses),
                         )
 
                     if new_components and level + 1 < self.depth_cap:
@@ -1435,9 +1453,10 @@ class DiagramGenerator:
             return []
         cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
         endpoints = self._wiring.owners if self._wiring is not None else {}
+        labels = self._wiring.labels if self._wiring is not None else {}
         if self._wiring is not None:
             cfg_graphs[WIRING_GRAPH] = self._wiring.graph
-        global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs, endpoints)
+        global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs, endpoints, labels)
         ownership = ComponentOwnershipIndex.from_node_owners(
             build_global_node_to_component_map(root_analysis, sub_analyses, endpoints)
         )
@@ -1554,7 +1573,7 @@ class DiagramGenerator:
             sub_expandable_ids=sub_expandable_ids,
             depth_cap=self.depth_cap,
             tree_spec=self._tree_spec_dict(),
-            resources=self.static_analysis.wiring.resources if self.static_analysis else (),
+            resources=self._placed_resources(root_analysis, sub_analyses),
         ).resolve()
         if persist_side_artifacts:
             self._write_file_coverage()

@@ -7,6 +7,7 @@ from pathlib import Path
 from static_analyzer.wiring.anchors import collect
 from static_analyzer.wiring.compose import compose_projects
 from static_analyzer.wiring.join import join
+from static_analyzer.wiring.resources import Use, discover
 from static_analyzer.wiring.scan import Scan
 from static_analyzer.wiring.units import build_units
 from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, Tier, Unit, UnitKind
@@ -20,7 +21,9 @@ def joined(case: str) -> tuple[list[tuple[str, str, str]], list[tuple[str, str]]
     scan = Scan(root)
     projects = compose_projects(scan)
     units = build_units(scan, root.name, projects)
-    joins, diagnostics = join(scan, units, collect(scan, units, projects))
+    anchors = collect(scan, units, projects)
+    _, uses, _ = discover(scan, projects, units, anchors)
+    joins, diagnostics = join(scan, units, anchors, uses)
     return (
         [(found.source, found.target, found.kind.value) for found in joins],
         [(diagnostic.code.value, diagnostic.message) for diagnostic in diagnostics],
@@ -88,6 +91,65 @@ class TestKinds(unittest.TestCase):
 
         self.assertEqual(join(scan, units, [guess])[0], [])
         self.assertEqual([found.target for found in join(scan, units, [replace(guess, tier=Tier.T1)])[0]], ["a"])
+
+
+class TestResources(unittest.TestCase):
+    def test_a_use_of_a_resource_is_an_edge_into_it_and_never_a_row(self) -> None:
+        """The api names the cache in its environment: an arrow, where PR 5 left an unresolved use."""
+        edges, diagnostics = joined("resources-compose")
+
+        self.assertIn(("api", "resource:cache:cache", "uses"), edges)
+        self.assertEqual([row for row in diagnostics if row[0] == "unresolved_use"], [])
+
+    def test_a_configured_image_s_own_files_are_where_its_arrows_start(self) -> None:
+        """A Prometheus's scrape list names the api: the Prometheus calls it (§6), from the directory
+        that configures the image rather than from a unit."""
+        edges, _ = joined("resources-compose")
+
+        self.assertIn(("resource:api:metrics", "api", "calls_http"), edges)
+
+    def test_a_gateway_routes_to_the_projects_its_chain_names(self) -> None:
+        edges, _ = joined("resources-aspire")
+
+        self.assertIn(("resource:gateway:edge", "src/Catalog.Api", "routes_to"), edges)
+        self.assertIn(("src/Catalog.Api", "resource:db:postgres/db:catalogdb", "uses"), edges)
+
+    def test_the_setting_says_what_a_use_is_for(self) -> None:
+        """A registry is registered with, a configuration server fetched from, a collector reported to;
+        anything else is used. A resource's own configuration calls what it names, unless the resource
+        is a gateway, which routes (§5)."""
+        scan = Scan(FIXTURES / "resources-compose")
+
+        def use(source: str, target: str, setting: str, key: str = "host") -> Use:
+            return Use(source, target, "app.yml", 1, 1, key, setting, AnchorFamily.CONFIGURATION)
+
+        joins, _ = join(
+            scan,
+            [],
+            [],
+            [
+                use("svc", "resource:api:tracing", "management.zipkin.tracing.endpoint"),
+                use("svc", "resource:store:git", "spring.cloud.config.server.git.uri"),
+                use("svc", "resource:api:consul", "spring.cloud.consul.host"),
+                use("svc", "resource:db:pg", "spring.datasource.url"),
+                use("svc", "resource:api:otel", "", "OTEL_EXPORTER_OTLP_ENDPOINT"),
+                use("resource:gateway:edge", "svc", "AddYarp"),
+                use("resource:api:metrics", "svc", "scrape_configs[0].static_configs[0].targets[0]"),
+            ],
+        )
+
+        self.assertEqual(
+            {(found.source, found.target): found.kind.value for found in joins},
+            {
+                ("svc", "resource:api:tracing"): "reports_to",
+                ("svc", "resource:store:git"): "fetches_config",
+                ("svc", "resource:api:consul"): "registers_with",
+                ("svc", "resource:db:pg"): "uses",
+                ("svc", "resource:api:otel"): "reports_to",
+                ("resource:gateway:edge", "svc"): "routes_to",
+                ("resource:api:metrics", "svc"): "calls_http",
+            },
+        )
 
 
 class TestWhatDidNotJoin(unittest.TestCase):

@@ -62,9 +62,9 @@ def run(results: StaticAnalysisResults, repo_root: Path, *, dump: Path | None = 
     projects = compose_projects(scan)
     units = build_units(scan, repository_name(repo_root), projects)
     anchors = collect(scan, units, projects)
-    joins, unjoined = join(scan, units, anchors)
-    edges, unreached = emit(joins, units, results.available_cfgs(), repo_root)
-    resources, unknown = discover(scan, projects, units, anchors)
+    resources, uses, unknown = discover(scan, projects, units, anchors)
+    joins, unjoined = join(scan, units, anchors, uses)
+    edges, unreached = emit(joins, units, resources, results.available_cfgs(), repo_root)
     wiring = WiringResults(
         units=units,
         anchors=anchors,
@@ -129,6 +129,7 @@ def _resource(resource: Resource) -> dict:
         "name": resource.name,
         "display_name": resource.display_name,
         "declared_by": list(resource.declared_by),
+        "users": list(resource.users),
         "home_unit": resource.home_unit,
         "children": [
             {"key": child.key, "kind": child.kind.value, "name": child.name, "owner": child.owner}

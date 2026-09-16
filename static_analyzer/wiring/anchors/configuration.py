@@ -28,7 +28,7 @@ from static_analyzer.wiring.scan import (
     repo_path,
 )
 from static_analyzer.wiring.units import alias_key
-from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, DiagnosticCode, Tier, Unit
+from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, DiagnosticCode, Tier, Unit, is_resource
 
 #: A key whose name says what it connects to, whatever its value turns out to be.
 CONNECTION_KEY = re.compile(
@@ -219,7 +219,12 @@ def _search_location(path: str, location: str) -> str:
 def _is_configuration_yaml(scan: Scan, path: str, owners: Owners) -> bool:
     """The YAML a unit keeps as its settings, and not the YAML a tool keeps beside its code."""
     name = os.path.basename(path)
-    if not owners.of(path) or scan.files[path].size > MAX_CONFIGURATION_BYTES or name.startswith("."):
+    if scan.files[path].size > MAX_CONFIGURATION_BYTES or name.startswith("."):
+        return False
+    if any(is_resource(about) for about in owners.about(path)):
+        # A resource's own directory (§6): its scrape list, its data sources, whatever they are called.
+        return True
+    if not owners.of(path):
         return False
     if GENERATED_FILE.search(path) or _is_kubernetes(scan, path):
         return False

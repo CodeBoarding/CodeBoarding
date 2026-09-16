@@ -119,19 +119,25 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
 |---|---|---|
 | code symbol | as today, `file\|qualified name` | its component |
 | artifact file | a node of type FILE whose qualified name is its repository-relative path — a unit's own manifest or configuration file, which is where an edge that starts or ends at that unit lands | the component that owns its directory |
-| resource | `resource:<kind>:<name>`, and `resource:<kind>:<name>/<kind>:<child>` for a database on a server or a route on a gateway | a resource node is never a code component and never counts toward the component budget; where it is drawn is §7 |
+| resource | `resource:<kind>:<name>`, and `resource:<kind>:<name>/<kind>:<child>` for a database on a server or a route on a gateway; a node of type OBJECT with no file | its own end of a relation: it belongs to no box and never counts toward the component budget; where it is drawn is §7 |
 
 A resource's `name` is what the repository declares for it — the compose service, the Kubernetes
 workload, the Aspire resource — never the image. The image decides the kind.
 
 **Wiring edges live in one dedicated graph.** `place()` builds `cfg_graphs["wiring"]`, a graph
-holding only endpoint nodes — a FILE node per manifest, the code symbol where the anchor is a
-literal in code, and PR 6's resource nodes — and the wiring edges of the drawn kinds, rebuilt from
-`results.wiring` on every run. It returns, per endpoint, the deepest component whose files are
-inside the unit's directory (by plurality at every depth, so a relation between two services'
-children lands on the children), and `build_global_node_to_component_map` merges that in, lifting
-an owner deeper than the expanded tree to its deepest expanded ancestor; `build_component_relations`
-iterates the wiring graph like any other value of the mapping and never reads its key. A language
+holding only end nodes — a FILE node per manifest, the code symbol where the anchor is a literal
+in code, and a resource node per resource or child an edge reaches — and the wiring edges of the
+drawn kinds, rebuilt from `results.wiring` on every run. It returns, per endpoint, the deepest
+component whose files are inside the unit's directory (by plurality at every depth, so a relation
+between two services' children lands on the children), and, per resource node, the node itself:
+`build_global_node_to_component_map` merges that in, lifting an owner deeper than the expanded
+tree to its deepest expanded ancestor and passing a resource through as its own end;
+`build_component_relations` iterates the wiring graph like any other value of the mapping and
+never reads its key, and `build_global_relations` names a resource end from the placement's labels.
+A resource node's type is OBJECT — a thing, not a symbol — because that type is in neither
+`CALLABLE_TYPES` nor `CLASS_TYPES` and is not FILE, so no member index, file coverage or symbol
+count reads it as code; it has no file, so nothing opens one, and a node with no file has no
+location for the graph's alias index to fold it into another. A language
 graph never carries a wiring edge, so the static-analysis pickle never does either and a warm start
 cannot re-import last run's arrows. A unit whose only edges are of an undrawn kind gets no node; a
 unit that takes part in a join and has no endpoint — no manifest, the repository root, or a
@@ -186,6 +192,10 @@ Rules that follow from the table:
   document does not show every edge as changed.
 - **Sites.** A reference edge carries the sites that made it (file, line, column). Two edges are
   the same edge when they join the same names the same way; sites never decide identity.
+- **Infrastructure on the relation.** A relation whose every edge is of an infrastructure kind is
+  written with `infrastructure: true`, and one with a call or a use among its edges is not: a star
+  of registering, fetching and reporting arrows says the same thing about every service, and a
+  reader may fold it (§7).
 
 ## 6. Joins
 
@@ -232,6 +242,25 @@ Two more, from the P0 ceilings:
    a deep link (`maui://`, `vscode://`) names a callback a device answers, not a service anything
    reaches. A value naming the machine itself (`localhost`, `127.0.0.1`) names no unit and no
    resource, wherever it is written, including inside a connection string.
+
+Three more, for the resources (§7):
+
+10. **A use of a resource is an edge into it.** Every place a unit names a resource or a child of
+    one — a host in its settings, a reference in an AppHost, a driver in its manifest, a client
+    type in its code, a configuration key that is a child's own name (`textEmbeddingModel`) — is
+    a use, and the join turns each into one edge of the kind the setting says (§5): a registry is
+    registered with, a configuration server fetched from, a collector reported to, anything else
+    used. A use that resolves to a resource is never an unresolved row; the same name resolving
+    to a unit stays a unit's arrow.
+11. **A resource's own configuration is where its arrows start.** A Dockerfile that only
+    configures a stock image (§6, *what declares nothing*) makes its directory that resource's
+    configuration, read the way a unit's is: a Prometheus's scrape list names what it calls, a
+    Grafana's data source what it reads. Those anchors' `unit` is the resource's key, and the
+    edge runs from the resource — a gateway routes to what it names, anything else calls it.
+12. **A gateway's builder chain names what it routes to.** `builder.AddYarp("mobile-bff")` keeps no
+    handle and is still the subject of its own statement, so every project the chain names —
+    `.WithReference(catalogApi)`, `.ConfigureRoutes(catalogApi, orderingApi)` — is a `ROUTES_TO`
+    from the gateway; a unit answering to the gateway's name wins, as everywhere.
 
 **What declares a unit.** A build manifest declares the directory it sits in, except where it
 builds nothing itself: a Maven aggregator (`packaging=pom`), a Cargo workspace root, a
@@ -282,7 +311,7 @@ name is the repository root. An image name is a unit's alias only where one dire
   `.csproj` or `package.json` (`hsqldb`, `mysql-connector-j`, `postgresql`, `Npgsql`, `pg`,
   `ioredis`) declares a resource of its kind used by that unit, and a `VectorStore` client type
   (`SimpleVectorStore` included) declares a db. `spring.cloud.config.server.git.uri` names a `git`
-  store. A Dockerfile that copies only configuration onto a stock image (§6) is that image's kind. A resource's `name` stays
+  store, and a Zipkin reporter or an OTLP exporter dependency names the collector it reports to. A Dockerfile that copies only configuration onto a stock image (§6) is that image's kind. A resource's `name` stays
   the one the repository declares — the compose service, the Aspire resource, the server a
   connection string names — because that is what a picture is matched by; the display name is for
   rendering a node whose declared name would tell a reader nothing.
@@ -302,26 +331,43 @@ name is the repository root. An image name is a unit's alias only where one dire
   that takes a reference to it; several, or none, leave it empty. A key that names a resource is a way of reaching it and never a second
   resource: `spring.ai.openai.api-key` and `OPENAI_API_KEY` name one thing, so the name is the
   segment that named it rather than the key.
-- **Home** — the box a resource belongs to: the owner of its content-defining declaration (the
-  migrations, the exchange setup, the route table), else its sole user, else the lowest common
-  ancestor of its users. A unit uses a resource when its own setting, driver or client names it or
-  names one of its children (a service that references `catalogdb` uses the PostgreSQL that holds
-  it); a compose file or an AppHost that only runs a resource decides nothing, and a configuration
-  server's shared file is about the units it configures (§8), never the server. In P1 this is a
-  unit, or the directory its users share, written to the dump as `home_unit`, because a component
-  is the clustering's answer and the clustering has not run when the pass does; the PR that places
-  these nodes resolves it to a component id and writes it to the document as `home`.
-- **Level.** A shared resource is a peer where its users meet. A level draws at most 15 nodes, and
-  code boxes, resource nodes, grouped nodes and actors all count toward it. Over the cap, fold in
-  this order: private resources into their owner (a badge, shown when the owner expands); registry,
-  configuration and telemetry resources into one Infrastructure node that expands; remaining third
-  parties into one External services node; and, if resources still take more than half the level,
-  shared data stores into one Data stores node. The clustering's limit for that level then becomes
-  15 minus the resource nodes that remain, and the level is clustered once more — one pass
-  suffices, because merging code boxes can only turn a shared resource private. This is the only
-  way wiring changes a partition, and the guard reads: boxes identical wherever a level is under
-  the cap. On PetClinic this renders 13 nodes with three badges where the picture draws 16 peers;
-  the scorer accepts both.
+- **One thing, two declarations.** A driver, a client type or a configured key names a kind of
+  thing by the catalogue's word (`postgres`); a compose service, an Aspire resource or a
+  connection string names an instance by the repository's spelling (`db`). When the deployment
+  runs exactly one instance of that kind and display name, the word names it and the two are one
+  resource under the repository's name, declared by both files; two instances (`cache-a`,
+  `cache-b`) leave the driver its own node, because a driver cannot say which of the two it talks
+  to. A resource's `users` are the units whose own setting, driver or client names it or one of
+  its children (a service that references `catalogdb` uses the PostgreSQL that holds it); a compose
+  file or an AppHost that only runs a resource decides nothing, a configuration server's shared
+  file is about the units it configures (§8), and a resource's own configuration naming another
+  resource is an arrow, never a user.
+- **Home** — the box a resource is drawn in: its sole user's, else the deepest box every user's box
+  sits in, else the top. A content-defining declaration — a migration directory — names a database
+  and never the server that holds it, so it decides a child's `owner` and not a parent's home. The
+  pass writes a unit, or the directory the users share, to the dump as `home_unit`, because a
+  component is the clustering's answer and the clustering has not run yet; `place()` resolves it:
+  the sole user's or the owner's component is the deepest one holding most of that unit's files
+  (as for an endpoint), and several users' boxes meet at their deepest common dotted ancestor. The
+  document writes it as `home`, empty at the top, and a child's `home` is its owner's.
+- **Level.** A shared resource is a peer where its users meet: drawn inside its home at the level
+  below it (`level` is the home's depth plus one; 1 at the top). A home that is a box with no
+  children at this depth cannot hold a node, so the resource is a `badge` on that box, shown when
+  the box expands; a resource with one user is a badge by construction, because its home is that
+  user's deepest box. A level draws at most `LIMIT` (15) nodes, code boxes and resource nodes alike,
+  and a badge counts toward no level. Over the cap the resources at that level fold, in order, each
+  fold only where it joins two or more: registry, configuration and telemetry resources — those
+  whose every edge is an infrastructure kind — into one Infrastructure node; other third parties
+  (`api`) into one External services node; and, while resources still take more than half the
+  level, shared data stores (`db`, `cache`, `store`) into one Data stores node. A folded resource
+  keeps its key on every relation and carries the node's name in `group`. What is still over the
+  cap after the folds is the clustering's: its limit for that level becomes 15 minus the resource
+  nodes that remain and the level is clustered once more — one pass suffices, because merging code
+  boxes can only turn a shared resource private. That step is the one way wiring changes a
+  partition, and the guard reads: boxes identical wherever a level is under the cap. It is not
+  implemented before its review (the PR body states the call path and the guard); today the layout
+  reports the excess per level and moves nothing. On PetClinic the rule renders 13 nodes with three
+  badges where the picture draws 16 peers; the scorer accepts both.
 - **Infrastructure** flows (`REGISTERS_WITH`, `FETCHES_CONFIG`, `REPORTS_TO`) are drawn
   de-emphasised and collapsible: a star of such arrows says the same thing about every service.
 
@@ -332,16 +378,20 @@ name is the repository root. An image name is a unit's alias only where one dire
 - `kind` on relation edges when it is not `call` (§5).
 - `default_label` where the verb alone reads wrong: `true` for a static default that is not
   `calls`, `false` for a `calls` someone wrote (§5).
-- `resources` (PR 5): one entry per resource node — `key`, `kind`, `name`, `display_name`,
-  `declared_by` (the files), `children` (`key`, `kind`, `name`, `owner`). `home` is a component id
-  and is written by the PR that places these nodes (PR 6); until then the dump carries `home_unit`
-  and the document omits `home`. The section is absent, rather than empty, where the pass found
-  none or never ran, so a document written without wiring is byte-identical to one from before the
-  section existed.
+- `resources`: one entry per resource node — `key`, `kind`, `name`, `display_name`, `declared_by`
+  (the files), `users` (the units), `home` (the component it is drawn in, empty at the top),
+  `level`, `badge`, `group` (§7), `children` (`key`, `kind`, `name`, `owner`, `home`). The section
+  is absent, rather than empty, where the pass found none or never ran, so a document written
+  without wiring is byte-identical to one from before the section existed.
+- A relation with a resource at one end carries the resource's key as `src_id` or `dst_id` and its
+  display name as the matching name; its edges name that end as `|<key>` — the method key of a
+  node with no file — which the loader reads back as a reference with no file. `infrastructure`
+  is written on a relation made of nothing but infrastructure kinds (§5).
 - `files` entries for artifact files that anchor an edge, so file coverage counts them as analysed.
 
 The vscode webview draws a resource node in an outside style (dashed, as the rulers draw them)
-and shows a badge's children when its owner expands. The wrapper keeps resource edges in commit
+and shows a badge's children when its owner expands; today it drops a relation end that is not a
+component quietly, so a document with resource arrows renders its code arrows as before. The wrapper keeps resource edges in commit
 diffs; today its method-level differ drops an edge whose end is not a file.
 
 **Debug dumps** — what the evals checks grade before any arrow exists (`CODEBOARDING_WIRING_DUMP=<dir>`):
@@ -467,7 +517,7 @@ one-line PR that flips the flag once the action path runs with it on.
 - No resolver with a model in it. P1 joins what the files say and reports what it could not.
 - No routes from code, no clients from code, no messaging from code: those are P2.
 
-**The catalogue lives in `static_analyzer/wiring/resources.py`** (decided in PR 5), as one table
+**The catalogue lives in `static_analyzer/wiring/catalogue.py`** (decided in PR 5, its own module since PR 6, so the anchor readers can name a resource without importing the discovery), as one table
 keyed by the bare word each vocabulary reduces to, carrying the kind and the display name in one
 row, with the drivers a manifest may depend on beside it. Why one table and not five: an image
 (`openzipkin/zipkin`), an Aspire constructor (`AddRedis`), a URL scheme (`amqp://`), a driver
