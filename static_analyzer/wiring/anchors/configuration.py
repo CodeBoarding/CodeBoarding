@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 import re
 
-from static_analyzer.wiring.anchors.keys import HOST_KEY, Owners, env_key, hosts_in
-from static_analyzer.wiring.scan import FileKind, Scan, parse_dotenv
+from static_analyzer.wiring.anchors.keys import HOST_KEY, LOCAL_HOSTS, Owners, env_key, hosts_in
+from static_analyzer.wiring.scan import GENERATED_FILE, MAX_CONFIGURATION_BYTES, FileKind, Scan, parse_dotenv
 from static_analyzer.wiring.units import alias_key
 from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, Tier
 
@@ -48,8 +48,12 @@ def read(scan: Scan, owners: Owners) -> list[Anchor]:
     for path in scan.paths_of(FileKind.SPRING_CONFIG, FileKind.PROPERTIES, FileKind.DOTNET_SETTINGS, FileKind.DOTENV):
         found += _file(scan, path, owners.of(path))
     for path in scan.paths_of(FileKind.YAML):
-        if owners.of(path) and not _is_kubernetes(scan, path):
-            found += _file(scan, path, owners.of(path))
+        # A unit's own YAML is configuration; a catalogue or a lockfile sitting in one is data.
+        if not owners.of(path) or scan.files[path].size > MAX_CONFIGURATION_BYTES:
+            continue
+        if GENERATED_FILE.search(path) or _is_kubernetes(scan, path):
+            continue
+        found += _file(scan, path, owners.of(path))
     found += _schemas(scan, owners)
     return found
 
@@ -102,6 +106,8 @@ def _connection(key: str, value: str, path: str, line: int, unit: str) -> list[A
         return []
     found = []
     for part, target in _CONNECTION_PART.findall(value):
+        if target.strip().lower() in LOCAL_HOSTS:
+            continue
         found.append(
             _anchor(
                 AnchorFamily.DATA_ACCESS,
@@ -137,17 +143,12 @@ def _schemas(scan: Scan, owners: Owners) -> list[Anchor]:
         # One anchor per schema directory, wherever its files sit inside it: what a database holds
         # is the directory's fact, not each migration's.
         seen.add(schema)
-        path = f"{directory}/{files[0]}"
+        # The place is the key: three services each keep a `db`, and a bare `db` tells them apart
+        # from nothing (§6 rule 1).
+        declaring = [name for name in files if "schema" in name.lower() or "create" in name.lower()]
+        path = f"{directory}/{(declaring or files)[0]}"
         found.append(
-            _anchor(
-                AnchorFamily.DATA_ACCESS,
-                AnchorRole.DEF,
-                segments[depth],
-                alias_key(segments[depth]),
-                path,
-                1,
-                owners.of(path),
-            )
+            _anchor(AnchorFamily.DATA_ACCESS, AnchorRole.DEF, schema, alias_key(schema), path, 1, owners.of(path))
         )
     return found
 
@@ -176,7 +177,9 @@ def _flatten(node: object, scan: Scan, path: str, prefix: str = "") -> list[tupl
     if node is None or isinstance(node, bool) or not prefix:
         return []
     value = str(node)
-    return [(prefix, value, scan.line_of(path, value) if value else 1)]
+    # A list item is written without its index, so there only the value can find the line.
+    segment = re.split(r"[.\[]", prefix)[-1].rstrip("]")
+    return [(prefix, value, scan.line_where(path, "" if segment.isdigit() else segment, value))]
 
 
 def _properties(text: str) -> list[tuple[str, str, int]]:

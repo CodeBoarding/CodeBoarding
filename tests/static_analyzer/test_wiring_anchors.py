@@ -1,6 +1,7 @@
 """The anchors: where a wiring key is declared or used, one fixture tree per kind of source."""
 
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.wiring import run, write_dump
 from static_analyzer.wiring.anchors.keys import Names, Owners, env_key, hosts_in, service_host
+from static_analyzer.wiring.scan import MAX_CONFIGURATION_BYTES
 from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, Tier, Unit, UnitKind
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "wiring"
@@ -78,9 +80,23 @@ class TestConfiguration(unittest.TestCase):
         self.assertIn(("service_names", "use", "config-server", f"{gateway}:18", "gateway"), found)
         self.assertIn(("configuration", "use", "CONFIG_SERVER_URL", f"{gateway}:5", "gateway"), found)
 
+    def test_a_setting_is_written_where_its_key_and_its_value_meet(self) -> None:
+        """Two documents write `import:` and two settings hold this value; only their meeting is one line."""
+        found = rows("anchors-spring")
+        gateway = "gateway/src/main/resources/application.yml"
+
+        self.assertIn(("service_names", "use", "config-server", f"{gateway}:21", "gateway"), found)
+
     def test_a_schema_directory_is_what_a_database_holds(self) -> None:
+        """The place is the key: every unit keeping a `db` would otherwise write down the same one."""
         self.assertIn(
-            ("data_access", "def", "db", "vets/src/main/resources/db/hsqldb/schema.sql:1", "vets"),
+            (
+                "data_access",
+                "def",
+                "vets/src/main/resources/db",
+                "vets/src/main/resources/db/hsqldb/schema.sql:1",
+                "vets",
+            ),
             rows("anchors-spring"),
         )
 
@@ -99,7 +115,7 @@ class TestConfiguration(unittest.TestCase):
 
         self.assertIn(("configuration", "def", "ConnectionStrings.EventBus", f"{settings}:4", "src/Catalog"), found)
         self.assertIn(("service_names", "use", "rabbitmq", f"{settings}:4", "src/Catalog"), found)
-        self.assertIn(("service_names", "use", "identity-api", f"{settings}:7", "src/Catalog"), found)
+        self.assertIn(("service_names", "use", "identity-api", f"{settings}:8", "src/Catalog"), found)
 
     def test_a_connection_string_names_a_server_and_a_database(self) -> None:
         found = rows("anchors-dotnet")
@@ -107,6 +123,29 @@ class TestConfiguration(unittest.TestCase):
 
         self.assertIn(("data_access", "use", "server=postgres", f"{settings}:5", "src/Catalog"), found)
         self.assertIn(("data_access", "use", "database=catalogdb", f"{settings}:5", "src/Catalog"), found)
+
+    def test_a_local_server_is_the_machine_talking_to_itself(self) -> None:
+        """`Server=localhost` names no unit, so it is not a thing a resource could be made of."""
+        found = rows("anchors-dotnet")
+        settings = "src/Catalog/appsettings.json"
+
+        self.assertNotIn(("data_access", "use", "server=localhost", f"{settings}:6", "src/Catalog"), found)
+        self.assertIn(("data_access", "use", "database=devdb", f"{settings}:6", "src/Catalog"), found)
+
+    def test_a_catalogue_is_data_rather_than_configuration(self) -> None:
+        """A provider list declares no wiring and costs more to read than everything that does."""
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory())) / "repo"
+        shutil.copytree(FIXTURES / "anchors-spring", directory)
+        catalogue = directory / "vets" / "src" / "main" / "resources" / "providers.yml"
+        catalogue.write_text(
+            "".join(f"provider-{number}:\n  base_url: https://api-{number}.example.com\n" for number in range(4000))
+        )
+
+        found = {anchor.file for anchor in run(StaticAnalysisResults(), directory).anchors}
+
+        self.assertGreater(catalogue.stat().st_size, MAX_CONFIGURATION_BYTES)
+        self.assertNotIn("vets/src/main/resources/providers.yml", found)
+        self.assertIn("vets/src/main/resources/application.properties", found)
 
     def test_a_service_name_is_not_a_store(self) -> None:
         """`lb://vets-service` names a unit; only a store's scheme makes a data-access anchor."""
@@ -144,6 +183,12 @@ class TestRoutes(unittest.TestCase):
         )
         self.assertIn(("service_names", "use", "basket-api", "src/AppHost/Program.cs:11", "src/AppHost"), found)
 
+    def test_an_optional_parameter_is_a_parameter_and_not_a_query(self) -> None:
+        """`{brandId?}` is one parameter; splitting the query off first would cut the route in half."""
+        templates = {anchor.norm_key for anchor in anchors_of("anchors-aspire") if anchor.tier is Tier.T2}
+
+        self.assertIn("/basket-api/items/by-brand/{}", templates)
+
 
 class TestReaders(unittest.TestCase):
     def test_every_language_the_engines_support(self) -> None:
@@ -157,12 +202,18 @@ class TestReaders(unittest.TestCase):
                 ("LEDGER_URL", "svc/app.ts"),
                 ("MODE", "svc/app.ts"),
                 ("accounts.host", "svc/App.java"),
+                ("customers.host", "svc/App.java"),
                 ("BALANCE_ADDR", "svc/App.java"),
                 ("Ledger:Url", "svc/Program.cs"),
                 ("Catalog", "svc/Program.cs"),
                 ("CONTACTS_ADDR", "svc/main.go"),
             },
         )
+
+    def test_a_generated_file_is_nobody_s_decision(self) -> None:
+        """A designer file, a lockfile and a compiled proto are a tool's output, not a declaration."""
+        self.assertNotIn("Ignored:Key", {anchor.key for anchor in anchors_of("anchors-readers")})
+        self.assertNotIn("vets/pnpm-lock.yaml", {anchor.file for anchor in anchors_of("anchors-spring")})
 
 
 class TestKeys(unittest.TestCase):
@@ -184,6 +235,11 @@ class TestKeys(unittest.TestCase):
         self.assertEqual(service_host("http://localhost:8888/"), "")
         self.assertEqual(service_host("registry"), "")
         self.assertEqual(service_host("${SERVICE_URL}"), "")
+
+    def test_only_a_network_scheme_carries_a_host(self) -> None:
+        """`maui://authcallback` is a deep link the phone answers, not a service anything reaches."""
+        self.assertEqual(service_host("maui://authcallback"), "")
+        self.assertEqual(service_host("grpc://ledger:9090"), "ledger")
 
     def test_several_hosts_in_one_value(self) -> None:
         self.assertEqual(hosts_in("kafka-1:9092,kafka-2:9092", "bootstrap-servers"), ["kafka-1", "kafka-2"])

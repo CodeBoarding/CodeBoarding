@@ -27,7 +27,13 @@ HOST_KEY = re.compile(
 )
 
 _NOT_A_KEY = re.compile(r"[^A-Z0-9]")
-_IN_URL = re.compile(r"^(?:[A-Za-z][\w+.-]*:)*//(?:[^@/\s]*@)?([A-Za-z0-9_][\w.-]*)")
+#: The schemes that carry a host a unit could answer to. A `maui://` deep link carries a callback.
+_NETWORK_SCHEME = (
+    r"(?:https?|https\+http|http\+https|lb|grpc[s]?|ws[s]?|amqps?|kafka|redis[s]?|mongodb(?:\+srv)?|"
+    r"postgres(?:ql)?|mysql|mariadb|mssql|sqlserver|jdbc:[a-z0-9]+|tcp|udp|configserver|eureka|consul|"
+    r"elasticsearch|clickhouse|cassandra|memcached|s3|minio|smtp[s]?|otlp)"
+)
+_IN_URL = re.compile(rf"^(?:{_NETWORK_SCHEME}:)*//(?:[^@/\s]*@)?([A-Za-z0-9_][\w.-]*)", re.IGNORECASE)
 _HOST_PORT = re.compile(r"^([A-Za-z][\w.-]*):(\d{2,5})(?:[/?].*)?$")
 _BARE = re.compile(r"^[A-Za-z][\w.-]*$")
 

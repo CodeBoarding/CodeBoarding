@@ -24,7 +24,7 @@ ENVIRONMENT_READ = re.compile(
     r"|import\.meta\.env\.([A-Za-z_]\w*)"
     r"|Configuration\s*\[\s*\"([\w:.-]+)\"\s*\]"
     r"|(?:GetRequiredValue|GetConnectionString|GetValue<[^>]*>)\s*\(\s*\"([\w:.-]+)\"\s*\)"
-    r"|@Value\s*\(\s*\"\$\{([\w.-]+)"
+    r"|@Value\s*\(\s*\"[^\"]*?\$\{([\w.-]+)"
 )
 
 #: A client type whose name says what the code talks to: a store, a broker, a cache, a database.

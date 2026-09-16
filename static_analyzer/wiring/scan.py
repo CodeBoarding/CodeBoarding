@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 #: A manifest bigger than this is machine-generated or vendored, and reading it is not worth the cost.
 MAX_BYTES = 2_000_000
 
+#: A configuration file states a handful of facts. Past this, a YAML is a catalogue — a provider
+#: list, an API specification, a lockfile — and reading it costs far more than it ever declares.
+MAX_CONFIGURATION_BYTES = 128_000
+
+#: A file whose name says a tool wrote it: nothing in it is a decision anyone made.
+GENERATED_FILE = re.compile(
+    r"(?i)\.(?:designer|g|generated)\.[a-z]+$|modelsnapshot\.cs$|_pb2\.py$|\.pb\.go$|lock\.ya?ml$"
+)
+
 #: Directories the pass never walks: dependency installs, build output, tooling caches.
 SKIP_DIRS = frozenset(
     {
@@ -261,7 +270,7 @@ class Scan:
                 continue
             for name in names:
                 path = f"{directory}/{name}" if directory else name
-                tooling = ".config." in name or name.startswith(".")
+                tooling = ".config." in name or name.startswith(".") or GENERATED_FILE.search(name)
                 if os.path.splitext(name)[1] in SOURCE_SUFFIXES and not TEST_FILE.search(name) and not tooling:
                     if not self._ignore.gitignore_spec.match_file(path):
                         found.append(path)
@@ -341,6 +350,22 @@ class Scan:
         text = self.text(path)
         index = text.find(token, start)
         return text.count("\n", 0, index) + 1 if index >= 0 else 1
+
+    def line_where(self, path: str, key: str, value: str) -> int:
+        """The one-based line a setting is written on: where *key* is followed by *value*.
+
+        Why both halves: a key repeated across documents (`import:` in two of them) and a value
+        repeated across settings (`0.7` under two of them) each name the wrong line on their own,
+        and a setting is the one place where its own key and its own value meet.
+        """
+        text = self.text(path)
+        start = 0
+        while key and (index := text.find(key, start)) >= 0:
+            end = text.find("\n", index)
+            if value in text[index : end if end >= 0 else len(text)]:
+                return text.count("\n", 0, index) + 1
+            start = index + 1
+        return self.line_of(path, value) if value else self.line_of(path, key)
 
     def diagnose(self, code: DiagnosticCode, message: str, *paths: str) -> None:
         self.diagnostics.append(Diagnostic(code=code, message=message, paths=tuple(paths)))

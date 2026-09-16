@@ -16,3 +16,6 @@ spring:
     activate:
       on-profile: docker
     import: configserver:http://config-server:8888
+---
+fallback:
+  uri: configserver:http://config-server:8888

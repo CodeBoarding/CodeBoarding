@@ -68,12 +68,17 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
   Helm charts, Dockerfiles, an Aspire AppHost's own `.cs`, `.github/workflows/*.y*ml`),
   configuration (`.env*`, `appsettings*.json`, `application*.y*ml`, `bootstrap*.y*ml`), nginx
   configuration. A file the allowlist does not name is never opened, and nothing over 2 MB is read.
+  A configuration file states a handful of facts, so a YAML over 128 KB is a catalogue — a provider
+  list, an API specification, a generated schema — and is data rather than configuration: it
+  declares no wiring and costs more to read than everything that does.
 - **Source, for two readers only:** a literal service name (`http://vets-service`, `lb://`, a
   `@FeignClient`, a discovery lookup, a registry annotation) and an environment read (`os.environ`,
   `process.env`, `Configuration["…"]`, `System.getenv`, `@Value("${…}")`), together with the client
   type that says what a unit talks to (`VectorStore`, `MongoTemplate`). Structure in source is the
   language servers' work and this pass never touches it; a `*.config.*` file is tooling rather than
-  service code, and is skipped.
+  service code, and is skipped. A file whose name says a tool wrote it — `*.designer.*`, `*.g.*`,
+  `*.generated.*`, a model snapshot, a compiled proto, a lockfile — is skipped wherever it sits,
+  as source and as configuration: nothing in it is a decision anyone made.
 - **What it will not read:** `node_modules`, `vendor`, build output (`bin`, `obj`, `dist`, `out`,
   `target`), every hidden directory but `.github/workflows`, a test directory, a file named as a
   test, and a project template (a tree holding `.template.config`, `cookiecutter.json`, or a `{{ }}`
@@ -187,7 +192,10 @@ Two more, from the P0 ceilings:
 8. **Paths are canonical.** A unit directory is spelled from the repository root however the
    manifest reached it (`context: ../../../` plus `project: src/ledger/x` is `src/ledger/x`).
 9. **A host resolves to a unit only when it is a name the topology declares.** A public FQDN in a
-   documentation URL never falls back to its first DNS label.
+   documentation URL never falls back to its first DNS label. Only a network scheme carries a host:
+   a deep link (`maui://`, `vscode://`) names a callback a device answers, not a service anything
+   reaches. A value naming the machine itself (`localhost`, `127.0.0.1`) names no unit and no
+   resource, wherever it is written, including inside a connection string.
 
 **What declares a unit.** A build manifest declares the directory it sits in, except where it
 builds nothing itself: a Maven aggregator (`packaging=pom`), a Cargo workspace root, a
@@ -293,7 +301,9 @@ belongs to no box, and the variable it sets belongs to the service it sets it on
 normalised the way its family is compared — an environment or configuration key the way Spring's
 relaxed binding and ASP.NET's `A__B` rule compare it (`spring.datasource.url` is
 `SPRINGDATASOURCEURL`), a name the way the unit table spells the names a unit answers to. A route
-is the one T2 anchor: its path is a template with its parameters collapsed.
+is the one T2 anchor: its path is a template with its parameters collapsed. Its `line` is where the
+setting is written, which is where its own key and its own value meet: a key repeated across
+documents and a value repeated across settings each name the wrong line on their own.
 
 `diagnostics.json` lists every unresolved use, every unused definition, every ambiguous key and
 every ignored place with the reason, in the same shape as the `diagnostics` list above. It is also
@@ -351,9 +361,10 @@ one-line PR that flips the flag once the action path runs with it on.
 - No affinity for any wiring kind; ownership edges may gain it in P3, behind the ladder gate,
   measured per kind.
 - No proto contract nodes until a graded ruler needs one.
-- No reader reads Go, Rust, Ruby, PHP or Elixir *source*; their manifests are units like any other,
-  because a directory that builds is a directory that builds. The rulers are C#, Java, Python and
-  TypeScript.
+- No reader reads Go, Rust, Ruby, PHP or Elixir *source for structure*; their manifests are units
+  like any other, because a directory that builds is a directory that builds, and the two source
+  readers of §3 read a literal name and an environment read in every language the engines support.
+  The rulers are C#, Java, Python and TypeScript.
 - No resolver with a model in it. P1 joins what the files say and reports what it could not.
 - No routes from code, no clients from code, no messaging from code: those are P2.
 

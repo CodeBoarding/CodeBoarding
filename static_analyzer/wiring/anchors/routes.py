@@ -207,7 +207,8 @@ def _ingress_rule(scan: Scan, path: str, rule: object, unit: str) -> list[Anchor
 
 def _route(route: str, path: str, line: int, unit: str) -> Anchor:
     """The path half of a route: a template, so T2, with its parameters collapsed."""
-    template = re.sub(r"\{[^}]*\}|\*\*|\*|:\w+", "{}", route.split("?")[0]).rstrip("/") or "/"
+    collapsed = re.sub(r"\{[^}]*\}|\*\*|\*|:\w+", "{}", route)
+    template = collapsed.split("?")[0].rstrip("/") or "/"
     return Anchor(
         family=AnchorFamily.SERVICE_NAMES,
         role=AnchorRole.DEF,

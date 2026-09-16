@@ -9,5 +9,6 @@ var basketApi = builder.AddProject<Projects.Basket_Api>("basket-api")
 var gateway = builder.AddYarp("mobile-bff");
 var basketCluster = gateway.AddCluster(basketApi);
 gateway.AddRoute("/basket-api/items/{id}", basketCluster);
+gateway.AddRoute("/basket-api/items/by-brand/{brandId?}", basketCluster);
 
 builder.Build().Run();
