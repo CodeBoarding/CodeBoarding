@@ -315,8 +315,11 @@ name is the repository root. An image name is a unit's alias only where one dire
 - `default_label` where the verb alone reads wrong: `true` for a static default that is not
   `calls`, `false` for a `calls` someone wrote (§5).
 - `resources` (PR 5): one entry per resource node — `key`, `kind`, `name`, `declared_by` (the
-  files), `home` (a component id, or none for a shared resource at the root), `children` (`key`,
-  `kind`, `name`, `owner`).
+  files), `home` (the unit whose declaration defines its content, resolved to a component id when
+  these nodes are placed; empty where several units name it and none declares it), `children`
+  (`key`, `kind`, `name`, `owner`). The section is absent, rather than empty, where the pass found
+  none or never ran, so a document written without wiring is byte-identical to one from before the
+  section existed.
 - `files` entries for artifact files that anchor an edge, so file coverage counts them as analysed.
 
 The vscode webview draws a resource node in an outside style (dashed, as the rulers draw them)
