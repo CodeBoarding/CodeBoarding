@@ -48,8 +48,11 @@ class EdgeKind(StrEnum):
     def drawn(self) -> bool:
         """Whether edges of this kind alone make a component relation.
 
-        Calls always do. Of the reference kinds only the wiring kinds do: CONTAINS and INHERITS
-        complete the structure the clustering reads, and TYPEREF and IMPORT have no producer.
+        Calls always do. Of the reference kinds only the runtime wiring kinds do: CONTAINS and
+        INHERITS complete the structure the clustering reads, TYPEREF and IMPORT have no producer,
+        and DEPENDS_ON is a build dependency — kept in the wiring results and the dumps for P3, not
+        drawn, because on every library of the negative set it is the only kind that joins and no
+        maintainer's picture draws a project reference.
         """
         return self is EdgeKind.CALL or _SPEC[self].drawn
 
@@ -85,7 +88,7 @@ _SPEC: dict[EdgeKind, _Spec] = {
     EdgeKind.INHERITS: _Spec("inherits from", affine=True),
     EdgeKind.TYPEREF: _Spec("uses", affine=True),
     EdgeKind.IMPORT: _Spec("imports"),
-    EdgeKind.DEPENDS_ON: _Spec("depends on", drawn=True),
+    EdgeKind.DEPENDS_ON: _Spec("depends on"),
     EdgeKind.CALLS_HTTP: _Spec("calls over HTTP", drawn=True),
     EdgeKind.ROUTES_TO: _Spec("routes to", drawn=True),
     EdgeKind.USES: _Spec("uses", drawn=True),

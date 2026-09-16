@@ -9,16 +9,21 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agents.agent_responses import AnalysisInsights
 from clustering_ids import ROOT_SCOPE_ID
+from diagram_analysis.file_index import index_artifact_files
+from diagram_analysis.scope_assembly import ScopeAssembler
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
+from static_analyzer.cluster_relations import build_component_relations, build_global_node_to_component_map
 from static_analyzer.clustering.models import ClusterGroup, ClusterScopeResult
+from static_analyzer.clustering.service import hierarchy_differs
 from static_analyzer.config import NodeType
 from static_analyzer.node import Node
 from static_analyzer.wiring import run, write_dump
-from static_analyzer.wiring.emit import emit, endpoint_nodes, place
+from static_analyzer.wiring.emit import WIRING_GRAPH, emit, endpoint_nodes, place
 from static_analyzer.wiring.join import Join
-from static_analyzer.wiring_results import AnchorFamily, Unit, UnitKind
+from static_analyzer.wiring_results import AnchorFamily, DiagnosticCode, Unit, UnitKind
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "wiring"
 REPO = Path("/repo")
@@ -32,21 +37,25 @@ def graph_of(language: str, *files: str) -> CallGraph:
     nodes = {}
     for path in files:
         name = f"{path}|run"
-        nodes[name] = Node(name, NodeType.FUNCTION, str(REPO / path), 1, 2)
+        nodes[name] = Node(name, NodeType.FUNCTION, str(REPO / path), 1, 20)
     return CallGraph(nodes, (), language)
 
 
-def site(line: int) -> Join:
+def site(line: int, kind: EdgeKind = EdgeKind.CALLS_HTTP, file: str = "docker-compose.yml") -> Join:
     return Join(
         source="web",
         target="api",
-        kind=EdgeKind.CALLS_HTTP,
-        file="docker-compose.yml",
+        kind=kind,
+        file=file,
         line=line,
         column=1,
         key="http://api:8080",
         family=AnchorFamily.DEPLOYMENT,
     )
+
+
+def hierarchy_of(*groups: ClusterGroup, **graphs: CallGraph) -> ClusterScopeResult:
+    return ClusterScopeResult(scope_id=ROOT_SCOPE_ID, graphs_by_language=dict(graphs), groups=list(groups))
 
 
 class TestEndpoints(unittest.TestCase):
@@ -60,16 +69,32 @@ class TestEndpoints(unittest.TestCase):
         )
         self.assertEqual(endpoints["api"].type, NodeType.FILE)
 
-    def test_three_units_are_reached_nowhere(self) -> None:
-        """Nothing to point at, nothing that makes it a box, or the whole tree (§4)."""
+    def test_three_units_are_reached_nowhere_and_each_says_so(self) -> None:
+        """Nothing to point at, nothing that makes it a box, or the whole tree (§4) — each a row, not a silence."""
         units = [
             Unit(id="a", dir="a", kind=UnitKind.NPM),
             Unit(id="b", dir="b", kind=UnitKind.NPM, manifest="b/package.json"),
             Unit(id=".", dir=".", kind=UnitKind.NPM, manifest="package.json"),
+            API,
         ]
-        graphs = {"typescript": graph_of("typescript", "a/app.ts", "b_other/app.ts")}
+        graphs = {"typescript": graph_of("typescript", "a/app.ts", "b_other/app.ts", "api/app.ts")}
+        joins = [
+            Join("a", "api", EdgeKind.CALLS_HTTP, "compose.yaml", 1, 1, "http://api", AnchorFamily.DEPLOYMENT),
+            Join("b", "api", EdgeKind.CALLS_HTTP, "compose.yaml", 2, 1, "http://api", AnchorFamily.DEPLOYMENT),
+            Join(".", "api", EdgeKind.CALLS_HTTP, "compose.yaml", 3, 1, "http://api", AnchorFamily.DEPLOYMENT),
+        ]
 
-        self.assertEqual(endpoint_nodes(units, graphs, REPO), {})
+        self.assertEqual(endpoint_nodes(units, graphs, REPO).keys(), {"api"})
+        edges, rows = emit(joins, units, graphs, REPO)
+        self.assertEqual(edges, [])
+        self.assertEqual(
+            [(row.code, row.message) for row in rows],
+            [
+                (DiagnosticCode.NO_BOX_FOR_UNIT, ". is the repository itself, which no arrow can land on"),
+                (DiagnosticCode.NO_BOX_FOR_UNIT, "a has no manifest to land an arrow on"),
+                (DiagnosticCode.NO_BOX_FOR_UNIT, "b holds no analysed code, so no arrow lands on it in P1"),
+            ],
+        )
 
 
 class TestEmit(unittest.TestCase):
@@ -77,8 +102,9 @@ class TestEmit(unittest.TestCase):
         """Sites say where an arrow was declared; they never make it a second arrow."""
         graphs = {"typescript": graph_of("typescript", "api/app.ts", "web/app.ts")}
 
-        edges = emit([site(5), site(9)], [API, WEB], graphs, REPO)
+        edges, rows = emit([site(5), site(9)], [API, WEB], graphs, REPO)
 
+        self.assertEqual(rows, [])
         self.assertEqual(len(edges), 1)
         self.assertEqual(
             (edges[0].src, edges[0].dst, edges[0].kind), ("web/package.json", "api/package.json", EdgeKind.CALLS_HTTP)
@@ -88,7 +114,18 @@ class TestEmit(unittest.TestCase):
     def test_an_arrow_needs_both_of_its_ends(self) -> None:
         graphs = {"typescript": graph_of("typescript", "web/app.ts")}
 
-        self.assertEqual(emit([site(5)], [API, WEB], graphs, REPO), [])
+        edges, rows = emit([site(5)], [API, WEB], graphs, REPO)
+
+        self.assertEqual(edges, [])
+        self.assertEqual([row.code for row in rows], [DiagnosticCode.NO_BOX_FOR_UNIT])
+
+    def test_a_literal_in_code_anchors_the_enclosing_symbol(self) -> None:
+        """§4: the endpoint is the code symbol that wrote the name, not the unit's manifest."""
+        graphs = {"typescript": graph_of("typescript", "api/app.ts", "web/app.ts")}
+
+        edges, _ = emit([site(7, file="web/app.ts")], [API, WEB], graphs, REPO)
+
+        self.assertEqual([(edge.src, edge.dst) for edge in edges], [("web/app.ts|run", "api/package.json")])
 
 
 class TestPlace(unittest.TestCase):
@@ -96,56 +133,147 @@ class TestPlace(unittest.TestCase):
         graph = graph_of("typescript", "api/app.ts", "web/app.ts")
         api = ClusterGroup(group_id="1", cluster_ids=[1], symbol_members_by_language={"typescript": {"api/app.ts|run"}})
         web = ClusterGroup(group_id="2", cluster_ids=[2], symbol_members_by_language={"typescript": {"web/app.ts|run"}})
-        return (
-            ClusterScopeResult(scope_id=ROOT_SCOPE_ID, graphs_by_language={"typescript": graph}, groups=[api, web]),
-            api,
-            web,
-        )
+        return hierarchy_of(api, web, typescript=graph), api, web
 
-    def test_an_endpoint_joins_the_group_that_owns_its_directory(self) -> None:
+    def test_the_wiring_graph_holds_the_endpoints_and_the_language_graphs_are_untouched(self) -> None:
+        """Decision 1: a partition never moves, a language graph never carries a wiring edge, and a warm
+        start can never re-import last run's arrows through the pickle."""
         hierarchy, api, web = self._hierarchy()
-        edges = emit([site(5)], [API, WEB], hierarchy.graphs_by_language, REPO)
+        edges, _ = emit([site(5)], [API, WEB], hierarchy.graphs_by_language, REPO)
 
-        place(hierarchy, [API, WEB], edges, REPO)
+        placement = place(hierarchy, [API, WEB], edges, REPO)
 
-        self.assertIn("api/package.json", api.symbol_members_by_language["typescript"])
-        self.assertIn("web/package.json", web.symbol_members_by_language["typescript"])
-        self.assertNotIn("api/package.json", web.symbol_members_by_language["typescript"])
-        self.assertIn("api/package.json", hierarchy.graphs_by_language["typescript"].nodes)
+        self.assertEqual(placement.graph.language, WIRING_GRAPH)
+        self.assertEqual(sorted(placement.graph.nodes), ["api/package.json", "web/package.json"])
+        self.assertEqual(
+            [(e.src, e.dst, e.kind) for e in placement.graph.reference_edges],
+            [("web/package.json", "api/package.json", EdgeKind.CALLS_HTTP)],
+        )
+        self.assertEqual(placement.owners, {"api/package.json": "1", "web/package.json": "2"})
+        self.assertEqual(hierarchy.graphs_by_language["typescript"].reference_edges, [])
+        self.assertEqual(sorted(hierarchy.graphs_by_language["typescript"].nodes), ["api/app.ts|run", "web/app.ts|run"])
+        self.assertEqual(api.symbol_members_by_language, {"typescript": {"api/app.ts|run"}})
+        self.assertEqual(web.symbol_members_by_language, {"typescript": {"web/app.ts|run"}})
 
     def test_an_arrow_between_two_languages_is_drawn(self) -> None:
-        """The case the layer exists for: a compose file wiring a Python service to a Java one.
-
-        An edge can only be drawn in a graph holding both its ends, so the target's node joins the
-        source's graph. Keeping each end in its own graph lost every such arrow, and silently.
-        """
+        """The case the layer exists for: a compose file wiring a Python service to a TypeScript one."""
         python = graph_of("python", "api/app.py")
         typescript = graph_of("typescript", "web/app.ts")
         api = ClusterGroup(group_id="1", cluster_ids=[1], symbol_members_by_language={"python": {"api/app.py|run"}})
         web = ClusterGroup(group_id="2", cluster_ids=[2], symbol_members_by_language={"typescript": {"web/app.ts|run"}})
-        hierarchy = ClusterScopeResult(
-            scope_id=ROOT_SCOPE_ID,
-            graphs_by_language={"python": python, "typescript": typescript},
-            groups=[api, web],
-        )
-        edges = emit([site(5)], [API, WEB], hierarchy.graphs_by_language, REPO)
+        hierarchy = hierarchy_of(api, web, python=python, typescript=typescript)
+        edges, _ = emit([site(5)], [API, WEB], hierarchy.graphs_by_language, REPO)
 
-        place(hierarchy, [API, WEB], edges, REPO)
+        placement = place(hierarchy, [API, WEB], edges, REPO)
 
         self.assertEqual(
-            [(edge.src, edge.dst) for edge in typescript.reference_edges], [("web/package.json", "api/package.json")]
+            [(e.src, e.dst) for e in placement.graph.reference_edges], [("web/package.json", "api/package.json")]
         )
-        self.assertIn("api/package.json", typescript.nodes)
-        self.assertIn("api/package.json", api.symbol_members_by_language["python"])
+        self.assertEqual(placement.owners, {"api/package.json": "1", "web/package.json": "2"})
+
+    def test_a_relation_between_the_boxes_carries_the_kind(self) -> None:
+        """The whole path: place, then the relation step reads the wiring graph like any other graph."""
+        hierarchy, _, _ = self._hierarchy()
+        edges, _ = emit([site(5)], [API, WEB], hierarchy.graphs_by_language, REPO)
+        placement = place(hierarchy, [API, WEB], edges, REPO)
+        assembled = ScopeAssembler(REPO).build(hierarchy)
+        owners = build_global_node_to_component_map(assembled, {}, placement.owners)
+        graphs = {**hierarchy.graphs_by_language, WIRING_GRAPH: placement.graph}
+
+        (relation,) = build_component_relations(owners, graphs)
+
+        self.assertEqual((relation.src_cluster_id, relation.dst_cluster_id), ("2", "1"))
+        self.assertEqual([edge.kind for edge in relation.all_edges], [EdgeKind.CALLS_HTTP])
+        self.assertEqual(relation.all_edges[0].call_sites[0].file, "docker-compose.yml")
+
+    def test_an_endpoint_lands_on_the_deepest_component_inside_its_unit(self) -> None:
+        """At depth 2 a relation between two services' children lands on the children, not the parents."""
+        graph = graph_of("typescript", "api/app.ts", "api/jobs/run.ts", "api/jobs/tick.ts", "web/app.ts")
+        api_core = ClusterGroup(
+            group_id="1.1", cluster_ids=[1], symbol_members_by_language={"typescript": {"api/app.ts|run"}}
+        )
+        api_jobs = ClusterGroup(
+            group_id="1.2",
+            cluster_ids=[2],
+            symbol_members_by_language={"typescript": {"api/jobs/run.ts|run", "api/jobs/tick.ts|run"}},
+        )
+        api = ClusterGroup(
+            group_id="1",
+            cluster_ids=[1, 2],
+            symbol_members_by_language={
+                "typescript": {"api/app.ts|run", "api/jobs/run.ts|run", "api/jobs/tick.ts|run"}
+            },
+            children=ClusterScopeResult(
+                scope_id="1", graphs_by_language={"typescript": graph}, groups=[api_core, api_jobs]
+            ),
+        )
+        web = ClusterGroup(group_id="2", cluster_ids=[3], symbol_members_by_language={"typescript": {"web/app.ts|run"}})
+        hierarchy = hierarchy_of(api, web, typescript=graph)
+        edges, _ = emit([site(5)], [API, WEB], hierarchy.graphs_by_language, REPO)
+
+        placement = place(hierarchy, [API, WEB], edges, REPO)
+
+        self.assertEqual(placement.owners, {"api/package.json": "1.2", "web/package.json": "2"})
+        root = ScopeAssembler(REPO).build(hierarchy)
+        lifted = build_global_node_to_component_map(root, {}, placement.owners)
+        self.assertEqual(lifted["api/package.json"], "1")
+
+    def test_a_unit_whose_only_edges_are_undrawn_gets_no_node(self) -> None:
+        """DEPENDS_ON stays in the results for P3 and never enters the graph the relations read."""
+        hierarchy, _, _ = self._hierarchy()
+        edges, _ = emit([site(5, kind=EdgeKind.DEPENDS_ON)], [API, WEB], hierarchy.graphs_by_language, REPO)
+
+        placement = place(hierarchy, [API, WEB], edges, REPO)
+
+        self.assertEqual([edge.kind for edge in edges], [EdgeKind.DEPENDS_ON])
+        self.assertEqual(placement.graph.nodes, {})
+        self.assertEqual(placement.owners, {})
+
+    def test_a_code_symbol_endpoint_joins_the_graph_and_needs_no_owner(self) -> None:
+        hierarchy, _, _ = self._hierarchy()
+        edges, _ = emit([site(7, file="web/app.ts")], [API, WEB], hierarchy.graphs_by_language, REPO)
+
+        placement = place(hierarchy, [API, WEB], edges, REPO)
+
+        self.assertEqual(sorted(placement.graph.nodes), ["api/package.json", "web/app.ts|run"])
+        self.assertEqual(placement.owners, {"api/package.json": "1"})
+
+    def test_placing_changes_nothing_a_later_run_would_compare(self) -> None:
+        """An incremental run compares persisted members against live groups; an endpoint is in neither."""
+        hierarchy, _, _ = self._hierarchy()
+        edges, _ = emit([site(5)], [API, WEB], hierarchy.graphs_by_language, REPO)
+        place(hierarchy, [API, WEB], edges, REPO)
+
+        persisted = ScopeAssembler(REPO).build(hierarchy)
+
+        self.assertFalse(hierarchy_differs(hierarchy, {ROOT_SCOPE_ID: persisted}))
+        self.assertEqual(sorted(persisted.files), ["api/app.ts", "web/app.ts"])
 
     def test_with_no_edges_nothing_is_placed(self) -> None:
         """The flag-off guarantee: a run that draws no wiring leaves every box as it was."""
         hierarchy, api, web = self._hierarchy()
 
-        place(hierarchy, [API, WEB], [], REPO)
+        placement = place(hierarchy, [API, WEB], [], REPO)
 
+        self.assertEqual((placement.graph.nodes, placement.owners), ({}, {}))
         self.assertEqual(api.symbol_members_by_language, {"typescript": {"api/app.ts|run"}})
         self.assertEqual(web.symbol_members_by_language, {"typescript": {"web/app.ts|run"}})
+
+
+class TestArtifactFiles(unittest.TestCase):
+    def test_an_endpoint_is_indexed_from_the_wiring_graph_and_owned_by_no_component(self) -> None:
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        (root / "api").mkdir()
+        (root / "api" / "package.json").write_text('{"name": "api"}\n', encoding="utf-8")
+        analysis = AnalysisInsights(description="", components=[], components_relations=[])
+        node = Node("api/package.json", NodeType.FILE, str(root / "api" / "package.json"), 1, 1)
+
+        index_artifact_files(analysis, [node], root)
+
+        (entry,) = analysis.files.values()
+        self.assertEqual(list(analysis.files), ["api/package.json"])
+        self.assertEqual([(m.qualified_name, m.node_type) for m in entry.methods], [("api/package.json", "FILE")])
+        self.assertTrue(entry.content_hash and entry.methods[0].content_hash)
 
 
 class TestEdgesDump(unittest.TestCase):

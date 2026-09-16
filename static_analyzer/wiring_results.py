@@ -90,21 +90,40 @@ class DiagnosticCode(StrEnum):
     AMBIGUOUS_KEY = "ambiguous_key"
     CONFIGURED_IMAGE = "configured_image"
     IGNORED_MANIFEST = "ignored_manifest"
+    NO_BOX_FOR_UNIT = "no_box_for_unit"
     UNIT_WITHOUT_MANIFEST = "unit_without_manifest"
     UNREADABLE_MANIFEST = "unreadable_manifest"
     UNRESOLVED_IMAGE = "unresolved_image"
     UNRESOLVED_USE = "unresolved_use"
     UNUSED_DEFINITION = "unused_definition"
+    USE_WITHOUT_UNIT = "use_without_unit"
 
 
 @dataclass(frozen=True)
 class Diagnostic:
+    """A row about something the pass read and could not use, with enough structure to act on.
+
+    For an anchor that joined nothing, ``file``, ``line`` and ``key`` say where it is, ``context``
+    holds the ten lines around it and ``candidates`` the unit names in play — the shape a resolver
+    would read one day, and what a reader needs to check a row by hand today.
+    """
+
     code: DiagnosticCode
     message: str
     paths: tuple[str, ...] = ()
+    file: str = ""
+    line: int = 0
+    key: str = ""
+    context: tuple[str, ...] = ()
+    candidates: tuple[str, ...] = ()
 
     def to_json(self) -> dict:
-        return {"code": self.code.value, "message": self.message, "paths": list(self.paths)}
+        row: dict = {"code": self.code.value, "message": self.message, "paths": list(self.paths)}
+        if self.file:
+            row.update({"file": self.file, "line": self.line, "key": self.key, "context": list(self.context)})
+        if self.candidates:
+            row["candidates"] = list(self.candidates)
+        return row
 
 
 @dataclass(frozen=True)

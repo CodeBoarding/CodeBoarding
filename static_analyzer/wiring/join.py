@@ -3,8 +3,9 @@
 A join is the whole of the judgement: an anchor says `lb://vets-service` is written in the gateway,
 the unit table says exactly one unit answers to that name, and the pair becomes one edge of one
 kind. Everything that does not join is a diagnostic — an unresolved use, a definition nobody reads,
-a name two units answer to — because a wiring layer that drops what it could not explain is a
-wiring layer nobody can debug.
+a name two units answer to, a use from a file that belongs to no unit — because a wiring layer that
+drops what it could not explain is a wiring layer nobody can debug. Each row carries the anchor's
+file, line and key, the lines around it and the unit names in play.
 
 The order matters (§6 rule 3): units first, because a name means nothing until the table exists;
 then the names configuration and deployment use; then the routes, whose target is itself a name.
@@ -20,7 +21,6 @@ from static_analyzer.cfg import EdgeKind
 from static_analyzer.wiring.anchors.keys import Names
 from static_analyzer.wiring.manifests import project_references
 from static_analyzer.wiring.scan import FileKind, Scan
-from static_analyzer.wiring.units import alias_key
 from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, Diagnostic, DiagnosticCode, Tier, Unit
 
 #: What a unit that others register with, fetch configuration from or report to looks like when it
@@ -35,8 +35,13 @@ _ENVIRONMENT_KEY = re.compile(r"^(?=.*[_A-Z])[A-Za-z_][A-Za-z0-9_]*$")
 
 #: A use whose key says what the connection is for, whatever the target turns out to be.
 _REGISTERS = re.compile(r"(?i)eureka|discovery|consul|registry|zookeeper")
-_FETCHES_CONFIG = re.compile(r"(?i)config[\s._-]*server|configserver|spring\.config\.import|configuration[\s._-]*uri")
+_FETCHES_CONFIG = re.compile(
+    r"(?i)config[\s._-]*server|configserver|spring\.config\.import|spring\.cloud\.config|configuration[\s._-]*uri"
+)
 _REPORTS = re.compile(r"(?i)zipkin|jaeger|otlp|opentelemetry|tracing|telemetry|prometheus|metrics|sleuth")
+
+#: The lines a reader needs around an anchor to check a row by hand: five each way.
+CONTEXT_LINES = 5
 
 
 @dataclass(frozen=True)
@@ -57,15 +62,24 @@ def join(scan: Scan, units: list[Unit], anchors: list[Anchor]) -> tuple[list[Joi
     """Every edge the files declare between two units of this repository, and what did not join."""
     names = Names(units)
     roles = _roles(anchors)
-    joins: list[Join] = [*_dependencies(scan, units), *_by_name(anchors, names, roles)]
-    diagnostics = _unresolved(anchors, names) + _unused(anchors)
+    dependencies, ambiguous = _dependencies(scan, units, names)
+    joins: list[Join] = [*dependencies, *_by_name(anchors, names, roles)]
+    diagnostics = ambiguous + _unresolved(scan, anchors, names) + _unused(anchors)
     return sorted(set(joins), key=_order), diagnostics
 
 
-def _dependencies(scan: Scan, units: list[Unit]) -> list[Join]:
+def context_of(scan: Scan, file: str, line: int) -> tuple[str, ...]:
+    """The ten lines around *line* of *file*, for a diagnostic row a reader checks by hand."""
+    lines = scan.text(file).splitlines()
+    start = max(line - 1 - CONTEXT_LINES, 0)
+    return tuple(lines[start : line + CONTEXT_LINES])
+
+
+def _dependencies(scan: Scan, units: list[Unit], names: Names) -> tuple[list[Join], list[Diagnostic]]:
     """What a build manifest says one unit needs from another: a project reference, a workspace name."""
     by_directory = {unit.dir: unit for unit in units}
     declared: list[Join] = []
+    ambiguous: list[Diagnostic] = []
     for unit in units:
         if not unit.manifest:
             continue
@@ -87,32 +101,54 @@ def _dependencies(scan: Scan, units: list[Unit]) -> list[Join]:
                         )
                     )
         elif kind is FileKind.NPM:
-            declared += _npm_dependencies(scan, unit, units)
-    return declared
+            found, unclear = _npm_dependencies(scan, unit, names)
+            declared += found
+            ambiguous += unclear
+    return declared, ambiguous
 
 
-def _npm_dependencies(scan: Scan, unit: Unit, units: list[Unit]) -> list[Join]:
-    """A workspace package that depends on a sibling by the name that sibling declares."""
+def _npm_dependencies(scan: Scan, unit: Unit, names: Names) -> tuple[list[Join], list[Diagnostic]]:
+    """A workspace package that depends on a sibling by the name that sibling declares.
+
+    A name two packages answer to draws nothing and names both (§6 rule 7), rather than whichever
+    sorted first.
+    """
     manifest = scan.json_object(unit.manifest)
-    siblings = {alias_key(alias): other for other in units for alias in other.aliases if other.id != unit.id}
-    declared = []
+    declared: list[Join] = []
+    ambiguous: list[Diagnostic] = []
     for section in ("dependencies", "devDependencies", "peerDependencies"):
         for name in (manifest.get(section) or {}) if isinstance(manifest.get(section), dict) else {}:
-            target = siblings.get(alias_key(str(name)))
-            if target is not None:
+            line = scan.line_of(unit.manifest, f'"{name}"')
+            candidates = names.candidates(str(name))
+            target = names.unit_of(str(name))
+            if target and target != unit.id:
                 declared.append(
                     Join(
                         source=unit.id,
-                        target=target.id,
+                        target=target,
                         kind=EdgeKind.DEPENDS_ON,
                         file=unit.manifest,
-                        line=scan.line_of(unit.manifest, f'"{name}"'),
+                        line=line,
                         column=1,
                         key=str(name),
                         family=AnchorFamily.BUILD_MANIFEST,
                     )
                 )
-    return declared
+            elif len(candidates) > 1:
+                ambiguous.append(
+                    Diagnostic(
+                        code=DiagnosticCode.AMBIGUOUS_KEY,
+                        message=f"{name} in {unit.manifest}:{line} names {len(candidates)} units and draws nothing: "
+                        f"{', '.join(candidates)}",
+                        paths=(unit.manifest,),
+                        file=unit.manifest,
+                        line=line,
+                        key=str(name),
+                        context=context_of(scan, unit.manifest, line),
+                        candidates=candidates,
+                    )
+                )
+    return declared, ambiguous
 
 
 def _by_name(anchors: list[Anchor], names: Names, roles: dict[str, EdgeKind]) -> list[Join]:
@@ -148,18 +184,18 @@ def _by_name(anchors: list[Anchor], names: Names, roles: dict[str, EdgeKind]) ->
 def _kind_of(anchor: Anchor, routing: set[tuple[str, str]]) -> EdgeKind:
     """What a use is for, read from the key that expresses it and the route it belongs to (§5).
 
-    Why not the anchor's own tier: a route has two halves and only the path half is the template, so
-    the name a gateway forwards to is an ordinary T1 name sitting beside a T2 route. Why the unit and
-    not the file alone: an Aspire AppHost declares its own routes and configures every other service
-    in one file, and a variable it sets on one service is that service calling another, not a route.
-    A key saying what the connection is for outranks both, because a gateway registers itself and
-    fetches its own configuration like every other service.
+    The setting a host was read under says what the connection is for (`spring.config.import`,
+    `eureka.client.serviceUrl.defaultZone`), and outranks the route: a gateway registers itself and
+    fetches its own configuration like every other service. Why the unit and not the file alone
+    for a route: an Aspire AppHost declares its own routes and configures every other service in
+    one file, and a variable it sets on one service is that service calling another, not a route.
     """
-    if _FETCHES_CONFIG.search(anchor.key):
+    said = f"{anchor.setting} {anchor.key}"
+    if _FETCHES_CONFIG.search(said):
         return EdgeKind.FETCHES_CONFIG
-    if _REGISTERS.search(anchor.key):
+    if _REGISTERS.search(said):
         return EdgeKind.REGISTERS_WITH
-    if _REPORTS.search(anchor.key):
+    if _REPORTS.search(said):
         return EdgeKind.REPORTS_TO
     return EdgeKind.ROUTES_TO if (anchor.file, anchor.unit) in routing else EdgeKind.CALLS_HTTP
 
@@ -177,40 +213,48 @@ def _roles(anchors: list[Anchor]) -> dict[str, EdgeKind]:
     return roles
 
 
-def _unresolved(anchors: list[Anchor], names: Names) -> list[Diagnostic]:
-    """Every use that joined nothing: no unit answers to the name, or several do.
+def _unresolved(scan: Scan, anchors: list[Anchor], names: Names) -> list[Diagnostic]:
+    """Every use that joined nothing: no unit answers to the name, several do, or the use has no unit.
 
-    The two are different failures and the page reports them as different rows (§8): a name nobody
-    answers to is the shape a resolver would one day read, while a name two units answer to is an
-    ambiguity that names both candidates and draws nothing (§6 rule 7).
+    The three are different failures and the page reports them as different rows (§8): a name
+    nobody answers to is the shape a resolver would one day read, a name two units answer to is
+    an ambiguity that names both candidates and draws nothing (§6 rule 7), and a name that
+    resolves from a file belonging to no unit has an arrow with nowhere to start.
     """
     found = []
     for anchor in anchors:
         if anchor.family is not AnchorFamily.SERVICE_NAMES or anchor.role is not AnchorRole.USE:
             continue
-        if names.unit_of(anchor.norm_key) or not anchor.norm_key:
-            continue
         # An annotation is a role its unit takes on, not a name anything answers to.
-        if anchor.key.startswith("@"):
+        if anchor.key.startswith("@") or not anchor.norm_key:
+            continue
+        target = names.unit_of(anchor.norm_key)
+        if target and (anchor.unit or target == anchor.unit):
             continue
         where = f"{anchor.key} in {anchor.file}:{anchor.line}"
         candidates = names.candidates(anchor.norm_key)
-        if len(candidates) > 1:
-            found.append(
-                Diagnostic(
-                    code=DiagnosticCode.AMBIGUOUS_KEY,
-                    message=f"{where} names {len(candidates)} units and draws nothing: {', '.join(candidates)}",
-                    paths=(anchor.file,),
-                )
+        if target:
+            code, message = (
+                DiagnosticCode.USE_WITHOUT_UNIT,
+                f"{where} names {target} from a file that belongs to no unit",
             )
+        elif len(candidates) > 1:
+            code = DiagnosticCode.AMBIGUOUS_KEY
+            message = f"{where} names {len(candidates)} units and draws nothing: {', '.join(candidates)}"
         else:
-            found.append(
-                Diagnostic(
-                    code=DiagnosticCode.UNRESOLVED_USE,
-                    message=f"{where} names no unit of this repository",
-                    paths=(anchor.file,),
-                )
+            code, message = DiagnosticCode.UNRESOLVED_USE, f"{where} names no unit of this repository"
+        found.append(
+            Diagnostic(
+                code=code,
+                message=message,
+                paths=(anchor.file,),
+                file=anchor.file,
+                line=anchor.line,
+                key=anchor.key,
+                context=context_of(scan, anchor.file, anchor.line),
+                candidates=candidates or ((target,) if target else ()),
             )
+        )
     return found
 
 
@@ -233,11 +277,23 @@ def _unused(anchors: list[Anchor]) -> list[Diagnostic]:
             code=DiagnosticCode.UNUSED_DEFINITION,
             message=f"{anchors_for[0].key} is set in {anchors_for[0].file} and nothing here reads it",
             paths=tuple(sorted({anchor.file for anchor in anchors_for})),
+            file=anchors_for[0].file,
+            line=anchors_for[0].line,
+            key=anchors_for[0].key,
         )
         for key, anchors_for in sorted(defined.items())
         if key not in read
     ]
 
 
-def _order(found: Join) -> tuple[str, str, str, str, int]:
-    return found.source, found.target, found.kind.value, found.file, found.line
+def _order(found: Join) -> tuple[str, str, str, str, int, int, str, str]:
+    return (
+        found.source,
+        found.target,
+        found.kind.value,
+        found.file,
+        found.line,
+        found.column,
+        found.key,
+        found.family.value,
+    )

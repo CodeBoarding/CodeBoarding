@@ -121,6 +121,21 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
 A resource's `name` is what the repository declares for it — the compose service, the Kubernetes
 workload, the Aspire resource — never the image. The image decides the kind.
 
+**Wiring edges live in one dedicated graph.** `place()` builds `cfg_graphs["wiring"]`, a graph
+holding only endpoint nodes — a FILE node per manifest, the code symbol where the anchor is a
+literal in code, and PR 6's resource nodes — and the wiring edges of the drawn kinds, rebuilt from
+`results.wiring` on every run. It returns, per endpoint, the deepest component whose files are
+inside the unit's directory (by plurality at every depth, so a relation between two services'
+children lands on the children), and `build_global_node_to_component_map` merges that in, lifting
+an owner deeper than the expanded tree to its deepest expanded ancestor; `build_component_relations`
+iterates the wiring graph like any other value of the mapping and never reads its key. A language
+graph never carries a wiring edge, so the static-analysis pickle never does either and a warm start
+cannot re-import last run's arrows. A unit whose only edges are of an undrawn kind gets no node; a
+unit that takes part in a join and has no endpoint — no manifest, the repository root, or a
+directory holding no analysed code — is a `no_box_for_unit` row rather than a silence. The
+`files` and `methods_index` entries for endpoints are written from the wiring graph, so file
+coverage counts them as analysed while no component lists them.
+
 **A shared file is a site, not an endpoint.** The arrow a root compose file, an Aspire AppHost or a
 Kubernetes manifest directory declares joins the two units it names; the file and the line are the
 edge's site. Such a file belongs to no box, and it counts as analysed. A file inside a unit's
@@ -143,7 +158,7 @@ move a file, and whether it is infrastructure. Every consumer reads that table a
 | `INHERITS` | class → base | inherits from | no | yes | no | today |
 | `TYPEREF` | symbol → type | uses | no | yes | no | no producer |
 | `IMPORT` | module → module | imports | no | no | no | no producer |
-| `DEPENDS_ON` | unit → unit (project reference, workspace dependency) | depends on | yes | no, gated later | no | P1 |
+| `DEPENDS_ON` | unit → unit (project reference, workspace dependency) | depends on | no, held for P3 | no, gated later | no | P1 |
 | `CALLS_HTTP` | unit or symbol → unit or handler (service name, base URL, later a route) | calls over HTTP | yes | never | no | P1 config, P2 code |
 | `ROUTES_TO` | gateway route → unit or handler | routes to | yes | never | no | P1 |
 | `USES` | unit or symbol → resource | uses | yes | never | no | P1 |
@@ -301,8 +316,10 @@ diffs; today its method-level differ drops an edge whose end is not a file.
             "manifest": "<repo-relative path>", "aliases": ["<name>", "..."],
             "builds": ["<repo-relative path of a Dockerfile, manifest or deployment file that builds it>"],
             "variant": ["<a compose profile it only runs under>"]}],
- "diagnostics": [{"code": "ambiguous_alias|ambiguous_image|configured_image|ignored_manifest|unit_without_manifest|unreadable_manifest|unresolved_image",
-                  "message": "...", "paths": ["..."]}]}
+ "diagnostics": [{"code": "ambiguous_alias|ambiguous_image|ambiguous_key|configured_image|ignored_manifest|no_box_for_unit|unit_without_manifest|unreadable_manifest|unresolved_image|unresolved_use|unused_definition|use_without_unit",
+                  "message": "...", "paths": ["..."],
+                  "file": "<the anchor's file, where a row is about one>", "line": 12, "key": "<the anchor's key>",
+                  "context": ["<the ten lines around the anchor>"], "candidates": ["<the unit names in play>"]}]}
 ```
 
 ```json
@@ -345,10 +362,13 @@ is the one T2 anchor: its path is a template with its parameters collapsed. Its 
 setting is written, which is where its own key and its own value meet: a key repeated across
 documents and a value repeated across settings each name the wrong line on their own.
 
-`diagnostics.json` lists every unresolved use, every unused definition, every ambiguous key and
-every ignored place with the reason, in the same shape as the `diagnostics` list above. It is also
-the shape a resolver with a model in it would read one day — for an unresolved use, the anchor's
-file, line and key, the lines around it, and the unit names in play — and nothing in P1 calls one.
+`diagnostics.json` lists every unresolved use, every unused definition, every ambiguous key, every
+resolvable use whose file belongs to no unit, every unit an arrow could not land on, every unknown
+image, every configuration file over 128 KB, every unparseable `appsettings.json` and every ignored
+place with the reason, in the same shape as the `diagnostics` list above: every silent drop is a
+row. A row about an anchor carries the anchor's file, line and key, the ten lines around it, and the
+unit names in play — the shape a resolver with a model in it would read one day, and nothing in P1
+calls one.
 
 ## 9. Incremental
 
@@ -410,9 +430,10 @@ one-line PR that flips the flag once the action path runs with it on.
 
 Open, decided before the PR that needs them: the display-name catalogue's home (PR 5).
 
-**`DEPENDS_ON` is drawn wherever it is found** (decided in PR 4), at depth 1 like every other drawn
-kind. Measured: on eShop a project reference accounts for 36 of its 50 unit pairs against 14
-runtime ones, and PetClinic declares none at all, so the question was whether the build-time arrows
-bury the runtime ones. They are still what the repository declares, drawing every kind the same way
-is one rule rather than two, and starting with more edges and narrowing later is the cheaper
-direction to be wrong in.
+**`DEPENDS_ON` is not drawn in P1** (decided in PR 4, reversed in its review round). The kind stays
+in `wiring.edges` and `edges.json` for P3, and the policy table's `drawn` says no. Measured: on
+eShop a project reference accounts for 36 of its 50 unit pairs against 14 runtime ones, and on the
+negative set every join is a build dependency — Polly 13, mermaid 6, Umbraco 42, MassTransit 37,
+jellyfin 69, vue-core 33 — and Nango's 169 of 169; no maintainer's picture draws a project
+reference. Drawing it would fail the negative rule on every multi-package library and bury the
+runtime arrows the layer exists for.

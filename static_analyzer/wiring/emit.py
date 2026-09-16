@@ -1,61 +1,98 @@
 """A join becomes an edge the diagram can draw: two endpoints, a site, and a kind.
 
 A unit's endpoint is a node for its own manifest (§4): the file a reader opens to find out what the
-unit is. A shared file — a root compose file, an Aspire AppHost — is the edge's *site* rather than
-an endpoint, so it belongs to no box and still says where the arrow was declared.
+unit is. Where the anchor is a literal in code, the endpoint is the enclosing code symbol instead. A
+shared file — a root compose file, an Aspire AppHost — is the edge's *site* rather than an endpoint,
+so it belongs to no box and still says where the arrow was declared.
 
 Placement is a second step, after the clustering, because what owns a file is a component and
-components do not exist until the clustering has run. Wiring never moves a box: an endpoint joins
-the group that already owns its directory, and no group's callables change.
+components do not exist until the clustering has run. Wiring never moves a box and never touches a
+language graph: the drawn edges and their endpoint nodes go into one dedicated graph, rebuilt on
+every run, and each endpoint is mapped to the component owning its unit's directory when the
+relations are built.
 """
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg import CallGraph, ReferenceEdge
 from static_analyzer.clustering.models import ClusterScopeResult
-from static_analyzer.config import NodeType
+from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES, NodeType
 from static_analyzer.node import Node
 from static_analyzer.wiring.join import Join
-from static_analyzer.wiring_results import Unit
+from static_analyzer.wiring.scan import SOURCE_SUFFIXES
+from static_analyzer.wiring_results import Diagnostic, DiagnosticCode, Unit
+
+#: The graph the wiring layer's edges live in. Never a language: nothing about it is code.
+WIRING_GRAPH = "wiring"
 
 
-def emit(joins: list[Join], units: list[Unit], graphs: Mapping[str, CallGraph], repo_dir: Path) -> list[ReferenceEdge]:
-    """One reference edge per joined pair and kind, between the endpoint nodes of the two units."""
+@dataclass
+class Placement:
+    """The wiring graph and, for each artifact node in it, the component owning its unit's directory."""
+
+    graph: CallGraph = field(default_factory=lambda: CallGraph(language=WIRING_GRAPH))
+    owners: dict[str, str] = field(default_factory=dict)
+
+
+def emit(
+    joins: list[Join], units: list[Unit], graphs: Mapping[str, CallGraph], repo_dir: Path
+) -> tuple[list[ReferenceEdge], list[Diagnostic]]:
+    """One reference edge per joined pair and kind, between the endpoints of the two units.
+
+    A unit that takes part in a join and has no endpoint is a row: nothing is dropped silently.
+    """
     endpoints = endpoint_nodes(units, graphs, repo_dir)
+    symbols = _symbols_by_file(graphs, repo_dir)
+    by_id = {unit.id: unit for unit in units}
     sites: dict[tuple[str, str, object], list[dict]] = {}
+    unreached: dict[str, Unit] = {}
     for found in joins:
-        source, target = endpoints.get(found.source), endpoints.get(found.target)
+        source = _enclosing(symbols, found.file, found.line) or endpoints.get(found.source)
+        target = endpoints.get(found.target)
+        for unit_id, node in ((found.source, source), (found.target, target)):
+            if node is None and unit_id in by_id:
+                unreached[unit_id] = by_id[unit_id]
         if source is None or target is None or source.fully_qualified_name == target.fully_qualified_name:
             continue
         key = (source.fully_qualified_name, target.fully_qualified_name, found.kind)
         site = {"file": found.file, "line": max(found.line, 1), "column": max(found.column, 1)}
         if site not in sites.setdefault(key, []):
             sites[key].append(site)
-    return [
+    edges = [
         ReferenceEdge(str(source), str(target), kind, tuple(sites[(source, target, kind)]))  # type: ignore[arg-type]
         for source, target, kind in sorted(sites, key=lambda key: (str(key[0]), str(key[1]), str(key[2])))
     ]
+    return edges, [_no_box(unit, graphs, repo_dir) for _, unit in sorted(unreached.items())]
 
 
 def endpoint_nodes(units: list[Unit], graphs: Mapping[str, CallGraph], repo_dir: Path) -> dict[str, Node]:
-    """The node an arrow lands on for each unit: its manifest, keyed by its repository path."""
-    return _endpoints(units, languages_by_unit(units, graphs, repo_dir), repo_dir)
+    """The node an arrow lands on for each unit: its manifest, keyed by its repository path.
+
+    Three units get no endpoint: one with no manifest has nothing to point at, one whose directory
+    holds no analysed code is a resource rather than a box, and one whose directory is the
+    repository itself names the whole tree — an arrow into it would land on whichever component
+    happens to hold the most code.
+    """
+    inside = languages_by_unit(units, graphs, repo_dir)
+    return {
+        unit.id: Node(unit.manifest, NodeType.FILE, str(repo_dir / unit.manifest), 1, 1)
+        for unit in units
+        if unit.manifest and unit.dir != "." and inside.get(unit.dir)
+    }
 
 
 def languages_by_unit(units: list[Unit], graphs: Mapping[str, CallGraph], repo_dir: Path) -> dict[str, dict[str, int]]:
     """How many analysed symbols each language has inside each unit, from one walk of the graphs.
 
     Why one walk and not one question per unit: a symbol belongs to every unit whose directory
-    contains it, so asking each unit in turn rescans every graph once per unit. On a repository of
-    twenty units that is twenty full passes to answer one question, and it was the dominant cost of
-    the whole layer — eShop spent 6.8 % of its static phase here, against a 5 % budget for the pass.
-
-    Why the repository directory: a graph's paths are absolute and a unit's are not, so the two only
-    compare once both are spelled from the root.
+    contains it, so asking each unit in turn rescans every graph once per unit — on a repository
+    of twenty units that is twenty full passes to answer one question.
     """
     directories = {unit.dir for unit in units if unit.dir != "."}
     counted: dict[str, dict[str, int]] = {}
@@ -70,89 +107,99 @@ def languages_by_unit(units: list[Unit], graphs: Mapping[str, CallGraph], repo_d
     return counted
 
 
-def place(hierarchy: ClusterScopeResult, units: list[Unit], edges: list[ReferenceEdge], repo_dir: Path) -> None:
-    """Give every endpoint a node, a graph and the group that already owns its directory.
+def place(hierarchy: ClusterScopeResult, units: list[Unit], edges: list[ReferenceEdge], repo_dir: Path) -> Placement:
+    """The wiring graph for this hierarchy: every drawn edge with its two endpoint nodes, and their owners.
 
-    Why here and not in the pass: a component is the clustering's answer, and an arrow can only
-    land on a box once the boxes exist.
+    An endpoint's owner is the deepest component whose files are inside the unit's directory, by
+    plurality at every depth, so a relation between two services' children lands on the children
+    rather than on their parents. A code symbol endpoint needs no owner: its component already owns
+    it. A unit whose only edges are of an undrawn kind gets no node.
     """
-    if not edges:
-        return
+    placement = Placement()
     graphs = hierarchy.graphs_by_language
-    inside = languages_by_unit(units, graphs, repo_dir)
-    endpoints = _endpoints(units, inside, repo_dir)
-    owners = {unit.id: unit for unit in units}
+    by_name = {node.fully_qualified_name: unit_id for unit_id, node in endpoint_nodes(units, graphs, repo_dir).items()}
+    directories = {unit.id: unit.dir for unit in units}
     paths: dict[str, str] = {}
-    language_of: dict[str, str] = {}
-    node_of: dict[str, Node] = {}
-    for unit_id, node in sorted(endpoints.items()):
-        counted = inside.get(owners[unit_id].dir, {})
-        language = max(sorted(counted), key=lambda one: counted[one])
-        graph = graphs[language]
-        if node.fully_qualified_name not in graph.nodes:
-            graph.add_node(node)
-        _own(hierarchy, owners[unit_id], language, node.fully_qualified_name, repo_dir, paths)
-        language_of[node.fully_qualified_name] = language
-        node_of[node.fully_qualified_name] = node
     for edge in edges:
-        graph = graphs.get(language_of.get(edge.src, ""))
-        if graph is None or edge.src not in graph.nodes:
+        if not edge.kind.drawn:
             continue
-        # An arrow whose two ends are written in different languages is the case this layer exists
-        # for — a compose file wiring a Python service to a Java one — and an edge can only be drawn
-        # in a graph holding both its ends, so the target's node joins the source's graph. Dropping
-        # it instead lost every cross-language arrow on three of the seven rulers, silently.
-        if edge.dst not in graph.nodes and edge.dst in node_of:
-            graph.add_node(node_of[edge.dst])
-        if edge.dst in graph.nodes:
-            graph.add_reference_edge(edge)
+        for name in (edge.src, edge.dst):
+            if name in placement.graph.nodes:
+                continue
+            if name in by_name:
+                placement.graph.add_node(Node(name, NodeType.FILE, str(repo_dir / name), 1, 1))
+                owner = _owner(hierarchy, f"{directories[by_name[name]]}/", repo_dir, paths)
+                if owner:
+                    placement.owners[name] = owner
+            else:
+                symbol = next((graph.nodes[name] for graph in graphs.values() if name in graph.nodes), None)
+                if symbol is not None:
+                    placement.graph.add_node(symbol)
+        if edge.src in placement.graph.nodes and edge.dst in placement.graph.nodes:
+            placement.graph.add_reference_edge(edge)
+    return placement
 
 
-def _endpoints(units: list[Unit], inside: dict[str, dict[str, int]], repo_dir: Path) -> dict[str, Node]:
-    """Three units get no endpoint: one with no manifest has nothing to point at, one whose
-    directory holds no analysed code is a resource rather than a box, and one whose directory is the
-    repository itself names the whole tree — an arrow into it would land on whichever component
-    happens to hold the most code.
-    """
-    return {
-        unit.id: Node(unit.manifest, NodeType.FILE, str(repo_dir / unit.manifest), 1, 1)
-        for unit in units
-        if unit.manifest and unit.dir != "." and inside.get(unit.dir)
-    }
-
-
-def _own(
-    scope: ClusterScopeResult, unit: Unit, language: str, name: str, repo_dir: Path, paths: dict[str, str]
-) -> None:
-    """Add the node to the group that owns most of this unit's code, in this scope and below it."""
-    group = _owning_group(scope, unit, language, repo_dir, paths)
-    if group is None:
-        return
-    group.symbol_members_by_language.setdefault(language, set()).add(name)
-    if group.children is not None:
-        _own(group.children, unit, language, name, repo_dir, paths)
-
-
-def _owning_group(scope: ClusterScopeResult, unit: Unit, language: str, repo_dir: Path, paths: dict[str, str]):
-    """The group of this scope holding most of the unit's symbols, or none when no group does."""
-    prefix = f"{unit.dir}/"
-    graph = scope.graphs_by_language.get(language)
-    if graph is None:
-        return None
-    counted = {}
+def _owner(scope: ClusterScopeResult, prefix: str, repo_dir: Path, paths: dict[str, str]) -> str:
+    """The deepest group of this scope, and below it, holding most of the files under *prefix*."""
+    counted: dict[str, int] = {}
     for group in scope.groups:
         inside = 0
-        for member in group.symbol_members_by_language.get(language, set()):
-            node = graph.nodes.get(member)
-            if node is None:
+        for language, members in group.symbol_members_by_language.items():
+            graph = scope.graphs_by_language.get(language)
+            if graph is None:
                 continue
-            path = paths.get(node.file_path) or paths.setdefault(
-                node.file_path, normalize_repo_path(node.file_path, repo_dir)
-            )
-            inside += path.startswith(prefix)
+            for member in members:
+                node = graph.nodes.get(member)
+                if node is None:
+                    continue
+                path = paths.get(node.file_path) or paths.setdefault(
+                    node.file_path, normalize_repo_path(node.file_path, repo_dir)
+                )
+                inside += path.startswith(prefix)
         if inside:
             counted[group.group_id] = inside
     if not counted:
-        return None
+        return ""
     winner = max(sorted(counted), key=lambda group_id: counted[group_id])
-    return next(group for group in scope.groups if group.group_id == winner)
+    group = next(group for group in scope.groups if group.group_id == winner)
+    deeper = _owner(group.children, prefix, repo_dir, paths) if group.children is not None else ""
+    return deeper or winner
+
+
+def _symbols_by_file(graphs: Mapping[str, CallGraph], repo_dir: Path) -> dict[str, list[tuple[int, int, Node]]]:
+    """Every callable and class by the repository path of its file, so a line finds its enclosing symbol."""
+    found: dict[str, list[tuple[int, int, Node]]] = {}
+    for graph in graphs.values():
+        for node in graph.nodes.values():
+            if node.type in CALLABLE_TYPES | CLASS_TYPES:
+                found.setdefault(normalize_repo_path(node.file_path, repo_dir), []).append(
+                    (node.line_start, node.line_end, node)
+                )
+    return found
+
+
+def _enclosing(symbols: dict[str, list[tuple[int, int, Node]]], file: str, line: int) -> Node | None:
+    """The smallest symbol of *file* whose span holds *line*, for an anchor that is a literal in code (§4)."""
+    if os.path.splitext(file)[1] not in SOURCE_SUFFIXES:
+        return None
+    holding = [(end - start, start, node) for start, end, node in symbols.get(file, []) if start <= line <= end]
+    if not holding:
+        return None
+    holding.sort(key=lambda item: (item[0], item[1], item[2].fully_qualified_name))
+    return holding[0][2]
+
+
+def _no_box(unit: Unit, graphs: Mapping[str, CallGraph], repo_dir: Path) -> Diagnostic:
+    if not unit.manifest:
+        reason = "has no manifest to land an arrow on"
+    elif unit.dir == ".":
+        reason = "is the repository itself, which no arrow can land on"
+    else:
+        reason = "holds no analysed code, so no arrow lands on it in P1"
+    return Diagnostic(
+        code=DiagnosticCode.NO_BOX_FOR_UNIT,
+        message=f"{unit.id} {reason}",
+        paths=(unit.manifest or unit.dir,),
+        candidates=(unit.id,),
+    )

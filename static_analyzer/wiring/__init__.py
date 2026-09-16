@@ -62,12 +62,12 @@ def run(results: StaticAnalysisResults, repo_root: Path, *, dump: Path | None = 
     units = build_units(scan, repository_name(repo_root), projects)
     anchors = collect(scan, units, projects)
     joins, unjoined = join(scan, units, anchors)
-    edges = emit(joins, units, results.available_cfgs(), repo_root)
+    edges, unreached = emit(joins, units, results.available_cfgs(), repo_root)
     wiring = WiringResults(
         units=units,
         anchors=anchors,
         edges=edges,
-        diagnostics=sorted([*scan.diagnostics, *unjoined], key=_order),
+        diagnostics=sorted([*scan.diagnostics, *unjoined, *unreached], key=_order),
     )
     logger.info(
         "wiring: %d files read, %d units, %d anchors, %d edges, %d diagnostics in %.2fs",
@@ -176,5 +176,5 @@ def _write(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8")
 
 
-def _order(diagnostic: Diagnostic) -> tuple[str, str, tuple[str, ...]]:
-    return diagnostic.code.value, diagnostic.message, diagnostic.paths
+def _order(diagnostic: Diagnostic) -> tuple[str, str, int, str, str, tuple[str, ...]]:
+    return diagnostic.code.value, diagnostic.file, diagnostic.line, diagnostic.key, diagnostic.message, diagnostic.paths

@@ -41,6 +41,19 @@ class TestDependencies(unittest.TestCase):
 
         self.assertEqual(edges, [("packages/web", "packages/api", "depends_on")])
 
+    def test_a_dependency_two_packages_answer_to_draws_nothing_and_names_both(self) -> None:
+        """§6 rule 7: the name is ambiguous, and neither package wins by sorting first."""
+        edges, diagnostics = joined("join-ambiguous-npm")
+
+        self.assertEqual(edges, [])
+        self.assertIn(
+            (
+                "ambiguous_key",
+                "@acme/api in packages/web/package.json:4 names 2 units and draws nothing: packages/api, packages/api-next",
+            ),
+            diagnostics,
+        )
+
 
 class TestKinds(unittest.TestCase):
     def test_a_gateway_forwards_and_a_service_calls(self) -> None:
@@ -110,6 +123,33 @@ class TestWhatDidNotJoin(unittest.TestCase):
         _, diagnostics = joined("anchors-spring")
 
         self.assertEqual([message for _, message in diagnostics if message.startswith("@")], [])
+
+    def test_a_use_that_resolves_from_a_file_of_no_unit_is_a_row(self) -> None:
+        """The arrow has an end and no start: reported, not dropped."""
+        edges, diagnostics = joined("join-no-unit")
+
+        self.assertEqual(edges, [])
+        self.assertIn(
+            ("use_without_unit", "web in deploy/tools.yaml:12 names web from a file that belongs to no unit"),
+            diagnostics,
+        )
+
+    def test_a_row_carries_the_place_the_lines_around_it_and_the_names_in_play(self) -> None:
+        """§8: the shape a resolver would read one day, and what a reader needs to check a row by hand."""
+        root = FIXTURES / "join-ambiguous"
+        scan = Scan(root)
+        projects = compose_projects(scan)
+        units = build_units(scan, root.name, projects)
+        _, diagnostics = join(scan, units, collect(scan, units, projects))
+        (row,) = [d for d in diagnostics if d.code.value == "ambiguous_key"]
+
+        self.assertEqual((row.file, row.line, row.key), ("docker-compose.yml", 5, "shared"))
+        self.assertEqual(row.candidates, ("a", "b"))
+        self.assertIn("SHARED_URL=http://shared:8080", "\n".join(row.context))
+        self.assertLessEqual(len(row.context), 11)
+        self.assertEqual(
+            sorted(row.to_json()), ["candidates", "code", "context", "file", "key", "line", "message", "paths"]
+        )
 
 
 if __name__ == "__main__":
