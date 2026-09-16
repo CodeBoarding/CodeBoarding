@@ -7,7 +7,12 @@ from pathlib import Path
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.wiring import run, write_dump
-from static_analyzer.wiring.resources import classify, classify_image, classify_word
+from static_analyzer.wiring.anchors import collect
+from static_analyzer.wiring.compose import compose_projects
+from static_analyzer.wiring.resources import Use, discover
+from static_analyzer.wiring.scan import Scan
+from static_analyzer.wiring.units import build_units
+from static_analyzer.wiring.catalogue import classify, classify_image, classify_word
 from static_analyzer.wiring_results import DiagnosticCode, Resource, ResourceKind
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "wiring"
@@ -20,6 +25,15 @@ def resources_of(case: str) -> list[Resource]:
 def rows(case: str) -> list[tuple[str, str, str, str]]:
     """Each resource as (key, kind, name, home unit), which is what a reader checks."""
     return [(one.key, one.kind.value, one.name, one.home_unit) for one in resources_of(case)]
+
+
+def uses_of(case: str) -> list[Use]:
+    root = FIXTURES / case
+    scan = Scan(root)
+    projects = compose_projects(scan)
+    units = build_units(scan, root.name, projects)
+    _, uses, _ = discover(scan, projects, units, collect(scan, units, projects))
+    return uses
 
 
 def unknown(case: str) -> list[str]:
@@ -153,6 +167,51 @@ class TestDriversAndClients(unittest.TestCase):
         self.assertIn("resource:api:openai", [one.key for one in resources_of("resources-drivers")])
 
 
+class TestUses(unittest.TestCase):
+    def test_the_setting_naming_a_resource_is_a_use_of_it_by_that_unit(self) -> None:
+        """`CACHE_URL=redis://cache:6379` on the api is the api using the cache, at that line (§7)."""
+        (use,) = [one for one in uses_of("resources-compose") if one.target == "resource:cache:cache"]
+
+        self.assertEqual(
+            (use.source, use.file, use.line, use.key, use.setting),
+            ("api", "docker-compose.yml", 6, "cache", "CACHE_URL"),
+        )
+
+    def test_a_resource_carries_its_users(self) -> None:
+        (hsqldb,) = [one for one in resources_of("resources-drivers") if one.name == "hsqldb"]
+
+        self.assertEqual(hsqldb.users, ("customers", "genai"))
+
+    def test_a_driver_names_the_one_thing_of_its_kind_the_deployment_runs(self) -> None:
+        """`pg` in the api's manifest and `db` running `postgres:16` are one PostgreSQL, under the name
+        the compose file gave it; `ioredis` beside two Redis services stays its own node, because a
+        driver cannot say which of two it talks to (§7)."""
+        found = {one.key: one for one in resources_of("resources-unified")}
+
+        self.assertEqual(
+            sorted(found), ["resource:cache:cachea", "resource:cache:cacheb", "resource:cache:redis", "resource:db:db"]
+        )
+        self.assertEqual(found["resource:db:db"].declared_by, ("api/package.json", "docker-compose.yml"))
+        self.assertEqual((found["resource:db:db"].users, found["resource:db:db"].home_unit), (("api",), "api"))
+        self.assertEqual(found["resource:cache:redis"].users, ("api",))
+        uses = {(use.source, use.target, use.file, use.line) for use in uses_of("resources-unified")}
+        self.assertIn(("api", "resource:db:db", "api/package.json", 4), uses)
+        self.assertIn(("api", "resource:cache:redis", "api/package.json", 5), uses)
+
+    def test_a_configuration_key_that_is_a_child_s_name_is_a_use_of_the_child(self) -> None:
+        """A project reading `catalogdb` from its configuration uses the database of that name."""
+        uses = {(use.source, use.target) for use in uses_of("resources-aspire")}
+
+        self.assertIn(("src/Catalog.Api", "resource:db:postgres/db:catalogdb"), uses)
+
+    def test_a_resource_s_own_configuration_naming_another_is_a_use_and_never_a_user(self) -> None:
+        """A Grafana's data source names a Prometheus: an arrow between two resources, and the Prometheus
+        keeps no user, because a resource is not a unit and has no box (§7)."""
+        found = {one.key: one for one in resources_of("resources-compose")}
+
+        self.assertEqual(found["resource:api:metrics"].users, ())
+
+
 class TestNothingToFind(unittest.TestCase):
     def test_a_repository_that_declares_no_such_thing_has_none(self) -> None:
         self.assertEqual(resources_of("join-workspace"), [])
@@ -194,7 +253,7 @@ class TestDump(unittest.TestCase):
         self.assertEqual(sorted(dumped), ["commit", "repo", "resources"])
         self.assertEqual(
             sorted(dumped["resources"][0]),
-            ["children", "declared_by", "display_name", "home_unit", "key", "kind", "name"],
+            ["children", "declared_by", "display_name", "home_unit", "key", "kind", "name", "users"],
         )
         self.assertEqual(sorted(dumped["resources"][0]["children"][0]), ["key", "kind", "name", "owner"])
 

@@ -18,6 +18,21 @@ from enum import StrEnum
 from static_analyzer.cfg import ReferenceEdge
 
 
+#: What a resource's identifier starts with, so a relation end, a node name or an anchor's `unit`
+#: says which of the two it is without a lookup: `resource:<kind>:<name>`, a child under it as
+#: `resource:<kind>:<name>/<kind>:<child>` (§8).
+RESOURCE_PREFIX = "resource:"
+
+
+def is_resource(identifier: str) -> bool:
+    return identifier.startswith(RESOURCE_PREFIX)
+
+
+def resource_kind(identifier: str) -> str:
+    """The kind a resource key names, or empty for anything that is not one."""
+    return identifier.split(":")[1] if is_resource(identifier) else ""
+
+
 class UnitKind(StrEnum):
     """What declares a unit. A directory several files declare takes the first kind in this order.
 
@@ -159,9 +174,11 @@ class Unit:
 class Anchor:
     """Where a wiring key is declared or used: the key as written, normalised, and its place.
 
-    ``setting`` is the configuration key a value was read under (`spring.config.import`,
-    `CONFIG_SERVER_URL`) when the anchor is the host that value names, so a join can read what the
-    connection is for from the key that expresses it rather than from the host's spelling.
+    ``unit`` is the unit the anchor is about — or, for a file that is a resource's own configuration
+    (a Prometheus's scrape list), the resource's key (§6). ``setting`` is the configuration key a
+    value was read under (`spring.config.import`, `CONFIG_SERVER_URL`) when the anchor is the host
+    that value names, so a join can read what the connection is for from the key that expresses it
+    rather than from the host's spelling.
     """
 
     family: AnchorFamily
@@ -178,12 +195,17 @@ class Anchor:
 
 @dataclass(frozen=True)
 class ResourceChild:
-    """A database on a server, a route on a gateway: grounded substructure of a resource."""
+    """A database on a server, a route on a gateway: grounded substructure of a resource.
+
+    ``owner`` is the one unit that names it; ``home`` is that unit's component once the nodes are
+    placed, empty until then.
+    """
 
     key: str
     kind: ResourceKind
     name: str
     owner: str = ""
+    home: str = ""
 
 
 @dataclass(frozen=True)
@@ -191,10 +213,15 @@ class Resource:
     """A thing the code talks to that holds no source here, named as the repository names it (§7).
 
     ``display_name`` is the catalogue's name for its kind of thing (`mssql/server` -> SQL Server), for
-    rendering a node whose declared name would tell a reader nothing. ``home_unit`` is whose it is
-    in P1 — a unit or the directory its users share — because a component is the clustering's
-    answer and the clustering has not run when the pass does; the PR that places these nodes
-    resolves it to a component id.
+    rendering a node whose declared name would tell a reader nothing. ``users`` are the units whose
+    own setting, driver or client names it or one of its children. ``home_unit`` is whose it is when
+    the pass runs — a unit or the directory its users share — because a component is the
+    clustering's answer and the clustering has not run yet.
+
+    The last four are placement, filled in after the clustering (§7): ``home`` is the component the
+    node is drawn in (empty at the top), ``level`` the depth it is drawn at, ``badge`` whether it is
+    shown on its owner's box rather than as a node, and ``group`` the node it is folded into over
+    the level cap (`Infrastructure`, `External services`, `Data stores`), empty when drawn alone.
     """
 
     key: str
@@ -202,8 +229,13 @@ class Resource:
     name: str
     display_name: str = ""
     declared_by: tuple[str, ...] = ()
+    users: tuple[str, ...] = ()
     home_unit: str = ""
     children: tuple[ResourceChild, ...] = ()
+    home: str = ""
+    level: int = 0
+    badge: bool = False
+    group: str = ""
 
 
 @dataclass

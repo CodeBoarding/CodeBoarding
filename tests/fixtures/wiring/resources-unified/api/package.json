@@ -1,0 +1,7 @@
+{
+  "name": "api",
+  "dependencies": {
+    "pg": "^8.11.0",
+    "ioredis": "^5.3.0"
+  }
+}

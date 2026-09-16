@@ -52,6 +52,10 @@ class RelationJson(Relation):
         default=None,
         description="True when the label is the static edges' own verb and that verb is not `calls`; absent otherwise.",
     )
+    infrastructure: bool | None = Field(
+        default=None,
+        description="True when every edge is registering, fetching configuration or reporting (§5); absent otherwise.",
+    )
 
 
 class ComponentJson(Component):
@@ -164,6 +168,7 @@ class ResourceChildJson(BaseModel):
     kind: str = Field(description="Its parent's kind, because what holds it is what it is a piece of.")
     name: str = Field(description="What the repository calls it.")
     owner: str = Field(default="", description="The unit whose declaration defines it, where one does.")
+    home: str = Field(default="", description="The component it is drawn in, its owner's; empty at the top.")
 
 
 class ResourceJson(BaseModel):
@@ -176,6 +181,16 @@ class ResourceJson(BaseModel):
         default="", description="The catalogue's name for its kind of thing: `mssql/server` is a SQL Server."
     )
     declared_by: list[str] = Field(default_factory=list, description="The files that declare it.")
+    users: list[str] = Field(
+        default_factory=list, description="The units whose own setting, driver or client names it."
+    )
+    home: str = Field(default="", description="The component it is drawn in; empty at the top (§7).")
+    level: int = Field(default=0, description="The depth it is drawn at: its home's depth plus one.")
+    badge: bool = Field(
+        default=False,
+        description="Shown on its home's box rather than as a node, because that box holds no children here.",
+    )
+    group: str = Field(default="", description="The node it is folded into over the level cap; empty when drawn alone.")
     children: list[ResourceChildJson] = Field(default_factory=list, description="What it holds.")
 
 
@@ -266,8 +281,13 @@ def _resource_to_json(resource: Resource) -> ResourceJson:
         name=resource.name,
         display_name=resource.display_name,
         declared_by=list(resource.declared_by),
+        users=list(resource.users),
+        home=resource.home,
+        level=resource.level,
+        badge=resource.badge,
+        group=resource.group,
         children=[
-            ResourceChildJson(key=child.key, kind=child.kind.value, name=child.name, owner=child.owner)
+            ResourceChildJson(key=child.key, kind=child.kind.value, name=child.name, owner=child.owner, home=child.home)
             for child in resource.children
         ],
     )
@@ -393,7 +413,15 @@ def _relation_to_json(r: Relation, repo_dir: Path) -> RelationJson:
         is_static=r.is_static,
         all_edges=[_relation_edge_to_json(edge, repo_dir) for edge in r.all_edges],
         default_label=_default_label_to_json(r),
+        infrastructure=_infrastructure_to_json(r),
     )
+
+
+def _infrastructure_to_json(relation: Relation) -> bool | None:
+    """True only for a relation made of nothing but infrastructure kinds: a star of such arrows says
+    the same thing about every service, and a reader may fold it (§5)."""
+    edges = relation.all_edges or relation.key_edges
+    return True if edges and all(edge.kind is not None and edge.kind.infrastructure for edge in edges) else None
 
 
 def from_component_to_json_component(

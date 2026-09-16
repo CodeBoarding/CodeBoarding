@@ -15,13 +15,26 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from static_analyzer.cfg import EdgeKind
 from static_analyzer.wiring.anchors.keys import Names
 from static_analyzer.wiring.manifests import project_references
+from static_analyzer.wiring.resources import Use
 from static_analyzer.wiring.scan import FileKind, Scan
-from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, Diagnostic, DiagnosticCode, Tier, Unit
+from static_analyzer.wiring_results import (
+    Anchor,
+    AnchorFamily,
+    AnchorRole,
+    Diagnostic,
+    DiagnosticCode,
+    ResourceKind,
+    Tier,
+    Unit,
+    is_resource,
+    resource_kind,
+)
 
 #: What a unit that others register with, fetch configuration from or report to looks like when it
 #: is code of this repository rather than a stock image. The annotation is the declaration.
@@ -58,13 +71,17 @@ class Join:
     family: AnchorFamily
 
 
-def join(scan: Scan, units: list[Unit], anchors: list[Anchor]) -> tuple[list[Join], list[Diagnostic]]:
-    """Every edge the files declare between two units of this repository, and what did not join."""
+def join(
+    scan: Scan, units: list[Unit], anchors: list[Anchor], uses: Sequence[Use] = ()
+) -> tuple[list[Join], list[Diagnostic]]:
+    """Every edge the files declare between two units of this repository, or between a unit and a
+    resource it names (``uses``, §7), and what did not join."""
     names = Names(units)
     roles = _roles(anchors)
     dependencies, ambiguous = _dependencies(scan, units, names)
-    joins: list[Join] = [*dependencies, *_by_name(anchors, names, roles)]
-    diagnostics = ambiguous + _unresolved(scan, anchors, names) + _unused(anchors)
+    joins: list[Join] = [*dependencies, *_by_name(anchors, names, roles), *_to_resources(uses)]
+    covered = {(use.file, use.line, use.key) for use in uses}
+    diagnostics = ambiguous + _unresolved(scan, anchors, names, covered) + _unused(anchors)
     return sorted(set(joins), key=_order), diagnostics
 
 
@@ -170,7 +187,7 @@ def _by_name(anchors: list[Anchor], names: Names, roles: dict[str, EdgeKind]) ->
             Join(
                 source=anchor.unit,
                 target=target,
-                kind=roles.get(target, _kind_of(anchor, routing)),
+                kind=_from_resource(anchor.unit) or roles.get(target, _kind_of(anchor, routing)),
                 file=anchor.file,
                 line=anchor.line,
                 column=anchor.column,
@@ -179,6 +196,33 @@ def _by_name(anchors: list[Anchor], names: Names, roles: dict[str, EdgeKind]) ->
             )
         )
     return joined
+
+
+def _to_resources(uses: Sequence[Use]) -> list[Join]:
+    """Every use of a resource as an edge into it, of the kind the setting says (§5): a registry is
+    registered with, a configuration server fetched from, a collector reported to, and anything
+    else — a database, a cache, a broker, a third party — used."""
+    joined = []
+    for use in uses:
+        said = f"{use.setting} {use.key}"
+        kind = _from_resource(use.source) or EdgeKind.USES
+        if not _from_resource(use.source):
+            if _FETCHES_CONFIG.search(said):
+                kind = EdgeKind.FETCHES_CONFIG
+            elif _REGISTERS.search(said):
+                kind = EdgeKind.REGISTERS_WITH
+            elif _REPORTS.search(said):
+                kind = EdgeKind.REPORTS_TO
+        joined.append(Join(use.source, use.target, kind, use.file, use.line, use.column, use.key, use.family))
+    return joined
+
+
+def _from_resource(source: str) -> EdgeKind | None:
+    """What a resource's own configuration naming something is: a gateway routes to it, and anything
+    else — a Prometheus with its scrape list, a Grafana with its data source — calls it."""
+    if not is_resource(source):
+        return None
+    return EdgeKind.ROUTES_TO if resource_kind(source) == ResourceKind.GATEWAY.value else EdgeKind.CALLS_HTTP
 
 
 def _kind_of(anchor: Anchor, routing: set[tuple[str, str]]) -> EdgeKind:
@@ -213,8 +257,12 @@ def _roles(anchors: list[Anchor]) -> dict[str, EdgeKind]:
     return roles
 
 
-def _unresolved(scan: Scan, anchors: list[Anchor], names: Names) -> list[Diagnostic]:
+def _unresolved(
+    scan: Scan, anchors: list[Anchor], names: Names, covered: set[tuple[str, int, str]] = frozenset()
+) -> list[Diagnostic]:
     """Every use that joined nothing: no unit answers to the name, several do, or the use has no unit.
+
+    ``covered`` are the places a resource answered from (§7), which are edges rather than rows.
 
     The three are different failures and the page reports them as different rows (§8): a name
     nobody answers to is the shape a resolver would one day read, a name two units answer to is
@@ -226,7 +274,7 @@ def _unresolved(scan: Scan, anchors: list[Anchor], names: Names) -> list[Diagnos
         if anchor.family is not AnchorFamily.SERVICE_NAMES or anchor.role is not AnchorRole.USE:
             continue
         # An annotation is a role its unit takes on, not a name anything answers to.
-        if anchor.key.startswith("@") or not anchor.norm_key:
+        if anchor.key.startswith("@") or not anchor.norm_key or (anchor.file, anchor.line, anchor.key) in covered:
             continue
         target = names.unit_of(anchor.norm_key)
         if target and (anchor.unit or target == anchor.unit):
