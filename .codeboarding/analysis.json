@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-09-15T22:10:03.617070+00:00",
-    "source_tree_hash": "71b085cb4308bd94009f5f10ee0c6f75121535cd6f1962dd1f6876e710da782f",
+    "generated_at": "2026-09-16T20:23:46.999679+00:00",
+    "source_tree_hash": "5e133bc78b17ff3d6ca0da6d6424e9973fccfcdcd18ba723d941bb80f388c539",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -20636,884 +20636,6 @@
       ],
       "components_relations": [
         {
-          "relation": "references language and node type definitions",
-          "src_name": "Project Scanning and Analysis Cache",
-          "dst_name": "Architecture Clustering and Configuration",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "static_analyzer/node.py|static_analyzer.node.Node.__init__",
-              "target": "static_analyzer/config.py|static_analyzer.config.NodeType",
-              "call_sites": [
-                {
-                  "line": 33,
-                  "column": 31
-                }
-              ],
-              "description": "References node type and language configuration enums during resolution"
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._try_qualified_name_as_path",
-              "target": "static_analyzer/config.py|static_analyzer.config.Language",
-              "call_sites": [
-                {
-                  "line": 407,
-                  "column": 51
-                }
-              ],
-              "description": "Checks configured programming languages for path-based symbol resolution"
-            }
-          ],
-          "src_id": "1.2",
-          "dst_id": "1.3",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/node.py|static_analyzer.node.Node.__init__",
-              "target": "static_analyzer/config.py|static_analyzer.config.NodeType",
-              "call_sites": [
-                {
-                  "line": 33,
-                  "column": 31
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._try_qualified_name_as_path",
-              "target": "static_analyzer/config.py|static_analyzer.config.Language",
-              "call_sites": [
-                {
-                  "line": 407,
-                  "column": 51
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "manipulates call graphs and validates edge integrity during cache management",
-          "src_name": "Project Scanning and Analysis Cache",
-          "dst_name": "Call Graph and Incremental Orchestration",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._rederive_inherits_edges",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
-              "call_sites": [
-                {
-                  "line": 474,
-                  "column": 28
-                }
-              ],
-              "description": "Rederives reference edges and validates node endpoints in call graph during cache invalidation"
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._validate_no_dangling_references",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
-              "call_sites": [
-                {
-                  "line": 487,
-                  "column": 25
-                }
-              ],
-              "description": "Inspects edge endpoints during validation against dangling references"
-            }
-          ],
-          "src_id": "1.2",
-          "dst_id": "1.4",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_edge",
-              "call_sites": [
-                {
-                  "line": 42,
-                  "column": 28
-                },
-                {
-                  "line": 45,
-                  "column": 28
-                },
-                {
-                  "line": 57,
-                  "column": 28
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_node",
-              "call_sites": [
-                {
-                  "line": 34,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
-              "call_sites": [
-                {
-                  "line": 62,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites",
-              "call_sites": [
-                {
-                  "line": 36,
-                  "column": 25
-                },
-                {
-                  "line": 48,
-                  "column": 61
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
-              "call_sites": [
-                {
-                  "line": 40,
-                  "column": 26
-                },
-                {
-                  "line": 42,
-                  "column": 61
-                },
-                {
-                  "line": 47,
-                  "column": 26
-                },
-                {
-                  "line": 54,
-                  "column": 26
-                },
-                {
-                  "line": 57,
-                  "column": 61
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
-              "call_sites": [
-                {
-                  "line": 39,
-                  "column": 26
-                },
-                {
-                  "line": 42,
-                  "column": 42
-                },
-                {
-                  "line": 46,
-                  "column": 26
-                },
-                {
-                  "line": 53,
-                  "column": 26
-                },
-                {
-                  "line": 57,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.visit_paths",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.visit_paths",
-              "call_sites": [
-                {
-                  "line": 71,
-                  "column": 20
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_node_uncached",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 203,
-                  "column": 42
-                },
-                {
-                  "line": 209,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_node_uncached",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_loose_reference",
-              "call_sites": [
-                {
-                  "line": 210,
-                  "column": 44
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_node_uncached",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_reference",
-              "call_sites": [
-                {
-                  "line": 205,
-                  "column": 45
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_symbol_reference",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 150,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_symbol_reference",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_loose_reference",
-              "call_sites": [
-                {
-                  "line": 175,
-                  "column": 52
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_symbol_reference",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_reference",
-              "call_sites": [
-                {
-                  "line": 154,
-                  "column": 59
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_symbol_reference",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.iter_reference_nodes",
-              "call_sites": [
-                {
-                  "line": 186,
-                  "column": 46
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.attach_static_call_sites",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites",
-              "call_sites": [
-                {
-                  "line": 264,
-                  "column": 90
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.find_static_edge",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "call_sites": [
-                {
-                  "line": 273,
-                  "column": 44
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.find_static_edge",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 271,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.find_static_edge",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
-              "call_sites": [
-                {
-                  "line": 277,
-                  "column": 63
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.find_static_edge",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
-              "call_sites": [
-                {
-                  "line": 277,
-                  "column": 25
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.resolve_reference",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "call_sites": [
-                {
-                  "line": 135,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._rederive_inherits_edges",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
-              "call_sites": [
-                {
-                  "line": 474,
-                  "column": 28
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._rederive_inherits_edges",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.ReferenceEdge",
-              "call_sites": [
-                {
-                  "line": 474,
-                  "column": 47
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._validate_no_dangling_references",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
-              "call_sites": [
-                {
-                  "line": 487,
-                  "column": 25
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._validate_no_dangling_references",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
-              "call_sites": [
-                {
-                  "line": 486,
-                  "column": 25
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.AnalysisData",
-              "call_sites": [
-                {
-                  "line": 405,
-                  "column": 22
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.AnalysisData.from_dict",
-              "call_sites": [
-                {
-                  "line": 375,
-                  "column": 27
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.InvalidatedAnalysis",
-              "call_sites": [
-                {
-                  "line": 420,
-                  "column": 12
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter",
-              "call_sites": [
-                {
-                  "line": 384,
-                  "column": 30
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites",
-              "call_sites": [
-                {
-                  "line": 380,
-                  "column": 88
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
-              "call_sites": [
-                {
-                  "line": 380,
-                  "column": 34
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
-              "call_sites": [
-                {
-                  "line": 380,
-                  "column": 15
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.AnalysisData",
-              "call_sites": [
-                {
-                  "line": 451,
-                  "column": 14
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.AnalysisData.from_dict",
-              "call_sites": [
-                {
-                  "line": 434,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.union",
-              "call_sites": [
-                {
-                  "line": 443,
-                  "column": 50
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/external_calls.py|static_analyzer.external_calls._add_edges",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_edge",
-              "call_sites": [
-                {
-                  "line": 139,
-                  "column": 20
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "inspects call graph edges to derive component relationships",
-          "src_name": "Architecture Clustering and Configuration",
-          "dst_name": "Call Graph and Incremental Orchestration",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
-              "call_sites": [
-                {
-                  "line": 70,
-                  "column": 29
-                }
-              ],
-              "description": "Inspects call graph edge endpoints to derive inter-component relations"
-            },
-            {
-              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._build_connections",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites",
-              "call_sites": [
-                {
-                  "line": 415,
-                  "column": 41
-                }
-              ],
-              "description": "Builds architectural component connections using call graph edge call sites"
-            }
-          ],
-          "src_id": "1.3",
-          "dst_id": "1.4",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
-              "call_sites": [
-                {
-                  "line": 70,
-                  "column": 29
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
-              "call_sites": [
-                {
-                  "line": 69,
-                  "column": 29
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._build_connections",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites",
-              "call_sites": [
-                {
-                  "line": 415,
-                  "column": 41
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._build_connections",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
-              "call_sites": [
-                {
-                  "line": 401,
-                  "column": 31
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._build_connections",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
-              "call_sites": [
-                {
-                  "line": 400,
-                  "column": 31
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._induced_graphs",
-              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
-              "call_sites": [
-                {
-                  "line": 386,
-                  "column": 48
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.build_full_hierarchy",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs",
-              "call_sites": [
-                {
-                  "line": 116,
-                  "column": 34
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.build_incremental_hierarchy",
-              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs",
-              "call_sites": [
-                {
-                  "line": 135,
-                  "column": 34
-                },
-                {
-                  "line": 140,
-                  "column": 32
-                },
-                {
-                  "line": 146,
-                  "column": 81
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.unit_links",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
-              "call_sites": [
-                {
-                  "line": 84,
-                  "column": 43
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.unit_links",
-              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
-              "call_sites": [
-                {
-                  "line": 84,
-                  "column": 24
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "merges language results and updates cached analysis structures",
-          "src_name": "Call Graph and Incremental Orchestration",
-          "dst_name": "Project Scanning and Analysis Cache",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults._bucket",
-              "target": "static_analyzer/language_results.py|static_analyzer.language_results.LanguageResults",
-              "call_sites": [
-                {
-                  "line": 188,
-                  "column": 78
-                }
-              ],
-              "description": "Buckets cumulative analysis results into language result models"
-            },
-            {
-              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
-              "target": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
-              "call_sites": [
-                {
-                  "line": 200,
-                  "column": 36
-                }
-              ],
-              "description": "Merges language-specific CFG and hierarchy results into cumulative language containers"
-            }
-          ],
-          "src_id": "1.4",
-          "dst_id": "1.2",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults._bucket",
-              "target": "static_analyzer/language_results.py|static_analyzer.language_results.LanguageResults",
-              "call_sites": [
-                {
-                  "line": 188,
-                  "column": 78
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
-              "target": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
-              "call_sites": [
-                {
-                  "line": 200,
-                  "column": 36
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
-              "target": "static_analyzer/language_results.py|static_analyzer.language_results.ClassHierarchy.merge",
-              "call_sites": [
-                {
-                  "line": 196,
-                  "column": 42
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_package_dependencies",
-              "target": "static_analyzer/language_results.py|static_analyzer.language_results.PackageDependencies.merge",
-              "call_sites": [
-                {
-                  "line": 204,
-                  "column": 45
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_references",
-              "target": "static_analyzer/language_results.py|static_analyzer.language_results.References.add",
-              "call_sites": [
-                {
-                  "line": 212,
-                  "column": 43
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_source_files",
-              "target": "static_analyzer/language_results.py|static_analyzer.language_results.SourceFiles.extend",
-              "call_sites": [
-                {
-                  "line": 343,
-                  "column": 45
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_edge",
-              "target": "static_analyzer/node.py|static_analyzer.node.Node.added_method_called_by_me",
-              "call_sites": [
-                {
-                  "line": 109,
-                  "column": 30
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.GraphIndex.callable_names",
-              "call_sites": [
-                {
-                  "line": 162,
-                  "column": 86
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.PotentialCalls.requests_at",
-              "call_sites": [
-                {
-                  "line": 169,
-                  "column": 67
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
-              "call_sites": [
-                {
-                  "line": 207,
-                  "column": 31
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
-              "call_sites": [
-                {
-                  "line": 162,
-                  "column": 20
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_for",
-              "call_sites": [
-                {
-                  "line": 196,
-                  "column": 27
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
-              "call_sites": [
-                {
-                  "line": 76,
-                  "column": 21
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results",
-              "call_sites": [
-                {
-                  "line": 105,
-                  "column": 23
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.GraphIndex",
-              "call_sites": [
-                {
-                  "line": 107,
-                  "column": 13
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
           "relation": "scans project structure and links external call sites",
           "src_name": "LSP Engine and Language Adapters",
           "dst_name": "Project Scanning and Analysis Cache",
@@ -22856,6 +21978,684 @@
           ]
         },
         {
+          "relation": "references language and node type definitions",
+          "src_name": "Project Scanning and Analysis Cache",
+          "dst_name": "Architecture Clustering and Configuration",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "static_analyzer/node.py|static_analyzer.node.Node.__init__",
+              "target": "static_analyzer/config.py|static_analyzer.config.NodeType",
+              "call_sites": [
+                {
+                  "line": 33,
+                  "column": 31
+                }
+              ],
+              "description": "References node type and language configuration enums during resolution"
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._try_qualified_name_as_path",
+              "target": "static_analyzer/config.py|static_analyzer.config.Language",
+              "call_sites": [
+                {
+                  "line": 407,
+                  "column": 51
+                }
+              ],
+              "description": "Checks configured programming languages for path-based symbol resolution"
+            }
+          ],
+          "src_id": "1.2",
+          "dst_id": "1.3",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/node.py|static_analyzer.node.Node.__init__",
+              "target": "static_analyzer/config.py|static_analyzer.config.NodeType",
+              "call_sites": [
+                {
+                  "line": 33,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._try_qualified_name_as_path",
+              "target": "static_analyzer/config.py|static_analyzer.config.Language",
+              "call_sites": [
+                {
+                  "line": 407,
+                  "column": 51
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "manipulates call graphs and validates edge integrity during cache management",
+          "src_name": "Project Scanning and Analysis Cache",
+          "dst_name": "Call Graph and Incremental Orchestration",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._rederive_inherits_edges",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
+              "call_sites": [
+                {
+                  "line": 474,
+                  "column": 28
+                }
+              ],
+              "description": "Rederives reference edges and validates node endpoints in call graph during cache invalidation"
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._validate_no_dangling_references",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+              "call_sites": [
+                {
+                  "line": 487,
+                  "column": 25
+                }
+              ],
+              "description": "Inspects edge endpoints during validation against dangling references"
+            }
+          ],
+          "src_id": "1.2",
+          "dst_id": "1.4",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_edge",
+              "call_sites": [
+                {
+                  "line": 42,
+                  "column": 28
+                },
+                {
+                  "line": 45,
+                  "column": 28
+                },
+                {
+                  "line": 57,
+                  "column": 28
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_node",
+              "call_sites": [
+                {
+                  "line": 34,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
+              "call_sites": [
+                {
+                  "line": 62,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites",
+              "call_sites": [
+                {
+                  "line": 36,
+                  "column": 25
+                },
+                {
+                  "line": 48,
+                  "column": 61
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+              "call_sites": [
+                {
+                  "line": 40,
+                  "column": 26
+                },
+                {
+                  "line": 42,
+                  "column": 61
+                },
+                {
+                  "line": 47,
+                  "column": 26
+                },
+                {
+                  "line": 54,
+                  "column": 26
+                },
+                {
+                  "line": 57,
+                  "column": 61
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
+              "call_sites": [
+                {
+                  "line": 39,
+                  "column": 26
+                },
+                {
+                  "line": 42,
+                  "column": 42
+                },
+                {
+                  "line": 46,
+                  "column": 26
+                },
+                {
+                  "line": 53,
+                  "column": 26
+                },
+                {
+                  "line": 57,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.visit_paths",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.visit_paths",
+              "call_sites": [
+                {
+                  "line": 71,
+                  "column": 20
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_node_uncached",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 203,
+                  "column": 42
+                },
+                {
+                  "line": 209,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_node_uncached",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_loose_reference",
+              "call_sites": [
+                {
+                  "line": 210,
+                  "column": 44
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_node_uncached",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_reference",
+              "call_sites": [
+                {
+                  "line": 205,
+                  "column": 45
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_symbol_reference",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 150,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_symbol_reference",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_loose_reference",
+              "call_sites": [
+                {
+                  "line": 175,
+                  "column": 52
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_symbol_reference",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_reference",
+              "call_sites": [
+                {
+                  "line": 154,
+                  "column": 59
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver._resolve_symbol_reference",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.iter_reference_nodes",
+              "call_sites": [
+                {
+                  "line": 186,
+                  "column": 46
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.attach_static_call_sites",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites",
+              "call_sites": [
+                {
+                  "line": 264,
+                  "column": 90
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.find_static_edge",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 273,
+                  "column": 44
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.find_static_edge",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 271,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.find_static_edge",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+              "call_sites": [
+                {
+                  "line": 277,
+                  "column": 63
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.find_static_edge",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
+              "call_sites": [
+                {
+                  "line": 277,
+                  "column": 25
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/reference_resolver.py|static_analyzer.reference_resolver.StaticReferenceResolver.resolve_reference",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "call_sites": [
+                {
+                  "line": 135,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._rederive_inherits_edges",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_reference_edge",
+              "call_sites": [
+                {
+                  "line": 474,
+                  "column": 28
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._rederive_inherits_edges",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.ReferenceEdge",
+              "call_sites": [
+                {
+                  "line": 474,
+                  "column": 47
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._validate_no_dangling_references",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+              "call_sites": [
+                {
+                  "line": 487,
+                  "column": 25
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache._validate_no_dangling_references",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
+              "call_sites": [
+                {
+                  "line": 486,
+                  "column": 25
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.AnalysisData",
+              "call_sites": [
+                {
+                  "line": 405,
+                  "column": 22
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.AnalysisData.from_dict",
+              "call_sites": [
+                {
+                  "line": 375,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.InvalidatedAnalysis",
+              "call_sites": [
+                {
+                  "line": 420,
+                  "column": 12
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter",
+              "call_sites": [
+                {
+                  "line": 384,
+                  "column": 30
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites",
+              "call_sites": [
+                {
+                  "line": 380,
+                  "column": 88
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+              "call_sites": [
+                {
+                  "line": 380,
+                  "column": 34
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
+              "call_sites": [
+                {
+                  "line": 380,
+                  "column": 15
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.AnalysisData",
+              "call_sites": [
+                {
+                  "line": 451,
+                  "column": 14
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.AnalysisData.from_dict",
+              "call_sites": [
+                {
+                  "line": 434,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.union",
+              "call_sites": [
+                {
+                  "line": 443,
+                  "column": 50
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/external_calls.py|static_analyzer.external_calls._add_edges",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_edge",
+              "call_sites": [
+                {
+                  "line": 139,
+                  "column": 20
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "inspects call graph edges to derive component relationships",
+          "src_name": "Architecture Clustering and Configuration",
+          "dst_name": "Call Graph and Incremental Orchestration",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+              "call_sites": [
+                {
+                  "line": 70,
+                  "column": 29
+                }
+              ],
+              "description": "Inspects call graph edge endpoints to derive inter-component relations"
+            },
+            {
+              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._build_connections",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites",
+              "call_sites": [
+                {
+                  "line": 415,
+                  "column": 41
+                }
+              ],
+              "description": "Builds architectural component connections using call graph edge call sites"
+            }
+          ],
+          "src_id": "1.3",
+          "dst_id": "1.4",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+              "call_sites": [
+                {
+                  "line": 70,
+                  "column": 29
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
+              "call_sites": [
+                {
+                  "line": 69,
+                  "column": 29
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._build_connections",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.call_sites",
+              "call_sites": [
+                {
+                  "line": 415,
+                  "column": 41
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._build_connections",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+              "call_sites": [
+                {
+                  "line": 401,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._build_connections",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
+              "call_sites": [
+                {
+                  "line": 400,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService._induced_graphs",
+              "target": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.filter_by_nodes",
+              "call_sites": [
+                {
+                  "line": 386,
+                  "column": 48
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.build_full_hierarchy",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs",
+              "call_sites": [
+                {
+                  "line": 116,
+                  "column": 34
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.build_incremental_hierarchy",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.available_cfgs",
+              "call_sites": [
+                {
+                  "line": 135,
+                  "column": 34
+                },
+                {
+                  "line": 140,
+                  "column": 32
+                },
+                {
+                  "line": 146,
+                  "column": 81
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.unit_links",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_destination",
+              "call_sites": [
+                {
+                  "line": 84,
+                  "column": 43
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.unit_links",
+              "target": "static_analyzer/cfg/edge.py|static_analyzer.cfg.edge.Edge.get_source",
+              "call_sites": [
+                {
+                  "line": 84,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
           "relation": "re-queries LSP client and symbol definitions for incremental graph restoration",
           "src_name": "Call Graph and Incremental Orchestration",
           "dst_name": "LSP Engine and Language Adapters",
@@ -23079,6 +22879,206 @@
                 {
                   "line": 89,
                   "column": 63
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "merges language results and updates cached analysis structures",
+          "src_name": "Call Graph and Incremental Orchestration",
+          "dst_name": "Project Scanning and Analysis Cache",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults._bucket",
+              "target": "static_analyzer/language_results.py|static_analyzer.language_results.LanguageResults",
+              "call_sites": [
+                {
+                  "line": 188,
+                  "column": 78
+                }
+              ],
+              "description": "Buckets cumulative analysis results into language result models"
+            },
+            {
+              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
+              "target": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
+              "call_sites": [
+                {
+                  "line": 200,
+                  "column": 36
+                }
+              ],
+              "description": "Merges language-specific CFG and hierarchy results into cumulative language containers"
+            }
+          ],
+          "src_id": "1.4",
+          "dst_id": "1.2",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults._bucket",
+              "target": "static_analyzer/language_results.py|static_analyzer.language_results.LanguageResults",
+              "call_sites": [
+                {
+                  "line": 188,
+                  "column": 78
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
+              "target": "static_analyzer/language_results.py|static_analyzer.language_results.ControlFlowGraph.merge",
+              "call_sites": [
+                {
+                  "line": 200,
+                  "column": 36
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
+              "target": "static_analyzer/language_results.py|static_analyzer.language_results.ClassHierarchy.merge",
+              "call_sites": [
+                {
+                  "line": 196,
+                  "column": 42
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_package_dependencies",
+              "target": "static_analyzer/language_results.py|static_analyzer.language_results.PackageDependencies.merge",
+              "call_sites": [
+                {
+                  "line": 204,
+                  "column": 45
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_references",
+              "target": "static_analyzer/language_results.py|static_analyzer.language_results.References.add",
+              "call_sites": [
+                {
+                  "line": 212,
+                  "column": 43
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.add_source_files",
+              "target": "static_analyzer/language_results.py|static_analyzer.language_results.SourceFiles.extend",
+              "call_sites": [
+                {
+                  "line": 343,
+                  "column": 45
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/cfg/call_graph.py|static_analyzer.cfg.call_graph.CallGraph.add_edge",
+              "target": "static_analyzer/node.py|static_analyzer.node.Node.added_method_called_by_me",
+              "call_sites": [
+                {
+                  "line": 109,
+                  "column": 30
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.GraphIndex.callable_names",
+              "call_sites": [
+                {
+                  "line": 162,
+                  "column": 86
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.PotentialCalls.requests_at",
+              "call_sites": [
+                {
+                  "line": 169,
+                  "column": 67
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
+              "call_sites": [
+                {
+                  "line": 207,
+                  "column": 31
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
+              "call_sites": [
+                {
+                  "line": 162,
+                  "column": 20
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.targets_for",
+              "call_sites": [
+                {
+                  "line": 196,
+                  "column": 27
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.invalidate_files",
+              "call_sites": [
+                {
+                  "line": 76,
+                  "column": 21
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/analysis_cache.py|static_analyzer.analysis_cache.merge_results",
+              "call_sites": [
+                {
+                  "line": 105,
+                  "column": 23
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.GraphIndex",
+              "call_sites": [
+                {
+                  "line": 107,
+                  "column": 13
                 }
               ],
               "description": ""
@@ -31105,17 +31105,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
-          "target": "agents/agent_responses.py|agents.agent_responses.Relation",
-          "call_sites": [
-            {
-              "line": 195,
-              "column": 24
-            }
-          ],
-          "description": "Constructs semantic relation records between component clusters."
-        },
-        {
           "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_component_relations",
           "target": "agents/agent_responses.py|agents.agent_responses.RelationEdge.from_edge",
           "call_sites": [
@@ -31140,6 +31129,17 @@
             }
           ],
           "description": "Populates node owner mappings for component insights"
+        },
+        {
+          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
+          "target": "agents/agent_responses.py|agents.agent_responses.Relation",
+          "call_sites": [
+            {
+              "line": 195,
+              "column": 24
+            }
+          ],
+          "description": "Constructs semantic relation records between component clusters."
         },
         {
           "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
@@ -32974,17 +32974,6 @@
       "key_edges": [
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
-          "target": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.build_scope_hierarchy",
-          "call_sites": [
-            {
-              "line": 1258,
-              "column": 25
-            }
-          ],
-          "description": "builds scope hierarchy using clustering service"
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
           "target": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService",
           "call_sites": [
             {
@@ -32993,6 +32982,17 @@
             }
           ],
           "description": "Invokes static clustering service and resolves symbol references"
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_component_scope",
+          "target": "static_analyzer/clustering/service.py|static_analyzer.clustering.service.ClusteringService.build_scope_hierarchy",
+          "call_sites": [
+            {
+              "line": 1258,
+              "column": 25
+            }
+          ],
+          "description": "builds scope hierarchy using clustering service"
         }
       ],
       "src_id": "3.1",
