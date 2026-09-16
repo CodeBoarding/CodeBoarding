@@ -15,15 +15,16 @@ from static_analyzer.wiring.anchors.keys import Owners, env_key
 from static_analyzer.wiring.units import alias_key
 from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole
 
-#: One group per notation, because a key read is spelled differently in every language.
+#: One group per notation, because a key read is spelled differently in every language. Only
+#: the standard library's and the frameworks' readers: a project's own wrapper is that project's.
 ENVIRONMENT_READ = re.compile(
     r"(?:os\.environ(?:\.get)?\s*[\[(]\s*|os\.[Gg]etenv\(\s*|\bgetenv\(\s*|System\.getenv\(\s*|"
-    r"GetEnvironmentVariable\(\s*|ENV\.fetch\(\s*|ENV\[\s*|mustMapEnv\([^,()]+,\s*)['\"]([A-Za-z_]\w*)['\"]"
+    r"GetEnvironmentVariable\(\s*|ENV\.fetch\(\s*|ENV\[\s*)['\"]([A-Za-z_]\w*)['\"]"
     r"|process\.env\.([A-Za-z_]\w*)"
     r"|process\.env\[\s*['\"]([A-Za-z_]\w*)['\"]\s*\]"
     r"|import\.meta\.env\.([A-Za-z_]\w*)"
     r"|Configuration\s*\[\s*\"([\w:.-]+)\"\s*\]"
-    r"|(?:GetRequiredValue|GetConnectionString|GetValue<[^>]*>)\s*\(\s*\"([\w:.-]+)\"\s*\)"
+    r"|(?:GetConnectionString|GetValue<[^>]*>)\s*\(\s*\"([\w:.-]+)\"\s*\)"
     r"|@Value\s*\(\s*\"[^\"]*?\$\{([\w.-]+)"
 )
 
@@ -35,7 +36,7 @@ RESOURCE_CLIENT = re.compile(
 )
 
 _TRIGGERS = ("environ", "getenv", "Getenv", "process.env", "import.meta.env", "Configuration[", "@Value(",
-             "GetRequiredValue", "GetConnectionString", "GetValue<", "ENV[", "ENV.fetch",
+             "GetConnectionString", "GetValue<", "ENV[", "ENV.fetch",
              "Store", "Template", "Client", "DbContext", "DataSource", "Cache")  # fmt: skip
 
 

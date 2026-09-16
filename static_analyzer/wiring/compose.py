@@ -201,7 +201,7 @@ def _service(scan: Scan, name: str, path: str, raw: dict, environment: dict[str,
         ports=_ports(raw, environment),
         depends_on=_referenced(raw.get("depends_on")),
         links=tuple(link.split(":")[0] for link in _referenced(raw.get("links"))),
-        line=scan.line_of(path, f"{name}:"),
+        line=scan.key_lines(path).get(f"services.{name}", 1),
         name=name,
         project=directory,
         files=(path,),
@@ -218,18 +218,19 @@ def _service(scan: Scan, name: str, path: str, raw: dict, environment: dict[str,
 def _env_entries(scan: Scan, raw: dict, path: str, name: str, values: dict[str, str]) -> tuple[EnvEntry, ...]:
     """A service's `environment` in either form, each key with the line it was written on."""
     declared = raw.get("environment")
-    pairs: list[tuple[str, str]] = []
+    lines = scan.key_lines(path)
+    pairs: list[tuple[str, str, int]] = []
     if isinstance(declared, dict):
-        pairs = [(str(key), _scalar(value, values)) for key, value in declared.items()]
+        for key, value in declared.items():
+            line = lines.get(f"services.{name}.environment.{key}", 1)
+            pairs.append((str(key), _scalar(value, values), line))
     else:
-        for item in listing(declared):
+        for index, item in enumerate(listing(declared)):
             if isinstance(item, str):
                 key, separator, value = item.partition("=")
-                pairs.append((key.strip(), _text(value, values) if separator else ""))
-    start = max(scan.text(path).find(f"{name}:"), 0)
-    return tuple(
-        EnvEntry(key=key, value=value, file=path, line=scan.line_of(path, key, start)) for key, value in pairs if key
-    )
+                line = lines.get(f"services.{name}.environment.{index}", 1)
+                pairs.append((key.strip(), _text(value, values) if separator else "", line))
+    return tuple(EnvEntry(key=key, value=value, file=path, line=line) for key, value, line in pairs if key)
 
 
 def _ports(raw: dict, values: dict[str, str]) -> tuple[str, ...]:

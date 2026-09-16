@@ -90,17 +90,34 @@ def service_host(value: str, key: str = "") -> str:
 
 
 class Owners:
-    """Which unit a file belongs to: the one whose directory is its longest ancestor."""
+    """Which unit a file belongs to, and which units a file is about when those differ.
+
+    A file belongs to the unit whose directory is its longest ancestor. It is *about* that unit
+    unless the pass says otherwise: a configuration server ships other units' settings from its
+    own directory, so `shared/<name>.yml` is about `<name>` and never about the server (§8).
+    """
 
     def __init__(self, units: Sequence[Unit]) -> None:
         self._directories = sorted((unit.dir for unit in units if unit.dir != "."), key=len, reverse=True)
         self._root = any(unit.dir == "." for unit in units)
+        self._about: dict[str, tuple[str, ...]] = {}
 
     def of(self, path: str) -> str:
         for directory in self._directories:
             if path == directory or path.startswith(f"{directory}/"):
                 return directory
         return "." if self._root else ""
+
+    def about(self, path: str) -> tuple[str, ...]:
+        """The units a file is about: the one it belongs to, unless `assign` said otherwise."""
+        return self._about.get(path, (self.of(path),))
+
+    def assign(self, path: str, units: Sequence[str]) -> None:
+        """Say which units a file is about; an empty sequence says it is about none."""
+        self._about[path] = tuple(dict.fromkeys(units))
+
+    def overridden(self) -> tuple[str, ...]:
+        return tuple(sorted(self._about))
 
 
 class Names:

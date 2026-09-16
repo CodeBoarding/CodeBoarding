@@ -34,8 +34,9 @@ class TestDeployment(unittest.TestCase):
 
         self.assertIn(("deployment", "def", "api", "docker-compose.yml:2", "api"), found)
         self.assertIn(("deployment", "def", "8080:8080", "docker-compose.yml:2", "api"), found)
-        # A stock image belongs to no unit here; it is how a service nobody builds is declared.
-        self.assertIn(("deployment", "def", "openzipkin/zipkin:3", "docker-compose.yml:6", ""), found)
+        # A stock image belongs to no unit here; it is how a service nobody builds is declared, on the
+        # line its key is written — not the line an earlier value happens to mention `tracing:` on.
+        self.assertIn(("deployment", "def", "openzipkin/zipkin:3", "docker-compose.yml:17", ""), found)
 
     def test_an_environment_value_names_the_service_it_points_at(self) -> None:
         found = rows("anchors-compose")
@@ -59,9 +60,19 @@ class TestDeployment(unittest.TestCase):
 
         self.assertIn(("deployment", "def", "CART_ADDR", "deploy/web.yaml:15", "web"), found)
         self.assertIn(("service_names", "use", "cart", "deploy/web.yaml:15", "web"), found)
-        self.assertIn(("deployment", "def", "LEDGER_ADDR", "deploy/web.yaml:28", ""), found)
-        self.assertIn(("service_names", "use", "ledger", "deploy/web.yaml:28", ""), found)
-        self.assertIn(("service_names", "def", "/api/cart/{id}", "deploy/web.yaml:38", ""), found)
+        self.assertIn(("service_names", "def", "/api/cart/{id}", "deploy/web.yaml:41", ""), found)
+
+    def test_a_config_map_is_about_every_workload_that_pulls_it_in(self) -> None:
+        """§8: `valueFrom` makes the map's value the workload's variable, `envFrom` makes every key its own,
+        and a map nobody pulls in stays where it is written, about no unit."""
+        found = rows("anchors-kubernetes")
+
+        self.assertIn(("deployment", "def", "FROM_MAP", "deploy/web.yaml:17", "web"), found)
+        self.assertIn(("service_names", "use", "ledger", "deploy/web.yaml:17", "web"), found)
+        self.assertIn(("deployment", "def", "BILLING_ADDR", "deploy/config.yaml:6", "web"), found)
+        self.assertIn(("service_names", "use", "billing", "deploy/config.yaml:6", "web"), found)
+        self.assertIn(("deployment", "def", "REPORTS_ADDR", "deploy/config.yaml:14", ""), found)
+        self.assertNotIn(("deployment", "def", "LEDGER_ADDR", "deploy/web.yaml:30", ""), found)
 
     def test_an_apphost_configures_the_project_its_statement_is_about(self) -> None:
         """The receiver of `.WithEnvironment(...)` is the resource the statement declares, not the builder."""
@@ -116,7 +127,7 @@ class TestConfiguration(unittest.TestCase):
 
         self.assertIn(("configuration", "def", "ConnectionStrings.EventBus", f"{settings}:4", "src/Catalog"), found)
         self.assertIn(("service_names", "use", "rabbitmq", f"{settings}:4", "src/Catalog"), found)
-        self.assertIn(("service_names", "use", "identity-api", f"{settings}:9", "src/Catalog"), found)
+        self.assertIn(("service_names", "use", "identity-api", f"{settings}:10", "src/Catalog"), found)
 
     def test_a_connection_string_names_a_server_and_a_database(self) -> None:
         found = rows("anchors-dotnet")
@@ -130,9 +141,10 @@ class TestConfiguration(unittest.TestCase):
         found = rows("anchors-dotnet")
         settings = "src/Catalog/appsettings.json"
 
-        self.assertEqual([key for _, _, key, _, _ in found if "localhost" in key], [])
+        self.assertEqual([key for _, _, key, _, _ in found if key.startswith("server=") and "local" in key.lower()], [])
         self.assertIn(("data_access", "use", "database=devdb", f"{settings}:6", "src/Catalog"), found)
         self.assertIn(("data_access", "use", "database=sqldb", f"{settings}:7", "src/Catalog"), found)
+        self.assertIn(("data_access", "use", "database=devlocal", f"{settings}:8", "src/Catalog"), found)
 
     def test_a_catalogue_is_data_rather_than_configuration(self) -> None:
         """A provider list declares no wiring and costs more to read than everything that does."""
@@ -187,6 +199,100 @@ class TestConfiguration(unittest.TestCase):
         )
 
 
+class TestConfigurationServer(unittest.TestCase):
+    """§8: an anchor is about the unit it configures, not the unit whose file it is."""
+
+    def test_a_shared_file_named_for_a_unit_is_about_that_unit(self) -> None:
+        found = rows("anchors-configserver")
+        shared = "config/src/main/resources/shared"
+
+        self.assertIn(("service_names", "use", "auth-service", f"{shared}/account-service.yml:4", "account"), found)
+        self.assertIn(
+            ("configuration", "def", "spring.data.mongodb.host", f"{shared}/account-service.yml:8", "account"), found
+        )
+        self.assertIn(("service_names", "use", "account-service", f"{shared}/gateway.yml:5", "gateway"), found)
+        self.assertEqual([row for row in found if row[3].startswith(shared) and row[4] == "config"], [])
+
+    def test_the_shared_application_file_is_about_every_unit_that_fetches_from_the_server(self) -> None:
+        found = rows("anchors-configserver")
+        shared = "config/src/main/resources/shared/application.yml"
+
+        self.assertIn(("service_names", "use", "registry", f"{shared}:4", "account"), found)
+        self.assertIn(("service_names", "use", "registry", f"{shared}:4", "gateway"), found)
+        self.assertNotIn(("service_names", "use", "registry", f"{shared}:4", "registry"), found)
+        self.assertNotIn(("service_names", "use", "registry", f"{shared}:4", "config"), found)
+
+    def test_the_servers_own_settings_stay_its_own(self) -> None:
+        found = rows("anchors-configserver")
+
+        self.assertIn(
+            ("service_names", "use", "config", "account/src/main/resources/bootstrap.yml:6", "account"), found
+        )
+        self.assertEqual(
+            [row for row in found if row[3] == "config/src/main/resources/application.yml" and row[4] != "config"], []
+        )
+
+    def test_a_shared_file_naming_no_unit_is_a_row_and_anchors_nothing(self) -> None:
+        wiring = run(StaticAnalysisResults(), FIXTURES / "anchors-configserver")
+
+        self.assertEqual([a for a in wiring.anchors if a.file.endswith("shared/unknown.yml")], [])
+        self.assertIn(
+            "config/src/main/resources/shared/unknown.yml is served by config and names no other unit of this repository",
+            [d.message for d in wiring.diagnostics],
+        )
+
+    def test_the_setting_travels_on_the_anchor(self) -> None:
+        """The key a host was read under says what the connection is for; the host's spelling does not."""
+        settings = {
+            (anchor.key, anchor.unit): anchor.setting
+            for anchor in anchors_of("anchors-configserver")
+            if anchor.family is AnchorFamily.SERVICE_NAMES and anchor.role is AnchorRole.USE
+        }
+
+        self.assertEqual(settings[("registry", "account")], "eureka.client.serviceUrl.defaultZone")
+        self.assertEqual(settings[("config", "gateway")], "spring.cloud.config.uri")
+
+
+class TestWhatIsConfiguration(unittest.TestCase):
+    def test_a_ci_file_and_a_documentation_dotenv_anchor_nothing(self) -> None:
+        files = {anchor.file for anchor in anchors_of("anchors-spring")}
+
+        self.assertNotIn("gateway/.gitlab-ci.yml", files)
+        self.assertNotIn("gateway/.env.example", files)
+
+    def test_a_message_bundle_yields_only_what_is_shaped_like_a_host(self) -> None:
+        found = rows("anchors-spring")
+        bundle = "vets/src/main/resources/messages.properties"
+
+        self.assertNotIn(("service_names", "use", "server", f"{bundle}:1", "vets"), found)
+        self.assertNotIn(("configuration", "def", "label.server", f"{bundle}:1", "vets"), found)
+        self.assertIn(("service_names", "use", "api-gateway", f"{bundle}:2", "vets"), found)
+
+    def test_a_documentation_url_names_no_store(self) -> None:
+        """`?host=&database=` in a URL is a query, and a store is named under a connection key (§6 rule 9)."""
+        keys = {anchor.key for anchor in anchors_of("anchors-dotnet") if anchor.family is AnchorFamily.DATA_ACCESS}
+
+        self.assertNotIn("host=dbhost", keys)
+        self.assertNotIn("database=main", keys)
+        self.assertIn("server=postgres", keys)
+
+    def test_a_package_named_db_is_code_and_not_a_schema(self) -> None:
+        schemas = [
+            anchor.key
+            for anchor in anchors_of("anchors-spring")
+            if anchor.family is AnchorFamily.DATA_ACCESS and anchor.role is AnchorRole.DEF
+        ]
+
+        self.assertEqual(schemas, ["vets/src/main/resources/db"])
+
+    def test_a_role_marker_has_a_key_no_unit_can_answer_to(self) -> None:
+        roles = {
+            anchor.key: anchor.norm_key for anchor in anchors_of("anchors-spring") if anchor.key.startswith("@Enable")
+        }
+
+        self.assertEqual(roles, {"@EnableDiscoveryClient": "role:enablediscoveryclient"})
+
+
 class TestRoutes(unittest.TestCase):
     def test_a_pass_names_its_upstream_and_what_the_upstream_resolves_to(self) -> None:
         """The include names an installed path, so the upstreams are found by the tail of it."""
@@ -200,8 +306,14 @@ class TestRoutes(unittest.TestCase):
     def test_a_location_is_a_template(self) -> None:
         routes = [anchor for anchor in anchors_of("anchors-nginx") if anchor.tier is Tier.T2]
 
-        self.assertEqual(sorted(anchor.key for anchor in routes), ["/api", "/json", "/notify"])
+        self.assertEqual(sorted(anchor.key for anchor in routes), ["/any", "/api", "/json", "/notify"])
         self.assertTrue(all(anchor.role is AnchorRole.DEF for anchor in routes))
+
+    def test_a_target_chosen_at_run_time_is_a_guess(self) -> None:
+        """`proxy_pass http://$backend` names whatever a variable holds: T3, never an edge (§6 rule 4)."""
+        (guess,) = [anchor for anchor in anchors_of("anchors-nginx") if anchor.key == "proxy_pass http://$backend"]
+
+        self.assertEqual((guess.tier, guess.norm_key), (Tier.T3, "backend"))
 
     def test_a_reverse_proxy_route_names_the_resource_its_cluster_is(self) -> None:
         found = rows("anchors-aspire")
@@ -219,6 +331,16 @@ class TestRoutes(unittest.TestCase):
 
 
 class TestReaders(unittest.TestCase):
+    def test_a_commented_out_read_is_not_a_read(self) -> None:
+        """A `//` comment, a `/* */` block and a trailing comment are asides; `http://` is not a comment."""
+        keys = {anchor.key for anchor in anchors_of("anchors-readers")}
+
+        self.assertNotIn("OLD_URL", keys)
+        self.assertNotIn("BLOCKED_URL", keys)
+        self.assertNotIn("http://old-ledger/health", keys)
+        self.assertIn("http://ledger-api/health", keys)
+        self.assertIn("LEDGER_URL", keys)
+
     def test_every_language_the_engines_support(self) -> None:
         found = {(anchor.key, anchor.file) for anchor in anchors_of("anchors-readers")}
 
@@ -229,6 +351,7 @@ class TestReaders(unittest.TestCase):
                 ("PORT", "svc/app.py"),
                 ("LEDGER_URL", "svc/app.ts"),
                 ("MODE", "svc/app.ts"),
+                ("http://ledger-api/health", "svc/app.ts"),
                 ("accounts.host", "svc/App.java"),
                 ("customers.host", "svc/App.java"),
                 ("BALANCE_ADDR", "svc/App.java"),
@@ -309,7 +432,7 @@ class TestDump(unittest.TestCase):
         self.assertEqual(sorted(dumped), ["anchors", "commit", "repo"])
         self.assertEqual(
             sorted(dumped["anchors"][0]),
-            ["column", "family", "file", "key", "line", "norm_key", "role", "tier", "unit"],
+            ["column", "family", "file", "key", "line", "norm_key", "role", "setting", "tier", "unit"],
         )
         self.assertEqual(len(dumped["anchors"]), len(wiring.anchors))
         # An anchor about no unit says so with the empty string the field always holds.

@@ -64,7 +64,11 @@ def _literals(path: str, text: str, unit: str) -> list[Anchor]:
 
 
 def _annotations(path: str, text: str, unit: str) -> list[Anchor]:
-    """A role a unit takes on: registering with a registry, or being the server others look for."""
+    """A role a unit takes on: registering with a registry, or being the server others look for.
+
+    The normalised key is `role:<annotation>`, a form no unit's name can take, so a role is never
+    mistaken for a name a unit answers to.
+    """
     found = []
     for pattern, role in ((REGISTERS, AnchorRole.USE), (PROVIDES, AnchorRole.DEF)):
         for match in pattern.finditer(text):
@@ -74,7 +78,7 @@ def _annotations(path: str, text: str, unit: str) -> list[Anchor]:
                     family=AnchorFamily.SERVICE_NAMES,
                     role=role,
                     key=written,
-                    norm_key=alias_key(written),
+                    norm_key=f"role:{alias_key(written)}",
                     file=path,
                     line=text.count("\n", 0, match.start()) + 1,
                     column=match.start() - text.rfind("\n", 0, match.start()),

@@ -19,6 +19,9 @@ spec:
                 configMapKeyRef:
                   name: settings
                   key: LEDGER_ADDR
+          envFrom:
+            - configMapRef:
+                name: service-addresses
 ---
 apiVersion: v1
 kind: ConfigMap

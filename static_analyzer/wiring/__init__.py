@@ -2,12 +2,13 @@
 
 `docs/design/wiring.md` is the contract. The pass runs at the end of `StaticAnalyzer.analyze`, after
 the per-engine results are merged, because its edges cross engines: a compose file wires a Python
-service to a Java one. It calls no model, and at this stage of the stack reads no source — build
-manifests, deployment topology and compose files only — and is off unless `CODEBOARDING_WIRING=1`.
-It can never break an analysis: `run_or_report` turns anything it raises into one diagnostic.
+service to a Java one. It calls no model; it reads manifests, deployment topology and
+configuration, and source for two things only — a literal service name and an environment read,
+with comments and docstrings blanked first — and is off unless `CODEBOARDING_WIRING=1`. It can
+never break an analysis: `run_or_report` turns anything it raises into one diagnostic.
 
 `CODEBOARDING_WIRING_DUMP=<dir>` writes what the evals checks grade before any arrow exists:
-`units.json` and `diagnostics.json` in the schema of §8.
+`units.json`, `anchors.json` and `diagnostics.json` in the schema of §8.
 """
 
 from __future__ import annotations

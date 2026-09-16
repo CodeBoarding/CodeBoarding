@@ -54,8 +54,9 @@ def _nginx(scan: Scan, owners: Owners) -> list[Anchor]:
             line = text.count("\n", 0, match.start()) + 1
             host = re.sub(r"^[a-z]+://", "", target).split("/")[0].split(":")[0]
             # The name written is a name: an upstream's own servers may be a unix socket or a
-            # loopback port, which name no unit, and the pass still says where it sends.
-            through = [host, *(service_host(server) for server in upstreams.get(host, []))]
+            # loopback port, which name no unit, and the pass still says where it sends. A target
+            # chosen at run time (`proxy_pass http://$backend`) is a guess, never an edge (§6 rule 4).
+            through = [host] if "$" in host else [host, *(service_host(server) for server in upstreams.get(host, []))]
             for resolved in dict.fromkeys(name for name in through if name):
                 found.append(
                     Anchor(
@@ -66,6 +67,7 @@ def _nginx(scan: Scan, owners: Owners) -> list[Anchor]:
                         file=path,
                         line=line,
                         unit=unit,
+                        tier=Tier.T3 if "$" in host else Tier.T1,
                     )
                 )
             location = [found_at.group(1) for found_at in LOCATION.finditer(text, 0, match.start())]
@@ -92,7 +94,7 @@ def _included(scan: Scan, path: str, included: str) -> str:
     """The file an `include` names: a path here, or the one whose tail matches a deployed path.
 
     Why the tail: an nginx configuration includes the path it will have once installed
-    (`/etc/nginx/zulip-include/upstreams`), which is not where the repository keeps it.
+    (`/etc/nginx/site-include/upstreams`), which is not where the repository keeps it.
     """
     direct = repo_path(parent_dir(path), included)
     if direct and scan.has_file(direct):

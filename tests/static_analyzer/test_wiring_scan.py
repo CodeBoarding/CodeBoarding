@@ -276,6 +276,24 @@ class TestReading(unittest.TestCase):
         scan = Scan(root)
 
         self.assertIs(scan.documents("compose.yaml"), scan.documents("compose.yaml"))
+        self.assertIs(scan.key_lines("compose.yaml"), scan.key_lines("compose.yaml"))
+
+    def test_a_key_is_found_by_its_place_in_the_document_and_not_by_its_text(self) -> None:
+        """`api:` occurs inside an image name before the `api` service is declared."""
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        write(
+            root,
+            "compose.yaml",
+            "services:\n  web:\n    image: registry/api:1\n    environment:\n      - API_URL=http://api\n"
+            "  api:\n    build: ./api\n    environment:\n      PORT: 8080\n",
+        )
+
+        lines = Scan(root).key_lines("compose.yaml")
+
+        self.assertEqual(lines["services.web"], 2)
+        self.assertEqual(lines["services.api"], 6)
+        self.assertEqual(lines["services.web.environment.0"], 5)
+        self.assertEqual(lines["services.api.environment.PORT"], 9)
 
     def test_a_mistake_in_a_manifest_is_read_as_nothing_rather_than_raised(self) -> None:
         self.assertEqual(mapping("text"), {})

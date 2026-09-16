@@ -66,8 +66,13 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
   `requirements*.txt`, `go.mod`, `Cargo.toml`, `composer.json`, `Gemfile`, `*.gemspec`, `mix.exs`),
   deployment (`docker-compose*.y*ml`, `compose*.y*ml`, Kubernetes manifests, `skaffold*.y*ml`,
   Helm charts, Dockerfiles, an Aspire AppHost's own `.cs`, `.github/workflows/*.y*ml`),
-  configuration (`.env*`, `appsettings*.json`, `application*.y*ml`, `bootstrap*.y*ml`), nginx
-  configuration. A file the allowlist does not name is never opened, and nothing over 2 MB is read.
+  configuration (`.env*`, `appsettings*.json`, `application*.y*ml`, `bootstrap*.y*ml`, the YAML a
+  unit keeps under `config/` or names as its settings, a configuration server's shared directory),
+  nginx configuration. A `.env.example`, `.env.sample`, `.env.template` or `.env.dist` documents
+  what a deployment may set and sets nothing; a CI file, a tool's own YAML and a hidden file are
+  not configuration; a `.properties` that is not Spring's own configuration is read for values
+  shaped like a host or a connection only, because a message bundle's `label.server=Server` is a
+  label. A file the allowlist does not name is never opened, and nothing over 2 MB is read.
   A configuration file states a handful of facts, so one over 128 KB is a catalogue — a provider
   list, an API specification, a generated schema — and is data rather than configuration, in
   whatever notation it is written: it declares no wiring and costs more to read than everything
@@ -77,7 +82,12 @@ one, and the per-engine `LanguageAnalysisResult` is single-language by construct
   `process.env`, `Configuration["…"]`, `System.getenv`, `@Value("${…}")`), together with the client
   type that says what a unit talks to (`VectorStore`, `MongoTemplate`). Structure in source is the
   language servers' work and this pass never touches it; a `*.config.*` file is tooling rather than
-  service code, and is skipped. A file whose name says a tool wrote it — `*.designer.*`, `*.g.*`,
+  service code, and is skipped. The readers see source with its asides blanked once, before any of
+  them looks: a docstring, a `/* */` block, a `#` line and a `//` comment (where a comment can
+  start, never inside `http://`) are not declarations, so a commented-out `// "http://old-service"`
+  draws nothing. A reader names the standard library's and the frameworks' environment readers; a
+  project's own wrapper (`mustMapEnv`, `GetRequiredValue`) is that project's, and no rule names
+  one repository's helper. A file whose name says a tool wrote it — `*.designer.*`, `*.g.*`,
   `*.generated.*`, a model snapshot, a compiled proto, a lockfile — is skipped wherever it sits,
   as source and as configuration: nothing in it is a decision anyone made.
 - **What it will not read:** `node_modules`, `vendor`, build output (`bin`, `obj`, `dist`, `out`,
@@ -171,7 +181,8 @@ Seven rules, each paid for by a measured failure in the research appendices.
    need the unit an anchor sits in; then routes and topics, whose host resolves through an env
    value.
 4. **Only literal or constant-folded keys join.** A key assembled at runtime is T3 and never an
-   edge.
+   edge: an nginx `proxy_pass http://$backend` names whatever the variable holds, and the anchor
+   says so with its tier.
 5. **Record which families found each edge.** Two independent mechanisms per arrow is the
    confidence signal, and attribution is what the scorer reports.
 6. **Environment variants are unioned, not chosen.** Edges from `appsettings.Production.json`,
@@ -193,7 +204,9 @@ Two more, from the P0 ceilings:
 8. **Paths are canonical.** A unit directory is spelled from the repository root however the
    manifest reached it (`context: ../../../` plus `project: src/ledger/x` is `src/ledger/x`).
 9. **A host resolves to a unit only when it is a name the topology declares.** A public FQDN in a
-   documentation URL never falls back to its first DNS label. Only a network scheme carries a host:
+   documentation URL never falls back to its first DNS label, and its `?host=&database=` query
+   names no store: the `Key=Value;` parts of a connection string are read under a connection key
+   or in a value with no scheme. Only a network scheme carries a host:
    a deep link (`maui://`, `vscode://`) names a callback a device answers, not a service anything
    reaches. A value naming the machine itself (`localhost`, `127.0.0.1`) names no unit and no
    resource, wherever it is written, including inside a connection string.
@@ -294,11 +307,25 @@ diffs; today its method-level differ drops an edge whose end is not a file.
  "anchors": [{"family": "build_manifest|deployment|configuration|service_names|http_in_code|messaging|generated|data_access",
               "role": "def|use", "key": "<as written>", "norm_key": "<normalised>",
               "file": "<repo-relative path>", "line": 12, "column": 1,
-              "unit": "<the unit it is about>", "tier": "T1|T2|T3"}]}
+              "unit": "<the unit it is about>", "tier": "T1|T2|T3",
+              "setting": "<the configuration key a host was read under, else empty>"}]}
 ```
 
 An anchor's `unit` is the unit it is **about**, not the unit whose file it is: a root compose file
-belongs to no box, and the variable it sets belongs to the service it sets it on. Its `norm_key` is
+belongs to no box, and the variable it sets belongs to the service it sets it on. Two rules follow
+from what the file formats say. Inside a unit that declares `@EnableConfigServer`, or whose
+`spring.cloud.config.server.native.search-locations` names the directory, `<name>.yml` (and
+`<name>-<profile>.yml`) is about `Names.unit_of(name)` when that resolves to another unit, and
+`application*.yml` is about every unit that fetches configuration from that server — never about
+the server, which ships those settings and reads none of them; a shared file naming no unit is
+reported. A Kubernetes ConfigMap or Secret is about each workload that consumes it: through
+`envFrom`, every key of it; through `valueFrom`, the one key the container's variable is bound
+to; a map nobody pulls in stays where it is written. A host an anchor names carries the
+configuration key it was read under in `setting` (`spring.config.import`, `CONFIG_SERVER_URL`,
+`depends_on`), which is what says what the connection is for. A role marker
+(`@EnableEurekaServer`, `@EnableDiscoveryClient`) is normalised to `role:<annotation>`, a form no
+unit's name can take. A schema declaration is DDL (`.sql`, `.ddl`) or the files of a migrations
+directory; a `db/` package of source is code that talks to a database, not what it holds. Its `norm_key` is
 normalised the way its family is compared — an environment or configuration key the way Spring's
 relaxed binding and ASP.NET's `A__B` rule compare it (`spring.datasource.url` is
 `SPRINGDATASOURCEURL`), a name the way the unit table spells the names a unit answers to. A route

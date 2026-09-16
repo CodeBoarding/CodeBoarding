@@ -90,6 +90,9 @@ SOURCE_SUFFIXES = frozenset(
 #: A directory holding one of these is a template to instantiate, not a system to read.
 TEMPLATE_MARKERS = frozenset({".template.config", "cookiecutter.json", "copier.yml", "copier.yaml"})
 
+#: A `.env` written to be copied is documentation of what a deployment may set, and sets nothing.
+DOCUMENTATION_DOTENV = frozenset({".env.example", ".env.sample", ".env.template", ".env.dist"})
+
 
 class FileKind(StrEnum):
     """What a file the pass keeps is, by its name. Kubernetes is decided by content, not by name."""
@@ -226,6 +229,8 @@ def classify(directory: str, name: str) -> FileKind | None:
     if directory.startswith(".github"):
         return None
     lowered = name.lower()
+    if lowered in DOCUMENTATION_DOTENV:
+        return None
     if "." not in name and _NGINX_DIR.search(directory):
         return FileKind.NGINX
     if lowered in _BY_NAME:
@@ -254,6 +259,7 @@ class Scan:
         self._ignore = RepoIgnoreManager(repo_root)
         self._text: dict[str, str] = {}
         self._documents: dict[str, list[dict]] = {}
+        self._key_lines: dict[str, dict[str, int]] = {}
         self._walk()
 
     def paths_of(self, *kinds: FileKind) -> tuple[str, ...]:
@@ -333,6 +339,25 @@ class Scan:
         self._documents[path] = [document for document in loaded if isinstance(document, dict)]
         return self._documents[path]
 
+    def key_lines(self, path: str) -> dict[str, int]:
+        """The one-based line of every mapping key in the file, by its dotted path from the document root.
+
+        A list item is addressed by its index (`services.api.ports.0`). The first document that
+        writes a path wins, and a file that does not parse has no lines.
+        """
+        if path in self._key_lines:
+            return self._key_lines[path]
+        lines: dict[str, int] = {}
+        text = self.text(path)
+        if text:
+            try:
+                for document in yaml.compose_all(text, Loader=_Loader):
+                    _collect_lines(document, "", lines)
+            except (yaml.YAMLError, RecursionError):
+                pass
+        self._key_lines[path] = lines
+        return lines
+
     def json_object(self, path: str) -> dict:
         """The file's top-level JSON object; empty when it does not parse."""
         text = self.text(path)
@@ -365,7 +390,11 @@ class Scan:
             if _holds(text[index : end if end >= 0 else len(text)], value):
                 return text.count("\n", 0, index) + 1
             start = index + 1
-        return self.line_of(path, value) if value else self.line_of(path, key)
+        # A value written with escapes (`\\` in JSON) never equals its parsed self: the key's line, then.
+        index = text.find(value) if value else -1
+        if index >= 0:
+            return text.count("\n", 0, index) + 1
+        return self.line_of(path, key)
 
     def diagnose(self, code: DiagnosticCode, message: str, *paths: str) -> None:
         self.diagnostics.append(Diagnostic(code=code, message=message, paths=tuple(paths)))
@@ -464,6 +493,21 @@ def _holds(line: str, value: str) -> bool:
     if not value:
         return True
     return re.search(rf"(?<![\w.]){re.escape(value)}(?![\w.])", line) is not None
+
+
+def _collect_lines(node: yaml.Node | None, prefix: str, lines: dict[str, int]) -> None:
+    if isinstance(node, yaml.MappingNode):
+        for key, value in node.value:
+            if not isinstance(key, yaml.ScalarNode):
+                continue
+            path = f"{prefix}.{key.value}" if prefix else str(key.value)
+            lines.setdefault(path, key.start_mark.line + 1)
+            _collect_lines(value, path, lines)
+    elif isinstance(node, yaml.SequenceNode):
+        for index, value in enumerate(node.value):
+            path = f"{prefix}.{index}" if prefix else str(index)
+            lines.setdefault(path, value.start_mark.line + 1)
+            _collect_lines(value, path, lines)
 
 
 class _Loader(yaml.SafeLoader):
