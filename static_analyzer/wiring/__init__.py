@@ -7,8 +7,8 @@ configuration, and source for two things only — a literal service name and an 
 with comments and docstrings blanked first — and is off unless `CODEBOARDING_WIRING=1`. It can
 never break an analysis: `run_or_report` turns anything it raises into one diagnostic.
 
-`CODEBOARDING_WIRING_DUMP=<dir>` writes what the evals checks grade before any arrow exists:
-`units.json`, `anchors.json` and `diagnostics.json` in the schema of §8.
+`CODEBOARDING_WIRING_DUMP=<dir>` writes what the evals checks grade: `units.json`, `anchors.json`,
+`edges.json` and `diagnostics.json` in the schema of §8.
 """
 
 from __future__ import annotations
@@ -22,8 +22,11 @@ import time
 from pathlib import Path
 
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cfg import ReferenceEdge
 from static_analyzer.wiring.anchors import collect, to_json
 from static_analyzer.wiring.compose import compose_projects
+from static_analyzer.wiring.emit import emit
+from static_analyzer.wiring.join import join
 from static_analyzer.wiring.scan import Scan
 from static_analyzer.wiring.units import build_units
 from static_analyzer.wiring_results import Diagnostic, DiagnosticCode, WiringResults
@@ -58,12 +61,20 @@ def run(results: StaticAnalysisResults, repo_root: Path, *, dump: Path | None = 
     projects = compose_projects(scan)
     units = build_units(scan, repository_name(repo_root), projects)
     anchors = collect(scan, units, projects)
-    wiring = WiringResults(units=units, anchors=anchors, diagnostics=sorted(scan.diagnostics, key=_order))
+    joins, unjoined = join(scan, units, anchors)
+    edges = emit(joins, units, results.available_cfgs(), repo_root)
+    wiring = WiringResults(
+        units=units,
+        anchors=anchors,
+        edges=edges,
+        diagnostics=sorted([*scan.diagnostics, *unjoined], key=_order),
+    )
     logger.info(
-        "wiring: %d files read, %d units, %d anchors, %d diagnostics in %.2fs",
+        "wiring: %d files read, %d units, %d anchors, %d edges, %d diagnostics in %.2fs",
         len(scan.files),
         len(wiring.units),
         len(wiring.anchors),
+        len(wiring.edges),
         len(wiring.diagnostics),
         time.monotonic() - started,
     )
@@ -92,6 +103,7 @@ def write_dump(wiring: WiringResults, repo_root: Path, directory: Path) -> None:
         {**heading, "units": [unit.to_json() for unit in wiring.units], "diagnostics": diagnostics},
     )
     _write(directory / "anchors.json", {**heading, "anchors": [to_json(anchor) for anchor in wiring.anchors]})
+    _write(directory / "edges.json", {**heading, "edges": [_edge(edge) for edge in wiring.edges]})
     _write(directory / "diagnostics.json", {**heading, "diagnostics": diagnostics})
 
 
@@ -102,6 +114,16 @@ def repository_name(repo_root: Path) -> str:
     and the image a repository publishes is named after the repository.
     """
     return repository_slug(repo_root).rsplit("/", 1)[-1]
+
+
+def _edge(edge: ReferenceEdge) -> dict:
+    """An edge as the arrow scorer reads it: the two endpoints, the kind, and every site that made it."""
+    return {
+        "src": edge.src,
+        "dst": edge.dst,
+        "kind": edge.kind.value,
+        "sites": [dict(site) for site in edge.sites],
+    }
 
 
 def repository_slug(repo_root: Path) -> str:

@@ -84,6 +84,7 @@ from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, 
 from static_analyzer.clustering.names import AffinityGrouper, Grouper, KinshipGrouper, TreeSpec
 from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
+from static_analyzer.wiring.emit import place
 from agents.tree_planner_agent import TreePlannerAgent
 from user_config import GROUPER_ENV, GROUPERS
 from static_analyzer.scanner import ProjectScanner
@@ -686,6 +687,15 @@ class DiagramGenerator:
             scope = self._build_component_scope(target_component, depth)
             self.clustering_hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
             self.clustering_hierarchy.register_scope(target_component.component_id, scope)
+
+        # The wiring layer's endpoints join the boxes that already exist: a manifest an arrow lands
+        # on becomes a member of the component owning its directory, and no partition moves.
+        place(
+            self.clustering_hierarchy,
+            static_analysis.wiring.units,
+            static_analysis.wiring.edges,
+            self.repo_location,
+        )
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}

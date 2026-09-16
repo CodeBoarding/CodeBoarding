@@ -87,11 +87,14 @@ class DiagnosticCode(StrEnum):
 
     AMBIGUOUS_ALIAS = "ambiguous_alias"
     AMBIGUOUS_IMAGE = "ambiguous_image"
+    AMBIGUOUS_KEY = "ambiguous_key"
     CONFIGURED_IMAGE = "configured_image"
     IGNORED_MANIFEST = "ignored_manifest"
     UNIT_WITHOUT_MANIFEST = "unit_without_manifest"
     UNREADABLE_MANIFEST = "unreadable_manifest"
     UNRESOLVED_IMAGE = "unresolved_image"
+    UNRESOLVED_USE = "unresolved_use"
+    UNUSED_DEFINITION = "unused_definition"
 
 
 @dataclass(frozen=True)

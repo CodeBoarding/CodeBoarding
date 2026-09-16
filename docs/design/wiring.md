@@ -176,7 +176,11 @@ Seven rules, each paid for by a measured failure in the research appendices.
 1. **Never join on a bare name.** A key carries its namespace: verb plus full path, env name plus
    the unit that defines it, topic plus broker, service name plus the topology it was declared in.
 2. **Unmatched anchors stay visible.** A `use` with no `def` becomes an `unresolved:<family>:<key>`
-   diagnostic; a `def` nobody uses is reported. Nothing is dropped silently.
+   diagnostic; a `def` nobody uses is reported. Nothing is dropped silently. A definition nobody
+   uses means a key nobody looks up — an environment variable a deployment sets and no code reads.
+   A service name, a port and an image are definitions too, but they are joined by name rather than
+   looked up by key, so a service nobody mentions is ordinary and reporting it would bury the keys
+   that are findings.
 3. **Joins run in dependency order.** Units first; then env, connection and service names, which
    need the unit an anchor sits in; then routes and topics, whose host resolves through an env
    value.
@@ -309,6 +313,14 @@ diffs; today its method-level differ drops an edge whose end is not a file.
               "file": "<repo-relative path>", "line": 12, "column": 1,
               "unit": "<the unit it is about>", "tier": "T1|T2|T3",
               "setting": "<the configuration key a host was read under, else empty>"}]}
+```
+
+```json
+// edges.json
+{"repo": "owner/name", "commit": "<sha>",
+ "edges": [{"src": "<the source unit's endpoint>", "dst": "<the target unit's endpoint>",
+            "kind": "depends_on|calls_http|routes_to|uses|registers_with|fetches_config|reports_to",
+            "sites": [{"file": "<repo-relative path>", "line": 12, "column": 1}]}]}
 ```
 
 An anchor's `unit` is the unit it is **about**, not the unit whose file it is: a root compose file
