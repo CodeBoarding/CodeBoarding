@@ -1,6 +1,7 @@
 import logging
 import json
 from datetime import datetime, timezone
+from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -171,12 +172,10 @@ class ResourceJson(BaseModel):
     key: str = Field(description="`resource:<kind>:<name>`.")
     kind: str = Field(description="db, cache, store, broker, gateway, api or actor, from the catalogue.")
     name: str = Field(description="What the repository declares for it, never the image (§4).")
-    declared_by: list[str] = Field(default_factory=list, description="The files that declare it.")
-    home: str = Field(
-        default="",
-        description="Whose it is: the owner of its content-defining declaration, else its only user. A unit "
-        "in P1, because a component is the clustering's answer and the clustering has not run when the pass does.",
+    display_name: str = Field(
+        default="", description="The catalogue's name for its kind of thing: `mssql/server` is a SQL Server."
     )
+    declared_by: list[str] = Field(default_factory=list, description="The files that declare it.")
     children: list[ResourceChildJson] = Field(default_factory=list, description="What it holds.")
 
 
@@ -265,8 +264,8 @@ def _resource_to_json(resource: Resource) -> ResourceJson:
         key=resource.key,
         kind=resource.kind.value,
         name=resource.name,
+        display_name=resource.display_name,
         declared_by=list(resource.declared_by),
-        home=resource.home,
         children=[
             ResourceChildJson(key=child.key, kind=child.kind.value, name=child.name, owner=child.owner)
             for child in resource.children
@@ -537,7 +536,7 @@ def build_unified_analysis_json(
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
     tree_spec: dict | None = None,
-    resources: list[Resource] | None = None,
+    resources: Sequence[Resource] = (),
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -582,7 +581,7 @@ def build_unified_analysis_json(
         components_relations=relations_json,
         # An empty list becomes None so `exclude_none` drops the key entirely: a run that found no
         # resource writes exactly the document it wrote before this section existed.
-        resources=[_resource_to_json(one) for one in resources or ()] or None,
+        resources=[_resource_to_json(one) for one in resources] or None,
     )
     return unified.model_dump_json(indent=2, exclude_none=True)
 

@@ -1,0 +1,3 @@
+services:
+  registry:
+    image: verdaccio/verdaccio:5

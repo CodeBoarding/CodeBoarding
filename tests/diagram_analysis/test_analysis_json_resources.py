@@ -14,8 +14,9 @@ POSTGRES = Resource(
     key="resource:db:postgres",
     kind=ResourceKind.DB,
     name="postgres",
+    display_name="PostgreSQL",
     declared_by=("src/AppHost/Program.cs",),
-    home="src/Ordering.API",
+    home_unit="src/Ordering.API",
     children=(ResourceChild(key="resource:db:postgres/db:catalogdb", kind=ResourceKind.DB, name="catalogdb"),),
 )
 
@@ -35,10 +36,12 @@ class TestResourcesSection(unittest.TestCase):
     def test_a_resource_is_written_in_the_shape_of_the_output_contract(self) -> None:
         (written,) = document(resources=[POSTGRES])["resources"]
 
-        self.assertEqual(sorted(written), ["children", "declared_by", "home", "key", "kind", "name"])
+        self.assertEqual(sorted(written), ["children", "declared_by", "display_name", "key", "kind", "name"])
         self.assertEqual((written["key"], written["kind"], written["name"]), ("resource:db:postgres", "db", "postgres"))
         self.assertEqual(written["declared_by"], ["src/AppHost/Program.cs"])
-        self.assertEqual(written["home"], "src/Ordering.API")
+        self.assertEqual(written["display_name"], "PostgreSQL")
+        # `home` is a component id, which the pass cannot know; the PR that places these nodes writes it.
+        self.assertNotIn("home", written)
 
     def test_what_a_server_holds_is_written_under_it(self) -> None:
         (written,) = document(resources=[POSTGRES])["resources"]

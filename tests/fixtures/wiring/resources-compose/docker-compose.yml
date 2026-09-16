@@ -10,3 +10,12 @@ services:
 
   broker:
     image: rabbitmq:3-management
+
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+
+  mystery:
+    image: acme/mystery:1
+
+  metrics:
+    build: ./monitoring/prometheus

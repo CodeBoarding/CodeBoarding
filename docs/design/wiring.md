@@ -271,28 +271,46 @@ name is the repository root. An image name is a unit's alias only where one dire
   `postgres`, `mysql`, `mssql/server`, `mongo` → db; `redis`, `memcached` → cache; `minio`, S3 → store;
   `rabbitmq`, `kafka`, `nats` → broker; `nginx`, `envoy`, YARP → gateway; a third-party endpoint →
   api; a browser or a customer's application → actor. The same catalogue gives a display name
-  (`mssql/server` → SQL Server); the model may describe, never rename. A resource's `name` stays
+  (`mssql/server` → SQL Server), written as `display_name`; the model may describe, never rename.
+  An image is read by every path segment, the last first, with the longest catalogue word first
+  (`mssql/server` is the namespace's word, `bitnami/postgresql-repmgr` carries its word); a compose
+  service whose image the catalogue does not know falls back to the service's own name, because a
+  service called `postgres` is a PostgreSQL, and one that still classifies to nothing is an
+  `unknown_image_kind` row. An Aspire resource is what its constructor says (`AddRedis`, `AddYarp`)
+  and never what its name contains — `AddParameter("openai-key")` is a value and `vaultwarden` is
+  not a Vault — and an unknown constructor is a row. A JDBC or driver dependency in a `pom.xml`,
+  `.csproj` or `package.json` (`hsqldb`, `mysql-connector-j`, `postgresql`, `Npgsql`, `pg`,
+  `ioredis`) declares a resource of its kind used by that unit, and a `VectorStore` client type
+  (`SimpleVectorStore` included) declares a db. `spring.cloud.config.server.git.uri` names a `git`
+  store. A Dockerfile that copies only configuration onto a stock image (§6) is that image's kind. A resource's `name` stays
   the one the repository declares — the compose service, the Aspire resource, the server a
   connection string names — because that is what a picture is matched by; the display name is for
   rendering a node whose declared name would tell a reader nothing.
 - **What has resources at all.** A repository that deploys nothing declares no resources from its
   configuration: a library reading `OPENAI_API_KEY` offers an option to whoever imports it rather
   than standing beside a service it calls, and every library of the negative set — this repository
-  included — drew a node until this rule existed. A compose project or an Aspire host is what makes
-  a key a fact about a running system. An image a compose file runs, and a server a connection
-  string names, are declarations either way, so neither is gated.
+  included — drew a node until this rule existed. A compose project, an Aspire host, a Kubernetes
+  workload, a skaffold artifact or a Helm chart running a unit is what makes a key a fact about a
+  running system. An image a compose file runs, a server a connection string names, a driver a
+  manifest depends on and a client type in code are declarations either way, so none is gated.
 - **Children.** Connection strings name the databases on a server, route tables the routes on a
-  gateway. A server with several databases is one node with children; the scorer accepts either
+  gateway, an AppHost's `AddDatabase`, `AddDeployment` and `AddModel` what a server or a provider
+  holds. A server with several databases is one node with children; the scorer accepts either
   rendering, one node with an arrow per user or each child inside its owner. A child is of its
   parent's kind — a database on a server, a model deployment on a provider — because what holds it
-  is what it is a piece of. A key that names a resource is a way of reaching it and never a second
+  is what it is a piece of. A child's `owner` is the one unit whose connection string names it or
+  that takes a reference to it; several, or none, leave it empty. A key that names a resource is a way of reaching it and never a second
   resource: `spring.ai.openai.api-key` and `OPENAI_API_KEY` name one thing, so the name is the
   segment that named it rather than the key.
 - **Home** — the box a resource belongs to: the owner of its content-defining declaration (the
   migrations, the exchange setup, the route table), else its sole user, else the lowest common
-  ancestor of its users. A manifest that only runs a resource does not decide its home. In P1 this
-  is a unit, because a component is the clustering's answer and the clustering has not run when the
-  pass does; the PR that places these nodes resolves it to a component id.
+  ancestor of its users. A unit uses a resource when its own setting, driver or client names it or
+  names one of its children (a service that references `catalogdb` uses the PostgreSQL that holds
+  it); a compose file or an AppHost that only runs a resource decides nothing, and a configuration
+  server's shared file is about the units it configures (§8), never the server. In P1 this is a
+  unit, or the directory its users share, written to the dump as `home_unit`, because a component
+  is the clustering's answer and the clustering has not run when the pass does; the PR that places
+  these nodes resolves it to a component id and writes it to the document as `home`.
 - **Level.** A shared resource is a peer where its users meet. A level draws at most 15 nodes, and
   code boxes, resource nodes, grouped nodes and actors all count toward it. Over the cap, fold in
   this order: private resources into their owner (a badge, shown when the owner expands); registry,
@@ -314,10 +332,10 @@ name is the repository root. An image name is a unit's alias only where one dire
 - `kind` on relation edges when it is not `call` (§5).
 - `default_label` where the verb alone reads wrong: `true` for a static default that is not
   `calls`, `false` for a `calls` someone wrote (§5).
-- `resources` (PR 5): one entry per resource node — `key`, `kind`, `name`, `declared_by` (the
-  files), `home` (the unit whose declaration defines its content, resolved to a component id when
-  these nodes are placed; empty where several units name it and none declares it), `children`
-  (`key`, `kind`, `name`, `owner`). The section is absent, rather than empty, where the pass found
+- `resources` (PR 5): one entry per resource node — `key`, `kind`, `name`, `display_name`,
+  `declared_by` (the files), `children` (`key`, `kind`, `name`, `owner`). `home` is a component id
+  and is written by the PR that places these nodes (PR 6); until then the dump carries `home_unit`
+  and the document omits `home`. The section is absent, rather than empty, where the pass found
   none or never ran, so a document written without wiring is byte-identical to one from before the
   section existed.
 - `files` entries for artifact files that anchor an edge, so file coverage counts them as analysed.
@@ -337,7 +355,7 @@ diffs; today its method-level differ drops an edge whose end is not a file.
             "manifest": "<repo-relative path>", "aliases": ["<name>", "..."],
             "builds": ["<repo-relative path of a Dockerfile, manifest or deployment file that builds it>"],
             "variant": ["<a compose profile it only runs under>"]}],
- "diagnostics": [{"code": "ambiguous_alias|ambiguous_image|ambiguous_key|configured_image|ignored_manifest|no_box_for_unit|unit_without_manifest|unreadable_manifest|unresolved_image|unresolved_use|unused_definition|use_without_unit",
+ "diagnostics": [{"code": "ambiguous_alias|ambiguous_image|ambiguous_key|configured_image|ignored_manifest|no_box_for_unit|unit_without_manifest|unknown_image_kind|unreadable_manifest|unresolved_image|unresolved_use|unused_definition|use_without_unit",
                   "message": "...", "paths": ["..."],
                   "file": "<the anchor's file, where a row is about one>", "line": 12, "key": "<the anchor's key>",
                   "context": ["<the ten lines around the anchor>"], "candidates": ["<the unit names in play>"]}]}
@@ -451,8 +469,9 @@ one-line PR that flips the flag once the action path runs with it on.
 
 **The catalogue lives in `static_analyzer/wiring/resources.py`** (decided in PR 5), as one table
 keyed by the bare word each vocabulary reduces to, carrying the kind and the display name in one
-row. Why one table and not three: an image (`openzipkin/zipkin`), an Aspire constructor
-(`AddRedis`) and a URL scheme (`amqp://`) are three ways of naming the same thing, and a catalogue
+row, with the drivers a manifest may depend on beside it. Why one table and not five: an image
+(`openzipkin/zipkin`), an Aspire constructor (`AddRedis`), a URL scheme (`amqp://`), a driver
+(`Npgsql`) and a client type (`VectorStore`) are ways of naming the same thing, and a catalogue
 that decides the kind has already decided the word. Why code and not data: it is a rule, and a rule
 comes from a specification rather than from a repository.
 

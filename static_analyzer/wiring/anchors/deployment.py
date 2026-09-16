@@ -15,6 +15,7 @@ from static_analyzer.wiring.anchors.keys import Names, Owners, env_key, hosts_in
 from static_analyzer.wiring.compose import ComposeProject, ComposeService
 from static_analyzer.wiring.images import image_ref
 from static_analyzer.wiring.scan import FileKind, Scan, listing, mapping, parent_dir
+from static_analyzer.wiring.topology import ASPIRE_HOST
 from static_analyzer.wiring.units import alias_key
 from static_analyzer.wiring_results import Anchor, AnchorFamily, AnchorRole, Tier
 
@@ -34,8 +35,6 @@ _WITH_REFERENCE = re.compile(r"\.\s*(?:WithReference|WaitFor)\s*\(\s*(\w+)")
 _DECLARED = re.compile(r"(?:var|let)\s+(\w+)\s*=")
 _RECEIVER = re.compile(r"\s*(\w+)\s*\.")
 _ASPIRE_CALL = re.compile(r"\bAdd(?:Project|NpmApp|Container|Yarp|Connection)")
-#: What a project says when it is an Aspire AppHost rather than an ordinary .NET project.
-_ASPIRE_HOST = ("Aspire.AppHost.Sdk", "Aspire.Hosting.AppHost", "<IsAspireHost>true")
 _HOLDERS = ("ConfigMap", "Secret")
 
 
@@ -235,7 +234,7 @@ def _aspire(scan: Scan, owners: Owners, names: Names) -> list[Anchor]:
     """An AppHost is a manifest written in C#: its resources, their variables and their references."""
     found: list[Anchor] = []
     for path in scan.paths_of(FileKind.DOTNET_PROJECT):
-        if not any(marker in scan.text(path) for marker in _ASPIRE_HOST):
+        if not any(marker in scan.text(path) for marker in ASPIRE_HOST):
             continue
         for source in scan.sources(owners.of(path) if owners.of(path) != "." else ""):
             text = scan.text(source)

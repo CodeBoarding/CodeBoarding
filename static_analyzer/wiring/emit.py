@@ -90,9 +90,7 @@ def endpoint_nodes(units: list[Unit], graphs: Mapping[str, CallGraph], repo_dir:
 def languages_by_unit(units: list[Unit], graphs: Mapping[str, CallGraph], repo_dir: Path) -> dict[str, dict[str, int]]:
     """How many analysed symbols each language has inside each unit, from one walk of the graphs.
 
-    Why one walk and not one question per unit: a symbol belongs to every unit whose directory
-    contains it, so asking each unit in turn rescans every graph once per unit — on a repository
-    of twenty units that is twenty full passes to answer one question.
+    Why one walk: asking each unit in turn rescans every graph once per unit.
     """
     directories = {unit.dir for unit in units if unit.dir != "."}
     counted: dict[str, dict[str, int]] = {}

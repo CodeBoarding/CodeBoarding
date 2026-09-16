@@ -9,6 +9,10 @@ var bus = builder.AddRabbitMQ("eventbus");
 // No variable is kept, and it is still a gateway.
 builder.AddYarp("edge");
 
+// A name that carries a catalogue word declares nothing; the constructor is the declaration.
+var key = builder.AddParameter("openai-key", secret: true);
+builder.AddAzureContainerAppEnvironment("vaultwarden");
+
 var catalogApi = builder.AddProject<Projects.Catalog_Api>("catalog-api")
     .WithReference(catalogDb);
 

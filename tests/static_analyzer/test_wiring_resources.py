@@ -7,8 +7,8 @@ from pathlib import Path
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.wiring import run, write_dump
-from static_analyzer.wiring.resources import classify
-from static_analyzer.wiring_results import Resource, ResourceKind
+from static_analyzer.wiring.resources import classify, classify_image, classify_word
+from static_analyzer.wiring_results import DiagnosticCode, Resource, ResourceKind
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "wiring"
 
@@ -18,8 +18,13 @@ def resources_of(case: str) -> list[Resource]:
 
 
 def rows(case: str) -> list[tuple[str, str, str, str]]:
-    """Each resource as (key, kind, name, home), which is what a reader checks."""
-    return [(one.key, one.kind.value, one.name, one.home) for one in resources_of(case)]
+    """Each resource as (key, kind, name, home unit), which is what a reader checks."""
+    return [(one.key, one.kind.value, one.name, one.home_unit) for one in resources_of(case)]
+
+
+def unknown(case: str) -> list[str]:
+    wiring = run(StaticAnalysisResults(), FIXTURES / case)
+    return [d.message for d in wiring.diagnostics if d.code is DiagnosticCode.UNKNOWN_IMAGE_KIND]
 
 
 class TestCompose(unittest.TestCase):
@@ -28,8 +33,10 @@ class TestCompose(unittest.TestCase):
         self.assertEqual(
             rows("resources-compose"),
             [
+                ("resource:api:metrics", "api", "metrics", ""),
                 ("resource:broker:broker", "broker", "broker", ""),
                 ("resource:cache:cache", "cache", "cache", "api"),
+                ("resource:db:sql", "db", "sql", ""),
             ],
         )
 
@@ -40,8 +47,26 @@ class TestCompose(unittest.TestCase):
         """`CACHE_URL` is the one line naming the cache, so the api is whose cache it is (§7)."""
         (cache,) = [one for one in resources_of("resources-compose") if one.kind is ResourceKind.CACHE]
 
-        self.assertEqual(cache.home, "api")
+        self.assertEqual(cache.home_unit, "api")
         self.assertEqual(cache.declared_by, ("docker-compose.yml",))
+
+    def test_an_image_the_catalogue_does_not_know_is_a_row(self) -> None:
+        self.assertEqual(
+            unknown("resources-compose"),
+            ["mystery in docker-compose.yml runs acme/mystery:1, which the catalogue does not know"],
+        )
+
+    def test_a_dockerfile_that_only_configures_an_image_is_that_image(self) -> None:
+        """PetClinic's `docker/prometheus` is a Prometheus, not a unit (§6)."""
+        (metrics,) = [one for one in resources_of("resources-compose") if one.name == "metrics"]
+
+        self.assertEqual((metrics.kind, metrics.display_name), (ResourceKind.API, "Prometheus"))
+        self.assertEqual(metrics.declared_by, ("monitoring/prometheus/Dockerfile",))
+
+    def test_the_display_name_is_the_catalogue_s(self) -> None:
+        names = {one.name: one.display_name for one in resources_of("resources-compose")}
+
+        self.assertEqual(names, {"broker": "RabbitMQ", "cache": "Redis", "metrics": "Prometheus", "sql": "SQL Server"})
 
 
 class TestAspire(unittest.TestCase):
@@ -49,17 +74,17 @@ class TestAspire(unittest.TestCase):
         self.assertEqual(
             rows("resources-aspire"),
             [
-                ("resource:db:postgres", "db", "postgres", ""),
+                ("resource:db:postgres", "db", "postgres", "src/Catalog.Api"),
                 ("resource:gateway:edge", "gateway", "edge", ""),
             ],
         )
 
-    def test_what_a_server_holds_is_a_child_of_its_parents_kind(self) -> None:
+    def test_what_a_server_holds_is_a_child_of_its_parents_kind_with_its_owner(self) -> None:
         (postgres,) = [one for one in resources_of("resources-aspire") if one.kind is ResourceKind.DB]
 
         self.assertEqual(
-            [(child.key, child.kind.value, child.name) for child in postgres.children],
-            [("resource:db:postgres/db:catalogdb", "db", "catalogdb")],
+            [(child.key, child.kind.value, child.name, child.owner) for child in postgres.children],
+            [("resource:db:postgres/db:catalogdb", "db", "catalogdb", "src/Catalog.Api")],
         )
 
     def test_a_name_a_unit_answers_to_is_a_box_and_not_a_resource(self) -> None:
@@ -70,6 +95,20 @@ class TestAspire(unittest.TestCase):
         """`builder.AddYarp("edge")` binds no variable and is a gateway all the same."""
         self.assertIn("resource:gateway:edge", [one.key for one in resources_of("resources-aspire")])
 
+    def test_a_name_carrying_a_catalogue_word_declares_nothing_and_an_unknown_constructor_is_a_row(self) -> None:
+        """`AddParameter("openai-key")` is a value and `vaultwarden` is not a Vault: the constructor decides."""
+        keys = [one.key for one in resources_of("resources-aspire")]
+
+        self.assertNotIn("resource:api:openai", keys)
+        self.assertNotIn("resource:api:vaultwarden", keys)
+        self.assertEqual(
+            unknown("resources-aspire"),
+            [
+                "vaultwarden in src/AppHost/Program.cs is registered with AddAzureContainerAppEnvironment, "
+                "which the catalogue does not know"
+            ],
+        )
+
 
 class TestConfigured(unittest.TestCase):
     def test_every_key_naming_one_third_party_makes_one_resource(self) -> None:
@@ -79,15 +118,39 @@ class TestConfigured(unittest.TestCase):
         self.assertEqual([(one.key, one.kind.value) for one in found], [("resource:api:openai", "api")])
         self.assertEqual(found[0].declared_by, ("svc/app.py", "svc/application.yml"))
         # The unit that names a thing uses it, whichever spelling the key is normalised by.
-        self.assertEqual(found[0].home, "svc")
+        self.assertEqual(found[0].home_unit, "svc")
 
     def test_a_repository_that_deploys_nothing_talks_to_nothing(self) -> None:
-        """The same key, in a library: an option offered to whoever imports it, not a system (§7).
-
-        Without this the negative set drew a node on every library that reads an API key — this
-        repository included.
-        """
+        """The same key, a `pg` driver and a vector store, in a library: options offered to whoever
+        imports it, not a system (§7); a compose file running only a stock registry is a tool beside it."""
         self.assertEqual(resources_of("resources-library"), [])
+        self.assertEqual(
+            unknown("resources-library"),
+            ["registry in tools/docker-compose.yml runs verdaccio/verdaccio:5, which the catalogue does not know"],
+        )
+
+
+class TestDriversAndClients(unittest.TestCase):
+    def test_a_driver_dependency_declares_a_resource_used_by_that_unit(self) -> None:
+        """Two modules depend on `hsqldb`: one HSQLDB, whose home is the directory the two share."""
+        (hsqldb,) = [one for one in resources_of("resources-drivers") if one.name == "hsqldb"]
+
+        self.assertEqual((hsqldb.kind, hsqldb.display_name), (ResourceKind.DB, "HSQLDB"))
+        self.assertEqual(hsqldb.declared_by, ("customers/pom.xml", "genai/pom.xml"))
+        self.assertEqual(hsqldb.home_unit, ".")
+
+    def test_a_unit_nothing_runs_declares_no_resource_by_its_dependencies(self) -> None:
+        """`tools` depends on `postgresql` and no manifest runs it: a library's option, not a system's store."""
+        self.assertEqual([one for one in resources_of("resources-drivers") if one.name == "postgres"], [])
+
+    def test_a_vector_store_client_declares_a_db(self) -> None:
+        (store,) = [one for one in resources_of("resources-drivers") if one.name == "vectorstore"]
+
+        self.assertEqual((store.kind, store.display_name, store.home_unit), (ResourceKind.DB, "Vector store", "genai"))
+
+    def test_a_kubernetes_deployment_is_what_makes_a_key_a_fact_about_a_system(self) -> None:
+        """No compose file and no AppHost here: the workload is what says this repository deploys."""
+        self.assertIn("resource:api:openai", [one.key for one in resources_of("resources-drivers")])
 
 
 class TestNothingToFind(unittest.TestCase):
@@ -97,13 +160,27 @@ class TestNothingToFind(unittest.TestCase):
 
 
 class TestCatalogue(unittest.TestCase):
-    def test_one_catalogue_reads_three_vocabularies(self) -> None:
-        """An image, a constructor and a scheme are three ways of naming the same thing (§7)."""
+    def test_one_catalogue_reads_every_vocabulary(self) -> None:
+        """An image, a constructor, a scheme, a driver and a client type are ways of naming one thing (§7)."""
         self.assertEqual(classify("openzipkin/zipkin"), (ResourceKind.API, "Zipkin"))
         self.assertEqual(classify("Redis"), (ResourceKind.CACHE, "Redis"))
         self.assertEqual(classify("rabbitmq:3-management"), (ResourceKind.BROKER, "RabbitMQ"))
         self.assertEqual(classify("bitnami/postgresql-repmgr"), (ResourceKind.DB, "PostgreSQL"))
+        self.assertEqual(classify("SimpleVectorStore"), (ResourceKind.DB, "Vector store"))
         self.assertEqual(classify("nothing-of-the-kind"), (None, ""))
+
+    def test_an_image_is_read_by_every_path_segment(self) -> None:
+        """`mssql/server` is the page's own example: the word is in the namespace, not the name."""
+        self.assertEqual(classify_image("mssql/server"), (ResourceKind.DB, "SQL Server"))
+        self.assertEqual(classify_image("prom/prometheus"), (ResourceKind.API, "Prometheus"))
+        self.assertEqual(classify_image("otel/opentelemetry-collector-contrib"), (ResourceKind.API, "OpenTelemetry"))
+        self.assertEqual(classify_image("acme/mystery"), (None, ""))
+
+    def test_a_constructor_must_be_the_whole_word(self) -> None:
+        self.assertEqual(classify_word("SqlServer"), (ResourceKind.DB, "SQL Server"))
+        self.assertEqual(classify_word("AzureOpenAI"), (ResourceKind.API, "Azure OpenAI"))
+        self.assertEqual(classify_word("AzureContainerAppEnvironment"), (None, ""))
+        self.assertEqual(classify_word("openai-key"), (None, ""))
 
 
 class TestDump(unittest.TestCase):
@@ -115,7 +192,10 @@ class TestDump(unittest.TestCase):
         dumped = json.loads((directory / "resources.json").read_text())
 
         self.assertEqual(sorted(dumped), ["commit", "repo", "resources"])
-        self.assertEqual(sorted(dumped["resources"][0]), ["children", "declared_by", "home", "key", "kind", "name"])
+        self.assertEqual(
+            sorted(dumped["resources"][0]),
+            ["children", "declared_by", "display_name", "home_unit", "key", "kind", "name"],
+        )
         self.assertEqual(sorted(dumped["resources"][0]["children"][0]), ["key", "kind", "name", "owner"])
 
     def test_two_runs_over_one_tree_find_the_same_resources(self) -> None:

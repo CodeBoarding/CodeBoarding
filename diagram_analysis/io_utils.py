@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 from filelock import FileLock
@@ -103,7 +104,7 @@ class _AnalysisFileStore:
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
         tree_spec: dict | None = None,
-        resources: list[Resource] | None = None,
+        resources: Sequence[Resource] = (),
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -139,7 +140,7 @@ class _AnalysisFileStore:
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
         tree_spec: dict | None = None,
-        resources: list[Resource] | None = None,
+        resources: Sequence[Resource] = (),
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # A caller-provided set is authoritative: it already reflects the run's expansion
@@ -357,7 +358,7 @@ def save_analysis(
     sub_expandable_ids: dict[str, list[str]] | None = None,
     depth_cap: int | None = None,
     tree_spec: dict | None = None,
-    resources: list[Resource] | None = None,
+    resources: Sequence[Resource] = (),
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 

@@ -64,12 +64,13 @@ def run(results: StaticAnalysisResults, repo_root: Path, *, dump: Path | None = 
     anchors = collect(scan, units, projects)
     joins, unjoined = join(scan, units, anchors)
     edges, unreached = emit(joins, units, results.available_cfgs(), repo_root)
+    resources, unknown = discover(scan, projects, units, anchors)
     wiring = WiringResults(
         units=units,
         anchors=anchors,
         edges=edges,
-        resources=discover(scan, projects, units, anchors),
-        diagnostics=sorted([*scan.diagnostics, *unjoined, *unreached], key=_order),
+        resources=resources,
+        diagnostics=sorted([*scan.diagnostics, *unjoined, *unreached, *unknown], key=_order),
     )
     logger.info(
         "wiring: %d files read, %d units, %d anchors, %d edges, %d resources, %d diagnostics in %.2fs",
@@ -126,8 +127,9 @@ def _resource(resource: Resource) -> dict:
         "key": resource.key,
         "kind": resource.kind.value,
         "name": resource.name,
+        "display_name": resource.display_name,
         "declared_by": list(resource.declared_by),
-        "home": resource.home,
+        "home_unit": resource.home_unit,
         "children": [
             {"key": child.key, "kind": child.kind.value, "name": child.name, "owner": child.owner}
             for child in resource.children
