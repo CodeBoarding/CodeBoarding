@@ -408,6 +408,11 @@ one-line PR that flips the flag once the action path runs with it on.
 - No resolver with a model in it. P1 joins what the files say and reports what it could not.
 - No routes from code, no clients from code, no messaging from code: those are P2.
 
-Open, decided before the PR that needs them: the display-name catalogue's home (PR 5); whether
-`DEPENDS_ON` is drawn at depth 1 or only inside a frame (PR 4, measured on eShop's project
-references).
+Open, decided before the PR that needs them: the display-name catalogue's home (PR 5).
+
+**`DEPENDS_ON` is drawn wherever it is found** (decided in PR 4), at depth 1 like every other drawn
+kind. Measured: on eShop a project reference accounts for 36 of its 50 unit pairs against 14
+runtime ones, and PetClinic declares none at all, so the question was whether the build-time arrows
+bury the runtime ones. They are still what the repository declares, drawing every kind the same way
+is one rule rather than two, and starting with more edges and narrowing later is the cheaper
+direction to be wrong in.
