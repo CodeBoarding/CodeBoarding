@@ -113,6 +113,31 @@ class TestPlace(unittest.TestCase):
         self.assertNotIn("api/package.json", web.symbol_members_by_language["typescript"])
         self.assertIn("api/package.json", hierarchy.graphs_by_language["typescript"].nodes)
 
+    def test_an_arrow_between_two_languages_is_drawn(self) -> None:
+        """The case the layer exists for: a compose file wiring a Python service to a Java one.
+
+        An edge can only be drawn in a graph holding both its ends, so the target's node joins the
+        source's graph. Keeping each end in its own graph lost every such arrow, and silently.
+        """
+        python = graph_of("python", "api/app.py")
+        typescript = graph_of("typescript", "web/app.ts")
+        api = ClusterGroup(group_id="1", cluster_ids=[1], symbol_members_by_language={"python": {"api/app.py|run"}})
+        web = ClusterGroup(group_id="2", cluster_ids=[2], symbol_members_by_language={"typescript": {"web/app.ts|run"}})
+        hierarchy = ClusterScopeResult(
+            scope_id=ROOT_SCOPE_ID,
+            graphs_by_language={"python": python, "typescript": typescript},
+            groups=[api, web],
+        )
+        edges = emit([site(5)], [API, WEB], hierarchy.graphs_by_language, REPO)
+
+        place(hierarchy, [API, WEB], edges, REPO)
+
+        self.assertEqual(
+            [(edge.src, edge.dst) for edge in typescript.reference_edges], [("web/package.json", "api/package.json")]
+        )
+        self.assertIn("api/package.json", typescript.nodes)
+        self.assertIn("api/package.json", api.symbol_members_by_language["python"])
+
     def test_with_no_edges_nothing_is_placed(self) -> None:
         """The flag-off guarantee: a run that draws no wiring leaves every box as it was."""
         hierarchy, api, web = self._hierarchy()

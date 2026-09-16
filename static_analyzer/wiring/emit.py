@@ -42,34 +42,31 @@ def emit(joins: list[Join], units: list[Unit], graphs: Mapping[str, CallGraph], 
 
 
 def endpoint_nodes(units: list[Unit], graphs: Mapping[str, CallGraph], repo_dir: Path) -> dict[str, Node]:
-    """The node an arrow lands on for each unit: its manifest, keyed by its repository path.
+    """The node an arrow lands on for each unit: its manifest, keyed by its repository path."""
+    return _endpoints(units, languages_by_unit(units, graphs, repo_dir), repo_dir)
 
-    Three units get none: one with no manifest has nothing to point at, one whose directory holds
-    no analysed code is a resource rather than a box, and one whose directory is the repository
-    itself names the whole tree — a root manifest is not a box, and an arrow into it would land on
-    whichever component happens to hold the most code.
+
+def languages_by_unit(units: list[Unit], graphs: Mapping[str, CallGraph], repo_dir: Path) -> dict[str, dict[str, int]]:
+    """How many analysed symbols each language has inside each unit, from one walk of the graphs.
+
+    Why one walk and not one question per unit: a symbol belongs to every unit whose directory
+    contains it, so asking each unit in turn rescans every graph once per unit. On a repository of
+    twenty units that is twenty full passes to answer one question, and it was the dominant cost of
+    the whole layer — eShop spent 6.8 % of its static phase here, against a 5 % budget for the pass.
+
+    Why the repository directory: a graph's paths are absolute and a unit's are not, so the two only
+    compare once both are spelled from the root.
     """
-    return {
-        unit.id: Node(unit.manifest, NodeType.FILE, str(repo_dir / unit.manifest), 1, 1)
-        for unit in units
-        if unit.manifest and unit.dir != "." and languages_of(unit, graphs, repo_dir)
-    }
-
-
-def languages_of(unit: Unit, graphs: Mapping[str, CallGraph], repo_dir: Path) -> dict[str, int]:
-    """How many analysed symbols each language has inside this unit, which is what makes it code.
-
-    Why the repository directory: a graph's paths are absolute and a unit's are not, so the two
-    only compare once both are spelled from the root.
-    """
-    prefix = "" if unit.dir == "." else f"{unit.dir}/"
-    counted = {}
+    directories = {unit.dir for unit in units if unit.dir != "."}
+    counted: dict[str, dict[str, int]] = {}
     for language, graph in graphs.items():
-        inside = sum(
-            1 for node in graph.nodes.values() if normalize_repo_path(node.file_path, repo_dir).startswith(prefix)
-        )
-        if inside:
-            counted[language] = inside
+        for node in graph.nodes.values():
+            segments = normalize_repo_path(node.file_path, repo_dir).split("/")
+            for depth in range(1, len(segments)):
+                ancestor = "/".join(segments[:depth])
+                if ancestor in directories:
+                    languages = counted.setdefault(ancestor, {})
+                    languages[language] = languages.get(language, 0) + 1
     return counted
 
 
@@ -81,67 +78,81 @@ def place(hierarchy: ClusterScopeResult, units: list[Unit], edges: list[Referenc
     """
     if not edges:
         return
-    endpoints = endpoint_nodes(units, hierarchy.graphs_by_language, repo_dir)
+    graphs = hierarchy.graphs_by_language
+    inside = languages_by_unit(units, graphs, repo_dir)
+    endpoints = _endpoints(units, inside, repo_dir)
     owners = {unit.id: unit for unit in units}
+    paths: dict[str, str] = {}
+    language_of: dict[str, str] = {}
+    node_of: dict[str, Node] = {}
     for unit_id, node in sorted(endpoints.items()):
-        language = _language(owners[unit_id], hierarchy.graphs_by_language, repo_dir)
-        if not language:
-            continue
-        graph = hierarchy.graphs_by_language[language]
+        counted = inside.get(owners[unit_id].dir, {})
+        language = max(sorted(counted), key=lambda one: counted[one])
+        graph = graphs[language]
         if node.fully_qualified_name not in graph.nodes:
             graph.add_node(node)
-        _own(hierarchy, owners[unit_id], language, node.fully_qualified_name, repo_dir)
+        _own(hierarchy, owners[unit_id], language, node.fully_qualified_name, repo_dir, paths)
+        language_of[node.fully_qualified_name] = language
+        node_of[node.fully_qualified_name] = node
     for edge in edges:
-        language = _language_of_node(edge.src, endpoints, owners, hierarchy.graphs_by_language, repo_dir)
-        graph = hierarchy.graphs_by_language.get(language) if language else None
-        if graph is not None and edge.src in graph.nodes and edge.dst in graph.nodes:
+        graph = graphs.get(language_of.get(edge.src, ""))
+        if graph is None or edge.src not in graph.nodes:
+            continue
+        # An arrow whose two ends are written in different languages is the case this layer exists
+        # for — a compose file wiring a Python service to a Java one — and an edge can only be drawn
+        # in a graph holding both its ends, so the target's node joins the source's graph. Dropping
+        # it instead lost every cross-language arrow on three of the seven rulers, silently.
+        if edge.dst not in graph.nodes and edge.dst in node_of:
+            graph.add_node(node_of[edge.dst])
+        if edge.dst in graph.nodes:
             graph.add_reference_edge(edge)
 
 
-def _own(scope: ClusterScopeResult, unit: Unit, language: str, name: str, repo_dir: Path) -> None:
+def _endpoints(units: list[Unit], inside: dict[str, dict[str, int]], repo_dir: Path) -> dict[str, Node]:
+    """Three units get no endpoint: one with no manifest has nothing to point at, one whose
+    directory holds no analysed code is a resource rather than a box, and one whose directory is the
+    repository itself names the whole tree — an arrow into it would land on whichever component
+    happens to hold the most code.
+    """
+    return {
+        unit.id: Node(unit.manifest, NodeType.FILE, str(repo_dir / unit.manifest), 1, 1)
+        for unit in units
+        if unit.manifest and unit.dir != "." and inside.get(unit.dir)
+    }
+
+
+def _own(
+    scope: ClusterScopeResult, unit: Unit, language: str, name: str, repo_dir: Path, paths: dict[str, str]
+) -> None:
     """Add the node to the group that owns most of this unit's code, in this scope and below it."""
-    group = _owning_group(scope, unit, language, repo_dir)
+    group = _owning_group(scope, unit, language, repo_dir, paths)
     if group is None:
         return
     group.symbol_members_by_language.setdefault(language, set()).add(name)
     if group.children is not None:
-        _own(group.children, unit, language, name, repo_dir)
+        _own(group.children, unit, language, name, repo_dir, paths)
 
 
-def _owning_group(scope: ClusterScopeResult, unit: Unit, language: str, repo_dir: Path):
+def _owning_group(scope: ClusterScopeResult, unit: Unit, language: str, repo_dir: Path, paths: dict[str, str]):
     """The group of this scope holding most of the unit's symbols, or none when no group does."""
-    prefix = "" if unit.dir == "." else f"{unit.dir}/"
+    prefix = f"{unit.dir}/"
     graph = scope.graphs_by_language.get(language)
     if graph is None:
         return None
     counted = {}
     for group in scope.groups:
-        inside = sum(
-            1
-            for member in group.symbol_members_by_language.get(language, set())
-            if member in graph.nodes and normalize_repo_path(graph.nodes[member].file_path, repo_dir).startswith(prefix)
-        )
+        inside = 0
+        for member in group.symbol_members_by_language.get(language, set()):
+            node = graph.nodes.get(member)
+            if node is None:
+                continue
+            path = paths.get(node.file_path) or paths.setdefault(
+                node.file_path, normalize_repo_path(node.file_path, repo_dir)
+            )
+            inside += path.startswith(prefix)
         if inside:
             counted[group.group_id] = inside
     if not counted:
         return None
     winner = max(sorted(counted), key=lambda group_id: counted[group_id])
     return next(group for group in scope.groups if group.group_id == winner)
-
-
-def _language(unit: Unit, graphs: Mapping[str, CallGraph], repo_dir: Path) -> str:
-    counted = languages_of(unit, graphs, repo_dir)
-    return max(sorted(counted), key=lambda language: counted[language]) if counted else ""
-
-
-def _language_of_node(
-    name: str,
-    endpoints: Mapping[str, Node],
-    owners: Mapping[str, Unit],
-    graphs: Mapping[str, CallGraph],
-    repo_dir: Path,
-) -> str:
-    for unit_id, node in endpoints.items():
-        if node.fully_qualified_name == name:
-            return _language(owners[unit_id], graphs, repo_dir)
-    return ""
