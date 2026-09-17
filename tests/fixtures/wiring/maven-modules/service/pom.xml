@@ -1,0 +1,7 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <parent>
+    <artifactId>acme-parent</artifactId>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+  <artifactId>acme-service</artifactId>
+</project>

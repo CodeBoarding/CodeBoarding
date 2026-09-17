@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>Basket.Service</AssemblyName>
+  </PropertyGroup>
+</Project>
