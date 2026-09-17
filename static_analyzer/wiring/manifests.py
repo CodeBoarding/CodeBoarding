@@ -132,6 +132,27 @@ def project_references(scan: Scan, path: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(found))
 
 
+def dependencies(scan: Scan, path: str) -> tuple[str, ...]:
+    """The packages a manifest depends on, by name: a Maven artifact, a NuGet package, an npm package."""
+    kind = scan.files[path].kind if path in scan.files else None
+    found: list[str] = []
+    if kind is FileKind.MAVEN:
+        root = _xml(scan, path)
+        for element in root.iter() if root is not None else ():
+            if _local(element.tag) == "dependency":
+                found.append(_child_text(element, "artifactId"))
+    elif kind is FileKind.DOTNET_PROJECT:
+        root = _xml(scan, path)
+        for element in root.iter() if root is not None else ():
+            if _local(element.tag) == "PackageReference":
+                found.append(element.get("Include") or element.get("Update") or "")
+    elif kind is FileKind.NPM:
+        manifest = scan.json_object(path)
+        for section in ("dependencies", "devDependencies", "peerDependencies"):
+            found += [str(name) for name in mapping(manifest.get(section))]
+    return tuple(dict.fromkeys(name for name in found if name))
+
+
 def simple_manifest(scan: Scan, path: str, kind: UnitKind) -> Declaration | None:
     """A manifest whose only unit fact is that its directory is one, plus the name it declares."""
     name = ""

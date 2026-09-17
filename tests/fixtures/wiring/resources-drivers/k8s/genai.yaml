@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: genai-service
+spec:
+  template:
+    metadata:
+      labels:
+        app: genai
+    spec:
+      containers:
+        - name: genai
+          image: acme/genai-service:1

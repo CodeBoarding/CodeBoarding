@@ -1,0 +1,10 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <parent><artifactId>shop</artifactId><relativePath>../pom.xml</relativePath></parent>
+  <artifactId>shop-tools</artifactId>
+  <dependencies>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+    </dependency>
+  </dependencies>
+</project>

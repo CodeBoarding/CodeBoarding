@@ -1,0 +1,13 @@
+jobs:
+  build:
+    steps:
+      - uses: docker/build-push-action@v6
+        with:
+          context: '{{defaultContext}}'
+          file: genai/Dockerfile
+          tags: acme/genai-service:latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: '{{defaultContext}}'
+          file: customers/Dockerfile
+          tags: acme/customers-service:latest
