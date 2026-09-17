@@ -27,6 +27,16 @@ _BASE_NAMES = ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-com
 
 
 @dataclass(frozen=True)
+class EnvEntry:
+    """One environment variable a service sets, and where it is written."""
+
+    key: str
+    value: str
+    file: str
+    line: int
+
+
+@dataclass(frozen=True)
 class ComposeService:
     """One merged service: what it runs, what it builds, and the names it answers to."""
 
@@ -40,6 +50,11 @@ class ComposeService:
     hostname: str = ""
     network_aliases: tuple[str, ...] = ()
     profiles: tuple[str, ...] = ()
+    ports: tuple[str, ...] = ()
+    environment: tuple[EnvEntry, ...] = ()
+    depends_on: tuple[str, ...] = ()
+    links: tuple[str, ...] = ()
+    line: int = 1
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -182,6 +197,11 @@ def _service(scan: Scan, name: str, path: str, raw: dict, environment: dict[str,
         _text(profile, environment) for profile in listing(raw.get("profiles")) if isinstance(profile, str)
     )
     return ComposeService(
+        environment=_env_entries(scan, raw, path, name, environment),
+        ports=_ports(raw, environment),
+        depends_on=_referenced(raw.get("depends_on")),
+        links=tuple(link.split(":")[0] for link in _referenced(raw.get("links"))),
+        line=scan.key_lines(path).get(f"services.{name}", 1),
         name=name,
         project=directory,
         files=(path,),
@@ -193,6 +213,50 @@ def _service(scan: Scan, name: str, path: str, raw: dict, environment: dict[str,
         network_aliases=_network_aliases(raw, environment),
         profiles=profiles,
     )
+
+
+def _env_entries(scan: Scan, raw: dict, path: str, name: str, values: dict[str, str]) -> tuple[EnvEntry, ...]:
+    """A service's `environment` in either form, each key with the line it was written on."""
+    declared = raw.get("environment")
+    lines = scan.key_lines(path)
+    pairs: list[tuple[str, str, int]] = []
+    if isinstance(declared, dict):
+        for key, value in declared.items():
+            line = lines.get(f"services.{name}.environment.{key}", 1)
+            pairs.append((str(key), _scalar(value, values), line))
+    else:
+        for index, item in enumerate(listing(declared)):
+            if isinstance(item, str):
+                key, separator, value = item.partition("=")
+                line = lines.get(f"services.{name}.environment.{index}", 1)
+                pairs.append((key.strip(), _text(value, values) if separator else "", line))
+    return tuple(EnvEntry(key=key, value=value, file=path, line=line) for key, value, line in pairs if key)
+
+
+def _ports(raw: dict, values: dict[str, str]) -> tuple[str, ...]:
+    """The ports a service publishes, in either notation: `"8080:8080"` or `{published, target}`."""
+    published = []
+    for entry in listing(raw.get("ports")):
+        if isinstance(entry, str):
+            published.append(_text(entry, values))
+        elif isinstance(entry, dict) and entry.get("published"):
+            published.append(f"{entry['published']}:{entry.get('target', entry['published'])}")
+        elif isinstance(entry, int):
+            published.append(str(entry))
+    return tuple(port for port in published if port)
+
+
+def _referenced(declared: object) -> tuple[str, ...]:
+    """The service names a `depends_on` or `links` entry names, in either form."""
+    if isinstance(declared, dict):
+        return tuple(str(name) for name in declared)
+    return tuple(str(name) for name in listing(declared) if isinstance(name, (str, int)))
+
+
+def _scalar(value: object, values: dict[str, str]) -> str:
+    if isinstance(value, str):
+        return _text(value, values)
+    return "" if value is None or isinstance(value, bool) else str(value)
 
 
 def _network_aliases(raw: dict, environment: dict[str, str]) -> tuple[str, ...]:
@@ -208,15 +272,22 @@ def _merge(before: ComposeService | None, after: ComposeService) -> ComposeServi
     """Compose's own merge: a later file's scalars win, and what a service answers to accumulates."""
     if before is None:
         return after
+    merged: dict[str, EnvEntry] = {entry.key: entry for entry in before.environment}
+    merged.update({entry.key: entry for entry in after.environment})
     return replace(
         after,
         files=before.files + after.files,
+        environment=tuple(merged.values()),
+        depends_on=tuple(dict.fromkeys(before.depends_on + after.depends_on)),
+        links=tuple(dict.fromkeys(before.links + after.links)),
+        line=before.line if before.files else after.line,
         image=after.image or before.image,
         context=after.context or before.context,
         dockerfile=after.dockerfile or before.dockerfile,
         container_name=after.container_name or before.container_name,
         hostname=after.hostname or before.hostname,
         network_aliases=tuple(dict.fromkeys(before.network_aliases + after.network_aliases)),
+        ports=tuple(dict.fromkeys(before.ports + after.ports)),
         profiles=tuple(dict.fromkeys(before.profiles + after.profiles)),
     )
 

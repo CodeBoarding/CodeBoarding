@@ -1,0 +1,8 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <artifactId>petshop</artifactId>
+  <packaging>pom</packaging>
+  <modules>
+    <module>gateway</module>
+    <module>vets</module>
+  </modules>
+</project>
