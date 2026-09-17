@@ -7,7 +7,7 @@ edges — no LLM needed.
 
 import logging
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Mapping, Iterator
 from dataclasses import dataclass, field
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, static_relation_label
@@ -23,6 +23,8 @@ from static_analyzer.cfg import RELATION_REFERENCE_KINDS, CallGraph
 
 logger = logging.getLogger(__name__)
 
+_NO_ENDPOINTS: Mapping[str, str] = {}
+
 
 @dataclass
 class ClusterRelation:
@@ -36,13 +38,27 @@ class ClusterRelation:
 def build_global_node_to_component_map(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
+    endpoints: Mapping[str, str] = _NO_ENDPOINTS,
 ) -> dict[str, str]:
-    """Map each node to the deepest currently expanded component that owns it."""
+    """Map each node to the deepest currently expanded component that owns it.
+
+    ``endpoints`` are the wiring layer's artifact nodes with the component owning each one's unit
+    (``static_analyzer.wiring.emit.place``); an owner deeper than the tree that was expanded is
+    lifted to its deepest expanded ancestor, so a relation never names a component the document
+    does not hold.
+    """
     node_to_component = root_analysis.node_owners()
     for parent_id, sub_analysis in sorted(sub_analyses.items(), key=lambda item: (item[0].count("."), item[0])):
         for node_name, component_id in sub_analysis.node_owners().items():
             if component_id.startswith(f"{parent_id}."):
                 node_to_component[node_name] = component_id
+    if endpoints:
+        live = {component.component_id for component in root_analysis.components}
+        live.update(component.component_id for analysis in sub_analyses.values() for component in analysis.components)
+        for node_name, component_id in endpoints.items():
+            expanded = next((ancestor for ancestor in iter_ancestor_ids(component_id) if ancestor in live), "")
+            if expanded:
+                node_to_component[node_name] = expanded
     return node_to_component
 
 
@@ -163,9 +179,14 @@ def build_global_relations(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
     cfg_graphs: dict[str, CallGraph],
+    endpoints: Mapping[str, str] = _NO_ENDPOINTS,
 ) -> list[Relation]:
-    """Build deterministic project-wide relations at the current expansion frontier."""
-    node_to_component = build_global_node_to_component_map(root_analysis, sub_analyses)
+    """Build deterministic project-wide relations at the current expansion frontier.
+
+    ``cfg_graphs`` is every graph with edges to draw, the wiring layer's own graph included; the
+    key is never read. ``endpoints`` places that graph's artifact nodes on their components.
+    """
+    node_to_component = build_global_node_to_component_map(root_analysis, sub_analyses, endpoints)
     static_relations = build_component_relations(node_to_component, cfg_graphs)
     id_to_name = _collect_component_names(root_analysis, sub_analyses)
     live_ids = set(id_to_name)

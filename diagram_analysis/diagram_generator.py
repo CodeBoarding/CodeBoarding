@@ -52,7 +52,7 @@ from diagram_analysis.exceptions import (
     ScopeContainmentError,
 )
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
+from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg, index_artifact_files
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from diagram_analysis.incremental_changes import compute_changed_members
 from diagram_analysis.scope_assembly import ScopeAssembler
@@ -84,6 +84,7 @@ from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, 
 from static_analyzer.clustering.names import AffinityGrouper, Grouper, KinshipGrouper, TreeSpec
 from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
+from static_analyzer.wiring.emit import WIRING_GRAPH, Placement, place
 from agents.tree_planner_agent import TreePlannerAgent
 from user_config import GROUPER_ENV, GROUPERS
 from static_analyzer.scanner import ProjectScanner
@@ -549,6 +550,10 @@ def distinguish_expanded_component_names(
 
 
 class DiagramGenerator:
+
+    # The wiring layer's graph and endpoint owners for this run; built after the clustering.
+    _wiring: Placement | None = None
+
     def __init__(
         self,
         repo_location: Path,
@@ -613,6 +618,7 @@ class DiagramGenerator:
         self._agent_llm: BaseChatModel | None = None
         self._incremental_preparation: _IncrementalPreparation | None = None
         self.scope_assembler = ScopeAssembler(repo_location)
+        self._wiring = None
         self.scope_analysis_agent: ScopeAnalysisAgent | None = None
         # Semantic analysis degrades to the deterministic names rather than failing the run, so
         # count the scopes that took that path: nothing else in the output says it happened.
@@ -686,6 +692,20 @@ class DiagramGenerator:
             scope = self._build_component_scope(target_component, depth)
             self.clustering_hierarchy = ClusterScopeResult(scope_id=ROOT_SCOPE_ID)
             self.clustering_hierarchy.register_scope(target_component.component_id, scope)
+
+        # The wiring layer's edges live in their own graph and land on the boxes that already
+        # exist: each endpoint is mapped to the component owning its unit's directory when the
+        # relations are built, and no partition moves. An incremental run skips it explicitly:
+        # the relation preservation and the reference resolver do not know endpoint nodes yet,
+        # which is PR 7's subject.
+        self._wiring = None
+        if not incremental and self.clustering_hierarchy is not None:
+            self._wiring = place(
+                self.clustering_hierarchy,
+                static_analysis.wiring.units,
+                static_analysis.wiring.edges,
+                self.repo_location,
+            )
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
@@ -1413,9 +1433,12 @@ class DiagramGenerator:
         if not self.static_analysis:
             return []
         cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
-        global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs)
+        endpoints = self._wiring.owners if self._wiring is not None else {}
+        if self._wiring is not None:
+            cfg_graphs[WIRING_GRAPH] = self._wiring.graph
+        global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs, endpoints)
         ownership = ComponentOwnershipIndex.from_node_owners(
-            build_global_node_to_component_map(root_analysis, sub_analyses)
+            build_global_node_to_component_map(root_analysis, sub_analyses, endpoints)
         )
         if self._baseline_global_relations is not None:
             # Incremental: the wholesale rebuild would relabel edges between two untouched
@@ -1472,6 +1495,10 @@ class DiagramGenerator:
         # Absorption must not erase the evidence of an invalid parent-child boundary.
         assert_scope_containment(root_analysis, sub_analyses)
         self.rebuild_global_relations(root_analysis, sub_analyses)
+        if self._wiring is not None:
+            # An endpoint is a file of the repository that an arrow lands on: indexed from the
+            # wiring graph, so file coverage counts it, and never a member of a component.
+            index_artifact_files(root_analysis, self._wiring.graph.nodes.values(), self.repo_location)
         absorbed_ids = absorb_single_child_components(root_analysis, sub_analyses)
         if self.clustering_hierarchy is not None:
             self.clustering_hierarchy.reroot_indexes(absorbed_ids)
