@@ -248,6 +248,19 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
 
+    def test_a_restored_wording_comes_back_marked_the_way_it_was_written(self):
+        """Left marked a default, a restored authored phrase is recomputed away by the next run."""
+        fresh = self._relation("1", "2", "calls")
+        fresh.default_label = True
+        baseline = self._relation("1", "2", "publishes to")
+        baseline.default_label = False
+
+        kept = preserve_unchanged_relations(
+            [fresh], {("1", "2"): baseline}, changed_component_ids=set(), live_ids={"1", "2"}, live_qnames=set()
+        )
+
+        self.assertEqual([(rel.relation, rel.default_label) for rel in kept], [("publishes to", False)])
+
     def test_carried_over_edge_still_takes_the_fresh_call_sites(self):
         # Wording is sticky, structure never is: preserving a stale call-site set would
         # make the diagram lie about the code to avoid re-wording a label.

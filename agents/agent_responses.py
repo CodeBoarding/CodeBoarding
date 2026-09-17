@@ -3,14 +3,17 @@ from __future__ import annotations
 import abc
 import logging
 from abc import abstractmethod
-from collections.abc import Hashable
+from collections import Counter
+from collections.abc import Hashable, Sequence
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, model_serializer
 
 from clustering_ids import ComponentId
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodIndexEntry
 from agents.scope_ids import ROOT_SCOPE_ID
+from static_analyzer.cfg.edge import CallSiteLocation, EdgeKind
+from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +78,22 @@ class RelationCallSite(BaseModel):
 
     line: int = Field(description="One-based line number of the call site in the source file.")
     column: int = Field(description="One-based column number of the call site in the source file.")
+    file: str = Field(
+        default="",
+        description="Repository-relative file this occurrence sits in; empty when the endpoints already name it.",
+    )
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler: SerializerFunctionWrapHandler) -> dict:
+        """Drop ``file`` when there is none, on every path that reaches a document.
+
+        Why: a call site is located by the edge's own endpoints, so writing an empty key
+        would change every existing document for nothing.
+        """
+        data = handler(self)
+        if not self.file:
+            data.pop("file", None)
+        return data
 
 
 class RelationEdge(LLMBaseModel):
@@ -85,7 +104,12 @@ class RelationEdge(LLMBaseModel):
     description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
     call_sites: list[RelationCallSite] = Field(
         default_factory=list,
-        description="Call-site line and column pairs for this edge.",
+        description="Line and column pairs where this edge occurs.",
+        exclude=True,
+    )
+    kind: EdgeKind = Field(
+        default=EdgeKind.CALL,
+        description="The static edge behind this one: a call unless it came from a reference edge.",
         exclude=True,
     )
 
@@ -101,6 +125,7 @@ class RelationEdge(LLMBaseModel):
             target=_relation_endpoint_from_key(target_key, methods_index),
             description=edge.get("description", ""),
             call_sites=[RelationCallSite.model_validate(site) for site in call_sites],
+            kind=EdgeKind(edge["kind"]) if edge.get("kind") else EdgeKind.CALL,
         )
 
     @classmethod
@@ -118,7 +143,38 @@ class RelationEdge(LLMBaseModel):
                 reference_start_line=edge.dst_node.line_start,
                 reference_end_line=edge.dst_node.line_end,
             ),
-            call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.call_sites],
+            # Line and column only: a call site names the file its endpoints already name.
+            call_sites=[RelationCallSite(line=site["line"], column=site["column"]) for site in edge.call_sites],
+        )
+
+    @classmethod
+    def from_reference(
+        cls, source: Node, target: Node, kind: EdgeKind, sites: Sequence[CallSiteLocation] = ()
+    ) -> RelationEdge:
+        """An edge backed by a reference edge rather than a call, described by its kind's verb.
+
+        A wiring site is a place in a manifest rather than a call, so it may name only a file
+        and a line; column 1 stands for the whole line instead of dropping the site.
+        """
+        return cls(
+            source=SourceCodeReference(
+                qualified_name=source.fully_qualified_name,
+                reference_file=source.file_path,
+                reference_start_line=source.line_start,
+                reference_end_line=source.line_end,
+            ),
+            target=SourceCodeReference(
+                qualified_name=target.fully_qualified_name,
+                reference_file=target.file_path,
+                reference_start_line=target.line_start,
+                reference_end_line=target.line_end,
+            ),
+            description=kind.relation_label,
+            call_sites=[
+                RelationCallSite(line=site["line"], column=site.get("column", 1), file=site.get("file", ""))
+                for site in sites
+            ],
+            kind=kind,
         )
 
     def llm_str(self) -> str:
@@ -136,6 +192,20 @@ class RelationEdge(LLMBaseModel):
             self.target.reference_end_line,
             tuple(sorted((site.line, site.column) for site in self.call_sites)),
         )
+
+
+def static_relation_label(edges: Sequence[RelationEdge]) -> str:
+    """The label a relation gets from its static edges alone.
+
+    A single call outranks any reference, because a call is the strongest thing two components
+    can do to each other. Otherwise the kind with the most edges names the relation, ties broken
+    by the kinds' declaration order, so two runs over one graph agree.
+    """
+    counts = Counter(edge.kind for edge in edges)
+    if not counts or EdgeKind.CALL in counts:
+        return EdgeKind.CALL.relation_label
+    order = list(EdgeKind)
+    return max(counts, key=lambda kind: (counts[kind], -order.index(kind))).relation_label
 
 
 def _relation_endpoint_from_key(
@@ -188,6 +258,11 @@ class Relation(LLMBaseModel):
         description="All known source-to-target edges for this relation, populated deterministically when available.",
         exclude=True,
     )
+    default_label: bool | None = Field(
+        default=None,
+        description="True when the label is what the static edges give the pair, not wording someone wrote.",
+        exclude=True,
+    )
 
     @classmethod
     def from_edges(
@@ -200,6 +275,7 @@ class Relation(LLMBaseModel):
         edges: list[RelationEdge],
         is_static: bool,
         evidence: str = "",
+        default_label: bool | None = None,
     ) -> Relation:
         return cls(
             relation=relation,
@@ -211,7 +287,20 @@ class Relation(LLMBaseModel):
             dst_id=dst_id,
             is_static=is_static,
             all_edges=cls.unique_edges(edges),
+            default_label=default_label,
         )
+
+    @property
+    def has_default_label(self) -> bool:
+        """Whether the label is the static edges' own verb rather than a description someone wrote.
+
+        A relation that never said (one built before the flag existed, or read from a document
+        without it) is judged by its wording, as the assembler always judged it: ``calls`` is the
+        default and anything else was written.
+        """
+        if self.default_label is not None:
+            return self.default_label
+        return self.relation == EdgeKind.CALL.relation_label
 
     def llm_str(self) -> str:
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
@@ -235,6 +324,7 @@ class Relation(LLMBaseModel):
             dst_id=self.dst_id,
             is_static=self.is_static,
             all_edges=all_edges,
+            default_label=self.default_label,
         )
 
     def merge_edges_from(self, relation: Relation) -> None:

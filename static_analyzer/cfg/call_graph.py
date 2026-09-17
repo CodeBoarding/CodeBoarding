@@ -8,7 +8,7 @@ from types import MappingProxyType
 
 import networkx as nx
 
-from static_analyzer.cfg.edge import DEFAULT_REFERENCE_KINDS, Edge, EdgeKind, ReferenceEdge
+from static_analyzer.cfg.edge import DEFAULT_REFERENCE_KINDS, CallSiteLocation, Edge, EdgeKind, ReferenceEdge
 from static_analyzer.cfg.location_key import LocationKey
 from static_analyzer.config import ClusteringConfig
 from static_analyzer.node import Node
@@ -116,7 +116,7 @@ class CallGraph:
         """
         src, dst = self._resolve_name(ref.src), self._resolve_name(ref.dst)
         if src in self.nodes and dst in self.nodes and src != dst:
-            self.reference_edges.append(ReferenceEdge(src, dst, ref.kind))
+            self.reference_edges.append(ReferenceEdge(src, dst, ref.kind, ref.sites))
 
     def filter(self, keep_node: Callable[[Node], bool]) -> CallGraph:
         """Return a new CallGraph of the nodes matching ``keep_node`` and the edges between them.
@@ -174,6 +174,7 @@ class CallGraph:
             node.file_path = fn(node.file_path)
         for edge in self.edges:
             edge.visit_paths(fn)
+        self.reference_edges = [ref.visit_paths(fn) for ref in self.reference_edges]
 
     def to_networkx(self, reference_kinds: Collection[str]) -> nx.DiGraph:
         """Export to networkx: call edges, plus reference edges of the given kinds."""
@@ -218,15 +219,24 @@ class CallGraph:
 
         Includes ``self`` and any ``extra_sources`` (e.g. the ``other`` side of a union), so
         reference edges freshly computed for changed/added files are not dropped when both
-        endpoints survive. Deduped, keeping only edges whose endpoints are both in ``out``.
+        endpoints survive. Keeps only edges whose endpoints are both in ``out``, one per
+        (src, dst, kind) carrying the union of the sites the sources saw: sites are outside an
+        edge's identity, so deduping on the edge alone would keep whichever side came first and
+        drop the other side's sites without a word.
         """
-        carried: list[ReferenceEdge] = []
+        merged: dict[tuple[str, str, EdgeKind], list[CallSiteLocation]] = {}
         for source in (self, *extra_sources):
             for ref in source.reference_edges:
                 # Resolve through the SOURCE's alias map: an endpoint stored under a short
                 # alias must map to the canonical name ``out`` promoted it to, or a call edge
                 # (which add_edge resolves) survives while its reference edge is silently dropped.
-                resolved = ReferenceEdge(source._resolve_name(ref.src), source._resolve_name(ref.dst), ref.kind)
-                if resolved.src in out.nodes and resolved.dst in out.nodes and resolved.src != resolved.dst:
-                    carried.append(resolved)
-        out.reference_edges = list(dict.fromkeys(carried))
+                src, dst = source._resolve_name(ref.src), source._resolve_name(ref.dst)
+                if src not in out.nodes or dst not in out.nodes or src == dst:
+                    continue
+                sites = merged.setdefault((src, dst, ref.kind), [])
+                for site in ref.sites:
+                    if site not in sites:
+                        sites.append(site)
+        out.reference_edges = [
+            ReferenceEdge(src, dst, kind, tuple(sites)) for (src, dst, kind), sites in merged.items()
+        ]
