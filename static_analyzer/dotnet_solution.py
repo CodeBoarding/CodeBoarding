@@ -27,3 +27,27 @@ def solution_projects(solution: Path) -> list[Path]:
         if path.suffix.lower() in PROJECT_SUFFIXES and path.is_file() and path not in projects:
             projects.append(path)
     return projects
+
+
+def analyzer_project_references(projects: list[Path]) -> list[Path]:
+    """The projects referenced with ``OutputItemType="Analyzer"``, absolute, in listing order.
+
+    Why: an analyzer reference resolves to the referenced project's output assembly, so
+    it stays unresolved until that project is built.
+    """
+    analyzers: list[Path] = []
+    for project in projects:
+        try:
+            root = ElementTree.parse(project).getroot()
+        except (ElementTree.ParseError, OSError):
+            continue
+        for reference in root.iter("ProjectReference"):
+            if (reference.get("OutputItemType") or "").strip().lower() != "analyzer":
+                continue
+            raw = reference.get("Include") or ""
+            if not raw:
+                continue
+            path = (project.parent / raw.replace("\\", "/")).resolve()
+            if path.suffix.lower() in PROJECT_SUFFIXES and path.is_file() and path not in analyzers:
+                analyzers.append(path)
+    return analyzers

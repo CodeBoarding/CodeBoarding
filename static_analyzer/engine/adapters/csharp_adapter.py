@@ -12,7 +12,7 @@ from pathlib import Path
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import Language, NodeType
 from static_analyzer.dotnet_sdk import DotnetSdkError, resolve_dotnet_sdk, system_dotnet_env
-from static_analyzer.dotnet_solution import solution_projects
+from static_analyzer.dotnet_solution import analyzer_project_references, solution_projects
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.source_inspector import SourceInspector
@@ -357,7 +357,11 @@ class CSharpAdapter(LanguageAdapter):
 
         env = os.environ.copy()
         env.update(self.get_lsp_env(project_root))
-        if self._restore(resolution.dotnet_path, target, project_root, env) or target.suffix not in (".sln", ".slnx"):
+        if target.suffix not in (".sln", ".slnx"):
+            self._restore(resolution.dotnet_path, target, project_root, env)
+            return
+        if self._restore(resolution.dotnet_path, target, project_root, env):
+            self._build_analyzers(resolution.dotnet_path, solution_projects(target), project_root, env)
             return
         # A solution restore evaluates every project before writing any assets, so one
         # project it cannot evaluate (a missing workload, a broken import) leaves the
@@ -367,6 +371,7 @@ class CSharpAdapter(LanguageAdapter):
         projects = solution_projects(target)
         restored = sum(self._restore(resolution.dotnet_path, project, project_root, env) for project in projects)
         logger.info("dotnet restore per project: %d of %d restored", restored, len(projects))
+        self._build_analyzers(resolution.dotnet_path, projects, project_root, env)
 
     def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
         """Return the .NET environment needed by csharp-ls.
@@ -410,6 +415,53 @@ class CSharpAdapter(LanguageAdapter):
             elif self.is_class_like(kind):
                 found.append(sym.get("name", ""))
         return found
+
+    def _build_analyzers(self, dotnet_path: str, projects: list[Path], project_root: Path, env: dict[str, str]) -> None:
+        """Build the projects referenced as analyzers so Roslyn can resolve them.
+
+        Why: restore does not produce an output assembly, so Roslyn holds an
+        ``UnresolvedAnalyzerReference`` whose checksum throws, failing every
+        ``textDocument/implementation`` request across the whole solution.
+        """
+        analyzers = analyzer_project_references(projects)
+        if not analyzers:
+            return
+        built = sum(self._build(dotnet_path, analyzer, project_root, env) for analyzer in analyzers)
+        logger.info("dotnet build analyzer projects: %d of %d built", built, len(analyzers))
+
+    def _build(self, dotnet_path: str, target: Path, project_root: Path, env: dict[str, str]) -> bool:
+        try:
+            result = subprocess.run(
+                [
+                    dotnet_path,
+                    "build",
+                    os.path.relpath(target, project_root),
+                    "--nologo",
+                    "--verbosity",
+                    "minimal",
+                ],
+                cwd=str(project_root),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning("dotnet build timed out after 600s for %s", target.name)
+            return False
+        except OSError as exc:
+            logger.warning("dotnet build could not be invoked: %s", exc)
+            return False
+        if result.returncode != 0:
+            logger.warning(
+                "dotnet build failed for %s (exit %d): %s",
+                target.name,
+                result.returncode,
+                (result.stderr or result.stdout)[-500:],
+            )
+            return False
+        logger.info("dotnet build completed for %s", target.name)
+        return True
 
     def _restore(self, dotnet_path: str, target: Path, project_root: Path, env: dict[str, str]) -> bool:
         try:
