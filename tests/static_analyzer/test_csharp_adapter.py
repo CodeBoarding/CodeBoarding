@@ -1,5 +1,6 @@
 """Tests for the C# language adapter."""
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -568,6 +569,16 @@ class TestPrepareProject:
         (root / relative).write_text("<Project />")
 
     @staticmethod
+    def _analyzer_consumer(root: Path, relative: str, analyzer: str) -> None:
+        (root / relative).parent.mkdir(parents=True, exist_ok=True)
+        reference = os.path.relpath(root / analyzer, (root / relative).parent)
+        (root / relative).write_text(
+            "<Project><ItemGroup>"
+            f'<ProjectReference Include="{reference}" OutputItemType="Analyzer" />'
+            "</ItemGroup></Project>"
+        )
+
+    @staticmethod
     def _solution(root: Path, name: str, *projects: str) -> None:
         (root / name).write_text(
             "<Solution>" + "".join(f'<Project Path="{project}" />' for project in projects) + "</Solution>"
@@ -651,6 +662,55 @@ class TestPrepareProject:
 
         assert [cmd[2] for cmd in self.commands] == ["App.slnx"]
 
+    def test_builds_an_analyzer_project_after_a_solution_restore(self, tmp_path):
+        self._solution(tmp_path, "App.slnx", "App.csproj")
+        self._analyzer_consumer(tmp_path, "App.csproj", "src/Gen/Gen.csproj")
+        self._project(tmp_path, "src/Gen/Gen.csproj")
+
+        CSharpAdapter().prepare_project(tmp_path)
+
+        assert [cmd[1:3] for cmd in self.commands] == [["restore", "App.slnx"], ["build", "src/Gen/Gen.csproj"]]
+
+    def test_builds_an_analyzer_project_after_the_per_project_fallback(self, tmp_path):
+        self._solution(tmp_path, "App.slnx", "App.csproj")
+        self._analyzer_consumer(tmp_path, "App.csproj", "src/Gen/Gen.csproj")
+        self._project(tmp_path, "src/Gen/Gen.csproj")
+        self.failing = {"App.slnx"}
+
+        CSharpAdapter().prepare_project(tmp_path)
+
+        assert [cmd[1:3] for cmd in self.commands] == [
+            ["restore", "App.slnx"],
+            ["restore", "App.csproj"],
+            ["build", "src/Gen/Gen.csproj"],
+        ]
+
+    def test_builds_an_analyzer_project_for_a_bare_project_target(self, tmp_path):
+        self._analyzer_consumer(tmp_path, "App.csproj", "src/Gen/Gen.csproj")
+        self._project(tmp_path, "src/Gen/Gen.csproj")
+
+        CSharpAdapter().prepare_project(tmp_path)
+
+        assert [cmd[1:3] for cmd in self.commands] == [["restore", "App.csproj"], ["build", "src/Gen/Gen.csproj"]]
+
+    def test_builds_the_analyzer_even_when_restore_failed(self, tmp_path):
+        """``dotnet build`` restores the analyzer itself, and a failed restore is exactly
+        when the reference is most likely to be unresolved."""
+        self._analyzer_consumer(tmp_path, "App.csproj", "src/Gen/Gen.csproj")
+        self._project(tmp_path, "src/Gen/Gen.csproj")
+        self.failing = {"App.csproj"}
+
+        CSharpAdapter().prepare_project(tmp_path)
+
+        assert [cmd[1:3] for cmd in self.commands] == [["restore", "App.csproj"], ["build", "src/Gen/Gen.csproj"]]
+
+    def test_builds_nothing_when_no_analyzer_reference_exists(self, tmp_path):
+        self._project(tmp_path, "App.csproj")
+
+        CSharpAdapter().prepare_project(tmp_path)
+
+        assert [cmd[1] for cmd in self.commands] == ["restore"]
+
     def test_handles_subprocess_timeout(self, tmp_path, monkeypatch):
         self._project(tmp_path, "Foo.csproj")
 
@@ -696,43 +756,3 @@ class TestReadDocumentSymbols:
 
         assert CSharpAdapter().read_document_symbols(usings, SourceInspector(), client) == []
         client.workspace_symbol.assert_not_called()
-
-
-class TestPrepareProjectBuildsAnalyzers:
-    """Analyzer projects must be built on every restore path.
-
-    Why: restore alone leaves an UnresolvedAnalyzerReference, whose checksum throws and
-    fails every textDocument/implementation request in the solution.
-    """
-
-    def test_a_bare_project_target_builds_its_analyzers(self, tmp_path: Path) -> None:
-        (tmp_path / "App.csproj").write_text("<Project />")
-        adapter = CSharpAdapter()
-
-        with (
-            patch(
-                "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
-                return_value=_dotnet_resolution(),
-            ),
-            patch.object(adapter, "_restore", return_value=True),
-            patch.object(adapter, "_build_analyzers") as build_analyzers,
-        ):
-            adapter.prepare_project(tmp_path)
-
-        assert build_analyzers.call_args.args[1] == [tmp_path / "App.csproj"]
-
-    def test_a_bare_project_target_does_not_build_when_restore_fails(self, tmp_path: Path) -> None:
-        (tmp_path / "App.csproj").write_text("<Project />")
-        adapter = CSharpAdapter()
-
-        with (
-            patch(
-                "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
-                return_value=_dotnet_resolution(),
-            ),
-            patch.object(adapter, "_restore", return_value=False),
-            patch.object(adapter, "_build_analyzers") as build_analyzers,
-        ):
-            adapter.prepare_project(tmp_path)
-
-        build_analyzers.assert_not_called()

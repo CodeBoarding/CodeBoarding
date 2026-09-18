@@ -29,6 +29,7 @@ from tool_registry import (
 logger = logging.getLogger(__name__)
 
 _MULTI_TARGET_PROJECT_THRESHOLD = 25
+_DOTNET_TIMEOUT_SECONDS = 600
 _SINGLE_TARGET_FRAMEWORK_TARGETS = r"""<Project>
   <PropertyGroup Condition="'$(CodeBoardingOriginalDirectoryBuildTargetsPath)' == ''">
     <CodeBoardingDirectoryBuildTargetsPath>$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildProjectDirectory)'))</CodeBoardingDirectoryBuildTargetsPath>
@@ -47,6 +48,14 @@ _SINGLE_TARGET_FRAMEWORK_TARGETS = r"""<Project>
     <TargetFrameworks>$([System.String]::Copy('$(CodeBoardingTargetFrameworks)').Trim(';').Split(';')[0])</TargetFrameworks>
     <TargetFrameworks Condition="'$(CodeBoardingPreferredTargetFramework)' != '' and $(CodeBoardingTargetFrameworks.Contains(';$(CodeBoardingPreferredTargetFramework);'))">$(CodeBoardingPreferredTargetFramework)</TargetFrameworks>
   </PropertyGroup>
+  <!-- An analyzer whose assembly is absent cannot run, but Roslyn keeps it as an
+       UnresolvedAnalyzerReference whose checksum throws, failing every
+       textDocument/implementation request in the solution. -->
+  <Target Name="CodeBoardingDropMissingAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="!Exists('%(Analyzer.FullPath)')" />
+    </ItemGroup>
+  </Target>
 </Project>
 """
 
@@ -326,14 +335,15 @@ class CSharpAdapter(LanguageAdapter):
         client.wait_for_diagnostics_quiesce(idle_seconds=2.0, max_wait=30.0)
 
     def prepare_project(self, project_root: Path) -> None:
-        """Run ``dotnet restore`` so csharp-ls can resolve framework references.
+        """Run ``dotnet restore``, then build any analyzer projects, so csharp-ls can
+        resolve framework references and analyzer assemblies.
 
         Why: csharp-ls relies on Roslyn / MSBuild to load the project, and
         MSBuild needs ``obj/project.assets.json`` (produced by restore) to
         find the .NET runtime reference assemblies. Without it, csharp-ls
         emits a flood of bogus ``CS0518: Predefined type System.X is not
-        defined`` diagnostics for every file. Restore is idempotent and
-        only writes under ``obj/`` (which we already gitignore).
+        defined`` diagnostics for every file. Restore is idempotent and only writes
+        under ``obj/``; building an analyzer project also writes its ``bin/``.
 
         Restore runs under the MSBuild environment csharp-ls gets, so the two
         evaluate every path the same way and the server finds what restore wrote.
@@ -358,10 +368,10 @@ class CSharpAdapter(LanguageAdapter):
         env = os.environ.copy()
         env.update(self.get_lsp_env(project_root))
         if target.suffix not in (".sln", ".slnx"):
-            if self._restore(resolution.dotnet_path, target, project_root, env):
-                self._build_analyzers(resolution.dotnet_path, [target], project_root, env)
+            self._dotnet("restore", resolution.dotnet_path, target, project_root, env)
+            self._build_analyzers(resolution.dotnet_path, [target], project_root, env)
             return
-        if self._restore(resolution.dotnet_path, target, project_root, env):
+        if self._dotnet("restore", resolution.dotnet_path, target, project_root, env):
             self._build_analyzers(resolution.dotnet_path, solution_projects(target), project_root, env)
             return
         # A solution restore evaluates every project before writing any assets, so one
@@ -370,7 +380,9 @@ class CSharpAdapter(LanguageAdapter):
         # or transitive project reference anywhere. Each member on its own only fails
         # for itself.
         projects = solution_projects(target)
-        restored = sum(self._restore(resolution.dotnet_path, project, project_root, env) for project in projects)
+        restored = sum(
+            self._dotnet("restore", resolution.dotnet_path, project, project_root, env) for project in projects
+        )
         logger.info("dotnet restore per project: %d of %d restored", restored, len(projects))
         self._build_analyzers(resolution.dotnet_path, projects, project_root, env)
 
@@ -427,66 +439,33 @@ class CSharpAdapter(LanguageAdapter):
         analyzers = analyzer_project_references(projects)
         if not analyzers:
             return
-        built = sum(self._build(dotnet_path, analyzer, project_root, env) for analyzer in analyzers)
+        built = sum(self._dotnet("build", dotnet_path, analyzer, project_root, env) for analyzer in analyzers)
         logger.info("dotnet build analyzer projects: %d of %d built", built, len(analyzers))
 
-    def _build(self, dotnet_path: str, target: Path, project_root: Path, env: dict[str, str]) -> bool:
+    def _dotnet(self, verb: str, dotnet_path: str, target: Path, project_root: Path, env: dict[str, str]) -> bool:
         try:
             result = subprocess.run(
-                [
-                    dotnet_path,
-                    "build",
-                    os.path.relpath(target, project_root),
-                    "--nologo",
-                    "--verbosity",
-                    "minimal",
-                ],
+                [dotnet_path, verb, os.path.relpath(target, project_root), "--nologo", "--verbosity", "minimal"],
                 cwd=str(project_root),
                 env=env,
                 capture_output=True,
                 text=True,
-                timeout=600,
+                timeout=_DOTNET_TIMEOUT_SECONDS,
             )
         except subprocess.TimeoutExpired:
-            logger.warning("dotnet build timed out after 600s for %s", target.name)
+            logger.warning("dotnet %s timed out after %ds for %s", verb, _DOTNET_TIMEOUT_SECONDS, target.name)
             return False
         except OSError as exc:
-            logger.warning("dotnet build could not be invoked: %s", exc)
+            logger.warning("dotnet %s could not be invoked: %s", verb, exc)
             return False
         if result.returncode != 0:
             logger.warning(
-                "dotnet build failed for %s (exit %d): %s",
+                "dotnet %s failed for %s (exit %d): %s",
+                verb,
                 target.name,
                 result.returncode,
                 (result.stderr or result.stdout)[-500:],
             )
             return False
-        logger.info("dotnet build completed for %s", target.name)
-        return True
-
-    def _restore(self, dotnet_path: str, target: Path, project_root: Path, env: dict[str, str]) -> bool:
-        try:
-            result = subprocess.run(
-                [dotnet_path, "restore", os.path.relpath(target, project_root), "--nologo", "--verbosity", "minimal"],
-                cwd=str(project_root),
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-        except subprocess.TimeoutExpired:
-            logger.warning("dotnet restore timed out after 600s for %s", target.name)
-            return False
-        except OSError as exc:
-            logger.warning("dotnet restore could not be invoked: %s", exc)
-            return False
-        if result.returncode != 0:
-            logger.warning(
-                "dotnet restore failed for %s (exit %d): %s",
-                target.name,
-                result.returncode,
-                (result.stderr or result.stdout)[-500:],
-            )
-            return False
-        logger.info("dotnet restore completed for %s", target.name)
+        logger.info("dotnet %s completed for %s", verb, target.name)
         return True

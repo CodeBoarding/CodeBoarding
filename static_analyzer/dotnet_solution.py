@@ -23,8 +23,8 @@ def solution_projects(solution: Path) -> list[Path]:
         listed = _SLN_PROJECT_LINE.findall(solution.read_text(encoding="utf-8-sig", errors="replace"))
     projects: list[Path] = []
     for raw in listed:
-        path = (solution.parent / raw.replace("\\", "/")).resolve()
-        if path.suffix.lower() in PROJECT_SUFFIXES and path.is_file() and path not in projects:
+        path = _project_file(solution.parent, raw)
+        if path is not None and path not in projects:
             projects.append(path)
     return projects
 
@@ -50,7 +50,13 @@ def analyzer_project_references(projects: list[Path]) -> list[Path]:
             raw = reference.get("Include") or ""
             if not raw:
                 continue
-            path = (project.parent / raw.replace("\\", "/")).resolve()
-            if path.suffix.lower() in PROJECT_SUFFIXES and path.is_file() and path not in analyzers:
+            path = _project_file(project.parent, raw)
+            if path is not None and path not in analyzers:
                 analyzers.append(path)
     return analyzers
+
+
+def _project_file(base: Path, raw: str) -> Path | None:
+    """The project ``raw`` names relative to ``base``, or None if it is not one on disk."""
+    path = (base / raw.replace("\\", "/")).resolve()
+    return path if path.suffix.lower() in PROJECT_SUFFIXES and path.is_file() else None
