@@ -440,7 +440,12 @@ class CSharpAdapter(LanguageAdapter):
         if not analyzers:
             return
         built = sum(self._dotnet("build", dotnet_path, analyzer, project_root, env) for analyzer in analyzers)
-        logger.info("dotnet build analyzer projects: %d of %d built", built, len(analyzers))
+        if built < len(analyzers):
+            # The injected target drops what stays missing, so analysis continues without
+            # the symbols that generator would have produced.
+            logger.warning("dotnet build analyzer projects: only %d of %d built", built, len(analyzers))
+        else:
+            logger.info("dotnet build analyzer projects: %d of %d built", built, len(analyzers))
 
     def _dotnet(self, verb: str, dotnet_path: str, target: Path, project_root: Path, env: dict[str, str]) -> bool:
         try:

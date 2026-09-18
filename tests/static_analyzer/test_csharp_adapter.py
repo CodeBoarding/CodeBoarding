@@ -1,5 +1,6 @@
 """Tests for the C# language adapter."""
 
+import logging
 import os
 import shutil
 import subprocess
@@ -710,6 +711,18 @@ class TestPrepareProject:
         CSharpAdapter().prepare_project(tmp_path)
 
         assert [cmd[1] for cmd in self.commands] == ["restore"]
+
+    def test_warns_when_an_analyzer_project_fails_to_build(self, tmp_path, caplog):
+        """The injected target then drops it, so the run continues without that
+        generator's symbols -- which must not pass silently."""
+        self._analyzer_consumer(tmp_path, "App.csproj", "src/Gen/Gen.csproj")
+        self._project(tmp_path, "src/Gen/Gen.csproj")
+        self.failing = {"src/Gen/Gen.csproj"}
+
+        with caplog.at_level(logging.WARNING):
+            CSharpAdapter().prepare_project(tmp_path)
+
+        assert "only 0 of 1 built" in caplog.text
 
     def test_handles_subprocess_timeout(self, tmp_path, monkeypatch):
         self._project(tmp_path, "Foo.csproj")
