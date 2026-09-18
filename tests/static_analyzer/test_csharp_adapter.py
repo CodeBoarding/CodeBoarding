@@ -696,3 +696,43 @@ class TestReadDocumentSymbols:
 
         assert CSharpAdapter().read_document_symbols(usings, SourceInspector(), client) == []
         client.workspace_symbol.assert_not_called()
+
+
+class TestPrepareProjectBuildsAnalyzers:
+    """Analyzer projects must be built on every restore path.
+
+    Why: restore alone leaves an UnresolvedAnalyzerReference, whose checksum throws and
+    fails every textDocument/implementation request in the solution.
+    """
+
+    def test_a_bare_project_target_builds_its_analyzers(self, tmp_path: Path) -> None:
+        (tmp_path / "App.csproj").write_text("<Project />")
+        adapter = CSharpAdapter()
+
+        with (
+            patch(
+                "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+                return_value=_dotnet_resolution(),
+            ),
+            patch.object(adapter, "_restore", return_value=True),
+            patch.object(adapter, "_build_analyzers") as build_analyzers,
+        ):
+            adapter.prepare_project(tmp_path)
+
+        assert build_analyzers.call_args.args[1] == [tmp_path / "App.csproj"]
+
+    def test_a_bare_project_target_does_not_build_when_restore_fails(self, tmp_path: Path) -> None:
+        (tmp_path / "App.csproj").write_text("<Project />")
+        adapter = CSharpAdapter()
+
+        with (
+            patch(
+                "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+                return_value=_dotnet_resolution(),
+            ),
+            patch.object(adapter, "_restore", return_value=False),
+            patch.object(adapter, "_build_analyzers") as build_analyzers,
+        ):
+            adapter.prepare_project(tmp_path)
+
+        build_analyzers.assert_not_called()

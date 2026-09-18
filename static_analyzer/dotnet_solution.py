@@ -41,7 +41,10 @@ def analyzer_project_references(projects: list[Path]) -> list[Path]:
             root = ElementTree.parse(project).getroot()
         except (ElementTree.ParseError, OSError):
             continue
-        for reference in root.iter("ProjectReference"):
+        for reference in root.iter():
+            # Legacy-format projects namespace every tag, so match on the local name.
+            if reference.tag.rpartition("}")[2] != "ProjectReference":
+                continue
             if (reference.get("OutputItemType") or "").strip().lower() != "analyzer":
                 continue
             raw = reference.get("Include") or ""

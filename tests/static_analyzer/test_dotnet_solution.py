@@ -114,3 +114,19 @@ def test_analyzer_project_references_survives_an_unparseable_project(tmp_path: P
     )
 
     assert analyzer_project_references([broken, app]) == [generator]
+
+
+def test_analyzer_project_references_reads_a_legacy_namespaced_project(tmp_path: Path) -> None:
+    """Legacy-format projects namespace every tag, so a tag-name match finds nothing."""
+    generator = _touch(tmp_path / "Gen" / "Gen.csproj")
+    app = tmp_path / "App" / "App.csproj"
+    app.parent.mkdir(parents=True, exist_ok=True)
+    app.write_text(
+        '<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">\n'
+        "  <ItemGroup>\n"
+        '    <ProjectReference Include="..\\Gen\\Gen.csproj" OutputItemType="Analyzer" />\n'
+        "  </ItemGroup>\n"
+        "</Project>\n"
+    )
+
+    assert analyzer_project_references([app]) == [generator]

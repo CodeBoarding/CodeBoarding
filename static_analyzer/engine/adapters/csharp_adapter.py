@@ -358,7 +358,8 @@ class CSharpAdapter(LanguageAdapter):
         env = os.environ.copy()
         env.update(self.get_lsp_env(project_root))
         if target.suffix not in (".sln", ".slnx"):
-            self._restore(resolution.dotnet_path, target, project_root, env)
+            if self._restore(resolution.dotnet_path, target, project_root, env):
+                self._build_analyzers(resolution.dotnet_path, [target], project_root, env)
             return
         if self._restore(resolution.dotnet_path, target, project_root, env):
             self._build_analyzers(resolution.dotnet_path, solution_projects(target), project_root, env)
