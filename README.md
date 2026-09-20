@@ -8,9 +8,11 @@ This repository contains the open-source analysis engine and CLI. Static analysi
 
 [Open the web platform](https://app.codeboarding.org) · [Explore a real map](https://app.codeboarding.org/CodeBoarding/CodeBoarding) · [Website](https://codeboarding.org) · [Getting started](https://codeboarding.org/getting-started) · [Discord](https://discord.gg/T5zHTJYFuy)
 
-[![CodeBoarding web platform reviewing public pull request #586: changed architecture components and dependencies beside the code diff.](docs/images/codeboarding-review.png)](https://app.codeboarding.org/CodeBoarding/CodeBoarding/pull/586)
+[![Website animation: a pull-request diff becomes a six-component system map, revealing a new dependency from Payments to Identity.](docs/images/codeboarding-story.gif)](https://codeboarding.org)
 
-*CodeBoarding reviewing its own [public pull request #586](https://app.codeboarding.org/CodeBoarding/CodeBoarding/pull/586). The map and code diff share the same review context.*
+*The website's illustrative animation (plays once, about 18 seconds). [View the static map](docs/images/codeboarding-story-static.png) or [replay the interactive story on the website](https://codeboarding.org).*
+
+The example starts with a large pull-request diff, then shows the six components it touches. Identity and Payments have changed: a new dependency means a Google sign-in outage can block card payments.
 
 ## Explore the system. Review the change
 
