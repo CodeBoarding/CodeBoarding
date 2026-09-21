@@ -203,3 +203,14 @@ def test_the_owner_travels_on_exceptions_too(client, monkeypatch):
 
     _, kwargs = client.exceptions[0]
     assert kwargs["properties"]["org"] == "acme"
+
+
+def test_the_suite_itself_reports_nothing():
+    """Why: a test that asserts a raise still ships a ``$exception``, because
+    ``track_analysis`` captures in a ``finally`` before the caller sees it. Left
+    reporting, the suite's deliberate failures outnumber the real ones — they
+    were three of the four most frequent exceptions on the project — and the
+    error dashboard stops describing users. ``tests/conftest.py`` sets
+    ``DO_NOT_TRACK`` before anything imports the singleton; this is what notices
+    if that line goes away."""
+    assert ProductTelemetry()._client is None
