@@ -116,6 +116,14 @@ class AnalysisMetadata(BaseModel):
         "replay it, so the partition cannot move underneath unchanged code. Empty on an analysis "
         "written before it existed.",
     )
+    incremental_unchanged: bool = Field(
+        default=False,
+        description="True when an incremental run found no cluster or membership deltas and rewrote the "
+        "baseline without re-detailing: the components and relations are the baseline's, decided "
+        "deterministically, and no model was consulted. A consumer can trust a zero-change verdict "
+        "on such an analysis; a zero reported by a run that did re-detail is the model's word. False "
+        "on every other run, and on analyses written before the field existed.",
+    )
 
 
 class ComponentFileMethodGroupJson(BaseModel):
@@ -459,6 +467,7 @@ def build_unified_analysis_json(
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
     tree_spec: dict | None = None,
+    incremental_unchanged: bool = False,
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -495,6 +504,7 @@ def build_unified_analysis_json(
             depth_cap=depth_cap,
             file_coverage_summary=summary,
             tree_spec=tree_spec or {},
+            incremental_unchanged=incremental_unchanged,
         ),
         description=analysis.description,
         files=_build_file_entry_json_from_files(files_index),
