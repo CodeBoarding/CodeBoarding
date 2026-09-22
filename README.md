@@ -1,14 +1,18 @@
 # CodeBoarding
 
-See what your AI is building before it breaks.
+**Review the change, not the diff.**
 
-CodeBoarding gives developers and coding agents a visual map of a codebase. It combines static analysis with LLM reasoning to generate architecture diagrams, component-level documentation, and navigable outputs you can use in your IDE, CI, and docs.
+See what a pull request does to your system before you merge it. CodeBoarding turns code into interactive architecture maps so you can explore components, follow their dependencies, and review analyzed pull requests alongside code diffs.
 
-[Website](https://codeboarding.org) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" /> · [Web platform](https://app.codeboarding.org) · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" /> · [Explore examples](https://codeboarding.org/diagrams) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> · [GitHub Action](https://github.com/marketplace/actions/codeboarding-action) · [Discord](https://discord.gg/T5zHTJYFuy)
+This repository contains the open-source analysis engine and CLI. Static analysis extracts code relationships; language models help name and describe the components. Use the resulting map in the web platform, your editor, CI, or generated documentation.
 
-[![CodeBoarding demo](https://gist.githubusercontent.com/ivanmilevtues/1c4f921066613516cfd7b938014a6877/raw/611aec7711556807860ff2e1679a5dc4c0c23fed/CodeBoarding_extension_demo.gif)](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" />
+[Discord](https://discord.gg/T5zHTJYFuy) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img alt="" referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img alt="" referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" /> · [Web platform](https://app.codeboarding.org) · [Website](https://codeboarding.org) <img alt="" referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" /> · [Getting started](https://codeboarding.org/getting-started)
 
-Install the extension from Open VSX.
+[![Website animation: a pull-request diff becomes a six-component system map, revealing a new dependency from Payments to Identity.](docs/images/codeboarding-story.gif)](https://codeboarding.org)
+
+*The website's illustrative animation (plays once, about 18 seconds). [View the static map](docs/images/codeboarding-story-static.png) or [replay the interactive story on the website](https://codeboarding.org).*
+
+The example starts with a large pull-request diff, then shows the six components it touches. Identity and Payments have changed: a new dependency means a Google sign-in outage can block card payments.
 
 [![JavaScript](https://img.shields.io/badge/JavaScript-222222?style=flat-square&logo=javascript&logoColor=F7DF1E)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -19,54 +23,84 @@ Install the extension from Open VSX.
 [![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![C#](https://custom-icon-badges.demolab.com/badge/C%23-512BD4.svg?style=flat-square&logo=cshrp&logoColor=white)](https://learn.microsoft.com/en-us/dotnet/csharp/)
 
-## Few use cases:
+## Explore the system. Review the change
 
-- Keep architecture visible while agents code.
-- Review AI-generated changes with system context before they turn into hidden debt.
-- Understand large repositories faster with layered diagrams and component breakdowns.
-- Share the same visual model across local workflows, IDEs, pull requests, and docs.
+- **Explore:** start with the architecture map, expand components, and navigate to the source behind them. Open prepared public repositories without signing in.
+- **Review:** see changed components and dependencies, read changes grouped by component, and inspect code diffs. PR review requires an available analysis from the GitHub Action; architecture comparisons also need a baseline.
+- **Bring your own analysis:** open an `analysis.json` or compare two local analysis files. Files are parsed and compared in your browser.
+- **Share context:** use component descriptions and diagrams in documentation, reviews, and your coding agent's next prompt.
 
 ## What CodeBoarding generates
 
-- High-level system architecture diagrams.
-- Deeper component diagrams for important subsystems.
-- Markdown documentation in `.codeboarding/`.
-- Mermaid output that is easy to embed in docs and PRs.
-- Incremental updates when only part of the codebase changes.
+- An `analysis.json` containing the architecture, component descriptions, relationships, and source references.
+- Nested component diagrams for exploring subsystems.
+- Markdown with Mermaid diagrams, HTML, MDX, or reStructuredText documentation when you request rendering.
+- Incremental updates against a previous analysis, or updates to a selected component.
 
 ## How it works
 
+1. **Analyze the code.** The engine scans the repository and extracts symbols and relationships with static analysis.
+2. **Build the map.** It groups code into components and uses your configured model provider to describe their responsibilities. Analysis can send code excerpts to that provider.
+3. **Explore or review.** Load the analysis in the web platform or editor, render it as documentation, or use the GitHub Action to publish architecture changes on pull requests.
+
+The engine's top-level architecture, generated from the [committed analysis](https://github.com/CodeBoarding/CodeBoarding/blob/58291a48b2a609f68e0d19dccd0f3a605907ed28/.codeboarding/analysis.json) dated September 21, 2026:
+
 ```mermaid
 graph LR
-    Application_Orchestrator_Repository_Manager["Application Orchestrator & Repository Manager"]
-    LLM_Agent_Core["LLM Agent Core"]
-    Static_Code_Analyzer["Static Code Analyzer"]
-    Agent_Tooling_Interface["Agent Tooling Interface"]
-    Incremental_Analysis_Engine["Incremental Analysis Engine"]
-    Documentation_Diagram_Generator["Documentation & Diagram Generator"]
-    Application_Orchestrator_Repository_Manager -- "Orchestrator initiates analysis workflow, leveraging incremental updates based on detected code changes." --> Incremental_Analysis_Engine
-    Application_Orchestrator_Repository_Manager -- "Orchestrator passes project context and triggers the main analysis workflow for the LLM Agent." --> LLM_Agent_Core
-    Incremental_Analysis_Engine -- "Incremental engine requests static analysis for specific code segments (new or changed)." --> Static_Code_Analyzer
-    Static_Code_Analyzer -- "Static analyzer provides analysis results to the incremental engine for caching." --> Incremental_Analysis_Engine
-    LLM_Agent_Core -- "LLM Agent invokes specialized tools to interact with the codebase and analysis data." --> Agent_Tooling_Interface
-    Agent_Tooling_Interface -- "Agent tools query the static analysis engine for detailed code insights." --> Static_Code_Analyzer
-    Static_Code_Analyzer -- "Static analysis engine provides requested data to the agent tools." --> Agent_Tooling_Interface
-    LLM_Agent_Core -- "LLM Agent delivers structured analysis insights for documentation and diagram generation." --> Documentation_Diagram_Generator
-    click Application_Orchestrator_Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Application_Orchestrator_Repository_Manager.md" "Details"
-    click LLM_Agent_Core href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Agent_Core.md" "Details"
-    click Static_Code_Analyzer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Code_Analyzer.md" "Details"
-    click Agent_Tooling_Interface href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Agent_Tooling_Interface.md" "Details"
-    click Incremental_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Incremental_Analysis_Engine.md" "Details"
-    click Documentation_Diagram_Generator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Documentation_Diagram_Generator.md" "Details"
+    Static_Analysis_Engine["Static Analysis Engine"]
+    Diagram_Generation_and_Health_Orchestration["Diagram Generation and Health Orchestration"]
+    LLM_Planning_and_Analysis_Agents["LLM Planning and Analysis Agents"]
+    CLI_Workflows_and_Output_Generators["CLI, Workflows, and Output Generators"]
+    Repository_and_File_Utilities["Repository and File Utilities"]
+    Application_Entry_Points_and_Runtime_Configuration["Application Entry Points and Runtime Configuration"]
+    Execution_Monitoring_and_Metrics["Execution Monitoring and Metrics"]
+    Tool_Registry_and_Environment_Installer["Tool Registry and Environment Installer"]
+    Static_Analysis_Engine -- "tracks telemetry events" --> Diagram_Generation_and_Health_Orchestration
+    Static_Analysis_Engine -- "checks repository ignores and git changes" --> Repository_and_File_Utilities
+    Static_Analysis_Engine -- "locates tool binaries and runtime directories" --> Tool_Registry_and_Environment_Installer
+    Static_Analysis_Engine -- "builds agent insight models" --> LLM_Planning_and_Analysis_Agents
+    Static_Analysis_Engine -- "formats cluster identifiers" --> Application_Entry_Points_and_Runtime_Configuration
+    Diagram_Generation_and_Health_Orchestration -- "queries static analysis graphs and specs" --> Static_Analysis_Engine
+    Diagram_Generation_and_Health_Orchestration -- "configures LLMs and models file index entries" --> LLM_Planning_and_Analysis_Agents
+    Diagram_Generation_and_Health_Orchestration -- "normalizes paths and checks git changes" --> Repository_and_File_Utilities
+    Diagram_Generation_and_Health_Orchestration -- "resolves cluster hierarchy and ordering" --> Application_Entry_Points_and_Runtime_Configuration
+    Diagram_Generation_and_Health_Orchestration -- "initializes stats writers and logs runs" --> Execution_Monitoring_and_Metrics
+    Diagram_Generation_and_Health_Orchestration -- "executes plugin health checks" --> CLI_Workflows_and_Output_Generators
+    LLM_Planning_and_Analysis_Agents -- "reads call graph edges and nodes" --> Static_Analysis_Engine
+    LLM_Planning_and_Analysis_Agents -- "filters repository files and normalizes paths" --> Repository_and_File_Utilities
+    LLM_Planning_and_Analysis_Agents -- "checks cluster hierarchy and loads user configuration" --> Application_Entry_Points_and_Runtime_Configuration
+    LLM_Planning_and_Analysis_Agents -- "attaches monitoring callbacks and mixins" --> Execution_Monitoring_and_Metrics
+    CLI_Workflows_and_Output_Generators -- "resolves execution context and loads analysis metadata" --> Diagram_Generation_and_Health_Orchestration
+    CLI_Workflows_and_Output_Generators -- "initializes LLM credentials and computes source hashes" --> LLM_Planning_and_Analysis_Agents
+    CLI_Workflows_and_Output_Generators -- "manages ignore files and repository git operations" --> Repository_and_File_Utilities
+    CLI_Workflows_and_Output_Generators -- "loads user configuration and sets up logging" --> Application_Entry_Points_and_Runtime_Configuration
+    CLI_Workflows_and_Output_Generators -- "wraps workflow execution in monitoring context" --> Execution_Monitoring_and_Metrics
+    CLI_Workflows_and_Output_Generators -- "ensures required tool binaries are installed" --> Tool_Registry_and_Environment_Installer
+    CLI_Workflows_and_Output_Generators -- "retrieves node type definitions for output rendering" --> Static_Analysis_Engine
+    Repository_and_File_Utilities -- "builds tool configurations from manifest" --> Tool_Registry_and_Environment_Installer
+    Repository_and_File_Utilities -- "reads fingerprint data for change detection" --> Diagram_Generation_and_Health_Orchestration
+    Repository_and_File_Utilities -- "hashes repository source files for fingerprint comparison" --> LLM_Planning_and_Analysis_Agents
+    Application_Entry_Points_and_Runtime_Configuration -- "loads analysis metadata and resolves run context" --> Diagram_Generation_and_Health_Orchestration
+    Application_Entry_Points_and_Runtime_Configuration -- "triggers incremental analysis and renders documentation formats" --> CLI_Workflows_and_Output_Generators
+    Application_Entry_Points_and_Runtime_Configuration -- "clones and checks out repositories in temporary folders" --> Repository_and_File_Utilities
+    Execution_Monitoring_and_Metrics -- "resolves project root directory for monitoring storage" --> Repository_and_File_Utilities
+    Tool_Registry_and_Environment_Installer -- "inspects language definitions and runtime environments" --> Static_Analysis_Engine
+    Tool_Registry_and_Environment_Installer -- "locates executable runnables and initializes configuration templates" --> Application_Entry_Points_and_Runtime_Configuration
 ```
 
-For a deeper architecture walkthrough, see [`.codeboarding/overview.md`](.codeboarding/overview.md).
+For the engine's own architecture, [open its interactive map](https://app.codeboarding.org/CodeBoarding/CodeBoarding).
 
 ## Quick start
+
+To try the product without installing anything, [open a public map](https://app.codeboarding.org/CodeBoarding/CodeBoarding). To connect your own repositories, [sign in to the web platform](https://app.codeboarding.org) and choose which repositories CodeBoarding can access. See the [getting-started guide](https://codeboarding.org/getting-started) for the GitHub and editor workflows.
+
+To run the analysis engine yourself, use either option below. Both require **Python 3.12** and a [configured model provider](#configuration).
 
 ### Run from source
 
 ```bash
+git clone https://github.com/CodeBoarding/CodeBoarding.git
+cd CodeBoarding
 uv sync --frozen
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 python install.py
@@ -75,7 +109,7 @@ python main.py full --local /path/to/repo
 
 ### Use the packaged CLI
 
-Requires **Python 3.12 or 3.13**. The recommended install method is [pipx](https://pipx.pypa.io), which keeps the CLI in its own isolated environment:
+The recommended install method is [pipx](https://pipx.pypa.io), which keeps the CLI in its own isolated environment:
 
 ```bash
 pipx install codeboarding --python python3.12
@@ -92,8 +126,10 @@ codeboarding full --local /path/to/repo
 ```
 
 Output is written to `/path/to/repo/.codeboarding/`. To explore it interactively, open the
-[web platform](https://app.codeboarding.org) and drop in the generated `analysis.json` — it stays
-in your browser, nothing is uploaded. (The CLI prints this reminder after every successful run.)
+[web platform](https://app.codeboarding.org) and load the generated `analysis.json` through
+the viewer's **Switch source** → **File** picker.
+Local analysis files are parsed and compared in your browser; this is separate from generating
+the analysis with your configured model provider.
 
 To also generate `overview` and one file per expanded component, pass `--render` with one of
 `md`, `html`, `mdx`, or `rst`. Rendering is available after full, incremental, and partial local analyses;
@@ -150,7 +186,7 @@ Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOG
 Two environment variables tune the static analysis itself:
 
 | Variable | Effect |
-|---|---|
+| --- | --- |
 | `CODEBOARDING_LSP_REQUEST_TIMEOUT` | Seconds a language-server request may block *when it uses the per-language default* (120s for C#, 60s elsewhere). Not a hard cap on every request: the indexing and didOpen-drain probes pass their own scaled budget (60s plus 2s per file, capped at 1800s) and are unaffected. Applies to every language in the run. Unset or empty leaves the defaults alone; any other unusable value fails the run rather than falling back. |
 | `CODEBOARDING_MAX_CONCURRENT_ENGINES` | How many language servers may be resident at once. `0` (the default) leaves the bound off. |
 
@@ -200,10 +236,10 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 ## Where to use it
 
-- [CLI](https://github.com/CodeBoarding/CodeBoarding) for local analysis, automation, and CI workflows.
-- [Web platform](https://app.codeboarding.org) to explore any analysis in the browser — open a public repo, load an `analysis.json`, or review an architecture diff on a pull request.
-- [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> for in-editor visual architecture.
-- [GitHub Action](https://github.com/marketplace/actions/codeboarding-action) to keep diagrams updated in CI.
+- **CLI:** [CodeBoarding CLI](#quick-start) — this repository — for local analysis, automation, and documentation generation.
+- **Browser:** [web platform](https://app.codeboarding.org) for Explore and Review, public maps, and local analysis files.
+- **Editor:** [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) or [Open VSX](https://open-vsx.org/extension/CodeBoarding/codeboarding) for in-editor architecture exploration.
+- **CI:** [GitHub Action](https://github.com/marketplace/actions/codeboarding-action) to keep analysis updated and post architecture change maps on pull requests.
 
 ## Supported stack
 
@@ -212,10 +248,13 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 ## Examples
 
-- Visualized 800+ open-source repositories.
-- Browse generated examples in [GeneratedOnBoardings](https://github.com/CodeBoarding/GeneratedOnBoardings).
-- Try the hosted explorer at [codeboarding.org/diagrams](https://codeboarding.org/diagrams) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" />.
-- Open any public repo that has a committed `.codeboarding/analysis.json` at [app.codeboarding.org](https://app.codeboarding.org) — no install, no login. This repo included: [app.codeboarding.org/CodeBoarding/CodeBoarding](https://app.codeboarding.org/CodeBoarding/CodeBoarding).
+- [Explore CodeBoarding's architecture](https://app.codeboarding.org/CodeBoarding/CodeBoarding) — the engine, drawn from its own code.
+- [Review CodeBoarding pull request #586](https://app.codeboarding.org/CodeBoarding/CodeBoarding/pull/586) — component changes and code diffs together.
+- [Browse example diagrams](https://codeboarding.org/diagrams).
+- [Awesome Architecture MDs](https://github.com/CodeBoarding/awesome-architecture-mds) — generated architecture documentation for open-source repositories (formerly GeneratedOnBoardings).
+
+Public maps need a committed `.codeboarding/analysis.json` at the selected branch or commit.
+Open one at `https://app.codeboarding.org/<owner>/<repo>` without signing in; opening a URL does not generate a new analysis.
 
 ## Telemetry
 
@@ -235,8 +274,8 @@ See [TELEMETRY.md](TELEMETRY.md) for the full list of events and properties.
 
 If you want to improve CodeBoarding, open an [issue](https://github.com/CodeBoarding/CodeBoarding/issues) or send a pull request. We welcome improvements to analysis quality, output generators, integrations, and developer experience.
 
-## Vision
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and testing guidance.
 
-CodeBoarding is building an open standard for code understanding: a visual, accurate, high-level representation of a codebase that both humans and agents can use.
+## License
 
-<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=1942e7e7-0762-4cdd-9f08-024acc098071" />
+The analysis engine and CLI in this repository are released under the [MIT License](LICENSE).
