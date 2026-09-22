@@ -6,13 +6,22 @@ See what a pull request does to your system before you merge it. CodeBoarding tu
 
 This repository contains the open-source analysis engine and CLI. Static analysis extracts code relationships; language models help name and describe the components. Use the resulting map in the web platform, your editor, CI, or generated documentation.
 
-[Open the web platform](https://app.codeboarding.org) · [Explore a real map](https://app.codeboarding.org/CodeBoarding/CodeBoarding) · [Website](https://codeboarding.org) · [Getting started](https://codeboarding.org/getting-started) · [Discord](https://discord.gg/T5zHTJYFuy)
+[Discord](https://discord.gg/T5zHTJYFuy) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img alt="" referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img alt="" referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" /> · [Web platform](https://app.codeboarding.org) · [Website](https://codeboarding.org) <img alt="" referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" /> · [Getting started](https://codeboarding.org/getting-started)
 
 [![Website animation: a pull-request diff becomes a six-component system map, revealing a new dependency from Payments to Identity.](docs/images/codeboarding-story.gif)](https://codeboarding.org)
 
 *The website's illustrative animation (plays once, about 18 seconds). [View the static map](docs/images/codeboarding-story-static.png) or [replay the interactive story on the website](https://codeboarding.org).*
 
 The example starts with a large pull-request diff, then shows the six components it touches. Identity and Payments have changed: a new dependency means a Google sign-in outage can block card payments.
+
+[![JavaScript](https://img.shields.io/badge/JavaScript-222222?style=flat-square&logo=javascript&logoColor=F7DF1E)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Java](https://img.shields.io/badge/Java-E76F00?style=flat-square&logo=openjdk&logoColor=white)](https://www.java.com/)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
+[![PHP](https://img.shields.io/badge/PHP-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
+[![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![C#](https://custom-icon-badges.demolab.com/badge/C%23-512BD4.svg?style=flat-square&logo=cshrp&logoColor=white)](https://learn.microsoft.com/en-us/dotnet/csharp/)
 
 ## Explore the system. Review the change
 
@@ -33,6 +42,51 @@ The example starts with a large pull-request diff, then shows the six components
 1. **Analyze the code.** The engine scans the repository and extracts symbols and relationships with static analysis.
 2. **Build the map.** It groups code into components and uses your configured model provider to describe their responsibilities. Analysis can send code excerpts to that provider.
 3. **Explore or review.** Load the analysis in the web platform or editor, render it as documentation, or use the GitHub Action to publish architecture changes on pull requests.
+
+The engine's top-level architecture, generated from the [committed analysis](https://github.com/CodeBoarding/CodeBoarding/blob/58291a48b2a609f68e0d19dccd0f3a605907ed28/.codeboarding/analysis.json) dated September 21, 2026:
+
+```mermaid
+graph LR
+    Static_Analysis_Engine["Static Analysis Engine"]
+    Diagram_Generation_and_Health_Orchestration["Diagram Generation and Health Orchestration"]
+    LLM_Planning_and_Analysis_Agents["LLM Planning and Analysis Agents"]
+    CLI_Workflows_and_Output_Generators["CLI, Workflows, and Output Generators"]
+    Repository_and_File_Utilities["Repository and File Utilities"]
+    Application_Entry_Points_and_Runtime_Configuration["Application Entry Points and Runtime Configuration"]
+    Execution_Monitoring_and_Metrics["Execution Monitoring and Metrics"]
+    Tool_Registry_and_Environment_Installer["Tool Registry and Environment Installer"]
+    Static_Analysis_Engine -- "tracks telemetry events" --> Diagram_Generation_and_Health_Orchestration
+    Static_Analysis_Engine -- "checks repository ignores and git changes" --> Repository_and_File_Utilities
+    Static_Analysis_Engine -- "locates tool binaries and runtime directories" --> Tool_Registry_and_Environment_Installer
+    Static_Analysis_Engine -- "builds agent insight models" --> LLM_Planning_and_Analysis_Agents
+    Static_Analysis_Engine -- "formats cluster identifiers" --> Application_Entry_Points_and_Runtime_Configuration
+    Diagram_Generation_and_Health_Orchestration -- "queries static analysis graphs and specs" --> Static_Analysis_Engine
+    Diagram_Generation_and_Health_Orchestration -- "configures LLMs and models file index entries" --> LLM_Planning_and_Analysis_Agents
+    Diagram_Generation_and_Health_Orchestration -- "normalizes paths and checks git changes" --> Repository_and_File_Utilities
+    Diagram_Generation_and_Health_Orchestration -- "resolves cluster hierarchy and ordering" --> Application_Entry_Points_and_Runtime_Configuration
+    Diagram_Generation_and_Health_Orchestration -- "initializes stats writers and logs runs" --> Execution_Monitoring_and_Metrics
+    Diagram_Generation_and_Health_Orchestration -- "executes plugin health checks" --> CLI_Workflows_and_Output_Generators
+    LLM_Planning_and_Analysis_Agents -- "reads call graph edges and nodes" --> Static_Analysis_Engine
+    LLM_Planning_and_Analysis_Agents -- "filters repository files and normalizes paths" --> Repository_and_File_Utilities
+    LLM_Planning_and_Analysis_Agents -- "checks cluster hierarchy and loads user configuration" --> Application_Entry_Points_and_Runtime_Configuration
+    LLM_Planning_and_Analysis_Agents -- "attaches monitoring callbacks and mixins" --> Execution_Monitoring_and_Metrics
+    CLI_Workflows_and_Output_Generators -- "resolves execution context and loads analysis metadata" --> Diagram_Generation_and_Health_Orchestration
+    CLI_Workflows_and_Output_Generators -- "initializes LLM credentials and computes source hashes" --> LLM_Planning_and_Analysis_Agents
+    CLI_Workflows_and_Output_Generators -- "manages ignore files and repository git operations" --> Repository_and_File_Utilities
+    CLI_Workflows_and_Output_Generators -- "loads user configuration and sets up logging" --> Application_Entry_Points_and_Runtime_Configuration
+    CLI_Workflows_and_Output_Generators -- "wraps workflow execution in monitoring context" --> Execution_Monitoring_and_Metrics
+    CLI_Workflows_and_Output_Generators -- "ensures required tool binaries are installed" --> Tool_Registry_and_Environment_Installer
+    CLI_Workflows_and_Output_Generators -- "retrieves node type definitions for output rendering" --> Static_Analysis_Engine
+    Repository_and_File_Utilities -- "builds tool configurations from manifest" --> Tool_Registry_and_Environment_Installer
+    Repository_and_File_Utilities -- "reads fingerprint data for change detection" --> Diagram_Generation_and_Health_Orchestration
+    Repository_and_File_Utilities -- "hashes repository source files for fingerprint comparison" --> LLM_Planning_and_Analysis_Agents
+    Application_Entry_Points_and_Runtime_Configuration -- "loads analysis metadata and resolves run context" --> Diagram_Generation_and_Health_Orchestration
+    Application_Entry_Points_and_Runtime_Configuration -- "triggers incremental analysis and renders documentation formats" --> CLI_Workflows_and_Output_Generators
+    Application_Entry_Points_and_Runtime_Configuration -- "clones and checks out repositories in temporary folders" --> Repository_and_File_Utilities
+    Execution_Monitoring_and_Metrics -- "resolves project root directory for monitoring storage" --> Repository_and_File_Utilities
+    Tool_Registry_and_Environment_Installer -- "inspects language definitions and runtime environments" --> Static_Analysis_Engine
+    Tool_Registry_and_Environment_Installer -- "locates executable runnables and initializes configuration templates" --> Application_Entry_Points_and_Runtime_Configuration
+```
 
 For the engine's own architecture, [open its interactive map](https://app.codeboarding.org/CodeBoarding/CodeBoarding).
 
@@ -72,8 +126,8 @@ codeboarding full --local /path/to/repo
 ```
 
 Output is written to `/path/to/repo/.codeboarding/`. To explore it interactively, open the
-[web platform's public example](https://app.codeboarding.org/CodeBoarding/CodeBoarding),
-use the repository selector (**Switch source**) → **File**, and choose the generated `analysis.json`.
+[web platform](https://app.codeboarding.org) and load the generated `analysis.json` through
+the viewer's **Switch source** → **File** picker.
 Local analysis files are parsed and compared in your browser; this is separate from generating
 the analysis with your configured model provider.
 
@@ -182,10 +236,10 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 ## Where to use it
 
+- **CLI:** [CodeBoarding CLI](#quick-start) — this repository — for local analysis, automation, and documentation generation.
 - **Browser:** [web platform](https://app.codeboarding.org) for Explore and Review, public maps, and local analysis files.
 - **Editor:** [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) or [Open VSX](https://open-vsx.org/extension/CodeBoarding/codeboarding) for in-editor architecture exploration.
 - **CI:** [GitHub Action](https://github.com/marketplace/actions/codeboarding-action) to keep analysis updated and post architecture change maps on pull requests.
-- **Terminal and docs:** the CLI in this repository for local analysis, automation, and documentation generation.
 
 ## Supported stack
 
