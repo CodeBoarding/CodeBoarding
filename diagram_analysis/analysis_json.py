@@ -120,9 +120,11 @@ class AnalysisMetadata(BaseModel):
         default=False,
         description="True when an incremental run found no cluster or membership deltas and rewrote the "
         "baseline without re-detailing: the components and relations are the baseline's, decided "
-        "deterministically, and no model was consulted. A consumer can trust a zero-change verdict "
-        "on such an analysis; a zero reported by a run that did re-detail is the model's word. False "
-        "on every other run, and on analyses written before the field existed.",
+        "deterministically, and no model was consulted. It says nothing about method bodies, which "
+        "may still have changed (the files index is refreshed from live source, so their content "
+        "hashes move); a consumer pairs it with its own diff's zero before calling the change "
+        "'nothing'. A zero reported by a run that did re-detail is the model's word. False on every "
+        "other run, and on analyses written before the field existed.",
     )
 
 

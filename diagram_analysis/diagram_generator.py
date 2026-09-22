@@ -1496,9 +1496,10 @@ class DiagramGenerator:
         writes ``file_coverage.json``, the static-analysis cache, and
         ``fingerprint.json``. The partial flow leaves source-state sidecars
         unchanged and persists its updated lineage after this save.
-        ``incremental_unchanged`` is the early exit's word that nothing was
-        re-detailed, stamped into the metadata so a consumer can tell that zero
-        from one a model reported.
+        ``incremental_unchanged`` is the early exit's word that the clusters
+        and their membership held and nothing was re-detailed, stamped into the
+        metadata so a consumer can tell that zero from one a model reported. It
+        does not claim the method bodies held; the consumer's diff says that.
         """
         self.finalize_for_save(root_analysis, sub_analyses)
         if self._scopes_unnamed:
@@ -1656,7 +1657,9 @@ class DiagramGenerator:
                 # confined to their parent stays drifted until something repairs it.
                 self._rescope_child_analyses(root_analysis, sub_analyses, set())
                 self._refresh_files_index(root_analysis, sub_analyses)
-                # Said in the metadata: this zero was decided here, not reported by a model.
+                # Said in the metadata: the clusters held and nothing was re-detailed, decided
+                # here rather than reported by a model. Not "nothing changed": the hashes just
+                # refreshed above may differ, and a consumer's diff is what counts those.
                 return self.finalize_and_save(root_analysis, sub_analyses, incremental_unchanged=True)
 
             assert self.incremental_updater is not None
