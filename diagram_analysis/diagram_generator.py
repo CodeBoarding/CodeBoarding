@@ -122,6 +122,23 @@ def _owned_method_keys(components: Iterable[Component]) -> set[tuple[str, str]]:
     return {key for component in components for key in _member_keys(component)}
 
 
+StructureSignature = frozenset[tuple[str, str, str, str, frozenset[tuple[str, str]]]]
+
+
+def _structure_signature(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> StructureSignature:
+    """Every scope's components (id, name, members) and relations (src, dst) as one comparable set."""
+    entries: set[tuple[str, str, str, str, frozenset[tuple[str, str]]]] = set()
+    for scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        for component in analysis.components:
+            entries.add(("component", scope_id, component.component_id, component.name, _member_keys(component)))
+        for relation in analysis.components_relations:
+            entries.add(("relation", scope_id, str(relation.src_id), str(relation.dst_id), frozenset()))
+    return frozenset(entries)
+
+
 def _key_entity_is_owned(
     entity: SourceCodeReference,
     member_keys: set[tuple[str, str]],
@@ -256,6 +273,8 @@ class _IncrementalPreparation:
     baseline_membership: _MembershipBaseline
     has_membership_changes: bool = False
     has_source_changes: bool = False
+    # The tree as loaded, before any scrub or repair, for the early exit's unchanged verdict.
+    baseline_structure: StructureSignature = frozenset()
 
     @property
     def has_changes(self) -> bool:
@@ -1005,6 +1024,7 @@ class DiagramGenerator:
             if relation.src_id and relation.dst_id
         }
         self._baseline_member_keys = _capture_baseline_member_keys(root_analysis, sub_analyses)
+        baseline_structure = _structure_signature(root_analysis, sub_analyses)
 
         live_files = {
             normalize_repo_path(node.file_path, self.repo_location)
@@ -1046,6 +1066,7 @@ class DiagramGenerator:
             baseline_membership=baseline_membership,
             has_membership_changes=changed_members.has_membership_changes if changed_members is not None else False,
             has_source_changes=bool(self._changed_members or self._changed_unattributed_files),
+            baseline_structure=baseline_structure,
         )
 
     def _expandable_ids_for_tree(
@@ -1487,7 +1508,7 @@ class DiagramGenerator:
         *,
         persist_side_artifacts: bool = True,
         preserved_expandable_ids: Collection[str] = (),
-        incremental_unchanged: bool = False,
+        baseline_structure: StructureSignature = frozenset(),
     ) -> Path:
         """Shared post-analysis tail for every flow: finalize, persist, return the path.
 
@@ -1496,10 +1517,8 @@ class DiagramGenerator:
         writes ``file_coverage.json``, the static-analysis cache, and
         ``fingerprint.json``. The partial flow leaves source-state sidecars
         unchanged and persists its updated lineage after this save.
-        ``incremental_unchanged`` is the early exit's word that the clusters
-        and their membership held and nothing was re-detailed, stamped into the
-        metadata so a consumer can tell that zero from one a model reported. It
-        does not claim the method bodies held; the consumer's diff says that.
+        ``baseline_structure`` is the tree as loaded; the save is stamped
+        ``structure_unchanged`` only if the finalized tree still equals it.
         """
         self.finalize_for_save(root_analysis, sub_analyses)
         if self._scopes_unnamed:
@@ -1508,6 +1527,13 @@ class DiagramGenerator:
                 self._scopes_unnamed,
                 self._scopes_enriched,
             )
+        # Compared after finalization, so a scrub, a child-scope repair or a legacy-tree
+        # normalization on the way to disk can never be reported as "unchanged".
+        saved_structure = _structure_signature(root_analysis, sub_analyses)
+        structure_unchanged = bool(baseline_structure) and saved_structure == baseline_structure
+        if baseline_structure and not structure_unchanged:
+            drifted = sorted({entry[0] for entry in saved_structure ^ baseline_structure})
+            logger.info("Early exit saved a tree whose %s differ from the loaded baseline.", " and ".join(drifted))
         if persist_side_artifacts:
             source_tree_hash = self._source_tree_hash()
         else:
@@ -1531,7 +1557,7 @@ class DiagramGenerator:
             sub_expandable_ids=sub_expandable_ids,
             depth_cap=self.depth_cap,
             tree_spec=self._tree_spec_dict(),
-            incremental_unchanged=incremental_unchanged,
+            structure_unchanged=structure_unchanged,
         ).resolve()
         if persist_side_artifacts:
             self._write_file_coverage()
@@ -1657,10 +1683,9 @@ class DiagramGenerator:
                 # confined to their parent stays drifted until something repairs it.
                 self._rescope_child_analyses(root_analysis, sub_analyses, set())
                 self._refresh_files_index(root_analysis, sub_analyses)
-                # Said in the metadata: the clusters held and nothing was re-detailed, decided
-                # here rather than reported by a model. Not "nothing changed": the hashes just
-                # refreshed above may differ, and a consumer's diff is what counts those.
-                return self.finalize_and_save(root_analysis, sub_analyses, incremental_unchanged=True)
+                return self.finalize_and_save(
+                    root_analysis, sub_analyses, baseline_structure=preparation.baseline_structure
+                )
 
             assert self.incremental_updater is not None
             assert self.clustering_hierarchy is not None

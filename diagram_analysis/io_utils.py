@@ -102,16 +102,15 @@ class _AnalysisFileStore:
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
         tree_spec: dict | None = None,
-        incremental_unchanged: bool = False,
+        structure_unchanged: bool = False,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
         If *sub_analyses* is not provided, existing sub-analyses on disk are
         preserved. ``depth_cap`` is the run's configured depth ceiling; when
         omitted, the existing on-disk value is preserved (see
-        ``_write_with_lock_held``). ``incremental_unchanged`` is never preserved
-        from disk: it describes this write's run, so it is false unless this
-        write says otherwise.
+        ``_write_with_lock_held``). ``structure_unchanged`` describes this
+        write only and is never preserved from disk.
         """
         with self._lock:
             return self._write_with_lock_held(
@@ -125,7 +124,7 @@ class _AnalysisFileStore:
                 sub_expandable_ids,
                 depth_cap,
                 tree_spec,
-                incremental_unchanged,
+                structure_unchanged,
             )
 
     def _write_with_lock_held(
@@ -140,7 +139,7 @@ class _AnalysisFileStore:
         sub_expandable_ids: dict[str, list[str]] | None = None,
         depth_cap: int | None = None,
         tree_spec: dict | None = None,
-        incremental_unchanged: bool = False,
+        structure_unchanged: bool = False,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # A caller-provided set is authoritative: it already reflects the run's expansion
@@ -234,7 +233,7 @@ class _AnalysisFileStore:
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
             tree_spec=tree_spec or {},
-            incremental_unchanged=incremental_unchanged,
+            structure_unchanged=structure_unchanged,
         )
         write_text_atomic(self._analysis_path, payload)
         return self._analysis_path
@@ -358,7 +357,7 @@ def save_analysis(
     sub_expandable_ids: dict[str, list[str]] | None = None,
     depth_cap: int | None = None,
     tree_spec: dict | None = None,
-    incremental_unchanged: bool = False,
+    structure_unchanged: bool = False,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 
@@ -366,8 +365,7 @@ def save_analysis(
     whole-tree version key (reproducible by consumers that fingerprint the tree).
     ``depth_cap`` is the run's configured depth ceiling; omit to preserve the
     existing on-disk value (e.g. for an intermediate save mid-run).
-    ``incremental_unchanged`` marks a write by an incremental run that found
-    nothing to re-detail; see ``AnalysisMetadata``.
+    ``structure_unchanged``: see ``AnalysisMetadata``.
     """
     return _get_store(output_dir).write(
         analysis,
@@ -380,5 +378,5 @@ def save_analysis(
         sub_expandable_ids,
         depth_cap,
         tree_spec,
-        incremental_unchanged,
+        structure_unchanged,
     )

@@ -1684,7 +1684,7 @@ class TestDiagramGenerator(unittest.TestCase):
             sub_analyses,
             file_coverage_summary,
             tree_spec,
-            incremental_unchanged: bool = False,
+            structure_unchanged: bool = False,
         ):
             captured["expandable_components"] = expandable_components
             return "{}"
