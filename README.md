@@ -170,6 +170,7 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 # ollama_base_url           = "http://localhost:11434"
 # openrouter_api_key        = "sk-..."
 # orcarouter_api_key        = "sk-orca-..."   # model routing gateway (https://www.orcarouter.ai)
+# requesty_api_key          = "rqsty-..."     # LLM gateway (https://www.requesty.ai)
 # litellm_base_url          = "http://localhost:4000"  # LiteLLM proxy server URL (required)
 # litellm_api_key           = "sk-..."           # LiteLLM proxy server key (optional)
 
@@ -244,7 +245,7 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 ## Supported stack
 
 - Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#.
-- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, LiteLLM proxy, and more.
+- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, LiteLLM proxy, and more.
 
 ## Examples
 
