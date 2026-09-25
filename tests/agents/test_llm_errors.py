@@ -199,6 +199,41 @@ class TestDetectQuotaError:
         )
         assert detect_quota_error(exc, provider="openai") is None
 
+    def test_gemini_per_minute_limit_is_not_quota(self):
+        # Mentions "quota" but clears within a minute; stopping the run on it would be a regression.
+        exc = _openai_status_error(
+            429,
+            {
+                "error": {
+                    "code": 429,
+                    "message": "Resource has been exhausted (e.g. check quota).",
+                    "status": "RESOURCE_EXHAUSTED",
+                }
+            },
+        )
+        assert detect_quota_error(exc, provider="google") is None
+
+    def test_anthropic_empty_credit_balance_400_is_quota(self):
+        exc = _openai_status_error(
+            400,
+            {
+                "type": "error",
+                "error": {
+                    "type": "invalid_request_error",
+                    "message": "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.",
+                },
+            },
+        )
+        result = detect_quota_error(exc, provider="anthropic")
+        assert result is not None
+        assert result.status_code == 400
+
+    def test_other_400_is_not_quota(self):
+        exc = _openai_status_error(
+            400, {"error": {"message": "max_tokens: must be at most 8192", "type": "invalid_request_error"}}
+        )
+        assert detect_quota_error(exc, provider="anthropic") is None
+
     def test_wrapped_error_keeps_the_status_of_its_cause(self):
         original = _FakeStatusError("payment required", status_code=402)
         try:

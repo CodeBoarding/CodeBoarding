@@ -272,8 +272,8 @@ the GitHub Action annotates its run and its review comment, and the webview bann
 diagram. Wording lives in `run_diagnostics/catalog.py`, one builder per code.
 
 Two LLM failures are not survivable and stop the run instead: a rejected API key (exit code
-2) and an exhausted token or credit quota (HTTP 402, or a 429 that says the quota is gone;
-exit code 3). Naming every component after its folder is not a result worth writing, so no
+2) and an exhausted token or credit quota (HTTP 402, a 429 whose body says the billing quota
+ran out, or Anthropic's empty-balance 400; exit code 3). A plain rate limit still falls back. Naming every component after its folder is not a result worth writing, so no
 `analysis.json` is left behind (a previous one is restored). `full`, `incremental` and
 `partial` all print one JSON object on stdout for callers to branch on:
 

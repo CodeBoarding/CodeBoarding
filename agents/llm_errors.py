@@ -67,12 +67,17 @@ _AUTH_MESSAGE_PATTERNS = (
 _QUOTA_STATUS = 402
 _RATE_LIMIT_STATUS = 429
 
-# A 429 is usually a transient rate limit worth retrying; these markers are what
-# providers put in the body when it is the quota itself that ran out.
+# A 429 is usually a transient rate limit worth retrying, so only billing-level wording
+# counts. Not bare "quota": Gemini's per-minute limit says "Resource has been exhausted
+# (e.g. check quota)" and must keep falling back rather than stop the run.
 _QUOTA_MARKER = re.compile(
-    r"insufficient[\s_]*quota|\bquota\b|resource[\s_]*exhausted|token[\s_]*limit|\bcredits?\b",
+    r"insufficient[\s_]*quota|exceeded your current quota|billing|credit balance|(?:out of|no) credits",
     re.IGNORECASE,
 )
+
+# Anthropic reports an empty balance as a 400, not a 402.
+_CREDIT_BALANCE_STATUS = 400
+_CREDIT_BALANCE_MARKER = re.compile(r"credit balance is too low", re.IGNORECASE)
 
 # openai's APIStatusError renders as "Error code: 402 - {...}"; a re-wrap that keeps
 # only the string still carries it.
@@ -245,6 +250,8 @@ def _quota_status(exc: BaseException) -> int | None:
         if status == _QUOTA_STATUS:
             return status
         if status == _RATE_LIMIT_STATUS and _QUOTA_MARKER.search(_error_text(error)):
+            return status
+        if status == _CREDIT_BALANCE_STATUS and _CREDIT_BALANCE_MARKER.search(_error_text(error)):
             return status
         if status is None and _QUOTA_STATUS_TEXT.search(str(error)):
             return _QUOTA_STATUS
