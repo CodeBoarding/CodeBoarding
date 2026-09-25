@@ -3,9 +3,10 @@ import os
 import sys
 from pathlib import Path
 
-from agents.llm_errors import EXIT_AUTH_ERROR, LLMAuthError
+from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_QUOTA_EXHAUSTED, LLMQuotaError, LLMTerminalError
 from codeboarding_cli.bootstrap import resolve_local_run_paths
 from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
+from codeboarding_cli.wire import emit, terminal_llm_error_payload
 from output_generators import SUPPORTED_FORMATS, render as render_output
 from utils import ANALYSIS_FILENAME
 
@@ -104,15 +105,21 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
                     repo_name=run_paths.project_name,
                     output_dir=run_paths.output_dir,
                 )
-    except LLMAuthError as exc:
-        # A rejected API key is the user's to fix, not a crash: print one
-        # actionable line (no traceback) and exit with a distinct code.
+    except LLMTerminalError as exc:
+        # A rejected key or an exhausted quota is the user's to fix, not a crash: print one
+        # actionable line (no traceback), the wire JSON on stdout, and exit with a distinct code.
+        quota = isinstance(exc, LLMQuotaError)
         print(f"\nCodeBoarding: {exc}", file=sys.stderr)
         print(
-            "Check your LLM provider API key (shell env or ~/.codeboarding/config.toml) and re-run.",
+            (
+                "Add credits or raise the token quota for this provider (or your CodeBoarding plan), then re-run."
+                if quota
+                else "Check your LLM provider API key (shell env or ~/.codeboarding/config.toml) and re-run."
+            ),
             file=sys.stderr,
         )
-        raise SystemExit(EXIT_AUTH_ERROR) from exc
+        emit(terminal_llm_error_payload(args.command, exc))
+        raise SystemExit(EXIT_QUOTA_EXHAUSTED if quota else EXIT_AUTH_ERROR) from exc
 
 
 def main(argv: list[str] | None = None) -> None:

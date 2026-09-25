@@ -1,12 +1,11 @@
 import argparse
-import json
 import logging
-import sys
-from typing import Any
 
 from agents.llm_config import LLMConfigError
+from agents.llm_errors import LLMTerminalError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_cli.view_instructions import print_view_instructions
+from codeboarding_cli.wire import emit
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
 from diagram_analysis import RunContext
 from diagram_analysis.run_mode import RunMode
@@ -38,7 +37,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         bootstrap_environment(run_paths.output_dir, args.binary_location)
     except LLMConfigError as exc:
         logger.warning("Incremental bootstrap failed: LLM provider not configured: %s", exc)
-        _emit({"mode": RunMode.INCREMENTAL, "error": str(exc), "kind": "api_key_missing"})
+        emit({"mode": RunMode.INCREMENTAL, "error": str(exc), "kind": "api_key_missing"})
         return
     except ValueError as exc:
         logger.exception("Incremental bootstrap failed")
@@ -59,11 +58,15 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         # to prompt for a full run; no stack trace needed.
         logger.info("Incremental unavailable: %s", exc)
         _emit_error(str(exc))
+    except LLMTerminalError:
+        # A quota or credential refusal would stop a full run too, so it must not become
+        # ``requiresFullAnalysis: true``; the entry point reports it and sets the exit code.
+        raise
     except Exception as exc:
         logger.exception("Incremental analysis failed")
         _emit_error(str(exc))
     else:
-        _emit(
+        emit(
             {
                 "mode": RunMode.INCREMENTAL,
                 "requiresFullAnalysis": False,
@@ -75,16 +78,10 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
 
 
 def _emit_error(message: str) -> None:
-    _emit(
+    emit(
         {
             "mode": RunMode.INCREMENTAL,
             "error": message,
             "requiresFullAnalysis": True,
         }
     )
-
-
-def _emit(payload: dict[str, Any]) -> None:
-    """Write a wire dict as JSON to stdout (the IDE/wrapper contract)."""
-    sys.stdout.write(json.dumps(payload, default=str, indent=2, sort_keys=True) + "\n")
-    sys.stdout.flush()

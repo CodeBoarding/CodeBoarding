@@ -1,13 +1,4 @@
-"""The known ways a run finishes with less than it should have.
-
-One builder per code, each owning its own wording. Consumers (the CLI, the
-GitHub Action, the webview) render ``title``/``detail``/``remedy`` verbatim, so
-this module is the single place the user-facing phrasing lives.
-
-A ``remedy`` is written only where the reader could actually change the outcome.
-Where the cause is ours, it stays empty and the surfaces offer "report this"
-instead of an instruction nobody can follow.
-"""
+"""One builder per known degradation, owning its wording; ``remedy`` stays empty where the reader cannot act."""
 
 from run_diagnostics.models import Diagnostic, DiagnosticSeverity
 
@@ -85,8 +76,9 @@ def no_source_files(language: str) -> Diagnostic:
     )
 
 
-def names_not_generated(unnamed: int, total: int) -> Diagnostic:
+def names_not_generated(unnamed: int, total: int, reason: str = "") -> Diagnostic:
     """Semantic naming did not answer, so components kept their deterministic names."""
+    cause = f" The most common failure was {reason}." if reason else ""
     return Diagnostic(
         code="semantics.names_not_generated",
         severity=DiagnosticSeverity.DEGRADED,
@@ -94,10 +86,24 @@ def names_not_generated(unnamed: int, total: int) -> Diagnostic:
         detail=(
             f"Naming did not complete for {unnamed} of {total} scopes, so those components are named "
             "after the folders they were drawn from rather than what they do. Their grouping, members "
-            "and relations are unaffected."
+            f"and relations are unaffected.{cause}"
         ),
         remedy=(
-            "This is usually a provider timeout or a rate limit. Run the analysis again to name them; "
-            "check the run log for the provider's own error if it repeats."
+            "This is usually a provider timeout, a temporary rate limit or a server error. Run the analysis "
+            "again to name them; check the run log for the provider's own error if it repeats."
         ),
+    )
+
+
+def component_not_expanded(component: str, reason: str) -> Diagnostic:
+    """Building a component's own sub-diagram failed, so it stays a single box."""
+    return Diagnostic(
+        code="diagram.component_not_expanded",
+        severity=DiagnosticSeverity.DEGRADED,
+        title=f"{component} was not broken down",
+        detail=(
+            f"Building its inner diagram failed ({reason}), so it appears as one component with none "
+            "of the sub-components it would otherwise contain."
+        ),
+        subject=component,
     )

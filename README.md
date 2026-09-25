@@ -271,6 +271,19 @@ Every surface that renders an analysis is expected to say when `degraded` is non
 the GitHub Action annotates its run and its review comment, and the webview banners the
 diagram. Wording lives in `run_diagnostics/catalog.py`, one builder per code.
 
+Two LLM failures are not survivable and stop the run instead: a rejected API key (exit code
+2) and an exhausted token or credit quota (HTTP 402, or a 429 that says the quota is gone;
+exit code 3). Naming every component after its folder is not a result worth writing, so no
+`analysis.json` is left behind (a previous one is restored). `full`, `incremental` and
+`partial` all print one JSON object on stdout for callers to branch on:
+
+```json
+{"mode": "full", "error": "...", "kind": "llm_quota_exhausted", "statusCode": 402, "provider": "openai", "requiresFullAnalysis": false}
+```
+
+`kind` is `llm_auth` for a rejected key. `requiresFullAnalysis` is false because a full run
+would be refused the same way.
+
 ## Where to use it
 
 - **CLI:** [CodeBoarding CLI](#quick-start) — this repository — for local analysis, automation, and documentation generation.

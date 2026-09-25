@@ -5,6 +5,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from agents.llm_config import LLMConfigError
+from agents.llm_errors import LLMTerminalError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import run_full
@@ -159,6 +160,9 @@ def _run_remote(args: argparse.Namespace) -> None:
                 upload=args.upload,
                 should_monitor=should_monitor,
             )
+        except LLMTerminalError:
+            # The same key and quota serve every repository, so the rest would be refused too.
+            raise
         except Exception as exc:
             logger.error(f"Failed to process repository {repo_url}: {exc}")
             continue

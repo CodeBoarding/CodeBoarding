@@ -14,7 +14,7 @@ from langchain_core.prompts import PromptTemplate
 
 from agents.agent_responses import PlannedGroup, TreePlanInsights
 from agents.llm_config import MONITORING_CALLBACK, get_current_prompt_profile, supports_json_mode
-from agents.llm_errors import LLMAuthError, raise_if_auth_error
+from agents.llm_errors import LLMTerminalError, raise_if_terminal_llm_error
 from agents.prompts import get_tree_plan_prompts
 from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries
 from monitoring import trace
@@ -112,7 +112,7 @@ class TreePlannerAgent(MonitoringMixin):
             for future in futures:
                 try:
                     answers.append(future.result(timeout=DRAW_TIMEOUT_SECONDS))
-                except LLMAuthError:
+                except LLMTerminalError:
                     raise
                 except Exception as exc:
                     failures.append(exc)
@@ -136,7 +136,7 @@ class TreePlannerAgent(MonitoringMixin):
             return insights
 
         def classify(exc: Exception, attempt: int) -> RetryDecision:
-            raise_if_auth_error(exc)
+            raise_if_terminal_llm_error(exc)
             if isinstance(exc, ValueError):
                 return RetryDecision(action=RetryAction.RETRY_NOW)
             return RetryDecision(

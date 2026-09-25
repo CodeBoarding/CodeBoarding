@@ -18,6 +18,8 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from filelock import FileLock
@@ -239,6 +241,21 @@ class _AnalysisFileStore:
         write_text_atomic(self._analysis_path, payload)
         return self._analysis_path
 
+    def snapshot(self) -> str | None:
+        """The current ``analysis.json`` text, or ``None`` when there is none."""
+        with self._lock:
+            if not self._analysis_path.is_file():
+                return None
+            return self._analysis_path.read_text(encoding="utf-8")
+
+    def restore(self, snapshot: str | None) -> None:
+        """Put back what :meth:`snapshot` returned, removing the file when there was none."""
+        with self._lock:
+            if snapshot is None:
+                self._analysis_path.unlink(missing_ok=True)
+            else:
+                write_text_atomic(self._analysis_path, snapshot)
+
 
 # ---------------------------------------------------------------------------
 # Module-level store registry (one store per output_dir)
@@ -382,3 +399,19 @@ def save_analysis(
         tree_spec,
         run_diagnostics,
     )
+
+
+@contextmanager
+def restore_analysis_on(output_dir: Path, errors: tuple[type[BaseException], ...]) -> Iterator[None]:
+    """Undo the block's ``analysis.json`` writes when it raises one of *errors*.
+
+    Why: progress saves land mid-run, and a run stopped by a terminal error must leave
+    the previous analysis (or none) on disk rather than a partial one that looks finished.
+    """
+    store = _get_store(output_dir)
+    before = store.snapshot()
+    try:
+        yield
+    except errors:
+        store.restore(before)
+        raise

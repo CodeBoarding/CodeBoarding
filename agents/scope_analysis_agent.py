@@ -16,7 +16,7 @@ from pydantic import Field
 
 from agents.agent_responses import AnalysisInsights, LLMBaseModel, RelationEdge, SourceCodeReference
 from agents.llm_config import MONITORING_CALLBACK, get_current_prompt_profile
-from agents.llm_errors import raise_if_auth_error
+from agents.llm_errors import raise_if_terminal_llm_error
 from agents.llm_renderers import render_scope_context, scope_file_paths, scope_method_names
 from agents.prompts import get_scope_analysis_prompts
 from agents.tools import MethodCallsTool, ReadFileTool
@@ -155,7 +155,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
                 },
             )
         except Exception as error:
-            raise_if_auth_error(error)
+            raise_if_terminal_llm_error(error)
             raise
         result = response.get("structured_response")
         if not isinstance(result, ScopeAnalysisResult):

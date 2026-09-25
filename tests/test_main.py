@@ -1,8 +1,11 @@
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
+from agents.llm_errors import EXIT_QUOTA_EXHAUSTED, LLMAuthError, LLMQuotaError
 from codeboarding_cli.commands.full_analysis import run_from_args, validate_arguments
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental, run_partial
 from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
@@ -652,6 +655,65 @@ class TestMainAuthErrorHandler(unittest.TestCase):
         # Only auth errors get the friendly-exit treatment; everything else propagates.
         with self.assertRaises(RuntimeError):
             main.main(["full", "--local", "/tmp/repo"])
+
+
+class TestMainQuotaErrorHandler(unittest.TestCase):
+    """A full run stopped by an exhausted quota exits 3 with the wire JSON on stdout."""
+
+    def test_full_quota_exhaustion_exits_3_with_wire_json(self):
+        import main
+
+        error = LLMQuotaError(
+            "The openai LLM provider refused the request because the token or credit quota is exhausted (HTTP 402).",
+            provider="openai",
+            status_code=402,
+            provider_message="Resource exhausted: token limit reached",
+            telemetry_properties={"error_type": "quota"},
+        )
+        with tempfile.TemporaryDirectory() as repo:
+            with (
+                patch("codeboarding_cli.commands.full_analysis.bootstrap_environment"),
+                patch("codeboarding_cli.commands.full_analysis.initialize_codeboardingignore"),
+                patch("codeboarding_cli.commands.full_analysis.run_analysis_pipeline", side_effect=error),
+                patch("sys.stdout", new_callable=io.StringIO) as stdout,
+                patch("sys.stderr", new_callable=io.StringIO) as stderr,
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    main.main(["full", "--local", repo])
+
+        self.assertEqual(ctx.exception.code, EXIT_QUOTA_EXHAUSTED)
+        self.assertEqual(
+            json.loads(stdout.getvalue()),
+            {
+                "mode": "full",
+                "error": str(error),
+                "kind": "llm_quota_exhausted",
+                "statusCode": 402,
+                "provider": "openai",
+                "requiresFullAnalysis": False,
+            },
+        )
+        self.assertIn("quota", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
+
+    @patch("main.full_analysis.run_from_args")
+    def test_full_auth_failure_also_emits_wire_json(self, mock_run):
+        import main
+
+        mock_run.side_effect = LLMAuthError(
+            "Your openai API key was rejected (HTTP 401).",
+            provider="openai",
+            key_tail="a8dd",
+            telemetry_properties={"error_type": "auth", "error_status_code": 401},
+        )
+        with patch("sys.stdout", new_callable=io.StringIO) as stdout, patch("sys.stderr", new_callable=io.StringIO):
+            with self.assertRaises(SystemExit) as ctx:
+                main.main(["full", "--local", "/tmp/repo"])
+
+        self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual((payload["mode"], payload["kind"]), ("full", "llm_auth"))
+        self.assertFalse(payload["requiresFullAnalysis"])
 
 
 if __name__ == "__main__":

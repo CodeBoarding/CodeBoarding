@@ -30,7 +30,7 @@ from diagram_analysis.incremental_update import (
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_agent_llm
-from agents.llm_errors import LLMAuthError
+from agents.llm_errors import LLMTerminalError
 from agents.relation_edges import (
     drop_misattributed_edges,
     index_relation_endpoints,
@@ -53,7 +53,7 @@ from diagram_analysis.exceptions import (
 )
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
-from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
+from diagram_analysis.io_utils import load_analysis_metadata, restore_analysis_on, save_analysis, write_fingerprint
 from diagram_analysis.incremental_changes import compute_changed_members
 from diagram_analysis.scope_assembly import ScopeAssembler
 from repo_utils.path_utils import normalize_repo_path
@@ -68,7 +68,7 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from run_diagnostics import RunDiagnostics
-from run_diagnostics.catalog import names_not_generated
+from run_diagnostics.catalog import component_not_expanded, names_not_generated
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -101,6 +101,12 @@ def _component_depth(component_id: str | None) -> int:
     if not component_id:
         return 1
     return component_id.count(".") + 1
+
+
+def _failure_reason(error: BaseException) -> str:
+    """A short label for a survivable failure: its type, plus the HTTP status when it carries one."""
+    status = getattr(error, "status_code", None)
+    return f"{type(error).__name__} (HTTP {status})" if isinstance(status, int) else type(error).__name__
 
 
 def _component_expansion_seeds(components: list[Component], max_depth: int) -> list[tuple[Component, int]]:
@@ -622,6 +628,9 @@ class DiagramGenerator:
         self._naming_counts_lock = threading.Lock()
         self._scopes_enriched = 0
         self._scopes_unnamed = 0
+        self._naming_failures: Counter[str] = Counter()
+        # The first quota or auth refusal, so scopes still queued on the pool stop before calling the LLM.
+        self._terminal_llm_error: LLMTerminalError | None = None
         # Everything this run had to leave out, from static analysis and from here.
         # Written into the saved document so the surfaces that render it can say so.
         self.run_diagnostics = RunDiagnostics()
@@ -788,6 +797,8 @@ class DiagramGenerator:
         changed_files: frozenset[str],
         incremental: bool,
     ) -> None:
+        if self._terminal_llm_error is not None:
+            raise self._terminal_llm_error
         enclosing_names = self._enclosing_names(scope.scope_id)
         with self._naming_counts_lock:
             self._scopes_enriched += 1
@@ -801,10 +812,13 @@ class DiagramGenerator:
                 incremental,
                 enclosing_names=enclosing_names,
             )
-        except LLMAuthError:
+        except LLMTerminalError as error:
+            self._terminal_llm_error = error
             raise
-        except Exception:
+        except Exception as error:
             logger.exception("Semantic analysis failed for scope %s; retaining deterministic output", scope.scope_id)
+            with self._naming_counts_lock:
+                self._naming_failures[_failure_reason(error)] += 1
             semantics = None
         if semantics is None:
             with self._naming_counts_lock:
@@ -1104,12 +1118,13 @@ class DiagramGenerator:
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
-        except LLMAuthError:
-            # A rejected key fails every component identically; don't swallow it
-            # per-component and grind through the rest - abort the whole run.
+        except LLMTerminalError:
+            # A rejected key or an exhausted quota fails every component identically;
+            # don't swallow it per-component and grind through the rest, abort the run.
             raise
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
+            self.run_diagnostics.record(component_not_expanded(component.name, _failure_reason(e)))
             return None, None, []
 
     def _run_health_report(self, static_analysis: StaticAnalysisResults) -> None:
@@ -1320,13 +1335,14 @@ class DiagramGenerator:
                     stats["completed"] += 1
                     try:
                         outcomes.append((component, level, future.result()))
-                    except LLMAuthError:
+                    except LLMTerminalError:
                         for pending in future_to_task:
                             pending.cancel()
                         raise
-                    except Exception:
+                    except Exception as error:
                         stats["errors"] += 1
                         logger.exception("Component '%s' generated an exception", component.name)
+                        self.run_diagnostics.record(component_not_expanded(component.name, _failure_reason(error)))
 
                 for component, level, (comp_name, sub_analysis, new_components) in outcomes:
                     if comp_name and sub_analysis:
@@ -1379,7 +1395,7 @@ class DiagramGenerator:
 
         # Start monitoring (tracks start time)
         monitor = self.stats_writer if self.stats_writer else nullcontext()
-        with monitor:
+        with monitor, restore_analysis_on(Path(self.output_dir), (LLMTerminalError,)):
             # Generate the initial analysis
             logger.info("Generating initial analysis")
 
@@ -1509,7 +1525,10 @@ class DiagramGenerator:
                 self._scopes_unnamed,
                 self._scopes_enriched,
             )
-            self.run_diagnostics.record(names_not_generated(self._scopes_unnamed, self._scopes_enriched))
+            common = self._naming_failures.most_common(1)
+            self.run_diagnostics.record(
+                names_not_generated(self._scopes_unnamed, self._scopes_enriched, common[0][0] if common else "")
+            )
         if persist_side_artifacts:
             source_tree_hash = self._source_tree_hash()
         else:
@@ -1649,7 +1668,7 @@ class DiagramGenerator:
         assert self._incremental_preparation is not None
         preparation = self._incremental_preparation
         monitor = self.stats_writer if self.stats_writer else nullcontext()
-        with monitor:
+        with monitor, restore_analysis_on(Path(self.output_dir), (LLMTerminalError,)):
             if not preparation.has_changes:
                 logger.info("Cluster and group membership deltas are empty; rewriting without re-detailing.")
                 # No structural change, but a body-only edit still moves content
