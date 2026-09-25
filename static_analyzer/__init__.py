@@ -20,15 +20,20 @@ from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import AdapterName, Language
-from static_analyzer.csharp_config_scanner import CSharpConfigScanner
+from static_analyzer.csharp_config_scanner import SOLUTION_GLOBS, CSharpConfigScanner, CSharpProjectConfig
+from static_analyzer.dotnet_solution import solution_projects
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_recycler import default_memory_budget, per_engine_memory_budget
+from static_analyzer.engine.models import ExternalCallSite
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
+from static_analyzer.exceptions import StaticAnalysisFatalError
+from static_analyzer.external_calls import link_external_call_sites, record_package_imports
+from static_analyzer.graph_definitions import GraphIndex
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -47,20 +52,21 @@ class EngineConfig:
     """One adapter + project root the engine should run.
 
     ``source_files`` is non-empty only when a scanner has authoritatively
-    resolved file membership (currently TypeScript via ``tsc --showConfig``);
-    otherwise the adapter walks ``project_path`` itself in ``_run_full_analysis``.
+    resolved file membership (TypeScript via ``tsc --showConfig``, C# by what
+    each root's solution lists); otherwise the adapter walks ``project_path``
+    itself in ``_run_full_analysis``. A config whose membership resolved to no
+    file is not created at all.
     """
 
     adapter: LanguageAdapter
     project_path: Path
     source_files: list[Path] = field(default_factory=list)
-
-
-class StaticAnalysisFatalError(RuntimeError):
-    """Raised when continuing would produce misleading cached analysis."""
+    # Retain discovery exclusions for incremental edits, including deleted files.
+    excluded_roots: list[Path] = field(default_factory=list)
 
 
 MAX_CONCURRENT_ENGINES_ENV_VAR = "CODEBOARDING_MAX_CONCURRENT_ENGINES"
+LSP_REQUEST_TIMEOUT_ENV_VAR = "CODEBOARDING_LSP_REQUEST_TIMEOUT"
 
 
 # An engine costs ~3 cores: the server's own peak (~1.9, measured on csharp-ls),
@@ -90,6 +96,24 @@ def max_concurrent_engines() -> int:
         logger.warning("Ignoring negative %s=%r; the bound stays off", MAX_CONCURRENT_ENGINES_ENV_VAR, raw)
         return 0
     return value
+
+
+def lsp_request_timeout_override() -> int | None:
+    """Seconds from ``CODEBOARDING_LSP_REQUEST_TIMEOUT``, or None when it is unset.
+
+    Why it raises rather than falling back: the fallback is the adapter ceiling the
+    operator set the variable to escape, so the run would time out as if ignored.
+    """
+    raw = os.environ.get(LSP_REQUEST_TIMEOUT_ENV_VAR, "").strip()
+    if not raw:
+        return None
+    try:
+        seconds = int(raw)
+    except ValueError:
+        raise ValueError(f"{LSP_REQUEST_TIMEOUT_ENV_VAR} must be a whole number of seconds, got {raw!r}") from None
+    if seconds <= 0:
+        raise ValueError(f"{LSP_REQUEST_TIMEOUT_ENV_VAR} must be a positive number of seconds, got {raw!r}")
+    return seconds
 
 
 def recommended_engine_concurrency(engine_count: int) -> int:
@@ -127,6 +151,15 @@ def _adapter_names_for(programming_languages: list[ProgrammingLanguage]) -> list
     if AdapterName.TYPESCRIPT in names and AdapterName.JAVASCRIPT in names:
         names.remove(AdapterName.JAVASCRIPT)
     return names
+
+
+def _csharp_solution_members(csharp_projects: list[CSharpProjectConfig]) -> dict[Path, list[Path]]:
+    """Per C# root, the project files its solution files list."""
+    members: dict[Path, list[Path]] = {}
+    for config in csharp_projects:
+        solutions = [path for pattern in SOLUTION_GLOBS for path in config.root.glob(pattern)]
+        members[config.root] = [project for solution in solutions for project in solution_projects(solution)]
+    return members
 
 
 def _create_engine_configs(
@@ -206,12 +239,32 @@ def _create_engine_configs(
                 csharp_projects = csharp_scanner.scan()
 
                 if csharp_projects:
+                    members = _csharp_solution_members(csharp_projects)
                     for csharp_config in csharp_projects:
                         logger.info(
                             f"Creating engine config for CSharp ({csharp_config.project_type}) at: "
                             f"{csharp_config.root.relative_to(repository_path)}"
                         )
-                        configs.append(EngineConfig(adapter, csharp_config.root))
+                        # A project a nested root's solution lists, and this root's solutions do not,
+                        # is that engine's; naming it here as well would put it in the graph twice.
+                        elsewhere = [
+                            project.parent
+                            for root, projects in members.items()
+                            if root != csharp_config.root and root.is_relative_to(csharp_config.root)
+                            for project in projects
+                            if project not in members[csharp_config.root]
+                        ]
+                        source_files = adapter.discover_source_files(csharp_config.root, ignore_manager, elsewhere)
+                        if not source_files:
+                            logger.info(
+                                f"Every C# file under {csharp_config.root} belongs to a nested solution; skipping"
+                            )
+                            continue
+                        configs.append(
+                            EngineConfig(
+                                adapter, csharp_config.root, source_files=source_files, excluded_roots=elsewhere
+                            )
+                        )
                 else:
                     logger.info("No C# projects detected")
 
@@ -269,6 +322,11 @@ class StaticAnalyzer:
         # e.g. the incremental fingerprint diff. ``None`` means "detect via git"
         # (the legacy CLI-on-a-real-checkout path); an empty set re-LSPs nothing.
         self.changed_files = changed_files
+        # Resolved here so an unusable value fails before any engine starts, where
+        # the per-language handlers would turn it into "skip this language".
+        self._request_timeout_override = lsp_request_timeout_override()
+        if self._request_timeout_override is not None:
+            logger.info("Per-request LSP timeout overridden to %ds", self._request_timeout_override)
 
     def __enter__(self) -> "StaticAnalyzer":
         self.start_clients()
@@ -434,7 +492,7 @@ class StaticAnalyzer:
             command=command,
             project_root=project_path,
             init_options=init_options,
-            default_timeout=adapter.get_lsp_default_timeout(),
+            default_timeout=self._request_timeout_override or adapter.get_lsp_default_timeout(),
             collect_diagnostics=True,
             extra_env=extra_env,
             workspace_settings=adapter.get_workspace_settings(),
@@ -612,7 +670,7 @@ class StaticAnalyzer:
 
         Returns:
             Deduplicated list of absolute file paths that the file depends on.
-            Returns an empty list if no matching client is found or on failure.
+            Returns an empty list if no client serves the file; a failed query raises.
         """
         suffix = file_path.suffix
         client = next(
@@ -626,33 +684,29 @@ class StaticAnalyzer:
         if client is None:
             return []
 
-        try:
-            call_sites = SourceInspector().find_call_sites(file_path)
-            if not call_sites:
-                return []
-
-            queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
-            results, _ = client.send_definition_batch(queries)
-
-            resolved = file_path.resolve()
-            unique_paths: set[str] = set()
-            for definitions in results:
-                for defn in definitions:
-                    uri = defn.get("targetUri", defn.get("uri", ""))
-                    if not uri.startswith("file://"):
-                        continue
-                    dep_path_obj = uri_to_path(uri)
-                    if dep_path_obj is None:
-                        continue
-                    dep_path = str(dep_path_obj)
-                    if dep_path != str(resolved):
-                        unique_paths.add(dep_path)
-
-            logger.debug(f"Discovered {len(unique_paths)} dependencies for {file_path}")
-            return list(unique_paths)
-        except Exception:
-            logger.warning(f"Failed to discover dependencies for {file_path}", exc_info=True)
+        call_sites = SourceInspector().find_call_sites(file_path)
+        if not call_sites:
             return []
+
+        queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
+        results = client.send_definition_batch(queries)
+
+        resolved = file_path.resolve()
+        unique_paths: set[str] = set()
+        for definitions in results:
+            for defn in definitions:
+                uri = defn.get("targetUri", defn.get("uri", ""))
+                if not uri.startswith("file://"):
+                    continue
+                dep_path_obj = uri_to_path(uri)
+                if dep_path_obj is None:
+                    continue
+                dep_path = str(dep_path_obj)
+                if dep_path != str(resolved):
+                    unique_paths.add(dep_path)
+
+        logger.debug(f"Discovered {len(unique_paths)} dependencies for {file_path}")
+        return list(unique_paths)
 
     def analyze(
         self,
@@ -735,7 +789,7 @@ class StaticAnalyzer:
         # order. The merges replace on key collision, and overlapping configs
         # (nested solution roots) do collide, so completion order would let two
         # identical runs keep different nodes and produce different component IDs.
-        completed: dict[int, tuple[Language, dict]] = {}
+        completed: dict[int, tuple[LanguageAdapter, dict]] = {}
 
         def run_one(engine_config: EngineConfig, engine_client: LSPClient | None, order: int = 0) -> None:
             """Analyze one engine. Owns the client's lifetime when given none."""
@@ -759,7 +813,7 @@ class StaticAnalyzer:
                 duration_ms = round((time.monotonic() - t_lang_start) * 1000)
                 logger.info(f"Engine analysis for {adapter.language} completed in {duration_ms / 1000:.1f}s")
                 with absorb_lock:
-                    completed[order] = (language, analysis)
+                    completed[order] = (adapter, analysis)
                     self._collect_diagnostics_for(adapter, engine_client, analysis)
                     track_lsp_result(
                         language=adapter.language_enum.value,
@@ -817,9 +871,7 @@ class StaticAnalyzer:
                     f"(attempted: {', '.join(cfg.adapter.language for cfg in pending)}){details}"
                 )
 
-        for order in sorted(completed):
-            language, analysis = completed[order]
-            self._absorb_into_results(results, language, analysis)
+        self._absorb_and_link(results, [completed[order] for order in sorted(completed)])
 
         summaries = []
         for language in results.get_languages():
@@ -863,6 +915,8 @@ class StaticAnalyzer:
         # so a config that took its own copy of the cache would hand back the nodes another
         # config had just invalidated, and the merge would resurrect deleted files.
         carried: dict[Language, dict] = {}
+        carried_adapters: dict[Language, LanguageAdapter] = {}
+        rebuilt: list[tuple[LanguageAdapter, dict]] = []
         for engine_config, engine_client in self._live_clients("warm-start"):
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
@@ -871,14 +925,26 @@ class StaticAnalyzer:
 
             if changed_files is None:
                 analysis = self._run_full_analysis(engine_config, engine_client)
-                self._absorb_into_results(results, language, analysis)
+                rebuilt.append((adapter, analysis))
             else:
+                changed_files = {
+                    path
+                    for path in changed_files
+                    if not any(path.is_relative_to(root) for root in engine_config.excluded_roots)
+                }
                 logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
                 cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
                 analysis = update_cfg_for_changed_files(
-                    cached_lang_dict, changed_files, adapter, project_path, engine_client, self.ignore_manager
+                    cached_lang_dict,
+                    changed_files,
+                    adapter,
+                    project_path,
+                    self.repository_path,
+                    engine_client,
+                    self.ignore_manager,
                 )
                 carried[language] = analysis
+                carried_adapters[language] = adapter
 
             self._collect_diagnostics_for(adapter, engine_client, analysis)
             track_lsp_result(
@@ -889,8 +955,9 @@ class StaticAnalyzer:
                 analysis=analysis,
                 diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
             )
-        for language, analysis in carried.items():
-            self._absorb_into_results(results, language, analysis)
+        self._absorb_and_link(
+            results, rebuilt + [(carried_adapters[language], analysis) for language, analysis in carried.items()]
+        )
         results.incremental_base_results = cached_results
         return results
 
@@ -938,6 +1005,25 @@ class StaticAnalyzer:
             "source_files": cached_source_files,
             "diagnostics": cached_results.diagnostics.get(language, {}),
         }
+
+    def _absorb_and_link(self, results: StaticAnalysisResults, analyses: list[tuple[LanguageAdapter, dict]]) -> None:
+        """Absorb every engine's analysis, then finish the calls whose definitions lie in another engine's files.
+
+        Why after all of them: only the merged graph holds every engine's nodes, so a call into
+        another solution's project can find its target, whichever engine ran first.
+        """
+        for adapter, analysis in analyses:
+            self._absorb_into_results(results, adapter.results_language, analysis)
+        inspector = SourceInspector()
+        for adapter, analysis in analyses:
+            sites: list[ExternalCallSite] = analysis.get("external_call_sites", [])
+            if not sites:
+                continue
+            language = adapter.results_language
+            analysed_files = {str(path) for path in analysis.get("source_files", [])}
+            index = GraphIndex(results.get_cfg(language))
+            linked = link_external_call_sites(index, sites, adapter, inspector, analysed_files)
+            record_package_imports(results.get_package_dependencies(language), adapter, linked.edges)
 
     def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:
         """Stuff one language's analysis-dict into the shared ``StaticAnalysisResults``."""
@@ -1022,7 +1108,7 @@ class StaticAnalyzer:
             engine_client,
             adapter,
             project_path,
-            memory_budget_bytes=per_engine_memory_budget(max(max_concurrent_engines(), 1)),
+            self.repository_path,
         )
         engine_result = builder.build(source_files)
         logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")

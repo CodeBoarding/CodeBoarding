@@ -13,7 +13,6 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
-    EdgeStrategy,
 )
 from static_analyzer.engine.utils import total_ram_gb
 from static_analyzer.java_utils import create_jdtls_command, find_java_21_or_later
@@ -22,7 +21,6 @@ from utils import CODEBOARDING_DIR_NAME, get_config
 logger = logging.getLogger(__name__)
 
 # The languages a JVM source root can be named for, in ``src/<source set>/<language>``.
-JVM_SOURCE_LANGUAGES = frozenset({"java", "kotlin", "groovy", "scala"})
 
 
 class JavaAdapter(LanguageAdapter):
@@ -142,7 +140,7 @@ class JavaAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        """Build ``<module>.<source set>.<package>.<declaring types>.<symbol>``.
+        """Build ``<directories>.<declaring types>.<symbol>``, from the repository root.
 
         Why no file stem: Java requires it to equal the top-level type, so folding it in
         made that type a sibling of its own members and CONTAINS could not link them.
@@ -152,19 +150,8 @@ class JavaAdapter(LanguageAdapter):
         return ".".join(part for part in (self.get_package_for_file(file_path, project_root), *segments) if part)
 
     def get_package_for_file(self, file_path: Path, project_root: Path) -> str:
-        """The directory holding the file, without the Maven or Gradle source root.
-
-        Why: ``src/main/java`` names no package, and prefixed every symbol in a Maven tree
-        with three segments the compiler does not recognise. The source set itself is kept
-        unless it is ``main``, because ``src/test/java`` and ``src/main/java`` can hold the
-        same package and the same type name.
-        """
-        parts = file_path.relative_to(project_root).parent.parts
-        for i in range(len(parts) - 2):
-            if parts[i] == "src" and parts[i + 2] in JVM_SOURCE_LANGUAGES:
-                source_set = () if parts[i + 1] == "main" else (parts[i + 1],)
-                return ".".join(parts[:i] + source_set + parts[i + 3 :])
-        return ".".join(parts)
+        """The directory holding the file, from the repository root, spelled as it is on disk."""
+        return ".".join(file_path.relative_to(project_root).parent.parts)
 
     @staticmethod
     def _clean_symbol_name(name: str) -> str:
@@ -258,14 +245,15 @@ class JavaAdapter(LanguageAdapter):
         }
 
     @property
-    def edge_strategy(self) -> EdgeStrategy:
-        """Use definition-based edges — JDTLS serializes references requests."""
-        return EdgeStrategy.DEFINITIONS
-
-    @property
     def expands_constructors(self) -> bool:
         """JDTLS resolves ``new Dog()`` to the class, so the constructor needs adding."""
         return True
+
+    @property
+    def resolves_method_groups(self) -> bool:
+        """Java hands a method on only as a method reference (``Dog::speak``), already a call site;
+        a bare argument or a field read never names a callable, so asking JDTLS would be pure cost."""
+        return False
 
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})

@@ -1,92 +1,88 @@
-from static_analyzer.clustering.names import Trie, unit_key, unit_position, units_from_graph, units_from_graphs
+from pathlib import Path
+
+import pytest
+
+from static_analyzer.clustering.names import Trie, units_from_graph, units_from_graphs
 from tests.static_analyzer.names.conftest import graph_from_layout, node_of, unit
 
 
-class TestUnitPosition:
-    def test_python_module_with_several_symbols(self):
-        names = [
-            "agents.scope_analysis_agent.ScopeAnalysisAgent",
-            "agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
-            "agents.scope_analysis_agent.helper",
-        ]
-        assert unit_position(names, ".") == ("agents", "scope_analysis_agent")
-
-    def test_the_key_keeps_the_one_class_a_file_declares(self):
-        assert unit_key(["pkg.mod.Thing", "pkg.mod.Thing.run"], ".") == ("pkg", "mod", "Thing")
-        assert unit_key(["pkg.mod.a", "pkg.mod.b"], ".") == ("pkg", "mod")
-
-    def test_a_file_declaring_one_class_sits_in_its_module_not_its_class(self):
-        names = [
-            "diagram_analysis.scope_assembly.ScopeAssembler",
-            "diagram_analysis.scope_assembly.ScopeAssembler.build",
-        ]
-        assert unit_position(names, ".") == ("diagram_analysis", "scope_assembly")
-
-    def test_a_file_with_one_symbol(self):
-        assert unit_position(["pkg.mod.only"], ".") == ("pkg", "mod")
-
-    def test_csharp_single_type_file_sits_in_its_directory(self):
-        """Why: the adapter folds a single-type file's stem into the type, so the directory is the position."""
-        names = ["Basket.API.Model.CustomerBasket", "Basket.API.Model.CustomerBasket.CustomerBasket()"]
-        assert unit_position(names, ".") == ("Basket", "API", "Model")
-
-    def test_csharp_file_with_sibling_types_keeps_its_stem(self):
-        names = ["Basket.API.Extensions.Extensions.Ext", "Basket.API.Extensions.Extensions.IntegrationEventContext"]
-        assert unit_position(names, ".") == ("Basket", "API", "Extensions", "Extensions")
-
-    def test_java_type_sits_in_its_package(self):
-        assert unit_position(["core.org.mockito.Fixture", "core.org.mockito.Fixture.run()"], ".") == (
-            "core",
-            "org",
-            "mockito",
-        )
-
-    def test_generic_and_parameter_delimiters_do_not_split(self):
-        names = ["A.B.Repo<T>.Add(Map<K, V.W> item)", "A.B.Repo<T>"]
-        assert unit_position(names, ".") == ("A", "B")
-
-    def test_names_sharing_nothing_sit_at_the_root(self):
-        assert unit_position(["a.x", "b.y"], ".") == ()
-
-
 class TestUnitsFromGraph:
-    def test_one_unit_per_file_keyed_by_the_engine_path(self):
+    def test_one_unit_per_file_positioned_by_its_directory(self):
         graph = graph_from_layout(
             {
-                "/repo/pkg/a.py": ["pkg.a.f", "pkg.a.g"],
-                "/repo/pkg/b.py": ["pkg.b.C", "pkg.b.C.m"],
+                "pkg/a.py": ["pkg.a.f", "pkg.a.g"],
+                "pkg/sub/b.py": ["whatever.the.adapter.said"],
             }
         )
         units = units_from_graph(graph, "python")
-        assert [unit.unit_id for unit in units] == ["/repo/pkg/a.py", "/repo/pkg/b.py"]
+        assert [u.unit_id for u in units] == ["pkg/a.py", "pkg/sub/b.py"]
         assert units[0].names == ("pkg.a.f", "pkg.a.g")
-        assert units[1].position == ("pkg", "b")
+        assert units[0].position == ("pkg",) and units[0].key == ("pkg", "a.py")
+        assert units[1].position == ("pkg", "sub") and units[1].key == ("pkg", "sub", "b.py")
 
-    def test_the_path_is_an_identity_and_never_read(self):
-        """Blanking every path segment changes no position: the names carry the structure."""
-        layout = {"/x/y/z.py": ["pkg.mod.C", "pkg.mod.C.m"]}
-        opaque = {"0": layout["/x/y/z.py"]}
-        assert units_from_graph(graph_from_layout(layout), "python")[0].position == (
-            units_from_graph(graph_from_layout(opaque), "python")[0].position
+    def test_a_file_and_a_directory_of_one_name_have_distinct_keys(self):
+        graph = graph_from_layout({"pkg/foo.py": ["pkg.foo.f"], "pkg/foo/stray.py": ["pkg.foo.stray.g"]})
+        keys = [u.key for u in units_from_graph(graph, "python")]
+        assert keys == [("pkg", "foo.py"), ("pkg", "foo", "stray.py")]
+        assert keys[1][: len(keys[0])] != keys[0]
+
+    def test_the_names_are_never_read_for_structure(self):
+        """Two files spelled differently by two adapters sit together when they share a directory."""
+        graph = graph_from_layout({"src/WebApp/x.cs": ["WebApp.x"], "src/WebApp/y.js": ["src.WebApp.y.f"]})
+        assert {u.position for u in units_from_graph(graph, "csharp")} == {("src", "WebApp")}
+
+    def test_a_dotted_directory_is_one_segment(self):
+        graph = graph_from_layout({"BTCPayServer.Client/C.cs": ["BTCPayServer.Client.C"]}, "csharp")
+        assert units_from_graph(graph, "csharp")[0].position == ("BTCPayServer.Client",)
+
+    def test_an_absolute_path_is_positioned_under_the_repository_root(self, tmp_path: Path):
+        graph = graph_from_layout({str(tmp_path / "pkg" / "a.py"): ["pkg.a.f"]})
+        assert units_from_graph(graph, "python", tmp_path)[0].position == ("pkg",)
+        with pytest.raises(ValueError, match="absolute"):
+            units_from_graph(graph, "python")
+
+    def test_a_root_file_has_an_empty_position(self):
+        graph = graph_from_layout({"setup.py": ["setup.main"]})
+        assert units_from_graph(graph, "python")[0].position == ()
+
+    def test_the_nearest_manifest_above_a_file_names_its_project(self, tmp_path: Path):
+        (tmp_path / "lib" / "src").mkdir(parents=True)
+        (tmp_path / "lib" / "Lib.csproj").write_text("<Project/>")
+        (tmp_path / "app").mkdir()
+        (tmp_path / "package.json").write_text("{}")
+        graph = graph_from_layout(
+            {str(tmp_path / "lib" / "src" / "a.cs"): ["a"], str(tmp_path / "app" / "b.cs"): ["b"]}, "csharp"
         )
+        units = {u.position: u.project for u in units_from_graph(graph, "csharp", tmp_path)}
+        assert units == {
+            ("lib", "src"): ("lib",),
+            ("app",): None,
+        }, "the repository root's own manifest is not a project"
+
+    def test_a_path_outside_the_repository_root_is_refused(self, tmp_path: Path):
+        graph = graph_from_layout({str(tmp_path.parent / "elsewhere" / "a.py"): ["a"]})
+        with pytest.raises(ValueError, match="outside"):
+            units_from_graph(graph, "python", tmp_path)
+        with pytest.raises(ValueError, match="outside"):
+            units_from_graph(graph_from_layout({"../a.py": ["a"]}), "python")
 
     def test_languages_are_read_in_sorted_order(self):
         graphs = {
-            "typescript": graph_from_layout({"/r/ts.ts": ["src.ts.f"]}, "typescript"),
-            "python": graph_from_layout({"/r/py.py": ["src.py.f"]}),
+            "typescript": graph_from_layout({"r/ts.ts": ["src.ts.f"]}, "typescript"),
+            "python": graph_from_layout({"r/py.py": ["src.py.f"]}),
         }
-        assert [unit.language for unit in units_from_graphs(graphs)] == ["python", "typescript"]
+        assert [u.language for u in units_from_graphs(graphs)] == ["python", "typescript"]
 
 
 class TestTrie:
     def test_counts_units_per_subtree(self):
-        trie = Trie([unit("a", "p.x.A"), unit("b", "p.x.B"), unit("c", "p.y.C")])
+        trie = Trie([unit("p/x/a.py", "A"), unit("p/x/b.py", "B"), unit("p/y/c.py", "C")])
         assert trie.root.count == 3
         assert node_of(trie, ("p", "x")).count == 2
         assert node_of(trie, ("p", "y")).count == 1
         assert trie.node(("p", "z")) is None
 
     def test_a_unit_at_the_root_is_a_root_unit(self):
-        trie = Trie([unit("a", "A"), unit("b", "p.B")])
-        assert [u.unit_id for u in trie.root.units] == ["a"]
+        trie = Trie([unit("a.py", "A"), unit("p/b.py", "B")])
+        assert [u.unit_id for u in trie.root.units] == ["a.py"]
         assert node_of(trie, ("p",)).count == 1

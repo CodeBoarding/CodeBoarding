@@ -14,15 +14,26 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
+from static_analyzer.engine.lsp_constants import REQUEST_BATCH_SIZE
 from static_analyzer.engine.utils import uri_to_path
+from static_analyzer.exceptions import StaticAnalysisFatalError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
 
 LSP_METHOD_NOT_FOUND = -32601
+# Codes LSP (-32899..-32800) and JSON-RPC (-32768..-32000) reserve for a request that went unserved;
+# any other code is the server declining for itself, as gopls does for a free function.
+LSP_RESERVED_ERROR_CODE_RANGES = ((-32899, -32800), (-32768, -32000))
+# Call edges are built from this request, so a server without it cannot produce a graph.
+LSP_REQUIRED_METHODS = frozenset({"textDocument/definition"})
+# RequestCancelled, ContentModified, ServerCancelled: the protocol's remedy is to ask again.
+# Why: rust-analyzer answers ContentModified while it is still indexing an opened file.
+LSP_RETRYABLE_ERROR_CODES = frozenset({-32800, -32801, -32802})
 ProgressToken = str | int
 
 
@@ -40,6 +51,30 @@ def _progress_token(value: object) -> ProgressToken | None:
 
 class MethodNotFoundError(Exception):
     """Raised when the LSP server does not support a requested method."""
+
+
+@dataclass(frozen=True)
+class BatchAnswer:
+    """One query's answer: what came back, whether it was served, and whether to ask again."""
+
+    results: list[dict]
+    served: bool
+    retryable: bool
+
+
+def _is_protocol_failure(error: object) -> bool:
+    """Whether an error response means the request went unserved; "method not found" is an answer."""
+    if not isinstance(error, dict):
+        return False
+    code = error.get("code")
+    if not isinstance(code, int) or code == LSP_METHOD_NOT_FOUND:
+        return False
+    return any(low <= code <= high for low, high in LSP_RESERVED_ERROR_CODE_RANGES)
+
+
+def _is_retryable(error: object) -> bool:
+    """Whether the protocol's own remedy for this failure is to ask again."""
+    return isinstance(error, dict) and error.get("code") in LSP_RETRYABLE_ERROR_CODES
 
 
 class LSPClient:
@@ -145,7 +180,9 @@ class LSPClient:
                 "hierarchicalDocumentSymbolSupport": True,
             },
             "references": {},
-            "definition": {},
+            # Why linkSupport: a plain Location may carry the whole declaration's range, starting at
+            # its modifiers; a LocationLink's selection range starts at the name symbols are keyed on.
+            "definition": {"linkSupport": True},
             "typeHierarchy": {},
             "implementation": {},
             "callHierarchy": {},
@@ -181,6 +218,7 @@ class LSPClient:
                 ],
                 "initializationOptions": self._init_options,
             },
+            timeout=self._default_timeout,
         )
 
         self._send_notification("initialized", {})
@@ -283,7 +321,9 @@ class LSPClient:
         if language_id is None:
             raise ValueError(f"No LSP language id for suffix {file_path.suffix!r}: {file_path}")
         try:
-            text = file_path.read_text(errors="replace")
+            # Why the encoding is named: the locale's is cp1252 on Windows, which shifts every
+            # column after a non-ASCII character away from the one tree-sitter reports.
+            text = file_path.read_text(encoding="utf-8", errors="replace")
         except Exception:
             text = ""
         self._send_notification(
@@ -330,88 +370,37 @@ class LSPClient:
         result = self._send_request(
             "textDocument/documentSymbol",
             {"textDocument": {"uri": file_path.resolve().as_uri()}},
-            timeout=timeout,
+            timeout=self._default_timeout if timeout is None else timeout,
         )
         if isinstance(result, list):
             return result
-        return []
-
-    def references(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
-        """Find all references to the symbol at the given position."""
-        result = self._send_request(
-            "textDocument/references",
-            {
-                "textDocument": {"uri": file_path.resolve().as_uri()},
-                "position": {"line": line, "character": character},
-                "context": {"includeDeclaration": True},
-            },
-            timeout=timeout,
-        )
-        if isinstance(result, list):
-            return result
-        return []
-
-    def send_references_batch(
-        self, queries: list[tuple[Path, int, int]], per_query_timeout: int = 0
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple references requests without waiting between them.
-
-        Returns ``(results, error_indices)`` where *results* is a list of
-        result lists (one per query, same order) and *error_indices* is a set
-        of 0-based indices whose LSP responses were errors.
-
-        Args:
-            queries: List of (file_path, line, character) tuples.
-            per_query_timeout: Per-query timeout in seconds. When > 0, the batch
-                deadline is ``per_query_timeout * len(queries)`` instead of the
-                default timeout. Use this for servers that serialize requests
-                internally (e.g. JDTLS) where total time scales linearly.
-        """
-        timeout = per_query_timeout * len(queries) if per_query_timeout > 0 else None
-
-        def build_params(file_path: Path, line: int, character: int) -> dict:
-            return {
-                "textDocument": {"uri": file_path.resolve().as_uri()},
-                "position": {"line": line, "character": character},
-                "context": {"includeDeclaration": True},
-            }
-
-        return self._send_batch("textDocument/references", queries, build_params, timeout=timeout)
-
-    def definition(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
-        """Find the definition of the symbol at the given position."""
-        result = self._send_request(
-            "textDocument/definition",
-            {
-                "textDocument": {"uri": file_path.resolve().as_uri()},
-                "position": {"line": line, "character": character},
-            },
-            timeout=timeout,
-        )
-        if isinstance(result, list):
-            return result
-        if isinstance(result, dict):
-            return [result]
         return []
 
     def send_definition_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple definition requests without waiting between them.
-
-        Returns ``(results, error_indices)`` — see :meth:`send_references_batch`.
-        """
-        return self._send_batch("textDocument/definition", queries, self._position_params, timeout=timeout)
+    ) -> list[list[dict]]:
+        """Send multiple definition requests without waiting between them."""
+        return self._send_batch(
+            "textDocument/definition",
+            queries,
+            self._position_params,
+            self._default_timeout if timeout is None else timeout,
+        )
 
     def send_type_definition_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
-    ) -> tuple[list[list[dict]], set[int]]:
+    ) -> list[list[dict]]:
         """Resolve each position to the *type* of the expression there.
 
         Distinct from ``definition``, which lands on the declaration: iterating
         a value is a call on its type, and only this request names that type.
         """
-        return self._send_batch("textDocument/typeDefinition", queries, self._position_params, timeout=timeout)
+        return self._send_batch(
+            "textDocument/typeDefinition",
+            queries,
+            self._position_params,
+            self._default_timeout if timeout is None else timeout,
+        )
 
     def implementation(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
         """Find implementations of the symbol at the given position."""
@@ -421,7 +410,7 @@ class LSPClient:
                 "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
             },
-            timeout=timeout,
+            timeout=self._default_timeout if timeout is None else timeout,
         )
         if isinstance(result, list):
             return result
@@ -431,12 +420,21 @@ class LSPClient:
 
     def send_implementation_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple implementation requests without waiting between them.
+    ) -> list[list[dict]]:
+        """Send multiple implementation requests without waiting between them."""
+        return self._send_batch(
+            "textDocument/implementation",
+            queries,
+            self._position_params,
+            self._default_timeout if timeout is None else timeout,
+        )
 
-        Returns ``(results, error_indices)`` — see :meth:`send_references_batch`.
-        """
-        return self._send_batch("textDocument/implementation", queries, self._position_params, timeout=timeout)
+    def workspace_symbol(self, query: str) -> list[dict]:
+        """Symbols declared anywhere in the loaded workspace whose name matches *query*."""
+        result = self._send_request("workspace/symbol", {"query": query}, self._default_timeout)
+        if isinstance(result, list):
+            return result
+        return []
 
     def type_hierarchy_prepare(self, file_path: Path, line: int, character: int) -> list[dict] | None:
         """Prepare type hierarchy at the given position."""
@@ -446,6 +444,7 @@ class LSPClient:
                 "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
             },
+            self._default_timeout,
         )
         if isinstance(result, list):
             return result
@@ -453,14 +452,14 @@ class LSPClient:
 
     def type_hierarchy_supertypes(self, item: dict) -> list[dict]:
         """Get supertypes for a type hierarchy item."""
-        result = self._send_request("typeHierarchy/supertypes", {"item": item})
+        result = self._send_request("typeHierarchy/supertypes", {"item": item}, self._default_timeout)
         if isinstance(result, list):
             return result
         return []
 
     def type_hierarchy_subtypes(self, item: dict) -> list[dict]:
         """Get subtypes for a type hierarchy item."""
-        result = self._send_request("typeHierarchy/subtypes", {"item": item})
+        result = self._send_request("typeHierarchy/subtypes", {"item": item}, self._default_timeout)
         if isinstance(result, list):
             return result
         return []
@@ -563,16 +562,44 @@ class LSPClient:
         method: str,
         queries: list[tuple[Path, int, int]],
         build_params: Callable[[Path, int, int], dict],
-        timeout: int | None = None,
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple LSP requests and collect results in order.
+        timeout: int,
+    ) -> list[list[dict]]:
+        """Send LSP requests ``REQUEST_BATCH_SIZE`` at a time and collect their results in query order.
 
-        Generic batch helper that eliminates duplication across
-        send_references_batch, send_definition_batch, and send_implementation_batch.
-
-        Returns ``(parsed_results, error_indices)`` where *error_indices*
-        is a set of 0-based query positions that received LSP errors.
+        A retryable failure is asked once more; anything still unserved raises rather than
+        reading as "nothing is declared here".
         """
+        results: list[list[dict]] = []
+        for start in range(0, len(queries), REQUEST_BATCH_SIZE):
+            chunk = queries[start : start + REQUEST_BATCH_SIZE]
+            by_query = self._send_round(method, chunk, build_params, timeout)
+            retry = [index for index, answer in enumerate(by_query) if answer.retryable]
+            if retry:
+                logger.info("Re-asking %d of %d %s requests the server had not settled", len(retry), len(chunk), method)
+                for index, answer in zip(
+                    retry, self._send_round(method, [chunk[i] for i in retry], build_params, timeout)
+                ):
+                    by_query[index] = answer
+
+            unserved = [index for index, answer in enumerate(by_query) if not answer.served]
+            if unserved:
+                first = chunk[unserved[0]]
+                raise StaticAnalysisFatalError(
+                    f"{len(unserved)} of {len(chunk)} {method} requests went unserved, first at "
+                    f"{first[0]}:{first[1] + 1}:{first[2] + 1}. The server timed out or failed the request "
+                    "rather than declining it; reading those as empty would silently drop call-graph edges."
+                )
+            results.extend(answer.results for answer in by_query)
+        return results
+
+    def _send_round(
+        self,
+        method: str,
+        queries: list[tuple[Path, int, int]],
+        build_params: Callable[[Path, int, int], dict],
+        timeout: int,
+    ) -> list[BatchAnswer]:
+        """Send one request per query and collect the answers in query order."""
         req_ids: list[int] = []
         for file_path, line, character in queries:
             self._request_id += 1
@@ -586,28 +613,21 @@ class LSPClient:
             }
             self._write_message(message)
 
-        results, _, error_ids = self._collect_batch_responses(req_ids, timeout=timeout)
-
-        error_indices: set[int] = set()
-        for i, rid in enumerate(req_ids):
-            if rid in error_ids:
-                error_indices.add(i)
-
-        parsed: list[list[dict]] = []
-        for rid in req_ids:
-            raw = results.get(rid, [])
+        results, unserved, retryable = self._collect_batch_responses(method, req_ids, timeout=timeout)
+        answers: list[BatchAnswer] = []
+        for req_id in req_ids:
+            raw = results.get(req_id, [])
             if isinstance(raw, dict):
-                parsed.append([raw])
+                parsed = [raw]
             elif isinstance(raw, list):
-                parsed.append(raw)
+                parsed = raw
             else:
-                parsed.append([])
-        return parsed, error_indices
+                parsed = []
+            answers.append(BatchAnswer(parsed, req_id not in unserved, req_id in retryable))
+        return answers
 
-    def _send_request(self, method: str, params: dict | list | None, timeout: int | None = None) -> dict | list | None:
+    def _send_request(self, method: str, params: dict | list | None, timeout: int) -> dict | list | None:
         """Send a JSON-RPC request and wait for the response."""
-        if timeout is None:
-            timeout = self._default_timeout
         self._request_id += 1
         req_id = self._request_id
 
@@ -658,7 +678,8 @@ class LSPClient:
         initiated requests concurrently with the main thread.
         """
         if not self._process or not self._process.stdin:
-            raise RuntimeError("LSP server not running")
+            # Fatal: a caller reading a dead server as "no results" drops real edges.
+            raise StaticAnalysisFatalError("LSP server not running")
         body = json.dumps(message)
         header = f"Content-Length: {len(body)}\r\n\r\n"
         data = (header + body).encode("utf-8")
@@ -680,7 +701,9 @@ class LSPClient:
             message = self._msg_queue.get(timeout=min(remaining, 1.0))
         except queue.Empty:
             if self._process and self._process.poll() is not None:
-                raise RuntimeError(f"LSP server process exited with code {self._process.returncode}") from None
+                raise StaticAnalysisFatalError(
+                    f"LSP server process exited with code {self._process.returncode}"
+                ) from None
             return None
 
         # Skip notifications that leaked past the reader loop
@@ -690,22 +713,18 @@ class LSPClient:
         return message
 
     def _collect_batch_responses(
-        self, request_ids: list[int], timeout: int | None = None
+        self, method: str, request_ids: list[int], timeout: int
     ) -> tuple[dict[int, list[dict]], set[int], set[int]]:
         """Collect responses for multiple pending request IDs.
 
-        Returns a tuple of (results, timed_out_ids, error_ids):
-        - results: dict mapping request_id -> result list
-        - timed_out_ids: set of request IDs that did not complete in time
-        - error_ids: set of request IDs that returned LSP errors
+        Returns ``(results, unserved_ids, retryable_ids)``. An error with a server-defined code is an
+        answer whose empty result is the truth; a timeout or a reserved code leaves the request unserved.
         """
-        if timeout is None:
-            timeout = self._default_timeout
-
         results: dict[int, list[dict]] = {}
         pending = set(request_ids)
-        error_ids: set[int] = set()
-        error_messages: dict[str, int] = {}
+        declined: dict[str, int] = {}
+        unserved: dict[int, str] = {}
+        retryable: set[int] = set()
         deadline = time.monotonic() + timeout
 
         while pending and time.monotonic() < deadline:
@@ -720,26 +739,37 @@ class LSPClient:
             pending.discard(msg_id)  # type: ignore[arg-type]
 
             if "error" in msg:
-                error_ids.add(msg_id)  # type: ignore[arg-type]
                 err = msg["error"]
-                err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
-                error_messages[err_msg] = error_messages.get(err_msg, 0) + 1
                 results[msg_id] = []  # type: ignore[index]
+                err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                if isinstance(err, dict) and err.get("code") == LSP_METHOD_NOT_FOUND and method in LSP_REQUIRED_METHODS:
+                    raise StaticAnalysisFatalError(
+                        f"The language server does not implement {method}: {err_msg}. "
+                        "Reading that as an empty answer would build a graph of symbols with no edges."
+                    )
+                if _is_protocol_failure(err):
+                    unserved[msg_id] = err_msg  # type: ignore[index]
+                    if _is_retryable(err):
+                        retryable.add(msg_id)  # type: ignore[arg-type]
+                else:
+                    declined[err_msg] = declined.get(err_msg, 0) + 1
             else:
                 results[msg_id] = msg.get("result") or []  # type: ignore[index]
 
-        for err_msg, count in error_messages.items():
+        for err_msg, count in declined.items():
             if count > 1:
-                logger.warning("LSP error (x%d): %s", count, err_msg)
+                logger.debug("LSP declined %s (x%d): %s", method, count, err_msg)
             else:
-                logger.warning("LSP error: %s", err_msg)
+                logger.debug("LSP declined %s: %s", method, err_msg)
 
-        timed_out = set(pending)
+        for req_id, err_msg in unserved.items():
+            if req_id not in retryable:
+                logger.warning("LSP could not serve %s request %d: %s", method, req_id, err_msg)
         for req_id in pending:
-            logger.warning("Timeout waiting for references request %d", req_id)
+            logger.warning("Timeout waiting for %s request %d", method, req_id)
             results[req_id] = []
 
-        return results, timed_out, error_ids
+        return results, set(pending) | set(unserved), retryable
 
     # ---- Background message reader ----
 

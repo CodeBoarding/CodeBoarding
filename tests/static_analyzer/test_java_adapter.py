@@ -13,10 +13,11 @@ def _name(rel: str, symbol: str, kind: int = NodeType.CLASS, parents: list[tuple
 
 
 class TestBuildQualifiedName:
-    def test_maven_source_root_names_no_package(self):
+    def test_a_maven_source_root_is_spelled_as_it_is_on_disk(self):
+        """Every adapter spells the path from the repository root; the walk over the tree steps through ``src``."""
         assert (
             _name("mockito-core/src/main/java/org/mockito/Answers.java", "Answers")
-            == "mockito-core.org.mockito.Answers"
+            == "mockito-core.src.main.java.org.mockito.Answers"
         )
 
     def test_a_type_is_not_doubled_by_its_own_file(self):
@@ -38,16 +39,18 @@ class TestBuildQualifiedName:
     def test_a_test_source_set_stays_in_the_name(self):
         """`src/main/java` and `src/test/java` can hold the same package and type name."""
         assert (
-            _name("core/src/test/java/org/mockito/Fixture.java", "Fixture") == "core.test.org.mockito.Fixture"
-        ) and _name("core/src/main/java/org/mockito/Fixture.java", "Fixture") == "core.org.mockito.Fixture"
+            _name("core/src/test/java/org/mockito/Fixture.java", "Fixture") == "core.src.test.java.org.mockito.Fixture"
+        ) and _name(
+            "core/src/main/java/org/mockito/Fixture.java", "Fixture"
+        ) == "core.src.main.java.org.mockito.Fixture"
 
     def test_an_arbitrary_gradle_source_set_is_recognised(self):
         """Gradle names its own: `integrationTest`, Android's `androidTest`."""
         name = _name("app/src/integrationTest/java/com/acme/SmokeTest.java", "SmokeTest")
-        assert name == "app.integrationTest.com.acme.SmokeTest"
+        assert name == "app.src.integrationTest.java.com.acme.SmokeTest"
 
-    def test_a_kotlin_source_root_is_stripped(self):
-        assert _name("app/src/main/kotlin/com/acme/Main.kt", "Main") == "app.com.acme.Main"
+    def test_a_kotlin_source_root_is_kept_too(self):
+        assert _name("app/src/main/kotlin/com/acme/Main.kt", "Main") == "app.src.main.kotlin.com.acme.Main"
 
     def test_a_flat_layout_keeps_every_directory(self):
         assert _name("com/acme/Widget.java", "Widget") == "com.acme.Widget"
@@ -68,7 +71,7 @@ class TestGetPackageForFile:
         adapter = JavaAdapter()
         source = ROOT / "mockito-core/src/main/java/org/mockito/Answers.java"
         package = adapter.get_package_for_file(source, ROOT)
-        assert package == "mockito-core.org.mockito"
+        assert package == "mockito-core.src.main.java.org.mockito"
         assert adapter.build_qualified_name(source, "Answers", NodeType.CLASS, [], ROOT).startswith(package + ".")
 
     def test_every_package_is_collected(self):
@@ -77,4 +80,4 @@ class TestGetPackageForFile:
             ROOT / "a/src/main/java/com/acme/One.java",
             ROOT / "b/src/main/java/com/acme/Two.java",
         ]
-        assert adapter.get_all_packages(sources, ROOT) == {"a.com.acme", "b.com.acme"}
+        assert adapter.get_all_packages(sources, ROOT) == {"a.src.main.java.com.acme", "b.src.main.java.com.acme"}

@@ -67,10 +67,14 @@ class TestRepoUtils(unittest.TestCase):
         self.assertEqual(name, "another-repo")
 
     def test_get_repo_name_trailing_slash(self):
-        # Test URL with trailing slash - sanitize adds .git then strips it
-        url = "https://github.com/user/repo"
-        name = get_repo_name(url)
-        self.assertEqual(name, "repo")
+        url = "https://github.com/user/my-repo/"
+        self.assertEqual(get_repo_name(url), "my-repo")
+
+    def test_sanitize_strips_trailing_slash_before_adding_git(self):
+        self.assertEqual(
+            sanitize_repo_url("https://github.com/user/my-repo/"),
+            "https://github.com/user/my-repo.git",
+        )
 
     def test_get_repo_name_complex(self):
         # Test complex repository name

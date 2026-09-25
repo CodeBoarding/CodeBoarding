@@ -68,8 +68,13 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # named after.
 # v7: the pickle no longer carries cluster lineage; components come from the tree
 # specification in analysis.json, replayed over the graph.
+# v8: a C# file compiled into several projects has symbols and callers, and a
+# nested solution's files are named by its own engine only.
+# v9: a call into a project of another solution root is an edge.
+# v10: every name is spelled from the repository root; C# keeps ``src`` and Java its source root.
+# v11: every language builds its call edges from definitions at the call site.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v7"
+_TAG_VERSION = "v11"
 
 
 class StaticAnalysisCache:

@@ -1,16 +1,11 @@
-"""Tests for edge quality improvements in the call graph builder.
-
-Covers:
-- Alias self-edge removal (same definition location for source and target)
-- Decorator-to-method attribution (class-level decorator references
-  attributed to the decorated method)
-"""
+"""Edge quality in the call graph builder: decoration attribution and alias self-edges."""
 
 from pathlib import Path
 from unittest.mock import MagicMock
 
 from static_analyzer.config import NodeType
 from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
 
@@ -43,91 +38,43 @@ def _make_adapter() -> MagicMock:
     return adapter
 
 
-class TestFindContainingSymbolDecoratorAttribution:
-    """Test that decorator references are attributed to the decorated method."""
+class TestDecorationAttribution:
+    """A decoration runs where it is written and belongs to the member below it.
 
-    def test_decorator_line_attributed_to_method(self):
-        """A reference on a decorator line should resolve to the decorated method."""
-        adapter = _make_adapter()
-        st = SymbolTable(adapter)
-        file = Path("test.py")
+    The gap between the two decides nothing: a module-level call can sit in it and belongs
+    to no member at all, so the parse tree, not the distance, has to say which is which.
+    """
 
-        # Class spanning lines 0-50
-        cls_sym = _make_symbol("MyClass", "mod.MyClass", NodeType.CLASS, "test.py", 0, 0, 50, 0)
-        # Method starting at line 10 (decorator would be at line 8 or 9)
-        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", NodeType.METHOD, "test.py", 10, 4, 30, 0)
+    def test_a_decorator_is_attributed_to_the_function_it_decorates(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("@register\ndef handle():\n    pass\n")
 
-        st._file_symbols["test.py"] = [cls_sym, method_sym]
+        assert SourceInspector().attribution_position(source, 0, 1) == (1, 4)
 
-        # Reference at line 9 (decorator line, 1 line before method)
-        result = st.find_containing_symbol(file, 9, 5)
-        assert result is not None
-        assert result.qualified_name == "mod.MyClass.my_method"
+    def test_stacked_decorators_are_attributed_to_the_same_function(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("@outer\n@inner\ndef handle():\n    pass\n")
 
-    def test_decorator_two_lines_before_method(self):
-        """Stacked decorators: reference 2 lines before method start."""
-        adapter = _make_adapter()
-        st = SymbolTable(adapter)
-        file = Path("test.py")
+        assert SourceInspector().attribution_position(source, 0, 1) == (2, 4)
+        assert SourceInspector().attribution_position(source, 1, 1) == (2, 4)
 
-        cls_sym = _make_symbol("MyClass", "mod.MyClass", NodeType.CLASS, "test.py", 0, 0, 50, 0)
-        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", NodeType.METHOD, "test.py", 10, 4, 30, 0)
+    def test_a_module_level_call_above_a_function_belongs_to_nobody(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("initialize()\n\n\ndef handle():\n    pass\n")
 
-        st._file_symbols["test.py"] = [cls_sym, method_sym]
+        assert SourceInspector().attribution_position(source, 0, 0) == (0, 0)
 
-        # Reference at line 8 (2 lines before method — stacked decorator)
-        result = st.find_containing_symbol(file, 8, 5)
-        assert result is not None
-        assert result.qualified_name == "mod.MyClass.my_method"
+    def test_an_annotation_is_attributed_to_the_method_it_annotates(self, tmp_path: Path):
+        source = tmp_path / "Service.java"
+        source.write_text("class Service {\n  @Override\n  public void run() {}\n}\n")
 
-    def test_class_body_not_attributed_to_distant_method(self):
-        """A reference far from any method should stay at the class level."""
-        adapter = _make_adapter()
-        st = SymbolTable(adapter)
-        file = Path("test.py")
+        assert SourceInspector().attribution_position(source, 1, 3) == (2, 14)
 
-        cls_sym = _make_symbol("MyClass", "mod.MyClass", NodeType.CLASS, "test.py", 0, 0, 50, 0)
-        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", NodeType.METHOD, "test.py", 10, 4, 30, 0)
+    def test_a_position_inside_a_body_speaks_for_itself(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("@register\ndef handle():\n    helper()\n")
 
-        st._file_symbols["test.py"] = [cls_sym, method_sym]
-
-        # Reference at line 3 (7 lines before method — too far for decorator)
-        result = st.find_containing_symbol(file, 3, 5)
-        assert result is not None
-        assert result.qualified_name == "mod.MyClass"
-
-    def test_reference_inside_method_unchanged(self):
-        """A reference inside a method body should still resolve to the method."""
-        adapter = _make_adapter()
-        st = SymbolTable(adapter)
-        file = Path("test.py")
-
-        cls_sym = _make_symbol("MyClass", "mod.MyClass", NodeType.CLASS, "test.py", 0, 0, 50, 0)
-        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", NodeType.METHOD, "test.py", 10, 4, 30, 0)
-
-        st._file_symbols["test.py"] = [cls_sym, method_sym]
-
-        # Reference at line 15 (inside the method)
-        result = st.find_containing_symbol(file, 15, 8)
-        assert result is not None
-        assert result.qualified_name == "mod.MyClass.my_method"
-
-    def test_picks_nearest_method_with_multiple_methods(self):
-        """With multiple methods, decorator attributed to the nearest one after the line."""
-        adapter = _make_adapter()
-        st = SymbolTable(adapter)
-        file = Path("test.py")
-
-        cls_sym = _make_symbol("MyClass", "mod.MyClass", NodeType.CLASS, "test.py", 0, 0, 50, 0)
-        method_a = _make_symbol("method_a", "mod.MyClass.method_a", NodeType.METHOD, "test.py", 5, 4, 15, 0)
-        method_b = _make_symbol("method_b", "mod.MyClass.method_b", NodeType.METHOD, "test.py", 18, 4, 30, 0)
-
-        st._file_symbols["test.py"] = [cls_sym, method_a, method_b]
-
-        # Decorator at line 17 — should go to method_b (starts at 18), not method_a
-        result = st.find_containing_symbol(file, 17, 5)
-        assert result is not None
-        assert result.qualified_name == "mod.MyClass.method_b"
+        assert SourceInspector().attribution_position(source, 2, 4) == (2, 4)
 
 
 class TestAliasSelfEdgeRemoval:

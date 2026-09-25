@@ -14,13 +14,15 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from static_analyzer.clustering.names.inventory import Unit
-from static_analyzer.clustering.names.spec import KEYED_RUNGS, UNPLACED, Prefix, ScopeSpec
+from static_analyzer.clustering.names.spec import KEYED_RUNGS, Prefix, ScopeSpec
 from static_analyzer.clustering.names.tokens import segments, stem, tokenize
 from static_analyzer.config import ClusteringConfig
 
 PREFIX = "prefix"
 TERM = "term"
 FALLBACK = "fallback"
+UNPLACED = "unplaced"
+"""How a unit that no rule claims is reported; the drafting gives every scope a loose-files rule so none is."""
 
 
 @dataclass
@@ -59,7 +61,6 @@ def replay(units: Iterable[Unit], scope: ScopeSpec, role_words: frozenset[str]) 
     # directories added after it, so only a named prefix settles a unit.
     named = [(prefix, component_id) for prefix, component_id in primary if prefix]
     known = {prefix for prefix, _ in named}
-    bucket = scope.unplaced_rule
     keyed = scope.rung in KEYED_RUNGS
     for unit in units:
         where = unit.key if keyed else unit.position
@@ -69,9 +70,7 @@ def replay(units: Iterable[Unit], scope: ScopeSpec, role_words: frozenset[str]) 
         if component_id is None:
             partition.unplaced.append(unit)
             partition.placed_by[unit.unit_id] = UNPLACED
-            if bucket is None:
-                continue
-            component_id = bucket.component_id
+            continue
         partition.assignment[unit.unit_id] = component_id
         partition.members[component_id].append(unit)
         partition.placed_by[unit.unit_id] = how

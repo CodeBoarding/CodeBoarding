@@ -30,16 +30,40 @@ def _telemetry_disabled() -> bool:
     return os.getenv("CODEBOARDING_TELEMETRY", "true").strip().lower() == "false"
 
 
-def _origin() -> dict[str, object]:
-    """Who invoked this run, and whether that is a person using the product.
+def _org() -> str:
+    """The account a run's repository belongs to, or '' when none is named.
 
-    ``source`` is the existing discriminator: "vscode" when invoked by the
-    extension, "oss" for the OSS CLI, "github_action" in CI, "tests" for the
-    engine's own suite, "evals" for the benchmark harness, "core" for any other
-    embedding. ``internal`` is derived from it so the two can never disagree.
+    Why: ``CODEBOARDING_ORG`` when a caller knows the owner, else the owner half
+    of ``GITHUB_REPOSITORY``; the repository's own name is never read.
+    """
+    owner = os.getenv("CODEBOARDING_ORG", "").strip() or os.getenv("GITHUB_REPOSITORY", "").strip().partition("/")[0]
+    return owner.lower()
+
+
+#: Properties describing the process rather than the event. A payload that could
+#: set one could hide automated traffic inside usage, or claim an owner it does
+#: not have — so they are dropped from caller properties before the origin is
+#: applied. Listed rather than derived from ``_origin()``: ``org`` is absent
+#: there when no owner is known, which is exactly the case a caller could fill.
+ORIGIN_KEYS = frozenset({"source", "internal", "org"})
+
+
+def _origin() -> dict[str, object]:
+    """Who invoked this run, whether that is product usage, and which deployment.
+
+    Why: ``internal`` is derived from ``source`` so the two cannot disagree, and
+    ``org`` is omitted rather than blank so an absent key reads as unknown.
     """
     source = os.getenv("CODEBOARDING_SOURCE", "core")
-    return {"source": source, "internal": source in INTERNAL_SOURCES}
+    origin: dict[str, object] = {"source": source, "internal": source in INTERNAL_SOURCES}
+    if org := _org():
+        origin["org"] = org
+    return origin
+
+
+def _with_origin(properties: dict | None) -> dict:
+    """Caller properties, unable to claim any of :data:`ORIGIN_KEYS`."""
+    return {k: v for k, v in (properties or {}).items() if k not in ORIGIN_KEYS} | _origin()
 
 
 class ProductTelemetry:
@@ -88,12 +112,7 @@ class ProductTelemetry:
             self._client.capture(
                 distinct_id=self.user_id,
                 event=event,
-                # Origin LAST, so it wins. Who invoked the run is a property of
-                # the process, not a field an event model gets to claim — and
-                # `internal` is the one property a product metric filters on, so
-                # a payload that could overwrite it is a payload that could hide
-                # automated traffic inside usage.
-                properties={**(properties or {}), **_origin()},
+                properties=_with_origin(properties),
             )
         except Exception as e:
             logger.debug("Telemetry capture failed: %s", e)
@@ -106,12 +125,7 @@ class ProductTelemetry:
             self._client.capture_exception(
                 exc,
                 distinct_id=self.user_id,
-                # Origin LAST, so it wins. Who invoked the run is a property of
-                # the process, not a field an event model gets to claim — and
-                # `internal` is the one property a product metric filters on, so
-                # a payload that could overwrite it is a payload that could hide
-                # automated traffic inside usage.
-                properties={**(properties or {}), **_origin()},
+                properties=_with_origin(properties),
             )
         except Exception as e:
             logger.debug("Telemetry capture_exception failed: %s", e)

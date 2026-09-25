@@ -42,10 +42,6 @@ class TestRustAdapterProperties:
         """
         assert RustAdapter().wait_for_workspace_ready is True
 
-    def test_references_per_query_timeout_is_nonzero(self):
-        """A non-zero value gates the Phase-1.5 warmup probe in CallGraphBuilder."""
-        assert RustAdapter().references_per_query_timeout > 0
-
     def test_extra_client_capabilities_advertises_server_status(self):
         """rust-analyzer only emits ``experimental/serverStatus`` notifications
         when the client advertises this capability in the initialize request.

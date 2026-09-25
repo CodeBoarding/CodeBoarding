@@ -73,12 +73,6 @@ def segments(qualified_name: str, delimiter: str) -> list[str]:
     return [part for part in out if part]
 
 
-LAYOUT_WORDS = frozenset(
-    {"src", "main", "java", "kotlin", "scala", "lib", "libs", "packages", "pkg", "apps", "modules"}
-    | {"source", "sources", "python", "go", "js", "ts"}
-)
-"""Segments naming a build layout rather than a scope. The walk steps through them."""
-
 ROLE_WORDS = frozenset(
     stem(word)
     for word in """

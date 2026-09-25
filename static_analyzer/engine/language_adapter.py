@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Collection, Iterator, Sequence
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
-    EdgeStrategy,
 )
 from utils import get_config
 
@@ -21,11 +22,6 @@ logger = logging.getLogger(__name__)
 
 class LanguageAdapter(ABC):
     """Strategy interface for language-specific behavior."""
-
-    @property
-    def include_references_on_declaration_line(self) -> bool:
-        """Whether declaration-line references are known to be call edges."""
-        return False
 
     @property
     @abstractmethod
@@ -103,9 +99,11 @@ class LanguageAdapter(ABC):
     ) -> str:
         """Build the original-casing qualified name for a symbol.
 
-        Default: ``module.parent1.parent2.symbol_name`` where module is the
-        dot-joined relative path without suffix.  Override for languages that
-        need different logic (Go receiver notation, Java name cleaning, etc.).
+        ``project_root`` is the repository root: every adapter spells the path from there,
+        segment for segment as it is on disk, so two files in one directory carry the same
+        prefix whatever language they are. Default: ``module.parent1.parent2.symbol_name``
+        where module is the dot-joined relative path without suffix. Override only for what
+        a language means (Go receivers, Rust's implicit module files), never for layout.
         """
         rel = file_path.relative_to(project_root)
         module = ".".join(rel.with_suffix("").parts)
@@ -204,11 +202,8 @@ class LanguageAdapter(ABC):
     def workspace_owns_documents(self) -> bool:
         """If True, the server reads documents from the project, not from our didOpen.
 
-        Such a server answers position queries for files we never opened, which
-        makes a restarted process equivalent to the one it replaced — so the
-        references phase may recycle it to bound memory (see ``LSPRecycler``).
-        Servers that only know the documents we pushed must not be recycled:
-        they would come back empty.
+        Such a server answers position queries for files we never opened, so symbols
+        can be asked for before the documents are pushed.
         """
         return False
 
@@ -262,20 +257,24 @@ class LanguageAdapter(ABC):
         """
         return None
 
-    def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
+    def discover_source_files(
+        self, project_root: Path, ignore_manager: RepoIgnoreManager, nested_roots: Sequence[Path] = ()
+    ) -> list[Path]:
         """Discover source files for this adapter under a project root.
 
         Walks the directory tree, skipping paths rejected by
         ``ignore_manager`` and files that don't match this adapter's
-        extensions.
+        extensions. ``nested_roots`` are directories another engine of the
+        same adapter owns; their files belong to that engine alone.
 
         Returns a sorted list of absolute paths.
         """
         project_root = project_root.resolve()
         extensions = set(self.file_extensions)
         files: list[Path] = []
+        skipped = {root.resolve() for root in nested_roots}
 
-        for path in self._walk(project_root, ignore_manager):
+        for path in self._walk(project_root, ignore_manager, skipped):
             if path.suffix in extensions:
                 files.append(path)
 
@@ -284,7 +283,7 @@ class LanguageAdapter(ABC):
             logger.info("Found %d %s files in %s", len(files), self.language, project_root)
         return files
 
-    def _walk(self, root: Path, ignore_manager: RepoIgnoreManager):
+    def _walk(self, root: Path, ignore_manager: RepoIgnoreManager, skipped: Collection[Path] = ()) -> Iterator[Path]:
         """Walk directory tree, skipping paths rejected by RepoIgnoreManager."""
         try:
             entries = sorted(root.iterdir())
@@ -295,7 +294,9 @@ class LanguageAdapter(ABC):
             if ignore_manager.should_ignore(entry):
                 continue
             if entry.is_dir():
-                yield from self._walk(entry, ignore_manager)
+                if entry.resolve() in skipped:
+                    continue
+                yield from self._walk(entry, ignore_manager, skipped)
             elif entry.is_file():
                 yield entry
 
@@ -322,19 +323,10 @@ class LanguageAdapter(ABC):
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 
     @property
-    def edge_strategy(self) -> EdgeStrategy:
-        """Edge-building strategy for Phase 2.
-
-        Default is ``REFERENCES``. Override to ``DEFINITIONS`` for
-        languages where references queries are too slow (e.g. Java/JDTLS).
-        """
-        return EdgeStrategy.REFERENCES
-
-    @property
     def resolves_method_groups(self) -> bool:
-        """Whether the definitions strategy should also query bare identifiers
-        passed as call arguments, and keep only callable/class-like targets."""
-        return False
+        """Whether to also query names passed as values and members read without a call, keeping only
+        what resolves to something callable -- ``app.MapGet("/items", GetAllItems)``, ``this.redraw.bind(this)``."""
+        return True
 
     @property
     def expands_virtual_dispatch(self) -> bool:
@@ -364,6 +356,15 @@ class LanguageAdapter(ABC):
         two of them can hold the same file with different symbols.
         """
 
+    def read_document_symbols(self, file_path: Path, inspector: SourceInspector, client: LSPClient) -> list[dict]:
+        """Symbols for a file the server answered nothing for; none by default.
+
+        Why: a server that owns the workspace can decline a file it cannot map to one
+        document, and calls into that file then resolve to positions no symbol covers.
+        An empty answer means the file is left to the server: it gets opened and asked again.
+        """
+        return []
+
     @property
     def expands_constructors(self) -> bool:
         """Whether an edge to a class should also reach that class's constructors.
@@ -379,16 +380,6 @@ class LanguageAdapter(ABC):
         the shared client free of language-specific opt-ins.
         """
         return {}
-
-    @property
-    def references_batch_size(self) -> int:
-        """Max number of references requests to send in a single batch."""
-        return 50
-
-    @property
-    def references_per_query_timeout(self) -> int:
-        """Per-query timeout for batched references. 0 means use the default batch timeout."""
-        return 0
 
     def build_edge_name(
         self,

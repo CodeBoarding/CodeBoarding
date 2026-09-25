@@ -163,6 +163,71 @@ class TestRegisterSymbols:
         all_qnames = {s.qualified_name for s in st.file_symbols.get("mod.py", [])}
         assert "mod.inner_func" in all_qnames
 
+    def test_a_class_member_bound_to_a_function_is_a_method(self):
+        st = SymbolTable(_make_adapter())
+        st.register_symbols(
+            Path("mod.ts"),
+            _class_with_child("on_move", NodeType.PROPERTY),
+            parent_chain=[],
+            project_root=Path("/root"),
+            function_values={(0, 0)},
+        )
+        assert st.symbols["MyClass.on_move"].kind == NodeType.METHOD
+
+    def test_a_class_member_holding_a_value_keeps_its_kind(self):
+        st = SymbolTable(_make_adapter())
+        st.register_symbols(
+            Path("mod.ts"), _class_with_child("limit", NodeType.PROPERTY), parent_chain=[], project_root=Path("/root")
+        )
+        assert st.symbols["MyClass.limit"].kind == NodeType.PROPERTY
+
+    def test_a_module_variable_bound_to_a_function_keeps_its_kind(self):
+        st = SymbolTable(_make_adapter())
+        span = {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 20}}
+        symbols = [{"name": "handler", "kind": NodeType.VARIABLE, "range": span}]
+        st.register_symbols(
+            Path("mod.ts"), symbols, parent_chain=[], project_root=Path("/root"), function_values={(0, 0)}
+        )
+        assert st.symbols["mod.handler"].kind == NodeType.VARIABLE
+
+    def test_an_alias_keeps_the_first_declaration_registered_under_its_name(self):
+        st = SymbolTable(_make_adapter())
+        st.register_symbols(
+            Path("model.rs"), [self._class("Model", [1, 2, 3])], parent_chain=[], project_root=Path("/root")
+        )
+        assert st.symbols["Model.get"].start_line == 3
+        assert st.symbols["model.get"].start_line == 1
+
+    def test_an_alias_never_takes_a_name_another_declaration_holds(self):
+        st = SymbolTable(_make_adapter())
+        function = {"name": "get", "kind": NodeType.FUNCTION, "range": self._span(0)}
+        st.register_symbols(
+            Path("model.ts"), [function, self._class("Model", [2, 3])], parent_chain=[], project_root=Path("/root")
+        )
+        assert st.symbols["model.get"].kind == NodeType.FUNCTION
+        assert st.symbols["model.get"].start_line == 0
+
+    def test_a_different_kind_under_the_same_name_keeps_the_alias_on_the_first(self):
+        st = SymbolTable(_make_adapter())
+        members = [
+            {"name": "add", "kind": NodeType.CONSTANT, "range": self._span(2)},
+            {"name": "add", "kind": NodeType.PROPERTY, "range": self._span(7)},
+        ]
+        span = {"start": {"line": 0, "character": 0}, "end": {"line": 9, "character": 0}}
+        hook = {"name": "useChat", "kind": NodeType.CLASS, "range": span, "children": members}
+        st.register_symbols(Path("mod.ts"), [hook], parent_chain=[], project_root=Path("/root"))
+        assert st.symbols["useChat.add"].start_line == 7
+        assert st.symbols["mod.add"].start_line == 2
+
+    @staticmethod
+    def _span(line: int) -> dict:
+        return {"start": {"line": line, "character": 2}, "end": {"line": line, "character": 20}}
+
+    def _class(self, name: str, overload_lines: list[int]) -> dict:
+        overloads = [{"name": "get", "kind": NodeType.METHOD, "range": self._span(line)} for line in overload_lines]
+        span = {"start": {"line": 0, "character": 0}, "end": {"line": 9, "character": 0}}
+        return {"name": name, "kind": NodeType.CLASS, "range": span, "children": overloads}
+
     def test_skips_symbols_with_empty_name(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
@@ -218,6 +283,39 @@ class TestBuildIndices:
         assert sum(len(ctors) for ctors in st._class_to_ctors.values()) == 1
 
 
+class TestRegisterKnown:
+    def test_a_known_declaration_resolves_but_is_not_this_builds_own(self):
+        st = SymbolTable(_make_adapter())
+        known = _sym("helper", "lib.helper", NodeType.FUNCTION, "lib.py", 3, 4, 4)
+
+        st.register_known([known])
+
+        assert st.symbols["lib.helper"] is known
+        assert st.file_symbols["lib.py"] == [known]
+        assert st.primary_file_symbols == {}
+        assert st.known == [known]
+
+    def test_a_name_the_build_read_itself_keeps_its_own_symbol(self):
+        st = SymbolTable(_make_adapter())
+        st.register_symbols(Path("mod.py"), _class_with_child("run", NodeType.METHOD), [], Path("/root"))
+
+        st.register_known([_sym("MyClass", "mod.MyClass", NodeType.CLASS, "other.py")])
+
+        assert st.symbols["mod.MyClass"].file_path == Path("mod.py")
+        assert st.known == []
+
+    def test_a_known_constructor_is_indexed_under_its_class(self):
+        """A full build expands a construction to its constructors; a warm start must too."""
+        st = SymbolTable(_make_adapter())
+        ctor = _sym("__init__", "lib.Box.__init__", NodeType.CONSTRUCTOR, "lib.py", 2, 8, 3)
+        ctor.owner_qualified_name = "lib.Box"
+
+        st.register_known([ctor])
+        st.build_indices()
+
+        assert st.class_to_ctors["lib.Box"] == ["lib.Box.__init__"]
+
+
 # ---- find_containing_symbol ----
 
 
@@ -249,17 +347,20 @@ class TestFindContainingSymbol:
         result = st.find_containing_symbol(Path("unknown.py"), 0, 0)
         assert result is None
 
-    def test_decorator_attributed_to_method_not_class(self):
+    def test_a_gap_between_members_belongs_to_the_class(self):
+        """Containment is a range question; which member a decoration belongs to is not.
+
+        The parse tree answers the second one, in ``SourceInspector.attribution_position``.
+        """
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         cls = _sym("C", "mod.C", NodeType.CLASS, start_line=0, end_line=30)
         method = _sym("m", "mod.C.m", NodeType.METHOD, start_line=5, end_line=15)
         st._file_symbols["mod.py"] = [cls, method]
 
-        # Line 3 is a decorator above the method at line 5
         result = st.find_containing_symbol(Path("mod.py"), 3, 4)
         assert result is not None
-        assert result.qualified_name == "mod.C.m"
+        assert result.qualified_name == "mod.C"
 
 
 # ---- lift_to_callable ----

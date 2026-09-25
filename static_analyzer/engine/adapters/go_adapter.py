@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager, _ALWAYS_IGNORED_DIRS
@@ -200,24 +201,16 @@ class GoAdapter(LanguageAdapter):
         """
         return {"GOGC": "50"}
 
-    @property
-    def references_batch_size(self) -> int:
-        """Limit concurrent gopls reference searches to avoid request backlogs."""
-        return 10
-
-    @property
-    def references_per_query_timeout(self) -> int:
-        """Give each serialized gopls reference search a modest time budget."""
-        return 10
-
-    def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
+    def discover_source_files(
+        self, project_root: Path, ignore_manager: RepoIgnoreManager, nested_roots: Sequence[Path] = ()
+    ) -> list[Path]:
         """Discover Go source files, filtering out build-tag-constrained files.
 
         Files with ``//go:build`` or ``// +build`` directives containing
         negations (``!``) are excluded because gopls cannot resolve package
         metadata for them, which causes errors during cross-reference queries.
         """
-        files = super().discover_source_files(project_root, ignore_manager)
+        files = super().discover_source_files(project_root, ignore_manager, nested_roots)
         filtered = [f for f in files if not self._has_excluding_build_tag(f)]
         skipped = len(files) - len(filtered)
         if skipped:
@@ -228,7 +221,7 @@ class GoAdapter(LanguageAdapter):
     def _has_excluding_build_tag(file_path: Path) -> bool:
         """Check if a Go file has a build constraint with negation."""
         try:
-            with open(file_path, "r", errors="replace") as f:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 for line in f:
                     stripped = line.strip()
                     if not stripped or stripped.startswith("//"):

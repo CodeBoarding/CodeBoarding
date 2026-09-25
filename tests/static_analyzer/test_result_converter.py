@@ -458,6 +458,25 @@ class TestCallGraphConversion:
         assert "mod.handler" in cg.nodes
         assert "mod.process" in cg.nodes
 
+    def test_a_known_declaration_is_output_only_as_an_edge_endpoint(self):
+        """The cache keeps its node; the partial build must not repeat it, nor reference it."""
+        adapter = _make_adapter()
+        st = SymbolTable(adapter)
+        st.register_symbols(Path("mod.py"), [_lsp_sym("foo", NodeType.FUNCTION, 0, 5)], [], Path("/root"))
+        st.register_known(
+            [
+                SymbolInfo("bar", "lib.bar", NodeType.FUNCTION, Path("lib.py"), 0, 4, 3, 0),
+                SymbolInfo("idle", "lib.idle", NodeType.FUNCTION, Path("lib.py"), 5, 4, 8, 0),
+            ]
+        )
+        st.build_indices()
+        result = LanguageAnalysisResult(cfg=CallFlowGraph.from_edge_set({("mod.foo", "lib.bar"): []}))
+
+        out = convert_to_codeboarding_format(st, result, adapter)
+
+        assert set(out["call_graph"].nodes) == {"mod.foo", "lib.bar"}
+        assert [ref.fully_qualified_name for ref in out["references"]] == ["mod.foo"]
+
     def test_reference_reuses_graph_node(self):
         """If a symbol is both in the graph and reference-worthy, the same Node is reused."""
         adapter = _make_adapter()
@@ -630,7 +649,7 @@ def test_add_reference_edges_contains_and_inherits():
         type_references=[("mod.helper", "mod.Widget")],
         import_edges=[("mod.helper", "mod.Base")],
     )
-    _add_reference_edges(cg, result)
+    _add_reference_edges(cg, result, set())
 
     got = {(ref.src, ref.dst, ref.kind) for ref in cg.reference_edges}
     # methods -> their class

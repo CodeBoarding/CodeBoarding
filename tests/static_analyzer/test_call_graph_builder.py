@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
-from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_references
+from static_analyzer.engine.edge_builder import EdgeMap
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
@@ -46,21 +46,20 @@ def _make_adapter() -> MagicMock:
     adapter.build_qualified_name.side_effect = lambda fp, name, kind, chain, root, detail="": (
         ".".join(n for n, _ in chain) + "." + name if chain else f"{fp.stem}.{name}"
     )
-    adapter.references_batch_size = 50
-    adapter.references_per_query_timeout = 0
     adapter.get_all_packages.return_value = {"pkg"}
     adapter.get_package_for_file.return_value = "pkg"
     adapter.build_edges.return_value = set()
     adapter.get_probe_timeout_minimum.return_value = 0
     adapter.probe_before_open = False
     adapter.interleave_did_open_with_symbols = False
+    adapter.workspace_owns_documents = False
+    adapter.read_document_symbols.return_value = []
     return adapter
 
 
 def _make_lsp() -> MagicMock:
     lsp = MagicMock()
     lsp.document_symbol.return_value = []
-    lsp.send_references_batch.return_value = ([], set())
     lsp.type_hierarchy_prepare.return_value = None
     return lsp
 
@@ -69,7 +68,7 @@ class TestCallGraphBuilderInit:
     def test_creates_symbol_table_and_inspector(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         assert builder.symbol_table is not None
         assert builder._source_inspector is not None
@@ -77,7 +76,7 @@ class TestCallGraphBuilderInit:
     def test_resolves_project_root(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
         assert builder._root == Path("/project").resolve()
 
 
@@ -85,7 +84,7 @@ class TestDiscoverSymbols:
     def test_opens_files_and_queries_symbols(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         files = [Path("/project/a.py"), Path("/project/b.py")]
         lsp.document_symbol.return_value = []
@@ -99,7 +98,7 @@ class TestDiscoverSymbols:
         """The probe result from the sync wait should be reused for the first file."""
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         probe_symbols = [
             {
@@ -121,7 +120,7 @@ class TestDiscoverSymbols:
     def test_empty_source_files(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         builder._discover_symbols([])
         lsp.did_open.assert_not_called()
@@ -130,7 +129,7 @@ class TestDiscoverSymbols:
     def test_batches_did_open_calls(self, mock_sleep):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         # Create more files than a single batch
         files = [Path(f"/project/file_{i}.py") for i in range(DID_OPEN_BATCH_SIZE + 5)]
@@ -145,7 +144,7 @@ class TestDiscoverSymbols:
     def test_probe_timeout_scales_linearly_with_file_count(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         files = [Path(f"/project/file_{i}.py") for i in range(100)]
         lsp.document_symbol.return_value = []
@@ -159,7 +158,7 @@ class TestDiscoverSymbols:
     def test_probe_timeout_capped_at_maximum(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         files = [Path(f"/project/file_{i}.py") for i in range(20000)]
         lsp.document_symbol.return_value = []
@@ -173,7 +172,7 @@ class TestDiscoverSymbols:
         lsp = _make_lsp()
         adapter = _make_adapter()
         adapter.interleave_did_open_with_symbols = True
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
         files = [Path("/project/a.go"), Path("/project/b.go")]
 
         builder._discover_symbols(files)
@@ -188,12 +187,97 @@ class TestDiscoverSymbols:
         ]
         assert [item.kwargs.get("timeout") for item in lsp.document_symbol.call_args_list[1:]] == [64, 64]
 
+    def test_a_workspace_owning_server_keeps_a_file_read_from_source_closed(self):
+        """csharp-ls adds a second copy of a file it cannot map to one document when that
+        file is opened, so symbols come first and such a file is never opened."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        adapter.workspace_owns_documents = True
+        files = [Path("/project/a.cs"), Path("/project/shared.cs")]
+        served = {"name": "A", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        lsp.document_symbol.side_effect = lambda path, timeout=None: [served] if path == files[0] else []
+        read = {"name": "Shared", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        adapter.read_document_symbols.return_value = [read]
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
+
+        builder._discover_symbols(files)
+
+        calls = [(item[0], item.args[0]) for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == [
+            ("document_symbol", files[0]),
+            ("document_symbol", files[1]),
+            ("did_open", files[0]),
+            ("document_symbol", files[0]),
+        ]
+        adapter.read_document_symbols.assert_called_once_with(files[1], builder._source_inspector, lsp)
+        assert {"a.A", "shared.Shared"} <= set(builder.symbol_table.symbols)
+
+    def test_a_file_the_server_does_not_know_yet_is_opened_and_asked_again(self):
+        """A file outside the loaded solution answers nothing until it is opened; that
+        is the server's to serve, not the parse tree's."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        adapter.workspace_owns_documents = True
+        files = [Path("/project/a.cs"), Path("/project/loose.cs")]
+        served = {"name": "A", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        loose = {"name": "Loose", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        opened: list[Path] = []
+        lsp.did_open.side_effect = opened.append
+        lsp.document_symbol.side_effect = lambda path, timeout=None: (
+            [served] if path == files[0] else ([loose] if path in opened else [])
+        )
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
+
+        builder._discover_symbols(files)
+
+        calls = [(item[0], item.args[0]) for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == [
+            ("document_symbol", files[0]),
+            ("document_symbol", files[1]),
+            ("did_open", files[1]),
+            ("document_symbol", files[1]),
+            ("did_open", files[0]),
+            ("document_symbol", files[0]),
+        ]
+        assert {"a.A", "loose.Loose"} <= set(builder.symbol_table.symbols)
+
+    def test_bulk_open_ends_with_a_drain_barrier(self):
+        """Why: the didOpen backlog is drained by whatever request comes next, so the
+        barrier travels with the bulk open instead of sitting at a fixed phase."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.probe_before_open = True
+        adapter.workspace_owns_documents = True
+        files = [Path("/project/a.cs"), Path("/project/b.cs")]
+        served = {"name": "A", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        lsp.document_symbol.return_value = [served]
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
+
+        builder._discover_symbols(files)
+
+        calls = [(item[0], item.args[0]) for item in lsp.method_calls if item[0] in {"did_open", "document_symbol"}]
+        assert calls == [
+            ("document_symbol", files[0]),
+            ("document_symbol", files[1]),
+            ("did_open", files[0]),
+            ("did_open", files[1]),
+            ("document_symbol", files[0]),
+        ]
+        # The barrier gets the scaled probe timeout, not the per-request default.
+        assert lsp.document_symbol.call_args_list[-1].kwargs.get("timeout") == 64
+
+
+def _range(start_line: int, end_line: int) -> dict:
+    return {"start": {"line": start_line, "character": 0}, "end": {"line": end_line, "character": 0}}
+
 
 class TestBuild:
     def test_returns_language_analysis_result(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         lsp.document_symbol.return_value = [
             {
@@ -216,93 +300,13 @@ class TestBuild:
     def test_build_with_no_files(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         result = builder.build([])
 
         assert result.source_files == []
         assert len(result.cfg.nodes) == 0
         assert len(result.cfg.edges) == 0
-
-
-class TestBuildEdges:
-    """Tests for the default references-based build_edges on LanguageAdapter."""
-
-    def _make_ctx(self, lsp: MagicMock, adapter: _TestAdapter) -> EdgeBuildContext:
-        return EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector())
-
-    def test_creates_edge_from_reference(self):
-        lsp = _make_lsp()
-        adapter = _TestAdapter()
-        ctx = self._make_ctx(lsp, adapter)
-
-        # Register two symbols
-        caller = SymbolInfo("main", "app.main", NodeType.FUNCTION, Path("/project/app.py"), 0, 0, 20, 0)
-        callee = SymbolInfo("helper", "app.helper", NodeType.FUNCTION, Path("/project/app.py"), 25, 0, 35, 0)
-        st = ctx.symbol_table
-        st._symbols["app.main"] = caller
-        st._symbols["app.helper"] = callee
-        st._file_symbols[str(Path("/project/app.py"))] = [caller, callee]
-        st._primary_file_symbols[str(Path("/project/app.py"))] = [caller, callee]
-        st.build_indices()
-
-        ref_to_helper = {
-            "uri": Path("/project/app.py").as_uri(),
-            "range": {
-                "start": {"line": 5, "character": 4},
-                "end": {"line": 5, "character": 10},
-            },
-        }
-        lsp.send_references_batch.return_value = ([[], [ref_to_helper]], set())
-
-        ctx.source_inspector = MagicMock()
-        ctx.source_inspector.is_invocation.return_value = True
-        ctx.source_inspector.is_callable_usage.return_value = True
-
-        edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
-
-        assert ("app.main", "app.helper") in edge_set
-
-    def test_skips_self_references(self):
-        lsp = _make_lsp()
-        adapter = _TestAdapter()
-        ctx = self._make_ctx(lsp, adapter)
-
-        sym = SymbolInfo("foo", "app.foo", NodeType.FUNCTION, Path("/project/app.py"), 0, 4, 10, 0)
-        st = ctx.symbol_table
-        st._symbols["app.foo"] = sym
-        st._file_symbols[str(Path("/project/app.py"))] = [sym]
-        st._primary_file_symbols[str(Path("/project/app.py"))] = [sym]
-        st.build_indices()
-
-        ref = {
-            "uri": Path("/project/app.py").as_uri(),
-            "range": {
-                "start": {"line": 0, "character": 4},
-                "end": {"line": 0, "character": 7},
-            },
-        }
-        lsp.send_references_batch.return_value = ([[ref]], set())
-
-        edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
-        assert len(edge_set) == 0
-
-    def test_handles_batch_failure(self):
-        lsp = _make_lsp()
-        adapter = _TestAdapter()
-        ctx = self._make_ctx(lsp, adapter)
-
-        sym = SymbolInfo("foo", "app.foo", NodeType.FUNCTION, Path("/project/app.py"), 0, 0, 10, 0)
-        st = ctx.symbol_table
-        st._symbols["app.foo"] = sym
-        st._file_symbols[str(Path("/project/app.py"))] = [sym]
-        st._primary_file_symbols[str(Path("/project/app.py"))] = [sym]
-        st.build_indices()
-
-        lsp.send_references_batch.side_effect = Exception("LSP crash")
-
-        edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
-        assert len(edge_set) == 0
 
 
 class TestPostprocessEdges:
@@ -326,7 +330,7 @@ class Main {
         source.write_text(self.SOURCE)
         adapter = _make_adapter()
         adapter.expands_constructors = expands_constructors
-        builder = CallGraphBuilder(_make_lsp(), adapter, tmp_path)
+        builder = CallGraphBuilder(_make_lsp(), adapter, tmp_path, tmp_path)
 
         caller = SymbolInfo("main", "app.main", NodeType.FUNCTION, source, 3, 4, 7, 0)
         cls = SymbolInfo("Dog", "app.Dog", NodeType.CLASS, source, 25, 0, 50, 0)
@@ -423,7 +427,7 @@ class TestBuildPackageDeps:
     def test_cross_package_dependencies(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         sym_a = SymbolInfo("foo", "pkg_a.foo", NodeType.FUNCTION, Path("/project/pkg_a/mod.py"), 0, 0, 10, 0)
         sym_b = SymbolInfo("bar", "pkg_b.bar", NodeType.FUNCTION, Path("/project/pkg_b/mod.py"), 0, 0, 10, 0)
@@ -444,7 +448,7 @@ class TestBuildPackageDeps:
     def test_same_package_edges_excluded(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         sym_a = SymbolInfo("foo", "pkg.foo", NodeType.FUNCTION, Path("/project/pkg/a.py"), 0, 0, 10, 0)
         sym_b = SymbolInfo("bar", "pkg.bar", NodeType.FUNCTION, Path("/project/pkg/b.py"), 0, 0, 10, 0)
@@ -464,7 +468,7 @@ class TestBuildPackageDeps:
     def test_missing_symbols_in_edge_set(self):
         lsp = _make_lsp()
         adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         adapter.get_all_packages.return_value = {"pkg"}
 

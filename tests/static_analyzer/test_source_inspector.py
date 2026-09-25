@@ -50,50 +50,6 @@ class TestGetSourceLine:
         assert si.get_source_line(f, 0) == "cached"
 
 
-class TestIsInvocation:
-    def test_direct_call(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    foo(bar)\n")
-        si = SourceInspector()
-        assert si.is_invocation(f, 0, 7) is True  # after "foo"
-
-    def test_not_a_call(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    x = foo\n")
-        si = SourceInspector()
-        assert si.is_invocation(f, 0, 11) is False
-
-    def test_generic_instantiation(self, tmp_path: Path):
-        f = tmp_path / "test.java"
-        f.write_text("    new List<String>()\n")
-        si = SourceInspector()
-        # After "List" at char 8, rest is "<String>()"
-        assert si.is_invocation(f, 0, 12) is True
-
-    def test_conservative_on_missing_file(self):
-        si = SourceInspector()
-        assert si.is_invocation(Path("/nonexistent.py"), 0, 0) is True
-
-    def test_call_on_next_line(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    foo\n    (bar)\n")
-        si = SourceInspector()
-        # This is not a valid Python call expression, so tree-sitter does not treat it as an invocation.
-        assert si.is_invocation(f, 0, 7) is False
-
-    def test_no_call_on_next_line(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    foo\n    bar\n")
-        si = SourceInspector()
-        assert si.is_invocation(f, 0, 7) is False
-
-    def test_end_of_file(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    foo")
-        si = SourceInspector()
-        assert si.is_invocation(f, 0, 7) is False
-
-
 class TestIsConstructionSite:
     """Which call sites run a constructor, for constructor expansion."""
 
@@ -146,149 +102,6 @@ class TestIsConstructionSite:
         assert SourceInspector().is_construction_site(site) is False
 
 
-class TestIsCallableUsage:
-    def test_direct_invocation(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    func(args)\n")
-        si = SourceInspector()
-        assert si.is_callable_usage(f, 0, 4, 8) is True
-
-    def test_return_value(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    return handler\n")
-        si = SourceInspector()
-        assert si.is_callable_usage(f, 0, 11, 18) is True
-
-    def test_callback_argument(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    filter(func)\n")
-        si = SourceInspector()
-        # "func" starts at 11, ends at 15; preceded by unmatched "("
-        assert si.is_callable_usage(f, 0, 11, 15) is True
-
-    def test_plain_reference(self, tmp_path: Path):
-        f = tmp_path / "test.py"
-        f.write_text("    x = func\n")
-        si = SourceInspector()
-        assert si.is_callable_usage(f, 0, 8, 12) is False
-
-    def test_conservative_on_missing_file(self):
-        si = SourceInspector()
-        assert si.is_callable_usage(Path("/nonexistent.py"), 0, 0, 5) is True
-
-
-class TestIsReferenceInDeclarationBody:
-    def test_object_literal_is_not_a_declaration_body(self, tmp_path: Path):
-        f = tmp_path / "Caller.ts"
-        source = "const caller = { run: target };\n"
-        f.write_text(source)
-        target_start = source.index("target")
-
-        assert (
-            SourceInspector().is_reference_in_declaration_body(
-                f,
-                0,
-                source.index("caller"),
-                0,
-                target_start,
-                target_start + len("target"),
-            )
-            is False
-        )
-
-    def test_reference_in_block_body(self, tmp_path: Path):
-        f = tmp_path / "Caller.cs"
-        source = "class Caller { string Call() { return Target(); } }\n"
-        f.write_text(source)
-        start = source.index("Target")
-
-        declaration_start = source.index("Call")
-
-        assert (
-            SourceInspector().is_reference_in_declaration_body(
-                f,
-                0,
-                declaration_start,
-                0,
-                start,
-                start + len("Target"),
-            )
-            is True
-        )
-
-    def test_expression_body_requires_opt_in(self, tmp_path: Path):
-        f = tmp_path / "Caller.cs"
-        source = "class Caller { string Call() => Target(); }\n"
-        f.write_text(source)
-        start = source.index("Target")
-        si = SourceInspector()
-        declaration_start = source.index("Call")
-
-        assert (
-            si.is_reference_in_declaration_body(
-                f,
-                0,
-                declaration_start,
-                0,
-                start,
-                start + len("Target"),
-            )
-            is False
-        )
-        assert (
-            si.is_reference_in_declaration_body(
-                f,
-                0,
-                declaration_start,
-                0,
-                start,
-                start + len("Target"),
-                include_expression_body=True,
-            )
-            is True
-        )
-
-    def test_constructor_initializer_is_outside_body(self, tmp_path: Path):
-        f = tmp_path / "Cat.cs"
-        source = "class Cat : Animal { public Cat(string name) : base(name) {} }\n"
-        f.write_text(source)
-        start = source.index("base")
-        declaration_start = source.index("Cat(string")
-
-        assert (
-            SourceInspector().is_reference_in_declaration_body(
-                f,
-                0,
-                declaration_start,
-                0,
-                start,
-                start + len("base"),
-                include_expression_body=True,
-            )
-            is False
-        )
-
-    def test_outer_block_does_not_count_as_local_declaration_body(self, tmp_path: Path):
-        f = tmp_path / "Outer.cs"
-        source = "class Outer { void Body() { void Local(Target value) {} } }\n"
-        f.write_text(source)
-        declaration_start = source.index("Local")
-        ref_start = source.index("Target")
-
-        assert (
-            SourceInspector().is_reference_in_declaration_body(
-                f,
-                0,
-                declaration_start,
-                0,
-                ref_start,
-                ref_start + len("Target"),
-                include_expression_body=True,
-            )
-            is False
-        )
-
-
 class TestFindCallSites:
     def test_finds_regular_calls(self, tmp_path: Path):
         f = tmp_path / "test.py"
@@ -305,6 +118,33 @@ class TestFindCallSites:
         si = SourceInspector()
         sites = si.find_call_sites(f)
         assert (1, 5) in _positions(sites)  # Dog in "new Dog("
+
+    def test_a_private_method_call_queries_the_member(self, tmp_path: Path):
+        """``this`` resolves to the class, so querying there names no method at all."""
+        f = tmp_path / "test.js"
+        f.write_text("class A {\n  #save() {}\n  run() { this.#save(); }\n}\n")
+        si = SourceInspector()
+        assert (3, 16) in _positions(si.find_call_sites(f))  # #save
+
+    def test_a_column_counts_utf16_units_not_bytes(self, tmp_path: Path):
+        """A server reads the character as UTF-16; bytes would land past the callee."""
+        f = tmp_path / "test.py"
+        f.write_text("s = 'héllo wörld'; target()\n", encoding="utf-8")
+        si = SourceInspector()
+        assert (1, 20) in _positions(si.find_call_sites(f))  # target
+
+    def test_a_call_inside_a_macro_invocation_is_a_site(self, tmp_path: Path):
+        """A macro's arguments are one unparsed token sequence, so no call node is written."""
+        f = tmp_path / "main.rs"
+        f.write_text('fn main() {\n    println!("{}", cat.speak());\n}\n')
+        si = SourceInspector()
+        assert (2, 24) in _positions(si.find_call_sites(f))  # speak
+
+    def test_a_bare_name_inside_a_macro_is_not_a_site(self, tmp_path: Path):
+        f = tmp_path / "main.rs"
+        f.write_text('fn main() {\n    println!("{}", label);\n}\n')
+        si = SourceInspector()
+        assert [(s.line, s.column) for s in si.find_call_sites(f)] == [(2, 5)]  # println! only
 
     def test_finds_method_reference(self, tmp_path: Path):
         f = tmp_path / "test.java"
@@ -473,12 +313,166 @@ class TestFindMemberModifiers:
         assert modifiers[("Derived", "Run")] == frozenset({"explicit"})
 
 
+class TestValueBindings:
+    """Binding a callable to a name passes it as a value; each grammar spells it its own way."""
+
+    def _sites(self, path: Path) -> set[tuple[int, int]]:
+        return {(site.line, site.column) for site in SourceInspector().find_method_group_sites(path)}
+
+    def test_python_assignment(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("def handler():\n    pass\n\n\ndef build():\n    callback = handler\n")
+
+        assert (6, 16) in self._sites(source)
+
+    def test_go_short_declaration(self, tmp_path: Path):
+        source = tmp_path / "app.go"
+        source.write_text("package main\n\nfunc handler() {}\n\nfunc build() {\n\tcb := handler\n\t_ = cb\n}\n")
+
+        assert (6, 8) in self._sites(source)
+
+    def test_rust_let(self, tmp_path: Path):
+        source = tmp_path / "app.rs"
+        source.write_text("fn handler() {}\n\nfn build() {\n    let cb = handler;\n    let _ = cb;\n}\n")
+
+        assert (4, 14) in self._sites(source)
+
+    def test_python_parameter_default(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("def handler():\n    pass\n\n\ndef run(callback=handler, typed: int = handler):\n    pass\n")
+
+        assert {(5, 18), (5, 40)} <= self._sites(source)
+
+    def test_typescript_class_field(self, tmp_path: Path):
+        source = tmp_path / "app.ts"
+        source.write_text("function handler() {}\n\nclass Widget {\n  private cb = handler;\n}\n")
+
+        assert (4, 16) in self._sites(source)
+
+    def test_javascript_class_field(self, tmp_path: Path):
+        source = tmp_path / "app.js"
+        source.write_text("function handler() {}\n\nclass Widget {\n  cb = handler;\n}\n")
+
+        assert (4, 8) in self._sites(source)
+
+    def test_go_var_and_const_declarations(self, tmp_path: Path):
+        source = tmp_path / "app.go"
+        source.write_text(
+            "package main\n\nfunc handler() {}\n\nvar top = handler\n\nfunc build() {\n\tvar cb = handler\n\t_ = cb\n}\n"
+        )
+
+        assert {(5, 11), (8, 11)} <= self._sites(source)
+
+
+class TestDeclaresFunctionValueGo:
+    """gopls answers a method group with the variable a func literal was bound to."""
+
+    def test_a_package_level_func_literal(self, tmp_path: Path):
+        source = tmp_path / "app.go"
+        source.write_text("package main\n\nvar handler = func() {}\n")
+
+        assert SourceInspector().declares_function_value(source, 2, 4) is True
+
+    def test_a_short_declaration_of_a_func_literal(self, tmp_path: Path):
+        source = tmp_path / "app.go"
+        source.write_text("package main\n\nfunc run() {\n\tcb := func() {}\n\t_ = cb\n}\n")
+
+        assert SourceInspector().declares_function_value(source, 3, 1) is True
+
+
+class TestParseErrorsAreReported:
+    def test_a_file_the_grammar_cannot_parse_is_logged(self, tmp_path: Path, caplog):
+        """A call the parser swallowed is an edge lost, and a silent loss is the worst kind."""
+        source = tmp_path / "broken.py"
+        source.write_text("def run(:\n    helper(\n")
+
+        with caplog.at_level("WARNING"):
+            SourceInspector().find_call_sites(source)
+
+        assert any("error node" in record.getMessage() for record in caplog.records)
+
+
+class TestDeclaredNameAt:
+    def test_a_declaration_name_is_declared_here(self, tmp_path: Path):
+        source = tmp_path / "app.ts"
+        source.write_text("export function target() { return 1; }\n")
+
+        assert SourceInspector().declared_name_at(source, 0, 16) == "target"
+
+    def test_an_import_binding_is_not(self, tmp_path: Path):
+        """A server answers at an import binding as readily as at a declaration.
+
+        Reading the name there as one this file declares matches it to whatever the file
+        happens to declare under the same name -- a different function entirely.
+        """
+        source = tmp_path / "app.ts"
+        source.write_text('import { target as other } from "./b";\nexport function target() { return 2; }\n')
+
+        assert SourceInspector().declared_name_at(source, 0, 9) == ""
+
+    def test_a_python_aliased_import_is_not(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("from b import target as other\n\n\ndef target():\n    return 2\n")
+
+        assert SourceInspector().declared_name_at(source, 0, 14) == ""
+
+    def test_a_parameter_sharing_a_declarations_name_is_not(self, tmp_path: Path):
+        source = tmp_path / "app.ts"
+        source.write_text("export function render(graph: Graph) { return graph; }\nexport function graph() {}\n")
+
+        assert SourceInspector().declared_name_at(source, 0, 23) == ""
+
+    def test_a_column_past_an_astral_character_counts_utf16_units(self, tmp_path: Path):
+        source = tmp_path / "app.ts"
+        source.write_text('const s = "\U0001f600"; export function target() {}\n', encoding="utf-8")
+
+        assert SourceInspector().declared_name_at(source, 0, 32) == "target"
+
+
+class TestReturnedAndGroupedValues:
+    """A callable handed back, or held in a literal, is passed as a value in each grammar's spelling."""
+
+    def _sites(self, path: Path) -> set[tuple[int, int]]:
+        return {(site.line, site.column) for site in SourceInspector().find_method_group_sites(path)}
+
+    def test_python_yield(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("def gen():\n    yield handler\n")
+
+        assert (2, 11) in self._sites(source)
+
+    def test_go_keyed_literal_passes_its_values_not_its_keys(self, tmp_path: Path):
+        source = tmp_path / "app.go"
+        source.write_text(
+            "package main\n\ntype Handlers struct{ Run func() }\n\n"
+            "func build() Handlers {\n\treturn Handlers{Run: handler}\n}\n"
+        )
+        sites = self._sites(source)
+
+        assert (6, 23) in sites  # handler
+        assert (6, 18) not in sites  # Run, the key
+
+    def test_rust_return(self, tmp_path: Path):
+        source = tmp_path / "app.rs"
+        source.write_text("fn build() -> fn() {\n    return handler;\n}\n")
+
+        assert (2, 12) in self._sites(source)
+
+
 class TestTreeCacheEviction:
     def _write_project(self, tmp_path: Path, count: int) -> list[Path]:
+        """C#, so every file holds a construction site as well as a plain call."""
         files = []
         for i in range(count):
-            f = tmp_path / f"mod{i}.py"
-            f.write_text(f"def caller{i}():\n    target{i}()\n    return other{i}\n")
+            f = tmp_path / f"Mod{i}.cs"
+            f.write_text(
+                f"class Mod{i} {{\n"
+                f"    void Caller() {{\n"
+                f"        var made = new Target{i}();\n"
+                f"        Helper{i}(made);\n"
+                "    }\n"
+                "}\n"
+            )
             files.append(f)
         return files
 
@@ -501,8 +495,11 @@ class TestTreeCacheEviction:
         evicting = SourceInspector(tree_node_budget=1)
 
         for f in files:
-            assert evicting.find_call_sites(f) == unbounded.find_call_sites(f)
-            assert evicting.is_invocation(f, 1, 11) == unbounded.is_invocation(f, 1, 11)
+            sites = unbounded.find_call_sites(f)
+            assert [site for site in sites if unbounded.is_construction_site(site)], f"no construction in {f.name}"
+            assert evicting.find_call_sites(f) == sites
+            for site in sites:
+                assert evicting.is_construction_site(site) == unbounded.is_construction_site(site)
             assert evicting.get_file_lines(f) == unbounded.get_file_lines(f)
 
         assert evicting.cache_stats()["trees_evicted"] > 0
@@ -684,3 +681,420 @@ class TestIteratedExpression:
         si = SourceInspector()
         positions = _positions(si.find_iterated_expression_sites(f))
         assert (1, 46) in positions  # `Items`, whose type is what gets enumerated
+
+
+class TestFindDocumentSymbols:
+    """The parse tree stands in for csharp-ls on a file it answers nothing for, so the
+    symbols must be spelled the way the server spells them."""
+
+    SOURCE = """using System;
+namespace Polly.Utils;
+internal static class Guard
+{
+    public static T NotNull<T>(T value, [CallerArgumentExpression("value")] string argumentName = "") where T : class => value;
+    private readonly int _count, _other;
+    public string Name { get; set; }
+    public event EventHandler Changed;
+    public Guard(int x) { }
+    public int this[int i] => i;
+    public static Guard operator +(Guard a, Guard b) => a;
+    public static implicit operator int(Guard g) => 1;
+    public void Run(pb::CodedOutputStream output, params string[] parts) { static int Local() => 1; }
+    private class Inner { public void M() { } }
+    public enum Kind { A, B }
+}
+"""
+
+    def _symbols(self, tmp_path: Path, source: str = SOURCE, name: str = "Guard.cs") -> list[dict]:
+        f = tmp_path / name
+        f.write_text(source)
+        return SourceInspector().find_document_symbols(f)
+
+    @staticmethod
+    def _flat(symbols: list[dict], depth: int = 0):
+        for sym in symbols:
+            yield depth, sym
+            yield from TestFindDocumentSymbols._flat(sym.get("children", []), depth + 1)
+
+    def test_nests_file_namespace_type_and_members(self, tmp_path: Path):
+        symbols = self._symbols(tmp_path)
+        shape = [(depth, sym["kind"], sym["name"]) for depth, sym in self._flat(symbols)]
+        assert shape[:3] == [(0, 1, "Guard.cs"), (1, 3, "Polly.Utils"), (2, 5, "Guard")]
+        assert symbols[0]["children"][0]["detail"] == "Polly.Utils"
+        members = [(kind, name) for depth, kind, name in shape if depth == 3]
+        assert members == [
+            (6, 'NotNull<T>(T value, string argumentName = "")'),
+            (8, "_count"),
+            (8, "_other"),
+            (7, "Name"),
+            (24, "Changed"),
+            (9, "Guard(int x)"),
+            (7, "this[int i]"),
+            (25, "operator +(Guard a, Guard b)"),
+            (25, "operator int(Guard g)"),
+            (6, "Run(CodedOutputStream output, params string[] parts)"),
+            (5, "Inner"),
+            (10, "Kind"),
+        ]
+        assert [(kind, name) for depth, kind, name in shape if depth == 4] == [(6, "M()"), (22, "A"), (22, "B")]
+
+    def test_local_functions_are_not_symbols(self, tmp_path: Path):
+        names = [sym["name"] for _, sym in self._flat(self._symbols(tmp_path))]
+        assert not any(name.startswith("Local") for name in names)
+
+    def test_selection_range_is_the_name(self, tmp_path: Path):
+        symbols = self._symbols(tmp_path)
+        method = next(sym for _, sym in self._flat(symbols) if sym["name"].startswith("NotNull"))
+        assert method["selectionRange"]["start"] == {"line": 4, "character": 20}
+        assert method["range"]["start"]["line"] == 4
+
+    def test_block_namespaces_and_generic_types(self, tmp_path: Path):
+        source = "namespace A.B { public interface IRepo<T> { T Get(int id); } public record Rec(int A); }\n"
+        symbols = self._symbols(tmp_path, source, "Repo.cs")
+        shape = [(depth, sym["kind"], sym["name"]) for depth, sym in self._flat(symbols)]
+        assert shape == [(0, 1, "Repo.cs"), (1, 3, "A.B"), (2, 11, "IRepo<T>"), (3, 6, "Get(int id)"), (2, 5, "Rec")]
+
+    def test_a_file_without_declarations_has_none(self, tmp_path: Path):
+        assert self._symbols(tmp_path, "using System;\n", "GlobalUsings.cs") == []
+
+    def test_only_csharp(self, tmp_path: Path):
+        assert self._symbols(tmp_path, "class A {}\n", "A.java") == []
+
+    def test_explicit_interface_members_keep_their_interface(self, tmp_path: Path):
+        source = "class Bag : IFoo, IBar { void IFoo.M() { } void IBar.M() { } int IFoo.this[int i] => i; }\n"
+        names = [
+            sym["name"] for _, sym in self._flat(self._symbols(tmp_path, source, "Bag.cs")) if sym["kind"] in (6, 7)
+        ]
+        assert names == ["IFoo.M()", "IBar.M()", "IFoo.this[int i]"]
+
+    def test_nested_block_namespaces_are_named_in_full(self, tmp_path: Path):
+        source = "namespace A { namespace Common { class C { } } }\nnamespace B { namespace Common { class D { } } }\n"
+        symbols = self._symbols(tmp_path, source, "N.cs")
+        namespaces = [(sym["name"], sym["detail"]) for _, sym in self._flat(symbols) if sym["kind"] == 3]
+        assert namespaces == [("A", "A"), ("A.Common", "A.Common"), ("B", "B"), ("B.Common", "B.Common")]
+
+    def test_whitespace_inside_a_default_literal_is_kept(self, tmp_path: Path):
+        source = 'class J { string Join(string separator = "  ", int\n    width = 2) => separator; }\n'
+        names = [sym["name"] for _, sym in self._flat(self._symbols(tmp_path, source, "J.cs")) if sym["kind"] == 6]
+        assert names == ['Join(string separator = "  ", int width = 2)']
+
+    def test_checked_operators_are_distinct(self, tmp_path: Path):
+        source = (
+            "class V { public static V operator +(V a, V b) => a; public static V operator checked +(V a, V b) => a;"
+            " public static explicit operator int(V v) => 1; }\n"
+        )
+        names = [sym["name"] for _, sym in self._flat(self._symbols(tmp_path, source, "V.cs")) if sym["kind"] == 25]
+        assert names == ["operator +(V a, V b)", "operator checked +(V a, V b)", "operator int(V v)"]
+
+
+class TestJsxElementSites:
+    def test_rendering_a_component_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "app.tsx"
+        f.write_text("export function App() {\n  return <Card x={1} />;\n}\n")
+        si = SourceInspector()
+
+        assert (2, 11) in _positions(si.find_call_sites(f))
+
+    def test_a_dotted_element_name_resolves_to_its_last_part(self, tmp_path: Path):
+        f = tmp_path / "app.tsx"
+        f.write_text("export function App() {\n  return <ns.Card>{1}</ns.Card>;\n}\n")
+        si = SourceInspector()
+        positions = _positions(si.find_call_sites(f))
+
+        assert (2, 14) in positions  # Card in the opening tag
+        assert (2, 11) not in positions  # ns, the namespace it hangs off
+        assert (2, 25) not in positions  # Card in the closing tag
+
+    def test_a_jsx_attribute_expression_is_a_method_group(self, tmp_path: Path):
+        f = tmp_path / "app.tsx"
+        f.write_text("export function App() {\n  return <Card onClick={handler} x={1} />;\n}\n")
+        si = SourceInspector()
+        positions = _positions(si.find_method_group_sites(f))
+
+        assert (2, 25) in positions  # handler
+        assert (2, 16) not in positions  # onClick, the attribute name
+
+
+class TestOptionalChaining:
+    def test_a_php_nullsafe_member_call_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "app.php"
+        f.write_text("<?php\nfunction label(?Task $t): string {\n    return $t?->getLabel() ?? 'none';\n}\n")
+        si = SourceInspector()
+
+        assert (3, 17) in _positions(si.find_call_sites(f))
+
+    def test_typescript_optional_chaining_needs_no_entry_of_its_own(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("export function label(t?: Task) {\n    return t?.getLabel();\n}\n")
+        si = SourceInspector()
+
+        assert (2, 15) in _positions(si.find_call_sites(f))
+
+
+class TestMacroInvocation:
+    def test_a_rust_macro_invocation_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "app.rs"
+        f.write_text('fn run() {\n    debug!("x {}", 1);\n}\n')
+        si = SourceInspector()
+
+        assert (2, 5) in _positions(si.find_call_sites(f))
+
+    def test_a_scoped_macro_resolves_to_its_last_segment(self, tmp_path: Path):
+        f = tmp_path / "app.rs"
+        f.write_text("fn run() {\n    crate::macros::ok!(2);\n}\n")
+        si = SourceInspector()
+        positions = _positions(si.find_call_sites(f))
+
+        assert (2, 20) in positions  # ok
+        assert (2, 12) not in positions  # macros, the module it hangs off
+
+
+class TestDecoratorSites:
+    def test_a_bare_python_decorator_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("@register\ndef run():\n    pass\n")
+        si = SourceInspector()
+
+        assert (1, 2) in _positions(si.find_call_sites(f))
+
+    def test_a_dotted_decorator_resolves_to_the_member(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("@registry.add\ndef run():\n    pass\n")
+        si = SourceInspector()
+        positions = _positions(si.find_call_sites(f))
+
+        assert (1, 11) in positions  # add
+        assert (1, 2) not in positions  # registry
+
+    def test_an_applied_decorator_is_counted_once(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("@cache(maxsize=2)\ndef run():\n    pass\n")
+        si = SourceInspector()
+        positions = [(site.line, site.column) for site in si.find_call_sites(f)]
+
+        assert positions.count((1, 2)) == 1
+
+    def test_a_typescript_decorator_is_a_call_site(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("@Injectable\nexport class Service {}\n")
+        si = SourceInspector()
+
+        assert (1, 2) in _positions(si.find_call_sites(f))
+
+
+class TestKeywordArgumentValues:
+    def test_the_value_is_the_site_not_the_keyword(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("def run():\n    subscribe(key=handler)\n")
+        si = SourceInspector()
+        positions = _positions(si.find_method_group_sites(f))
+
+        assert (2, 19) in positions  # handler
+        assert (2, 15) not in positions  # key, the keyword
+
+
+class TestDeclaresFunctionValue:
+    def test_an_arrow_bound_to_a_const(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("const handler = () => 1;\n")
+        si = SourceInspector()
+
+        assert si.declares_function_value(f, 0, 6) is True
+
+    def test_a_function_in_an_object_literal(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("const api = { load: function () {} };\n")
+        si = SourceInspector()
+
+        assert si.declares_function_value(f, 0, 14) is True
+
+    def test_a_python_lambda_bound_to_a_name(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("double = lambda x: x * 2\n")
+        si = SourceInspector()
+
+        assert si.declares_function_value(f, 0, 0) is True
+
+    def test_a_constant_is_not_a_function_value(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("const LIMIT = 5;\n")
+        si = SourceInspector()
+
+        assert si.declares_function_value(f, 0, 6) is False
+
+    def test_a_declared_function_is_not_a_function_value(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("function handler() { return 1; }\n")
+        si = SourceInspector()
+
+        assert si.declares_function_value(f, 0, 9) is False
+
+    def test_both_names_of_a_chained_assignment_map_to_the_one_literal(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text("var allocate = (Mod.allocate = function () {\n  return 0;\n});\n")
+
+        assert SourceInspector().function_values(f) == {(0, 4): (0, 31), (0, 20): (0, 31)}
+
+    def test_a_member_assigned_a_lambda(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("class A:\n    def __init__(self):\n        self.on_move = lambda event: event\n")
+
+        assert SourceInspector().declares_function_value(f, 2, 13) is True
+
+
+class TestReceiversOf:
+    def test_each_call_on_a_bare_receiver_is_keyed_by_that_receiver(self, tmp_path: Path):
+        f = tmp_path / "app.js"
+        f.write_text("import { log } from './log';\nexport function run() {\n  log.warn('x');\n  log.info('y');\n}\n")
+        si = SourceInspector()
+
+        receivers = si.receivers_of(f, si.find_call_sites(f))
+
+        assert {at: (site.lsp_line, site.lsp_column, member) for at, (site, member) in receivers.items()} == {
+            (2, 2): (2, 6, "warn"),
+            (3, 2): (3, 6, "info"),
+        }
+
+    def test_a_chained_receiver_is_not_a_bare_name(self, tmp_path: Path):
+        f = tmp_path / "app.js"
+        f.write_text("export function run() {\n  api.client.send('x');\n}\n")
+        si = SourceInspector()
+
+        assert si.receivers_of(f, si.find_call_sites(f)) == {}
+
+    def test_a_plain_call_has_no_receiver(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("def run():\n    helper()\n")
+        si = SourceInspector()
+
+        assert si.receivers_of(f, si.find_call_sites(f)) == {}
+
+
+class TestNamesBaseMember:
+    def _bound(self, path: Path, source: str, line: int, column: int) -> bool:
+        path.write_text(source)
+        return SourceInspector().names_base_member(CallSite.from_lsp_position(str(path), line, column))
+
+    def test_a_base_member_read_rather_than_called(self, tmp_path: Path):
+        source = "class A extends B {\n  m() {\n    super.m.apply(this, arguments);\n  }\n}\n"
+
+        assert self._bound(tmp_path / "a.ts", source, 2, 10)
+        assert not self._bound(tmp_path / "a.ts", source, 2, 12)
+
+    def test_typescript_super_member(self, tmp_path: Path):
+        assert self._bound(tmp_path / "a.ts", "class A extends B {\n  m() {\n    super.m();\n  }\n}\n", 2, 10)
+
+    def test_python_super_call_member(self, tmp_path: Path):
+        assert self._bound(tmp_path / "a.py", "class A(B):\n    def m(self):\n        super().m()\n", 2, 16)
+
+    def test_java_super_member(self, tmp_path: Path):
+        assert self._bound(tmp_path / "A.java", "class A extends B {\n  void m() {\n    super.m();\n  }\n}\n", 2, 10)
+
+    def test_csharp_base_member(self, tmp_path: Path):
+        source = "class A : B\n{\n    void M()\n    {\n        base.M();\n    }\n}\n"
+        assert self._bound(tmp_path / "A.cs", source, 4, 13)
+
+    def test_php_parent_member(self, tmp_path: Path):
+        source = "<?php\nclass A extends B {\n  function m() {\n    parent::m();\n  }\n}\n"
+        assert self._bound(tmp_path / "a.php", source, 3, 12)
+
+    def test_a_member_on_this_or_another_receiver_dispatches(self, tmp_path: Path):
+        f = tmp_path / "a.ts"
+        source = "class A extends B {\n  constructor() {\n    super();\n    this.m();\n    other.m();\n  }\n}\n"
+
+        # ``super()`` itself constructs; the target's kind, not the receiver, rules that out.
+        assert not self._bound(f, source, 2, 4)
+        assert not self._bound(f, source, 3, 9)
+        assert not self._bound(f, source, 4, 10)
+
+
+class TestFindMemberSites:
+    def test_reads_and_writes_under_a_listed_name(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text(
+            "class Panel {\n"
+            "  connect(fast: boolean) {\n"
+            "    const bound = this.redraw.bind(this);\n"
+            "    this.model.size = 3;\n"
+            "    return fast ? this.redraw : this.other;\n"
+            "  }\n"
+            "}\n"
+        )
+
+        reads, writes = SourceInspector().find_member_sites(f, {"redraw", "size"})
+
+        assert _positions(reads) == {(3, 24), (5, 24)}
+        assert _positions(writes) == {(4, 16)}
+
+    def test_a_python_attribute_read(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("def run(engine):\n    if engine.dirs:\n        return engine.name\n")
+
+        reads, writes = SourceInspector().find_member_sites(f, {"dirs"})
+
+        assert _positions(reads) == {(2, 15)}
+        assert writes == []
+
+    def test_a_member_named_in_a_type_is_not_read(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text(
+            "type Icon = ReturnType<typeof graphic.createIcon>;\nfunction draw(make: typeof graphic.createIcon) {}\n"
+        )
+
+        assert SourceInspector().find_member_sites(f, {"createIcon"}) == ([], [])
+
+    def test_a_python_annotation_is_not_read(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("def run(engine: mod.Engine) -> mod.Engine:\n    return engine\n")
+
+        assert SourceInspector().find_member_sites(f, {"Engine"}) == ([], [])
+
+
+class TestOverloadImplementations:
+    def test_each_signature_maps_to_the_implementation_below_it(self, tmp_path: Path):
+        f = tmp_path / "graph.ts"
+        f.write_text(
+            "class Node {\n"
+            "  getModel(): number;\n"
+            "  getModel(path: string): number;\n"
+            "  getModel(path?: string): number { return 1; }\n"
+            "}\n"
+            "class Edge {\n"
+            "  getModel(): number;\n"
+            "  getModel(path?: string): number { return 2; }\n"
+            "}\n"
+            "export function make(a: string): void;\n"
+            "export function make(a: any): void {}\n"
+            "interface Api {\n"
+            "  load(x: string): void;\n"
+            "  load(x: number): void;\n"
+            "}\n"
+        )
+
+        assert SourceInspector().overload_implementations(f) == {
+            (1, 2): (3, 2),
+            (2, 2): (3, 2),
+            (6, 2): (7, 2),
+            (9, 16): (10, 16),
+        }
+
+
+class TestDeclaresSetter:
+    def test_a_typescript_set_accessor(self, tmp_path: Path):
+        f = tmp_path / "m.ts"
+        f.write_text("class M {\n  get size() { return 1; }\n  set size(v: number) {}\n}\n")
+        si = SourceInspector()
+
+        assert si.declares_setter(f, 2, 6) is True
+        assert si.declares_setter(f, 1, 6) is False
+
+    def test_a_python_property_setter(self, tmp_path: Path):
+        f = tmp_path / "m.py"
+        f.write_text(
+            "class M:\n    @property\n    def size(self):\n        return 1\n\n"
+            "    @size.setter\n    def size(self, value):\n        pass\n"
+        )
+        si = SourceInspector()
+
+        assert si.declares_setter(f, 6, 8) is True
+        assert si.declares_setter(f, 2, 8) is False

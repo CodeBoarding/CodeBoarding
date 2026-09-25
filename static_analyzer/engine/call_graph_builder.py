@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Collection
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_definitions, build_edges_via_references
+from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_definitions
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE, EdgeStrategy
-from static_analyzer.engine.lsp_recycler import LSPRecycler
-from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult
+from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
+from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
@@ -29,13 +29,13 @@ class CallGraphBuilder:
         lsp_client: LSPClient,
         adapter: LanguageAdapter,
         project_root: Path,
-        memory_budget_bytes: int = 0,
+        repository_path: Path,
     ) -> None:
         self._lsp = lsp_client
         self._adapter = adapter
         self._root = project_root.resolve()
-        # 0 means "one server at a time", so the recycler uses the whole allowance.
-        self._memory_budget_bytes = memory_budget_bytes
+        self._repository = repository_path.resolve()
+        """Names are spelled from here, whichever nested solution or project the server was started on."""
 
         self._symbol_table = SymbolTable(adapter)
         self._source_inspector = SourceInspector()
@@ -45,7 +45,12 @@ class CallGraphBuilder:
         """Public access to the symbol table for result conversion."""
         return self._symbol_table
 
-    def build(self, source_files: list[Path], skip_hierarchy: bool = False) -> LanguageAnalysisResult:
+    def build(
+        self,
+        source_files: list[Path],
+        skip_hierarchy: bool = False,
+        known_declarations: Collection[SymbolInfo] = (),
+    ) -> LanguageAnalysisResult:
         """Run the full analysis pipeline and return results.
 
         Args:
@@ -53,10 +58,13 @@ class CallGraphBuilder:
             skip_hierarchy: If True, skip Phase 3 (class hierarchy). Default False:
                 the hierarchy now feeds INHERITS reference edges that complete the
                 graph for clustering (see ``EdgeKind``).
+            known_declarations: Declarations of files this build does not read, resolvable
+                but never output, so a call into one resolves as a full build resolves it.
         """
         t_pipeline = time.monotonic()
 
         self._discover_symbols(source_files)
+        self._symbol_table.register_known(known_declarations)
         t_symbols_done = time.monotonic()
         logger.info("Phase 1 total (discover symbols): %.1fs", t_symbols_done - t_pipeline)
 
@@ -64,10 +72,8 @@ class CallGraphBuilder:
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
-        ctx = EdgeBuildContext(
-            self._lsp, self._symbol_table, self._source_inspector, recycler=self._build_recycler(source_files)
-        )
-        edge_set = self._build_edges(ctx, source_files)
+        ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
+        edge_set = build_edges_via_definitions(self._adapter, ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
@@ -122,24 +128,8 @@ class CallGraphBuilder:
             cfg=cfg,
             package_dependencies=package_deps,
             source_files=abs_files,
+            external_call_sites=ctx.external_call_sites,
         )
-
-    def _build_recycler(self, source_files: list[Path]) -> LSPRecycler | None:
-        """A recycler for servers whose memory the references phase would otherwise grow without bound."""
-        if not self._adapter.workspace_owns_documents or not source_files:
-            return None
-        return LSPRecycler(
-            self._lsp,
-            source_files[0],
-            self._probe_timeout(len(source_files)),
-            budget_bytes=self._memory_budget_bytes,
-        )
-
-    def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> EdgeMap:
-        """Dispatch to the edge-building strategy specified by the adapter."""
-        if self._adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
-            return build_edges_via_definitions(self._adapter, ctx, source_files)
-        return build_edges_via_references(self._adapter, ctx, source_files)
 
     def _probe_timeout(self, total_files: int) -> int:
         """Seconds to allow a synchronization probe to block on LSP indexing.
@@ -162,19 +152,29 @@ class CallGraphBuilder:
         probe_timeout = self._probe_timeout(total)
 
         interleave_open = self._adapter.interleave_did_open_with_symbols
+        owns_documents = self._adapter.workspace_owns_documents
 
         # Workspace-based servers can probe before didOpen. Some also need
         # request backpressure while creating overlays, so they interleave
         # each didOpen notification with the matching documentSymbol request.
-        if self._adapter.probe_before_open or interleave_open:
+        if owns_documents:
+            # Symbols first, then open: a file the server cannot map to one document (a
+            # source linked into several projects) answers nothing, and opening it makes
+            # the server add a second copy to the project on that path, after which every
+            # call into the file binds ambiguously. Such a file is read from source and
+            # stays closed; a file the server merely does not know yet is opened and asked
+            # again, as it always was.
+            probe_result = self._send_sync_probe(source_files, probe_timeout)
+        elif self._adapter.probe_before_open or interleave_open:
             probe_result = self._send_sync_probe(source_files, probe_timeout)
             if not interleave_open:
-                self._bulk_did_open(source_files)
+                probe_result = self._bulk_did_open(source_files, probe_timeout)
         else:
-            self._bulk_did_open(source_files)
-            probe_result = self._send_sync_probe(source_files, probe_timeout)
+            probe_result = self._bulk_did_open(source_files, probe_timeout)
 
         # Phase 1: extract symbols from each file
+        read_from_source: list[Path] = []
+        opened_early: list[Path] = []
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
         for idx, file_path in enumerate(source_files, 1):
             if interleave_open:
@@ -190,18 +190,42 @@ class CallGraphBuilder:
                 symbols = self._lsp.document_symbol(file_path, timeout=probe_timeout)
             else:
                 symbols = self._lsp.document_symbol(file_path)
-            self._adapter.record_document_symbols(file_path, symbols, self._root)
-            self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
+            if not symbols and owns_documents:
+                symbols = self._adapter.read_document_symbols(file_path, self._source_inspector, self._lsp)
+                if symbols:
+                    read_from_source.append(file_path)
+                else:
+                    opened_early.append(file_path)
+                    self._lsp.did_open(file_path)
+                    symbols = self._lsp.document_symbol(file_path)
+            self._adapter.record_document_symbols(file_path, symbols, self._repository)
+            self._symbol_table.register_symbols(
+                file_path,
+                symbols,
+                parent_chain=[],
+                project_root=self._repository,
+                function_values=self._source_inspector.function_values(file_path),
+            )
             pbar.set_postfix(symbols=len(self._symbol_table.symbols))
             pbar.update(1)
         pbar.finish()
+        if owns_documents:
+            already = set(read_from_source) | set(opened_early)
+            self._bulk_did_open([file_path for file_path in source_files if file_path not in already], probe_timeout)
+        if read_from_source:
+            logger.info(
+                "Phase 1: %d file(s) compiled into more than one project were read from source",
+                len(read_from_source),
+            )
 
         logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
 
-        self._warmup_references(source_files)
+    def _bulk_did_open(self, source_files: list[Path], probe_timeout: int) -> list[dict]:
+        """Phase 0: open every file, then block until the server has drained them.
 
-    def _bulk_did_open(self, source_files: list[Path]) -> None:
-        """Phase 0: Send didOpen for all files so the LSP server can index them."""
+        Why the trailing probe: didOpen queues work proportional to the file count,
+        so the next request pays for it, on the scaled timeout wherever it lands.
+        """
         total = len(source_files)
         t_open_start = time.monotonic()
         pbar = ProgressLogger("Phase 0 (open)", total, unit="file")
@@ -213,11 +237,12 @@ class CallGraphBuilder:
             time.sleep(0.1)
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
+        return self._send_sync_probe(source_files, probe_timeout, label="didOpen drain")
 
-    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> list[dict]:
-        """Send a documentSymbol probe to wait for the LSP server to finish indexing."""
+    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int, label: str = "indexing") -> list[dict]:
+        """Send a documentSymbol probe to wait for the LSP server to finish ``label``."""
         probe_result: list[dict] = []
-        logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
+        logger.info("Waiting for LSP server %s (timeout=%ds)...", label, probe_timeout)
         t_probe = time.monotonic()
         if source_files:
             probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
@@ -227,23 +252,6 @@ class CallGraphBuilder:
             len(probe_result) if probe_result else 0,
         )
         return probe_result
-
-    def _warmup_references(self, source_files: list[Path]) -> None:
-        """Trigger the LSP server's cross-reference index build.
-
-        Sends a single references request with a long timeout so that the
-        server builds its index before we send batched queries in Phase 2.
-        Only relevant for adapters that use references-based edge building.
-        """
-        if not source_files or self._adapter.references_per_query_timeout <= 0:
-            return
-        logger.info("Phase 1.5 (warmup): triggering LSP index build with a single references request...")
-        t_warmup = time.monotonic()
-        try:
-            self._lsp.references(source_files[0], 0, 0)
-        except Exception as e:
-            logger.warning("Warmup probe failed (non-fatal): %s", e)
-        logger.info("Phase 1.5 (warmup): completed in %.1fs", time.monotonic() - t_warmup)
 
     def _postprocess_edges(self, edge_set: EdgeMap) -> EdgeMap:
         """Deduplicate edges by definition location and expand constructor edges.
@@ -344,7 +352,7 @@ class CallGraphBuilder:
 
     def _build_package_deps(self, edge_set: EdgeMap, source_files: list[Path]) -> dict[str, dict]:
         """Phase 4: Infer package dependencies from cross-package edges."""
-        all_packages = self._adapter.get_all_packages(source_files, self._root)
+        all_packages = self._adapter.get_all_packages(source_files, self._repository)
 
         package_deps: dict[str, dict] = {}
         for pkg in sorted(all_packages):
@@ -356,8 +364,8 @@ class CallGraphBuilder:
             dst_sym = st.symbols.get(dst)
             if not src_sym or not dst_sym:
                 continue
-            src_pkg = self._adapter.get_package_for_file(src_sym.file_path, self._root)
-            dst_pkg = self._adapter.get_package_for_file(dst_sym.file_path, self._root)
+            src_pkg = self._adapter.get_package_for_file(src_sym.file_path, self._repository)
+            dst_pkg = self._adapter.get_package_for_file(dst_sym.file_path, self._repository)
             if src_pkg != dst_pkg:
                 if src_pkg in package_deps and dst_pkg not in package_deps[src_pkg]["imports"]:
                     package_deps[src_pkg]["imports"].append(dst_pkg)
