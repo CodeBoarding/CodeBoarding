@@ -87,7 +87,7 @@ def test_run_incremental_no_baseline_raises(tmp_path: Path, patched) -> None:
 def _fail_after_a_progress_save(analysis_path: Path):
     def run(*_args):
         analysis_path.write_text("partial", encoding="utf-8")
-        raise ScopeSemanticsError("root")
+        raise ScopeSemanticsError("root", telemetry_properties={})
 
     return run
 

@@ -30,7 +30,7 @@ from diagram_analysis.incremental_update import (
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_agent_llm
-from agents.llm_errors import LLMAuthError
+from agents.llm_errors import LLMAuthError, llm_failure_properties
 from agents.relation_edges import (
     drop_misattributed_edges,
     index_relation_endpoints,
@@ -799,7 +799,7 @@ class DiagramGenerator:
         except LLMAuthError:
             raise
         except Exception as error:
-            raise ScopeSemanticsError(scope.scope_id) from error
+            raise ScopeSemanticsError(scope.scope_id, telemetry_properties=llm_failure_properties(error)) from error
         if semantics is None:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1

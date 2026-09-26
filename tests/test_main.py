@@ -496,7 +496,7 @@ class TestFullCliRemote(unittest.TestCase):
 
     def test_an_llm_failure_stops_the_run(self):
         with self.assertRaises(ScopeSemanticsError):
-            self._run(ScopeSemanticsError("root"))
+            self._run(ScopeSemanticsError("root", telemetry_properties={}))
 
     def test_other_failures_move_on_to_the_next_repository(self):
         process = self._run([RuntimeError("clone failed"), None])

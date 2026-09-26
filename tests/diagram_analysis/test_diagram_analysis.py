@@ -952,6 +952,7 @@ class TestDiagramGenerator(unittest.TestCase):
             )
 
         self.assertIs(caught.exception.__cause__, error)
+        self.assertEqual(caught.exception.telemetry_properties["error_type"], "llm")
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     def test_generate_subcomponents_aborts_on_an_llm_failure(self, mock_save_analysis):
@@ -965,7 +966,7 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
         component = Component(name="A", description="", key_entities=[], component_id="1")
-        gen._process_component = Mock(side_effect=ScopeSemanticsError("1"))
+        gen._process_component = Mock(side_effect=ScopeSemanticsError("1", telemetry_properties={}))
         root = AnalysisInsights(description="", components=[component], components_relations=[])
 
         with self.assertRaises(ScopeSemanticsError):

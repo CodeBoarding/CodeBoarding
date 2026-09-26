@@ -120,7 +120,10 @@ Property meanings:
 On failure, exceptions are forwarded to PostHog's built-in **error tracking**
 (`$exception` event) via `telemetry.capture_exception`. The SDK captures the
 exception type, message, and stack trace automatically; we attach `command`,
-`version`, `run_id`, and `source` so the crash can be correlated to the run. The
+`version`, `run_id`, and `source` so the crash can be correlated to the run. A
+run stopped by a failed LLM call also carries `error_type` (`quota` for an
+exhausted token or credit quota, `auth` for a rejected key, `llm` otherwise),
+`error_provider`, `error_status_code` and the provider's `error_message`. The
 stack trace may contain file paths, line numbers, or source snippets from the
 failing frame. No source code, repository names, prompts, model outputs, or
 credentials are ever sent.

@@ -50,6 +50,7 @@ class ScopeSemanticsError(RuntimeError):
     Why: deterministic, folder-named components look like a finished diagram, so the run stops instead.
     """
 
-    def __init__(self, scope_id: str):
+    def __init__(self, scope_id: str, *, telemetry_properties: dict):
         super().__init__(f"Semantic analysis failed for scope {scope_id!r}")
         self.scope_id = scope_id
+        self.telemetry_properties = telemetry_properties

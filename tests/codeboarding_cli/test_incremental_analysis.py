@@ -43,7 +43,7 @@ def test_incremental_calls_run_incremental_with_paths_only(tmp_path: Path, stub_
 def test_incremental_llm_failure_crashes_instead_of_asking_for_a_full_run(
     tmp_path: Path, stub_run_incremental, capsys
 ) -> None:
-    stub_run_incremental.side_effect = ScopeSemanticsError("root")
+    stub_run_incremental.side_effect = ScopeSemanticsError("root", telemetry_properties={})
 
     with pytest.raises(ScopeSemanticsError):
         main(["incremental", "--local", str(tmp_path)])
