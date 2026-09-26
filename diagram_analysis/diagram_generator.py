@@ -30,7 +30,7 @@ from diagram_analysis.incremental_update import (
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_agent_llm
-from agents.llm_errors import LLMAuthError
+from agents.llm_errors import LLMAuthError, llm_failure_properties
 from agents.relation_edges import (
     drop_misattributed_edges,
     index_relation_endpoints,
@@ -50,6 +50,7 @@ from diagram_analysis.analysis_json import (
 from diagram_analysis.exceptions import (
     ClusteringScopeUnavailableError,
     ScopeContainmentError,
+    ScopeSemanticsError,
 )
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
@@ -797,9 +798,8 @@ class DiagramGenerator:
             )
         except LLMAuthError:
             raise
-        except Exception:
-            logger.exception("Semantic analysis failed for scope %s; retaining deterministic output", scope.scope_id)
-            semantics = None
+        except Exception as error:
+            raise ScopeSemanticsError(scope.scope_id, telemetry_properties=llm_failure_properties(error)) from error
         if semantics is None:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
@@ -1098,12 +1098,11 @@ class DiagramGenerator:
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
-        except LLMAuthError:
-            # A rejected key fails every component identically; don't swallow it
-            # per-component and grind through the rest - abort the whole run.
+        except (LLMAuthError, ScopeSemanticsError):
+            # An LLM failure aborts the whole run rather than shipping this component with deterministic names.
             raise
-        except Exception as e:
-            logging.error(f"Error processing component {component.name}: {e}")
+        except Exception:
+            logger.exception("Error processing component %s", component.name)
             return None, None, []
 
     def _run_health_report(self, static_analysis: StaticAnalysisResults) -> None:
@@ -1306,7 +1305,7 @@ class DiagramGenerator:
             while future_to_task:
                 completed_futures, _ = wait(future_to_task.keys(), return_when=FIRST_COMPLETED)
 
-                # Read every outcome in the batch before acting on any of it: a rejected key
+                # Read every outcome in the batch before acting on any of it: an LLM failure
                 # must abort the run before a sibling's success is saved or expanded.
                 outcomes: list[tuple[Component, int, tuple[str | None, AnalysisInsights | None, list[Component]]]] = []
                 for future in completed_futures:
@@ -1314,7 +1313,7 @@ class DiagramGenerator:
                     stats["completed"] += 1
                     try:
                         outcomes.append((component, level, future.result()))
-                    except LLMAuthError:
+                    except (LLMAuthError, ScopeSemanticsError):
                         for pending in future_to_task:
                             pending.cancel()
                         raise

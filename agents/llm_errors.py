@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 # import it without pulling in Core's whole CLI module.
 EXIT_AUTH_ERROR = 2
 
+# Process exit code for an exhausted token or credit quota: the key is fine, the account is not.
+EXIT_QUOTA_EXHAUSTED = 3
+
 # Class names, across SDKs, that always mean "credentials were rejected".
 # openai/anthropic/cerebras raise ``AuthenticationError``; google raises
 # ``Unauthenticated``/``PermissionDenied``; Bedrock (botocore) surfaces
@@ -128,6 +131,22 @@ def detect_auth_error(exc: BaseException, *, provider: str, key_tail: str) -> LL
         key_tail=key_tail,
         telemetry_properties=telemetry_properties,
     )
+
+
+def llm_failure_properties(exc: BaseException) -> dict:
+    """``$exception`` properties for a failed LLM call, telling an exhausted quota apart from other failures.
+
+    Why: the hosted proxy's paywall is a 402, and OpenAI reports an empty balance as a 429 ``insufficient_quota``.
+    """
+    status = _status_code(exc)
+    quota = status == 402 or (status == 429 and "insufficient_quota" in str(exc))
+    provider, _key_tail = current_provider_key_context()
+    return {
+        "error_type": "quota" if quota else "llm",
+        "error_provider": provider,
+        "error_status_code": status,
+        "error_message": str(exc)[:500],
+    }
 
 
 def raise_if_auth_error(exc: Exception) -> None:

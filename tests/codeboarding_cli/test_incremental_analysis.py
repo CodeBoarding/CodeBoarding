@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
+from diagram_analysis.exceptions import ScopeSemanticsError
 from main import main
 
 
@@ -37,3 +38,14 @@ def test_incremental_calls_run_incremental_with_paths_only(tmp_path: Path, stub_
     run_paths = ri.call_args.args[0]
     assert run_paths.repo_path == tmp_path
     assert run_paths.output_dir == tmp_path / ".codeboarding"
+
+
+def test_incremental_llm_failure_crashes_instead_of_asking_for_a_full_run(
+    tmp_path: Path, stub_run_incremental, capsys
+) -> None:
+    stub_run_incremental.side_effect = ScopeSemanticsError("root", telemetry_properties={})
+
+    with pytest.raises(ScopeSemanticsError):
+        main(["incremental", "--local", str(tmp_path)])
+
+    assert "requiresFullAnalysis" not in capsys.readouterr().out

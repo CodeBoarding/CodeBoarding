@@ -3,9 +3,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-from codeboarding_cli.commands.full_analysis import run_from_args, validate_arguments
+from codeboarding_cli.commands.full_analysis import _run_remote, run_from_args, validate_arguments
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental, run_partial
 from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
+from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_context import RunContext, RunPaths
 from repo_utils.change_detector import ChangeSet
 
@@ -479,6 +480,30 @@ class TestFullCliLocal(unittest.TestCase):
         self.assertTrue(mock_run_full.call_args.kwargs["force_full"])
 
 
+class TestFullCliRemote(unittest.TestCase):
+    def _run(self, process_side_effect) -> Mock:
+        args = MagicMock(repositories=["https://github.com/a/one", "https://github.com/a/two"], upload=False)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(Path, "cwd", return_value=Path(temp_dir)),
+                patch("codeboarding_cli.commands.full_analysis.bootstrap_environment"),
+                patch(
+                    "codeboarding_cli.commands.full_analysis._process_one_remote", side_effect=process_side_effect
+                ) as process,
+            ):
+                _run_remote(args)
+        return process
+
+    def test_an_llm_failure_stops_the_run(self):
+        with self.assertRaises(ScopeSemanticsError):
+            self._run(ScopeSemanticsError("root", telemetry_properties={}))
+
+    def test_other_failures_move_on_to_the_next_repository(self):
+        process = self._run([RuntimeError("clone failed"), None])
+
+        self.assertEqual(process.call_count, 2)
+
+
 class TestPartialCliLocal(unittest.TestCase):
     """CLI-level composition: `partial` dispatches to run_partial with the component id."""
 
@@ -642,6 +667,26 @@ class TestMainAuthErrorHandler(unittest.TestCase):
             main.main(["full", "--local", "/tmp/repo"])
 
         self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
+
+    @patch("main.full_analysis.run_from_args")
+    def test_quota_error_exits_with_distinct_code(self, mock_run):
+        import main
+
+        mock_run.side_effect = ScopeSemanticsError("root", telemetry_properties={"error_type": "quota"})
+
+        with patch("sys.stderr"), self.assertRaises(SystemExit) as ctx:
+            main.main(["full", "--local", "/tmp/repo"])
+
+        self.assertEqual(ctx.exception.code, main.EXIT_QUOTA_EXHAUSTED)
+
+    @patch("main.full_analysis.run_from_args")
+    def test_other_llm_failures_are_not_swallowed(self, mock_run):
+        import main
+
+        mock_run.side_effect = ScopeSemanticsError("root", telemetry_properties={"error_type": "llm"})
+
+        with self.assertRaises(ScopeSemanticsError):
+            main.main(["full", "--local", "/tmp/repo"])
 
     @patch("main.full_analysis.run_from_args")
     def test_non_auth_error_is_not_swallowed(self, mock_run):

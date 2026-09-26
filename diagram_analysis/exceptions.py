@@ -42,3 +42,15 @@ class ClusteringScopeUnavailableError(RuntimeError):
     def __init__(self, component_id: str, reason: str):
         super().__init__(f"Clustering scope unavailable for component {component_id!r}: {reason}")
         self.component_id = component_id
+
+
+class ScopeSemanticsError(RuntimeError):
+    """Raised when the LLM fails to name a scope.
+
+    Why: deterministic, folder-named components look like a finished diagram, so the run stops instead.
+    """
+
+    def __init__(self, scope_id: str, *, telemetry_properties: dict):
+        super().__init__(f"Semantic analysis failed for scope {scope_id!r}")
+        self.scope_id = scope_id
+        self.telemetry_properties = telemetry_properties

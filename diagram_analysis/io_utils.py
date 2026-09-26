@@ -317,6 +317,22 @@ def write_text_atomic(path: Path, text: str) -> None:
         raise
 
 
+def snapshot_analysis(output_dir: Path) -> str | None:
+    """The current ``analysis.json`` text, or ``None`` when there is none."""
+    path = output_dir / ANALYSIS_FILENAME
+    return path.read_text(encoding="utf-8") if path.is_file() else None
+
+
+def restore_analysis(output_dir: Path, snapshot: str | None) -> None:
+    """Put back what :func:`snapshot_analysis` returned, removing the file when there was none."""
+    path = output_dir / ANALYSIS_FILENAME
+    with _get_store(output_dir)._lock:
+        if snapshot is None:
+            path.unlink(missing_ok=True)
+        else:
+            write_text_atomic(path, snapshot)
+
+
 # Whole-tree fingerprint sidecar. analysis.json's ``files`` block covers only
 # component-assigned files; the sidecar covers the whole analyzable tree, so the
 # incremental diff also sees changes to docs/configs/unclustered source.

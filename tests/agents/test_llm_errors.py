@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from agents.llm_config import current_provider_key_context
-from agents.llm_errors import LLMAuthError, detect_auth_error, raise_if_auth_error
+from agents.llm_errors import LLMAuthError, detect_auth_error, llm_failure_properties, raise_if_auth_error
 
 
 class _FakeStatusError(Exception):
@@ -118,3 +118,21 @@ def test_raise_if_auth_error_uses_current_provider_context():
             raise_if_auth_error(error)
 
     assert caught.value.key_tail == "1234"
+
+
+@pytest.mark.parametrize(
+    ("error", "error_type"),
+    [
+        (_FakeStatusError("Resource exhausted: token limit reached", status_code=402), "quota"),
+        (_FakeStatusError("Error code: 429 - {'code': 'insufficient_quota'}", status_code=429), "quota"),
+        (_FakeStatusError("Rate limit reached, try again in 20s", status_code=429), "llm"),
+        (TimeoutError("provider did not answer"), "llm"),
+    ],
+)
+def test_llm_failure_properties_tells_quota_apart(error: Exception, error_type: str):
+    with patch("agents.llm_errors.current_provider_key_context", return_value=("openai", "1234")):
+        props = llm_failure_properties(error)
+
+    assert props["error_type"] == error_type
+    assert props["error_provider"] == "openai"
+    assert props["error_status_code"] == getattr(error, "status_code", None)
