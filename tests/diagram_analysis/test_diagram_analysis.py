@@ -42,8 +42,8 @@ from diagram_analysis.diagram_generator import (
     _component_depth,
     _component_expansion_seeds,
 )
-from diagram_analysis.exceptions import ClusteringScopeUnavailableError
-from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
+from diagram_analysis.exceptions import ClusteringScopeUnavailableError, ScopeSemanticsError
+from diagram_analysis.io_utils import load_analysis_metadata, restore_analysis_on_failure, save_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language, NodeType
@@ -930,6 +930,70 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertEqual(gen._enclosing_names("1.2.1"), ("Engine", "Adapters"))
 
+    def test_enrich_scope_raises_when_the_llm_fails(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_cap=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        error = TimeoutError("provider did not answer")
+        gen.scope_analysis_agent = MagicMock()
+        gen.scope_analysis_agent.analyze.side_effect = error
+
+        with self.assertRaises(ScopeSemanticsError) as caught:
+            gen._enrich_scope(
+                ClusterScopeResult(scope_id="root"),
+                AnalysisInsights(description="", components=[], components_relations=[]),
+                {"1"},
+            )
+
+        self.assertIs(caught.exception.__cause__, error)
+
+    @patch("diagram_analysis.diagram_generator.save_analysis")
+    def test_generate_subcomponents_aborts_on_an_llm_failure(self, mock_save_analysis):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_cap=3,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        component = Component(name="A", description="", key_entities=[], component_id="1")
+        gen._process_component = Mock(side_effect=ScopeSemanticsError("1"))
+        root = AnalysisInsights(description="", components=[component], components_relations=[])
+
+        with self.assertRaises(ScopeSemanticsError):
+            gen._generate_subcomponents(root, [component])
+
+        mock_save_analysis.assert_not_called()
+
+    def test_restore_analysis_on_failure_puts_back_the_previous_analysis(self):
+        path = self.output_dir / "analysis.json"
+        path.write_text("previous", encoding="utf-8")
+
+        with self.assertRaises(ScopeSemanticsError):
+            with restore_analysis_on_failure(self.output_dir):
+                path.write_text("partial", encoding="utf-8")
+                raise ScopeSemanticsError("root")
+
+        self.assertEqual(path.read_text(encoding="utf-8"), "previous")
+
+    def test_restore_analysis_on_failure_removes_an_analysis_the_run_created(self):
+        path = self.output_dir / "analysis.json"
+
+        with self.assertRaises(ScopeSemanticsError):
+            with restore_analysis_on_failure(self.output_dir):
+                path.write_text("partial", encoding="utf-8")
+                raise ScopeSemanticsError("root")
+
+        self.assertFalse(path.exists())
+
     def test_enrich_scope_propagates_authentication_failures(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -1621,6 +1685,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
 
         gen.static_analysis = StaticAnalysisResults()
+        gen.scope_analysis_agent = MagicMock(**{"analyze.return_value": None})
 
         comp1 = Component(
             name="Component1",
@@ -1746,6 +1811,7 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
         gen.static_analysis = StaticAnalysisResults()
+        gen.scope_analysis_agent = MagicMock(**{"analyze.return_value": None})
         hierarchy = ClusterScopeResult(
             scope_id="root",
             groups=[
@@ -2044,6 +2110,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.incremental_updater = Mock()
         gen.static_analysis = Mock()
+        gen.scope_analysis_agent = MagicMock(**{"analyze.return_value": None})
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = StaticAnalysisResults()

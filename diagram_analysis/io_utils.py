@@ -18,6 +18,8 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from filelock import FileLock
@@ -314,6 +316,24 @@ def write_text_atomic(path: Path, text: str) -> None:
         os.replace(tmp, path)
     except Exception:
         Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+@contextmanager
+def restore_analysis_on_failure(output_dir: Path) -> Iterator[None]:
+    """Put ``analysis.json`` back as it was when the block raises.
+
+    Why: progress saves land mid-run, so a failed run would otherwise leave a partial analysis behind.
+    """
+    path = output_dir / ANALYSIS_FILENAME
+    before = path.read_text(encoding="utf-8") if path.is_file() else None
+    try:
+        yield
+    except Exception:
+        if before is None:
+            path.unlink(missing_ok=True)
+        else:
+            write_text_atomic(path, before)
         raise
 
 

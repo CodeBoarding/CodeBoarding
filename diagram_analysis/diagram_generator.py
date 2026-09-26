@@ -50,10 +50,16 @@ from diagram_analysis.analysis_json import (
 from diagram_analysis.exceptions import (
     ClusteringScopeUnavailableError,
     ScopeContainmentError,
+    ScopeSemanticsError,
 )
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
-from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
+from diagram_analysis.io_utils import (
+    load_analysis_metadata,
+    restore_analysis_on_failure,
+    save_analysis,
+    write_fingerprint,
+)
 from diagram_analysis.incremental_changes import compute_changed_members
 from diagram_analysis.scope_assembly import ScopeAssembler
 from repo_utils.path_utils import normalize_repo_path
@@ -797,9 +803,8 @@ class DiagramGenerator:
             )
         except LLMAuthError:
             raise
-        except Exception:
-            logger.exception("Semantic analysis failed for scope %s; retaining deterministic output", scope.scope_id)
-            semantics = None
+        except Exception as error:
+            raise ScopeSemanticsError(scope.scope_id) from error
         if semantics is None:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
@@ -1098,9 +1103,8 @@ class DiagramGenerator:
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
-        except LLMAuthError:
-            # A rejected key fails every component identically; don't swallow it
-            # per-component and grind through the rest - abort the whole run.
+        except (LLMAuthError, ScopeSemanticsError):
+            # An LLM failure aborts the whole run rather than shipping this component with deterministic names.
             raise
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
@@ -1306,7 +1310,7 @@ class DiagramGenerator:
             while future_to_task:
                 completed_futures, _ = wait(future_to_task.keys(), return_when=FIRST_COMPLETED)
 
-                # Read every outcome in the batch before acting on any of it: a rejected key
+                # Read every outcome in the batch before acting on any of it: an LLM failure
                 # must abort the run before a sibling's success is saved or expanded.
                 outcomes: list[tuple[Component, int, tuple[str | None, AnalysisInsights | None, list[Component]]]] = []
                 for future in completed_futures:
@@ -1314,7 +1318,7 @@ class DiagramGenerator:
                     stats["completed"] += 1
                     try:
                         outcomes.append((component, level, future.result()))
-                    except LLMAuthError:
+                    except (LLMAuthError, ScopeSemanticsError):
                         for pending in future_to_task:
                             pending.cancel()
                         raise
@@ -1373,7 +1377,7 @@ class DiagramGenerator:
 
         # Start monitoring (tracks start time)
         monitor = self.stats_writer if self.stats_writer else nullcontext()
-        with monitor:
+        with monitor, restore_analysis_on_failure(Path(self.output_dir)):
             # Generate the initial analysis
             logger.info("Generating initial analysis")
 
@@ -1641,7 +1645,7 @@ class DiagramGenerator:
         assert self._incremental_preparation is not None
         preparation = self._incremental_preparation
         monitor = self.stats_writer if self.stats_writer else nullcontext()
-        with monitor:
+        with monitor, restore_analysis_on_failure(Path(self.output_dir)):
             if not preparation.has_changes:
                 logger.info("Cluster and group membership deltas are empty; rewriting without re-detailing.")
                 # No structural change, but a body-only edit still moves content
