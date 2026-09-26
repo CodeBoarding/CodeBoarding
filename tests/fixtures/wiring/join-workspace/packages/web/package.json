@@ -1,0 +1,8 @@
+{
+  "name": "@acme/web",
+  "version": "1.0.0",
+  "dependencies": {
+    "@acme/api": "1.0.0",
+    "react": "^18.0.0"
+  }
+}

@@ -1,0 +1,6 @@
+services:
+  web:
+    build: ./web
+    environment:
+      - SHARED_URL=http://shared:8080
+      - MISSING_URL=http://nowhere:9090

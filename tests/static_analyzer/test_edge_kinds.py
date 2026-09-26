@@ -14,8 +14,7 @@ from static_analyzer.cfg.edge import normalize_call_site
 from static_analyzer.config import NodeType
 from static_analyzer.node import Node
 
-WIRING_KINDS = {
-    EdgeKind.DEPENDS_ON,
+DRAWN_WIRING_KINDS = {
     EdgeKind.CALLS_HTTP,
     EdgeKind.ROUTES_TO,
     EdgeKind.USES,
@@ -31,13 +30,15 @@ class TestEdgeKindPolicy(unittest.TestCase):
             self.assertTrue(kind.relation_label, kind)
         self.assertEqual(EdgeKind.CALL.relation_label, DEFAULT_STATIC_RELATION_LABEL)
 
-    def test_only_wiring_kinds_are_drawn_as_relations(self) -> None:
-        """INHERITS has a producer: drawing it would change every diagram, so no structural kind is drawn."""
-        self.assertEqual(set(RELATION_REFERENCE_KINDS), WIRING_KINDS)
+    def test_only_runtime_wiring_kinds_are_drawn_as_relations(self) -> None:
+        """INHERITS has a producer: drawing it would change every diagram, so no structural kind is drawn.
+        DEPENDS_ON is a build dependency, held for P3: every library of the negative set joins on it."""
+        self.assertEqual(set(RELATION_REFERENCE_KINDS), DRAWN_WIRING_KINDS)
         self.assertNotIn(EdgeKind.CALL, RELATION_REFERENCE_KINDS)
         self.assertTrue(EdgeKind.CALL.drawn)
-        for kind in (EdgeKind.CONTAINS, EdgeKind.INHERITS, EdgeKind.TYPEREF, EdgeKind.IMPORT):
+        for kind in (EdgeKind.CONTAINS, EdgeKind.INHERITS, EdgeKind.TYPEREF, EdgeKind.IMPORT, EdgeKind.DEPENDS_ON):
             self.assertFalse(kind.drawn, kind)
+        self.assertEqual(EdgeKind.DEPENDS_ON.relation_label, "depends on")
 
     def test_a_drawn_kind_never_moves_a_file(self) -> None:
         self.assertEqual(AFFINE_REFERENCE_KINDS, {EdgeKind.INHERITS, EdgeKind.TYPEREF})
