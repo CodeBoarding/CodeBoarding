@@ -5,6 +5,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from agents.llm_config import LLMConfigError
+from agents.llm_errors import LLMAuthError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import run_full
@@ -12,6 +13,7 @@ from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source, remote_source
 from constants import CLI_ROOT_DOCUMENT_NAME
 from diagram_analysis import DEFAULT_DEPTH_CAP, RunContext, RunPaths
+from diagram_analysis.exceptions import ScopeSemanticsError
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
 from output_generators.rendering import render_docs
@@ -159,8 +161,11 @@ def _run_remote(args: argparse.Namespace) -> None:
                 upload=args.upload,
                 should_monitor=should_monitor,
             )
-        except Exception as exc:
-            logger.error(f"Failed to process repository {repo_url}: {exc}")
+        except (LLMAuthError, ScopeSemanticsError):
+            # The next repository would fail the same way, so stop the run.
+            raise
+        except Exception:
+            logger.exception("Failed to process repository %s", repo_url)
             continue
 
     logger.info("All repositories processed successfully!")

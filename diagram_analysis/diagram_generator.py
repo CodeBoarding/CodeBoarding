@@ -1101,8 +1101,8 @@ class DiagramGenerator:
         except (LLMAuthError, ScopeSemanticsError):
             # An LLM failure aborts the whole run rather than shipping this component with deterministic names.
             raise
-        except Exception as e:
-            logging.error(f"Error processing component {component.name}: {e}")
+        except Exception:
+            logger.exception("Error processing component %s", component.name)
             return None, None, []
 
     def _run_health_report(self, static_analysis: StaticAnalysisResults) -> None:
