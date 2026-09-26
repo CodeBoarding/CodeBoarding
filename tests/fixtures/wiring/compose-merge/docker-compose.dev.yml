@@ -1,0 +1,5 @@
+services:
+  api:
+    build:
+      context: ./api
+    container_name: api-dev

@@ -1,0 +1,8 @@
+services:
+  worker:
+    image: "acme/worker:${TAG}"
+    build:
+      context: ./
+      dockerfile: ${WORKER_DOCKERFILE}
+  cache:
+    image: "redis:${REDIS_TAG:-7}"
