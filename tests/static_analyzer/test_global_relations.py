@@ -516,6 +516,29 @@ class TestLabelInheritance(unittest.TestCase):
             self.assertTrue(r.src_id and r.dst_id and r.src_name and r.dst_name and r.relation)
 
 
+class TestCarriedDefaultLabel(unittest.TestCase):
+    @staticmethod
+    def _inherited(root: AnalysisInsights) -> Relation:
+        relations = build_global_relations(root, _build_sub_analyses(), {"python": _build_cfg()})
+        return next(r for r in relations if (r.src_id, r.dst_id) == ("1.1.1", "2.1.2"))
+
+    def test_a_carried_default_verb_is_recomputed_over_todays_edges(self):
+        """Carried as if written, a stale default keeps naming a kind that no longer connects the pair."""
+        root = _build_root_analysis()
+        root.components_relations[0].default_label = True
+
+        relation = self._inherited(root)
+
+        self.assertEqual(relation.relation, "calls")
+        self.assertTrue(relation.default_label)
+
+    def test_wording_someone_wrote_is_still_carried(self):
+        relation = self._inherited(_build_root_analysis())
+
+        self.assertEqual(relation.relation, "orchestrates")
+        self.assertFalse(relation.default_label)
+
+
 class TestIncrementalExpansion(unittest.TestCase):
     """Simulate partial updates: start from depth 1, expand one component at a time.
 

@@ -324,6 +324,32 @@ class TestScopeAssembler(unittest.TestCase):
             [("1", "2", "dispatches to")],
         )
 
+    def test_recomputes_a_carried_label_that_was_the_static_default(self) -> None:
+        scope = _scope(("1", "2"))
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        analysis.components_relations = [
+            Relation(
+                relation="routes to",
+                src_name=analysis.components[0].name,
+                dst_name=analysis.components[1].name,
+                src_id="1",
+                dst_id="2",
+                is_static=True,
+                default_label=True,
+            )
+        ]
+        result = ScopeAnalysisResult(
+            components=[ScopeComponentSemantics(group_id="1", name="Runner", description="Runs.", key_entities=[])],
+        )
+
+        assembler.apply_semantics(analysis, scope, result, {"1"}, set(), _resolver(scope))
+
+        self.assertEqual(
+            [(relation.src_id, relation.dst_id, relation.relation) for relation in analysis.components_relations],
+            [("1", "2", "calls")],
+        )
+
     def test_semantics_cannot_change_fixed_ids_membership_or_a_locked_name(self) -> None:
         scope = _scope(("1", "2"))
         assembler = ScopeAssembler(Path("/repo"))
