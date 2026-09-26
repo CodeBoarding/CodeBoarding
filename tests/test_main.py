@@ -669,6 +669,26 @@ class TestMainAuthErrorHandler(unittest.TestCase):
         self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
 
     @patch("main.full_analysis.run_from_args")
+    def test_quota_error_exits_with_distinct_code(self, mock_run):
+        import main
+
+        mock_run.side_effect = ScopeSemanticsError("root", telemetry_properties={"error_type": "quota"})
+
+        with patch("sys.stderr"), self.assertRaises(SystemExit) as ctx:
+            main.main(["full", "--local", "/tmp/repo"])
+
+        self.assertEqual(ctx.exception.code, main.EXIT_QUOTA_EXHAUSTED)
+
+    @patch("main.full_analysis.run_from_args")
+    def test_other_llm_failures_are_not_swallowed(self, mock_run):
+        import main
+
+        mock_run.side_effect = ScopeSemanticsError("root", telemetry_properties={"error_type": "llm"})
+
+        with self.assertRaises(ScopeSemanticsError):
+            main.main(["full", "--local", "/tmp/repo"])
+
+    @patch("main.full_analysis.run_from_args")
     def test_non_auth_error_is_not_swallowed(self, mock_run):
         import main
 

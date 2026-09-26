@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 # import it without pulling in Core's whole CLI module.
 EXIT_AUTH_ERROR = 2
 
+# Process exit code for an exhausted token or credit quota: the key is fine, the account is not.
+EXIT_QUOTA_EXHAUSTED = 3
+
 # Class names, across SDKs, that always mean "credentials were rejected".
 # openai/anthropic/cerebras raise ``AuthenticationError``; google raises
 # ``Unauthenticated``/``PermissionDenied``; Bedrock (botocore) surfaces
