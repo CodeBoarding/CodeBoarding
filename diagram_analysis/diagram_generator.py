@@ -54,12 +54,7 @@ from diagram_analysis.exceptions import (
 )
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
-from diagram_analysis.io_utils import (
-    load_analysis_metadata,
-    restore_analysis_on_failure,
-    save_analysis,
-    write_fingerprint,
-)
+from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from diagram_analysis.incremental_changes import compute_changed_members
 from diagram_analysis.scope_assembly import ScopeAssembler
 from repo_utils.path_utils import normalize_repo_path
@@ -1377,7 +1372,7 @@ class DiagramGenerator:
 
         # Start monitoring (tracks start time)
         monitor = self.stats_writer if self.stats_writer else nullcontext()
-        with monitor, restore_analysis_on_failure(Path(self.output_dir)):
+        with monitor:
             # Generate the initial analysis
             logger.info("Generating initial analysis")
 
@@ -1645,7 +1640,7 @@ class DiagramGenerator:
         assert self._incremental_preparation is not None
         preparation = self._incremental_preparation
         monitor = self.stats_writer if self.stats_writer else nullcontext()
-        with monitor, restore_analysis_on_failure(Path(self.output_dir)):
+        with monitor:
             if not preparation.has_changes:
                 logger.info("Cluster and group membership deltas are empty; rewriting without re-detailing.")
                 # No structural change, but a body-only edit still moves content

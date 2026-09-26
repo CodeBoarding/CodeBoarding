@@ -16,7 +16,13 @@ from pathlib import Path
 from agents.content_hash import compute_source_tree_hash
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.io_utils import load_analysis_metadata, load_expandable_component_ids, load_full_analysis
+from diagram_analysis.io_utils import (
+    load_analysis_metadata,
+    load_expandable_component_ids,
+    load_full_analysis,
+    restore_analysis,
+    snapshot_analysis,
+)
 from diagram_analysis.run_context import DEFAULT_DEPTH_CAP, RunContext, RunPaths
 from repo_utils.change_detector import ChangeSet
 from repo_utils.fingerprint_diff import BaselineUnavailableError, detect_changes_from_fingerprint
@@ -69,7 +75,13 @@ def run_full(
     )
     generator.force_full_analysis = force_full
     generator.source_sha = source_sha
-    return generator.generate_analysis()
+    # Progress saves land mid-run, so a failed run must not leave its partial analysis.json behind.
+    before = snapshot_analysis(run_paths.output_dir)
+    try:
+        return generator.generate_analysis()
+    except BaseException:
+        restore_analysis(run_paths.output_dir, before)
+        raise
 
 
 def run_partial(
@@ -223,17 +235,23 @@ def run_incremental_workflow(generator: DiagramGenerator) -> Path:
        which itself falls back to a full run when the cluster snapshot is
        missing or the cluster delta produces nothing actionable.
     """
-    output_dir = generator.output_dir
-    existing = load_full_analysis(output_dir)
-    metadata = load_analysis_metadata(output_dir)
-    if existing is None or metadata is None:
-        logger.info("No existing analysis baseline; running full analysis.")
-        return generator.generate_analysis()
+    output_dir = Path(generator.output_dir)
+    # Progress saves land mid-run, so a failed run must not leave its partial analysis.json behind.
+    before = snapshot_analysis(output_dir)
+    try:
+        existing = load_full_analysis(output_dir)
+        metadata = load_analysis_metadata(output_dir)
+        if existing is None or metadata is None:
+            logger.info("No existing analysis baseline; running full analysis.")
+            return generator.generate_analysis()
 
-    root_analysis, sub_analyses = existing
+        root_analysis, sub_analyses = existing
 
-    if not root_analysis.components:
-        logger.info("Baseline analysis has no components; running full analysis.")
-        return generator.generate_analysis()
+        if not root_analysis.components:
+            logger.info("Baseline analysis has no components; running full analysis.")
+            return generator.generate_analysis()
 
-    return generator.generate_analysis_incremental(root_analysis, sub_analyses)
+        return generator.generate_analysis_incremental(root_analysis, sub_analyses)
+    except BaseException:
+        restore_analysis(output_dir, before)
+        raise

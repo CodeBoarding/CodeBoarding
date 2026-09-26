@@ -18,8 +18,6 @@ import json
 import logging
 import os
 import tempfile
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 
 from filelock import FileLock
@@ -319,22 +317,20 @@ def write_text_atomic(path: Path, text: str) -> None:
         raise
 
 
-@contextmanager
-def restore_analysis_on_failure(output_dir: Path) -> Iterator[None]:
-    """Put ``analysis.json`` back as it was when the block raises.
-
-    Why: progress saves land mid-run, so a failed run would otherwise leave a partial analysis behind.
-    """
+def snapshot_analysis(output_dir: Path) -> str | None:
+    """The current ``analysis.json`` text, or ``None`` when there is none."""
     path = output_dir / ANALYSIS_FILENAME
-    before = path.read_text(encoding="utf-8") if path.is_file() else None
-    try:
-        yield
-    except Exception:
-        if before is None:
+    return path.read_text(encoding="utf-8") if path.is_file() else None
+
+
+def restore_analysis(output_dir: Path, snapshot: str | None) -> None:
+    """Put back what :func:`snapshot_analysis` returned, removing the file when there was none."""
+    path = output_dir / ANALYSIS_FILENAME
+    with _get_store(output_dir)._lock:
+        if snapshot is None:
             path.unlink(missing_ok=True)
         else:
-            write_text_atomic(path, before)
-        raise
+            write_text_atomic(path, snapshot)
 
 
 # Whole-tree fingerprint sidecar. analysis.json's ``files`` block covers only

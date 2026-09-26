@@ -43,7 +43,7 @@ from diagram_analysis.diagram_generator import (
     _component_expansion_seeds,
 )
 from diagram_analysis.exceptions import ClusteringScopeUnavailableError, ScopeSemanticsError
-from diagram_analysis.io_utils import load_analysis_metadata, restore_analysis_on_failure, save_analysis
+from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language, NodeType
@@ -972,27 +972,6 @@ class TestDiagramGenerator(unittest.TestCase):
             gen._generate_subcomponents(root, [component])
 
         mock_save_analysis.assert_not_called()
-
-    def test_restore_analysis_on_failure_puts_back_the_previous_analysis(self):
-        path = self.output_dir / "analysis.json"
-        path.write_text("previous", encoding="utf-8")
-
-        with self.assertRaises(ScopeSemanticsError):
-            with restore_analysis_on_failure(self.output_dir):
-                path.write_text("partial", encoding="utf-8")
-                raise ScopeSemanticsError("root")
-
-        self.assertEqual(path.read_text(encoding="utf-8"), "previous")
-
-    def test_restore_analysis_on_failure_removes_an_analysis_the_run_created(self):
-        path = self.output_dir / "analysis.json"
-
-        with self.assertRaises(ScopeSemanticsError):
-            with restore_analysis_on_failure(self.output_dir):
-                path.write_text("partial", encoding="utf-8")
-                raise ScopeSemanticsError("root")
-
-        self.assertFalse(path.exists())
 
     def test_enrich_scope_propagates_authentication_failures(self):
         gen = DiagramGenerator(

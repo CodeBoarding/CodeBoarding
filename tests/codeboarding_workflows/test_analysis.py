@@ -4,7 +4,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
+from codeboarding_workflows.analysis import (
+    BaselineUnavailableError,
+    run_full,
+    run_incremental,
+    run_incremental_workflow,
+)
+from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_context import RunContext, RunPaths
 from repo_utils.change_detector import ChangeSet
 
@@ -76,3 +82,37 @@ def test_run_incremental_no_baseline_raises(tmp_path: Path, patched) -> None:
     with patch("codeboarding_workflows.analysis.load_analysis_metadata", return_value=None):
         with pytest.raises(BaselineUnavailableError, match="No baseline"):
             _invoke(tmp_path)
+
+
+def _fail_after_a_progress_save(analysis_path: Path):
+    def run(*_args):
+        analysis_path.write_text("partial", encoding="utf-8")
+        raise ScopeSemanticsError("root")
+
+    return run
+
+
+def test_run_full_restores_the_previous_analysis_when_it_fails(tmp_path: Path) -> None:
+    analysis_path = tmp_path / "analysis.json"
+    analysis_path.write_text("previous", encoding="utf-8")
+
+    with patch("codeboarding_workflows.analysis.DiagramGenerator") as gen_cls:
+        gen_cls.return_value.generate_analysis.side_effect = _fail_after_a_progress_save(analysis_path)
+        with pytest.raises(ScopeSemanticsError):
+            run_full(
+                RunPaths(repo_path=tmp_path, output_dir=tmp_path, project_name="proj"),
+                RunContext(run_id="rid", log_path="logs/run.log"),
+            )
+
+    assert analysis_path.read_text(encoding="utf-8") == "previous"
+
+
+def test_run_incremental_workflow_removes_an_analysis_the_failed_run_created(tmp_path: Path) -> None:
+    analysis_path = tmp_path / "analysis.json"
+    generator = MagicMock(output_dir=tmp_path)
+    generator.generate_analysis.side_effect = _fail_after_a_progress_save(analysis_path)
+
+    with pytest.raises(ScopeSemanticsError):
+        run_incremental_workflow(generator)
+
+    assert not analysis_path.exists()
