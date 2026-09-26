@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-22T17:21:15.876598+00:00",
-  "overall_score": 0.9971717877094972,
+  "timestamp": "2026-09-26T19:13:02.179453+00:00",
+  "overall_score": 0.983459682977257,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1423,
+      "total_entities_checked": 1427,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -19,10 +19,10 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 9,
-      "findings_count": 9,
-      "warning_count": 2,
-      "score": 0.55,
+      "total_entities_checked": 24,
+      "findings_count": 24,
+      "warning_count": 3,
+      "score": 0.0,
       "finding_groups": [
         {
           "severity": "info",
@@ -77,6 +77,104 @@
               "line_start": 40,
               "line_end": 40,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_key_tail\" is not accessed",
+              "file_path": "agents/llm_errors.py",
+              "line_start": 143,
+              "line_end": 143,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
+              "file_path": "codeboarding_workflows/analysis.py",
+              "line_start": 29,
+              "line_end": 29,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 133,
+              "line_end": 133,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 184,
+              "line_end": 184,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 288,
+              "line_end": 288,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 370,
+              "line_end": 370,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 346,
+              "line_end": 346,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 403,
+              "line_end": 403,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 482,
+              "line_end": 482,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_path\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 505,
+              "line_end": 505,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 490,
+              "line_end": 490,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 998,
+              "line_end": 998,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_expanded_components\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 1394,
+              "line_end": 1394,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 1432,
+              "line_end": 1432,
+              "metric_value": 0.0
             }
           ]
         },
@@ -98,6 +196,13 @@
               "line_start": 11,
               "line_end": 11,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"track_analysis\" is not accessed",
+              "file_path": "codeboarding_workflows/analysis.py",
+              "line_start": 29,
+              "line_end": 29,
+              "metric_value": 0.0
             }
           ]
         }
@@ -110,6 +215,18 @@
       "total_findings": 4,
       "warning_findings": 2,
       "composite_risk_score": 50.0
+    },
+    {
+      "file_path": "diagram_analysis/diagram_generator.py",
+      "total_findings": 12,
+      "warning_findings": 0,
+      "composite_risk_score": 50.0
+    },
+    {
+      "file_path": "codeboarding_workflows/analysis.py",
+      "total_findings": 2,
+      "warning_findings": 1,
+      "composite_risk_score": 25.0
     },
     {
       "file_path": "agents/llm_config.py",
@@ -131,6 +248,12 @@
     },
     {
       "file_path": "agents/retry.py",
+      "total_findings": 1,
+      "warning_findings": 0,
+      "composite_risk_score": 10.0
+    },
+    {
+      "file_path": "agents/llm_errors.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
