@@ -1,0 +1,8 @@
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      base-url: https://api.openai.com
+    azure:
+      openai:
+        endpoint: ${AZURE_OPENAI_ENDPOINT}

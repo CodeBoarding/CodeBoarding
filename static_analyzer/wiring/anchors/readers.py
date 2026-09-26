@@ -30,7 +30,7 @@ ENVIRONMENT_READ = re.compile(
 
 #: A client type whose name says what the code talks to: a store, a broker, a cache, a database.
 RESOURCE_CLIENT = re.compile(
-    r"\b(VectorStore|MongoTemplate|MongoClient|MongoRepository|RedisTemplate|StringRedisTemplate|RabbitTemplate|"
+    r"\b(\w*VectorStore|MongoTemplate|MongoClient|MongoRepository|RedisTemplate|StringRedisTemplate|RabbitTemplate|"
     r"KafkaTemplate|JdbcTemplate|DataSource|DbContext|S3Client|AmazonS3|MinioClient|ElasticsearchClient|"
     r"CosmosClient|BlobServiceClient|ServiceBusClient|IConnectionMultiplexer|IDistributedCache)\b"
 )

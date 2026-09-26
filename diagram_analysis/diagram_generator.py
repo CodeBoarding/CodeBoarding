@@ -1361,6 +1361,7 @@ class DiagramGenerator:
                             sub_expandable_ids=sub_expandable_ids,
                             depth_cap=self.depth_cap,
                             tree_spec=self._tree_spec_dict(),
+                            resources=self.static_analysis.wiring.resources if self.static_analysis else (),
                         )
 
                     if new_components and level + 1 < self.depth_cap:
@@ -1552,6 +1553,7 @@ class DiagramGenerator:
             sub_expandable_ids=sub_expandable_ids,
             depth_cap=self.depth_cap,
             tree_spec=self._tree_spec_dict(),
+            resources=self.static_analysis.wiring.resources if self.static_analysis else (),
         ).resolve()
         if persist_side_artifacts:
             self._write_file_coverage()
