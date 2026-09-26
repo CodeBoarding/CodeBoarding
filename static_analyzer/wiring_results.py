@@ -134,7 +134,12 @@ class Unit:
 
 @dataclass(frozen=True)
 class Anchor:
-    """Where a wiring key is declared or used: the key as written, normalised, and its place."""
+    """Where a wiring key is declared or used: the key as written, normalised, and its place.
+
+    ``setting`` is the configuration key a value was read under (`spring.config.import`,
+    `CONFIG_SERVER_URL`) when the anchor is the host that value names, so a join can read what the
+    connection is for from the key that expresses it rather than from the host's spelling.
+    """
 
     family: AnchorFamily
     role: AnchorRole
@@ -145,6 +150,7 @@ class Anchor:
     column: int = 1
     unit: str = ""
     tier: Tier = Tier.T1
+    setting: str = ""
 
 
 @dataclass(frozen=True)

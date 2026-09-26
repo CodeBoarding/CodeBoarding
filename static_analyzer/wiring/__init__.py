@@ -2,12 +2,13 @@
 
 `docs/design/wiring.md` is the contract. The pass runs at the end of `StaticAnalyzer.analyze`, after
 the per-engine results are merged, because its edges cross engines: a compose file wires a Python
-service to a Java one. It calls no model, and at this stage of the stack reads no source — build
-manifests, deployment topology and compose files only — and is off unless `CODEBOARDING_WIRING=1`.
-It can never break an analysis: `run_or_report` turns anything it raises into one diagnostic.
+service to a Java one. It calls no model; it reads manifests, deployment topology and
+configuration, and source for two things only — a literal service name and an environment read,
+with comments and docstrings blanked first — and is off unless `CODEBOARDING_WIRING=1`. It can
+never break an analysis: `run_or_report` turns anything it raises into one diagnostic.
 
 `CODEBOARDING_WIRING_DUMP=<dir>` writes what the evals checks grade before any arrow exists:
-`units.json` and `diagnostics.json` in the schema of §8.
+`units.json`, `anchors.json` and `diagnostics.json` in the schema of §8.
 """
 
 from __future__ import annotations
@@ -21,6 +22,8 @@ import time
 from pathlib import Path
 
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.wiring.anchors import collect, to_json
+from static_analyzer.wiring.compose import compose_projects
 from static_analyzer.wiring.scan import Scan
 from static_analyzer.wiring.units import build_units
 from static_analyzer.wiring_results import Diagnostic, DiagnosticCode, WiringResults
@@ -52,12 +55,15 @@ def run(results: StaticAnalysisResults, repo_root: Path, *, dump: Path | None = 
     """
     started = time.monotonic()
     scan = Scan(repo_root)
-    units = build_units(scan, repository_name(repo_root))
-    wiring = WiringResults(units=units, diagnostics=sorted(scan.diagnostics, key=_order))
+    projects = compose_projects(scan)
+    units = build_units(scan, repository_name(repo_root), projects)
+    anchors = collect(scan, units, projects)
+    wiring = WiringResults(units=units, anchors=anchors, diagnostics=sorted(scan.diagnostics, key=_order))
     logger.info(
-        "wiring: %d files read, %d units, %d diagnostics in %.2fs",
+        "wiring: %d files read, %d units, %d anchors, %d diagnostics in %.2fs",
         len(scan.files),
         len(wiring.units),
+        len(wiring.anchors),
         len(wiring.diagnostics),
         time.monotonic() - started,
     )
@@ -85,6 +91,7 @@ def write_dump(wiring: WiringResults, repo_root: Path, directory: Path) -> None:
         directory / "units.json",
         {**heading, "units": [unit.to_json() for unit in wiring.units], "diagnostics": diagnostics},
     )
+    _write(directory / "anchors.json", {**heading, "anchors": [to_json(anchor) for anchor in wiring.anchors]})
     _write(directory / "diagnostics.json", {**heading, "diagnostics": diagnostics})
 
 
