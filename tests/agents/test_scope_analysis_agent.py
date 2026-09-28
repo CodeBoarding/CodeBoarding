@@ -13,7 +13,8 @@ from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 
 from agents.agent_responses import AnalysisInsights, Component
-from agents.llm_errors import LLMAuthError
+from agents.llm_errors import LLMAuthError, ScopeContextTooLargeError
+from agents.model_capabilities import ContextWindow
 from agents.scope_analysis_agent import (
     MAX_SCOPE_MODEL_CALLS,
     MAX_SCOPE_TOOL_CALLS,
@@ -181,4 +182,18 @@ class TestScopeAnalysisAgent(unittest.TestCase):
         agent.analyze(scope, analysis, {"1"}, enclosing_names=("Engine",))
 
         prompt = runtime.invoke.call_args.args[0]["messages"][0].content
-        self.assertIn('"enclosing_components": [\n    "Engine"\n  ]', prompt)
+        self.assertIn('"enclosing_components":["Engine"]', prompt)
+
+    @patch("agents.scope_analysis_agent.get_current_agent_context_window")
+    @patch("agents.scope_analysis_agent.create_agent")
+    def test_a_scope_over_the_models_window_never_reaches_the_provider(self, create_agent, context_window):
+        static_analysis, scope, analysis = _inputs()
+        create_agent.return_value = MagicMock()
+        context_window.return_value = ContextWindow(input_tokens=20, output_tokens=10)
+        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, MagicMock(spec=BaseChatModel))
+
+        with self.assertRaises(ScopeContextTooLargeError) as ctx:
+            agent.analyze(scope, analysis, {"1"})
+
+        self.assertEqual(ctx.exception.allowed_tokens, 10)
+        create_agent.return_value.invoke.assert_not_called()
