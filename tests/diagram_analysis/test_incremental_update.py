@@ -242,6 +242,50 @@ class TestIncrementalCleanup(unittest.TestCase):
         self.assertEqual(first.file_methods, [])
         self.assertEqual(second.file_methods[0].methods[0].qualified_name, "pkg.moved")
 
+    def test_patch_file_methods_keeps_a_live_callback_sharing_the_moved_ones_line(self) -> None:
+        """Why: nested arrows on one line (``rAF(() => rAF(() => f()))``) share file, span, type and leaf
+        name — they differ only by column, which a ``MethodEntry`` does not carry. Moving the outer one
+        used to strip the inner one from its own component too, and the child scope that still owned it
+        then failed containment (``1.1 holds N method(s) outside parent 1``)."""
+        outer = MethodEntry(qualified_name="App.effect.rAF() callback", start_line=7, end_line=7, node_type="FUNCTION")
+        inner = MethodEntry(
+            qualified_name="App.effect.rAF() callback.rAF() callback", start_line=7, end_line=7, node_type="FUNCTION"
+        )
+        keeper = _component("Keeper", "1")
+        keeper.file_methods = [FileMethodGroup(file_path="app.tsx", methods=[inner])]
+        target = _component("Target", "2")
+        scope = AnalysisInsights(description="root", components=[keeper, target], components_relations=[])
+
+        _patch_file_methods(
+            scope,
+            {"2": [FileMethodGroup(file_path="app.tsx", methods=[outer])]},
+            {"2"},
+            {outer.qualified_name, inner.qualified_name},
+        )
+
+        self.assertEqual([m.qualified_name for m in keeper.file_methods[0].methods], [inner.qualified_name])
+        self.assertEqual([m.qualified_name for m in target.file_methods[0].methods], [outer.qualified_name])
+
+    def test_patch_file_methods_still_drops_a_stale_alias_at_the_moved_location(self) -> None:
+        """Why: the location match is there for an LSP alias of the moved method — the old spelling is no
+        longer live, and leaving it behind would render the same symbol in two components."""
+        live = MethodEntry(qualified_name="src.index.funcA", start_line=3, end_line=5, node_type="FUNCTION")
+        alias = MethodEntry(qualified_name="src/index.funcA", start_line=3, end_line=5, node_type="FUNCTION")
+        old_home = _component("Old", "1")
+        old_home.file_methods = [FileMethodGroup(file_path="src/index.ts", methods=[alias])]
+        new_home = _component("New", "2")
+        scope = AnalysisInsights(description="root", components=[old_home, new_home], components_relations=[])
+
+        _patch_file_methods(
+            scope,
+            {"2": [FileMethodGroup(file_path="src/index.ts", methods=[live])]},
+            {"2"},
+            {live.qualified_name},
+        )
+
+        self.assertEqual(old_home.file_methods, [])
+        self.assertEqual([m.qualified_name for m in new_home.file_methods[0].methods], [live.qualified_name])
+
 
 if __name__ == "__main__":
     unittest.main()
