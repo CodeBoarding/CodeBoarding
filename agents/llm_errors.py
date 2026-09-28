@@ -70,10 +70,6 @@ _CONTEXT_OVERFLOW_PATTERNS = (
 )
 
 
-class ContextTrimmedError(RuntimeError):
-    """Input was shortened to fit the context budget, potentially reducing analysis quality."""
-
-
 class ScopeContextTooLargeError(RuntimeError):
     """A scope's context does not fit the model's budget even after every trim.
 

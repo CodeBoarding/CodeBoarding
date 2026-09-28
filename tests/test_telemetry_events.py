@@ -2,7 +2,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from agents.llm_errors import ContextTrimmedError
 import telemetry.events as events
 from telemetry.events import capture_error, track_analysis, track_lsp_result
 
@@ -54,21 +53,6 @@ def test_track_analysis_success_has_no_exception(captured):
 
     assert props_for(captured, "analysis_completed")["status"] == "success"
     assert captured.exceptions == []
-
-
-def test_context_trim_error_is_correlated_without_failing_analysis(captured):
-    @track_analysis
-    def run_full(repo_name, run_id=None):
-        capture_error("scope_analysis", ContextTrimmedError("Context trimmed"), extra={"nonfatal": True})
-        return "ok"
-
-    assert run_full("x", run_id="trimmed-run") == "ok"
-    assert props_for(captured, "analysis_completed")["status"] == "success"
-    assert len(captured.exceptions) == 1
-    error, properties = captured.exceptions[0]
-    assert isinstance(error, ContextTrimmedError)
-    assert properties["run_id"] == "trimmed-run"
-    assert properties["nonfatal"] is True
 
 
 def test_capture_error_forwards_to_posthog(captured):
