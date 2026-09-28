@@ -103,7 +103,7 @@
     "diagram_analysis/incremental_changes.py": "33d1be923b501a66",
     "diagram_analysis/scope_plan.py": "42046910ae912920",
     "diagram_analysis/diagram_generator.py": "18aff70801d14bbb",
-    "diagram_analysis/incremental_update.py": "e880d2d921316953",
+    "diagram_analysis/incremental_update.py": "6df02b8093faa94c",
     "diagram_analysis/exceptions.py": "f7689d614d76c2d3",
     "diagram_analysis/scope_assembly.py": "1a0445b504da3e80",
     "diagram_analysis/__init__.py": "5892ddc52db117a3",
