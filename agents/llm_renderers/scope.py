@@ -37,7 +37,7 @@ def render_scope_context(
     changed_files: set[str] | frozenset[str],
     incremental: bool,
     enclosing_names: Sequence[str] = (),
-    max_tokens: int | None = None,
+    max_tokens: int = ModelCapabilities.FALLBACK_INPUT // 2,
 ) -> str:
     """Return complete group files, boundary candidates, and known calls as JSON.
 
@@ -101,7 +101,7 @@ def render_scope_context(
     }
     text = _dump(payload)
     for trim, what in _TRIMS:
-        if max_tokens is None or _tokens(text) <= max_tokens:
+        if _tokens(text) <= max_tokens:
             return text
         logger.warning(
             "Scope %s context is ~%d tokens, over its %d budget: %s",
@@ -112,7 +112,7 @@ def render_scope_context(
         )
         trim(payload)
         text = _dump(payload)
-    if max_tokens is not None and _tokens(text) > max_tokens:
+    if _tokens(text) > max_tokens:
         raise ScopeContextTooLargeError(scope.scope_id, _tokens(text), max_tokens)
     return text
 
