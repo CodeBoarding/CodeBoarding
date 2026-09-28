@@ -675,13 +675,13 @@ class TestMainAuthErrorHandler(unittest.TestCase):
         import io
 
         import main
-        from agents.llm_config import HOSTED_KEY_TAIL
+        from agents.llm_config import CODEBOARDING_KEY_TAIL
         from agents.llm_errors import LLMAuthError
 
         mock_run.side_effect = LLMAuthError(
             "CodeBoarding's hosted openrouter credentials were rejected (HTTP 401).",
             provider="openrouter",
-            key_tail=HOSTED_KEY_TAIL,
+            key_tail=CODEBOARDING_KEY_TAIL,
             telemetry_properties={"error_type": "auth"},
         )
 

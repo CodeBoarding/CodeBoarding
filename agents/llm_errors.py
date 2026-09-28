@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import re
 
-from agents.llm_config import HOSTED_KEY_TAIL, current_provider_key_context
+from agents.llm_config import CODEBOARDING_KEY_TAIL, current_provider_key_context
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ def detect_auth_error(exc: BaseException, *, provider: str, key_tail: str) -> LL
     status = _status_code(exc)
     provider_message = str(exc)
     status_note = f" (HTTP {status})" if status is not None else ""
-    if key_tail == HOSTED_KEY_TAIL:
+    if key_tail == CODEBOARDING_KEY_TAIL:
         friendly = (
             f"CodeBoarding's hosted {provider} credentials were rejected{status_note}. This run used no key of "
             "yours: check that the workflow grants `id-token: write`, then re-run."

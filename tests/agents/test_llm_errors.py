@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agents.llm_config import HOSTED_KEY_TAIL, HOSTED_RELAY_KEY, current_provider_key_context
+from agents.llm_config import CODEBOARDING_KEY_TAIL, OIDC_RELAY_PLACEHOLDER_KEY, current_provider_key_context
 from agents.llm_errors import LLMAuthError, detect_auth_error, llm_failure_properties, raise_if_auth_error
 
 
@@ -104,7 +104,7 @@ class TestExplicitStatusWinsOverTheBody:
             "'previous_errors': [{'code': 401, 'message': 'Provider returned error'}]}}}",
             status_code=400,
         )
-        assert detect_auth_error(exc, provider="openrouter", key_tail=HOSTED_KEY_TAIL) is None
+        assert detect_auth_error(exc, provider="openrouter", key_tail=CODEBOARDING_KEY_TAIL) is None
 
     def test_overloaded_model_with_an_upstream_401_is_not_auth(self):
         """A 503 is transient; typed as auth it would end the run instead of being retried."""
@@ -137,17 +137,17 @@ class TestHostedCredentials:
     def test_the_relay_placeholder_names_no_key(self):
         with patch.dict(
             os.environ,
-            {"OPENROUTER_API_KEY": HOSTED_RELAY_KEY, "OPENROUTER_BASE_URL": "http://127.0.0.1:4000"},
+            {"OPENROUTER_API_KEY": OIDC_RELAY_PLACEHOLDER_KEY, "OPENROUTER_BASE_URL": "http://127.0.0.1:4000"},
             clear=True,
         ):
-            assert current_provider_key_context() == ("openrouter", HOSTED_KEY_TAIL)
+            assert current_provider_key_context() == ("openrouter", CODEBOARDING_KEY_TAIL)
 
     def test_a_rejected_hosted_run_points_at_the_workflow_not_a_key(self):
         """Why: users were told to verify a key ending in '…elay' — the tail of the placeholder."""
         result = detect_auth_error(
             _FakeStatusError("Invalid GitHub OIDC token.", status_code=401),
             provider="openrouter",
-            key_tail=HOSTED_KEY_TAIL,
+            key_tail=CODEBOARDING_KEY_TAIL,
         )
         assert result is not None
         assert "hosted" in str(result)
