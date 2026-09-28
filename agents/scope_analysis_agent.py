@@ -15,7 +15,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import Field
 
 from agents.agent_responses import AnalysisInsights, LLMBaseModel, RelationEdge, SourceCodeReference
-from agents.llm_config import MONITORING_CALLBACK, get_current_prompt_profile
+from agents.llm_config import MONITORING_CALLBACK, get_current_agent_context_window, get_current_prompt_profile
 from agents.llm_errors import raise_if_auth_error
 from agents.llm_renderers import render_scope_context, scope_file_paths, scope_method_names
 from agents.prompts import get_scope_analysis_prompts
@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 MAX_SCOPE_TOOL_CALLS = 6
 MAX_SCOPE_MODEL_CALLS = 8
+
+#: The share of the model's input window a scope's rendered context may take. The rest carries the
+#: prompts, the agent's own turns and up to ``MAX_SCOPE_TOOL_CALLS`` tool results, all resent each turn.
+SCOPE_CONTEXT_WINDOW_SHARE = 0.5
 SCOPE_RECURSION_LIMIT = 40
 
 
@@ -145,6 +149,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
             changed_files,
             incremental,
             enclosing_names,
+            max_tokens=int(get_current_agent_context_window().input_tokens * SCOPE_CONTEXT_WINDOW_SHARE),
         )
         try:
             response = agent.invoke(

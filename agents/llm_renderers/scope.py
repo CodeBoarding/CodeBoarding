@@ -3,20 +3,29 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from agents.agent_responses import AnalysisInsights
+from agents.constants import ModelCapabilities
+from agents.llm_errors import ScopeContextTooLargeError
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg.edge import EdgeKind
 from static_analyzer.clustering import ClusterConnectionEdge, ClusterGroup, ClusterScopeResult
 from static_analyzer.node import Node
 
+logger = logging.getLogger(__name__)
+
 #: Example edges per directed group pair; the count is always given, the examples let
 #: a relation's ``key_edges`` cite exact symbols.
 MAX_EXAMPLE_EDGES = 5
+
+#: The reason a file gets when no rule placed it. Most files carry it, so it is left out rather than
+#: repeated: the prompt says a file without a reason is a plain member.
+DEFAULT_GROUPING_REASON = "member of the deterministic group"
 
 
 def render_scope_context(
@@ -28,11 +37,16 @@ def render_scope_context(
     changed_files: set[str] | frozenset[str],
     incremental: bool,
     enclosing_names: Sequence[str] = (),
+    max_tokens: int | None = None,
 ) -> str:
     """Return complete group files, boundary candidates, and known calls as JSON.
 
     ``enclosing_names``: the components this scope sits inside, outermost first, so the
     model does not name a child after its parent.
+
+    ``max_tokens``: the most this context may take. Over it, the least load-bearing parts are trimmed
+    in order; if it still does not fit, :class:`ScopeContextTooLargeError` is raised instead of
+    sending a prompt the provider will reject.
     """
     boundary_reasons = _boundary_reasons(scope, repo_dir)
     components = {component.component_id: component for component in analysis.components}
@@ -46,11 +60,9 @@ def render_scope_context(
                 "status": "changed" if group.group_id in editable_group_ids else "unchanged",
                 "name_locked": group.group_id in locked_name_ids,
                 "files": [
-                    {
-                        "path": file_path,
-                        "grouping_reason": reason,
-                        "changed": file_path in changed_files,
-                    }
+                    {"path": file_path}
+                    | ({"grouping_reason": reason} if reason != DEFAULT_GROUPING_REASON else {})
+                    | ({"changed": file_path in changed_files} if incremental else {})
                     for file_path, reason in file_reasons.items()
                 ],
                 "bordering_files": [
@@ -87,7 +99,58 @@ def render_scope_context(
             if relation.src_id and relation.dst_id
         ],
     }
-    return json.dumps(payload, indent=2, sort_keys=True)
+    text = _dump(payload)
+    for trim, what in _TRIMS:
+        if max_tokens is None or _tokens(text) <= max_tokens:
+            return text
+        logger.warning(
+            "Scope %s context is ~%d tokens, over its %d budget: %s",
+            scope.scope_id,
+            _tokens(text),
+            max_tokens,
+            what,
+        )
+        trim(payload)
+        text = _dump(payload)
+    if max_tokens is not None and _tokens(text) > max_tokens:
+        raise ScopeContextTooLargeError(scope.scope_id, _tokens(text), max_tokens)
+    return text
+
+
+def _dump(payload: dict[str, Any]) -> str:
+    """Why: nobody reads this JSON but the model, and indentation was a third of its size."""
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+def _tokens(text: str) -> int:
+    return int(len(text) / ModelCapabilities.CHARS_PER_TOKEN)
+
+
+def _drop_bordering_files(payload: dict[str, Any]) -> None:
+    for group in payload["groups"]:
+        group.pop("bordering_files", None)
+
+
+def _one_example_without_locations(payload: dict[str, Any]) -> None:
+    for connection in payload["known_connections"]:
+        connection["examples"] = [
+            {"source": example["source"], "target": example["target"]} for example in connection["examples"][:1]
+        ]
+
+
+def _files_by_path_only(payload: dict[str, Any]) -> None:
+    for group in payload["groups"]:
+        group["files"] = [entry["path"] for entry in group["files"]]
+
+
+#: Applied in order, only while the context is over budget. Each gives up what the model can best do
+#: without: bordering files repeat group pairs ``known_connections`` already counts, then the examples
+#: shrink to one per pair, and last the files lose their grouping reasons.
+_TRIMS = (
+    (_drop_bordering_files, "dropping bordering files"),
+    (_one_example_without_locations, "keeping one example per connection, without locations"),
+    (_files_by_path_only, "listing files by path only"),
+)
 
 
 def scope_file_paths(scope: ClusterScopeResult, repo_dir: Path) -> frozenset[str]:
@@ -121,7 +184,7 @@ def _group_file_reasons(
         if name in scope.graphs_by_language[language].nodes
     }
     for file_path in files:
-        reasons.setdefault(file_path, "member of the deterministic group")
+        reasons.setdefault(file_path, DEFAULT_GROUPING_REASON)
     return dict(sorted(reasons.items()))
 
 

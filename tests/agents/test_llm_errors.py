@@ -6,7 +6,13 @@ from unittest.mock import patch
 import pytest
 
 from agents.llm_config import CODEBOARDING_KEY_TAIL, OIDC_RELAY_PLACEHOLDER_KEY, current_provider_key_context
-from agents.llm_errors import LLMAuthError, detect_auth_error, llm_failure_properties, raise_if_auth_error
+from agents.llm_errors import (
+    LLMAuthError,
+    ScopeContextTooLargeError,
+    detect_auth_error,
+    llm_failure_properties,
+    raise_if_auth_error,
+)
 
 
 class _FakeStatusError(Exception):
@@ -199,3 +205,20 @@ def test_llm_failure_properties_tells_quota_apart(error: Exception, error_type: 
     assert props["error_type"] == error_type
     assert props["error_provider"] == "openai"
     assert props["error_status_code"] == getattr(error, "status_code", None)
+
+
+class TestOversizedPromptTelemetry:
+    """Why: an oversized prompt is ours to fix, so the dashboard should count it apart from provider failures."""
+
+    def test_a_provider_overflow_is_typed_context(self):
+        exc = _FakeStatusError(
+            "Error code: 400 - The input token count exceeds the maximum number of tokens allowed 1048576.",
+            status_code=400,
+        )
+        assert llm_failure_properties(exc)["error_type"] == "context"
+
+    def test_a_refused_scope_is_typed_context(self):
+        assert llm_failure_properties(ScopeContextTooLargeError("root", 900_000, 524_288))["error_type"] == "context"
+
+    def test_quota_still_wins(self):
+        assert llm_failure_properties(_FakeStatusError("Resource exhausted", status_code=402))["error_type"] == "quota"

@@ -62,6 +62,33 @@ _AUTH_MESSAGE_PATTERNS = (
 )
 
 
+# What each provider says when the prompt is over the model's context window: Google, OpenAI, Anthropic.
+_CONTEXT_OVERFLOW_PATTERNS = (
+    re.compile(r"exceeds the maximum number of tokens", re.IGNORECASE),
+    re.compile(r"maximum context length|context_length_exceeded", re.IGNORECASE),
+    re.compile(r"prompt is too long", re.IGNORECASE),
+)
+
+
+class ScopeContextTooLargeError(RuntimeError):
+    """A scope's context does not fit the model's budget even after every trim.
+
+    Why: sent anyway, the provider rejects it with a 400 worded differently by each provider — and
+    OpenRouter's embeds an upstream 401 that used to be read as a rejected key. Stopping before the
+    call names the real limit.
+    """
+
+    def __init__(self, scope_id: str, needed_tokens: int, allowed_tokens: int):
+        super().__init__(
+            f"Scope {scope_id!r} needs about {needed_tokens:,} tokens of context after trimming, over the "
+            f"{allowed_tokens:,} this model allows a scope. Use a model with a larger context window, or "
+            "narrow the analysis with .codeboardingignore."
+        )
+        self.scope_id = scope_id
+        self.needed_tokens = needed_tokens
+        self.allowed_tokens = allowed_tokens
+
+
 class LLMAuthError(RuntimeError):
     """An LLM provider rejected our credentials (HTTP 401 or equivalent).
 
@@ -142,15 +169,18 @@ def detect_auth_error(exc: BaseException, *, provider: str, key_tail: str) -> LL
 
 
 def llm_failure_properties(exc: BaseException) -> dict:
-    """``$exception`` properties for a failed LLM call, telling an exhausted quota apart from other failures.
+    """``$exception`` properties for a failed LLM call, telling an exhausted quota or an oversized prompt
+    apart from other failures.
 
     Why: the hosted proxy's paywall is a 402, and OpenAI reports an empty balance as a 429 ``insufficient_quota``.
+    An oversized prompt is ours to fix, not the provider's, so it gets its own type on the dashboard.
     """
     status = _status_code(exc)
     quota = status == 402 or (status == 429 and "insufficient_quota" in str(exc))
+    context = isinstance(exc, ScopeContextTooLargeError) or any(p.search(str(exc)) for p in _CONTEXT_OVERFLOW_PATTERNS)
     provider, _key_tail = current_provider_key_context()
     return {
-        "error_type": "quota" if quota else "llm",
+        "error_type": "quota" if quota else "context" if context else "llm",
         "error_provider": provider,
         "error_status_code": status,
         "error_message": str(exc)[:500],
