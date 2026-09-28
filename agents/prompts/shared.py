@@ -32,7 +32,9 @@ The supplied group IDs, file membership, hierarchy, and known directed calls are
 split, move, add, or remove groups. Work at the supplied scope exactly the same way whether it is root or nested.
 
 Use the supplied files, grouping reasons, bordering files, and known connections before calling tools. A file
-listed without a `grouping_reason` is a plain member of its group. A known
+listed without a `grouping_reason` is a plain member of its group. Compact file lists retain `changed: true`
+on modified files. `boundary_references` summarizes directed structural references between groups when
+per-file boundary details are omitted. A known
 connection gives the number of distinct calls from one group to another and a few of them in full; cite only
 symbols that appear in the input. Never reuse a name listed under `enclosing_components`: those are the
 components this scope sits inside, and a child named after its parent overwrites its document. `readFile`

@@ -17,7 +17,7 @@ from langchain.agents.middleware import (
     ToolCallLimitMiddleware,
 )
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage, ToolCall, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolCall, ToolMessage
 from langchain_core.messages.utils import count_tokens_approximately
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langgraph.graph.state import CompiledStateGraph
@@ -121,7 +121,14 @@ class ScopeInputBudget(AgentMiddleware):
         if request.system_message is not None:
             overhead.append(request.system_message)
         messages = list(request.messages)
-        marker = "\n[Tool output truncated to fit context; request a narrower range if needed.]"
+        call_list_ids = {
+            call["id"]
+            for message in messages
+            if isinstance(message, AIMessage)
+            for call in message.tool_calls
+            if call["name"] == "getMethodCalls"
+        }
+        marker = "\n[Tool output truncated to fit context; this call list is incomplete.]"
         while True:
             tokens = count_tokens_approximately(
                 [*overhead, *messages], chars_per_token=ModelCapabilities.CHARS_PER_TOKEN
@@ -132,6 +139,7 @@ class ScopeInputBudget(AgentMiddleware):
                 (index, message)
                 for index, message in enumerate(messages)
                 if isinstance(message, ToolMessage)
+                and message.tool_call_id in call_list_ids
                 and isinstance(message.content, str)
                 and len(message.content) > len(marker)
             ]
@@ -144,7 +152,8 @@ class ScopeInputBudget(AgentMiddleware):
             keep = max(
                 0, len(content) - int((tokens - self.max_tokens) * ModelCapabilities.CHARS_PER_TOKEN) - len(marker)
             )
-            messages[index] = message.model_copy(update={"content": content[:keep] + marker})
+            prefix = content[:keep].rsplit("\n", 1)[0] if "\n" in content[:keep] else ""
+            messages[index] = message.model_copy(update={"content": prefix + marker})
             logger.warning("Scope %s: truncating tool result %s to fit context", self.scope_id, message.tool_call_id)
 
 

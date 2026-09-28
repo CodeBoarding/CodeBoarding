@@ -92,7 +92,7 @@ class TestScopeInputBudget(unittest.TestCase):
         calls = AIMessage(
             content="",
             tool_calls=[
-                {"name": "readFile", "args": {}, "id": "read"},
+                {"name": "getMethodCalls", "args": {}, "id": "read"},
                 {"name": "getMethodCalls", "args": {}, "id": "calls"},
             ],
         )
@@ -142,15 +142,44 @@ class TestScopeInputBudget(unittest.TestCase):
 
 
 class TestScopeAnalysisAgent(unittest.TestCase):
+    @patch("agents.scope_analysis_agent.get_current_agent_context_window", return_value=ContextWindow(4096, 1024))
+    @patch.object(ReadFileTool, "_run", return_value="preceding line\n" * 10000 + "150: requested implementation\n")
+    def test_oversized_read_fails_before_sending_an_unrelated_prefix(self, read_file, context_window):
+        static_analysis, scope, analysis = _inputs()
+        recorder = RequestRecorder()
+        model = ToolCallingFakeModel(
+            responses=[
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"name": "readFile", "args": {"file_path": "pkg.py", "line_number": 150}, "id": "read"}
+                    ],
+                )
+            ],
+            callbacks=[recorder],
+        )
+
+        with self.assertRaises(ScopeContextTooLargeError):
+            ScopeAnalysisAgent(Path("/repo"), static_analysis, model).analyze(scope, analysis, {"1"})
+
+        self.assertEqual(len(recorder.requests), 1)
+        read_file.assert_called_once()
+
     @patch("agents.scope_analysis_agent.get_current_agent_context_window", return_value=ContextWindow(16384, 2048))
-    @patch.object(ReadFileTool, "_run", return_value="source line\n" * 30000)
-    def test_large_tool_results_fit_on_each_followup_turn(self, read_file, context_window):
+    @patch.object(MethodCallsTool, "_run", return_value="pkg.run -> pkg.target\n" * 30000)
+    def test_large_tool_results_fit_on_each_followup_turn(self, method_calls, context_window):
         static_analysis, scope, analysis = _inputs()
         recorder = RequestRecorder()
         responses: list[BaseMessage] = [
             AIMessage(
                 content="",
-                tool_calls=[{"name": "readFile", "args": {"file_path": "pkg.py", "line_number": 1}, "id": str(i)}],
+                tool_calls=[
+                    {
+                        "name": "getMethodCalls",
+                        "args": {"qualified_name": "pkg.run", "direction": "outgoing"},
+                        "id": str(i),
+                    }
+                ],
             )
             for i in range(2)
         ]
@@ -169,7 +198,7 @@ class TestScopeAnalysisAgent(unittest.TestCase):
             tool_messages = [message for message in messages if isinstance(message, ToolMessage)]
             self.assertTrue(any("Tool output truncated" in message.content for message in tool_messages))
             self.assertLess(sum(len(str(message.content)) for message in messages), 16384 * 3.5 * 0.8)
-        self.assertEqual(read_file.call_count, 2)
+        self.assertEqual(method_calls.call_count, 2)
 
     @patch("agents.scope_analysis_agent.create_agent")
     def test_exposes_only_scoped_file_and_method_tools_with_runtime_limits(self, create_agent):
