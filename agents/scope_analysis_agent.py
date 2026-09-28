@@ -2,21 +2,31 @@
 
 from __future__ import annotations
 
+import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from langchain.agents import create_agent
-from langchain.agents.structured_output import ToolStrategy
-from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
+from langchain.agents.structured_output import OutputToolBinding, ToolStrategy
+from langchain.agents.middleware import (
+    AgentMiddleware,
+    ModelCallLimitMiddleware,
+    ModelRequest,
+    ModelResponse,
+    ToolCallLimitMiddleware,
+)
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, ToolCall
+from langchain_core.messages import HumanMessage, SystemMessage, ToolCall, ToolMessage
+from langchain_core.messages.utils import count_tokens_approximately
+from langchain_core.utils.function_calling import convert_to_openai_tool
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import Field
 
 from agents.agent_responses import AnalysisInsights, LLMBaseModel, RelationEdge, SourceCodeReference
+from agents.constants import ModelCapabilities
 from agents.llm_config import MONITORING_CALLBACK, get_current_agent_context_window, get_current_prompt_profile
-from agents.llm_errors import raise_if_auth_error
+from agents.llm_errors import ScopeContextTooLargeError, raise_if_auth_error
 from agents.llm_renderers import render_scope_context, scope_file_paths, scope_method_names
 from agents.prompts import get_scope_analysis_prompts
 from agents.tools import MethodCallsTool, ReadFileTool
@@ -30,9 +40,10 @@ logger = logging.getLogger(__name__)
 MAX_SCOPE_TOOL_CALLS = 6
 MAX_SCOPE_MODEL_CALLS = 8
 
-#: The share of the model's input window a scope's rendered context may take. The rest carries the
-#: prompts, the agent's own turns and up to ``MAX_SCOPE_TOOL_CALLS`` tool results, all resent each turn.
+#: Leave room for instructions, tool schemas and subsequent turns.
 SCOPE_CONTEXT_WINDOW_SHARE = 0.5
+#: Headroom for provider framing and approximate token counts.
+SCOPE_INPUT_WINDOW_SHARE = 0.8
 SCOPE_RECURSION_LIMIT = 40
 
 
@@ -94,6 +105,49 @@ class RepositoryToolBudget(ToolCallLimitMiddleware):
         return tool_call["name"] != ScopeAnalysisResult.__name__
 
 
+class ScopeInputBudget(AgentMiddleware):
+    """Bound every model request, trimming tool text without breaking call/result pairs."""
+
+    def __init__(self, scope_id: str, max_tokens: int):
+        self.scope_id = scope_id
+        self.max_tokens = max_tokens
+
+    def wrap_model_call(self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]) -> ModelResponse:
+        tools = list(request.tools)
+        if isinstance(request.response_format, ToolStrategy):
+            tools.extend(OutputToolBinding.from_schema_spec(spec).tool for spec in request.response_format.schema_specs)
+        schemas = SystemMessage(content=json.dumps([convert_to_openai_tool(tool) for tool in tools]))
+        overhead = [schemas]
+        if request.system_message is not None:
+            overhead.append(request.system_message)
+        messages = list(request.messages)
+        marker = "\n[Tool output truncated to fit context; request a narrower range if needed.]"
+        while True:
+            tokens = count_tokens_approximately(
+                [*overhead, *messages], chars_per_token=ModelCapabilities.CHARS_PER_TOKEN
+            )
+            if tokens <= self.max_tokens:
+                return handler(request.override(messages=messages))
+            candidates = [
+                (index, message)
+                for index, message in enumerate(messages)
+                if isinstance(message, ToolMessage)
+                and isinstance(message.content, str)
+                and len(message.content) > len(marker)
+            ]
+            if not candidates:
+                raise ScopeContextTooLargeError(self.scope_id, tokens, self.max_tokens)
+            index, message = max(candidates, key=lambda item: len(item[1].content))
+            content = str(message.content)
+            if content.endswith(marker):
+                content = content[: -len(marker)]
+            keep = max(
+                0, len(content) - int((tokens - self.max_tokens) * ModelCapabilities.CHARS_PER_TOKEN) - len(marker)
+            )
+            messages[index] = message.model_copy(update={"content": content[:keep] + marker})
+            logger.warning("Scope %s: truncating tool result %s to fit context", self.scope_id, message.tool_call_id)
+
+
 class ScopeAnalysisAgent(MonitoringMixin):
     """Analyze any deterministic scope with two scope-restricted tools."""
 
@@ -129,9 +183,11 @@ class ScopeAnalysisAgent(MonitoringMixin):
             cfg_graphs=dict(scope.graphs_by_language),
         )
         tools = [ReadFileTool(context=context), MethodCallsTool(context=context)]
+        input_tokens = get_current_agent_context_window().input_tokens
         middleware: list = [
             RepositoryToolBudget(run_limit=MAX_SCOPE_TOOL_CALLS, exit_behavior="continue"),
             ModelCallLimitMiddleware(run_limit=MAX_SCOPE_MODEL_CALLS, exit_behavior="error"),
+            ScopeInputBudget(scope.scope_id, int(input_tokens * SCOPE_INPUT_WINDOW_SHARE)),
         ]
         agent: CompiledStateGraph = create_agent(
             model=self.agent_llm,
@@ -149,7 +205,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
             changed_files,
             incremental,
             enclosing_names,
-            max_tokens=int(get_current_agent_context_window().input_tokens * SCOPE_CONTEXT_WINDOW_SHARE),
+            max_tokens=int(input_tokens * SCOPE_CONTEXT_WINDOW_SHARE),
         )
         try:
             response = agent.invoke(

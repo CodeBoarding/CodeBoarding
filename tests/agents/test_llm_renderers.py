@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component, Relation
+from agents.constants import ModelCapabilities
 from agents.llm_errors import ScopeContextTooLargeError
 from agents.llm_renderers.scope import (
     MAX_EXAMPLE_EDGES,
@@ -269,7 +270,7 @@ def _dense_scope() -> ClusterScopeResult:
     )
 
 
-def _render(scope: ClusterScopeResult, max_tokens: int | None = None) -> str:
+def _render(scope: ClusterScopeResult, max_tokens: int = ModelCapabilities.FALLBACK_INPUT // 2) -> str:
     analysis = AnalysisInsights(description="", components=[], components_relations=[])
     return render_scope_context(
         scope, analysis, Path("/repo"), {"1", "2"}, set(), set(), incremental=False, max_tokens=max_tokens
@@ -286,7 +287,7 @@ class TestScopeContextSize(unittest.TestCase):
         self.assertNotIn("\n", text)
         self.assertEqual(payload["groups"][0]["files"][0], {"path": "a0.py"})
 
-    def test_an_unbounded_render_keeps_everything(self):
+    def test_a_render_within_the_default_budget_keeps_everything(self):
         payload = json.loads(_render(_dense_scope()))
 
         self.assertTrue(payload["groups"][0]["bordering_files"])
