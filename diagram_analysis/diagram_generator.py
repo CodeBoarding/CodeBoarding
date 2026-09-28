@@ -691,8 +691,6 @@ class DiagramGenerator:
             static_analysis = self._get_static_with_new_analyzer()
 
         self.static_analysis = static_analysis
-        scanner = ProjectScanner(self.repo_location)
-        scanned_languages = scanner.scan()
         depth = hierarchy_depth if hierarchy_depth is not None else self.depth_cap
         if incremental:
             root_analysis = persisted_scopes.get(ROOT_SCOPE_ID)
@@ -705,7 +703,8 @@ class DiagramGenerator:
             self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
         elif target_component is None:
             if not static_analysis.present_languages():
-                raise StaticAnalysisFatalError(_empty_analysis_message(self.repo_name, scanned_languages))
+                scanned = ProjectScanner(self.repo_location).scan()
+                raise StaticAnalysisFatalError(_empty_analysis_message(self.repo_name, scanned))
             service = ClusteringService(self._grouper(), self.repo_location)
             self.clustering_hierarchy = service.build_full_hierarchy(static_analysis, depth)
             self.tree_spec = service.spec
@@ -720,7 +719,8 @@ class DiagramGenerator:
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
-        loc_by_language = {pl.language: pl.size for pl in scanned_languages}
+        scanner = ProjectScanner(self.repo_location)
+        loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
         for language in sorted(static_analysis.present_languages(), key=str):
             files = static_analysis.source_files_of_language(language)
             static_stats["languages"][language] = {
