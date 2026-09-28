@@ -11,12 +11,11 @@ from typing import Any
 
 from agents.agent_responses import AnalysisInsights
 from agents.constants import ModelCapabilities
-from agents.llm_errors import ContextTrimmedError, ScopeContextTooLargeError
+from agents.llm_errors import ScopeContextTooLargeError
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg.edge import EdgeKind
 from static_analyzer.clustering import ClusterConnectionEdge, ClusterGroup, ClusterScopeResult
 from static_analyzer.node import Node
-from telemetry.events import capture_error
 
 logger = logging.getLogger(__name__)
 
@@ -101,11 +100,9 @@ def render_scope_context(
         ],
     }
     text = _dump(payload)
-    original_tokens = _tokens(text)
-    trim_steps: list[str] = []
     for trim, what in _TRIMS:
         if _tokens(text) <= max_tokens:
-            break
+            return text
         logger.warning(
             "Scope %s context is ~%d tokens, over its %d budget: %s",
             scope.scope_id,
@@ -114,25 +111,9 @@ def render_scope_context(
             what,
         )
         trim(payload)
-        trim_steps.append(what)
         text = _dump(payload)
     if _tokens(text) > max_tokens:
         raise ScopeContextTooLargeError(scope.scope_id, _tokens(text), max_tokens)
-    if trim_steps:
-        capture_error(
-            "scope_analysis",
-            ContextTrimmedError("Scope context was trimmed to fit the model budget."),
-            extra={
-                "error_type": "context_trimmed",
-                "nonfatal": True,
-                "context_type": "scope",
-                "scope_id": scope.scope_id,
-                "original_tokens": original_tokens,
-                "trimmed_tokens": _tokens(text),
-                "allowed_tokens": max_tokens,
-                "trim_steps": trim_steps,
-            },
-        )
     return text
 
 

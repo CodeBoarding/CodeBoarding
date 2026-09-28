@@ -88,8 +88,7 @@ def _answer() -> ScopeAnalysisResult:
 
 
 class TestScopeInputBudget(unittest.TestCase):
-    @patch("agents.scope_analysis_agent.capture_error")
-    def test_trims_multiple_tool_results_without_mutating_history_or_call_ids(self, capture_error):
+    def test_trims_multiple_tool_results_without_mutating_history_or_call_ids(self):
         calls = AIMessage(
             content="",
             tool_calls=[
@@ -117,13 +116,6 @@ class TestScopeInputBudget(unittest.TestCase):
         self.assertLess(sum(len(str(message.content)) for message in sent), 1050)
         self.assertEqual(request.messages[2].content, "source " * 4000)
         self.assertEqual(request.messages[3].content, "edge " * 3000)
-        capture_error.assert_called_once()
-        properties = capture_error.call_args.kwargs["extra"]
-        self.assertEqual(properties["context_type"], "tool_history")
-        self.assertEqual(properties["trimmed_tool_count"], 2)
-        self.assertTrue(properties["nonfatal"])
-        self.assertGreater(properties["original_tokens"], 300)
-        self.assertLessEqual(properties["trimmed_tokens"], 300)
 
     def test_counts_system_prompt_tool_schemas_and_assistant_arguments(self):
         for extra in (
