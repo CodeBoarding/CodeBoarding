@@ -37,7 +37,7 @@ def render_scope_context(
     changed_files: set[str] | frozenset[str],
     incremental: bool,
     enclosing_names: Sequence[str] = (),
-    max_tokens: int = ModelCapabilities.FALLBACK_INPUT // 2,
+    max_tokens: int = ModelCapabilities.FALLBACK_INPUT,
 ) -> str:
     """Return complete group files, boundary candidates, and known calls as JSON.
 

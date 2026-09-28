@@ -271,7 +271,7 @@ def _dense_scope() -> ClusterScopeResult:
     )
 
 
-def _render(scope: ClusterScopeResult, max_tokens: int = ModelCapabilities.FALLBACK_INPUT // 2) -> str:
+def _render(scope: ClusterScopeResult, max_tokens: int = ModelCapabilities.FALLBACK_INPUT) -> str:
     analysis = AnalysisInsights(description="", components=[], components_relations=[])
     return render_scope_context(
         scope, analysis, Path("/repo"), {"1", "2"}, set(), set(), incremental=False, max_tokens=max_tokens
