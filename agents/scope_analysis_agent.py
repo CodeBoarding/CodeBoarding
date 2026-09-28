@@ -40,8 +40,6 @@ logger = logging.getLogger(__name__)
 MAX_SCOPE_TOOL_CALLS = 6
 MAX_SCOPE_MODEL_CALLS = 8
 
-#: Leave room for instructions, tool schemas and subsequent turns.
-SCOPE_CONTEXT_WINDOW_SHARE = 0.5
 #: Headroom for provider framing and approximate token counts.
 SCOPE_INPUT_WINDOW_SHARE = 0.8
 SCOPE_RECURSION_LIMIT = 40
@@ -112,7 +110,8 @@ class ScopeInputBudget(AgentMiddleware):
         self.scope_id = scope_id
         self.max_tokens = max_tokens
 
-    def wrap_model_call(self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]) -> ModelResponse:
+    @staticmethod
+    def count_tokens(request: ModelRequest) -> int:
         tools = list(request.tools)
         if isinstance(request.response_format, ToolStrategy):
             tools.extend(OutputToolBinding.from_schema_spec(spec).tool for spec in request.response_format.schema_specs)
@@ -120,6 +119,11 @@ class ScopeInputBudget(AgentMiddleware):
         overhead = [schemas]
         if request.system_message is not None:
             overhead.append(request.system_message)
+        return count_tokens_approximately(
+            [*overhead, *request.messages], chars_per_token=ModelCapabilities.CHARS_PER_TOKEN
+        )
+
+    def wrap_model_call(self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]) -> ModelResponse:
         messages = list(request.messages)
         call_list_ids = {
             call["id"]
@@ -130,9 +134,7 @@ class ScopeInputBudget(AgentMiddleware):
         }
         marker = "\n[Tool output truncated to fit context; this call list is incomplete.]"
         while True:
-            tokens = count_tokens_approximately(
-                [*overhead, *messages], chars_per_token=ModelCapabilities.CHARS_PER_TOKEN
-            )
+            tokens = self.count_tokens(request.override(messages=messages))
             if tokens <= self.max_tokens:
                 return handler(request.override(messages=messages))
             candidates = [
@@ -193,10 +195,20 @@ class ScopeAnalysisAgent(MonitoringMixin):
         )
         tools = [ReadFileTool(context=context), MethodCallsTool(context=context)]
         input_tokens = get_current_agent_context_window().input_tokens
+        input_budget = ScopeInputBudget(scope.scope_id, int(input_tokens * SCOPE_INPUT_WINDOW_SHARE))
+        prompt_tokens = input_budget.count_tokens(
+            ModelRequest(
+                model=self.agent_llm,
+                tools=list(tools),
+                system_message=SystemMessage(content=self.system_prompt),
+                messages=[HumanMessage(content=self.analysis_prompt.format(scope_context=""))],
+                response_format=ToolStrategy(ScopeAnalysisResult),
+            )
+        )
         middleware: list = [
             RepositoryToolBudget(run_limit=MAX_SCOPE_TOOL_CALLS, exit_behavior="continue"),
             ModelCallLimitMiddleware(run_limit=MAX_SCOPE_MODEL_CALLS, exit_behavior="error"),
-            ScopeInputBudget(scope.scope_id, int(input_tokens * SCOPE_INPUT_WINDOW_SHARE)),
+            input_budget,
         ]
         agent: CompiledStateGraph = create_agent(
             model=self.agent_llm,
@@ -214,7 +226,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
             changed_files,
             incremental,
             enclosing_names,
-            max_tokens=int(input_tokens * SCOPE_CONTEXT_WINDOW_SHARE),
+            max_tokens=max(0, input_budget.max_tokens - prompt_tokens),
         )
         try:
             response = agent.invoke(

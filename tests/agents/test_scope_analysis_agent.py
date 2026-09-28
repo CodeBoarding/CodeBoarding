@@ -306,6 +306,24 @@ class TestScopeAnalysisAgent(unittest.TestCase):
         prompt = runtime.invoke.call_args.args[0]["messages"][0].content
         self.assertIn('"enclosing_components":["Engine"]', prompt)
 
+    @patch("agents.scope_analysis_agent.ScopeInputBudget.count_tokens", return_value=1000)
+    @patch("agents.scope_analysis_agent.render_scope_context", return_value="{}")
+    @patch("agents.scope_analysis_agent.get_current_agent_context_window", return_value=ContextWindow(10000, 2000))
+    @patch("agents.scope_analysis_agent.create_agent")
+    def test_scope_uses_remaining_request_budget_not_half_the_window(self, create_agent, window, render, count):
+        static_analysis, scope, analysis = _inputs()
+        create_agent.return_value.invoke.return_value = {"structured_response": _answer()}
+
+        ScopeAnalysisAgent(Path("/repo"), static_analysis, MagicMock(spec=BaseChatModel)).analyze(
+            scope, analysis, {"1"}
+        )
+
+        self.assertEqual(render.call_args.kwargs["max_tokens"], 7000)
+        request = count.call_args.args[0]
+        self.assertTrue(request.system_message.content)
+        self.assertEqual(len(request.tools), 2)
+        self.assertIsInstance(request.response_format, ToolStrategy)
+
     @patch("agents.scope_analysis_agent.get_current_agent_context_window")
     @patch("agents.scope_analysis_agent.create_agent")
     def test_a_scope_over_the_models_window_never_reaches_the_provider(self, create_agent, context_window):
@@ -317,5 +335,5 @@ class TestScopeAnalysisAgent(unittest.TestCase):
         with self.assertRaises(ScopeContextTooLargeError) as ctx:
             agent.analyze(scope, analysis, {"1"})
 
-        self.assertEqual(ctx.exception.allowed_tokens, 10)
+        self.assertEqual(ctx.exception.allowed_tokens, 0)
         create_agent.return_value.invoke.assert_not_called()
