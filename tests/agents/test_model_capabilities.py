@@ -208,6 +208,48 @@ class TestCorruptCache:
             model_capabilities._load.cache_clear()
 
 
+class TestKnownModelWindows:
+    @pytest.mark.parametrize(
+        "provider,model,expected",
+        [
+            ("anthropic", "claude-opus-4-5", ContextWindow(200_000, 64_000)),
+            ("anthropic", "claude-opus-4-6", ContextWindow(1_000_000, 128_000)),
+            ("anthropic", "claude-opus-4-8", ContextWindow(1_000_000, 128_000)),
+            ("anthropic", "claude-opus-5", ContextWindow(1_000_000, 128_000)),
+            ("anthropic", "claude-opus-5-5", ContextWindow(1_000_000, 128_000)),
+            ("aws", "us.anthropic.claude-opus-4-6-v1:0", ContextWindow(1_000_000, 128_000)),
+            ("openrouter", "anthropic/claude-opus-4-7", ContextWindow(1_000_000, 128_000)),
+            ("openai", "gpt-5.4", ContextWindow(922_000, 128_000)),
+            ("openai", "gpt-5.4-mini", ContextWindow(272_000, 128_000)),
+            ("openai", "gpt-5.3-codex-spark", ContextWindow(100_000, 32_000)),
+            ("openai", "gpt-5.5", ContextWindow(922_000, 128_000)),
+            ("openai", "gpt-5.6", ContextWindow(922_000, 128_000)),
+            ("openai", "gpt-6-astra", ContextWindow(922_000, 128_000)),
+            ("litellm", "gpt-5.6", ContextWindow(922_000, 128_000)),
+            ("litellm", "claude-opus-5", ContextWindow(1_000_000, 128_000)),
+            ("orcarouter", "openai/gpt-5.6-sol", ContextWindow(922_000, 128_000)),
+        ],
+    )
+    def test_catalog_miss_uses_verified_limits(self, fake_catalogs, monkeypatch, provider, model, expected):
+        monkeypatch.setattr("agents.model_capabilities._load", lambda source: {})
+        assert get_context_window(provider, model) == expected
+
+    def test_live_catalog_precedes_known_limit(self, fake_catalogs, monkeypatch):
+        monkeypatch.setattr(
+            "agents.model_capabilities._load",
+            lambda source: (
+                {"openai": {"models": {"gpt-5.6": {"limit": {"input": 950_000, "output": 100_000}}}}}
+                if source == "modelsdev"
+                else {}
+            ),
+        )
+        assert get_context_window("openai", "gpt-5.6") == ContextWindow(950_000, 100_000)
+
+    def test_override_precedes_known_limit(self, fake_catalogs, monkeypatch):
+        monkeypatch.setenv("CB_CTX_ANTHROPIC_CLAUDE_OPUS_5", "500000,32000")
+        assert get_context_window("anthropic", "claude-opus-5") == ContextWindow(500_000, 32_000)
+
+
 class TestParseNumCtx:
     def test_extracts_num_ctx(self):
         assert _parse_num_ctx('stop "x"\nnum_ctx 8192\ntemperature 0.7') == 8192
