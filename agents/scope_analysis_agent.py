@@ -26,7 +26,7 @@ from pydantic import Field
 from agents.agent_responses import AnalysisInsights, LLMBaseModel, RelationEdge, SourceCodeReference
 from agents.constants import ModelCapabilities
 from agents.llm_config import MONITORING_CALLBACK, get_current_agent_context_window, get_current_prompt_profile
-from agents.llm_errors import ScopeContextTooLargeError, raise_if_auth_error
+from agents.llm_errors import ContextTrimmedError, ScopeContextTooLargeError, raise_if_auth_error
 from agents.llm_renderers import render_scope_context, scope_file_paths, scope_method_names
 from agents.prompts import get_scope_analysis_prompts
 from agents.tools import MethodCallsTool, ReadFileTool
@@ -34,6 +34,7 @@ from agents.tools.base import RepoContext
 from monitoring.mixin import MonitoringMixin
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterScopeResult
+from telemetry.events import capture_error
 
 logger = logging.getLogger(__name__)
 
@@ -129,12 +130,31 @@ class ScopeInputBudget(AgentMiddleware):
             if call["name"] == "getMethodCalls"
         }
         marker = "\n[Tool output truncated to fit context; this call list is incomplete.]"
+        original_tokens = 0
+        trimmed_tool_ids: set[str] = set()
         while True:
             tokens = count_tokens_approximately(
                 [*overhead, *messages], chars_per_token=ModelCapabilities.CHARS_PER_TOKEN
             )
             if tokens <= self.max_tokens:
+                if trimmed_tool_ids:
+                    capture_error(
+                        "scope_analysis",
+                        ContextTrimmedError("Tool history was trimmed to fit the model budget."),
+                        extra={
+                            "error_type": "context_trimmed",
+                            "nonfatal": True,
+                            "context_type": "tool_history",
+                            "scope_id": self.scope_id,
+                            "original_tokens": original_tokens,
+                            "trimmed_tokens": tokens,
+                            "allowed_tokens": self.max_tokens,
+                            "trimmed_tool_count": len(trimmed_tool_ids),
+                        },
+                    )
                 return handler(request.override(messages=messages))
+            if not trimmed_tool_ids:
+                original_tokens = tokens
             candidates = [
                 (index, message)
                 for index, message in enumerate(messages)
@@ -154,6 +174,7 @@ class ScopeInputBudget(AgentMiddleware):
             )
             prefix = content[:keep].rsplit("\n", 1)[0] if "\n" in content[:keep] else ""
             messages[index] = message.model_copy(update={"content": prefix + marker})
+            trimmed_tool_ids.add(message.tool_call_id)
             logger.warning("Scope %s: truncating tool result %s to fit context", self.scope_id, message.tool_call_id)
 
 

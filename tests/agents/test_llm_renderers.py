@@ -1,10 +1,11 @@
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from agents.agent_responses import AnalysisInsights, Component, Relation
 from agents.constants import ModelCapabilities
-from agents.llm_errors import ScopeContextTooLargeError
+from agents.llm_errors import ContextTrimmedError, ScopeContextTooLargeError
 from agents.llm_renderers.scope import (
     MAX_EXAMPLE_EDGES,
     _drop_bordering_files,
@@ -330,11 +331,13 @@ class TestScopeContextSize(unittest.TestCase):
         self.assertNotIn("\n", text)
         self.assertEqual(payload["groups"][0]["files"][0], {"path": "a0.py"})
 
-    def test_a_render_within_the_default_budget_keeps_everything(self):
+    @patch("agents.llm_renderers.scope.capture_error")
+    def test_a_render_within_the_default_budget_keeps_everything(self, capture_error):
         payload = json.loads(_render(_dense_scope()))
 
         self.assertTrue(payload["groups"][0]["bordering_files"])
         self.assertEqual(len(payload["known_connections"][0]["examples"]), MAX_EXAMPLE_EDGES)
+        capture_error.assert_not_called()
 
     def test_over_budget_drops_bordering_files_first(self):
         full = _render(_dense_scope())
@@ -345,7 +348,8 @@ class TestScopeContextSize(unittest.TestCase):
         self.assertEqual(len(payload["known_connections"][0]["examples"]), MAX_EXAMPLE_EDGES)
         self.assertEqual(payload["groups"][0]["files"][0], {"path": "a0.py"})
 
-    def test_further_over_keeps_one_example_then_bare_paths(self):
+    @patch("agents.llm_renderers.scope.capture_error")
+    def test_further_over_keeps_one_example_then_bare_paths(self, capture_error):
         trimmed = json.loads(_render(_dense_scope()))
         _drop_bordering_files(trimmed)
         after_first = _tokens(_dump(trimmed))
@@ -353,13 +357,34 @@ class TestScopeContextSize(unittest.TestCase):
         after_second = _tokens(_dump(trimmed))
 
         second = json.loads(_render(_dense_scope(), max_tokens=after_first - 1))
+        capture_error.reset_mock()
         third = json.loads(_render(_dense_scope(), max_tokens=after_second - 1))
 
         self.assertEqual(second["known_connections"][0]["examples"], [{"source": "a.f0", "target": "b.g0"}])
         self.assertIsInstance(second["groups"][0]["files"][0], dict)
         self.assertEqual(third["groups"][0]["files"][0], "a0.py")
+        capture_error.assert_called_once()
+        command, error = capture_error.call_args.args
+        self.assertEqual(command, "scope_analysis")
+        self.assertIsInstance(error, ContextTrimmedError)
+        properties = capture_error.call_args.kwargs["extra"]
+        self.assertEqual(properties["error_type"], "context_trimmed")
+        self.assertTrue(properties["nonfatal"])
+        self.assertEqual(properties["scope_id"], "root")
+        self.assertEqual(properties["allowed_tokens"], after_second - 1)
+        self.assertGreater(properties["original_tokens"], properties["allowed_tokens"])
+        self.assertLessEqual(properties["trimmed_tokens"], properties["allowed_tokens"])
+        self.assertEqual(
+            properties["trim_steps"],
+            [
+                "compacting boundary evidence",
+                "keeping one example per connection, without locations",
+                "listing files by path only",
+            ],
+        )
 
-    def test_a_scope_that_cannot_fit_is_refused_not_sent(self):
+    @patch("agents.llm_renderers.scope.capture_error")
+    def test_a_scope_that_cannot_fit_is_refused_not_sent(self, capture_error):
         """Why: sent anyway, the provider rejects it with a 400 that OpenRouter wraps around an upstream
         401 — which is how oversized prompts reached users as "your API key was rejected"."""
         with self.assertRaises(ScopeContextTooLargeError) as ctx:
@@ -368,3 +393,4 @@ class TestScopeContextSize(unittest.TestCase):
         self.assertEqual(ctx.exception.scope_id, "root")
         self.assertEqual(ctx.exception.allowed_tokens, 10)
         self.assertIn("larger context window", str(ctx.exception))
+        capture_error.assert_not_called()
