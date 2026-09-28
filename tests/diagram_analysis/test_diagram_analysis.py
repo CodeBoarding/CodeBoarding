@@ -1217,29 +1217,23 @@ class TestDiagramGenerator(unittest.TestCase):
         build.assert_not_called()
         return str(ctx.exception)
 
-    def test_an_empty_repository_points_at_the_ignore_file(self):
-        """Why: 72% of "No component groups found" runs had scanned no language at all, and were told
-        static analysis "produced no callable structure", which reads as a fault in their code."""
+    def test_an_empty_scan_reports_no_supported_counted_code(self):
         message = self._full_run_on_an_empty_analysis([])
 
-        self.assertIn("no source files to analyse in test_repo", message)
-        self.assertIn(".codeboardingignore", message)
+        self.assertIn("no supported languages with counted code in test_repo", message)
+        self.assertIn("only unsupported languages", message)
+        self.assertIn("only files with no counted code", message)
         self.assertIn("Python", message)
 
-    def test_a_repository_of_only_unsupported_languages_names_them(self):
-        message = self._full_run_on_an_empty_analysis([ProgrammingLanguage("Markdown", 120, 100.0, [".md"])])
-
-        self.assertIn("test_repo contains only Markdown", message)
-
-    def test_a_failed_language_server_is_named_not_blamed_on_the_code(self):
+    def test_empty_analysis_of_supported_languages_suggests_ignore_rules_and_server_errors(self):
         typescript = ProgrammingLanguage("TypeScript", 275_504, 90.0, [".ts"], server_commands=["tsserver"])
-        markdown = ProgrammingLanguage("Markdown", 900, 10.0, [".md"])
 
-        message = self._full_run_on_an_empty_analysis([typescript, markdown])
+        message = self._full_run_on_an_empty_analysis([typescript])
 
         self.assertIn("Analysis of TypeScript in test_repo produced no results", message)
+        self.assertIn(".codeboardingignore or the default ignore rules", message)
         self.assertIn("Error during engine analysis", message)
-        self.assertNotIn("Markdown", message)
+        self.assertNotIn("most likely failed", message)
 
     def test_process_component_with_exception(self):
         gen = DiagramGenerator(

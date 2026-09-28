@@ -98,26 +98,19 @@ _EMPTY_PERSISTED_SCOPES: Mapping[str, AnalysisInsights] = MappingProxyType({})
 
 
 def _empty_analysis_message(repo_name: str, scanned: list[ProgrammingLanguage]) -> str:
-    """Why static analysis came back empty, from what the scanner saw.
-
-    Why: an empty analysis used to surface later as "No component groups found: static analysis
-    produced no callable structure", which reads as a fault in the code under analysis. Most such
-    runs never had a language to analyse.
-    """
+    """Describe empty static analysis using the scanner's supported-language results."""
     supported = ", ".join(AdapterName)
     if not scanned:
         return (
-            f"CodeBoarding found no source files to analyse in {repo_name}. If the repository has a "
-            ".codeboardingignore, it replaces the default ignore list, so a broad pattern there can "
-            f"exclude every file. Supported languages: {supported}."
+            f"CodeBoarding detected no supported languages with counted code in {repo_name}. "
+            "The repository may have no source files, only unsupported languages, or only files with "
+            f"no counted code. Supported languages: {supported}."
         )
-    analysable = ", ".join(pl.language for pl in scanned if pl.is_supported_lang())
-    if not analysable:
-        detected = ", ".join(pl.language for pl in scanned)
-        return f"{repo_name} contains only {detected}. CodeBoarding analyses {supported}."
+    analysable = ", ".join(pl.language for pl in scanned)
     return (
         f"Analysis of {analysable} in {repo_name} produced no results, so there is no architecture to build. "
-        "The language server most likely failed: look for 'Error during engine analysis' earlier in this log."
+        "Check whether .codeboardingignore or the default ignore rules exclude every source file, "
+        "and look for 'Error during engine analysis' earlier in this log for language-server failures."
     )
 
 
