@@ -426,6 +426,7 @@ def _patch_file_methods(
                 component.file_methods,
                 represented_qnames,
                 represented_physical_keys,
+                live_qnames,
             )
     if stale_qnames or stale_physical_keys:
         for component in scope.components:
@@ -435,6 +436,7 @@ def _patch_file_methods(
                 component.file_methods,
                 stale_qnames,
                 stale_physical_keys,
+                live_qnames,
             )
 
     components_by_id = {component.component_id: component for component in scope.components if component.component_id}
@@ -449,14 +451,25 @@ def _without_methods(
     groups: list[FileMethodGroup],
     qnames: set[str],
     physical_keys: set[tuple[str, int, int, str, str]],
+    live_qnames: set[str],
 ) -> list[FileMethodGroup]:
+    """Drop methods named in *qnames*, and stale spellings of methods at a location in *physical_keys*.
+
+    Why: the physical key exists to catch an LSP alias of a moved method, and an alias is never live —
+    ``CallGraph`` keeps one spelling per location. The key has no column, so two live callbacks on one
+    line share it; matching it against a live method strips a different symbol, and the parent loses a
+    method its child scope still owns.
+    """
     kept_groups: list[FileMethodGroup] = []
     for group in groups:
         kept_methods = [
             method
             for method in group.methods
             if method.qualified_name not in qnames
-            and _method_physical_key(group.file_path, method) not in physical_keys
+            and (
+                method.qualified_name in live_qnames
+                or _method_physical_key(group.file_path, method) not in physical_keys
+            )
         ]
         if kept_methods:
             kept_groups.append(FileMethodGroup(file_path=group.file_path, methods=kept_methods))
