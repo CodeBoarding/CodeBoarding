@@ -9,6 +9,7 @@ from agents.llm_renderers.scope import (
     MAX_EXAMPLE_EDGES,
     _drop_bordering_files,
     _dump,
+    _files_by_path_only,
     _one_example_without_locations,
     _tokens,
 )
@@ -278,6 +279,48 @@ def _render(scope: ClusterScopeResult, max_tokens: int = ModelCapabilities.FALLB
 
 
 class TestScopeContextSize(unittest.TestCase):
+    def test_path_trim_preserves_only_true_changed_markers(self):
+        payload = {
+            "groups": [
+                {
+                    "files": [
+                        {"path": "unchanged.py", "changed": False, "grouping_reason": "same group"},
+                        {"path": "modified.py", "changed": True, "grouping_reason": "same group"},
+                        {"path": "member.py"},
+                    ]
+                }
+            ]
+        }
+
+        _files_by_path_only(payload)
+
+        self.assertEqual(
+            payload["groups"][0]["files"], ["unchanged.py", {"path": "modified.py", "changed": True}, "member.py"]
+        )
+
+    def test_boundary_trim_preserves_reference_only_relationships(self):
+        scope = _dense_scope()
+        graph = scope.graphs_by_language["python"]
+        graph.add_reference_edge(ReferenceEdge("a.f0", "b.g1", EdgeKind.TYPEREF))
+        graph.add_reference_edge(ReferenceEdge("a.f2", "b.g3", EdgeKind.TYPEREF))
+        graph.add_reference_edge(ReferenceEdge("b.g4", "a.f5", EdgeKind.INHERITS))
+        graph.add_reference_edge(ReferenceEdge("a.f6", "b.g7", EdgeKind.IMPORT))
+        scope.connections = []
+        full = _render(scope)
+
+        payload = json.loads(_render(scope, max_tokens=_tokens(full) - 1))
+
+        self.assertEqual(payload["known_connections"], [])
+        self.assertEqual(
+            payload["groups"][0]["boundary_references"],
+            ["import reference to group 2", "inherits reference from group 2", "typeref reference to group 2"],
+        )
+        self.assertEqual(
+            payload["groups"][1]["boundary_references"],
+            ["import reference from group 1", "inherits reference to group 1", "typeref reference from group 1"],
+        )
+        self.assertNotIn("bordering_files", payload["groups"][0])
+
     def test_a_full_run_sends_compact_json_without_repeated_defaults(self):
         """Why: indentation was a third of the payload, and on a large repo most files carry the same
         default reason and a ``changed: false`` that means nothing outside incremental mode."""

@@ -128,7 +128,16 @@ def _tokens(text: str) -> int:
 
 def _drop_bordering_files(payload: dict[str, Any]) -> None:
     for group in payload["groups"]:
-        group.pop("bordering_files", None)
+        references = sorted(
+            {
+                reason
+                for entry in group.pop("bordering_files", [])
+                for reason in entry["reasons"]
+                if " reference " in reason
+            }
+        )
+        if references:
+            group["boundary_references"] = references
 
 
 def _one_example_without_locations(payload: dict[str, Any]) -> None:
@@ -140,14 +149,15 @@ def _one_example_without_locations(payload: dict[str, Any]) -> None:
 
 def _files_by_path_only(payload: dict[str, Any]) -> None:
     for group in payload["groups"]:
-        group["files"] = [entry["path"] for entry in group["files"]]
+        group["files"] = [
+            {"path": entry["path"], "changed": True} if entry.get("changed") else entry["path"]
+            for entry in group["files"]
+        ]
 
 
-#: Applied in order, only while the context is over budget. Each gives up what the model can best do
-#: without: bordering files repeat group pairs ``known_connections`` already counts, then the examples
-#: shrink to one per pair, and last the files lose their grouping reasons.
+#: Trim optional detail in order, preserving structural references and changed-file markers.
 _TRIMS = (
-    (_drop_bordering_files, "dropping bordering files"),
+    (_drop_bordering_files, "compacting boundary evidence"),
     (_one_example_without_locations, "keeping one example per connection, without locations"),
     (_files_by_path_only, "listing files by path only"),
 )
