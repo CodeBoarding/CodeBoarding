@@ -55,6 +55,8 @@ from static_analyzer.clustering import (
 from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
 from static_analyzer.clustering.service import ClusteringService
+from static_analyzer.exceptions import StaticAnalysisFatalError
+from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.node import Node
 
 
@@ -1093,6 +1095,8 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_scanner,
     ):
         mock_analysis_results = StaticAnalysisResults()
+        mock_analysis_results.add_cfg(Language.PYTHON, CallGraph())
+        mock_analysis_results.add_source_files(Language.PYTHON, [str(self.repo_location / "app.py")])
         mock_analysis_results.diagnostics = {}
         mock_get_static_analysis.return_value = mock_analysis_results
         mock_scanner_instance = Mock()
@@ -1192,6 +1196,50 @@ class TestDiagramGenerator(unittest.TestCase):
                 )
 
         mock_build_hierarchy.assert_not_called()
+
+    def _full_run_on_an_empty_analysis(self, scanned: list[ProgrammingLanguage]) -> str:
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_cap=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen._get_static_with_new_analyzer = Mock(return_value=StaticAnalysisResults())
+        with (
+            patch("diagram_analysis.diagram_generator.ProjectScanner.scan", return_value=scanned),
+            patch.object(ClusteringService, "build_full_hierarchy") as build,
+            self.assertRaises(StaticAnalysisFatalError) as ctx,
+        ):
+            gen.deterministic_analysis()
+        build.assert_not_called()
+        return str(ctx.exception)
+
+    def test_an_empty_repository_points_at_the_ignore_file(self):
+        """Why: 72% of "No component groups found" runs had scanned no language at all, and were told
+        static analysis "produced no callable structure", which reads as a fault in their code."""
+        message = self._full_run_on_an_empty_analysis([])
+
+        self.assertIn("no source files to analyse in test_repo", message)
+        self.assertIn(".codeboardingignore", message)
+        self.assertIn("Python", message)
+
+    def test_a_repository_of_only_unsupported_languages_names_them(self):
+        message = self._full_run_on_an_empty_analysis([ProgrammingLanguage("Markdown", 120, 100.0, [".md"])])
+
+        self.assertIn("test_repo contains only Markdown", message)
+
+    def test_a_failed_language_server_is_named_not_blamed_on_the_code(self):
+        typescript = ProgrammingLanguage("TypeScript", 275_504, 90.0, [".ts"], server_commands=["tsserver"])
+        markdown = ProgrammingLanguage("Markdown", 900, 10.0, [".md"])
+
+        message = self._full_run_on_an_empty_analysis([typescript, markdown])
+
+        self.assertIn("Analysis of TypeScript in test_repo produced no results", message)
+        self.assertIn("Error during engine analysis", message)
+        self.assertNotIn("Markdown", message)
 
     def test_process_component_with_exception(self):
         gen = DiagramGenerator(

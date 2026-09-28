@@ -68,7 +68,7 @@ from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer import StaticAnalyzer, get_static_analysis
+from static_analyzer import StaticAnalysisFatalError, StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -87,12 +87,38 @@ from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
 from agents.tree_planner_agent import TreePlannerAgent
 from user_config import GROUPER_ENV, GROUPERS
+from static_analyzer.config import AdapterName
+from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
 logger = logging.getLogger(__name__)
 
 _EMPTY_PERSISTED_SCOPES: Mapping[str, AnalysisInsights] = MappingProxyType({})
+
+
+def _empty_analysis_message(repo_name: str, scanned: list[ProgrammingLanguage]) -> str:
+    """Why static analysis came back empty, from what the scanner saw.
+
+    Why: an empty analysis used to surface later as "No component groups found: static analysis
+    produced no callable structure", which reads as a fault in the code under analysis. Most such
+    runs never had a language to analyse.
+    """
+    supported = ", ".join(AdapterName)
+    if not scanned:
+        return (
+            f"CodeBoarding found no source files to analyse in {repo_name}. If the repository has a "
+            ".codeboardingignore, it replaces the default ignore list, so a broad pattern there can "
+            f"exclude every file. Supported languages: {supported}."
+        )
+    analysable = ", ".join(pl.language for pl in scanned if pl.is_supported_lang())
+    if not analysable:
+        detected = ", ".join(pl.language for pl in scanned)
+        return f"{repo_name} contains only {detected}. CodeBoarding analyses {supported}."
+    return (
+        f"Analysis of {analysable} in {repo_name} produced no results, so there is no architecture to build. "
+        "The language server most likely failed: look for 'Error during engine analysis' earlier in this log."
+    )
 
 
 def _component_depth(component_id: str | None) -> int:
@@ -665,6 +691,8 @@ class DiagramGenerator:
             static_analysis = self._get_static_with_new_analyzer()
 
         self.static_analysis = static_analysis
+        scanner = ProjectScanner(self.repo_location)
+        scanned_languages = scanner.scan()
         depth = hierarchy_depth if hierarchy_depth is not None else self.depth_cap
         if incremental:
             root_analysis = persisted_scopes.get(ROOT_SCOPE_ID)
@@ -676,6 +704,8 @@ class DiagramGenerator:
             self.tree_spec = self._stored_tree_spec()
             self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
         elif target_component is None:
+            if not static_analysis.present_languages():
+                raise StaticAnalysisFatalError(_empty_analysis_message(self.repo_name, scanned_languages))
             service = ClusteringService(self._grouper(), self.repo_location)
             self.clustering_hierarchy = service.build_full_hierarchy(static_analysis, depth)
             self.tree_spec = service.spec
@@ -690,8 +720,7 @@ class DiagramGenerator:
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
-        scanner = ProjectScanner(self.repo_location)
-        loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
+        loc_by_language = {pl.language: pl.size for pl in scanned_languages}
         for language in sorted(static_analysis.present_languages(), key=str):
             files = static_analysis.source_files_of_language(language)
             static_stats["languages"][language] = {
