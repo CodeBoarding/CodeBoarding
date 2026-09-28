@@ -51,8 +51,7 @@ _AUTH_MESSAGE_PATTERNS = (
     re.compile(r"invalid[\s_-]*x?[\s_-]*api[\s_-]*key", re.IGNORECASE),
     re.compile(r"incorrect api key", re.IGNORECASE),
     re.compile(r"api key.*invalid", re.IGNORECASE),
-    # Google: "API key not valid" (reason API_KEY_INVALID). Matched only by accident before, through
-    # the greedy pattern above running on into the unrelated status INVALID_ARGUMENT.
+    # Google: "API key not valid" or reason API_KEY_INVALID.
     re.compile(r"api[\s_]*key[\s_]*(?:not[\s_]*valid|invalid)", re.IGNORECASE),
     re.compile(r"authentication[\s_]*error", re.IGNORECASE),
     re.compile(r"authentication fails", re.IGNORECASE),
@@ -94,14 +93,7 @@ def _status_code(exc: BaseException) -> int | None:
 
 
 def _is_auth_failure(exc: BaseException) -> bool:
-    """True when *exc* represents rejected credentials, across providers.
-
-    Why: the type and message checks are for errors that carry no status. When the provider did give
-    one, its body is not evidence — OpenRouter embeds each failed upstream attempt in
-    ``previous_errors``, so a 400 for an oversized prompt or a 503 for an overloaded model can
-    contain ``'code': 401`` without the key being at fault. An auth error is terminal, so a 503
-    misread as one ends the run instead of being retried.
-    """
+    """Detect rejected credentials, preferring the response status over embedded upstream errors."""
     status = _status_code(exc)
     if status is not None:
         return status in (401, 403)

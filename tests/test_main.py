@@ -1,8 +1,12 @@
+import io
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
+import main
+from agents.llm_config import CODEBOARDING_KEY_TAIL
+from agents.llm_errors import LLMAuthError
 from codeboarding_cli.commands.full_analysis import _run_remote, run_from_args, validate_arguments
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental, run_partial
 from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
@@ -672,12 +676,6 @@ class TestMainAuthErrorHandler(unittest.TestCase):
     def test_a_hosted_run_is_not_told_to_check_a_key_it_never_set(self, mock_run):
         """Why: the action's hosted credentials are a placeholder its relay swaps out, so the generic
         "check your API key in ~/.codeboarding/config.toml" line would contradict the error above it."""
-        import io
-
-        import main
-        from agents.llm_config import CODEBOARDING_KEY_TAIL
-        from agents.llm_errors import LLMAuthError
-
         mock_run.side_effect = LLMAuthError(
             "CodeBoarding's hosted openrouter credentials were rejected (HTTP 401).",
             provider="openrouter",
