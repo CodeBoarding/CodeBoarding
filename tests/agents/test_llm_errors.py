@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agents.llm_config import current_provider_key_context
+from agents.llm_config import HOSTED_KEY_TAIL, HOSTED_RELAY_KEY, current_provider_key_context
 from agents.llm_errors import LLMAuthError, detect_auth_error, llm_failure_properties, raise_if_auth_error
 
 
@@ -90,6 +90,69 @@ class TestDetectAuthError:
         result = detect_auth_error(exc, provider="openai", key_tail="a8dd")
         assert result is not None
         assert len(result.telemetry_properties["error_message"]) <= 500
+
+
+class TestExplicitStatusWinsOverTheBody:
+    """Why: every one of these reached users as "your API key was rejected" — 26 events from real runs.
+    OpenRouter embeds each failed upstream attempt in ``previous_errors``, so a body can carry
+    ``'code': 401`` while the response itself is a 400 or a 503."""
+
+    def test_oversized_prompt_with_an_upstream_401_is_not_auth(self):
+        exc = _FakeStatusError(
+            "Error code: 400 - {'error': {'message': 'Provider returned error', 'code': 400, 'metadata': "
+            "{'raw': 'The input token count exceeds the maximum number of tokens allowed 1048576.', "
+            "'previous_errors': [{'code': 401, 'message': 'Provider returned error'}]}}}",
+            status_code=400,
+        )
+        assert detect_auth_error(exc, provider="openrouter", key_tail=HOSTED_KEY_TAIL) is None
+
+    def test_overloaded_model_with_an_upstream_401_is_not_auth(self):
+        """A 503 is transient; typed as auth it would end the run instead of being retried."""
+        exc = _FakeStatusError(
+            "Error code: 503 - {'error': {'message': 'This model is currently experiencing high demand.', "
+            "'metadata': {'previous_errors': [{'code': 401}]}}}",
+            status_code=503,
+        )
+        assert detect_auth_error(exc, provider="openrouter", key_tail="k3y5") is None
+
+    def test_account_in_arrears_is_not_auth(self):
+        """``access denied`` in the text, but the key is fine: the account has an unpaid balance."""
+        exc = _FakeStatusError(
+            "Error code: 400 - {'error': {'message': 'Access denied, please make sure your account is in good "
+            "standing.', 'type': 'Arrearage', 'code': 'Arrearage'}}",
+            status_code=400,
+        )
+        assert detect_auth_error(exc, provider="openai", key_tail="qLUW") is None
+
+    def test_google_invalid_key_without_a_status_is_still_auth(self):
+        """The shape Google's bad keys arrive in: langchain's wrapper exposes no status, so the text decides."""
+        exc = RuntimeError(
+            "Error calling model 'gemini-3-flash-preview' (INVALID_ARGUMENT): 400 INVALID_ARGUMENT. "
+            "{'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.'}}"
+        )
+        assert detect_auth_error(exc, provider="google", key_tail="1234") is not None
+
+
+class TestHostedCredentials:
+    def test_the_relay_placeholder_names_no_key(self):
+        with patch.dict(
+            os.environ,
+            {"OPENROUTER_API_KEY": HOSTED_RELAY_KEY, "OPENROUTER_BASE_URL": "http://127.0.0.1:4000"},
+            clear=True,
+        ):
+            assert current_provider_key_context() == ("openrouter", HOSTED_KEY_TAIL)
+
+    def test_a_rejected_hosted_run_points_at_the_workflow_not_a_key(self):
+        """Why: users were told to verify a key ending in '…elay' — the tail of the placeholder."""
+        result = detect_auth_error(
+            _FakeStatusError("Invalid GitHub OIDC token.", status_code=401),
+            provider="openrouter",
+            key_tail=HOSTED_KEY_TAIL,
+        )
+        assert result is not None
+        assert "hosted" in str(result)
+        assert "id-token: write" in str(result)
+        assert "Verify the key" not in str(result)
 
 
 class TestCurrentProviderKeyContext:

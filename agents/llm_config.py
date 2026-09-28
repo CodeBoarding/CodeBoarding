@@ -463,6 +463,15 @@ def get_current_prompt_profile(llm: BaseChatModel | None = None) -> PromptProfil
     return resolve_prompt_profile(get_current_agent_model_ref())
 
 
+#: What CodeBoarding-action writes as ``OPENROUTER_API_KEY`` for hosted credentials: a placeholder its
+#: local OIDC relay swaps for the real key. Keep in step with the action's ``configure-auth.sh``.
+HOSTED_RELAY_KEY = "github-actions-oidc-relay"
+
+#: ``key_tail`` for a run on hosted credentials: the placeholder's last four characters name no key
+#: the user holds, so an auth error must not ask them to check it.
+HOSTED_KEY_TAIL = "hosted"
+
+
 def current_provider_key_context() -> tuple[str, str]:
     """The selected provider name and a masked key tail, for auth-error messages.
 
@@ -476,6 +485,8 @@ def current_provider_key_context() -> tuple[str, str]:
         return "unknown", "unknown"
     name = selected[0]
     key = LLM_PROVIDERS[name].get_api_key()
+    if key == HOSTED_RELAY_KEY:
+        return name, HOSTED_KEY_TAIL
     key_tail = key[-4:] if key and len(key) >= 4 else "unknown"
     return name, key_tail
 

@@ -669,6 +669,30 @@ class TestMainAuthErrorHandler(unittest.TestCase):
         self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
 
     @patch("main.full_analysis.run_from_args")
+    def test_a_hosted_run_is_not_told_to_check_a_key_it_never_set(self, mock_run):
+        """Why: the action's hosted credentials are a placeholder its relay swaps out, so the generic
+        "check your API key in ~/.codeboarding/config.toml" line would contradict the error above it."""
+        import io
+
+        import main
+        from agents.llm_config import HOSTED_KEY_TAIL
+        from agents.llm_errors import LLMAuthError
+
+        mock_run.side_effect = LLMAuthError(
+            "CodeBoarding's hosted openrouter credentials were rejected (HTTP 401).",
+            provider="openrouter",
+            key_tail=HOSTED_KEY_TAIL,
+            telemetry_properties={"error_type": "auth"},
+        )
+
+        with patch("sys.stderr", new_callable=io.StringIO) as stderr, self.assertRaises(SystemExit) as ctx:
+            main.main(["full", "--local", "/tmp/repo"])
+
+        self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
+        self.assertIn("hosted", stderr.getvalue())
+        self.assertNotIn("config.toml", stderr.getvalue())
+
+    @patch("main.full_analysis.run_from_args")
     def test_quota_error_exits_with_distinct_code(self, mock_run):
         import main
 

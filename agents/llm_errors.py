@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import re
 
-from agents.llm_config import current_provider_key_context
+from agents.llm_config import HOSTED_KEY_TAIL, current_provider_key_context
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,9 @@ _AUTH_MESSAGE_PATTERNS = (
     re.compile(r"invalid[\s_-]*x?[\s_-]*api[\s_-]*key", re.IGNORECASE),
     re.compile(r"incorrect api key", re.IGNORECASE),
     re.compile(r"api key.*invalid", re.IGNORECASE),
+    # Google: "API key not valid" (reason API_KEY_INVALID). Matched only by accident before, through
+    # the greedy pattern above running on into the unrelated status INVALID_ARGUMENT.
+    re.compile(r"api[\s_]*key[\s_]*(?:not[\s_]*valid|invalid)", re.IGNORECASE),
     re.compile(r"authentication[\s_]*error", re.IGNORECASE),
     re.compile(r"authentication fails", re.IGNORECASE),
     re.compile(r"\bunauthorized\b", re.IGNORECASE),
@@ -91,9 +94,17 @@ def _status_code(exc: BaseException) -> int | None:
 
 
 def _is_auth_failure(exc: BaseException) -> bool:
-    """True when *exc* represents rejected credentials, across providers."""
-    if _status_code(exc) in (401, 403):
-        return True
+    """True when *exc* represents rejected credentials, across providers.
+
+    Why: the type and message checks are for errors that carry no status. When the provider did give
+    one, its body is not evidence — OpenRouter embeds each failed upstream attempt in
+    ``previous_errors``, so a 400 for an oversized prompt or a 503 for an overloaded model can
+    contain ``'code': 401`` without the key being at fault. An auth error is terminal, so a 503
+    misread as one ends the run instead of being retried.
+    """
+    status = _status_code(exc)
+    if status is not None:
+        return status in (401, 403)
     if type(exc).__name__ in _AUTH_TYPE_NAMES:
         return True
     text = str(exc)
@@ -113,11 +124,16 @@ def detect_auth_error(exc: BaseException, *, provider: str, key_tail: str) -> LL
 
     status = _status_code(exc)
     provider_message = str(exc)
-    friendly = (
-        f"Your {provider} API key was rejected"
-        + (f" (HTTP {status})" if status is not None else "")
-        + f". Verify the key ending in '…{key_tail}' and try again."
-    )
+    status_note = f" (HTTP {status})" if status is not None else ""
+    if key_tail == HOSTED_KEY_TAIL:
+        friendly = (
+            f"CodeBoarding's hosted {provider} credentials were rejected{status_note}. This run used no key of "
+            "yours: check that the workflow grants `id-token: write`, then re-run."
+        )
+    else:
+        friendly = (
+            f"Your {provider} API key was rejected{status_note}. Verify the key ending in '…{key_tail}' and try again."
+        )
     telemetry_properties = {
         "error_type": "auth",
         "error_provider": provider,
