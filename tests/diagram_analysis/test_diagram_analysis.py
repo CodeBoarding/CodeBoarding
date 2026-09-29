@@ -1197,26 +1197,6 @@ class TestDiagramGenerator(unittest.TestCase):
 
         mock_build_hierarchy.assert_not_called()
 
-    def _full_run_on_an_empty_analysis(self, scanned: list[ProgrammingLanguage]) -> str:
-        gen = DiagramGenerator(
-            repo_location=self.repo_location,
-            temp_folder=self.temp_folder,
-            repo_name="test_repo",
-            output_dir=self.output_dir,
-            depth_cap=2,
-            run_id="test-run-id",
-            log_path="test_repo/test-run-log",
-        )
-        gen._get_static_with_new_analyzer = Mock(return_value=StaticAnalysisResults())
-        with (
-            patch("diagram_analysis.diagram_generator.ProjectScanner.scan", return_value=scanned),
-            patch.object(ClusteringService, "build_full_hierarchy") as build,
-            self.assertRaises(StaticAnalysisFatalError) as ctx,
-        ):
-            gen.deterministic_analysis()
-        build.assert_not_called()
-        return str(ctx.exception)
-
     def test_an_empty_scan_reports_no_supported_counted_code(self):
         message = self._full_run_on_an_empty_analysis([])
 
@@ -2509,6 +2489,26 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_save.assert_called_once()
         gen._write_file_coverage.assert_not_called()
         gen._persist_static_analysis_artifact.assert_not_called()
+
+    def _full_run_on_an_empty_analysis(self, scanned: list[ProgrammingLanguage]) -> str:
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_cap=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen._get_static_with_new_analyzer = Mock(return_value=StaticAnalysisResults())
+        with (
+            patch("diagram_analysis.diagram_generator.ProjectScanner.scan", return_value=scanned),
+            patch.object(ClusteringService, "build_full_hierarchy") as build,
+            self.assertRaises(StaticAnalysisFatalError) as ctx,
+        ):
+            gen.deterministic_analysis()
+        build.assert_not_called()
+        return str(ctx.exception)
 
 
 class TestSubScopeRelationsAreGloballyGated(unittest.TestCase):
