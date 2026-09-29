@@ -1,6 +1,6 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-28T22:46:59.821441+00:00",
+  "timestamp": "2026-09-29T00:12:33.756313+00:00",
   "overall_score": 0.983459682977257,
   "check_summaries": [
     {
@@ -29,20 +29,6 @@
           "threshold": 0,
           "description": "Variables declared but never used",
           "entities": [
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 440,
-              "line_end": 440,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 453,
-              "line_end": 453,
-              "metric_value": 0.0
-            },
             {
               "entity_name": "[unused_variable] \"_i\" is not accessed",
               "file_path": "install.py",
@@ -76,13 +62,6 @@
               "file_path": "agents/retry.py",
               "line_start": 40,
               "line_end": 40,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_key_tail\" is not accessed",
-              "file_path": "agents/llm_errors.py",
-              "line_start": 143,
-              "line_end": 143,
               "metric_value": 0.0
             },
             {
@@ -174,6 +153,27 @@
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 1432,
               "line_end": 1432,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 440,
+              "line_end": 440,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 453,
+              "line_end": 453,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_key_tail\" is not accessed",
+              "file_path": "agents/llm_errors.py",
+              "line_start": 151,
+              "line_end": 151,
               "metric_value": 0.0
             }
           ]
