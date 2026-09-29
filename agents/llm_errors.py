@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import re
 
-from agents.llm_config import current_provider_key_context
+from agents.llm_config import CODEBOARDING_KEY_TAIL, current_provider_key_context
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,8 @@ _AUTH_MESSAGE_PATTERNS = (
     re.compile(r"invalid[\s_-]*x?[\s_-]*api[\s_-]*key", re.IGNORECASE),
     re.compile(r"incorrect api key", re.IGNORECASE),
     re.compile(r"api key.*invalid", re.IGNORECASE),
+    # Google: "API key not valid" or reason API_KEY_INVALID.
+    re.compile(r"api[\s_]*key[\s_]*(?:not[\s_]*valid|invalid)", re.IGNORECASE),
     re.compile(r"authentication[\s_]*error", re.IGNORECASE),
     re.compile(r"authentication fails", re.IGNORECASE),
     re.compile(r"\bunauthorized\b", re.IGNORECASE),
@@ -91,9 +93,10 @@ def _status_code(exc: BaseException) -> int | None:
 
 
 def _is_auth_failure(exc: BaseException) -> bool:
-    """True when *exc* represents rejected credentials, across providers."""
-    if _status_code(exc) in (401, 403):
-        return True
+    """Detect rejected credentials, preferring the response status over embedded upstream errors."""
+    status = _status_code(exc)
+    if status is not None:
+        return status in (401, 403)
     if type(exc).__name__ in _AUTH_TYPE_NAMES:
         return True
     text = str(exc)
@@ -113,11 +116,16 @@ def detect_auth_error(exc: BaseException, *, provider: str, key_tail: str) -> LL
 
     status = _status_code(exc)
     provider_message = str(exc)
-    friendly = (
-        f"Your {provider} API key was rejected"
-        + (f" (HTTP {status})" if status is not None else "")
-        + f". Verify the key ending in '…{key_tail}' and try again."
-    )
+    status_note = f" (HTTP {status})" if status is not None else ""
+    if key_tail == CODEBOARDING_KEY_TAIL:
+        friendly = (
+            f"CodeBoarding's hosted {provider} credentials were rejected{status_note}. This run used no key of "
+            "yours: check that the workflow grants `id-token: write`, then re-run."
+        )
+    else:
+        friendly = (
+            f"Your {provider} API key was rejected{status_note}. Verify the key ending in '…{key_tail}' and try again."
+        )
     telemetry_properties = {
         "error_type": "auth",
         "error_provider": provider,
