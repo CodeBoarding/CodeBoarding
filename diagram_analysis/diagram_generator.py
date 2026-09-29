@@ -68,7 +68,7 @@ from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer import StaticAnalyzer, get_static_analysis
+from static_analyzer import StaticAnalysisFatalError, StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
@@ -87,12 +87,31 @@ from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
 from agents.tree_planner_agent import TreePlannerAgent
 from user_config import GROUPER_ENV, GROUPERS
+from static_analyzer.config import AdapterName
+from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
 logger = logging.getLogger(__name__)
 
 _EMPTY_PERSISTED_SCOPES: Mapping[str, AnalysisInsights] = MappingProxyType({})
+
+
+def _empty_analysis_message(repo_name: str, scanned: list[ProgrammingLanguage]) -> str:
+    """Describe empty static analysis using the scanner's supported-language results."""
+    supported = ", ".join(AdapterName)
+    if not scanned:
+        return (
+            f"CodeBoarding detected no supported languages with counted code in {repo_name}. "
+            "The repository may have no source files, only unsupported languages, or only files with "
+            f"no counted code. Supported languages: {supported}."
+        )
+    analysable = ", ".join(pl.language for pl in scanned)
+    return (
+        f"Analysis of {analysable} in {repo_name} produced no results, so there is no architecture to build. "
+        "Check whether .codeboardingignore or the default ignore rules exclude every source file, "
+        "and look for 'Error during engine analysis' earlier in this log for language-server failures."
+    )
 
 
 def _component_depth(component_id: str | None) -> int:
@@ -676,6 +695,9 @@ class DiagramGenerator:
             self.tree_spec = self._stored_tree_spec()
             self._incremental_preparation = self._prepare_incremental_clustering(root_analysis, sub_analyses, depth)
         elif target_component is None:
+            if not static_analysis.present_languages():
+                scanned = ProjectScanner(self.repo_location).scan()
+                raise StaticAnalysisFatalError(_empty_analysis_message(self.repo_name, scanned))
             service = ClusteringService(self._grouper(), self.repo_location)
             self.clustering_hierarchy = service.build_full_hierarchy(static_analysis, depth)
             self.tree_spec = service.spec

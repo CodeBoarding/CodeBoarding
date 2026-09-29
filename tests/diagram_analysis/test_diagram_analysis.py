@@ -55,6 +55,8 @@ from static_analyzer.clustering import (
 from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
 from static_analyzer.clustering.service import ClusteringService
+from static_analyzer.exceptions import StaticAnalysisFatalError
+from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.node import Node
 
 
@@ -1093,6 +1095,8 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_scanner,
     ):
         mock_analysis_results = StaticAnalysisResults()
+        mock_analysis_results.add_cfg(Language.PYTHON, CallGraph())
+        mock_analysis_results.add_source_files(Language.PYTHON, [str(self.repo_location / "app.py")])
         mock_analysis_results.diagnostics = {}
         mock_get_static_analysis.return_value = mock_analysis_results
         mock_scanner_instance = Mock()
@@ -1192,6 +1196,24 @@ class TestDiagramGenerator(unittest.TestCase):
                 )
 
         mock_build_hierarchy.assert_not_called()
+
+    def test_an_empty_scan_reports_no_supported_counted_code(self):
+        message = self._full_run_on_an_empty_analysis([])
+
+        self.assertIn("no supported languages with counted code in test_repo", message)
+        self.assertIn("only unsupported languages", message)
+        self.assertIn("only files with no counted code", message)
+        self.assertIn("Python", message)
+
+    def test_empty_analysis_of_supported_languages_suggests_ignore_rules_and_server_errors(self):
+        typescript = ProgrammingLanguage("TypeScript", 275_504, 90.0, [".ts"], server_commands=["tsserver"])
+
+        message = self._full_run_on_an_empty_analysis([typescript])
+
+        self.assertIn("Analysis of TypeScript in test_repo produced no results", message)
+        self.assertIn(".codeboardingignore or the default ignore rules", message)
+        self.assertIn("Error during engine analysis", message)
+        self.assertNotIn("most likely failed", message)
 
     def test_process_component_with_exception(self):
         gen = DiagramGenerator(
@@ -2467,6 +2489,26 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_save.assert_called_once()
         gen._write_file_coverage.assert_not_called()
         gen._persist_static_analysis_artifact.assert_not_called()
+
+    def _full_run_on_an_empty_analysis(self, scanned: list[ProgrammingLanguage]) -> str:
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_cap=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen._get_static_with_new_analyzer = Mock(return_value=StaticAnalysisResults())
+        with (
+            patch("diagram_analysis.diagram_generator.ProjectScanner.scan", return_value=scanned),
+            patch.object(ClusteringService, "build_full_hierarchy") as build,
+            self.assertRaises(StaticAnalysisFatalError) as ctx,
+        ):
+            gen.deterministic_analysis()
+        build.assert_not_called()
+        return str(ctx.exception)
 
 
 class TestSubScopeRelationsAreGloballyGated(unittest.TestCase):
