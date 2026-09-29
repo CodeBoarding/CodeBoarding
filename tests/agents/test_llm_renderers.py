@@ -3,7 +3,16 @@ import unittest
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component, Relation
-from agents.llm_renderers.scope import MAX_EXAMPLE_EDGES
+from agents.constants import ModelCapabilities
+from agents.llm_errors import ScopeContextTooLargeError
+from agents.llm_renderers.scope import (
+    MAX_EXAMPLE_EDGES,
+    _drop_bordering_files,
+    _dump,
+    _files_by_path_only,
+    _one_example_without_locations,
+    _tokens,
+)
 from agents.llm_renderers import render_call_graph, render_scope_context
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.clustering import ClusterConnectionEdge, ClusterGroup, ClusterScopeResult, GroupConnection
@@ -177,11 +186,7 @@ class TestRenderScopeContext(unittest.TestCase):
             first["files"],
             [
                 {"path": "client.py", "grouping_reason": "matches client terms", "changed": True},
-                {
-                    "path": "payload.py",
-                    "grouping_reason": "member of the deterministic group",
-                    "changed": False,
-                },
+                {"path": "payload.py", "changed": False},
             ],
         )
         self.assertEqual({item["path"] for item in first["bordering_files"]}, {"client.py", "payload.py"})
@@ -245,3 +250,121 @@ class TestRenderScopeContext(unittest.TestCase):
         self.assertEqual(len(pair["examples"]), MAX_EXAMPLE_EDGES)
         self.assertEqual(pair["examples"][0]["source"], "a.f0")
         self.assertEqual(payload["enclosing_components"], ["Backend", "Services"])
+
+
+def _dense_scope() -> ClusterScopeResult:
+    """Two groups of forty functions, every one calling across: dense enough to trim."""
+    graph = CallGraph(language="python")
+    edges = []
+    for index in range(40):
+        graph.add_node(Node(f"a.f{index}", NodeType.FUNCTION, f"/repo/a{index}.py", 1, 2))
+        graph.add_node(Node(f"b.g{index}", NodeType.FUNCTION, f"/repo/b{index}.py", 1, 2))
+        edges.append(ClusterConnectionEdge("python", f"a.f{index}", f"b.g{index}"))
+    return ClusterScopeResult(
+        scope_id="root",
+        graphs_by_language={"python": graph},
+        groups=[
+            ClusterGroup("1", [1], symbol_members_by_language={"python": {f"a.f{i}" for i in range(40)}}),
+            ClusterGroup("2", [2], symbol_members_by_language={"python": {f"b.g{i}" for i in range(40)}}),
+        ],
+        connections=[GroupConnection("1", "2", edges=edges)],
+    )
+
+
+def _render(scope: ClusterScopeResult, max_tokens: int = ModelCapabilities.FALLBACK_INPUT) -> str:
+    analysis = AnalysisInsights(description="", components=[], components_relations=[])
+    return render_scope_context(
+        scope, analysis, Path("/repo"), {"1", "2"}, set(), set(), incremental=False, max_tokens=max_tokens
+    )
+
+
+class TestScopeContextSize(unittest.TestCase):
+    def test_path_trim_preserves_only_true_changed_markers(self):
+        payload = {
+            "groups": [
+                {
+                    "files": [
+                        {"path": "unchanged.py", "changed": False, "grouping_reason": "same group"},
+                        {"path": "modified.py", "changed": True, "grouping_reason": "same group"},
+                        {"path": "member.py"},
+                    ]
+                }
+            ]
+        }
+
+        _files_by_path_only(payload)
+
+        self.assertEqual(
+            payload["groups"][0]["files"], ["unchanged.py", {"path": "modified.py", "changed": True}, "member.py"]
+        )
+
+    def test_boundary_trim_preserves_reference_only_relationships(self):
+        scope = _dense_scope()
+        graph = scope.graphs_by_language["python"]
+        graph.add_reference_edge(ReferenceEdge("a.f0", "b.g1", EdgeKind.TYPEREF))
+        graph.add_reference_edge(ReferenceEdge("a.f2", "b.g3", EdgeKind.TYPEREF))
+        graph.add_reference_edge(ReferenceEdge("b.g4", "a.f5", EdgeKind.INHERITS))
+        graph.add_reference_edge(ReferenceEdge("a.f6", "b.g7", EdgeKind.IMPORT))
+        scope.connections = []
+        full = _render(scope)
+
+        payload = json.loads(_render(scope, max_tokens=_tokens(full) - 1))
+
+        self.assertEqual(payload["known_connections"], [])
+        self.assertEqual(
+            payload["groups"][0]["boundary_references"],
+            ["import reference to group 2", "inherits reference from group 2", "typeref reference to group 2"],
+        )
+        self.assertEqual(
+            payload["groups"][1]["boundary_references"],
+            ["import reference from group 1", "inherits reference to group 1", "typeref reference from group 1"],
+        )
+        self.assertNotIn("bordering_files", payload["groups"][0])
+
+    def test_a_full_run_sends_compact_json_without_repeated_defaults(self):
+        """Why: indentation was a third of the payload, and on a large repo most files carry the same
+        default reason and a ``changed: false`` that means nothing outside incremental mode."""
+        text = _render(_dense_scope())
+        payload = json.loads(text)
+
+        self.assertNotIn("\n", text)
+        self.assertEqual(payload["groups"][0]["files"][0], {"path": "a0.py"})
+
+    def test_a_render_within_the_default_budget_keeps_everything(self):
+        payload = json.loads(_render(_dense_scope()))
+
+        self.assertTrue(payload["groups"][0]["bordering_files"])
+        self.assertEqual(len(payload["known_connections"][0]["examples"]), MAX_EXAMPLE_EDGES)
+
+    def test_over_budget_drops_bordering_files_first(self):
+        full = _render(_dense_scope())
+
+        payload = json.loads(_render(_dense_scope(), max_tokens=_tokens(full) - 1))
+
+        self.assertNotIn("bordering_files", payload["groups"][0])
+        self.assertEqual(len(payload["known_connections"][0]["examples"]), MAX_EXAMPLE_EDGES)
+        self.assertEqual(payload["groups"][0]["files"][0], {"path": "a0.py"})
+
+    def test_further_over_keeps_one_example_then_bare_paths(self):
+        trimmed = json.loads(_render(_dense_scope()))
+        _drop_bordering_files(trimmed)
+        after_first = _tokens(_dump(trimmed))
+        _one_example_without_locations(trimmed)
+        after_second = _tokens(_dump(trimmed))
+
+        second = json.loads(_render(_dense_scope(), max_tokens=after_first - 1))
+        third = json.loads(_render(_dense_scope(), max_tokens=after_second - 1))
+
+        self.assertEqual(second["known_connections"][0]["examples"], [{"source": "a.f0", "target": "b.g0"}])
+        self.assertIsInstance(second["groups"][0]["files"][0], dict)
+        self.assertEqual(third["groups"][0]["files"][0], "a0.py")
+
+    def test_a_scope_that_cannot_fit_is_refused_not_sent(self):
+        """Why: sent anyway, the provider rejects it with a 400 that OpenRouter wraps around an upstream
+        401 — which is how oversized prompts reached users as "your API key was rejected"."""
+        with self.assertRaises(ScopeContextTooLargeError) as ctx:
+            _render(_dense_scope(), max_tokens=10)
+
+        self.assertEqual(ctx.exception.scope_id, "root")
+        self.assertEqual(ctx.exception.allowed_tokens, 10)
+        self.assertIn("larger context window", str(ctx.exception))

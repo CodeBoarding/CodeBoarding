@@ -4,16 +4,18 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
+from langchain.agents.middleware import ModelCallLimitMiddleware, ModelRequest, ToolCallLimitMiddleware
 from langchain.agents.structured_output import ToolStrategy
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel, LanguageModelInput
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 
 from agents.agent_responses import AnalysisInsights, Component
-from agents.llm_errors import LLMAuthError
+from agents.llm_errors import LLMAuthError, ScopeContextTooLargeError
+from agents.model_capabilities import ContextWindow
 from agents.scope_analysis_agent import (
     MAX_SCOPE_MODEL_CALLS,
     MAX_SCOPE_TOOL_CALLS,
@@ -22,6 +24,7 @@ from agents.scope_analysis_agent import (
     ScopeAnalysisAgent,
     ScopeAnalysisResult,
     ScopeComponentSemantics,
+    ScopeInputBudget,
 )
 from agents.tools import MethodCallsTool, ReadFileTool
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -29,6 +32,14 @@ from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
 from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
+
+
+class RequestRecorder(BaseCallbackHandler):
+    def __init__(self):
+        self.requests: list[list[BaseMessage]] = []
+
+    def on_chat_model_start(self, serialized: dict, messages: list[list[BaseMessage]], **kwargs: Any) -> None:
+        self.requests.extend(messages)
 
 
 class ToolCallingFakeModel(FakeMessagesListChatModel):
@@ -76,7 +87,119 @@ def _answer() -> ScopeAnalysisResult:
     )
 
 
+class TestScopeInputBudget(unittest.TestCase):
+    def test_trims_multiple_tool_results_without_mutating_history_or_call_ids(self):
+        calls = AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "getMethodCalls", "args": {}, "id": "read"},
+                {"name": "getMethodCalls", "args": {}, "id": "calls"},
+            ],
+        )
+        request = ModelRequest(
+            model=ToolCallingFakeModel(responses=[]),
+            messages=[
+                HumanMessage(content="Keep this scope"),
+                calls,
+                ToolMessage(content="source " * 4000, tool_call_id="read"),
+                ToolMessage(content="edge " * 3000, tool_call_id="calls"),
+            ],
+        )
+        handler = MagicMock()
+        ScopeInputBudget("root", 300).wrap_model_call(request, handler)
+
+        sent = handler.call_args.args[0].messages
+        self.assertEqual(sent[:2], request.messages[:2])
+        self.assertEqual([message.tool_call_id for message in sent[2:]], ["read", "calls"])
+        for message in sent[2:]:
+            self.assertIn("Tool output truncated", message.content)
+        self.assertLess(sum(len(str(message.content)) for message in sent), 1050)
+        self.assertEqual(request.messages[2].content, "source " * 4000)
+        self.assertEqual(request.messages[3].content, "edge " * 3000)
+
+    def test_counts_system_prompt_tool_schemas_and_assistant_arguments(self):
+        for extra in (
+            {"system_message": SystemMessage(content="system " * 2000)},
+            {"response_format": ToolStrategy(ScopeAnalysisResult)},
+            {"tools": [{"type": "function", "function": {"name": "read", "description": "schema " * 2000}}]},
+            {"messages": [AIMessage(content="", tool_calls=[{"name": "read", "args": {"x": "a" * 8000}, "id": "x"}])]},
+        ):
+            with self.subTest(extra=extra):
+                request = ModelRequest(model=ToolCallingFakeModel(responses=[]), **({"messages": []} | extra))
+                handler = MagicMock()
+                with self.assertRaises(ScopeContextTooLargeError):
+                    ScopeInputBudget("root", 100).wrap_model_call(request, handler)
+                handler.assert_not_called()
+
+    @patch("agents.scope_analysis_agent.count_tokens_approximately", return_value=100)
+    def test_estimated_budget_boundary(self, count_tokens):
+        request = ModelRequest(model=ToolCallingFakeModel(responses=[]), messages=[HumanMessage(content="scope")])
+        handler = MagicMock()
+        ScopeInputBudget("root", 100).wrap_model_call(request, handler)
+        self.assertEqual(handler.call_args.args[0].messages, request.messages)
+        with self.assertRaises(ScopeContextTooLargeError):
+            ScopeInputBudget("root", 99).wrap_model_call(request, MagicMock())
+
+
 class TestScopeAnalysisAgent(unittest.TestCase):
+    @patch("agents.scope_analysis_agent.get_current_agent_context_window", return_value=ContextWindow(4096, 1024))
+    @patch.object(ReadFileTool, "_run", return_value="preceding line\n" * 10000 + "150: requested implementation\n")
+    def test_oversized_read_fails_before_sending_an_unrelated_prefix(self, read_file, context_window):
+        static_analysis, scope, analysis = _inputs()
+        recorder = RequestRecorder()
+        model = ToolCallingFakeModel(
+            responses=[
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"name": "readFile", "args": {"file_path": "pkg.py", "line_number": 150}, "id": "read"}
+                    ],
+                )
+            ],
+            callbacks=[recorder],
+        )
+
+        with self.assertRaises(ScopeContextTooLargeError):
+            ScopeAnalysisAgent(Path("/repo"), static_analysis, model).analyze(scope, analysis, {"1"})
+
+        self.assertEqual(len(recorder.requests), 1)
+        read_file.assert_called_once()
+
+    @patch("agents.scope_analysis_agent.get_current_agent_context_window", return_value=ContextWindow(16384, 2048))
+    @patch.object(MethodCallsTool, "_run", return_value="pkg.run -> pkg.target\n" * 30000)
+    def test_large_tool_results_fit_on_each_followup_turn(self, method_calls, context_window):
+        static_analysis, scope, analysis = _inputs()
+        recorder = RequestRecorder()
+        responses: list[BaseMessage] = [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "getMethodCalls",
+                        "args": {"qualified_name": "pkg.run", "direction": "outgoing"},
+                        "id": str(i),
+                    }
+                ],
+            )
+            for i in range(2)
+        ]
+        responses.append(
+            AIMessage(
+                content="", tool_calls=[{"name": "ScopeAnalysisResult", "args": _answer().model_dump(), "id": "final"}]
+            )
+        )
+        model = ToolCallingFakeModel(responses=responses, callbacks=[recorder])
+
+        result = ScopeAnalysisAgent(Path("/repo"), static_analysis, model).analyze(scope, analysis, {"1"})
+
+        self.assertEqual(result, _answer())
+        self.assertEqual(len(recorder.requests), 3)
+        for messages in recorder.requests[1:]:
+            tool_messages = [message for message in messages if isinstance(message, ToolMessage)]
+            self.assertTrue(any("Tool output truncated" in message.content for message in tool_messages))
+            self.assertLess(sum(len(str(message.content)) for message in messages), 16384 * 3.5 * 0.8)
+        self.assertEqual(method_calls.call_count, 2)
+
     @patch("agents.scope_analysis_agent.create_agent")
     def test_exposes_only_scoped_file_and_method_tools_with_runtime_limits(self, create_agent):
         static_analysis, scope, analysis = _inputs()
@@ -181,4 +304,36 @@ class TestScopeAnalysisAgent(unittest.TestCase):
         agent.analyze(scope, analysis, {"1"}, enclosing_names=("Engine",))
 
         prompt = runtime.invoke.call_args.args[0]["messages"][0].content
-        self.assertIn('"enclosing_components": [\n    "Engine"\n  ]', prompt)
+        self.assertIn('"enclosing_components":["Engine"]', prompt)
+
+    @patch("agents.scope_analysis_agent.ScopeInputBudget.count_tokens", return_value=1000)
+    @patch("agents.scope_analysis_agent.render_scope_context", return_value="{}")
+    @patch("agents.scope_analysis_agent.get_current_agent_context_window", return_value=ContextWindow(10000, 2000))
+    @patch("agents.scope_analysis_agent.create_agent")
+    def test_scope_uses_remaining_request_budget_not_half_the_window(self, create_agent, window, render, count):
+        static_analysis, scope, analysis = _inputs()
+        create_agent.return_value.invoke.return_value = {"structured_response": _answer()}
+
+        ScopeAnalysisAgent(Path("/repo"), static_analysis, MagicMock(spec=BaseChatModel)).analyze(
+            scope, analysis, {"1"}
+        )
+
+        self.assertEqual(render.call_args.kwargs["max_tokens"], 7000)
+        request = count.call_args.args[0]
+        self.assertTrue(request.system_message.content)
+        self.assertEqual(len(request.tools), 2)
+        self.assertIsInstance(request.response_format, ToolStrategy)
+
+    @patch("agents.scope_analysis_agent.get_current_agent_context_window")
+    @patch("agents.scope_analysis_agent.create_agent")
+    def test_a_scope_over_the_models_window_never_reaches_the_provider(self, create_agent, context_window):
+        static_analysis, scope, analysis = _inputs()
+        create_agent.return_value = MagicMock()
+        context_window.return_value = ContextWindow(input_tokens=20, output_tokens=10)
+        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, MagicMock(spec=BaseChatModel))
+
+        with self.assertRaises(ScopeContextTooLargeError) as ctx:
+            agent.analyze(scope, analysis, {"1"})
+
+        self.assertEqual(ctx.exception.allowed_tokens, 0)
+        create_agent.return_value.invoke.assert_not_called()
