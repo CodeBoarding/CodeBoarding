@@ -40,11 +40,6 @@ def get_context_window(provider: str, model_name: str) -> ContextWindow:
         hit = resolver(provider, model_name)
         if hit is not None:
             return ContextWindow(*hit)
-    model_id = _openrouter_id(provider, model_name)
-    if provider == "litellm" and "/" not in model_name:
-        model_id = f"{'anthropic' if model_name.startswith('claude-') else 'openai'}/{model_name}"
-    if known := ModelCapabilities.KNOWN_WINDOWS.get(model_id):
-        return ContextWindow(*known)
     logger.warning(f"No context window for {provider}/{model_name}; using fallback {ModelCapabilities.FALLBACK_INPUT}")
     return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT, is_fallback=True)
 
