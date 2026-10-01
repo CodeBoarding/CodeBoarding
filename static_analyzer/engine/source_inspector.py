@@ -840,7 +840,11 @@ class SourceInspector:
                 construction_start_positions.add(parsed.lsp_position(target.start_point))
 
             # Named as a member access, or by a call that holds its receiver itself (``parent::m()``).
-            member = self._select_query_node(node) if node.type in _MEMBER_ACCESS_NODE_TYPES else None
+            member = (
+                self._select_query_node(node)
+                if node.type in _MEMBER_ACCESS_NODE_TYPES or node.type == "unconditional_assignable_selector"
+                else None
+            )
             if node.type in _CALL_NODE_TYPES:
                 member = target
             if member is not None and self._names_base_receiver(node):
@@ -920,6 +924,9 @@ class SourceInspector:
     @staticmethod
     def _names_base_receiver(node: TreeSitterNode) -> bool:
         """Whether *node* names its member on the base class: ``super.m``, ``super().m``, ``base.M``, ``parent::m()``."""
+        if node.type == "unconditional_assignable_selector":
+            previous = node.prev_named_sibling
+            return previous is not None and previous.type == "super"
         access = node.child_by_field_name("function") or node
         receiver = next(
             (found for field in ("object", "scope", "expression") if (found := access.child_by_field_name(field))),

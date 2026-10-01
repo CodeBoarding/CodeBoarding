@@ -6,6 +6,7 @@ import pytest
 
 import install
 from static_analyzer.engine.adapters.dart_adapter import DartAdapter
+from static_analyzer.engine.models import CallSite
 from static_analyzer.engine.source_inspector import SourceInspector
 from tool_registry.manifest import has_required_tools, resolve_config_from_path
 from tool_registry.paths import dart_binary
@@ -131,3 +132,11 @@ def test_dart_call_targets(tmp_path: Path, expression: str, targets: list[str]):
     path.write_text(source, encoding="utf-8")
     actual = {(site.line, site.column) for site in SourceInspector().find_call_sites(path)}
     assert actual == {(2, expression.index(target) + 3) for target in targets}
+
+
+def test_super_call_does_not_dispatch_to_overrides(tmp_path: Path):
+    path = tmp_path / "sample.dart"
+    path.write_text("class Child extends Base {\n  void run() { super.run(); this.run(); }\n}\n")
+    inspector = SourceInspector()
+    assert inspector.names_base_member(CallSite(str(path), 2, 22))
+    assert not inspector.names_base_member(CallSite(str(path), 2, 33))
