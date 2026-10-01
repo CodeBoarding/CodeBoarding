@@ -17,6 +17,7 @@ from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.models import CallSite
 
 import tree_sitter_c_sharp
+import tree_sitter_dart
 import tree_sitter_go
 import tree_sitter_java
 import tree_sitter_javascript
@@ -38,6 +39,7 @@ _LANGUAGE_FACTORY_BY_LANGUAGE: dict[Language, LanguageFactory] = {
     Language.PHP: tree_sitter_php.language_php,
     Language.RUST: tree_sitter_rust.language,
     Language.CSHARP: tree_sitter_c_sharp.language,
+    Language.DART: tree_sitter_dart.language,
 }
 _LANGUAGE_BY_SUFFIX: dict[str, LanguageFactory] = {
     suffix: _LANGUAGE_FACTORY_BY_LANGUAGE[language]
@@ -838,7 +840,11 @@ class SourceInspector:
                 construction_start_positions.add(parsed.lsp_position(target.start_point))
 
             # Named as a member access, or by a call that holds its receiver itself (``parent::m()``).
-            member = self._select_query_node(node) if node.type in _MEMBER_ACCESS_NODE_TYPES else None
+            member = (
+                self._select_query_node(node)
+                if node.type in _MEMBER_ACCESS_NODE_TYPES or node.type == "unconditional_assignable_selector"
+                else None
+            )
             if node.type in _CALL_NODE_TYPES:
                 member = target
             if member is not None and self._names_base_receiver(node):
@@ -918,6 +924,9 @@ class SourceInspector:
     @staticmethod
     def _names_base_receiver(node: TreeSitterNode) -> bool:
         """Whether *node* names its member on the base class: ``super.m``, ``super().m``, ``base.M``, ``parent::m()``."""
+        if node.type == "unconditional_assignable_selector":
+            previous = node.prev_named_sibling
+            return previous is not None and previous.type == "super"
         access = node.child_by_field_name("function") or node
         receiver = next(
             (found for field in ("object", "scope", "expression") if (found := access.child_by_field_name(field))),
@@ -954,6 +963,30 @@ class SourceInspector:
         return False
 
     def _call_target_node(self, node: TreeSitterNode) -> TreeSitterNode | None:
+        # Dart puts the callee before an argument selector, rather than inside a call node.
+        if node.type == "argument_part":
+            container = node.parent
+            if container is not None and container.type == "selector":
+                target = container.prev_named_sibling
+            else:
+                target = node.prev_named_sibling
+            if target is not None and target.type == "selector":
+                target = target.named_children[0] if target.named_children else None
+            if target is not None and target.type in {
+                "identifier",
+                "unconditional_assignable_selector",
+                "conditional_assignable_selector",
+                "cascade_selector",
+            }:
+                return self._select_query_node(target)
+            return None
+        if node.type == "const_object_expression" or (
+            node.type == "new_expression" and any(child.type == "type_identifier" for child in node.named_children)
+        ):
+            return self._last_named_child_of_type(node, frozenset({"identifier", "type_identifier"}))
+        if node.type in {"initializer_list_entry", "redirection"}:
+            if any(child.type in {"super", "this"} for child in node.named_children):
+                return self._last_named_child_of_type(node, frozenset({"identifier", "super", "this"}))
         if node.type in _CALL_NODE_TYPES:
             function = (
                 node.child_by_field_name("function")

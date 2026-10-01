@@ -50,6 +50,7 @@ class TestInstallOrchestratorCoversEveryKind(unittest.TestCase):
         ToolKind.NODE: "install_node_servers",
         ToolKind.ARCHIVE: "download_jdtls",
         ToolKind.PACKAGE_MANAGER: "install_package_manager_lsp_servers",
+        ToolKind.SDK: "print_language_support_summary",
     }
 
     def test_every_tool_kind_in_registry_has_a_mapped_installer(self):
@@ -99,6 +100,7 @@ class TestInstallOrchestratorCoversEveryKind(unittest.TestCase):
                 "install_node_servers": mocks[1].called,
                 "download_jdtls": mocks[2].called,
                 "install_package_manager_lsp_servers": mocks[3].called,
+                "print_language_support_summary": mocks[7].called,
             }
             for kind in kinds_in_registry:
                 fn_name = self._INSTALLER_FOR_KIND[kind]
@@ -133,9 +135,14 @@ class TestHasRequiredToolsCoversEveryKind(unittest.TestCase):
         kinds_in_registry = {dep.kind for dep in TOOL_REGISTRY}
 
         for kind in kinds_in_registry:
+            if kind is ToolKind.SDK:
+                continue  # User-provided SDKs have no managed artifact to delete.
             dep = next(d for d in TOOL_REGISTRY if d.kind is kind)
             with self.subTest(kind=kind, dep=dep.key):
-                with tempfile.TemporaryDirectory() as tmp:
+                with (
+                    tempfile.TemporaryDirectory() as tmp,
+                    patch("tool_registry.manifest.shutil.which", return_value="/sdk/manager"),
+                ):
                     base = Path(tmp)
                     _populate_complete_servers_dir(base)
                     self.assertTrue(
@@ -288,6 +295,7 @@ class TestLspAdapterAndLanguageEnumParity(unittest.TestCase):
         "csharp": "CSharp",
         "java": "Java",
         "rust": "Rust",
+        "dart": "Dart",
     }
 
     def test_every_lsp_tool_has_an_adapter_per_supported_language(self):
