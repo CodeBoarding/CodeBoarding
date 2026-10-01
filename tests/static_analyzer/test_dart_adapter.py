@@ -86,6 +86,7 @@ def test_restores_project_with_matching_sdk(tmp_path: Path, flutter: bool):
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=300,
     )
 
