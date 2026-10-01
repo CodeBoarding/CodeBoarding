@@ -20,7 +20,7 @@ else:
 from vscode_constants import VSCODE_CONFIG, find_runnable
 
 from .installers import package_manager_tool_dir, package_manager_tool_is_current
-from .paths import exe_suffix, get_servers_dir, native_binary_ok, platform_bin_dir, preferred_node_path
+from .paths import dart_binary, exe_suffix, get_servers_dir, native_binary_ok, platform_bin_dir, preferred_node_path
 from .registry import (
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
@@ -78,6 +78,8 @@ def tools_fingerprint() -> str:
     """
     parts: list[str] = [f"node:{PINNED_NODE_VERSION}"]
     for dep in TOOL_REGISTRY:
+        if dep.kind is ToolKind.SDK:
+            parts.append(f"{dep.key}:sdk:{dep.binary_name}")
         if dep.source:
             if isinstance(dep.source, GitHubToolSource):
                 parts.append(f"{dep.key}:{dep.source.repo}:{dep.source.tag}")
@@ -255,7 +257,9 @@ def resolve_config_from_path() -> dict[str, Any]:
 
     for dep in TOOL_REGISTRY:
         path = None
-        if dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER):
+        if dep.kind is ToolKind.SDK:
+            path = dart_binary()
+        elif dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER):
             path = shutil.which(dep.binary_name)
         if path:
             cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
@@ -288,6 +292,8 @@ def has_required_tools(base_dir: Path) -> bool:
         return False
 
     for dep in TOOL_REGISTRY:
+        if dep.kind is ToolKind.SDK:
+            continue  # Setup cannot install user SDKs; the adapter checks at analysis time.
         if dep.kind is ToolKind.NATIVE:
             # Skip the check when the installer would also skip the download,
             # otherwise ``needs_install`` loops forever on unsupported hosts.

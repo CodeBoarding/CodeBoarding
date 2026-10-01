@@ -243,8 +243,17 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 ## Supported stack
 
-- Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#.
+- Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#, Dart (including Flutter apps).
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, LiteLLM proxy, and more.
+
+Dart analysis requires the [Dart SDK](https://dart.dev/get-dart), or the
+[Flutter SDK](https://docs.flutter.dev/get-started/install) for Flutter projects,
+with its `bin` directory on `PATH` on Windows, macOS, or Linux. Run `flutter --version`
+once after installing Flutter to initialize its bundled Dart SDK. `codeboarding-setup`
+detects the SDK-provided language server; it does not download another SDK.
+Analysis runs `dart pub get` or `flutter pub get` before starting the language server.
+No emulator or native app build is required. Support covers standard Dart symbols,
+inheritance and call relationships, not Flutter-specific widget or navigation graphs.
 
 ## Examples
 

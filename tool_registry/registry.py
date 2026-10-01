@@ -57,6 +57,7 @@ class ToolKind(StrEnum):
     NATIVE = "native"  # Pre-built binary downloaded from GitHub releases
     NODE = "node"  # npm package installed via `npm install`
     ARCHIVE = "archive"  # Tarball downloaded and extracted from GitHub releases
+    SDK = "sdk"  # Language server bundled with a user-provided SDK
     PACKAGE_MANAGER = (
         "package_manager"  # Installed by invoking a user-provided package manager (e.g. `dotnet tool install`)
     )
@@ -151,6 +152,12 @@ class ToolDependency:
 
 
 TOOL_REGISTRY: list[ToolDependency] = [
+    ToolDependency(
+        key="dart",
+        binary_name="dart",
+        kind=ToolKind.SDK,
+        config_section=ConfigSection.LSP_SERVERS,
+    ),
     ToolDependency(
         key="tokei",
         binary_name="tokei",

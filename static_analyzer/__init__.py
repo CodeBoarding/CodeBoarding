@@ -276,6 +276,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
         Language.TYPESCRIPT: AdapterName.TYPESCRIPT,
         Language.JAVASCRIPT: AdapterName.JAVASCRIPT,
         Language.CSHARP: AdapterName.CSHARP,
+        Language.DART: AdapterName.DART,
         Language.GO: AdapterName.GO,
         Language.JAVA: AdapterName.JAVA,
         Language.PHP: AdapterName.PHP,

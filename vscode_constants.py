@@ -76,6 +76,13 @@ def update_config(bin_dir=None):
 
 VSCODE_CONFIG = {
     "lsp_servers": {
+        "dart": {
+            "name": "Dart Language Server",
+            "command": ["dart", "language-server"],
+            "languages": ["dart"],
+            "file_extensions": [".dart"],
+            "install_commands": "Install the Dart SDK (or Flutter SDK for Flutter projects) and add its bin to PATH",
+        },
         "python": {
             "name": "Pyright Language Server",
             "command": ["pyright-langserver", "--stdio"],

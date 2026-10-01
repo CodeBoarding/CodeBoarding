@@ -5,6 +5,7 @@ from __future__ import annotations
 from static_analyzer.config import AdapterName
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
+from static_analyzer.engine.adapters.dart_adapter import DartAdapter
 from static_analyzer.engine.adapters.go_adapter import GoAdapter
 from static_analyzer.engine.adapters.java_adapter import JavaAdapter
 from static_analyzer.engine.adapters.php_adapter import PHPAdapter
@@ -17,6 +18,7 @@ ADAPTER_REGISTRY: dict[str, type[LanguageAdapter]] = {
     AdapterName.JAVASCRIPT: JavaScriptAdapter,
     AdapterName.TYPESCRIPT: TypeScriptAdapter,
     AdapterName.CSHARP: CSharpAdapter,
+    AdapterName.DART: DartAdapter,
     AdapterName.GO: GoAdapter,
     AdapterName.JAVA: JavaAdapter,
     AdapterName.PHP: PHPAdapter,

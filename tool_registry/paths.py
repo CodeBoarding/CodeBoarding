@@ -75,6 +75,20 @@ def native_binary_ok(path: Path) -> bool:
 # -- User data directory ------------------------------------------------------
 
 
+def dart_binary() -> str | None:
+    """Prefer Flutter's bundled Dart and bypass its Windows batch wrapper."""
+    flutter = shutil.which("flutter")
+    if flutter:
+        bundled = Path(flutter).resolve().parent / "cache" / "dart-sdk" / "bin" / f"dart{exe_suffix()}"
+        if native_binary_ok(bundled):
+            return str(bundled)
+    dart = shutil.which("dart")
+    if dart and Path(dart).suffix.lower() == ".bat":
+        bundled = Path(dart).resolve().parent / "cache" / "dart-sdk" / "bin" / "dart.exe"
+        return str(bundled) if native_binary_ok(bundled) else None
+    return dart
+
+
 def user_data_dir() -> Path:
     """Return the user-level persistent storage directory (~/.codeboarding)."""
     return Path.home() / CODEBOARDING_DIR_NAME
