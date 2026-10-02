@@ -1,0 +1,5 @@
+services:
+  # This repository deploys something, which is what makes a key it reads a fact about a system
+  # rather than an option it offers whoever imports it.
+  svc:
+    build: ./svc

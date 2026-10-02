@@ -1,0 +1,9 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <artifactId>shop</artifactId>
+  <packaging>pom</packaging>
+  <modules>
+    <module>customers</module>
+    <module>genai</module>
+    <module>tools</module>
+  </modules>
+</project>

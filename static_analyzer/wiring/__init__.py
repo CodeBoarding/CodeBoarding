@@ -27,9 +27,10 @@ from static_analyzer.wiring.anchors import collect, to_json
 from static_analyzer.wiring.compose import compose_projects
 from static_analyzer.wiring.emit import emit
 from static_analyzer.wiring.join import join
+from static_analyzer.wiring.resources import discover
 from static_analyzer.wiring.scan import Scan
 from static_analyzer.wiring.units import build_units
-from static_analyzer.wiring_results import Diagnostic, DiagnosticCode, WiringResults
+from static_analyzer.wiring_results import Diagnostic, DiagnosticCode, Resource, WiringResults
 
 logger = logging.getLogger(__name__)
 
@@ -63,18 +64,21 @@ def run(results: StaticAnalysisResults, repo_root: Path, *, dump: Path | None = 
     anchors = collect(scan, units, projects)
     joins, unjoined = join(scan, units, anchors)
     edges, unreached = emit(joins, units, results.available_cfgs(), repo_root)
+    resources, unknown = discover(scan, projects, units, anchors)
     wiring = WiringResults(
         units=units,
         anchors=anchors,
         edges=edges,
-        diagnostics=sorted([*scan.diagnostics, *unjoined, *unreached], key=_order),
+        resources=resources,
+        diagnostics=sorted([*scan.diagnostics, *unjoined, *unreached, *unknown], key=_order),
     )
     logger.info(
-        "wiring: %d files read, %d units, %d anchors, %d edges, %d diagnostics in %.2fs",
+        "wiring: %d files read, %d units, %d anchors, %d edges, %d resources, %d diagnostics in %.2fs",
         len(scan.files),
         len(wiring.units),
         len(wiring.anchors),
         len(wiring.edges),
+        len(wiring.resources),
         len(wiring.diagnostics),
         time.monotonic() - started,
     )
@@ -104,6 +108,7 @@ def write_dump(wiring: WiringResults, repo_root: Path, directory: Path) -> None:
     )
     _write(directory / "anchors.json", {**heading, "anchors": [to_json(anchor) for anchor in wiring.anchors]})
     _write(directory / "edges.json", {**heading, "edges": [_edge(edge) for edge in wiring.edges]})
+    _write(directory / "resources.json", {**heading, "resources": [_resource(one) for one in wiring.resources]})
     _write(directory / "diagnostics.json", {**heading, "diagnostics": diagnostics})
 
 
@@ -114,6 +119,22 @@ def repository_name(repo_root: Path) -> str:
     and the image a repository publishes is named after the repository.
     """
     return repository_slug(repo_root).rsplit("/", 1)[-1]
+
+
+def _resource(resource: Resource) -> dict:
+    """A resource as §8 writes it down: what it is, what declared it, whose it is, what it holds."""
+    return {
+        "key": resource.key,
+        "kind": resource.kind.value,
+        "name": resource.name,
+        "display_name": resource.display_name,
+        "declared_by": list(resource.declared_by),
+        "home_unit": resource.home_unit,
+        "children": [
+            {"key": child.key, "kind": child.kind.value, "name": child.name, "owner": child.owner}
+            for child in resource.children
+        ],
+    }
 
 
 def _edge(edge: ReferenceEdge) -> dict:

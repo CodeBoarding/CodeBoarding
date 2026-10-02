@@ -361,6 +361,10 @@ class TestReaders(unittest.TestCase):
             },
         )
 
+    def test_a_documented_example_is_not_a_declaration(self) -> None:
+        """A usage example inside a docstring tells a reader how to call the code; it reads nothing."""
+        self.assertNotIn("DOCUMENTED_ONLY", {anchor.key for anchor in anchors_of("anchors-readers")})
+
     def test_a_generated_file_is_nobody_s_decision(self) -> None:
         """A designer file, a lockfile and a compiled proto are a tool's output, not a declaration."""
         self.assertNotIn("Ignored:Key", {anchor.key for anchor in anchors_of("anchors-readers")})
