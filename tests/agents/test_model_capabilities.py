@@ -38,6 +38,11 @@ _FAKE_MODELSDEV = {
             "openai/gpt-5.4-mini": {"limit": {"context": 400_000, "input": 272_000, "output": 128_000}},
         }
     },
+    "requesty": {
+        "models": {
+            "gemini-3.8-flash": {"limit": {"context": 1_048_576, "output": 65_535}},
+        }
+    },
 }
 
 _FAKE_LITELLM = {
@@ -113,6 +118,11 @@ class TestModelsdevResolution:
         # ids are namespaced (openai/gpt-5.4-mini) exactly like the catalog keys.
         cw = get_context_window("orcarouter", "openai/gpt-5.4-mini")
         assert cw.input_tokens == 272_000
+        assert not cw.is_fallback
+
+    def test_requesty_managed_model_resolves_via_modelsdev(self, fake_catalogs):
+        cw = get_context_window("requesty", "gemini-3.8-flash")
+        assert cw.input_tokens == 1_048_576
         assert not cw.is_fallback
 
 

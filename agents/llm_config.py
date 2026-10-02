@@ -294,6 +294,19 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "requesty": LLMConfig(
+        chat_class=ChatOpenAI,
+        selection_envs=["REQUESTY_API_KEY"],
+        api_key_env="REQUESTY_API_KEY",
+        agent_model="gemini-3.8-flash",
+        base_url_env="REQUESTY_BASE_URL",
+        default_base_url="https://router.requesty.ai/v1",
+        extra_args={
+            "max_tokens": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+            "max_retries": 0,
+        },
+    ),
     "litellm": LLMConfig(
         chat_class=ChatOpenAI,
         # Base URL only: a key alone must not select litellm, since there is no
