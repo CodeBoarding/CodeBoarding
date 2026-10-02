@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-10-02T11:30:54.729842+00:00",
-    "source_tree_hash": "25c5ca854fdddee28b1b269f5c21f86cc701c2666ee0aac16afc9c714a68a886",
+    "generated_at": "2026-10-02T11:38:00.789089+00:00",
+    "source_tree_hash": "2ba7c73afb90ddb27e9fb037a0996315e2fb341b4902498e0dab3dda915b2497",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -31881,6 +31881,21 @@
           "description": "Cluster relation builder constructs relation edges and insights models for agent processing."
         },
         {
+          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_node_to_component_map",
+          "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
+          "call_sites": [
+            {
+              "line": 42,
+              "column": 39
+            },
+            {
+              "line": 44,
+              "column": 53
+            }
+          ],
+          "description": "Maps AST nodes to components using agent insight models."
+        },
+        {
           "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
           "target": "agents/agent_responses.py|agents.agent_responses.Relation",
           "call_sites": [
@@ -31898,21 +31913,6 @@
             }
           ],
           "description": "Converts inter-component connections into structured relations"
-        },
-        {
-          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_node_to_component_map",
-          "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
-          "call_sites": [
-            {
-              "line": 42,
-              "column": 39
-            },
-            {
-              "line": 44,
-              "column": 53
-            }
-          ],
-          "description": "Maps AST nodes to components using agent insight models."
         }
       ],
       "src_id": "1.3",
@@ -32096,6 +32096,21 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations._ancestor_relation",
+          "target": "clustering_ids.py|clustering_ids.is_self_or_descendant",
+          "call_sites": [
+            {
+              "line": 129,
+              "column": 13
+            },
+            {
+              "line": 130,
+              "column": 13
+            }
+          ],
+          "description": "Determines ancestor cluster relationships and qualifies cluster identifiers."
+        },
+        {
           "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations.build_global_relations",
           "target": "clustering_ids.py|clustering_ids.is_self_or_descendant",
           "call_sites": [
@@ -32112,32 +32127,6 @@
         },
         {
           "source": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.next_id",
-          "target": "clustering_ids.py|clustering_ids.CodeBoardingClusterIds.qualify_local_id",
-          "call_sites": [
-            {
-              "line": 109,
-              "column": 39
-            }
-          ],
-          "description": "Generates qualified cluster IDs for scopes."
-        },
-        {
-          "source": "static_analyzer/cluster_relations.py|static_analyzer.cluster_relations._ancestor_relation",
-          "target": "clustering_ids.py|clustering_ids.is_self_or_descendant",
-          "call_sites": [
-            {
-              "line": 129,
-              "column": 13
-            },
-            {
-              "line": 130,
-              "column": 13
-            }
-          ],
-          "description": "Determines ancestor cluster relationships and qualifies cluster identifiers."
-        },
-        {
-          "source": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.next_id",
           "target": "clustering_ids.py|clustering_ids.CodeBoardingClusterIds",
           "call_sites": [
             {
@@ -32150,6 +32139,17 @@
             }
           ],
           "description": "Scope specification and relation building derive cluster IDs and verify hierarchy ancestry"
+        },
+        {
+          "source": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.ScopeSpec.next_id",
+          "target": "clustering_ids.py|clustering_ids.CodeBoardingClusterIds.qualify_local_id",
+          "call_sites": [
+            {
+              "line": 109,
+              "column": 39
+            }
+          ],
+          "description": "Generates qualified cluster IDs for scopes."
         }
       ],
       "src_id": "1.3",
@@ -36278,6 +36278,17 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
+          "target": "clustering_ids.py|clustering_ids.is_self_or_descendant",
+          "call_sites": [
+            {
+              "line": 1838,
+              "column": 16
+            }
+          ],
+          "description": "Filters and sorts component subtrees using hierarchical cluster IDs."
+        },
+        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._fully_unchanged_component_ids",
           "target": "clustering_ids.py|clustering_ids.is_self_or_descendant",
           "call_sites": [
@@ -36290,28 +36301,6 @@
         },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.distinguish_expanded_component_names",
-          "target": "clustering_ids.py|clustering_ids.CodeBoardingClusterIds.sort",
-          "call_sites": [
-            {
-              "line": 548,
-              "column": 48
-            }
-          ],
-          "description": "Sorts cluster IDs to distinguish component names during expansion."
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._drop_removed_subtree_analyses",
-          "target": "clustering_ids.py|clustering_ids.is_self_or_descendant",
-          "call_sites": [
-            {
-              "line": 1838,
-              "column": 16
-            }
-          ],
-          "description": "Filters and sorts component subtrees using hierarchical cluster IDs."
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.distinguish_expanded_component_names",
           "target": "clustering_ids.py|clustering_ids.CodeBoardingClusterIds",
           "call_sites": [
             {
@@ -36320,6 +36309,17 @@
             }
           ],
           "description": "Diagram generator filters subtrees and sorts expanded component names using cluster ID utilities"
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.distinguish_expanded_component_names",
+          "target": "clustering_ids.py|clustering_ids.CodeBoardingClusterIds.sort",
+          "call_sites": [
+            {
+              "line": 548,
+              "column": 48
+            }
+          ],
+          "description": "Sorts cluster IDs to distinguish component names during expansion."
         }
       ],
       "src_id": "2.1",
@@ -37646,21 +37646,6 @@
       "key_edges": [
         {
           "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
-          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
-          "call_sites": [
-            {
-              "line": 116,
-              "column": 58
-            },
-            {
-              "line": 119,
-              "column": 23
-            }
-          ],
-          "description": "Applies repo ignore filters during workspace file hashing"
-        },
-        {
-          "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
           "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
             {
@@ -37677,6 +37662,21 @@
             }
           ],
           "description": "Hashes repository files respecting ignore rules and normalizes scope locations."
+        },
+        {
+          "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
+          "target": "repo_utils/ignore.py|repo_utils.ignore.RepoIgnoreManager.should_ignore",
+          "call_sites": [
+            {
+              "line": 116,
+              "column": 58
+            },
+            {
+              "line": 119,
+              "column": 23
+            }
+          ],
+          "description": "Applies repo ignore filters during workspace file hashing"
         }
       ],
       "src_id": "3.1",
@@ -38197,21 +38197,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "agents/llm_renderers/scope.py|agents.llm_renderers.scope._group_file_reasons",
-          "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
-          "call_sites": [
-            {
-              "line": 187,
-              "column": 9
-            },
-            {
-              "line": 190,
-              "column": 9
-            }
-          ],
-          "description": "Normalizes relative file paths for agent prompt generation"
-        },
-        {
           "source": "agents/llm_renderers/scope.py|agents.llm_renderers.scope._boundary_reasons",
           "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
           "call_sites": [
@@ -38233,6 +38218,21 @@
             }
           ],
           "description": "Normalizes file paths when rendering boundary reasons for scopes."
+        },
+        {
+          "source": "agents/llm_renderers/scope.py|agents.llm_renderers.scope._group_file_reasons",
+          "target": "repo_utils/path_utils.py|repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 187,
+              "column": 9
+            },
+            {
+              "line": 190,
+              "column": 9
+            }
+          ],
+          "description": "Normalizes relative file paths for agent prompt generation"
         }
       ],
       "src_id": "3.2",
@@ -38309,6 +38309,17 @@
       "key_edges": [
         {
           "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
+          "target": "monitoring/mixin.py|monitoring.mixin.MonitoringMixin",
+          "call_sites": [
+            {
+              "line": 171,
+              "column": 17
+            }
+          ],
+          "description": "Agents initialize monitoring mixin for execution tracking."
+        },
+        {
+          "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
           "target": "monitoring/mixin.py|monitoring.mixin.MonitoringMixin.__init__",
           "call_sites": [
             {
@@ -38328,17 +38339,6 @@
             }
           ],
           "description": "LLM agent initializers register monitoring callbacks and inherit monitoring mixin features."
-        },
-        {
-          "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
-          "target": "monitoring/mixin.py|monitoring.mixin.MonitoringMixin",
-          "call_sites": [
-            {
-              "line": 171,
-              "column": 17
-            }
-          ],
-          "description": "Agents initialize monitoring mixin for execution tracking."
         }
       ],
       "src_id": "3.2",
@@ -40370,6 +40370,17 @@
       "key_edges": [
         {
           "source": "github_action.py|github_action.generate_analysis",
+          "target": "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext",
+          "call_sites": [
+            {
+              "line": 114,
+              "column": 30
+            }
+          ],
+          "description": "Action creates and resolves run context for analysis generation."
+        },
+        {
+          "source": "github_action.py|github_action.generate_analysis",
           "target": "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext.resolve",
           "call_sites": [
             {
@@ -40389,17 +40400,6 @@
             }
           ],
           "description": "GitHub Action workflows resolve run context and read analysis metadata."
-        },
-        {
-          "source": "github_action.py|github_action.generate_analysis",
-          "target": "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext",
-          "call_sites": [
-            {
-              "line": 114,
-              "column": 30
-            }
-          ],
-          "description": "Action creates and resolves run context for analysis generation."
         }
       ],
       "src_id": "6",
@@ -40652,6 +40652,17 @@
       "key_edges": [
         {
           "source": "github_action.py|github_action.generate_analysis",
+          "target": "repo_utils/__init__.py|repo_utils.__init__.checkout_repo",
+          "call_sites": [
+            {
+              "line": 115,
+              "column": 5
+            }
+          ],
+          "description": "GitHub Action entry points clone and checkout repositories into temporary working directories."
+        },
+        {
+          "source": "github_action.py|github_action.generate_analysis",
           "target": "repo_utils/__init__.py|repo_utils.__init__.clone_repository",
           "call_sites": [
             {
@@ -40671,17 +40682,6 @@
             }
           ],
           "description": "Creates temporary workspace directory for cloned repo."
-        },
-        {
-          "source": "github_action.py|github_action.generate_analysis",
-          "target": "repo_utils/__init__.py|repo_utils.__init__.checkout_repo",
-          "call_sites": [
-            {
-              "line": 115,
-              "column": 5
-            }
-          ],
-          "description": "GitHub Action entry points clone and checkout repositories into temporary working directories."
         }
       ],
       "src_id": "6",
@@ -40835,6 +40835,17 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "tool_registry/manifest.py|tool_registry.manifest.has_required_tools",
+          "target": "vscode_constants.py|vscode_constants.find_runnable",
+          "call_sites": [
+            {
+              "line": 327,
+              "column": 24
+            }
+          ],
+          "description": "Checks whether required binaries are runnable via VS Code constants."
+        },
+        {
           "source": "tool_registry/manifest.py|tool_registry.manifest.resolve_config",
           "target": "vscode_constants.py|vscode_constants.find_runnable",
           "call_sites": [
@@ -40855,17 +40866,6 @@
             }
           ],
           "description": "Tool installer creates configuration templates and resolves executable paths."
-        },
-        {
-          "source": "tool_registry/manifest.py|tool_registry.manifest.has_required_tools",
-          "target": "vscode_constants.py|vscode_constants.find_runnable",
-          "call_sites": [
-            {
-              "line": 327,
-              "column": 24
-            }
-          ],
-          "description": "Checks whether required binaries are runnable via VS Code constants."
         }
       ],
       "src_id": "8",
