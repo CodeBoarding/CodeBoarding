@@ -1,4 +1,6 @@
+import base64
 import copy
+import hashlib
 import logging
 import json
 from datetime import datetime, timezone
@@ -20,9 +22,14 @@ from repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
 
-# Documents at this version omit fields that are recoverable from what remains
-# (see ``expand_analysis_document``). Version 1 documents spelled them all out.
-ANALYSIS_FORMAT_VERSION = 2
+# Documents at this version omit fields that are recoverable from what remains and
+# reference methods by short content-derived ids (see ``expand_analysis_document``).
+# Version 2 dropped the derivable fields; version 1 spelled everything out.
+ANALYSIS_FORMAT_VERSION = 3
+
+# 60 bits of SHA-256 over the method key. Collisions are resolved by widening every id
+# at once, so the table stays a pure function of its content.
+_SYMBOL_ID_WIDTH = 10
 
 
 class RelationEdgeJson(BaseModel):
@@ -423,7 +430,7 @@ def from_analysis_to_json(
         "components_relations": [r.model_dump() for r in relations_json],
     }
 
-    return json.dumps(data, indent=2)
+    return json.dumps(intern_analysis_document(data), indent=2)
 
 
 def _compute_depth_level(
@@ -523,19 +530,49 @@ def build_unified_analysis_json(
         components=components_json,
         components_relations=relations_json,
     )
-    return unified.model_dump_json(indent=2, exclude_none=True)
+    return json.dumps(intern_analysis_document(unified.model_dump(mode="json", exclude_none=True)), indent=2)
+
+
+def intern_analysis_document(data: dict) -> dict:
+    """Replace every repeated method key with a short content-derived id.
+
+    A method key is ~200 bytes of path and signature and is repeated once per relation
+    edge endpoint and once per component that owns it. Each ``methods_index`` entry gains
+    an ``id``; edge endpoints and component members cite that id instead. Endpoints with
+    no indexed method (external libraries, unresolved references) keep their raw key —
+    a key always contains '|' and an id never does, so the two never blur.
+    """
+    interned = copy.deepcopy(data)
+    methods_index = interned.get("methods_index") or {}
+    ids = _symbol_ids(list(methods_index))
+    for key, entry in methods_index.items():
+        entry["id"] = ids[key]
+
+    _intern_components(interned.get("components") or [], ids)
+    _intern_relations(interned.get("components_relations") or [], ids)
+    interned.setdefault("metadata", {})["format_version"] = ANALYSIS_FORMAT_VERSION
+    return interned
 
 
 def expand_analysis_document(data: dict) -> dict:
     """Return *data* with every field the lean format omits written back out.
 
-    Restores the pre-v2 shape: each ``methods_index`` value regains the two halves of its
-    own key, each file regains its ``method_keys``, and each parent component regains the
-    union of its children's ``file_methods``. Version 1 documents already carry all three
-    and pass through untouched. The result is what ``codeboarding expand`` writes.
+    Restores the version 1 shape: interned ids become method keys again, each
+    ``methods_index`` value regains the two halves of its own key, each file regains its
+    ``method_keys``, and each parent component regains the union of its children's
+    ``file_methods``. Version 1 documents already carry all of it and pass through
+    untouched. The result is what ``codeboarding expand`` writes.
     """
     expanded = copy.deepcopy(data)
     methods_index = expanded.get("methods_index") or {}
+    version = (expanded.get("metadata") or {}).get("format_version", 1)
+
+    if version >= 3:
+        keys_by_id = {entry["id"]: key for key, entry in methods_index.items() if "id" in entry}
+        _expand_components(expanded.get("components") or [], keys_by_id)
+        _expand_relations(expanded.get("components_relations") or [], keys_by_id)
+        for entry in methods_index.values():
+            entry.pop("id", None)
 
     for key, entry in methods_index.items():
         if "file_path" in entry and "qualified_name" in entry:
@@ -589,6 +626,60 @@ def parse_unified_analysis(
         _hydrate_component_methods_from_refs(sub, methods_index)
 
     return root_analysis, sub_analyses
+
+
+def _symbol_ids(keys: list[str]) -> dict[str, str]:
+    """Map each method key to a short id derived from the key itself, widening on collision."""
+    width = _SYMBOL_ID_WIDTH
+    digests = {
+        key: base64.urlsafe_b64encode(hashlib.sha256(key.encode("utf-8")).digest()).decode("ascii") for key in keys
+    }
+    while True:
+        ids = {key: digest[:width] for key, digest in digests.items()}
+        if len(set(ids.values())) == len(ids):
+            return ids
+        width += 2
+        logger.warning("Symbol id collision at width %d; widening to %d", width - 2, width)
+
+
+def _intern_components(components: list[dict], ids: dict[str, str]) -> None:
+    for component in components:
+        component["file_methods"] = [
+            ids.get(key, key)
+            for group in (component.get("file_methods") or [])
+            for key in (_method_key(group["file_path"], qname) for qname in group.get("methods", []))
+        ]
+        _intern_relations(component.get("components_relations") or [], ids)
+        _intern_components(component.get("components") or [], ids)
+
+
+def _intern_relations(relations: list[dict], ids: dict[str, str]) -> None:
+    for relation in relations:
+        for field in ("key_edges", "all_edges"):
+            for edge in relation.get(field) or []:
+                edge["source"] = ids.get(edge["source"], edge["source"])
+                edge["target"] = ids.get(edge["target"], edge["target"])
+                edge["call_sites"] = [[site["line"], site["column"]] for site in edge.get("call_sites") or []]
+
+
+def _expand_components(components: list[dict], keys_by_id: dict[str, str]) -> None:
+    for component in components:
+        groups: dict[str, list[str]] = {}
+        for ref in component.get("file_methods") or []:
+            file_path, _, qualified_name = keys_by_id.get(ref, ref).partition("|")
+            groups.setdefault(file_path, []).append(qualified_name)
+        component["file_methods"] = [{"file_path": path, "methods": names} for path, names in groups.items()]
+        _expand_relations(component.get("components_relations") or [], keys_by_id)
+        _expand_components(component.get("components") or [], keys_by_id)
+
+
+def _expand_relations(relations: list[dict], keys_by_id: dict[str, str]) -> None:
+    for relation in relations:
+        for field in ("key_edges", "all_edges"):
+            for edge in relation.get(field) or []:
+                edge["source"] = keys_by_id.get(edge["source"], edge["source"])
+                edge["target"] = keys_by_id.get(edge["target"], edge["target"])
+                edge["call_sites"] = [{"line": line, "column": column} for line, column in edge.get("call_sites") or []]
 
 
 def _restore_parent_file_methods(components: list[dict]) -> list[dict]:
