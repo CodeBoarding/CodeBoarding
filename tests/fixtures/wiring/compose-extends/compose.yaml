@@ -1,0 +1,10 @@
+x-defaults: &defaults
+  hostname: web-host
+
+services:
+  web:
+    <<: *defaults
+    extends:
+      file: common.yml
+      service: base
+    container_name: web-box

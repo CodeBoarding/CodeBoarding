@@ -1,0 +1,4 @@
+services:
+  api:
+    build: ./api
+    image: acme/api

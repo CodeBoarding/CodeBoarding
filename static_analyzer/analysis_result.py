@@ -11,6 +11,7 @@ from static_analyzer.config import FAMILY_OWNER, SOURCE_EXTENSION_TO_LANGUAGE, L
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
+from static_analyzer.wiring_results import WiringResults
 
 logger = logging.getLogger(__name__)
 
@@ -181,8 +182,16 @@ class StaticAnalysisResults:
 
     results: dict[Language, LanguageResults] = field(default_factory=dict)
     diagnostics: dict[Language, FileDiagnosticsMap] = field(default_factory=dict)
+    # What wires the units together, from files no language server reads. Never a ``Language`` key:
+    # a compose file wires a Python service to a Java one.
+    wiring: WiringResults = field(default_factory=WiringResults)
     # Runtime-only warm-start base; never persisted into the static-analysis cache.
     incremental_base_results: "StaticAnalysisResults | None" = None
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        # A pickle written before the wiring bucket existed carries no such attribute; it loads as
+        # a run with no wiring rather than failing the first time something reads it.
+        self.__dict__.update({"wiring": WiringResults(), **state})
 
     def _bucket(self, language: Language) -> LanguageResults:
         return self.results.setdefault(FAMILY_OWNER.get(language, language), LanguageResults())

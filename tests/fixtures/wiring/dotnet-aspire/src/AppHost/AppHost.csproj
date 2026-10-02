@@ -1,0 +1,6 @@
+<Project Sdk="Aspire.AppHost.Sdk/9.0.0">
+  <ItemGroup>
+    <ProjectReference Include="..\Basket.Api\Basket.Api.csproj" />
+    <ProjectReference Include="..\Web\Web.csproj" />
+  </ItemGroup>
+</Project>

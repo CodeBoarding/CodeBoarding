@@ -1,0 +1,7 @@
+services:
+  app:
+    build: ./app
+  tool:
+    build: ./tool
+    profiles:
+      - debug
