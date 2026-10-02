@@ -1,7 +1,7 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-09-29T00:29:59.198964+00:00",
-  "overall_score": 0.9835728952772074,
+  "timestamp": "2026-10-02T11:30:07.453364+00:00",
+  "overall_score": 0.9842465753424657,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -19,8 +19,8 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 24,
-      "findings_count": 24,
+      "total_entities_checked": 23,
+      "findings_count": 23,
       "warning_count": 3,
       "score": 0.0,
       "finding_groups": [
@@ -51,13 +51,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"provider\" is not accessed",
-              "file_path": "agents/model_capabilities.py",
-              "line_start": 64,
-              "line_end": 64,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"_exc\" is not accessed",
               "file_path": "agents/retry.py",
               "line_start": 40,
@@ -69,20 +62,6 @@
               "file_path": "codeboarding_workflows/analysis.py",
               "line_start": 29,
               "line_end": 29,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 440,
-              "line_end": 440,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 453,
-              "line_end": 453,
               "metric_value": 0.0
             },
             {
@@ -175,6 +154,20 @@
               "line_start": 1454,
               "line_end": 1454,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 453,
+              "line_end": 453,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 466,
+              "line_end": 466,
+              "metric_value": 0.0
             }
           ]
         },
@@ -236,12 +229,6 @@
     },
     {
       "file_path": "install.py",
-      "total_findings": 1,
-      "warning_findings": 0,
-      "composite_risk_score": 10.0
-    },
-    {
-      "file_path": "agents/model_capabilities.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
