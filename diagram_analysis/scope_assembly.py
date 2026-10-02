@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable, Collection
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge
+from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge, static_relation_label
 from agents.component_ownership import ComponentOwnershipIndex
 from agents.content_hash import SourceCache
 from agents.relation_edges import (
@@ -18,7 +18,6 @@ from agents.relation_edges import (
 from agents.scope_analysis_agent import ScopeAnalysisResult
 from agents.scope_ids import ROOT_SCOPE_ID
 from clustering_ids import CodeBoardingClusterIds
-from constants import DEFAULT_STATIC_RELATION_LABEL
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
 from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.cfg import Edge
@@ -217,14 +216,15 @@ class ScopeAssembler:
 
         # A group the model was asked about drops every relation it touches. Where the model did
         # not label one back, keep the label the previous run gave it rather than resetting a
-        # still-connected edge to the generic default.
+        # still-connected edge to the generic default. A label that was itself the static
+        # default is not carried: the merge recomputes it from today's edges.
         carried = [
             relation.model_copy(deep=True)
             for pair, relation in existing_by_pair.items()
             if pair not in seen_pairs
             and pair not in preserved_pairs
             and relation.relation.strip()
-            and relation.relation != DEFAULT_STATIC_RELATION_LABEL
+            and not relation.has_default_label
             and scope.connection_between(*pair) is not None
         ]
         for relation in carried:
@@ -305,13 +305,14 @@ class ScopeAssembler:
             append_or_merge_relation(
                 merged,
                 Relation.from_edges(
-                    DEFAULT_STATIC_RELATION_LABEL,
+                    static_relation_label(edges),
                     source.name if source is not None else connection.source_group_id,
                     target.name if target is not None else connection.target_group_id,
                     connection.source_group_id,
                     connection.target_group_id,
                     edges,
                     True,
+                    default_label=True,
                 ),
             )
 

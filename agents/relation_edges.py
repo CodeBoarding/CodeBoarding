@@ -345,8 +345,16 @@ def _restore_baseline_orientation(relation: Relation, baseline_by_pair: dict) ->
 
 
 def _restore_baseline_wording(fresh: Relation, previous: Relation) -> Relation:
-    """Restore baseline wording and highlighting onto fresh edge metadata."""
-    wording = {"relation": previous.relation, "evidence": previous.evidence}
+    """Restore baseline wording and highlighting onto fresh edge metadata.
+
+    The marker travels with the wording: a restored phrase left marked as a default would be
+    recomputed away on the next run, which is the churn this function exists to stop.
+    """
+    wording = {
+        "relation": previous.relation,
+        "evidence": previous.evidence,
+        "default_label": previous.default_label,
+    }
     if not previous.key_edges:
         return fresh.model_copy(update=wording)
     highlighted = {

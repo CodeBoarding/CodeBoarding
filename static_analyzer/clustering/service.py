@@ -11,8 +11,7 @@ from typing import Any
 from clustering_ids import ROOT_SCOPE_ID, ClusterId, ComponentId, ScopeId
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cfg import CallGraph
-from static_analyzer.cfg.edge import EdgeKind
+from static_analyzer.cfg import AFFINE_REFERENCE_KINDS, CallGraph
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.models import (
     ClusterConnectionEdge,
@@ -39,10 +38,6 @@ from static_analyzer.clustering.names.draft import DETERMINISTIC_GROUPERS, Links
 from static_analyzer.clustering.names.replay import FALLBACK, PREFIX, TERM, divergence
 from static_analyzer.clustering.names.spec import Prefix, is_root
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
-
-AFFINE_REFERENCE_KINDS = frozenset({EdgeKind.INHERITS, EdgeKind.TYPEREF})
-"""Reference edges that count as links between files, with the call edges. CONTAINS never
-crosses a file; IMPORT is not emitted yet and would be too dense to weigh."""
 
 FILE_STRATEGY = "file_leaves"
 """Recorded on a ``ClusterResult`` whose leaves are files: the unit the names partition."""
