@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 #: A manifest bigger than this is machine-generated or vendored, and reading it is not worth the cost.
 MAX_BYTES = 2_000_000
 
+#: A configuration file states a handful of facts. Past this, a YAML is a catalogue — a provider
+#: list, an API specification, a lockfile — and reading it costs far more than it ever declares.
+MAX_CONFIGURATION_BYTES = 128_000
+
+#: A file whose name says a tool wrote it: nothing in it is a decision anyone made.
+GENERATED_FILE = re.compile(
+    r"(?i)\.(?:designer|g|generated)\.[a-z]+$|modelsnapshot\.cs$|_pb2\.py$|\.pb\.go$|lock\.ya?ml$"
+)
+
 #: Directories the pass never walks: dependency installs, build output, tooling caches.
 SKIP_DIRS = frozenset(
     {
@@ -71,8 +80,18 @@ TEST_FILE = re.compile(
     r"|[._-](?:tests?|specs?)\.[^.]+$|[._-][A-Za-z0-9]*Tests?\.(?:csproj|fsproj|java|kt|cs)$"
 )
 
+#: What a reader may open for a literal service name or an environment read (`docs/design/wiring.md` §3).
+#: Source is never scanned for structure — that is the language servers' work — only for these two.
+SOURCE_SUFFIXES = frozenset(
+    {".cs", ".java", ".kt", ".scala", ".groovy", ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+     ".go", ".rb", ".php", ".rs", ".vue", ".svelte"}
+)  # fmt: skip
+
 #: A directory holding one of these is a template to instantiate, not a system to read.
 TEMPLATE_MARKERS = frozenset({".template.config", "cookiecutter.json", "copier.yml", "copier.yaml"})
+
+#: A `.env` written to be copied is documentation of what a deployment may set, and sets nothing.
+DOCUMENTATION_DOTENV = frozenset({".env.example", ".env.sample", ".env.template", ".env.dist"})
 
 
 class FileKind(StrEnum):
@@ -101,6 +120,9 @@ class FileKind(StrEnum):
     GEMSPEC = "gemspec"
     MIX = "mix"
     SPRING_CONFIG = "spring_config"
+    DOTNET_SETTINGS = "dotnet_settings"
+    PROPERTIES = "properties"
+    NGINX = "nginx"
     DOTENV = "dotenv"
 
 
@@ -125,6 +147,9 @@ _BY_NAME: dict[str, FileKind] = {
     "chart.yml": FileKind.HELM_CHART,
 }
 
+#: Where nginx keeps configuration that has no extension: `conf.d`, `sites-enabled`, an include dir.
+_NGINX_DIR = re.compile(r"(?i)(?:^|/)(?:nginx[\w.-]*|conf\.d|sites-(?:enabled|available))(?:/|$)")
+
 _BY_PATTERN: tuple[tuple[re.Pattern[str], FileKind], ...] = (
     (re.compile(r"(?i)^(?:docker-)?compose[\w.-]*\.ya?ml$"), FileKind.COMPOSE),
     (re.compile(r"(?i)^skaffold[\w.-]*\.ya?ml$"), FileKind.SKAFFOLD),
@@ -136,6 +161,9 @@ _BY_PATTERN: tuple[tuple[re.Pattern[str], FileKind], ...] = (
     (re.compile(r"(?i)^[\w.-]+\.gemspec$"), FileKind.GEMSPEC),
     (re.compile(r"(?i)^[\w.-]+\.(?:cs|fs)proj$"), FileKind.DOTNET_PROJECT),
     (re.compile(r"(?i)^[\w.-]+\.slnx?$"), FileKind.DOTNET_SOLUTION),
+    (re.compile(r"(?i)^appsettings[\w.-]*\.json$"), FileKind.DOTNET_SETTINGS),
+    (re.compile(r"(?i)^[\w.-]*\.properties$"), FileKind.PROPERTIES),
+    (re.compile(r"(?i)^nginx[\w.-]*\.conf$|^[\w.-]+\.conf$"), FileKind.NGINX),
     (re.compile(r"^\.env(?:\.[\w.-]+)?$"), FileKind.DOTENV),
     (re.compile(r"(?i)^[\w.-]*\.ya?ml$"), FileKind.YAML),
 )
@@ -201,6 +229,10 @@ def classify(directory: str, name: str) -> FileKind | None:
     if directory.startswith(".github"):
         return None
     lowered = name.lower()
+    if lowered in DOCUMENTATION_DOTENV:
+        return None
+    if "." not in name and _NGINX_DIR.search(directory):
+        return FileKind.NGINX
     if lowered in _BY_NAME:
         return _BY_NAME[lowered]
     for pattern, kind in _BY_PATTERN:
@@ -227,12 +259,28 @@ class Scan:
         self._ignore = RepoIgnoreManager(repo_root)
         self._text: dict[str, str] = {}
         self._documents: dict[str, list[dict]] = {}
+        self._key_lines: dict[str, dict[str, int]] = {}
         self._walk()
 
     def paths_of(self, *kinds: FileKind) -> tuple[str, ...]:
         """Every scanned path of these kinds, sorted, so a reader's output order is the tree's."""
         wanted = set(kinds)
         return tuple(sorted(path for path, file in self.files.items() if file.kind in wanted))
+
+    def sources(self, inside: str = "") -> tuple[str, ...]:
+        """The source files a reader may look inside: never a test, never an excluded place."""
+        prefix = f"{inside}/" if inside else ""
+        found = []
+        for directory, names in sorted(self.by_dir.items()):
+            if inside and directory != inside and not directory.startswith(prefix):
+                continue
+            for name in names:
+                path = f"{directory}/{name}" if directory else name
+                tooling = ".config." in name or name.startswith(".") or GENERATED_FILE.search(name)
+                if os.path.splitext(name)[1] in SOURCE_SUFFIXES and not TEST_FILE.search(name) and not tooling:
+                    if not self._ignore.gitignore_spec.match_file(path):
+                        found.append(path)
+        return tuple(found)
 
     def names_in(self, directory: str) -> tuple[str, ...]:
         """The file names directly inside *directory*, whether the allowlist names them or not."""
@@ -291,6 +339,25 @@ class Scan:
         self._documents[path] = [document for document in loaded if isinstance(document, dict)]
         return self._documents[path]
 
+    def key_lines(self, path: str) -> dict[str, int]:
+        """The one-based line of every mapping key in the file, by its dotted path from the document root.
+
+        A list item is addressed by its index (`services.api.ports.0`). The first document that
+        writes a path wins, and a file that does not parse has no lines.
+        """
+        if path in self._key_lines:
+            return self._key_lines[path]
+        lines: dict[str, int] = {}
+        text = self.text(path)
+        if text:
+            try:
+                for document in yaml.compose_all(text, Loader=_Loader):
+                    _collect_lines(document, "", lines)
+            except (yaml.YAMLError, RecursionError):
+                pass
+        self._key_lines[path] = lines
+        return lines
+
     def json_object(self, path: str) -> dict:
         """The file's top-level JSON object; empty when it does not parse."""
         text = self.text(path)
@@ -309,6 +376,26 @@ class Scan:
         index = text.find(token, start)
         return text.count("\n", 0, index) + 1 if index >= 0 else 1
 
+    def line_where(self, path: str, key: str, value: str) -> int:
+        """The one-based line a setting is written on: where *key* is followed by *value*.
+
+        Why both halves: a key repeated across documents (`import:` in two of them) and a value
+        repeated across settings (`0.7` under two of them) each name the wrong line on their own,
+        and a setting is the one place where its own key and its own value meet.
+        """
+        text = self.text(path)
+        start = 0
+        while key and (index := text.find(key, start)) >= 0:
+            end = text.find("\n", index)
+            if _holds(text[index : end if end >= 0 else len(text)], value):
+                return text.count("\n", 0, index) + 1
+            start = index + 1
+        # A value written with escapes (`\\` in JSON) never equals its parsed self: the key's line, then.
+        index = text.find(value) if value else -1
+        if index >= 0:
+            return text.count("\n", 0, index) + 1
+        return self.line_of(path, key)
+
     def diagnose(self, code: DiagnosticCode, message: str, *paths: str) -> None:
         self.diagnostics.append(Diagnostic(code=code, message=message, paths=tuple(paths)))
 
@@ -322,7 +409,7 @@ class Scan:
             self.diagnose(DiagnosticCode.IGNORED_MANIFEST, f"{path} is larger than {MAX_BYTES // 1_000_000} MB", path)
             return ""
         try:
-            return target.read_text(encoding="utf-8", errors="replace")
+            return target.read_text(encoding="utf-8-sig", errors="replace")
         except OSError as error:
             self.diagnose(DiagnosticCode.UNREADABLE_MANIFEST, f"{path} could not be read: {error.strerror}", path)
             return ""
@@ -395,6 +482,32 @@ class Scan:
     def _relative(self, absolute: str) -> str:
         relative = os.path.relpath(absolute, self.repo_root).replace(os.sep, "/")
         return "" if relative == "." else relative
+
+
+def _holds(line: str, value: str) -> bool:
+    """Whether the line writes this value, rather than a longer one it is a fragment of.
+
+    Why: `30` reads as written on a line setting `300`, and a setting's own line is the one thing
+    its value is supposed to identify.
+    """
+    if not value:
+        return True
+    return re.search(rf"(?<![\w.]){re.escape(value)}(?![\w.])", line) is not None
+
+
+def _collect_lines(node: yaml.Node | None, prefix: str, lines: dict[str, int]) -> None:
+    if isinstance(node, yaml.MappingNode):
+        for key, value in node.value:
+            if not isinstance(key, yaml.ScalarNode):
+                continue
+            path = f"{prefix}.{key.value}" if prefix else str(key.value)
+            lines.setdefault(path, key.start_mark.line + 1)
+            _collect_lines(value, path, lines)
+    elif isinstance(node, yaml.SequenceNode):
+        for index, value in enumerate(node.value):
+            path = f"{prefix}.{index}" if prefix else str(index)
+            lines.setdefault(path, value.start_mark.line + 1)
+            _collect_lines(value, path, lines)
 
 
 class _Loader(yaml.SafeLoader):

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: acme/web:1
+          env:
+            - name: CART_ADDR
+              value: cart:7070
+            - name: FROM_MAP
+              valueFrom:
+                configMapKeyRef:
+                  name: settings
+                  key: LEDGER_ADDR
+          envFrom:
+            - configMapRef:
+                name: service-addresses
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: settings
+data:
+  LEDGER_ADDR: ledger:8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: front
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api/cart/{id}
+            backend:
+              service:
+                name: cart

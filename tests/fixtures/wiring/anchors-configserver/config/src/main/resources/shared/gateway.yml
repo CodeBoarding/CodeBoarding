@@ -1,0 +1,5 @@
+zuul:
+  routes:
+    account-service:
+      path: /accounts/**
+      serviceId: account-service

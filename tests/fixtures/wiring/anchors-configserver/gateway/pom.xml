@@ -1,0 +1,4 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <parent><artifactId>shop</artifactId><relativePath>../pom.xml</relativePath></parent>
+  <artifactId>gateway</artifactId>
+</project>
