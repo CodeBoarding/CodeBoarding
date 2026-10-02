@@ -1,6 +1,7 @@
 """Build file indexes and refresh method spans from live control-flow graphs."""
 
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
@@ -17,7 +18,7 @@ from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
+from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES, NodeType
 from static_analyzer.node import Node
 
 
@@ -31,7 +32,9 @@ def build_file_methods_from_nodes(
     file_cache = source_cache if source_cache is not None else {}
 
     for node in nodes:
-        if node.type not in CALLABLE_TYPES | CLASS_TYPES:
+        # A FILE node is an artifact the wiring layer put on a component — a manifest an arrow
+        # lands on — and it is indexed like any other member so file coverage counts it.
+        if node.type not in CALLABLE_TYPES | CLASS_TYPES | {NodeType.FILE}:
             continue
         file_path = normalize_repo_path(node.file_path, repo_dir)
         method_name = node.fully_qualified_name.split(".")[-1]
@@ -60,6 +63,33 @@ def build_file_methods_from_nodes(
         )
         for file_path, methods in sorted(by_file.items())
     ]
+
+
+def index_artifact_files(analysis: AnalysisInsights, nodes: Iterable[Node], repo_dir: Path) -> None:
+    """Add the wiring layer's artifact files — the manifests its arrows land on — to the analysis's file index.
+
+    A FILE node is written the way a member is, so the document's `files` and `methods_index` hold
+    the key a relation edge names, and file coverage counts the file as analysed; no component
+    lists it, because a manifest belongs to no partition (§4).
+    """
+    source_cache: SourceCache = {}
+    for node in sorted((node for node in nodes if node.type is NodeType.FILE), key=lambda n: n.fully_qualified_name):
+        file_path = normalize_repo_path(node.file_path, repo_dir)
+        source_lines = read_source_lines(repo_dir, file_path, source_cache)
+        entry = FileEntry(
+            methods=[
+                MethodEntry(
+                    qualified_name=node.fully_qualified_name,
+                    start_line=node.line_start,
+                    end_line=node.line_end,
+                    node_type=node.type.name,
+                    content_hash=hash_method_body(source_lines, node.line_start, node.line_end),
+                )
+            ],
+            content_hash=hash_whole_file(source_lines),
+        )
+        entry.module_hash = hash_file_residual(source_lines, [MethodSpan(node.line_start, node.line_end)])
+        analysis.files.setdefault(file_path, FileEntry()).merge_from(entry)
 
 
 def build_files_index(

@@ -1,0 +1,5 @@
+{
+  "name": "@acme/root",
+  "private": true,
+  "workspaces": ["a", "b", "web"]
+}

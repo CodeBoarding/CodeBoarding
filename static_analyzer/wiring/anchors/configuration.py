@@ -94,15 +94,18 @@ def read(scan: Scan, owners: Owners, *, paths: Sequence[str] | None = None) -> l
 
 def configuration_files(scan: Scan, owners: Owners) -> list[str]:
     """The files the pass reads as configuration, in walk order."""
-    files = [
-        path
-        for path in scan.paths_of(
-            FileKind.SPRING_CONFIG, FileKind.PROPERTIES, FileKind.DOTNET_SETTINGS, FileKind.DOTENV
-        )
+    files = []
+    for path in scan.paths_of(FileKind.SPRING_CONFIG, FileKind.PROPERTIES, FileKind.DOTNET_SETTINGS, FileKind.DOTENV):
         # A catalogue is a catalogue in whatever notation it is written: the cap is about how much
         # a file declares, not about YAML.
-        if scan.files[path].size <= MAX_CONFIGURATION_BYTES
-    ]
+        if scan.files[path].size > MAX_CONFIGURATION_BYTES:
+            scan.diagnose(
+                DiagnosticCode.IGNORED_MANIFEST,
+                f"{path} is larger than {MAX_CONFIGURATION_BYTES // 1000} KB and is read as data, not configuration",
+                path,
+            )
+            continue
+        files.append(path)
     files += [path for path in scan.paths_of(FileKind.YAML) if _is_configuration_yaml(scan, path, owners)]
     return sorted(files)
 

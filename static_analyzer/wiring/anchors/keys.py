@@ -128,10 +128,15 @@ class Names:
         for unit in units:
             for alias in unit.aliases:
                 claims.setdefault(alias_key(alias), set()).add(unit.id)
+        self._claims = {name: tuple(sorted(ids)) for name, ids in claims.items()}
         self._by_name = {name: next(iter(ids)) for name, ids in claims.items() if len(ids) == 1}
 
     def unit_of(self, name: str) -> str:
         return self._by_name.get(alias_key(name), "")
+
+    def candidates(self, name: str) -> tuple[str, ...]:
+        """Every unit answering to a name. More than one is the ambiguity §6 rule 7 reports."""
+        return self._claims.get(alias_key(name), ())
 
 
 def _last_segment(key: str) -> str:
