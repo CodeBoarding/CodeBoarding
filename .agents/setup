@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo 'Installing Python development dependencies'
+uv sync --extra dev
+
+echo 'Installing tools for Dart/Flutter evaluation'
+mkdir -p "$HOME/.local/bin"
+uv run python - <<'PY'
+from pathlib import Path
+from tool_registry.installers import install_native_tools
+from tool_registry.paths import platform_bin_dir
+from tool_registry.registry import TOOL_REGISTRY
+
+root = Path.home() / '.local/share/codeboarding-orb-tools'
+install_native_tools(root, [dep for dep in TOOL_REGISTRY if dep.key == 'tokei'])
+target = Path.home() / '.local/bin/tokei'
+target.unlink(missing_ok=True)
+target.symlink_to(platform_bin_dir(root) / 'tokei')
+PY
+
+node_tools="$HOME/.local/share/codeboarding-orb-node"
+if [[ ! -x "$node_tools/node_modules/.bin/typescript-language-server" ]]; then
+    npm install --prefix "$node_tools" --no-audit --no-fund typescript-language-server@4.3.4 typescript@5.7
+fi
+ln -sfn "$node_tools/node_modules/.bin/typescript-language-server" "$HOME/.local/bin/typescript-language-server"
+
+sdk_root="$HOME/.local/share/flutter-eval"
+if [[ ! -x "$sdk_root/flutter/bin/flutter" ]]; then
+    mkdir -p "$sdk_root"
+    archive=$(mktemp)
+    trap 'rm -f "$archive"' EXIT
+    curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz -o "$archive"
+    echo "a7c82f551a9eae018e078f6bb186171e5a77920d35a3d75a61d9a593d0a9e4ae  $archive" | sha256sum -c -
+    tar -xf "$archive" -C "$sdk_root"
+fi
+ln -sfn "$sdk_root/flutter/bin/flutter" "$HOME/.local/bin/flutter"
+ln -sfn "$sdk_root/flutter/bin/dart" "$HOME/.local/bin/dart"
+"$HOME/.local/bin/tokei" --version
+"$HOME/.local/bin/flutter" --version

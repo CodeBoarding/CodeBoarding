@@ -198,6 +198,7 @@ static_analyzer/servers/*
 
 # Evaluation artifacts
 evals/artifacts/
+.amp/portals/
 
 # CodeBoarding
 # - local analysis cache (sqlite DBs, pickles, lock files)
