@@ -210,6 +210,15 @@ TOOL_REGISTRY: list[ToolDependency] = [
         js_entry_file="intelephense.js",
         js_entry_parent="intelephense",
     ),
+    ToolDependency(
+        key="bash",
+        binary_name="bash-language-server",
+        kind=ToolKind.NODE,
+        config_section=ConfigSection.LSP_SERVERS,
+        npm_packages=["bash-language-server@5.6.0"],
+        js_entry_file="cli.js",
+        js_entry_parent="bash-language-server",
+    ),
     # csharp-ls ships only as a NuGet dotnet-tool; installed via ``dotnet tool install``.
     # Pin to 0.24.0 so C# document symbols work reliably for modern .NET 10
     # repositories. ``--tool-path`` avoids a misleading "DotnetToolSettings.xml

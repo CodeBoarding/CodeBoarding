@@ -17,7 +17,7 @@ def update_command_paths(bin_dir):
     is_windows = platform.system().lower() == "windows"
 
     # Languages that need 'node' prefix on Windows
-    node_languages = {"typescript", "python", "php"}
+    node_languages = {"typescript", "python", "php", "bash"}
 
     for section in VSCODE_CONFIG.values():
         for key, value in section.items():
@@ -41,6 +41,8 @@ def update_command_paths(bin_dir):
                     or find_runnable(bin_dir, "intelephense", "node_modules")
                     or cmd[0]
                 )
+            elif key == "bash":
+                cmd[0] = find_runnable(bin_dir, "cli.js", "bash-language-server") or cmd[0]
             elif key == "java":
                 # Find JDTLS root directory
                 jdtls_dir = os.path.join(bin_dir, "bin", "jdtls")
@@ -76,6 +78,13 @@ def update_config(bin_dir=None):
 
 VSCODE_CONFIG = {
     "lsp_servers": {
+        "bash": {
+            "name": "Bash Language Server",
+            "command": ["bash-language-server", "start"],
+            "languages": ["bash"],
+            "file_extensions": [".sh", ".bash"],
+            "install_commands": "npm install bash-language-server@5.6.0",
+        },
         "python": {
             "name": "Pyright Language Server",
             "command": ["pyright-langserver", "--stdio"],

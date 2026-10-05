@@ -152,7 +152,7 @@ codeboarding-render /path/to/analysis.json --format mdx --output-dir /path/to/do
 python codeboarding_cli/render.py ../../demo/markitdown/.codeboarding/analysis.json --format md
 ```
 
-`python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
+`python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, PHP, and Bash language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
 
 ## Configuration
 
@@ -245,6 +245,7 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 ## Supported stack
 
 - Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#.
+- Bash: basic LSP symbol support for `.sh` and `.bash` files via `bash-language-server`; no extensionless script detection or Bash call-graph parsing yet.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, LiteLLM proxy, and more.
 
 ## Examples
