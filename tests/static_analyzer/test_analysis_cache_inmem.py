@@ -7,6 +7,7 @@ the cached analysis-dict up to date in memory before saving a new pkl.
 
 import unittest
 import tempfile
+import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -14,7 +15,7 @@ from static_analyzer import EngineConfig, StaticAnalyzer
 from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, merge_results
 from static_analyzer.analysis_result import AnalysisData, CallSiteLocation, InvalidatedEdge, StaticAnalysisResults
 from static_analyzer.config import Language, NodeType
-from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.node import Node
 from static_analyzer.graph_definitions import GraphIndex, potential_calls, implemented_by
 from static_analyzer.incremental_orchestrator import (
@@ -23,6 +24,7 @@ from static_analyzer.incremental_orchestrator import (
     update_cfg_for_changed_files,
 )
 from static_analyzer.engine.adapters.python_adapter import PythonAdapter
+from static_analyzer.engine.adapters.dart_adapter import DartAdapter
 from static_analyzer.engine.models import CallSite, ExternalCallSite
 from static_analyzer.engine.utils import definition_location
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
@@ -370,6 +372,47 @@ if __name__ == "__main__":
 
 
 class TestWarmStartResolvesAgainstCachedDeclarations:
+    @pytest.mark.parametrize("deleted", [False, True])
+    def test_value_reference_dependents_are_rebuilt_without_touching_unrelated_files(
+        self, tmp_path: Path, deleted: bool
+    ) -> None:
+        graph = CallGraph(language="dart")
+        paths = {name: tmp_path / f"{name}.dart" for name in ("provider", "proxy", "consumer", "unrelated")}
+        for name, path in paths.items():
+            path.write_text("final value = 1;\n")
+            graph.add_node(Node(name, NodeType.VARIABLE, str(path), 1, 1))
+        for source, target in [("consumer", "proxy"), ("proxy", "provider"), ("provider", "proxy")]:
+            graph.add_reference_edge(ReferenceEdge(source, target, EdgeKind.VALUE))
+        cached = _result(graph, source_files=[str(path) for path in paths.values()])
+        if deleted:
+            paths["provider"].unlink()
+        partial_graph = graph.filter(
+            lambda node: node.fully_qualified_name != "unrelated" and Path(node.file_path).exists()
+        )
+        partial = {
+            **_result(partial_graph, source_files=[node.file_path for node in partial_graph.nodes.values()]),
+            "external_call_sites": [],
+        }
+        client = MagicMock()
+        client.get_collected_diagnostics.return_value = {}
+        ignore = MagicMock()
+        ignore.should_ignore.return_value = False
+        changed = {paths["provider"]}
+        with (
+            patch("static_analyzer.incremental_orchestrator.CallGraphBuilder") as builder,
+            patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format", return_value=partial),
+        ):
+            updated = update_cfg_for_changed_files(cached, changed, DartAdapter(), tmp_path, tmp_path, client, ignore)
+        assert set(builder.return_value.build.call_args.args[0]) == {
+            path for name, path in paths.items() if name != "unrelated" and path.exists()
+        }
+        assert changed == {paths["provider"]}
+        assert {sym.qualified_name for sym in builder.return_value.build.call_args.kwargs["known_declarations"]} == {
+            "unrelated"
+        }
+        assert set(updated["call_graph"].nodes) == (set(paths) - ({"provider"} if deleted else set()))
+        assert updated["call_graph"].reference_edges == partial_graph.reference_edges
+
     def test_the_partial_build_gets_the_unchanged_declarations_and_hands_back_what_lies_outside(
         self, tmp_path: Path
     ) -> None:

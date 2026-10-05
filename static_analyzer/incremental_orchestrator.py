@@ -18,7 +18,7 @@ from static_analyzer.analysis_cache import (
     invalidate_files,
     merge_results,
 )
-from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
@@ -63,6 +63,21 @@ def update_cfg_for_changed_files(
     """
     if not changed_files:
         return cached_analysis
+
+    # Value references have no call sites to replay; re-read their dependent files instead.
+    graph = AnalysisData.from_dict(cached_analysis).call_graph
+    dependents: dict[Path, set[Path]] = {}
+    for ref in graph.reference_edges:
+        if ref.kind == EdgeKind.VALUE:
+            source = Path(graph.nodes[ref.src].file_path)
+            target = Path(graph.nodes[ref.dst].file_path)
+            dependents.setdefault(target, set()).add(source)
+    changed_files = set(changed_files)
+    pending = list(changed_files)
+    while pending:
+        for dependent in dependents.get(pending.pop(), set()) - changed_files:
+            changed_files.add(dependent)
+            pending.append(dependent)
 
     existing_files = {f for f in changed_files if f.exists()}
     deleted_files = {f for f in changed_files if not f.exists()}

@@ -14,8 +14,11 @@ from static_analyzer.engine.edge_builder import (
     build_edges_via_definitions,
 )
 from static_analyzer.config import NodeType
+from static_analyzer.cfg import EdgeKind
+from static_analyzer.engine.adapters.dart_adapter import DartAdapter
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
+from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.exceptions import StaticAnalysisFatalError
@@ -632,6 +635,35 @@ def _answer(lsp: MagicMock, answers: dict[tuple[int, int], tuple[int, int]], pat
 
 
 class TestFunctionValuedTargets:
+    @pytest.mark.parametrize("argument", ["settingsProvider", "provider: settingsProvider", "pkg.settingsProvider"])
+    def test_dart_provider_argument_is_a_reference_not_a_call(self, tmp_path: Path, argument: str):
+        src = tmp_path / "app.dart"
+        src.write_text(f"final settingsProvider = Object();\nvoid run() {{\n  ref.read({argument});\n}}\n")
+        adapter = DartAdapter()
+        lsp = _make_lsp()
+        ctx = EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector())
+        _register(
+            ctx,
+            src,
+            [
+                _sym("settingsProvider", "app.settingsProvider", NodeType.VARIABLE, str(src), 0, 6, 0, 34),
+                _sym("run", "app.run", NodeType.FUNCTION, str(src), 1, 5, 3, 1),
+            ],
+        )
+        _answer(lsp, {(2, 11 + argument.index("settingsProvider")): (0, 6)}, src)
+        edges = build_edges_via_definitions(adapter, ctx, [src])
+        assert edges == {}
+        assert ctx.value_references == {("app.run", "app.settingsProvider")}
+        result = LanguageAnalysisResult(
+            cfg=CallFlowGraph.from_edge_set(edges), value_references=sorted(ctx.value_references)
+        )
+        graph = convert_to_codeboarding_format(ctx.symbol_table, result, adapter)["call_graph"]
+        assert graph.nodes["app.settingsProvider"].type == NodeType.VARIABLE
+        assert {(ref.src, ref.dst, ref.kind) for ref in graph.reference_edges} == {
+            ("app.run", "app.settingsProvider", EdgeKind.VALUE)
+        }
+        assert not graph.edges
+
     def test_a_callback_bound_to_a_const_is_a_method_group_target(self, tmp_path: Path):
         lsp = _make_lsp()
         ctx, adapter = _definitions_ctx(lsp)

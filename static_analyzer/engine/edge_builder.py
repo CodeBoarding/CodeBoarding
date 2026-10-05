@@ -13,7 +13,7 @@ from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.progress import ProgressLogger
-from static_analyzer.config import NodeType
+from static_analyzer.config import DATA_TYPES, NodeType
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
@@ -332,6 +332,14 @@ def _resolve_definitions(
                     or adapter.is_class_like(target.kind)
                     or si.declares_function_value(target.file_path, target.start_line, target.start_char)
                 ):
+                    source = st.attribution_symbol(caller)
+                    if (
+                        adapter.resolves_value_references
+                        and target.kind in DATA_TYPES
+                        and not st.is_local_variable(target)
+                        and _is_valid_edge(source, target)
+                    ):
+                        ctx.value_references.add((source.qualified_name, target.qualified_name))
                     continue
                 if kind in (MEMBER_READ, MEMBER_WRITE) and not adapter.is_callable(target.kind):
                     continue

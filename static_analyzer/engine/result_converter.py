@@ -51,6 +51,8 @@ def convert_to_codeboarding_format(
     for edge in result.cfg.edges:
         edge_participants.add(edge.source)
         edge_participants.add(edge.destination)
+    for source, target in result.value_references:
+        edge_participants.update((source, target))
 
     # Build Node objects from the engine's symbol table
     symbol_nodes: dict[str, Node] = {}
@@ -200,6 +202,8 @@ def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult, 
         call_graph.add_reference_edge(ReferenceEdge(src, dst, EdgeKind.TYPEREF))
     for src, dst in result.import_edges:
         call_graph.add_reference_edge(ReferenceEdge(src, dst, EdgeKind.IMPORT))
+    for src, dst in result.value_references:
+        call_graph.add_reference_edge(ReferenceEdge(src, dst, EdgeKind.VALUE))
 
 
 def _count_by_kind(reference_edges: list[ReferenceEdge]) -> Counter:

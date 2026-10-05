@@ -20,3 +20,4 @@ class EdgeBuildContext:
     # Calls the server resolved into files this engine has no symbols for; the
     # merged graph of every engine is where they can still become edges.
     external_call_sites: list[ExternalCallSite] = field(default_factory=list)
+    value_references: set[tuple[str, str]] = field(default_factory=set)

@@ -7,8 +7,9 @@ from pathlib import Path
 import yaml
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.config import Language
+from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.source_inspector import SourceInspector
 from tool_registry.paths import dart_binary
 
 
@@ -29,11 +30,30 @@ class DartAdapter(LanguageAdapter):
     def fail_on_empty_symbols(self) -> bool:
         return True
 
+    @property
+    def resolves_value_references(self) -> bool:
+        return True
+
     def get_lsp_command(self, project_root: Path) -> list[str]:
         binary = dart_binary()
         if not binary:
             raise RuntimeError("Dart SDK not found. Install Dart or Flutter and add its bin directory to PATH.")
         return [binary, "language-server"]
+
+    def record_document_symbols(self, file_path: Path, symbols: list[dict], project_root: Path) -> None:
+        """Preserve executable accessors and give setters identities distinct from their getters."""
+        inspector = SourceInspector()
+        pending = [(symbol, False) for symbol in symbols]
+        while pending:
+            symbol, in_class = pending.pop()
+            position = symbol["selectionRange"]["start"]
+            setter = inspector.declares_setter(file_path, position["line"], position["character"])
+            getter = inspector.declares_getter(file_path, position["line"], position["character"])
+            if getter or setter:
+                symbol["kind"] = NodeType.METHOD if in_class else NodeType.FUNCTION
+                if setter:
+                    symbol["name"] += "(set)"
+            pending.extend((child, self.is_class_like(symbol["kind"])) for child in symbol.get("children", []))
 
     def prepare_project(self, project_root: Path) -> None:
         binary = self.get_lsp_command(project_root)[0]

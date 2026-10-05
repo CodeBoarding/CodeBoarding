@@ -129,6 +129,7 @@ class CallGraphBuilder:
             package_dependencies=package_deps,
             source_files=abs_files,
             external_call_sites=ctx.external_call_sites,
+            value_references=sorted(ctx.value_references),
         )
 
     def _probe_timeout(self, total_files: int) -> int:

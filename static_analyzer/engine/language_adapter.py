@@ -329,6 +329,11 @@ class LanguageAdapter(ABC):
         return True
 
     @property
+    def resolves_value_references(self) -> bool:
+        """Whether non-callable values passed as arguments contribute declaration references."""
+        return False
+
+    @property
     def expands_virtual_dispatch(self) -> bool:
         """Whether to add edges to overrides of a resolved call target, using
         inheritance read from source. Only needed when the server answers

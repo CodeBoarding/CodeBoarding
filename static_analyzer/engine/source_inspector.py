@@ -100,6 +100,9 @@ _MEMBER_ACCESS_NODE_TYPES = frozenset(
         "field_access",  # Java
         "selector_expression",  # Go
         "field_expression",  # Rust
+        "unconditional_assignable_selector",  # Dart
+        "conditional_assignable_selector",
+        "cascade_selector",
     }
 )
 # Receivers naming the enclosing class's base: a member named on one is not dispatched.
@@ -142,7 +145,7 @@ _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
 _OPAQUE_ARGUMENT_NODE_TYPES = frozenset({"token_tree"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
-_ARGUMENT_NODE_TYPES = frozenset({"argument"})
+_ARGUMENT_NODE_TYPES = frozenset({"argument", "named_argument"})
 # Node types that bind a name to a value, and the field the value sits in. C#'s declarator
 # names no field, so there the value is the last child.
 _VALUE_FIELD_BY_BINDING = {
@@ -367,6 +370,7 @@ class SourceUsageIndex:
     function_values: dict[tuple[int, int], tuple[int, int]]
     base_member_positions: set[tuple[int, int]]
     setter_positions: set[tuple[int, int]]
+    getter_positions: set[tuple[int, int]]
     # Each overload signature's name, to the name of the implementation it overloads.
     overload_implementations: dict[tuple[int, int], tuple[int, int]]
 
@@ -394,6 +398,7 @@ class SourceInspector:
             + len(index.function_values)
             + len(index.base_member_positions)
             + len(index.setter_positions)
+            + len(index.getter_positions)
             + len(index.overload_implementations)
             for index in self._usage_index_cache.values()
         )
@@ -565,6 +570,11 @@ class SourceInspector:
         usage_index = self._usage_index(file_path)
         return usage_index is not None and (line, character) in usage_index.setter_positions
 
+    def declares_getter(self, file_path: Path, line: int, character: int) -> bool:
+        """Whether the position declares a Dart getter rather than a plain field."""
+        usage_index = self._usage_index(file_path)
+        return usage_index is not None and (line, character) in usage_index.getter_positions
+
     def attribution_position(self, file_path: Path, line: int, character: int) -> tuple[int, int]:
         """The position that decides which declaration a call written here belongs to.
 
@@ -670,11 +680,19 @@ class SourceInspector:
                 continue
             pos = parsed.lsp_position(member.start_point)
             parent = node.parent
+            assigned = node
+            if parent is not None and parent.type == "assignable_expression" and node == parent.named_children[-1]:
+                assigned = parent
+                parent = parent.parent
             written = (
                 parent is not None
                 and parent.type in _ASSIGNMENT_NODE_TYPES
-                and parent.child_by_field_name("left") == node
+                and parent.child_by_field_name("left") == assigned
             )
+            if parent is not None and parent.type in {"postfix_expression", "unary_expression"}:
+                written = any(child.type in {"postfix_operator", "increment_operator"} for child in parent.children)
+            if parent is not None and parent.type == "cascade_section":
+                written = any(child.type == "=" or child.type == "assignment_operator" for child in parent.children)
             (writes if written else reads).append(
                 CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1])
             )
@@ -709,6 +727,10 @@ class SourceInspector:
         """
         if value.type in _NAME_SHAPED_NODE_TYPES:
             return [value]
+        if value.type == "selector" and value.named_children:
+            member = value.named_children[0]
+            if member.type in {"unconditional_assignable_selector", "conditional_assignable_selector"}:
+                return [member]
         if value.type in _ARGUMENT_NODE_TYPES:
             held = value.named_children[-1:]
         elif value.type in _VALUE_GROUP_NODE_TYPES:
@@ -817,6 +839,7 @@ class SourceInspector:
         function_values: dict[tuple[int, int], tuple[int, int]] = {}
         base_member_positions: set[tuple[int, int]] = set()
         setter_positions: set[tuple[int, int]] = set()
+        getter_positions: set[tuple[int, int]] = set()
         overload_implementations: dict[tuple[int, int], tuple[int, int]] = {}
         for node in self._walk(parsed.tree.root_node):
             binding = self._function_value_binding(node)
@@ -827,6 +850,11 @@ class SourceInspector:
             setter = self._setter_name(node)
             if setter is not None:
                 setter_positions.add(parsed.lsp_position(setter.start_point))
+
+            if node.type == "getter_signature":
+                getter = node.child_by_field_name("name")
+                if getter is not None:
+                    getter_positions.add(parsed.lsp_position(getter.start_point))
 
             overload = self._overload_implementation(node)
             if overload is not None:
@@ -855,6 +883,7 @@ class SourceInspector:
             function_values=function_values,
             base_member_positions=base_member_positions,
             setter_positions=setter_positions,
+            getter_positions=getter_positions,
             overload_implementations=overload_implementations,
         )
         self._usage_index_cache[file_key] = usage_index
@@ -912,7 +941,9 @@ class SourceInspector:
     @staticmethod
     def _setter_name(node: TreeSitterNode) -> TreeSitterNode | None:
         """The name a setter declares: ``set title(value)``, or a definition decorated ``@title.setter``."""
-        if node.type == "method_definition" and any(child.type == "set" for child in node.children):
+        if node.type == "setter_signature" or (
+            node.type == "method_definition" and any(child.type == "set" for child in node.children)
+        ):
             return node.child_by_field_name("name")
         if node.type == "decorated_definition":
             definition = node.child_by_field_name("definition")
@@ -1269,7 +1300,11 @@ class SourceInspector:
         parent = node.parent
         if parent is None:
             return False
-        return parent.type in _CALL_NODE_TYPES or parent.type in _CONSTRUCTOR_NODE_TYPES
+        return (
+            parent.type in _CALL_NODE_TYPES
+            or parent.type in _CONSTRUCTOR_NODE_TYPES
+            or parent.type in {"argument_part", "const_object_expression"}
+        )
 
     def _smallest_named_node_covering_range(
         self, node: TreeSitterNode, line: int, start_column: int, end_column: int

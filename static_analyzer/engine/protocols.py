@@ -39,6 +39,9 @@ class EdgeBuildAdapter(Protocol):
     def resolves_method_groups(self) -> bool: ...
 
     @property
+    def resolves_value_references(self) -> bool: ...
+
+    @property
     def expands_virtual_dispatch(self) -> bool: ...
 
     @property

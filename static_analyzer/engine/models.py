@@ -133,6 +133,7 @@ class LanguageAnalysisResult:
     # No engine populates either yet — the converter reads them, nothing writes them.
     type_references: list[tuple[str, str]] = field(default_factory=list)
     import_edges: list[tuple[str, str]] = field(default_factory=list)
+    value_references: list[tuple[str, str]] = field(default_factory=list)
 
 
 class AnalysisResults:

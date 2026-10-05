@@ -14,7 +14,7 @@ class EdgeKind(StrEnum):
     """Kind of a *reference* edge — the structural relationships a call graph misses.
 
     A method belongs to its class (CONTAINS), a class extends another (INHERITS),
-    code names a type (TYPEREF), a module imports another (IMPORT). Call edges are
+    code names a type (TYPEREF), a module imports another (IMPORT), or code uses a value (VALUE). Call edges are
     not listed: they live in ``CallGraph.edges`` and carry no kind tag.
     """
 
@@ -22,6 +22,7 @@ class EdgeKind(StrEnum):
     INHERITS = "inherits"
     TYPEREF = "typeref"
     IMPORT = "import"
+    VALUE = "value"
 
 
 # What structural consumers fold into ``to_networkx`` on top of call edges. The call graph
