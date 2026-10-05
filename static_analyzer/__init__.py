@@ -280,7 +280,9 @@ def _lang_to_adapter_name(language: str) -> str | None:
         Language.JAVA: AdapterName.JAVA,
         Language.PHP: AdapterName.PHP,
         Language.RUST: AdapterName.RUST,
+        Language.BASH: AdapterName.BASH,
         # Scanner spellings with no ``Language`` member of their own.
+        "shell": AdapterName.BASH,
         "tsx": AdapterName.TYPESCRIPT,
         "jsx": AdapterName.JAVASCRIPT,
         "c#": AdapterName.CSHARP,
