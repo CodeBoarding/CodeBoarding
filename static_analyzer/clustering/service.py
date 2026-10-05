@@ -38,7 +38,6 @@ from static_analyzer.clustering.names import (
 from static_analyzer.clustering.names.draft import DETERMINISTIC_GROUPERS, Links, loose_rule
 from static_analyzer.clustering.names.replay import FALLBACK, PREFIX, TERM, divergence
 from static_analyzer.clustering.names.spec import Prefix, is_root
-from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
 
 AFFINE_REFERENCE_KINDS = frozenset({EdgeKind.INHERITS, EdgeKind.TYPEREF})
 """Reference edges that count as links between files, with the call edges. CONTAINS never
@@ -206,16 +205,10 @@ class ClusteringService:
             members = partition.members.get(rule.component_id, [])
             if not members:
                 continue
-            # Every name voted; the members the agents own are the callables and classes.
-            # Why skip a rule without any: its component would own no file and draw nothing.
+            # File ownership includes composition and data declarations, not just callables.
             owned_by_language: dict[str, set[str]] = {}
             for unit in members:
-                nodes = graphs[unit.language].nodes
-                owned = {name for name in unit.names if nodes[name].type in CALLABLE_TYPES | CLASS_TYPES}
-                owned_by_language.setdefault(unit.language, set()).update(owned)
-            if not any(owned_by_language.values()):
-                logger.info("Scope %s: rule %s owns no callable or class; not drawn", scope_id, rule.component_id)
-                continue
+                owned_by_language.setdefault(unit.language, set()).update(unit.names)
             group = ClusterGroup(
                 group_id=rule.component_id,
                 name=rule.name,

@@ -17,7 +17,6 @@ from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
 from static_analyzer.node import Node
 
 
@@ -31,8 +30,6 @@ def build_file_methods_from_nodes(
     file_cache = source_cache if source_cache is not None else {}
 
     for node in nodes:
-        if node.type not in CALLABLE_TYPES | CLASS_TYPES:
-            continue
         file_path = normalize_repo_path(node.file_path, repo_dir)
         method_name = node.fully_qualified_name.split(".")[-1]
         dedupe_key = (node.line_start, node.line_end, node.col_start, node.type.name, method_name)

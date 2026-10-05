@@ -14,6 +14,7 @@ from static_analyzer.clustering import (
     GroupConnection,
 )
 from static_analyzer.config import Language, NodeType
+from static_analyzer.clustering.service import ClusteringService
 from static_analyzer.node import Node
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
@@ -66,6 +67,47 @@ def _resolver(scope: ClusterScopeResult) -> StaticReferenceResolver:
 
 
 class TestScopeAssembler(unittest.TestCase):
+    def test_dart_composition_declarations_survive_clustering_and_assembly(self) -> None:
+        graph = CallGraph(language="dart")
+        declarations = [
+            ("_sharedProviders", NodeType.VARIABLE, "lib/config/dependencies.dart"),
+            ("providersLocal", NodeType.PROPERTY, "lib/config/dependencies.dart"),
+            ("providersRemote", NodeType.PROPERTY, "lib/config/dependencies.dart"),
+            ("LocalRepository", NodeType.CLASS, "lib/data/local_repository.dart"),
+            ("RemoteRepository", NodeType.CLASS, "lib/data/remote_repository.dart"),
+        ]
+        for line, (name, kind, path) in enumerate(declarations, start=1):
+            graph.add_node(Node(name, kind, path, line, line))
+        for line, (source, target) in enumerate(
+            [("providersLocal", "LocalRepository"), ("providersRemote", "RemoteRepository")], start=2
+        ):
+            graph.add_edge(
+                source, target, call_sites=[{"file": "lib/config/dependencies.dart", "line": line, "column": 1}]
+            )
+        results = StaticAnalysisResults()
+        results.add_cfg(Language.DART, graph)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for _, _, path in declarations:
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text("\n" * len(declarations))
+            hierarchy = ClusteringService(repo_dir=root).build_full_hierarchy(results, max_depth=2)
+            analysis = ScopeAssembler(root).build(hierarchy)
+        methods = analysis.files["lib/config/dependencies.dart"].methods
+        self.assertEqual(
+            {method.qualified_name for method in methods}, {"_sharedProviders", "providersLocal", "providersRemote"}
+        )
+        self.assertEqual(graph.nodes["providersLocal"].type, NodeType.PROPERTY)
+        self.assertEqual(len(graph.edges), 2)
+        self.assertEqual(
+            {
+                (edge.source_qualified_name, edge.target_qualified_name)
+                for connection in hierarchy.connections
+                for edge in connection.edges
+            },
+            {("providersLocal", "LocalRepository"), ("providersRemote", "RemoteRepository")},
+        )
+
     def test_rejects_root_scope_without_component_groups(self) -> None:
         with self.assertRaisesRegex(StaticAnalysisFatalError, "No component groups found"):
             ScopeAssembler(Path("/repo")).build(ClusterScopeResult(scope_id="root"))

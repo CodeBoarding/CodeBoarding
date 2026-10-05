@@ -123,6 +123,13 @@ def test_restore_failure_keeps_cause(tmp_path: Path):
         ("Box<String>();", ["Box"]),
         ("new pkg.Box.named();", ["named"]),
         ("const pkg.Box.named();", ["named"]),
+        ("const Box(value: item);", ["Box"]),
+        ("new Box(item);", ["Box"]),
+        ("const pkg.Box.named(value: item);", ["named"]),
+        ("new pkg.Box<String>.named(value: item);", ["named"]),
+        ("const Box<String>(item);", ["Box"]),
+        ("const Box(child: Inner());", ["Box", "Inner"]),
+        ("const Box(child: const Inner(value: item));", ["Box", "Inner"]),
         ("super.run();", ["run"]),
         ("obj.field; 'fake()'; // alsoFake()", []),
     ],
@@ -133,6 +140,13 @@ def test_dart_call_targets(tmp_path: Path, expression: str, targets: list[str]):
     path.write_text(source, encoding="utf-8")
     actual = {(site.line, site.column) for site in SourceInspector().find_call_sites(path)}
     assert actual == {(2, expression.index(target) + 3) for target in targets}
+
+
+def test_explicit_constructor_position_uses_utf16(tmp_path: Path):
+    path = tmp_path / "sample.dart"
+    path.write_text("void main() { '\U0001f600'; const Box(value: item); }", encoding="utf-8")
+    sites = SourceInspector().find_call_sites(path)
+    assert {(site.line, site.column) for site in sites} == {(1, 27)}
 
 
 def test_super_call_does_not_dispatch_to_overrides(tmp_path: Path):

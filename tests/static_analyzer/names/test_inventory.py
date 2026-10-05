@@ -59,6 +59,25 @@ class TestUnitsFromGraph:
             ("app",): None,
         }, "the repository root's own manifest is not a project"
 
+    def test_dart_packages_have_distinct_nearest_boundaries(self, tmp_path: Path):
+        (tmp_path / "pubspec.yaml").write_text("name: workspace\n")
+        for package in ("app", "packages/shared"):
+            (tmp_path / package).mkdir(parents=True)
+            (tmp_path / package / "pubspec.yaml").write_text("name: sample\n")
+        graph = graph_from_layout(
+            {
+                "app/lib/main.dart": ["main"],
+                "packages/shared/lib/client.dart": ["Client"],
+                "tools/task.dart": ["task"],
+            },
+            "dart",
+        )
+        assert {u.unit_id: u.project for u in units_from_graph(graph, "dart", tmp_path)} == {
+            "app/lib/main.dart": ("app",),
+            "packages/shared/lib/client.dart": ("packages", "shared"),
+            "tools/task.dart": None,
+        }
+
     def test_a_path_outside_the_repository_root_is_refused(self, tmp_path: Path):
         graph = graph_from_layout({str(tmp_path.parent / "elsewhere" / "a.py"): ["a"]})
         with pytest.raises(ValueError, match="outside"):

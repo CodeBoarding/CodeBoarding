@@ -26,6 +26,7 @@ PROJECT_MANIFESTS = (
     "build.gradle",
     "build.gradle.kts",
     "composer.json",
+    "pubspec.yaml",
 )
 """Files that make a directory a project of its own; a ``.csproj`` or ``.fsproj`` does too."""
 

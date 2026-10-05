@@ -983,7 +983,11 @@ class SourceInspector:
         if node.type == "const_object_expression" or (
             node.type == "new_expression" and any(child.type == "type_identifier" for child in node.named_children)
         ):
-            return self._last_named_child_of_type(node, frozenset({"identifier", "type_identifier"}))
+            # Constructor names are direct children; arguments and type arguments are not targets.
+            return next(
+                (child for child in reversed(node.named_children) if child.type in {"identifier", "type_identifier"}),
+                None,
+            )
         if node.type in {"initializer_list_entry", "redirection"}:
             if any(child.type in {"super", "this"} for child in node.named_children):
                 return self._last_named_child_of_type(node, frozenset({"identifier", "super", "this"}))

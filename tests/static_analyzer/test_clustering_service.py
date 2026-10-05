@@ -118,11 +118,11 @@ class TestFullHierarchy(unittest.TestCase):
         )
         self.assertEqual(rule_of(root, "1").name, "Ordering.API")
 
-    def test_leaves_are_files_and_members_are_callables_and_classes(self):
+    def test_leaves_are_files_and_members_include_data_declarations(self):
         leaves = self.hierarchy.leaf_clusters_by_language["csharp"]
         self.assertEqual(len(leaves.clusters), len({node.file_path for node in self.graph.nodes.values()}))
         ordering = self.hierarchy.groups[0]
-        self.assertNotIn("Ordering.API.Apis.limits_var", ordering.qualified_names)
+        self.assertIn("Ordering.API.Apis.limits_var", ordering.qualified_names)
         self.assertIn("Ordering.API.Apis.OrderingType0.Run()", ordering.qualified_names)
         self.assertEqual(
             len(ordering.cluster_ids),
@@ -171,7 +171,7 @@ class TestFullHierarchy(unittest.TestCase):
         csharp.add_reference_edge(ReferenceEdge("B", "B.Run()", EdgeKind.CONTAINS))
         self.assertEqual(unit_links({"csharp": csharp}), {(str(REPO / "a.cs"), str(REPO / "b.cs")): 2})
 
-    def test_a_rule_whose_units_own_no_callable_or_class_is_not_drawn(self):
+    def test_data_only_rules_retain_their_declarations(self):
         layout = eshop() | {f"src/Assets/Asset{i}.cs": [f"Assets.asset{i}_var"] for i in range(6)}
         hierarchy = ClusteringService(repo_dir=Path("/repo")).build_full_hierarchy(
             analysis_for(graph("csharp", layout)), max_depth=2
@@ -184,7 +184,8 @@ class TestFullHierarchy(unittest.TestCase):
                     visit(group.children)
 
         visit(hierarchy)
-        self.assertNotIn("Assets", {group.name for group in hierarchy.groups})
+        assets = next(group for group in hierarchy.groups if group.name == "Assets")
+        self.assertEqual(assets.qualified_names, {f"Assets.asset{i}_var" for i in range(6)})
 
     def test_connections_come_from_the_graph(self):
         edges = [("Catalog.API.Model.CatalogType0.Run()", "Ordering.API.Apis.OrderingType0.Run()")]
