@@ -61,6 +61,7 @@ def render_scope_context(
                 "name_locked": group.group_id in locked_name_ids,
                 "files": [
                     {"path": file_path}
+                    | ({"generated": True} if _is_generated_dart(file_path) else {})
                     | ({"grouping_reason": reason} if reason != DEFAULT_GROUPING_REASON else {})
                     | ({"changed": file_path in changed_files} if incremental else {})
                     for file_path, reason in file_reasons.items()
@@ -195,7 +196,17 @@ def _group_file_reasons(
     }
     for file_path in files:
         reasons.setdefault(file_path, DEFAULT_GROUPING_REASON)
-    return dict(sorted(reasons.items()))
+    return dict(sorted(reasons.items(), key=lambda item: (_is_generated_dart(item[0]), item[0])))
+
+
+def _is_generated_dart(file_path: str) -> bool:
+    """Recognize conventional Dart generator outputs without excluding them from analysis."""
+    path = Path(file_path)
+    return path.suffix == ".dart" and (
+        path.name.endswith((".g.dart", ".freezed.dart", ".gr.dart", ".gen.dart"))
+        or "gen" in path.parts
+        or "generated" in path.parts
+    )
 
 
 def _known_connections(scope: ClusterScopeResult, repo_dir: Path) -> list[dict[str, Any]]:
@@ -218,28 +229,35 @@ def _known_connections(scope: ClusterScopeResult, repo_dir: Path) -> list[dict[s
                 continue
             seen.add(key)
             distinct.append(edge)
-        distinct.sort(key=lambda edge: (edge.source_qualified_name, edge.target_qualified_name))
+        examples = sorted(
+            (_example(edge, scope, repo_dir) for edge in distinct),
+            key=lambda example: (example.get("generated", False), example["source"], example["target"]),
+        )
         connections.append(
             {
                 "source_group_id": source_group_id,
                 "target_group_id": target_group_id,
                 "calls": len(distinct),
-                "examples": [_example(edge, scope, repo_dir) for edge in distinct[:MAX_EXAMPLE_EDGES]],
+                "examples": examples[:MAX_EXAMPLE_EDGES],
             }
         )
     return connections
 
 
-def _example(edge: ClusterConnectionEdge, scope: ClusterScopeResult, repo_dir: Path) -> dict[str, str]:
+def _example(edge: ClusterConnectionEdge, scope: ClusterScopeResult, repo_dir: Path) -> dict[str, str | bool]:
     graph = scope.graphs_by_language.get(edge.language)
     source = graph.nodes.get(edge.source_qualified_name) if graph is not None else None
     target = graph.nodes.get(edge.target_qualified_name) if graph is not None else None
+    generated = any(
+        node is not None and _is_generated_dart(normalize_repo_path(node.file_path, repo_dir))
+        for node in (source, target)
+    )
     return {
         "source": edge.source_qualified_name,
         "source_at": _location(source, repo_dir),
         "target": edge.target_qualified_name,
         "target_at": _location(target, repo_dir),
-    }
+    } | ({"generated": True} if generated else {})
 
 
 def _location(node: Node | None, repo_dir: Path) -> str:

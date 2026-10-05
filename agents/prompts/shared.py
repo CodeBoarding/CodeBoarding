@@ -41,8 +41,17 @@ components this scope sits inside, and a child named after its parent overwrites
 may inspect a specific in-scope file and `getMethodCalls` may inspect one exact in-scope symbol in one direction.
 Do not inventory the scope, browse every file, or repeat a tool call. A runtime budget limits all tools to six calls.
 
+Files and examples marked `generated` follow Dart generator naming conventions. Prefer handwritten orchestration
+when choosing what to read and describe; generated serialization, localization, and assets remain valid evidence,
+but their volume does not make them the application's main flow. A `value reference` means code uses a declaration,
+not that it calls it or selects a particular runtime DI implementation.
+
 Name each editable group for one responsibility using the codebase's own vocabulary, add a concise description,
 and select only clearly evidenced key entities. Label known directed connections by their architectural meaning.
+Keep each description within what its evidence proves: deserialization is not data fetching, formatting is not
+UI rendering, and navigation or form validation is not authentication. Inspect uncertain behavior before claiming
+it works. Describe fixed values, empty callbacks, demo screens, and premium-kit previews as placeholders when
+the source shows that limitation. Do not claim a group owns configuration absent from its supplied files.
 You may add a missing non-static relation such as REST, queue, plugin, registry, file, or configuration wiring only
 when exact source symbols on both component sides and concrete textual evidence support it. Names alone are not
 evidence. Answer by calling the `ScopeAnalysisResult` tool; it is the only way to finish."""

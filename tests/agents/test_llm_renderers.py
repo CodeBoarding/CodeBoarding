@@ -251,6 +251,48 @@ class TestRenderScopeContext(unittest.TestCase):
         self.assertEqual(pair["examples"][0]["source"], "a.f0")
         self.assertEqual(payload["enclosing_components"], ["Backend", "Services"])
 
+    def test_dart_generated_evidence_is_retained_but_handwritten_calls_come_first(self):
+        graph = CallGraph(language="dart")
+        graph.add_node(Node("target", NodeType.FUNCTION, "/repo/lib/service.dart", 1, 2))
+        paths = [f"lib/gen/a{i}.dart" for i in range(6)] + ["lib/models/a.g.dart", "lib/z_controller.dart"]
+        edges = []
+        for index, path in enumerate(paths):
+            name = f"source{index}"
+            graph.add_node(Node(name, NodeType.FUNCTION, f"/repo/{path}", 1, 2))
+            edges.append(ClusterConnectionEdge("dart", name, "target"))
+        graph.add_reference_edge(ReferenceEdge("source7", "target", EdgeKind.VALUE))
+        scope = ClusterScopeResult(
+            scope_id="root",
+            graphs_by_language={"dart": graph},
+            groups=[
+                ClusterGroup("1", [1], symbol_members_by_language={"dart": {f"source{i}" for i in range(8)}}),
+                ClusterGroup("2", [2], symbol_members_by_language={"dart": {"target"}}),
+            ],
+            connections=[GroupConnection("1", "2", edges=edges)],
+        )
+        payload = json.loads(
+            render_scope_context(
+                scope,
+                AnalysisInsights(description="", components=[], components_relations=[]),
+                Path("/repo"),
+                {"1", "2"},
+                set(),
+                set(),
+                incremental=False,
+            )
+        )
+        files = payload["groups"][0]["files"]
+        self.assertEqual(files[0], {"path": "lib/z_controller.dart"})
+        self.assertEqual({entry["path"] for entry in files}, set(paths))
+        self.assertTrue(all(entry["generated"] for entry in files[1:]))
+        connection = payload["known_connections"][0]
+        self.assertEqual(connection["calls"], 8)
+        self.assertEqual(connection["examples"][0]["source"], "source7")
+        self.assertTrue(connection["examples"][1]["generated"])
+        self.assertTrue(
+            any("value reference to group 2" in entry["reasons"] for entry in payload["groups"][0]["bordering_files"])
+        )
+
 
 def _dense_scope() -> ClusterScopeResult:
     """Two groups of forty functions, every one calling across: dense enough to trim."""
