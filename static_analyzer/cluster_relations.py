@@ -6,7 +6,7 @@ edges — no LLM needed.
 """
 
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
@@ -166,6 +166,8 @@ def build_global_relations(
     global_relations: dict[tuple[str, str], Relation] = {}
     static_pairs = {(rel.src_cluster_id, rel.dst_cluster_id) for rel in static_relations}
     superseded_llm_pairs: set[tuple[str, str]] = set()
+    metadata_by_pair = {pair: _ancestor_relation(*pair, llm_relations) for pair in static_pairs}
+    refinement_counts = Counter((rel.src_id, rel.dst_id) for rel in metadata_by_pair.values() if rel is not None)
 
     for static_rel in static_relations:
         src_id = static_rel.src_cluster_id
@@ -178,7 +180,7 @@ def build_global_relations(
                 and is_self_or_descendant(dst_id, llm_rel.dst_id)
             ):
                 superseded_llm_pairs.add((llm_rel.src_id, llm_rel.dst_id))
-        llm_relation = _ancestor_relation(src_id, dst_id, llm_relations)
+        llm_relation = metadata_by_pair[(src_id, dst_id)]
         if llm_relation is None:
             relation = Relation.from_edges(
                 DEFAULT_STATIC_RELATION_LABEL,
@@ -192,11 +194,18 @@ def build_global_relations(
         else:
             inherited_key_edges = _relation_key_edges_for_pair(llm_relation, src_id, dst_id, node_to_component)
             key_edges, all_edges = ground_relation_edges(inherited_key_edges, static_rel.all_edges)
+            ancestor_pair = (llm_relation.src_id, llm_relation.dst_id)
+            split = ancestor_pair != (src_id, dst_id) and refinement_counts[ancestor_pair] > 1
+            # A parent's combined claim need not hold for each child pair.
             relation = Relation(
-                relation=llm_relation.relation,
+                relation=DEFAULT_STATIC_RELATION_LABEL if split else llm_relation.relation,
                 src_name=id_to_name.get(src_id, src_id),
                 dst_name=id_to_name.get(dst_id, dst_id),
-                evidence=llm_relation.evidence,
+                evidence=(
+                    " ".join(dict.fromkeys(edge.description for edge in key_edges if edge.description))
+                    if split
+                    else llm_relation.evidence
+                ),
                 key_edges=key_edges,
                 src_id=src_id,
                 dst_id=dst_id,

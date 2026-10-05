@@ -388,7 +388,7 @@ class TestAllLevelCombinations(unittest.TestCase):
 
 
 class TestLabelInheritance(unittest.TestCase):
-    """LLM labels propagate from ancestor relations to finer-grained static edges."""
+    """Refinement retains grounded highlights without copying combined parent claims."""
 
     def setUp(self):
         self.rels = build_global_relations(
@@ -398,14 +398,11 @@ class TestLabelInheritance(unittest.TestCase):
         )
         self.by_pair = {(r.src_id, r.dst_id): r for r in self.rels}
 
-    def test_root_label_inherited(self):
-        # Root LLM "1"->"2" label "orchestrates" -> inherited two levels down by
-        # 1.1.1->2.1.2. A distinctive (non-default) label proves the ancestor
-        # search ran; "calls" would also be the fallback and hide a regression.
+    def test_split_root_label_is_not_inherited(self):
         r = self.by_pair[("1.1.1", "2.1.2")]
-        self.assertEqual(r.relation, "orchestrates")
+        self.assertEqual(r.relation, "calls")
 
-    def test_ancestor_evidence_and_key_edges_are_preserved(self):
+    def test_split_evidence_is_limited_to_grounded_key_edges(self):
         root = _build_root_analysis()
         root_relation = root.components_relations[0]
         root_relation.evidence = "The public API invokes core services."
@@ -420,7 +417,7 @@ class TestLabelInheritance(unittest.TestCase):
         relations = build_global_relations(root, _build_sub_analyses(), {"python": _build_cfg()})
         relation = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.2"))
 
-        self.assertEqual(relation.evidence, root_relation.evidence)
+        self.assertEqual(relation.evidence, "List requests load profiles.")
         # The ancestor's highlight is inherited, grounded to the real CFG edge: same symbols
         # and the LLM's description, now carrying the CFG's line spans, and present in all_edges.
         self.assertEqual([e.description for e in relation.key_edges], ["List requests load profiles."])
@@ -434,6 +431,8 @@ class TestLabelInheritance(unittest.TestCase):
         self.assertGreaterEqual(len(relation.all_edges), 1)
         unrelated = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.1"))
         self.assertEqual(unrelated.key_edges, [])
+        self.assertEqual(unrelated.evidence, "")
+        self.assertEqual(unrelated.relation, "calls")
 
     def test_refreshed_scope_metadata_overrides_static_backed_global_copy(self):
         root = _build_root_analysis()
@@ -492,10 +491,23 @@ class TestLabelInheritance(unittest.TestCase):
         r = self.by_pair[("2.1.1", "2.1.2")]
         self.assertEqual(r.relation, "populates")
 
-    def test_fallback_to_ancestor_label(self):
-        # "2.1.1"->"3" has no direct LLM relation, ancestor "2"->"3" is "caches via"
+    def test_split_ancestor_label_is_not_inherited(self):
         r = self.by_pair[("2.1.1", "3")]
-        self.assertEqual(r.relation, "caches via")
+        self.assertEqual(r.relation, "calls")
+
+    def test_one_to_one_refinement_preserves_ancestor_metadata(self):
+        root = _build_root_analysis()
+        root.components_relations[0].evidence = "API orchestrates profiles."
+        cfg = _build_cfg()
+        cfg.edges = [
+            edge
+            for edge in cfg.edges
+            if edge.get_source() == "api.rest.list" and edge.get_destination() == "core.profiles.get"
+        ]
+        relations = build_global_relations(root, _build_sub_analyses(), {"python": cfg})
+        relation = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.2"))
+        self.assertEqual(relation.relation, "orchestrates")
+        self.assertEqual(relation.evidence, "API orchestrates profiles.")
 
     def test_no_label_defaults_to_calls(self):
         # "3"->"2.1.1" -- no LLM relation in 3->2 direction. Default is "calls".
