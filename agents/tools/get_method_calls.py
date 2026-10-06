@@ -1,10 +1,13 @@
 import logging
+from collections.abc import Iterable
+from itertools import chain
 from typing import Literal
 
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
 
 from agents.tools.base import BaseRepoTool
+from static_analyzer.cfg import Edge
 
 logger = logging.getLogger(__name__)
 
@@ -32,23 +35,26 @@ class MethodCallsTool(BaseRepoTool):
             return f"Error: Method '{qualified_name}' is outside the current analysis scope."
 
         if self.context.scope_restricted:
-            graphs = self.context.cfg_graphs.values()
+            # Calls between languages live beside the per-language graphs; the scope filter below applies to both.
+            edges: Iterable[Edge] = chain(
+                (edge for cfg in self.context.cfg_graphs.values() for edge in cfg.edges),
+                self.static_analysis.cross_language_edges,
+            )
         else:
-            graphs = (self.static_analysis.get_cfg(language) for language in self.static_analysis.get_languages())
+            edges = self.static_analysis.call_edges()
 
         results: list[str] = []
-        for cfg in graphs:
-            for edge in cfg.edges:
-                source = edge.src_node.fully_qualified_name
-                target = edge.dst_node.fully_qualified_name
-                if self.context.scope_restricted and (
-                    source not in self.context.scope_methods or target not in self.context.scope_methods
-                ):
-                    continue
-                if direction == "outgoing" and source == qualified_name:
-                    results.append(f"{source} -> {target}")
-                if direction == "incoming" and target == qualified_name:
-                    results.append(f"{source} -> {target}")
+        for edge in edges:
+            source = edge.src_node.fully_qualified_name
+            target = edge.dst_node.fully_qualified_name
+            if self.context.scope_restricted and (
+                source not in self.context.scope_methods or target not in self.context.scope_methods
+            ):
+                continue
+            if direction == "outgoing" and source == qualified_name:
+                results.append(f"{source} -> {target}")
+            if direction == "incoming" and target == qualified_name:
+                results.append(f"{source} -> {target}")
         if results:
             return "\n".join(sorted(set(results)))
         logger.warning("[MethodCallsTool] No %s calls found for %s.", direction, qualified_name)

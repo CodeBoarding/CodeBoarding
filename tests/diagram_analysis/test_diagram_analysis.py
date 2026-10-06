@@ -1989,6 +1989,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.incremental_updater = _mock_incremental_updater.return_value
         gen.static_analysis = Mock()
+        gen.static_analysis.cross_language_edges = []
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
         base_static_analysis = Mock()
@@ -2067,6 +2068,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.incremental_updater = _mock_incremental_updater.return_value
         gen.static_analysis = Mock()
+        gen.static_analysis.cross_language_edges = []
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = StaticAnalysisResults()
@@ -2112,6 +2114,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.incremental_updater = Mock()
         gen.static_analysis = Mock()
+        gen.static_analysis.cross_language_edges = []
         gen.scope_analysis_agent = MagicMock(**{"analyze.return_value": None})
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
@@ -2174,6 +2177,7 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
         gen.static_analysis = Mock()
+        gen.static_analysis.cross_language_edges = []
         gen.tree_spec = _root_spec()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = StaticAnalysisResults()

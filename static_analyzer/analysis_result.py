@@ -1,12 +1,12 @@
 import logging
 import os
 import re
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from static_analyzer.cfg import CallGraph, CallSiteLocation
+from static_analyzer.cfg import CallGraph, CallSiteLocation, Edge
 from static_analyzer.config import FAMILY_OWNER, SOURCE_EXTENSION_TO_LANGUAGE, Language
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
@@ -181,6 +181,9 @@ class StaticAnalysisResults:
 
     results: dict[Language, LanguageResults] = field(default_factory=dict)
     diagnostics: dict[Language, FileDiagnosticsMap] = field(default_factory=dict)
+    # Calls from one language's declarations into another's, e.g. Kotlin into Java. Why apart:
+    # a language's call graph holds only its own nodes, so neither graph can hold the edge.
+    cross_language_edges: list[Edge] = field(default_factory=list)
     # Runtime-only warm-start base; never persisted into the static-analysis cache.
     incremental_base_results: "StaticAnalysisResults | None" = None
 
@@ -210,6 +213,30 @@ class StaticAnalysisResults:
         in the output.
         """
         self._bucket(language).references.add(references)
+
+    def add_cross_language_edges(self, edges: Iterable[Edge]) -> None:
+        """Add calls between languages, merging the call sites of an edge already held."""
+        held = {(edge.get_source(), edge.get_destination()): edge for edge in self.cross_language_edges}
+        for edge in edges:
+            existing = held.get((edge.get_source(), edge.get_destination()))
+            if existing is None:
+                held[(edge.get_source(), edge.get_destination())] = edge
+                self.cross_language_edges.append(edge)
+                continue
+            for site in edge.call_sites:
+                existing.add_call_site(dict(site))
+
+    def call_edges(self) -> Iterator[Edge]:
+        """Every call edge: each language's own, then those between languages."""
+        for bucket in self.results.values():
+            if bucket.cfg.graph is not None:
+                yield from bucket.cfg.graph.edges
+        yield from self.cross_language_edges
+
+    def results_language_of(self, path: str) -> Language | None:
+        """The language whose bucket holds the file at *path*, or None if no engine reads its suffix."""
+        language = _language_written_in(path)
+        return None if language is None else FAMILY_OWNER.get(language, language)
 
     def get_cfg(self, language: Language) -> CallGraph:
         """Return the control flow graph for ``language`` or raise ``ValueError``."""

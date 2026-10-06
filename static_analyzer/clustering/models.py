@@ -36,6 +36,12 @@ class ClusterConnectionEdge:
     source_qualified_name: str
     target_qualified_name: str
     call_sites: list[CallSiteLocation] = field(default_factory=list)
+    # The target's language when the call crosses into another one (Kotlin into Java); empty when it does not.
+    target_language: str = ""
+
+    @property
+    def target_graph_language(self) -> str:
+        return self.target_language or self.language
 
 
 @dataclass

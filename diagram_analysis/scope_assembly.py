@@ -398,10 +398,11 @@ class ScopeAssembler:
         edges: list[RelationEdge] = []
         for connection_edge in connection.edges:
             graph = scope.graphs_by_language.get(connection_edge.language)
-            if graph is None:
+            target_graph = scope.graphs_by_language.get(connection_edge.target_graph_language)
+            if graph is None or target_graph is None:
                 continue
             source = graph.nodes.get(connection_edge.source_qualified_name)
-            target = graph.nodes.get(connection_edge.target_qualified_name)
+            target = target_graph.nodes.get(connection_edge.target_qualified_name)
             if source is None or target is None:
                 continue
             edges.append(RelationEdge.from_edge(Edge(source, target, connection_edge.call_sites)))

@@ -22,6 +22,7 @@ class TestStaticReferenceResolver(unittest.TestCase):
 
         self.static_analysis = MagicMock(spec=StaticAnalysisResults)
         self.static_analysis.get_languages.return_value = ["python"]
+        self.static_analysis.cross_language_edges = []
         self.static_analysis.iter_reference_nodes.return_value = []
         self.resolver = StaticReferenceResolver(self.repo_dir, self.static_analysis)
 

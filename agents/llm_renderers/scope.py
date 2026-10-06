@@ -232,8 +232,9 @@ def _known_connections(scope: ClusterScopeResult, repo_dir: Path) -> list[dict[s
 
 def _example(edge: ClusterConnectionEdge, scope: ClusterScopeResult, repo_dir: Path) -> dict[str, str]:
     graph = scope.graphs_by_language.get(edge.language)
+    target_graph = scope.graphs_by_language.get(edge.target_graph_language)
     source = graph.nodes.get(edge.source_qualified_name) if graph is not None else None
-    target = graph.nodes.get(edge.target_qualified_name) if graph is not None else None
+    target = target_graph.nodes.get(edge.target_qualified_name) if target_graph is not None else None
     return {
         "source": edge.source_qualified_name,
         "source_at": _location(source, repo_dir),
@@ -260,10 +261,9 @@ def _boundary_reasons(
     for connection in scope.connections:
         for edge in connection.edges:
             graph = scope.graphs_by_language.get(edge.language)
-            if graph is None:
-                continue
-            source = graph.nodes.get(edge.source_qualified_name)
-            target = graph.nodes.get(edge.target_qualified_name)
+            target_graph = scope.graphs_by_language.get(edge.target_graph_language)
+            source = graph.nodes.get(edge.source_qualified_name) if graph is not None else None
+            target = target_graph.nodes.get(edge.target_qualified_name) if target_graph is not None else None
             if source is not None:
                 path = normalize_repo_path(source.file_path, repo_dir)
                 reasons[connection.source_group_id][path].add(f"calls group {connection.target_group_id}")

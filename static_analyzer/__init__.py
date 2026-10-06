@@ -24,7 +24,13 @@ from static_analyzer.engine.result_converter import convert_to_codeboarding_form
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.exceptions import StaticAnalysisFatalError
-from static_analyzer.external_calls import link_external_call_sites, record_package_imports
+from static_analyzer.external_calls import (
+    callers_of_changed_targets,
+    carry_cross_language_edges,
+    link_across_languages,
+    link_external_call_sites,
+    record_package_imports,
+)
 from static_analyzer.graph_definitions import GraphIndex
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
@@ -910,6 +916,7 @@ class StaticAnalyzer:
         carried: dict[Language, dict] = {}
         carried_adapters: dict[Language, LanguageAdapter] = {}
         rebuilt: list[tuple[LanguageAdapter, dict]] = []
+        reanalysed_files: set[str] = set()
         for engine_config, engine_client in self._live_clients("warm-start"):
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
@@ -922,9 +929,10 @@ class StaticAnalyzer:
             else:
                 changed_files = {
                     path
-                    for path in changed_files
+                    for path in changed_files | callers_of_changed_targets(cached_results, changed_files, language)
                     if not any(path.is_relative_to(root) for root in engine_config.excluded_roots)
                 }
+                reanalysed_files.update(str(path) for path in changed_files)
                 logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
                 cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
                 analysis = update_cfg_for_changed_files(
@@ -950,6 +958,10 @@ class StaticAnalyzer:
             )
         self._absorb_and_link(
             results, rebuilt + [(carried_adapters[language], analysis) for language, analysis in carried.items()]
+        )
+        rebuilt_languages = {adapter.results_language for adapter, _ in rebuilt}
+        results.add_cross_language_edges(
+            carry_cross_language_edges(cached_results, results, reanalysed_files, rebuilt_languages)
         )
         results.incremental_base_results = cached_results
         return results
@@ -1017,6 +1029,9 @@ class StaticAnalyzer:
             index = GraphIndex(results.get_cfg(language))
             linked = link_external_call_sites(index, sites, adapter, inspector, analysed_files)
             record_package_imports(results.get_package_dependencies(language), adapter, linked.edges)
+            results.add_cross_language_edges(
+                link_across_languages(results, language, linked.unresolved, adapter, inspector)
+            )
 
     def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:
         """Stuff one language's analysis-dict into the shared ``StaticAnalysisResults``."""

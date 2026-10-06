@@ -11,7 +11,7 @@ from typing import Any
 from clustering_ids import ROOT_SCOPE_ID, ClusterId, ComponentId, ScopeId
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg import CallGraph, Edge
 from static_analyzer.cfg.edge import EdgeKind
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.models import (
@@ -73,13 +73,18 @@ def file_leaf_clusters(graph: CallGraph) -> ClusterResult:
     )
 
 
-def unit_links(graphs: Mapping[str, CallGraph]) -> Links:
+def unit_links(graphs: Mapping[str, CallGraph], cross_language_edges: Iterable[Edge] = ()) -> Links:
     """Edges between files, directed from the calling file to the called one.
 
-    Call edges plus the reference kinds that cross a file. The direction is what tells a
-    helper (called by one sibling) from an application (calls others, called by none).
+    Call edges, calls between languages, and the reference kinds that cross a file. The
+    direction is what tells a helper (called by one sibling) from an application (calls
+    others, called by none).
     """
     links: dict[tuple[str, str], int] = {}
+    for edge in cross_language_edges:
+        calling, called = edge.src_node.file_path, edge.dst_node.file_path
+        if calling and called and calling != called:
+            links[(calling, called)] = links.get((calling, called), 0) + 1
     for graph in graphs.values():
         pairs = [(edge.get_source(), edge.get_destination()) for edge in graph.edges]
         pairs.extend((ref.src, ref.dst) for ref in graph.reference_edges if ref.kind in AFFINE_REFERENCE_KINDS)
@@ -110,12 +115,14 @@ class ClusteringService:
         self.spec = TreeSpec(grouper=self.grouper.name)
         self._links: Links = {}
         self._baseline: _Baseline | None = None
+        self._cross_language_edges: list[Edge] = []
 
     def build_full_hierarchy(self, static_analysis: StaticAnalysisResults, max_depth: int) -> ClusterScopeResult:
         """Draft the specification from every language's names and materialize the tree."""
         graphs = static_analysis.available_cfgs()
         units = units_from_graphs(graphs, self._repo_dir)
-        self._links = unit_links(graphs)
+        self._cross_language_edges = list(static_analysis.cross_language_edges)
+        self._links = unit_links(graphs, self._cross_language_edges)
         self.spec = draft_tree(units, self.grouper, max_depth + 1, links=self._links)
         hierarchy = self._materialize(graphs, units, ROOT_SCOPE_ID, 1, max_depth)
         hierarchy.index_hierarchy()
@@ -142,7 +149,8 @@ class ClusteringService:
         self._adopt(spec)
         self._repo_dir = repo_dir
         units = units_from_graphs(graphs, repo_dir)
-        self._links = unit_links(graphs)
+        self._cross_language_edges = list(static_analysis.cross_language_edges)
+        self._links = unit_links(graphs, self._cross_language_edges)
         baseline = _Baseline(persisted_scopes, repo_dir, units_from_graphs(base.available_cfgs(), repo_dir))
         self._baseline = baseline
         hierarchy = self._materialize(graphs, units, ROOT_SCOPE_ID, 1, max_depth, baseline=baseline)
@@ -155,6 +163,7 @@ class ClusteringService:
         max_depth: int,
         root_scope_id: ScopeId,
         spec: TreeSpec,
+        cross_language_edges: Iterable[Edge] = (),
     ) -> ClusterScopeResult:
         """Replay or draft one existing component's scope and the tree below it.
 
@@ -170,7 +179,12 @@ class ClusteringService:
             # The scope's own graphs, induced by the files its ancestors' replay placed in it, so a
             # partial run sees the units a full run would have handed it, data-only files included.
             graphs = self._induced_graphs(units, graphs)
-        self._links = unit_links(graphs)
+        # Only the calls between this scope's own files, as a full run would have seen at this scope.
+        held = {node.file_path for graph in graphs.values() for node in graph.nodes.values()}
+        self._cross_language_edges = [
+            edge for edge in cross_language_edges if edge.src_node.file_path in held and edge.dst_node.file_path in held
+        ]
+        self._links = unit_links(graphs, self._cross_language_edges)
         hierarchy = self._materialize(graphs, units, root_scope_id, 1, max_depth)
         hierarchy.index_hierarchy()
         return hierarchy
@@ -230,7 +244,7 @@ class ClusteringService:
                     partition.placed_by[unit.unit_id],
                 )
             result.groups.append(group)
-        result.connections = self._build_connections(graphs, result.groups)
+        result.connections = self._build_connections(graphs, result.groups, self._cross_language_edges)
         for group in result.groups:
             child_graphs = self._induced_graphs(partition.members.get(group.group_id, []), graphs)
             child_units = units_from_graphs(child_graphs, self._repo_dir)
@@ -387,7 +401,9 @@ class ClusteringService:
         return child_graphs
 
     @staticmethod
-    def _build_connections(graphs: Mapping[str, CallGraph], groups: list[ClusterGroup]) -> list[GroupConnection]:
+    def _build_connections(
+        graphs: Mapping[str, CallGraph], groups: list[ClusterGroup], cross_language_edges: Iterable[Edge] = ()
+    ) -> list[GroupConnection]:
         group_id_by_qualified_name = {
             (language, qualified_name): group.group_id
             for group in groups
@@ -415,6 +431,29 @@ class ClusteringService:
                         call_sites=edge.call_sites,
                     )
                 )
+        language_of = {qualified_name: language for language, graph in graphs.items() for qualified_name in graph.nodes}
+        for edge in cross_language_edges:
+            source, target = edge.get_source(), edge.get_destination()
+            source_language, target_language = language_of.get(source), language_of.get(target)
+            if source_language is None or target_language is None:
+                continue
+            source_group = group_id_by_qualified_name.get((source_language, source), "")
+            target_group = group_id_by_qualified_name.get((target_language, target), "")
+            if not source_group or not target_group or source_group == target_group:
+                continue
+            connection = by_pair.setdefault(
+                (source_group, target_group),
+                GroupConnection(source_group_id=source_group, target_group_id=target_group),
+            )
+            connection.edges.append(
+                ClusterConnectionEdge(
+                    language=source_language,
+                    source_qualified_name=source,
+                    target_qualified_name=target,
+                    call_sites=edge.call_sites,
+                    target_language=target_language,
+                )
+            )
         return [by_pair[pair] for pair in sorted(by_pair)]
 
 

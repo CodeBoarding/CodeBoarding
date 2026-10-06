@@ -72,8 +72,9 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v9: a call into a project of another solution root is an edge.
 # v10: every name is spelled from the repository root; C# keeps ``src`` and Java its source root.
 # v11: every language builds its call edges from definitions at the call site.
+# v12: calls between languages (Kotlin into Java) are kept as cross-language edges.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v11"
+_TAG_VERSION = "v12"
 
 
 class StaticAnalysisCache:
@@ -103,6 +104,9 @@ class StaticAnalysisCache:
         portable = copy.deepcopy(portable)
         for lang_data in portable.results.values():
             lang_data.visit_paths(self._to_relative)
+        # Their nodes are the graphs' own, so only the call sites are left to rewrite.
+        for edge in portable.cross_language_edges:
+            edge.visit_paths(self._to_relative)
         portable.diagnostics = {
             lang: {self._to_relative(fp): diags for fp, diags in file_map.items()}
             for lang, file_map in portable.diagnostics.items()
@@ -113,6 +117,8 @@ class StaticAnalysisCache:
         """Expand all repo-relative file paths in result to absolute paths."""
         for lang_data in result.results.values():
             lang_data.visit_paths(self._to_absolute)
+        for edge in result.cross_language_edges:
+            edge.visit_paths(self._to_absolute)
         result.diagnostics = {
             lang: {self._to_absolute(fp): diags for fp, diags in file_map.items()}
             for lang, file_map in result.diagnostics.items()

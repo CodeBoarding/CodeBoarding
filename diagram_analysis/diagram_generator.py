@@ -1276,7 +1276,13 @@ class DiagramGenerator:
         service = ClusteringService(self._grouper(), self.repo_location)
         # The service replays the specification from the root down to this component, so the
         # scope holds the units a full run placed in it, data-only files included.
-        scope = service.build_scope_hierarchy(graphs, remaining_depth, component.component_id, self.tree_spec)
+        scope = service.build_scope_hierarchy(
+            graphs,
+            remaining_depth,
+            component.component_id,
+            self.tree_spec,
+            self.static_analysis.cross_language_edges,
+        )
         self.tree_spec = service.spec
         if not scope.groups:
             decided = self.tree_spec.scope(component.component_id)
@@ -1434,7 +1440,9 @@ class DiagramGenerator:
         if not self.static_analysis:
             return []
         cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
-        global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs)
+        global_relations = build_global_relations(
+            root_analysis, sub_analyses, cfg_graphs, self.static_analysis.cross_language_edges
+        )
         ownership = ComponentOwnershipIndex.from_node_owners(
             build_global_node_to_component_map(root_analysis, sub_analyses)
         )

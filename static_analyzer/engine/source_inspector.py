@@ -624,6 +624,27 @@ class SourceInspector:
                 queue.extend(current.named_children)
         return count
 
+    def declaration_name_from_start(self, file_path: Path, line: int, character: int) -> tuple[int, int] | None:
+        """Where the name is of the declaration whose text starts at a zero-based position, doc comment included.
+
+        Why: some servers answer with the span of a whole declaration, which begins at its doc
+        comment or annotations, rather than with its name.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return None
+        row, column = line, parsed.byte_column(line, character)
+        node = parsed.tree.root_node.named_descendant_for_point_range((row, column), (row, column))
+        if node is not None and node.start_point == (row, column) and "comment" in node.type:
+            while node is not None and "comment" in node.type:
+                node = node.next_named_sibling
+            row, column = node.start_point if node is not None else (row, column)
+        named = None
+        while node is not None and node.start_point == (row, column):
+            named = self._declared_name(node) or named
+            node = node.parent
+        return parsed.lsp_position(named.start_point) if named is not None else None
+
     def declares_function_value(self, file_path: Path, line: int, character: int) -> bool:
         """Whether the declaration at this position is a name bound to a function literal.
 

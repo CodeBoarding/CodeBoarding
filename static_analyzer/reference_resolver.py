@@ -276,6 +276,9 @@ class StaticReferenceResolver:
             for edge in cfg.edges:
                 if edge.get_source() == source_qname and edge.get_destination() == target_qname:
                     return edge
+        for edge in self.static_analysis.cross_language_edges:
+            if edge.get_source() == source_qname and edge.get_destination() == target_qname:
+                return edge
         return None
 
     def remove_unresolved_references(self, analysis: AnalysisInsights) -> None:
