@@ -3,7 +3,9 @@ import hashlib
 import io
 import json
 import os
+import platform
 import shutil
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -23,16 +25,21 @@ from tool_registry import (
     GitHubToolSource,
     ToolKind,
     UpstreamToolSource,
+    archive_launcher_path,
+    archive_tool_is_installed,
     asset_url,
     download_asset,
     embedded_node_is_healthy,
+    ensure_archive_tool,
     ensure_node_on_path,
     exe_suffix,
     has_required_tools,
     initialize_nodeenv_globals,
+    install_archive_tool,
     install_embedded_node,
     install_native_tools,
     install_node_tools,
+    install_tools,
     needs_install,
     node_is_acceptable,
     node_version_tuple,
@@ -40,11 +47,13 @@ from tool_registry import (
     platform_bin_dir,
     preferred_node_path,
     resolve_config,
+    resolve_config_from_path,
     tools_fingerprint,
     write_manifest,
 )
 from tool_registry import PackageManagerToolSource
 from tool_registry.installers import (
+    _extract_zip,
     PACKAGE_MANAGER_TOOL_STAMP,
     _extract_compressed_binary,
     install_package_manager_tools,
@@ -964,7 +973,7 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
     NATIVE -> platform_bin_dir/<name><exe>;
     NODE -> node_modules/<js_entry_parent>/lib/<js_entry_file>
     (find_runnable does a substring match on parent dir);
-    ARCHIVE -> bin/<archive_subdir>/plugins/;
+    ARCHIVE -> its launcher, or bin/<archive_subdir>/plugins/ for JDTLS;
     PACKAGE_MANAGER -> platform_bin_dir/pm-tools/<subdir>/<name><exe>
     """
     bin_dir = platform_bin_dir(base_dir)
@@ -979,7 +988,12 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
             entry_dir.mkdir(parents=True, exist_ok=True)
             (entry_dir / dep.js_entry_file).write_text("// stub\n")
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
-            (base_dir / "bin" / dep.archive_subdir / "plugins").mkdir(parents=True, exist_ok=True)
+            launcher = archive_launcher_path(base_dir, dep)
+            if launcher is None:
+                (base_dir / "bin" / dep.archive_subdir / "plugins").mkdir(parents=True, exist_ok=True)
+            else:
+                launcher.parent.mkdir(parents=True, exist_ok=True)
+                launcher.write_text("#!/bin/sh\n")
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             subdir = dep.archive_subdir or dep.key
             pm_dir = bin_dir / "pm-tools" / subdir
@@ -1050,6 +1064,13 @@ class TestHasRequiredTools(unittest.TestCase):
             self.assertFalse(has_required_tools(base_dir))
 
     def test_archive_dir_without_plugins_subdir_returns_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            _populate_complete_servers_dir(base_dir)
+            shutil.rmtree(base_dir / "bin" / "jdtls" / "plugins")
+            self.assertFalse(has_required_tools(base_dir))
+
+    def test_archive_without_its_contents_returns_false(self):
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
             _populate_complete_servers_dir(base_dir)
@@ -1738,3 +1759,215 @@ class TestInstallPackageManagerTools(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestArchiveLauncherTools(unittest.TestCase):
+    """Archives run through a launcher inside them (kotlin-lsp), unlike JDTLS."""
+
+    KOTLIN = next(dep for dep in TOOL_REGISTRY if dep.key == "kotlin")
+    JDTLS = next(dep for dep in TOOL_REGISTRY if dep.key == "java")
+    VERSION = KOTLIN.source.tag  # type: ignore[union-attr]
+
+    @staticmethod
+    def _zip(path: Path, root: str = "kotlin-server/") -> None:
+        """A release zip shaped like JetBrains': one top-level folder, an executable launcher, a symlink."""
+        with zipfile.ZipFile(path, "w") as zf:
+            launcher = zipfile.ZipInfo(f"{root}bin/intellij-server")
+            launcher.external_attr = (stat.S_IFREG | 0o755) << 16
+            zf.writestr(launcher, "#!/bin/sh\n")
+            zf.writestr(f"{root}license/LICENSE", "terms")
+            link = zipfile.ZipInfo(f"{root}jbr/legal/LICENSE")
+            link.external_attr = (stat.S_IFLNK | 0o777) << 16
+            zf.writestr(link, "../../license/LICENSE")
+
+    def _install(self, base: Path, archive: Path, system: str, machine: str, asset: str) -> None:
+        def fake_download(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
+            self.assertEqual(
+                url, f"https://download.jetbrains.com/language-server/kotlin-server/{self.VERSION}/{asset}"
+            )
+            self.assertEqual(expected_sha256, self.KOTLIN.source.sha256[asset])  # type: ignore[union-attr]
+            shutil.copy(archive, destination)
+            return True
+
+        with (
+            patch("tool_registry.installers.download_asset", side_effect=fake_download),
+            patch("tool_registry.installers.platform.system", return_value=system),
+            patch("tool_registry.installers.platform.machine", return_value=machine),
+        ):
+            install_archive_tool(base, self.KOTLIN)
+
+    def test_the_launcher_sits_under_the_extracted_archive(self):
+        base = Path("/servers")
+        with patch("tool_registry.paths.platform.system", return_value="Linux"):
+            self.assertEqual(
+                archive_launcher_path(base, self.KOTLIN), base / "bin" / "kotlin-lsp" / "bin" / "intellij-server"
+            )
+        with patch("tool_registry.paths.platform.system", return_value="Windows"):
+            launcher = archive_launcher_path(base, self.KOTLIN)
+            assert launcher is not None
+            self.assertEqual(launcher.name, "intellij-server.exe")
+        self.assertIsNone(archive_launcher_path(base, self.JDTLS))
+
+    @unittest.skipIf(platform.system() == "Windows", "symlinks and modes are not restored on Windows")
+    def test_the_hosts_zip_is_extracted_with_its_modes_and_links_under_one_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            archive = base / "release.sit"
+            self._zip(archive)
+            self._install(base, archive, "Darwin", "arm64", f"kotlin-server-{self.VERSION}-aarch64.sit")
+
+            root = base / "bin" / "kotlin-lsp"
+            launcher = root / "bin" / "intellij-server"
+            self.assertTrue(archive_tool_is_installed(base, self.KOTLIN))
+            self.assertTrue(os.access(launcher, os.X_OK))
+            self.assertTrue((root / "jbr" / "legal" / "LICENSE").is_symlink())
+            self.assertEqual((root / "jbr" / "legal" / "LICENSE").read_text(), "terms")
+            self.assertFalse((base / "bin" / "kotlin-lsp.zip").exists())
+            self.assertFalse((base / "bin" / "kotlin-lsp.partial").exists())
+
+    def test_the_hosts_tarball_is_extracted_under_one_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            source = base / "src" / "kotlin-server" / "bin"
+            source.mkdir(parents=True)
+            (source / "intellij-server").write_text("#!/bin/sh\n")
+            archive = base / "release.tar.gz"
+            with tarfile.open(archive, "w:gz") as tar:
+                tar.add(base / "src" / "kotlin-server", arcname="kotlin-server")
+            self._install(base, archive, "Linux", "x86_64", f"kotlin-server-{self.VERSION}.tar.gz")
+            self.assertTrue((base / "bin" / "kotlin-lsp" / "bin" / "intellij-server").is_file())
+
+    def test_a_host_with_no_build_downloads_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with (
+                patch("tool_registry.installers.download_asset") as download,
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="riscv64"),
+            ):
+                install_archive_tool(Path(tmp), self.KOTLIN)
+            download.assert_not_called()
+
+    def test_an_installed_archive_is_not_downloaded_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            launcher = archive_launcher_path(base, self.KOTLIN)
+            assert launcher is not None
+            launcher.parent.mkdir(parents=True)
+            launcher.write_text("#!/bin/sh\n")
+            with patch("tool_registry.installers.download_asset") as download:
+                install_archive_tool(base, self.KOTLIN)
+            download.assert_not_called()
+
+    def test_an_interrupted_install_leaves_nothing_that_looks_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            with (
+                patch("tool_registry.installers.download_asset", return_value=False),
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+            ):
+                install_archive_tool(base, self.KOTLIN)
+            self.assertFalse(archive_tool_is_installed(base, self.KOTLIN))
+            self.assertFalse((base / "bin" / "kotlin-lsp.partial").exists())
+
+    @unittest.skipIf(platform.system() == "Windows", "symlinks and modes are not restored on Windows")
+    def test_an_install_replaces_a_stale_extraction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            stale = base / "bin" / "kotlin-lsp" / "stale.txt"
+            stale.parent.mkdir(parents=True)
+            stale.write_text("left over")
+            archive = base / "release.sit"
+            self._zip(archive)
+            self._install(base, archive, "Darwin", "x86_64", f"kotlin-server-{self.VERSION}.sit")
+            self.assertFalse(stale.exists())
+            self.assertTrue(archive_tool_is_installed(base, self.KOTLIN))
+
+    def test_a_zip_member_outside_the_destination_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            archive = base / "evil.zip"
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("../outside.txt", "nope")
+            with self.assertRaises(ValueError):
+                _extract_zip(archive, base / "out")
+            self.assertFalse((base / "outside.txt").exists())
+
+    def test_resolve_config_points_the_command_at_the_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _populate_complete_servers_dir(base)
+            config = resolve_config(base)
+            self.assertEqual(
+                config["lsp_servers"]["kotlin"]["command"][0], str(archive_launcher_path(base, self.KOTLIN))
+            )
+            self.assertEqual(config["lsp_servers"]["java"]["jdtls_root"], str(base / "bin" / "jdtls"))
+
+    def test_resolve_config_from_path_finds_a_launcher_on_path(self):
+        with patch("tool_registry.manifest.shutil.which", side_effect=lambda name: f"/usr/bin/{name}"):
+            config = resolve_config_from_path()
+        self.assertEqual(config["lsp_servers"]["kotlin"]["command"][0], "/usr/bin/intellij-server")
+
+
+class TestOnDemandArchiveTools(unittest.TestCase):
+    """kotlin-lsp is fetched by the first analysis that needs it, never by setup."""
+
+    KOTLIN = next(dep for dep in TOOL_REGISTRY if dep.key == "kotlin")
+
+    def test_setup_skips_it_and_does_not_require_it(self):
+        self.assertTrue(self.KOTLIN.install_on_demand)
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            with (
+                patch("tool_registry.installers.install_archive_tool") as install,
+                patch("tool_registry.installers.install_native_tools"),
+                patch("tool_registry.installers.install_node_tools"),
+                patch("tool_registry.installers.install_package_manager_tools"),
+            ):
+                install_tools(base)
+            self.assertNotIn(self.KOTLIN, [call.args[1] for call in install.call_args_list])
+            _populate_complete_servers_dir(base)
+            launcher = archive_launcher_path(base, self.KOTLIN)
+            assert launcher is not None
+            launcher.unlink()
+            self.assertTrue(has_required_tools(base))
+
+    def test_first_use_installs_once_under_the_setup_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+
+            def fake_install(target_dir: Path, dep: ToolDependency, on_progress=None) -> None:
+                launcher = archive_launcher_path(target_dir, dep)
+                assert launcher is not None
+                launcher.parent.mkdir(parents=True)
+                launcher.write_text("#!/bin/sh\n")
+
+            with (
+                patch("tool_registry.installers.get_servers_dir", return_value=base),
+                patch("tool_registry.installers.install_archive_tool", side_effect=fake_install) as install,
+            ):
+                first = ensure_archive_tool(self.KOTLIN)
+                second = ensure_archive_tool(self.KOTLIN)
+            self.assertEqual(first, archive_launcher_path(base, self.KOTLIN))
+            self.assertEqual(second, first)
+            install.assert_called_once()
+            self.assertTrue((base / ".download.lock").exists())
+
+    def test_a_failed_download_reports_no_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with (
+                patch("tool_registry.installers.get_servers_dir", return_value=Path(tmp)),
+                patch("tool_registry.installers.install_archive_tool"),
+            ):
+                self.assertIsNone(ensure_archive_tool(self.KOTLIN))
+
+    def test_the_download_names_the_licence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with (
+                patch("tool_registry.installers.download_asset", return_value=False),
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+                patch("sys.stderr", new_callable=io.StringIO) as stderr,
+            ):
+                install_archive_tool(Path(tmp), self.KOTLIN)
+            self.assertIn(self.KOTLIN.license_url, stderr.getvalue())

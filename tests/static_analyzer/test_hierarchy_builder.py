@@ -41,6 +41,7 @@ def _make_adapter() -> MagicMock:
     adapter = MagicMock()
     adapter.is_callable.side_effect = lambda k: k in (NodeType.FUNCTION, NodeType.METHOD)
     adapter.is_class_like.side_effect = lambda k: k == NodeType.CLASS
+    adapter.resolves_bases_by_definition = False
     return adapter
 
 
@@ -375,3 +376,74 @@ class TestResolveTypeHierarchyItem:
         }
         result = builder._resolve_type_hierarchy_item(item)
         assert result is None
+
+
+class TestResolveBasesByDefinition:
+    """Servers without typeHierarchy whose bases are resolved where the header names them (Kotlin)."""
+
+    KT = Path("/tmp/test_project/Zoo.kt")
+
+    def _adapter(self) -> MagicMock:
+        adapter = _make_adapter()
+        adapter.resolves_bases_by_definition = True
+        return adapter
+
+    def test_a_base_resolves_to_the_declaration_its_definition_names(self):
+        adapter = self._adapter()
+        animal = _sym("Animal", "zoo.Animal", NodeType.CLASS, self.KT, start_line=0, start_char=6)
+        other_animal = _sym("Animal", "farm.Animal", NodeType.CLASS, Path("/tmp/test_project/Farm.kt"), 0, 6)
+        dog = _sym("Dog", "zoo.Dog", NodeType.CLASS, self.KT, start_line=2, start_char=6)
+        st = _setup_symbol_table(adapter, [animal, other_animal, dog])
+
+        lsp = MagicMock()
+        lsp.type_hierarchy_prepare.side_effect = MethodNotFoundError("not offered")
+        lsp.send_definition_batch.return_value = [
+            [{"uri": self.KT.as_uri(), "range": {"start": {"line": 0, "character": 6}}}]
+        ]
+        si = MagicMock(spec=SourceInspector)
+        si.find_base_type_sites.side_effect = lambda fp: [((2, 6), [(2, 12)])] if fp == self.KT else []
+
+        hierarchy = HierarchyBuilder(lsp, st, si, adapter).build()
+
+        assert hierarchy["zoo.Dog"]["superclasses"] == ["zoo.Animal"]
+        assert hierarchy["zoo.Animal"]["subclasses"] == ["zoo.Dog"]
+        assert hierarchy["farm.Animal"]["subclasses"] == [], "a same-named type elsewhere is not linked"
+
+    def test_a_base_written_as_a_constructor_call_links_the_class_declaring_it(self):
+        adapter = self._adapter()
+        animal = _sym("Animal", "zoo.Animal", NodeType.CLASS, self.KT, start_line=0, start_char=6)
+        constructor = _sym("Animal(String)", "zoo.Animal.Animal(String)", NodeType.CONSTRUCTOR, self.KT, 0, 12)
+        constructor.owner_qualified_name = "zoo.Animal"
+        dog = _sym("Dog", "zoo.Dog", NodeType.CLASS, self.KT, start_line=2, start_char=6)
+        st = _setup_symbol_table(adapter, [animal, dog])
+        st._symbols[constructor.qualified_name] = constructor
+
+        lsp = MagicMock()
+        lsp.type_hierarchy_prepare.side_effect = MethodNotFoundError("not offered")
+        lsp.send_definition_batch.return_value = [
+            [{"uri": self.KT.as_uri(), "range": {"start": {"line": 0, "character": 12}}}]
+        ]
+        si = MagicMock(spec=SourceInspector)
+        si.find_base_type_sites.return_value = [((2, 6), [(2, 12)])]
+
+        hierarchy = HierarchyBuilder(lsp, st, si, adapter).build()
+
+        assert hierarchy["zoo.Dog"]["superclasses"] == ["zoo.Animal"]
+
+    def test_a_base_given_by_its_own_declaration_needs_no_query(self):
+        """An enum entry's body subclasses the enum it sits in."""
+        adapter = self._adapter()
+        mode = _sym("Mode", "zoo.Mode", NodeType.ENUM, self.KT, start_line=0, start_char=11)
+        off = _sym("OFF", "zoo.Mode.OFF", NodeType.CLASS, self.KT, start_line=2, start_char=2)
+        st = _setup_symbol_table(adapter, [mode, off])
+        adapter.is_class_like.side_effect = lambda k: k in (NodeType.CLASS, NodeType.ENUM)
+
+        lsp = MagicMock()
+        lsp.type_hierarchy_prepare.side_effect = MethodNotFoundError("not offered")
+        si = MagicMock(spec=SourceInspector)
+        si.find_base_type_sites.return_value = [((2, 2), [(0, 11)])]
+
+        hierarchy = HierarchyBuilder(lsp, st, si, adapter).build()
+
+        assert hierarchy["zoo.Mode.OFF"]["superclasses"] == ["zoo.Mode"]
+        lsp.send_definition_batch.assert_not_called()

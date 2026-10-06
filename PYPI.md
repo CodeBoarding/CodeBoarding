@@ -11,13 +11,14 @@
 - Builds layered abstractions with an LLM agent (OpenAI, Anthropic, Google Gemini, Ollama, and more)
 - Outputs Mermaid.js diagrams ready for docs, IDEs, and CI/CD pipelines
 
-**Supported languages:** Python · TypeScript · JavaScript · Java · Go · PHP
+**Supported languages:** Python · TypeScript · JavaScript · Java · Kotlin · Go · PHP
 
 ---
 
 ## Requirements
 
 - **Python 3.12 or 3.13** — other versions are currently not supported.
+- **Linux:** glibc 2.34 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later).
 
 ## Installation
 

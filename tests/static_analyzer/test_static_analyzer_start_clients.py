@@ -37,6 +37,8 @@ def _make_adapter(
     adapter.get_lsp_env.return_value = {}
     adapter.get_workspace_settings.return_value = {}
     adapter.wait_for_workspace_ready = wait_for_workspace_ready
+    adapter.workspace_folders.return_value = []
+    adapter.fallback_workspace_folders.return_value = []
     return cast(LanguageAdapter, adapter)
 
 
@@ -215,3 +217,38 @@ class TestStartClientsWorkspaceReadyDispatch:
 
         py_client.wait_for_server_ready.assert_not_called()
         rust_client.wait_for_server_ready.assert_called_once()
+
+
+class TestStartClientsFallbackWorkspace:
+    def test_a_server_that_could_not_load_the_project_is_restarted_on_the_fallback(
+        self, analyzer: StaticAnalyzer, tmp_path: Path
+    ) -> None:
+        adapter = _make_adapter("Kotlin", language_enum=Language.KOTLIN)
+        adapter.discover_source_files.return_value = [tmp_path / "A.kt"]  # type: ignore[attr-defined]
+        adapter.fallback_workspace_folders.side_effect = [[tmp_path / "sources"]]  # type: ignore[attr-defined]
+        analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
+        first, second = MagicMock(name="first"), MagicMock(name="second")
+        sa = analyzer
+        with patch("static_analyzer.LSPClient", side_effect=[first, second]) as client_cls:
+            sa.start_clients()
+
+        first.shutdown.assert_called_once()
+        assert client_cls.call_args_list[0].kwargs["workspace_folders"] is None
+        assert client_cls.call_args_list[1].kwargs["workspace_folders"] == [tmp_path / "sources"]
+        assert [client for _, client in sa._engine_clients] == [second]
+
+    def test_a_server_is_started_on_the_workspace_its_adapter_names(
+        self, analyzer: StaticAnalyzer, tmp_path: Path
+    ) -> None:
+        adapter = _make_adapter("Kotlin", language_enum=Language.KOTLIN)
+        adapter.discover_source_files.return_value = [tmp_path / "A.kt"]  # type: ignore[attr-defined]
+        adapter.workspace_folders.return_value = [tmp_path / "sources"]  # type: ignore[attr-defined]
+        adapter.fallback_workspace_folders.return_value = [tmp_path / "sources"]  # type: ignore[attr-defined]
+        analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
+        only = MagicMock(name="only")
+        with patch("static_analyzer.LSPClient", side_effect=[only]) as client_cls:
+            analyzer.start_clients()
+
+        assert client_cls.call_args_list[0].kwargs["workspace_folders"] == [tmp_path / "sources"]
+        only.shutdown.assert_not_called()
+        assert [client for _, client in analyzer._engine_clients] == [only]

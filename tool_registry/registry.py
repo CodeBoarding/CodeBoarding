@@ -36,6 +36,11 @@ JDTLS_URL_TEMPLATE = "https://download.eclipse.org/jdtls/snapshots/jdt-language-
 RUST_ANALYZER_REPO = "rust-lang/rust-analyzer"
 RUST_ANALYZER_TAG = "2026-03-30"
 
+# JetBrains' kotlin-lsp ships one archive per platform with its own Java runtime inside.
+KOTLIN_LSP_VERSION = "263.6379.0"
+KOTLIN_LSP_URL_TEMPLATE = "https://download.jetbrains.com/language-server/kotlin-server/{version}/{asset}"
+KOTLIN_LSP_LICENSE_URL = "https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt"
+
 # Pinned Node.js runtime for users without system Node; downloaded to
 # <servers_dir>/nodeenv/ via install_embedded_node(). A bump is folded into
 # tools_fingerprint() and triggers a full reinstall.
@@ -105,8 +110,11 @@ class GitHubToolSource(ToolSource):
 class UpstreamToolSource(ToolSource):
     """Tool downloaded directly from an upstream provider (e.g. Eclipse)."""
 
-    url_template: str = ""  # with ``{version}`` / optional ``{build}``
+    url_template: str = ""  # with ``{version}`` / optional ``{build}`` / ``{asset}``
     build: str = ""
+    # Per-host archive, keyed by ``(platform.system(), platform.machine())``, and its sha256 by asset name.
+    asset_arch_overrides: dict[tuple[str, str], str] = field(default_factory=dict)
+    sha256: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -132,18 +140,24 @@ class ToolDependency:
     source: ToolSource | None = None
     npm_packages: list[str] = field(default_factory=list)
     archive_subdir: str = ""
+    # Launcher inside an extracted archive, relative to ``bin/<archive_subdir>``, with ``.exe``
+    # on Windows. Empty for an archive the adapter launches itself (JDTLS).
+    archive_entry: str = ""
+    # Installed the first time an analysis needs it rather than by setup, for a large tool few users need.
+    install_on_demand: bool = False
+    # Terms shown when the tool is downloaded, for one not under an open-source licence.
+    license_url: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
 
     def is_available_on_host(self) -> bool:
-        """True unless this is an arch-aware NATIVE dep whose override map
-        excludes the running ``(system, machine)`` (e.g. rust-analyzer on
-        Linux/riscv64). Consulted by both the installer and
-        ``has_required_tools`` to keep them in sync.
+        """True unless this is an arch-aware dep whose override map excludes the running
+        ``(system, machine)`` (e.g. rust-analyzer on Linux/riscv64). Consulted by both the
+        installer and ``has_required_tools`` to keep them in sync.
         """
-        if self.kind is not ToolKind.NATIVE:
+        if self.kind not in (ToolKind.NATIVE, ToolKind.ARCHIVE):
             return True
-        if not isinstance(self.source, GitHubToolSource):
+        if not isinstance(self.source, (GitHubToolSource, UpstreamToolSource)):
             return True
         if not self.source.asset_arch_overrides:
             return True
@@ -246,6 +260,36 @@ TOOL_REGISTRY: list[ToolDependency] = [
             build=JDTLS_BUILD,
         ),
         archive_subdir="jdtls",
+    ),
+    ToolDependency(
+        key="kotlin",
+        binary_name="intellij-server",
+        kind=ToolKind.ARCHIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+        source=UpstreamToolSource(
+            tag=KOTLIN_LSP_VERSION,
+            url_template=KOTLIN_LSP_URL_TEMPLATE,
+            asset_arch_overrides={
+                ("Linux", "x86_64"): f"kotlin-server-{KOTLIN_LSP_VERSION}.tar.gz",
+                ("Linux", "aarch64"): f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.tar.gz",
+                ("Darwin", "x86_64"): f"kotlin-server-{KOTLIN_LSP_VERSION}.sit",
+                ("Darwin", "arm64"): f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.sit",
+                ("Windows", "AMD64"): f"kotlin-server-{KOTLIN_LSP_VERSION}.win.zip",
+                ("Windows", "ARM64"): f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.win.zip",
+            },
+            sha256={
+                f"kotlin-server-{KOTLIN_LSP_VERSION}.tar.gz": "ab8ca4455dc2fc5fe1a24db2bccc46c104254d2c465155c4251ee65df8f3f7cc",
+                f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.tar.gz": "50999901ef8bcfa1e58561b6a8d782a72dea5620fcf92a64130807f8924a56fc",
+                f"kotlin-server-{KOTLIN_LSP_VERSION}.sit": "e69e0c9d27b915b2db9ee692ec08d097df1a394d9f21190457ef199f2905f77e",
+                f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.sit": "ebef2e13cd4adc4ec9e04084b848000a3ec7a9d2917c64f269574ce2efe9ecad",
+                f"kotlin-server-{KOTLIN_LSP_VERSION}.win.zip": "72148fa0832c2a45a4b26c55f56197d8d8886bcdb732b910607efc5e2693b9df",
+                f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.win.zip": "290f48cb564295239bb678bb66b1ebbd06755b14fd4890f3cdf822f41af011ef",
+            },
+        ),
+        archive_subdir="kotlin-lsp",
+        archive_entry="bin/intellij-server",
+        install_on_demand=True,
+        license_url=KOTLIN_LSP_LICENSE_URL,
     ),
     ToolDependency(
         key="rust",

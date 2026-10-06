@@ -42,6 +42,9 @@ class EdgeBuildAdapter(Protocol):
     def expands_virtual_dispatch(self) -> bool: ...
 
     @property
+    def constructor_calls_resolve_to_class(self) -> bool: ...
+
+    @property
     def resolves_iterated_types(self) -> bool: ...
 
     @property

@@ -291,6 +291,17 @@ def _resolve_definitions(
     dispatch = _build_dispatch_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else None
     sink = CallEdgeSink(adapter, st, si, dispatch)
 
+    # What a call answered with a class runs: the class's constructors, or a companion's ``invoke``.
+    constructors: dict[str, list[SymbolInfo]] = {}
+    if adapter.constructor_calls_resolve_to_class:
+        for sym in st.symbols.values():
+            if sym.kind == NodeType.CONSTRUCTOR and sym.owner_qualified_name:
+                constructors.setdefault(sym.owner_qualified_name, []).append(sym)
+            elif adapter.is_callable(sym.kind) and simple_name(sym.qualified_name) == "invoke":
+                companion = parent_qualified_name(sym.qualified_name.split("(", 1)[0])
+                if simple_name(companion) == "Companion":
+                    constructors.setdefault(companion, []).append(sym)
+
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
         potential = potential_calls(file_path, si, adapter, index.callable_names)
@@ -319,6 +330,8 @@ def _resolve_definitions(
             resolved_here = False
             for def_result in defs:
                 target = index.resolve(def_result)
+                if target is not None and kind == CALL and adapter.constructor_calls_resolve_to_class:
+                    target = _constructor_called(target, constructors, si, call_site) or target
                 if target is None:
                     _record_external_call_site(
                         ctx, st.attribution_symbol(caller).qualified_name, def_result, call_site, kind
@@ -601,12 +614,74 @@ def _override_targets(
     return overrides
 
 
+def _constructor_called(
+    target: SymbolInfo, constructors: dict[str, list[SymbolInfo]], si: SourceInspector, call_site: CallSite
+) -> SymbolInfo | None:
+    """The constructor a call answered with its class runs: the one whose parameter count matches the
+    arguments, else the first declared (the primary constructor).
+
+    Only a call that names the class, or delegates with ``this`` / ``super``, constructs it: a
+    synthetic member such as an enum's ``values()`` or a data class's ``copy()`` is also answered
+    with the class, and stays a dependency on the class. A call that names a class but is answered
+    with its companion runs the companion's ``invoke``.
+    """
+    callee = si.identifier_at(Path(call_site.file), call_site.lsp_line, call_site.lsp_column)
+    companion_of = simple_name(parent_qualified_name(target.qualified_name)) if target.name == "Companion" else None
+    if callee not in (target.name, "this", "super", companion_of):
+        return None
+    candidates = sorted(constructors.get(target.qualified_name, ()), key=lambda sym: sym.definition_location)
+    if len(candidates) <= 1:
+        return candidates[0] if candidates else None
+    arguments = si.call_argument_count(Path(call_site.file), call_site.lsp_line, call_site.lsp_column)
+    if arguments is not None:
+        for sym in candidates:
+            if _parameter_count(sym.qualified_name) == arguments:
+                return sym
+    return candidates[0]
+
+
+def _parameter_count(qualified_name: str) -> int | None:
+    """Parameters in the ``(A, B)`` signature a callable's name ends with, or None without one."""
+    if not qualified_name.endswith(")") or "(" not in qualified_name:
+        return None
+    inside = qualified_name[qualified_name.index("(") + 1 : -1].strip()
+    if not inside:
+        return 0
+    depth, count = 0, 1
+    for char in inside:
+        depth += char in "(<["
+        depth -= char in ")>]"
+        count += char == "," and depth == 0
+    return count
+
+
 def _is_valid_edge(caller: SymbolInfo, target: SymbolInfo) -> bool:
     """Check if an edge between caller and target is valid."""
-    if is_self_or_container_edge(caller.qualified_name, target.qualified_name):
+    if is_self_or_container_edge(caller.qualified_name, target.qualified_name) and not _declared_apart(caller, target):
         return False
     if target.definition_location == caller.definition_location:
         return False
     if (str(target.file_path), target.start_line) == (str(caller.file_path), caller.start_line):
         return False
     return True
+
+
+def _declared_apart(a: SymbolInfo, b: SymbolInfo) -> bool:
+    """Two declarations of one file whose names only look nested: the deeper-named one is written
+    outside the other and does not name it among its declaring parents.
+
+    Why: Kotlin names a type declared in a file of its own name after the file, so the file's other
+    top-level declarations read as its members.
+    """
+    if str(a.file_path) != str(b.file_path):
+        return False
+    outer, inner = (a, b) if len(a.qualified_name) < len(b.qualified_name) else (b, a)
+    declaring = {name for name, _ in inner.parent_chain}
+    return outer.name not in declaring and not (_encloses(a, b) or _encloses(b, a))
+
+
+def _encloses(outer: SymbolInfo, inner: SymbolInfo) -> bool:
+    return (outer.start_line, outer.start_char) <= (inner.start_line, inner.start_char) and (
+        outer.end_line,
+        outer.end_char,
+    ) >= (inner.end_line, inner.end_char)

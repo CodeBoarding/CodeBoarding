@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import threading
+from collections.abc import Sequence
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
@@ -184,7 +185,7 @@ class CSharpAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "csharp"
 
-    def get_lsp_command(self, project_root: Path) -> list[str]:
+    def get_lsp_command(self, project_root: Path, source_files: Sequence[Path] = ()) -> list[str]:
         """Resolve the .NET SDK and ensure the managed csharp-ls install is current."""
         try:
             resolution = resolve_dotnet_sdk(project_root)
@@ -192,7 +193,7 @@ class CSharpAdapter(LanguageAdapter):
             raise RuntimeError(str(exc)) from exc
 
         self._ensure_csharp_ls_installed(project_root, resolution.dotnet_path, resolution.env)
-        return super().get_lsp_command(project_root)
+        return super().get_lsp_command(project_root, source_files)
 
     def _ensure_csharp_ls_installed(self, project_root: Path, dotnet_path: str, dotnet_env: dict[str, str]) -> None:
         dep = next((d for d in TOOL_REGISTRY if d.key == "csharp" and d.kind is ToolKind.PACKAGE_MANAGER), None)

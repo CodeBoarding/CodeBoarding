@@ -6,12 +6,13 @@ import logging
 import re
 import time
 
+from static_analyzer.config import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.engine.utils import uri_to_path
+from static_analyzer.engine.utils import definition_location, uri_to_path
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,10 @@ class HierarchyBuilder:
             except Exception as e:
                 logger.debug("Type hierarchy not supported for %s: %s", sym.qualified_name, e)
 
-        if not type_hierarchy_supported:
+        if not type_hierarchy_supported and self._adapter.resolves_bases_by_definition:
+            logger.info("Type hierarchy not supported, resolving the bases written in source")
+            self._resolve_bases_by_definition(class_symbols, hierarchy)
+        elif not type_hierarchy_supported:
             logger.info("Type hierarchy not supported, inferring from source code")
             self._infer_hierarchy_from_source(class_symbols, class_names, hierarchy)
 
@@ -133,6 +137,60 @@ class HierarchyBuilder:
             if sym.name == name and self._adapter.is_class_like(sym.kind):
                 return sym.qualified_name
         return None
+
+    def _resolve_bases_by_definition(self, class_symbols: list[SymbolInfo], hierarchy: dict[str, dict]) -> None:
+        """Link each type to the bases its header names, as a definition query resolves them.
+
+        A base written as a constructor call (``class Dog : Animal(1)``) resolves to that
+        constructor, which stands for the class declaring it.
+        """
+        st = self._symbol_table
+        by_position = {sym.definition_location: sym for sym in class_symbols}
+        declarations = {
+            sym.definition_location: sym
+            for sym in st.symbols.values()
+            if self._adapter.is_class_like(sym.kind) or sym.kind == NodeType.CONSTRUCTOR
+        }
+        for file_path in sorted({sym.file_path for sym in class_symbols}):
+            file_key = str(file_path)
+            sites = self._source_inspector.find_base_type_sites(file_path)
+            # A base given by its own declaration (an enum entry's body subclasses its enum) needs no query.
+            queries = [
+                (file_path, line, char)
+                for _, bases in sites
+                for line, char in bases
+                if (file_key, line, char) not in by_position
+            ]
+            answers = iter(self._lsp.send_definition_batch(queries)) if queries else iter(())
+            for (line, char), bases in sites:
+                sub = by_position.get((file_key, line, char))
+                for base_line, base_char in bases:
+                    declared = by_position.get((file_key, base_line, base_char))
+                    if declared is not None:
+                        candidates = [declared]
+                    else:
+                        candidates = []
+                        for definition in next(answers):
+                            location = definition_location(definition)
+                            found = declarations.get((str(location[0]), location[1], location[2])) if location else None
+                            if found is not None and found.kind == NodeType.CONSTRUCTOR:
+                                found = st.symbols.get(found.owner_qualified_name)
+                            if found is not None:
+                                candidates.append(found)
+                    for base in candidates:
+                        if (
+                            sub is not None
+                            and base.qualified_name in hierarchy
+                            and base.qualified_name != sub.qualified_name
+                        ):
+                            self._link(sub.qualified_name, base.qualified_name, hierarchy)
+
+    @staticmethod
+    def _link(child_qname: str, parent_qname: str, hierarchy: dict[str, dict]) -> None:
+        if parent_qname not in hierarchy[child_qname]["superclasses"]:
+            hierarchy[child_qname]["superclasses"].append(parent_qname)
+        if child_qname not in hierarchy[parent_qname]["subclasses"]:
+            hierarchy[parent_qname]["subclasses"].append(child_qname)
 
     def _infer_hierarchy_from_source(
         self,

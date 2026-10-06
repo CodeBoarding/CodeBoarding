@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
@@ -131,7 +132,7 @@ class RustAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "rust"
 
-    def get_lsp_command(self, project_root: Path) -> list[str]:
+    def get_lsp_command(self, project_root: Path, source_files: Sequence[Path] = ()) -> list[str]:
         """Fail fast if cargo is missing.
 
         rust-analyzer needs ``cargo metadata`` to index any Cargo workspace
@@ -146,7 +147,7 @@ class RustAdapter(LanguageAdapter):
                 "https://rustup.rs/ and re-run the analysis."
             )
         self._check_cargo_usable(project_root, cargo_path)
-        return super().get_lsp_command(project_root)
+        return super().get_lsp_command(project_root, source_files)
 
     def _check_cargo_usable(self, project_root: Path, cargo_path: str) -> None:
         """Reject broken Cargo installs before rust-analyzer returns empty edges."""

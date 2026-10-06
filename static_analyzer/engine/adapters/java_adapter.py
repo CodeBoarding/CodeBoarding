@@ -6,6 +6,7 @@ import logging
 import os
 import platform
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 from static_analyzer.config import Language, NodeType
@@ -49,7 +50,7 @@ class JavaAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "java"
 
-    def get_lsp_command(self, project_root: Path) -> list[str]:
+    def get_lsp_command(self, project_root: Path, source_files: Sequence[Path] = ()) -> list[str]:
         """Build the full JDTLS launch command.
 
         JDTLS cannot be started with a simple binary name — it requires a Java

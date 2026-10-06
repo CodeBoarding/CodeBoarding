@@ -7,6 +7,9 @@ from .registry import (  # noqa: F401
     JDTLS_BUILD,
     JDTLS_URL_TEMPLATE,
     JDTLS_VERSION,
+    KOTLIN_LSP_LICENSE_URL,
+    KOTLIN_LSP_URL_TEMPLATE,
+    KOTLIN_LSP_VERSION,
     PINNED_NODE_VERSION,
     PLATFORM_SUFFIX,
     TOOL_REGISTRY,
@@ -56,6 +59,9 @@ from .manifest import (  # noqa: F401
 )
 from .installers import (  # noqa: F401
     NODEENV_VERSION_STAMP,
+    archive_launcher_path,
+    archive_tool_is_installed,
+    ensure_archive_tool,
     asset_url,
     download_asset,
     embedded_node_is_healthy,
@@ -71,3 +77,4 @@ from .installers import (  # noqa: F401
     package_manager_tool_is_current,
 )
 from .manifest import package_manager_tool_path  # noqa: F401
+from .grammars import KOTLIN_GRAMMAR, download_kotlin_grammar, kotlin_language  # noqa: F401

@@ -19,7 +19,12 @@ else:
 
 from vscode_constants import VSCODE_CONFIG, find_runnable
 
-from .installers import package_manager_tool_dir, package_manager_tool_is_current
+from .installers import (
+    archive_launcher_path,
+    archive_tool_is_installed,
+    package_manager_tool_dir,
+    package_manager_tool_is_current,
+)
 from .paths import exe_suffix, get_servers_dir, native_binary_ok, platform_bin_dir, preferred_node_path
 from .registry import (
     PINNED_NODE_VERSION,
@@ -242,9 +247,14 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
                     cmd[0] = str(binary_path)
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
-            archive_dir = base_dir / "bin" / dep.archive_subdir
-            if archive_dir.is_dir() and (archive_dir / "plugins").is_dir():
-                config[dep.config_section][dep.key]["jdtls_root"] = str(archive_dir)
+            if not archive_tool_is_installed(base_dir, dep):
+                continue
+            launcher = archive_launcher_path(base_dir, dep)
+            if launcher is not None:
+                cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
+                cmd[0] = str(launcher)
+            else:
+                config[dep.config_section][dep.key]["jdtls_root"] = str(base_dir / "bin" / dep.archive_subdir)
 
     return config
 
@@ -255,7 +265,9 @@ def resolve_config_from_path() -> dict[str, Any]:
 
     for dep in TOOL_REGISTRY:
         path = None
-        if dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER):
+        if dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER) or (
+            dep.kind is ToolKind.ARCHIVE and dep.archive_entry
+        ):
             path = shutil.which(dep.binary_name)
         if path:
             cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
@@ -282,12 +294,15 @@ def has_required_tools(base_dir: Path) -> bool:
     NATIVE -> ``platform_bin_dir/<binary><exe>`` exists;
     NODE -> ``find_runnable`` locates ``js_entry_file`` (``.bin/`` wrapper is
     skipped because Windows AV strips it first, and the resolver bypasses it too);
-    ARCHIVE -> ``bin/<archive_subdir>/plugins/`` exists.
+    ARCHIVE -> its launcher, or JDTLS's ``bin/<archive_subdir>/plugins/``, exists.
     """
     if not base_dir.exists():
         return False
 
     for dep in TOOL_REGISTRY:
+        if dep.install_on_demand:
+            # Fetched by the first analysis that needs it, never by setup.
+            continue
         if dep.kind is ToolKind.NATIVE:
             # Skip the check when the installer would also skip the download,
             # otherwise ``needs_install`` loops forever on unsupported hosts.
@@ -335,12 +350,11 @@ def has_required_tools(base_dir: Path) -> bool:
                 return False
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
-            archive_dir = base_dir / "bin" / dep.archive_subdir
-            if not (archive_dir.is_dir() and (archive_dir / "plugins").is_dir()):
+            if not archive_tool_is_installed(base_dir, dep):
                 logger.info(
                     "has_required_tools: %s archive missing or incomplete at %s",
                     dep.key,
-                    archive_dir,
+                    base_dir / "bin" / dep.archive_subdir,
                 )
                 return False
 

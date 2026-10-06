@@ -62,6 +62,7 @@ Adding language support requires changes across several files. Use [PR #276 (Rus
 | `static_analyzer/__init__.py` | Add a mapping in `_lang_to_adapter_name()` from the `ProgrammingLanguage` name to the adapter registry key. |
 | `vscode_constants.py` | Add an LSP server config entry to `VSCODE_CONFIG["lsp_servers"]` with the server name, command, languages, file extensions, and install command. |
 | `tool_registry/registry.py` | Add a `ToolDependency` entry to `TOOL_REGISTRY` (see below). |
+| `static_analyzer/engine/source_inspector.py` + `pyproject.toml` | Add the language's `tree-sitter-<lang>` grammar: call sites are found in its parse tree and resolved through `textDocument/definition`. Check that its call, member-access and type-declaration node shapes are recognised. A grammar with no current wheel of its own can come from `tree-sitter-language-pack`, as Kotlin's does (`tool_registry/grammars.py`); setup downloads it. |
 
 ### 5b) Registering the LSP server dependency
 
@@ -93,6 +94,26 @@ ToolDependency(
         build=JDTLS_BUILD,
     ),
     archive_subdir="jdtls",
+)
+```
+
+**Release archive with a launcher** (e.g. kotlin-lsp) — a zip or tarball per platform whose launcher is run from inside it; `install_on_demand` defers the download to the first analysis that needs it:
+```python
+ToolDependency(
+    key="kotlin",
+    binary_name="intellij-server",
+    kind=ToolKind.ARCHIVE,
+    config_section=ConfigSection.LSP_SERVERS,
+    source=UpstreamToolSource(
+        tag=KOTLIN_LSP_VERSION,
+        url_template=KOTLIN_LSP_URL_TEMPLATE,  # with {version} and {asset}
+        asset_arch_overrides={("Linux", "x86_64"): "kotlin-server-<version>.tar.gz", ...},
+        sha256={"kotlin-server-<version>.tar.gz": "...", ...},
+    ),
+    archive_subdir="kotlin-lsp",
+    archive_entry="bin/intellij-server",
+    install_on_demand=True,
+    license_url=KOTLIN_LSP_LICENSE_URL,
 )
 ```
 

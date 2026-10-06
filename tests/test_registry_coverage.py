@@ -287,6 +287,7 @@ class TestLspAdapterAndLanguageEnumParity(unittest.TestCase):
         "php": "PHP",
         "csharp": "CSharp",
         "java": "Java",
+        "kotlin": "Kotlin",
         "rust": "Rust",
     }
 

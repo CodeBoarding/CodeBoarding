@@ -104,7 +104,7 @@ class GoAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "go"
 
-    def get_lsp_command(self, project_root: Path) -> list[str]:
+    def get_lsp_command(self, project_root: Path, source_files: Sequence[Path] = ()) -> list[str]:
         """Fail fast if the Go toolchain is missing.
 
         gopls needs ``go`` on PATH to resolve modules and stdlib — without
@@ -116,7 +116,7 @@ class GoAdapter(LanguageAdapter):
                 "resolve modules and the standard library. Install one via "
                 "https://go.dev/dl/ and re-run the analysis."
             )
-        return super().get_lsp_command(project_root)
+        return super().get_lsp_command(project_root, source_files)
 
     def build_qualified_name(
         self,

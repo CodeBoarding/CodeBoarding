@@ -17,6 +17,7 @@ The example starts with a large pull-request diff, then shows the six components
 [![JavaScript](https://img.shields.io/badge/JavaScript-222222?style=flat-square&logo=javascript&logoColor=F7DF1E)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Java](https://img.shields.io/badge/Java-E76F00?style=flat-square&logo=openjdk&logoColor=white)](https://www.java.com/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
 [![PHP](https://img.shields.io/badge/PHP-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
@@ -94,7 +95,7 @@ For the engine's own architecture, [open its interactive map](https://app.codebo
 
 To try the product without installing anything, [open a public map](https://app.codeboarding.org/CodeBoarding/CodeBoarding). To connect your own repositories, [sign in to the web platform](https://app.codeboarding.org) and choose which repositories CodeBoarding can access. See the [getting-started guide](https://codeboarding.org/getting-started) for the GitHub and editor workflows.
 
-To run the analysis engine yourself, use either option below. Both require **Python 3.12** and a [configured model provider](#configuration).
+To run the analysis engine yourself, use either option below. Both require **Python 3.12** and a [configured model provider](#configuration). On Linux they need glibc 2.34 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later).
 
 ### Run from source
 
@@ -188,7 +189,7 @@ Two environment variables tune the static analysis itself:
 
 | Variable | Effect |
 | --- | --- |
-| `CODEBOARDING_LSP_REQUEST_TIMEOUT` | Seconds a language-server request may block *when it uses the per-language default* (120s for C#, 60s elsewhere). Not a hard cap on every request: the indexing and didOpen-drain probes pass their own scaled budget (60s plus 2s per file, capped at 1800s) and are unaffected. Applies to every language in the run. Unset or empty leaves the defaults alone; any other unusable value fails the run rather than falling back. |
+| `CODEBOARDING_LSP_REQUEST_TIMEOUT` | Seconds a language-server request may block *when it uses the per-language default* (120s for C# and Kotlin, 60s elsewhere). Not a hard cap on every request: `initialize` has its own startup budget (the request default), Kotlin's build import is awaited separately (up to 1800s), and the indexing and didOpen-drain probes pass their own scaled budget (60s plus 2s per file, capped at 1800s); neither is affected. Applies to every language in the run. Unset or empty leaves the defaults alone; any other unusable value fails the run rather than falling back. |
 | `CODEBOARDING_MAX_CONCURRENT_ENGINES` | How many language servers may be resident at once. `0` (the default) leaves the bound off. |
 
 ## Common commands
@@ -244,7 +245,9 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 ## Supported stack
 
-- Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#.
+- Languages: Python, TypeScript, JavaScript, Java, Kotlin, Go, PHP, Rust, C#.
+  - Java needs a JDK (21 recommended).
+  - Kotlin is analysed with JetBrains' [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp), downloaded on the first analysis of a Kotlin repository (about 360 MB, with its own Java runtime) under the [JetBrains Free Plugin License](https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt). It imports Gradle and Maven builds itself; when a build cannot be imported (for example an Android project without an Android SDK), calls between your own code still resolve, library types do not. Kotlin Multiplatform projects are read the same way, from their sources.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, LiteLLM proxy, and more.
 
 ## Examples
