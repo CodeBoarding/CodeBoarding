@@ -509,6 +509,23 @@ class TestLabelInheritance(unittest.TestCase):
         self.assertEqual(relation.relation, "orchestrates")
         self.assertEqual(relation.evidence, "API orchestrates profiles.")
 
+    def test_explicit_child_label_does_not_hide_a_split_from_its_sibling(self):
+        root = _build_root_analysis()
+        root.components_relations.append(
+            Relation(relation="authenticates", src_name="REST", dst_name="Auth", src_id="1.1.1", dst_id="2.1.1")
+        )
+        cfg = _build_cfg()
+        cfg.edges = [
+            edge
+            for edge in cfg.edges
+            if edge.get_source() in {"api.rest.list", "api.rest.get"}
+            and edge.get_destination() in {"core.profiles.get", "core.auth.verify"}
+        ]
+        relations = build_global_relations(root, _build_sub_analyses(), {"python": cfg})
+        by_pair = {(r.src_id, r.dst_id): r for r in relations}
+        self.assertEqual(by_pair[("1.1.1", "2.1.1")].relation, "authenticates")
+        self.assertEqual(by_pair[("1.1.1", "2.1.2")].relation, "calls")
+
     def test_no_label_defaults_to_calls(self):
         # "3"->"2.1.1" -- no LLM relation in 3->2 direction. Default is "calls".
         r = self.by_pair[("3", "2.1.1")]

@@ -76,6 +76,24 @@ class TestTerms:
 
 
 class TestFallbackAndUnplaced:
+    def test_shared_vocabulary_uses_the_directory_fallback_without_a_majority(self):
+        shared = ComponentRule("4", "Shared data", fallback_prefixes=(("Shared",),))
+        user = ComponentRule("5", "Users", terms=("user",))
+        rules = scope(CATALOG, ORDER, user, shared, LOOSE)
+        names = (
+            "Shared.Client.GetOrder",
+            "Shared.Client.AddOrder",
+            "Shared.Client.GetCatalog",
+            "Shared.Client.GetUser",
+        )
+        result = replay([unit("Shared/Client.cs", *names)], rules, ROLE_WORDS)
+        assert result.assignment["Shared/Client.cs"] == "4"
+        assert result.placed_by["Shared/Client.cs"] == FALLBACK
+
+        result = replay([unit("Shared/Client.cs", *names, "Shared.Client.DeleteOrder")], rules, ROLE_WORDS)
+        assert result.assignment["Shared/Client.cs"] == "2"
+        assert result.placed_by["Shared/Client.cs"] == TERM
+
     def test_fallback_comes_after_terms(self):
         result = replay([unit("f", "Shared.OrderTotals"), unit("g", "Shared.Misc")], scope(ORDER, LOOSE), ROLE_WORDS)
         assert result.assignment == {"f": "2", "g": "3"}

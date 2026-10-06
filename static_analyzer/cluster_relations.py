@@ -159,14 +159,15 @@ def build_global_relations(
         ]
         for src, dst in static_pairs
     }
-    superseded_llm_pairs = {(rel.src_id, rel.dst_id) for ancestors in ancestors_by_pair.values() for rel in ancestors}
-    metadata_by_pair = {pair: ancestors[0] if ancestors else None for pair, ancestors in ancestors_by_pair.items()}
-    refinement_counts = Counter((rel.src_id, rel.dst_id) for rel in metadata_by_pair.values() if rel is not None)
+    refinement_counts = Counter(
+        (rel.src_id, rel.dst_id) for ancestors in ancestors_by_pair.values() for rel in ancestors
+    )
 
     for static_rel in static_relations:
         src_id = static_rel.src_cluster_id
         dst_id = static_rel.dst_cluster_id
-        llm_relation = metadata_by_pair[(src_id, dst_id)]
+        ancestors = ancestors_by_pair[(src_id, dst_id)]
+        llm_relation = ancestors[0] if ancestors else None
         if llm_relation is None:
             relation = Relation.from_edges(
                 DEFAULT_STATIC_RELATION_LABEL,
@@ -206,7 +207,7 @@ def build_global_relations(
         pair = (llm_rel.src_id, llm_rel.dst_id)
         if llm_rel.src_id not in live_ids or llm_rel.dst_id not in live_ids:
             continue
-        if pair in static_pairs or pair in superseded_llm_pairs:
+        if pair in static_pairs or pair in refinement_counts:
             continue
         grounded = llm_rel.with_merged_edges()
         kept = [

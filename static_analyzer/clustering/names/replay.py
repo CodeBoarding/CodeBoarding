@@ -109,14 +109,17 @@ def _place(
     owner = _longest_match(where, primary)
     if owner is not None:
         return owner, PREFIX
+    fallback_owner = _longest_match(unit.position, fallback)
     if owner_by_term:
         votes = term_votes(unit, owner_by_term, role_words)
         if votes:
             # Ties go to the rule that comes first in the scope, never to the id's spelling.
-            return max(votes, key=lambda component_id: (votes[component_id], -rank[component_id])), TERM
-    owner = _longest_match(unit.position, fallback)
-    if owner is not None:
-        return owner, FALLBACK
+            owner = max(votes, key=lambda component_id: (votes[component_id], -rank[component_id]))
+            # Mixed feature vocabulary does not establish ownership of shared infrastructure.
+            if fallback_owner is None or votes[owner] * 2 > sum(votes.values()):
+                return owner, TERM
+    if fallback_owner is not None:
+        return fallback_owner, FALLBACK
     return None, UNPLACED
 
 
