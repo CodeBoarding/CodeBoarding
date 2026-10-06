@@ -55,7 +55,6 @@ class TestTreeSpecPersistence(unittest.TestCase):
 
     def test_a_specification_of_another_version_is_not_replayed(self):
         """Why: the tokenizer, stemmer and role words behind a version would move units silently."""
-        self._save(self.spec | {"version": SPEC_VERSION + 1})
         generator = DiagramGenerator(
             repo_location=self.temp_dir,
             temp_folder=self.temp_dir,
@@ -65,8 +64,11 @@ class TestTreeSpecPersistence(unittest.TestCase):
             run_id="run",
             log_path="log",
         )
-        with self.assertRaisesRegex(IncrementalCacheMissingError, "version"):
-            generator._stored_tree_spec()
+        for version in (SPEC_VERSION - 1, SPEC_VERSION + 1):
+            with self.subTest(version=version):
+                self._save(self.spec | {"version": version})
+                with self.assertRaisesRegex(IncrementalCacheMissingError, "version"):
+                    generator._stored_tree_spec()
 
     def test_an_analysis_written_before_the_specification_has_an_empty_one(self):
         self._save(None)
