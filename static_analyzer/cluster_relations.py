@@ -120,21 +120,6 @@ def _collect_authoritative_relations(
     return list(relations_by_pair.values())
 
 
-def _ancestor_relation(src_id: str, dst_id: str, llm_relations: list[Relation]) -> Relation | None:
-    candidates = [
-        rel
-        for rel in llm_relations
-        if rel.src_id
-        and rel.dst_id
-        and is_self_or_descendant(src_id, rel.src_id)
-        and is_self_or_descendant(dst_id, rel.dst_id)
-    ]
-    if not candidates:
-        return None
-    candidates.sort(key=lambda rel: (-(rel.src_id.count(".") + rel.dst_id.count(".")), rel.src_id, rel.dst_id))
-    return candidates[0]
-
-
 def _relation_key_edges_for_pair(
     relation: Relation,
     src_id: str,
@@ -162,24 +147,25 @@ def build_global_relations(
     id_to_name = _collect_component_names(root_analysis, sub_analyses)
     live_ids = set(id_to_name)
     llm_relations = _collect_authoritative_relations(root_analysis, sub_analyses)
+    llm_relations.sort(key=lambda rel: (-(rel.src_id.count(".") + rel.dst_id.count(".")), rel.src_id, rel.dst_id))
 
     global_relations: dict[tuple[str, str], Relation] = {}
     static_pairs = {(rel.src_cluster_id, rel.dst_cluster_id) for rel in static_relations}
-    superseded_llm_pairs: set[tuple[str, str]] = set()
-    metadata_by_pair = {pair: _ancestor_relation(*pair, llm_relations) for pair in static_pairs}
+    ancestors_by_pair = {
+        (src, dst): [
+            rel
+            for rel in llm_relations
+            if is_self_or_descendant(src, rel.src_id) and is_self_or_descendant(dst, rel.dst_id)
+        ]
+        for src, dst in static_pairs
+    }
+    superseded_llm_pairs = {(rel.src_id, rel.dst_id) for ancestors in ancestors_by_pair.values() for rel in ancestors}
+    metadata_by_pair = {pair: ancestors[0] if ancestors else None for pair, ancestors in ancestors_by_pair.items()}
     refinement_counts = Counter((rel.src_id, rel.dst_id) for rel in metadata_by_pair.values() if rel is not None)
 
     for static_rel in static_relations:
         src_id = static_rel.src_cluster_id
         dst_id = static_rel.dst_cluster_id
-        for llm_rel in llm_relations:
-            if (
-                llm_rel.src_id
-                and llm_rel.dst_id
-                and is_self_or_descendant(src_id, llm_rel.src_id)
-                and is_self_or_descendant(dst_id, llm_rel.dst_id)
-            ):
-                superseded_llm_pairs.add((llm_rel.src_id, llm_rel.dst_id))
         llm_relation = metadata_by_pair[(src_id, dst_id)]
         if llm_relation is None:
             relation = Relation.from_edges(
