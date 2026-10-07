@@ -1,0 +1,6 @@
+{
+  "name": "@acme/web",
+  "dependencies": {
+    "@acme/api": "1.0.0"
+  }
+}

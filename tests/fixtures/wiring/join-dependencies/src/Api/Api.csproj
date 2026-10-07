@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- A project at the repository root: the reference has no directory part at all. -->
+    <ProjectReference Include="..\..\Core.csproj" />
+    <ProjectReference Include="..\Db\Db.csproj" />
+  </ItemGroup>
+</Project>
