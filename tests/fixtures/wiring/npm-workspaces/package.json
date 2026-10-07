@@ -1,0 +1,7 @@
+{
+  "name": "acme",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ]
+}

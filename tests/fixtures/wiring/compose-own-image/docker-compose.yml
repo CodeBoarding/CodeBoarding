@@ -1,0 +1,4 @@
+services:
+  svc:
+    image: "acme/svc:2.1"
+    hostname: svc-host

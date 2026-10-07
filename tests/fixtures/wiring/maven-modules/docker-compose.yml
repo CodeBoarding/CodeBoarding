@@ -1,0 +1,4 @@
+services:
+  gateway:
+    image: acme/acme-gateway
+    container_name: gateway-box

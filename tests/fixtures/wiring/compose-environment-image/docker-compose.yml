@@ -1,0 +1,8 @@
+services:
+  ci:
+    image: toolchain:local
+    build:
+      context: .
+      dockerfile: ci/Dockerfile
+    volumes:
+      - ..:/code
