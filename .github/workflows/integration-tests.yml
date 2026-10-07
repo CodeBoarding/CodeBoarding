@@ -16,6 +16,7 @@ on:
           - ''
           - python
           - java
+          - kotlin
           - go
           - typescript
           - php

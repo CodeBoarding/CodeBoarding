@@ -19,6 +19,8 @@ from tool_registry import (
     ProgressCallback,
     ToolKind,
     acquire_lock,
+    archive_launcher_path,
+    download_kotlin_grammar,
     get_servers_dir,
     install_archive_tool,
     install_embedded_node,
@@ -498,7 +500,7 @@ def download_binaries(target_dir: Path, auto_install_vcpp: bool = False, on_prog
 
 
 def download_jdtls(target_dir: Path, on_progress: ProgressCallback | None = None):
-    """Download and extract JDTLS from the latest GitHub release."""
+    """Download and extract the archive tools: JDTLS and kotlin-lsp."""
     print("Step: JDTLS download started")
     archive_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE]
     for dep in archive_deps:
@@ -532,6 +534,21 @@ def install_package_manager_lsp_servers(target_dir: Path, on_progress: ProgressC
             )
             print(f"  {dep.binary_name}: not installed ({manager} unavailable or install failed)")
     print("Step: Package-manager tool installation finished")
+
+
+def download_grammars(target_dir: Path) -> None:
+    """Fetch the tree-sitter grammars no wheel ships, so analyses never download them.
+
+    Not fatal: an analysis downloads a missing grammar on first use and fails there if it cannot.
+    """
+    print("Step: Kotlin grammar download started")
+    try:
+        download_kotlin_grammar(target_dir)
+    except RuntimeError as error:
+        print(f"  Kotlin grammar: not downloaded ({error.__cause__ or error}); it will be fetched on first use")
+    else:
+        print("  Kotlin grammar: installed")
+    print("Step: Kotlin grammar download finished")
 
 
 def install_pre_commit_hooks():
@@ -627,10 +644,10 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 reason_requirement = "pyright-langserver not found in node_modules or active environment"
                 reason_binary = reason_requirement
         elif dep.kind is ToolKind.ARCHIVE:
-            # JDTLS is validated by directory presence (+ plugins/ subdir),
-            # mirroring has_required_tools.
+            # An archive is validated by its launcher, or for JDTLS by directory
+            # presence (+ plugins/ subdir), mirroring has_required_tools.
             subdir = dep.archive_subdir or dep.key
-            paths.append(target_dir / "bin" / subdir)
+            paths.append(archive_launcher_path(target_dir, dep) or target_dir / "bin" / subdir)
             reason_requirement = f"{subdir} installation not found"
             reason_binary = reason_requirement
             # Java analysis can still proceed when a system Java 21+ is available
@@ -759,6 +776,7 @@ def run_install(
     download_binaries(target, auto_install_vcpp=auto_install_vcpp, on_progress=tracker)
     download_jdtls(target, on_progress=tracker)
     install_package_manager_lsp_servers(target, on_progress=tracker)
+    download_grammars(target)
     install_pre_commit_hooks()
     print_language_support_summary(npm_available, target)
 

@@ -107,11 +107,11 @@ class CallEdgeSink:
 
     def add(self, caller: SymbolInfo, target: SymbolInfo, call_site: CallSite, collection: bool = False) -> None:
         """Record the call from *caller* to *target*, unless the pair is not an edge at all."""
-        if not _is_valid_edge(caller, target):
+        if not _is_valid_edge(self._adapter, caller, target):
             return
         # Guards keep the innermost caller; only the credit line rolls up.
         attributed = self._st.attribution_symbol(caller)
-        if not _is_valid_edge(attributed, target):
+        if not _is_valid_edge(self._adapter, attributed, target):
             return
 
         _add_edge_call_site(self.edges, attributed.qualified_name, target.qualified_name, call_site)
@@ -128,7 +128,7 @@ class CallEdgeSink:
                 if parent is not None:
                     extra.append(parent)
         for other in extra:
-            if _is_valid_edge(caller, other) and _is_valid_edge(attributed, other):
+            if _is_valid_edge(self._adapter, caller, other) and _is_valid_edge(self._adapter, attributed, other):
                 _add_edge_call_site(self.edges, attributed.qualified_name, other.qualified_name, call_site)
 
         if dispatched:
@@ -214,11 +214,13 @@ def build_edges_via_definitions(
             for query in resolution.impl_queries_pending
         )
 
-    total_impl_resolved = _resolve_implementations(ctx, resolution.edge_set, resolution.impl_queries_pending, index)
+    total_impl_resolved = _resolve_implementations(
+        adapter, ctx, resolution.edge_set, resolution.impl_queries_pending, index
+    )
 
     total_iterated = 0
     if adapter.resolves_iterated_types:
-        total_iterated = _resolve_iterated_types(ctx, resolution.edge_set, source_files, index)
+        total_iterated = _resolve_iterated_types(adapter, ctx, resolution.edge_set, source_files, index)
 
     logger.info(
         "Phase 2 summary: %d call sites, %d def resolved, %d impl resolved, %d iterated, %d raw edges",
@@ -232,6 +234,7 @@ def build_edges_via_definitions(
 
 
 def _resolve_iterated_types(
+    adapter: EdgeBuildAdapter,
     ctx: EdgeBuildContext,
     edge_set: EdgeMap,
     source_files: list[Path],
@@ -261,16 +264,16 @@ def _resolve_iterated_types(
                 if target is None:
                     _record_external_call_site(ctx, attributed.qualified_name, result, site, ITERATED)
                     continue
-                if not _is_valid_edge(caller, target):
+                if not _is_valid_edge(adapter, caller, target):
                     continue
                 resolved += 1
-                if not _is_valid_edge(attributed, target):
+                if not _is_valid_edge(adapter, attributed, target):
                     continue
                 _add_edge_call_site(edge_set, attributed.qualified_name, target.qualified_name, site)
                 # The loop calls the enumerator, so name it too when the
                 # type declares one rather than inheriting it.
                 for enumerator in _members_named(target, st, "GetEnumerator"):
-                    if _is_valid_edge(caller, enumerator) and _is_valid_edge(attributed, enumerator):
+                    if _is_valid_edge(adapter, caller, enumerator) and _is_valid_edge(adapter, attributed, enumerator):
                         _add_edge_call_site(edge_set, attributed.qualified_name, enumerator.qualified_name, site)
     return resolved
 
@@ -290,6 +293,14 @@ def _resolve_definitions(
 
     dispatch = _build_dispatch_index(adapter, ctx, source_files) if adapter.expands_virtual_dispatch else None
     sink = CallEdgeSink(adapter, st, si, dispatch)
+
+    # What a call answered with a class runs, by that class.
+    constructors: dict[str, list[SymbolInfo]] = {}
+    if adapter.constructor_calls_resolve_to_class:
+        for sym in st.symbols.values():
+            constructed = adapter.constructed_class(sym)
+            if constructed:
+                constructors.setdefault(constructed, []).append(sym)
 
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
@@ -319,6 +330,8 @@ def _resolve_definitions(
             resolved_here = False
             for def_result in defs:
                 target = index.resolve(def_result)
+                if target is not None and kind == CALL and adapter.constructor_calls_resolve_to_class:
+                    target = _constructor_called(adapter, target, constructors, si, call_site) or target
                 if target is None:
                     _record_external_call_site(
                         ctx, st.attribution_symbol(caller).qualified_name, def_result, call_site, kind
@@ -402,6 +415,7 @@ def _resolve_through_receivers(
 
 
 def _resolve_implementations(
+    adapter: EdgeBuildAdapter,
     ctx: EdgeBuildContext,
     edge_set: EdgeMap,
     impl_queries_pending: list[ImplementationQuery],
@@ -442,7 +456,7 @@ def _resolve_implementations(
 
                 for caller_qname, call_site in callers:
                     caller_sym = st.symbols.get(caller_qname)
-                    if caller_sym and _is_valid_edge(caller_sym, impl_sym):
+                    if caller_sym and _is_valid_edge(adapter, caller_sym, impl_sym):
                         _add_edge_call_site(edge_set, caller_qname, impl_sym.qualified_name, call_site)
 
         pbar.set_postfix(edges=len(edge_set), resolved=total_impl_resolved)
@@ -601,9 +615,53 @@ def _override_targets(
     return overrides
 
 
-def _is_valid_edge(caller: SymbolInfo, target: SymbolInfo) -> bool:
+def _constructor_called(
+    adapter: EdgeBuildAdapter,
+    target: SymbolInfo,
+    constructors: dict[str, list[SymbolInfo]],
+    si: SourceInspector,
+    call_site: CallSite,
+) -> SymbolInfo | None:
+    """The constructor a call answered with its class runs: the one whose parameter count matches
+    the arguments, else the first declared (the primary constructor, where default arguments
+    usually sit). None keeps the edge on the class: a call the adapter does not read as a
+    construction, or same-arity overloads that cannot be told apart.
+    """
+    callee = si.identifier_at(Path(call_site.file), call_site.lsp_line, call_site.lsp_column)
+    if callee is None or not adapter.constructs(target, callee):
+        return None
+    candidates = sorted(constructors.get(target.qualified_name, ()), key=lambda sym: sym.definition_location)
+    if len(candidates) <= 1:
+        return candidates[0] if candidates else None
+    arguments = si.call_argument_count(Path(call_site.file), call_site.lsp_line, call_site.lsp_column)
+    matching = [sym for sym in candidates if _parameter_count(sym.qualified_name) == arguments]
+    if len(matching) > 1:
+        return None
+    return matching[0] if matching else candidates[0]
+
+
+def _parameter_count(qualified_name: str) -> int | None:
+    """Parameters in the ``(A, B)`` signature a callable's name ends with, or None without one."""
+    if not qualified_name.endswith(")") or "(" not in qualified_name:
+        return None
+    inside = qualified_name[qualified_name.index("(") + 1 : -1].strip()
+    if not inside:
+        return 0
+    # The ``>`` of a function type's ``->`` closes nothing.
+    inside = inside.replace("->", "")
+    depth, count = 0, 1
+    for char in inside:
+        depth += char in "(<["
+        depth -= char in ")>]"
+        count += char == "," and depth == 0
+    return count
+
+
+def _is_valid_edge(adapter: EdgeBuildAdapter, caller: SymbolInfo, target: SymbolInfo) -> bool:
     """Check if an edge between caller and target is valid."""
-    if is_self_or_container_edge(caller.qualified_name, target.qualified_name):
+    if is_self_or_container_edge(caller.qualified_name, target.qualified_name) and not adapter.declared_apart(
+        caller, target
+    ):
         return False
     if target.definition_location == caller.definition_location:
         return False

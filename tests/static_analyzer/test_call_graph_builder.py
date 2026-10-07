@@ -1,6 +1,8 @@
 """Tests for static_analyzer.engine.call_graph_builder.CallGraphBuilder."""
 
 from pathlib import Path
+
+import pytest
 from unittest.mock import MagicMock, patch
 
 from static_analyzer.config import Language, NodeType
@@ -48,11 +50,13 @@ def _make_adapter() -> MagicMock:
     )
     adapter.get_all_packages.return_value = {"pkg"}
     adapter.get_package_for_file.return_value = "pkg"
+    adapter.refine_document_symbols.side_effect = lambda file_path, symbols, inspector: symbols
     adapter.build_edges.return_value = set()
     adapter.get_probe_timeout_minimum.return_value = 0
     adapter.probe_before_open = False
     adapter.interleave_did_open_with_symbols = False
     adapter.workspace_owns_documents = False
+    adapter.drain_probe_round_seconds = None
     adapter.read_document_symbols.return_value = []
     return adapter
 
@@ -267,6 +271,35 @@ class TestDiscoverSymbols:
         ]
         # The barrier gets the scaled probe timeout, not the per-request default.
         assert lsp.document_symbol.call_args_list[-1].kwargs.get("timeout") == 64
+
+    def test_a_drain_probe_left_unanswered_is_asked_again(self):
+        """Why: kotlin-lsp can drop a request that arrives during a large didOpen burst; asked
+        again, the same request is answered once the server has caught up."""
+        lsp = _make_lsp()
+        served = {"name": "A", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        lsp.document_symbol.side_effect = [TimeoutError("dropped"), [served]]
+        builder = CallGraphBuilder(lsp, _make_adapter(), Path("/project"), Path("/project"))
+
+        assert builder._send_sync_probe([Path("/project/a.kt")], 600, "didOpen drain", 60) == [served]
+        assert lsp.document_symbol.call_count == 2
+
+    def test_a_drain_probe_waits_its_whole_budget_on_one_request_unless_the_adapter_asks_in_rounds(self):
+        lsp = _make_lsp()
+        served = {"name": "A", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        lsp.document_symbol.return_value = [served]
+        builder = CallGraphBuilder(lsp, _make_adapter(), Path("/project"), Path("/project"))
+
+        assert builder._send_sync_probe([Path("/project/a.py")], 600, "didOpen drain", None) == [served]
+        assert [call.kwargs["timeout"] for call in lsp.document_symbol.call_args_list] == [600]
+
+    def test_a_drain_probe_still_unanswered_at_the_budget_fails(self):
+        lsp = _make_lsp()
+        lsp.document_symbol.side_effect = TimeoutError("never")
+        builder = CallGraphBuilder(lsp, _make_adapter(), Path("/project"), Path("/project"))
+
+        with pytest.raises(TimeoutError):
+            builder._send_sync_probe([Path("/project/a.kt")], 90, "didOpen drain", 60)
+        assert lsp.document_symbol.call_count == 2
 
 
 def _range(start_line: int, end_line: int) -> dict:

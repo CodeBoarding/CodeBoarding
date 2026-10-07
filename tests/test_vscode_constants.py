@@ -120,6 +120,21 @@ class TestVSCodeConstants(unittest.TestCase):
             VSCODE_CONFIG["lsp_servers"]["typescript"]["command"] = original_cmd
 
     @patch("platform.system")
+    def test_update_command_paths_kotlin_finds_the_extracted_launcher(self, mock_system):
+        mock_system.return_value = "Linux"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            launcher = Path(temp_dir) / "bin" / "kotlin-lsp" / "bin" / "intellij-server"
+            launcher.parent.mkdir(parents=True)
+            launcher.write_text("#!/bin/sh\n")
+            original_cmd = list(VSCODE_CONFIG["lsp_servers"]["kotlin"]["command"])
+
+            update_command_paths(temp_dir)
+
+            self.assertEqual(VSCODE_CONFIG["lsp_servers"]["kotlin"]["command"][0], str(launcher))
+            VSCODE_CONFIG["lsp_servers"]["kotlin"]["command"] = original_cmd
+
+    @patch("platform.system")
     def test_update_command_paths_windows_node_prefix(self, mock_system):
         # Test that node is prepended on Windows for certain languages
         mock_system.return_value = "Windows"

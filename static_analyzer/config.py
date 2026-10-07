@@ -20,6 +20,7 @@ class Language(StrEnum):
     JAVASCRIPT = "javascript"
     GO = "go"
     JAVA = "java"
+    KOTLIN = "kotlin"
     PHP = "php"
     RUST = "rust"
     CSHARP = "csharp"
@@ -35,6 +36,7 @@ class AdapterName(StrEnum):
     CSHARP = "CSharp"
     GO = "Go"
     JAVA = "Java"
+    KOTLIN = "Kotlin"
     PHP = "PHP"
     RUST = "Rust"
 
@@ -53,6 +55,7 @@ class SourceSuffix(StrEnum):
     CJS = ".cjs"
     GO = ".go"
     JAVA = ".java"
+    KT = ".kt"
     PHP = ".php"
     RS = ".rs"
     CS = ".cs"
@@ -96,6 +99,8 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[SourceSuffix, ...]] = {
     Language.JAVASCRIPT: (SourceSuffix.JS, SourceSuffix.JSX, SourceSuffix.MJS, SourceSuffix.CJS),
     Language.GO: (SourceSuffix.GO,),
     Language.JAVA: (SourceSuffix.JAVA,),
+    # ``.kts`` is left out: build scripts configure the build rather than make up the program.
+    Language.KOTLIN: (SourceSuffix.KT,),
     Language.PHP: (SourceSuffix.PHP,),
     Language.RUST: (SourceSuffix.RS,),
     Language.CSHARP: (SourceSuffix.CS,),

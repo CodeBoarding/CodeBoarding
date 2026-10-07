@@ -278,6 +278,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
         Language.CSHARP: AdapterName.CSHARP,
         Language.GO: AdapterName.GO,
         Language.JAVA: AdapterName.JAVA,
+        Language.KOTLIN: AdapterName.KOTLIN,
         Language.PHP: AdapterName.PHP,
         Language.RUST: AdapterName.RUST,
         # Scanner spellings with no ``Language`` member of their own.
@@ -445,14 +446,37 @@ class StaticAnalyzer:
                 self._prepared_projects[key] = outcome
 
     def _spawn_engine_client(self, engine_config: EngineConfig) -> LSPClient:
-        """Start one engine's LSP server and return it ready for queries."""
+        """Start one engine's LSP server and return it ready for queries.
+
+        The server is started on the workspace its adapter names (see ``workspace_folders``), and
+        one that could not load the project is restarted once on the workspace its adapter
+        describes instead (see ``fallback_workspace_folders``).
+        """
         adapter, project_path = engine_config.adapter, engine_config.project_path
         logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
-        t_start = time.monotonic()
         self._prepare_project_once(engine_config)
+        initial = adapter.workspace_folders(project_path, engine_config.source_files)
+        engine_client = self._start_engine_client(engine_config, initial or None)
+        try:
+            fallback = adapter.fallback_workspace_folders(engine_client, project_path, engine_config.source_files)
+        except Exception:
+            engine_client.shutdown()
+            raise
+        if not fallback or fallback == initial:
+            return engine_client
+        logger.warning(f"{adapter.language} server could not load {project_path}; restarting on {fallback}")
+        engine_client.shutdown()
+        return self._start_engine_client(engine_config, fallback)
+
+    def _start_engine_client(
+        self, engine_config: EngineConfig, workspace_folders: list[Path] | None = None
+    ) -> LSPClient:
+        """Launch the server, initialize it, and wait for its workspace where the adapter asks to."""
+        adapter, project_path = engine_config.adapter, engine_config.project_path
+        t_start = time.monotonic()
         command = adapter.get_lsp_command(project_path)
         init_options = adapter.get_lsp_init_options(self.ignore_manager)
-        extra_env = adapter.get_lsp_env(project_path)
+        extra_env = adapter.get_lsp_env(project_path, engine_config.source_files)
         # Node-based LSPs spawn child ``node`` processes by name; on
         # a Node-less host the embedded runtime's dir must be on PATH.
         ensure_node_on_path(command, extra_env)
@@ -461,10 +485,13 @@ class StaticAnalyzer:
             project_root=project_path,
             init_options=init_options,
             default_timeout=self._request_timeout_override or adapter.get_lsp_default_timeout(),
+            startup_timeout=adapter.get_lsp_startup_timeout(),
             collect_diagnostics=True,
             extra_env=extra_env,
             workspace_settings=adapter.get_workspace_settings(),
             extra_client_capabilities=getattr(adapter, "extra_client_capabilities", {}) or {},
+            error_verdict=adapter.error_verdict,
+            workspace_folders=workspace_folders,
         )
         try:
             engine_client.start()

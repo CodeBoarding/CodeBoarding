@@ -50,6 +50,10 @@ def update_command_paths(bin_dir):
                     value["jdtls_root"] = jdtls_dir
                     # Keep command as "java" - it will be constructed by JavaClient
                     cmd[0] = "java"
+            elif key == "kotlin":
+                # The release archive is extracted whole; its launcher sits under its own bin/.
+                launcher = "intellij-server.exe" if is_windows else "intellij-server"
+                cmd[0] = find_runnable(bin_dir, launcher, os.path.join("kotlin-lsp", "bin")) or cmd[0]
             elif "command" in value:
                 if isinstance(cmd, list) and cmd:
                     cmd[0] = os.path.join(bin_path, cmd[0])
@@ -119,6 +123,14 @@ VSCODE_CONFIG = {
             "languages": ["java"],
             "file_extensions": [".java"],
             "install_commands": "null",
+        },
+        "kotlin": {
+            "name": "kotlin-lsp",
+            "command": ["intellij-server"],
+            "languages": ["kotlin"],
+            "file_extensions": [".kt"],
+            # Downloaded from JetBrains by tool_registry; ships its own Java runtime.
+            "install_commands": "codeboarding-setup (downloads kotlin-lsp automatically)",
         },
         "rust": {
             "name": "rust-analyzer",

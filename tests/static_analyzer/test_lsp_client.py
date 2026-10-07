@@ -14,6 +14,7 @@ import pytest
 from static_analyzer.engine.lsp_client import (
     LSP_METHOD_NOT_FOUND,
     BatchAnswer,
+    ErrorVerdict,
     LSPClient,
     MethodNotFoundError,
 )
@@ -31,6 +32,27 @@ class TestLSPClientInit:
 
     def test_custom_timeout(self):
         client = LSPClient(["cmd"], Path("/root"), default_timeout=120)
+        assert client._default_timeout == 120
+
+    def test_initialize_waits_the_startup_timeout_and_requests_the_default(self):
+        client = LSPClient(["cmd"], Path("/root"), default_timeout=120, startup_timeout=900)
+        timeouts: dict[str, int] = {}
+
+        def fake_send_request(method, params, timeout=None):
+            timeouts[method] = timeout
+            return {}
+
+        with (
+            patch.object(client, "_send_request", side_effect=fake_send_request),
+            patch.object(client, "_send_notification"),
+            patch("subprocess.Popen") as mock_popen,
+            patch("os.dup", return_value=99),
+            patch("threading.Thread"),
+        ):
+            mock_popen.return_value.stdout.fileno.return_value = 5
+            client.start()
+
+        assert timeouts["initialize"] == 900
         assert client._default_timeout == 120
 
     def test_diagnostics_collection_flag(self):
@@ -53,15 +75,17 @@ class TestExtraClientCapabilitiesMerge:
     base capabilities (no vendor-specific fields leak to other LSPs).
     """
 
-    def _capture_init_request(self, extra_caps: dict | None) -> dict:
+    def _capture_init_request(
+        self, extra_caps: dict | None, folders: list[Path] | None = None, answer: dict | None = None
+    ) -> dict:
         """Spawn an LSPClient with a fake process and capture the initialize params."""
-        client = LSPClient(["cmd"], Path("/root"), extra_client_capabilities=extra_caps)
+        client = LSPClient(["cmd"], Path("/root"), extra_client_capabilities=extra_caps, workspace_folders=folders)
         captured: dict = {}
 
         def fake_send_request(method, params, timeout=None):
             if method == "initialize":
                 captured["params"] = params
-            return {}
+            return answer or {}
 
         # Patch _send_request and _send_notification on the instance so the
         # real start() body runs the merge logic but doesn't actually spawn a
@@ -100,6 +124,13 @@ class TestExtraClientCapabilitiesMerge:
         # Both base and adapter keys are present.
         assert "documentSymbol" in caps["textDocument"]
         assert caps["textDocument"]["semanticTokens"] == {"requests": {"full": True}}
+
+    def test_the_project_is_the_workspace_folder_unless_others_are_given(self):
+        default = self._capture_init_request(None)
+        assert [folder["uri"] for folder in default["workspaceFolders"]] == [Path("/root").as_uri()]
+        given = self._capture_init_request(None, [Path("/cache/sources")])
+        assert [folder["uri"] for folder in given["workspaceFolders"]] == [Path("/cache/sources").as_uri()]
+        assert given["rootUri"] == Path("/root").as_uri()
 
     def test_adapter_value_wins_on_scalar_collision(self):
         """A scalar override (rare) replaces the base value rather than crashing."""
@@ -235,6 +266,7 @@ class TestDocumentSymbol:
 class TestTypeHierarchy:
     def test_prepare_returns_list(self):
         client = LSPClient(["cmd"], Path("/root"))
+        client._server_capabilities = {"typeHierarchyProvider": True}
         items = [{"name": "Foo", "kind": 5}]
 
         with patch.object(client, "_send_request", return_value=items):
@@ -244,6 +276,7 @@ class TestTypeHierarchy:
 
     def test_prepare_returns_none_for_non_list(self):
         client = LSPClient(["cmd"], Path("/root"))
+        client._server_capabilities = {"typeHierarchyProvider": True}
 
         with patch.object(client, "_send_request", return_value=None):
             result = client.type_hierarchy_prepare(Path("/root/test.py"), 0, 0)
@@ -607,6 +640,47 @@ class TestHandleNotification:
         client._handle_notification("language/status", {"type": "ProjectStatus", "message": "OK"})
 
         assert client._server_ready.is_set()
+
+    def test_a_finished_build_import_is_remembered(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        assert not client.import_finished.is_set()
+
+        client._handle_notification("intellij/workspaceImportState", {"phase": "IMPORTING"})
+        assert not client.import_finished.is_set()
+        client._handle_notification(
+            "intellij/workspaceImportState",
+            {"phase": "FINISHED", "folders": [{"folderUri": "file:///root/", "status": "BLOCKED"}]},
+        )
+
+        assert client.import_finished.is_set()
+        assert client.import_phase == "FINISHED"
+        assert client.import_folder_statuses == ["BLOCKED"]
+
+    def test_indexing_after_the_import_does_not_unready_the_server(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._handle_notification("intellij/workspaceImportState", {"phase": "FINISHED", "folders": []})
+        client._handle_notification("$/progress", {"token": "t", "value": {"kind": "begin", "title": "Indexing"}})
+        assert client._server_ready.is_set()
+
+    def test_progress_quiet_waits_out_an_open_indexing_pass(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._handle_notification("$/progress", {"token": "t", "value": {"kind": "begin", "title": "Indexing"}})
+        assert not client.wait_for_progress_quiet("indexing", 0.1, 0.5)
+        client._handle_notification("$/progress", {"token": "t", "value": {"kind": "end"}})
+        assert client.wait_for_progress_quiet("indexing", 0.1, 2)
+
+    def test_a_build_import_reported_failed_is_remembered(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._handle_notification("intellij/importLog", {"type": 3, "message": "[INFO] Scanning", "failed": False})
+        assert not client.import_failed
+        client._handle_notification("intellij/importLog", {"type": 1, "message": "Unable to import", "failed": True})
+        assert client.import_failed
+
+    def test_a_failed_build_import_also_ends_the_wait(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._handle_notification("intellij/workspaceImportState", {"phase": "FAILED"})
+        assert client.import_finished.is_set()
+        assert client.import_phase == "FAILED"
 
     def test_ignores_non_ready_status(self):
         client = LSPClient(["cmd"], Path("/root"))
@@ -1108,3 +1182,86 @@ class TestShutdown:
 
         assert len(client._opened_uris) == 0
         assert len(client._doc_versions) == 0
+
+
+class TestServerCapabilities:
+    def _started(self, capabilities: dict) -> LSPClient:
+        client = LSPClient(["cmd"], Path("/root"))
+        with (
+            patch.object(client, "_send_request", return_value={"capabilities": capabilities}),
+            patch.object(client, "_send_notification"),
+            patch("subprocess.Popen") as mock_popen,
+            patch("os.dup", return_value=99),
+            patch("threading.Thread"),
+        ):
+            mock_popen.return_value.stdout.fileno.return_value = 5
+            client.start()
+        return client
+
+    def test_what_initialize_offers_is_remembered(self):
+        client = self._started({"implementationProvider": True, "typeHierarchyProvider": False})
+        assert client.advertises("implementationProvider")
+        assert not client.advertises("typeHierarchyProvider")
+        assert not client.advertises("callHierarchyProvider")
+
+    def test_implementations_are_not_asked_of_a_server_not_offering_them(self):
+        """A server can answer a request it does not offer with an internal error."""
+        client = self._started({})
+        with patch.object(client, "_send_batch") as send:
+            assert client.send_implementation_batch([(Path("/root/a.kt"), 0, 0)] * 2) == [[], []]
+        send.assert_not_called()
+
+    def test_implementations_are_asked_of_a_server_offering_them(self):
+        client = self._started({"implementationProvider": True})
+        with patch.object(client, "_send_batch", return_value=[[{"uri": "x"}]]) as send:
+            assert client.send_implementation_batch([(Path("/root/a.kt"), 0, 0)]) == [[{"uri": "x"}]]
+        send.assert_called_once()
+
+    def test_a_type_hierarchy_not_offered_reads_as_method_not_found(self):
+        client = self._started({})
+        with patch.object(client, "_send_request") as send:
+            with pytest.raises(MethodNotFoundError):
+                client.type_hierarchy_prepare(Path("/root/a.kt"), 0, 0)
+        send.assert_not_called()
+
+
+class TestErrorVerdicts:
+    def _collect(self, verdict: ErrorVerdict, error: dict) -> tuple[dict, set, set]:
+        client = LSPClient(["cmd"], Path("/root"), error_verdict=lambda _: verdict)
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": error})
+        return client._collect_batch_responses("textDocument/definition", [1], timeout=5)
+
+    def test_a_declined_internal_error_is_an_empty_answer(self):
+        results, unserved, retryable = self._collect(ErrorVerdict.DECLINED, {"code": -32603, "message": "x"})
+        assert results[1] == [] and unserved == set() and retryable == set()
+
+    def test_a_transient_internal_error_is_asked_again(self):
+        _, unserved, retryable = self._collect(ErrorVerdict.TRANSIENT, {"code": -32603, "message": "x"})
+        assert unserved == {1} and retryable == {1}
+
+    def test_a_failure_stays_unserved(self):
+        _, unserved, retryable = self._collect(ErrorVerdict.FAILURE, {"code": -32603, "message": "x"})
+        assert unserved == {1} and retryable == set()
+
+    def test_a_server_defined_code_is_never_judged(self):
+        """Only a reserved code can mean the request went unserved."""
+        client = LSPClient(["cmd"], Path("/root"), error_verdict=MagicMock(side_effect=AssertionError))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": {"code": -40000, "message": "no target"}})
+        _, unserved, _ = client._collect_batch_responses("textDocument/definition", [1], timeout=5)
+        assert unserved == set()
+
+    def test_a_transient_error_that_settles_on_the_second_ask_is_served(self):
+        client = LSPClient(["cmd"], Path("/root"), error_verdict=lambda _: ErrorVerdict.TRANSIENT)
+        answers = iter(
+            [
+                [BatchAnswer([], served=False, retryable=True)],
+                [BatchAnswer([{"uri": "file:///root/a.kt"}], served=True, retryable=False)],
+            ]
+        )
+        with patch.object(client, "_send_round", side_effect=lambda *a, **k: next(answers)):
+            results = client.send_definition_batch([(Path("/root/a.kt"), 0, 0)])
+        assert results == [[{"uri": "file:///root/a.kt"}]]

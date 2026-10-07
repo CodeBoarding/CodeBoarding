@@ -15,6 +15,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
@@ -47,6 +48,17 @@ def _progress_token(value: object) -> ProgressToken | None:
     if isinstance(value, str) or (isinstance(value, int) and not isinstance(value, bool)):
         return value
     return None
+
+
+class ErrorVerdict(StrEnum):
+    """What an error response with a reserved code means for the request it answers."""
+
+    FAILURE = "failure"
+    """The request went unserved."""
+    DECLINED = "declined"
+    """The server's answer: nothing in the repository is there."""
+    TRANSIENT = "transient"
+    """The request went unserved this time; asking again is the remedy."""
 
 
 class MethodNotFoundError(Exception):
@@ -94,20 +106,29 @@ class LSPClient:
         project_root: Path,
         init_options: dict | None = None,
         default_timeout: int = 60,
+        startup_timeout: int = 60,
         collect_diagnostics: bool = False,
         extra_env: dict[str, str] | None = None,
         workspace_settings: dict | None = None,
         extra_client_capabilities: dict | None = None,
+        error_verdict: Callable[[dict], ErrorVerdict] | None = None,
+        workspace_folders: list[Path] | None = None,
     ) -> None:
         self._command = command
         self._project_root = project_root
         self._init_options = init_options or {}
         self._default_timeout = default_timeout
+        # Bounds ``initialize`` only, which some servers hold until the project's build is imported.
+        self._startup_timeout = startup_timeout
         self._collect_diagnostics = collect_diagnostics
         self._extra_env = extra_env or {}
         self._workspace_settings = workspace_settings
         # Adapter-specific keys merged into capabilities at ``initialize`` time.
         self._extra_client_capabilities = extra_client_capabilities or {}
+        # How this server's internal errors read; every one is a failure by default.
+        self._error_verdict = error_verdict
+        # Announced in place of the project folder, for a server handed a workspace described apart from it.
+        self._workspace_folders = workspace_folders or []
         self._process: subprocess.Popen | None = None  # type: ignore[type-arg]
         self._stdout_fd: int | None = None
         self._request_id = 0
@@ -136,6 +157,15 @@ class LSPClient:
         # waiting on an LSP that already reported a fatal startup error
         # (e.g. csharp-ls failing to locate the .NET SDK).
         self._init_failed: bool = False
+        # What the server's ``initialize`` answer offers. Why kept: a request it does not offer can come
+        # back as a generic internal error, which reads as a failure rather than "nothing here".
+        self._server_capabilities: dict = {}
+        # kotlin-lsp reports its build import through ``intellij/workspaceImportState``.
+        self.import_finished = threading.Event()
+        self.import_phase = ""
+        self.import_failed = False
+        # Each workspace folder's import status as the server last reported it, e.g. ``BLOCKED``.
+        self.import_folder_statuses: list[str] = []
 
     def __enter__(self) -> LSPClient:
         self.start()
@@ -214,13 +244,16 @@ class LSPClient:
                 "rootPath": str(self._project_root),
                 "capabilities": capabilities,
                 "workspaceFolders": [
-                    {"uri": root_uri, "name": self._project_root.name},
+                    {"uri": folder.as_uri(), "name": folder.name}
+                    for folder in self._workspace_folders or [self._project_root]
                 ],
                 "initializationOptions": self._init_options,
             },
-            timeout=self._default_timeout,
+            timeout=self._startup_timeout,
         )
 
+        if isinstance(init_result, dict):
+            self._server_capabilities = init_result.get("capabilities") or {}
         self._send_notification("initialized", {})
 
         # LSP servers receive configuration through three mechanisms:
@@ -418,10 +451,16 @@ class LSPClient:
             return [result]
         return []
 
+    def advertises(self, provider: str) -> bool:
+        """Whether the server's ``initialize`` answer offers *provider*, e.g. ``implementationProvider``."""
+        return bool(self._server_capabilities.get(provider))
+
     def send_implementation_batch(
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
     ) -> list[list[dict]]:
-        """Send multiple implementation requests without waiting between them."""
+        """Send multiple implementation requests without waiting between them; none to a server not offering them."""
+        if not self.advertises("implementationProvider"):
+            return [[] for _ in queries]
         return self._send_batch(
             "textDocument/implementation",
             queries,
@@ -438,6 +477,8 @@ class LSPClient:
 
     def type_hierarchy_prepare(self, file_path: Path, line: int, character: int) -> list[dict] | None:
         """Prepare type hierarchy at the given position."""
+        if not self.advertises("typeHierarchyProvider"):
+            raise MethodNotFoundError("Server does not offer typeHierarchyProvider")
         result = self._send_request(
             "textDocument/prepareTypeHierarchy",
             {
@@ -501,6 +542,25 @@ class LSPClient:
                 continue
             if now - last_change >= idle_seconds:
                 return
+
+    def wait_for_progress_quiet(self, title_part: str, quiet_seconds: float, max_wait: float) -> bool:
+        """Block until no work-done progress whose title holds ``title_part`` has been open for
+        ``quiet_seconds``, or ``max_wait`` elapses. True when it went quiet.
+
+        Why: an IntelliJ-based server answers requests during an indexing pass, but from an
+        incomplete index.
+        """
+        deadline = time.monotonic() + max_wait
+        quiet_since = time.monotonic()
+        while time.monotonic() < deadline:
+            busy = any(title_part in title.lower() for title in list(self._work_done_progress_titles.values()))
+            now = time.monotonic()
+            if busy:
+                quiet_since = now
+            elif now - quiet_since >= quiet_seconds:
+                return True
+            time.sleep(0.2)
+        return False
 
     # ---- JDTLS server-ready wait ----
 
@@ -747,9 +807,12 @@ class LSPClient:
                         f"The language server does not implement {method}: {err_msg}. "
                         "Reading that as an empty answer would build a graph of symbols with no edges."
                     )
-                if _is_protocol_failure(err):
+                verdict = ErrorVerdict.FAILURE
+                if self._error_verdict is not None and isinstance(err, dict) and _is_protocol_failure(err):
+                    verdict = self._error_verdict(err)
+                if _is_protocol_failure(err) and verdict is not ErrorVerdict.DECLINED:
                     unserved[msg_id] = err_msg  # type: ignore[index]
-                    if _is_retryable(err):
+                    if _is_retryable(err) or verdict is ErrorVerdict.TRANSIENT:
                         retryable.add(msg_id)  # type: ignore[arg-type]
                 else:
                     declined[err_msg] = declined.get(err_msg, 0) + 1
@@ -887,6 +950,22 @@ class LSPClient:
                 self._server_ready.set()
                 logger.info("LSP server: solution loaded (%s)", message_text)
 
+        elif method == "intellij/importLog":
+            # A build the server cannot import is reported here; the import itself still ends FINISHED.
+            if params.get("failed"):
+                self.import_failed = True
+                logger.warning("LSP server: build import failed: %s", str(params.get("message", ""))[:300])
+
+        elif method == "intellij/workspaceImportState":
+            self.import_phase = str(params.get("phase", ""))
+            self.import_folder_statuses = [
+                str(folder.get("status", "")) for folder in params.get("folders") or [] if isinstance(folder, dict)
+            ]
+            logger.info("LSP server: workspace import %s %s", self.import_phase, self.import_folder_statuses)
+            if self.import_phase in ("FINISHED", "FAILED"):
+                self.import_finished.set()
+                self._server_ready.set()
+
         elif method == "$/progress":
             # csharp-ls and gopls report workspace load through work-done
             # progress. Remember the begin title because end notifications
@@ -899,7 +978,9 @@ class LSPClient:
                 title = value.get("title", "") or ""
                 self._work_done_progress_titles[token] = title
                 self._work_done_progress_failures.discard(token)
-                if "indexing" in title.lower():
+                # A server that reports its build import is ready once that import ends; its later
+                # indexing passes (kotlin-lsp runs them continually) are waited for separately.
+                if "indexing" in title.lower() and not self.import_finished.is_set():
                     self._server_ready.clear()
             elif kind == "report" and token is not None and _progress_indicates_failure(message_text):
                 self._work_done_progress_failures.add(token)
@@ -918,8 +999,11 @@ class LSPClient:
                     logger.info("LSP server: workspace loaded (%s)", " ".join(filter(None, [title, message_text])))
                 elif "indexing" in title.lower() and not failed:
                     self._server_ready.set()
-                    logger.info(
-                        "LSP server: workspace indexing ended (%s)", " ".join(filter(None, [title, message_text]))
+                    # Passes after an import are kotlin-lsp's continual re-indexing, every few seconds.
+                    logger.log(
+                        logging.DEBUG if self.import_finished.is_set() else logging.INFO,
+                        "LSP server: workspace indexing ended (%s)",
+                        " ".join(filter(None, [title, message_text])),
                     )
 
     def _read_single_message(self) -> dict | None:

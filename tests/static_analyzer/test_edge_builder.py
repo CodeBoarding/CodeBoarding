@@ -10,17 +10,20 @@ from static_analyzer.engine.edge_builder import (
     SymbolIndex,
     _is_valid_edge,
     _build_dispatch_index,
+    _constructor_called,
     _override_targets,
+    _parameter_count,
     build_edges_via_definitions,
 )
 from static_analyzer.config import NodeType
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.exceptions import StaticAnalysisFatalError
 from static_analyzer.graph_definitions import IMPLEMENTATION, MEMBER_READ, OVERRIDE, RECEIVER
 
+from static_analyzer.engine.adapters.kotlin_adapter import KotlinAdapter
 from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 
 
@@ -81,35 +84,75 @@ def _sym(
 # ---------------------------------------------------------------------------
 
 
+ADAPTER = _TestAdapter()
+KOTLIN = KotlinAdapter()
+
+
 class TestIsValidEdge:
     def test_valid_edge(self):
         a = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 0)
         b = _sym("bar", "a.bar", NodeType.FUNCTION, "/p/a.py", 20)
-        assert _is_valid_edge(a, b) is True
+        assert _is_valid_edge(ADAPTER, a, b) is True
 
     def test_rejects_same_name(self):
         a = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 0)
-        assert _is_valid_edge(a, a) is False
+        assert _is_valid_edge(ADAPTER, a, a) is False
 
     def test_rejects_child_of_caller(self):
-        parent = _sym("Cls", "a.Cls", NodeType.CLASS, "/p/a.py", 0)
-        child = _sym("method", "a.Cls.method", NodeType.METHOD, "/p/a.py", 5)
-        assert _is_valid_edge(parent, child) is False
+        parent = _sym("Cls", "a.Cls", NodeType.CLASS, "/p/a.py", 0, end_line=20)
+        child = _sym("method", "a.Cls.method", NodeType.METHOD, "/p/a.py", 5, parent_chain=[("Cls", NodeType.CLASS)])
+        assert _is_valid_edge(ADAPTER, parent, child) is False
 
     def test_rejects_parent_of_target(self):
-        child = _sym("method", "a.Cls.method", NodeType.METHOD, "/p/a.py", 5)
-        parent = _sym("Cls", "a.Cls", NodeType.CLASS, "/p/a.py", 0)
-        assert _is_valid_edge(child, parent) is False
+        child = _sym("method", "a.Cls.method", NodeType.METHOD, "/p/a.py", 5, parent_chain=[("Cls", NodeType.CLASS)])
+        parent = _sym("Cls", "a.Cls", NodeType.CLASS, "/p/a.py", 0, end_line=20)
+        assert _is_valid_edge(ADAPTER, child, parent) is False
+
+    def test_keeps_a_kotlin_file_level_sibling_whose_name_only_looks_nested(self):
+        """Why: Kotlin names ``Api.kt``'s ``class Api`` after the file, so the file's other
+        top-level declarations read as its members although they are written beside it."""
+        api = _sym("Api", "src.Api", NodeType.CLASS, "/p/Api.kt", 2, 0, end_line=8, end_char=1)
+        cache = _sym("Cache", "src.Api.Cache", NodeType.CLASS, "/p/Api.kt", 10, 0, end_line=12, end_char=1)
+        assert _is_valid_edge(KOTLIN, api, cache) is True
+        constructor = _sym(
+            "Cache",
+            "src.Api.Cache.Cache()",
+            NodeType.CONSTRUCTOR,
+            "/p/Api.kt",
+            10,
+            0,
+            end_line=10,
+            end_char=40,
+            parent_chain=[("Cache", NodeType.CLASS)],
+        )
+        assert _is_valid_edge(KOTLIN, api, constructor) is True
+
+    def test_other_languages_never_read_a_nested_name_as_declared_apart(self):
+        """Why: elsewhere a short or missing range and parent chain must not turn containment into an edge."""
+        cls = _sym("Cls", "a.Cls", NodeType.CLASS, "/p/a.py", 0, end_line=1)
+        method = _sym("method", "a.Cls.method", NodeType.METHOD, "/p/a.py", 5)
+        assert _is_valid_edge(ADAPTER, cls, method) is False
+        assert _is_valid_edge(ADAPTER, method, cls) is False
+
+    def test_rejects_a_member_written_in_another_file_of_its_class(self):
+        cls = _sym("Cls", "a.Cls", NodeType.CLASS, "/p/a.cs", 0)
+        part = _sym("method", "a.Cls.method", NodeType.METHOD, "/p/b.cs", 40, parent_chain=[("Cls", NodeType.CLASS)])
+        assert _is_valid_edge(ADAPTER, cls, part) is False
+
+    def test_rejects_a_member_even_where_the_server_gives_its_class_a_short_range(self):
+        cls = _sym("Cls", "a.Cls", NodeType.CLASS, "/p/a.py", 0, end_line=1)
+        method = _sym("method", "a.Cls.method", NodeType.METHOD, "/p/a.py", 5, parent_chain=[("Cls", NodeType.CLASS)])
+        assert _is_valid_edge(ADAPTER, cls, method) is False
 
     def test_rejects_same_definition_location(self):
         a = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
         b = _sym("bar", "b.bar", NodeType.FUNCTION, "/p/a.py", 10, 4)
-        assert _is_valid_edge(a, b) is False
+        assert _is_valid_edge(ADAPTER, a, b) is False
 
     def test_rejects_same_file_and_line(self):
         a = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 0)
         b = _sym("bar", "a.bar", NodeType.FUNCTION, "/p/a.py", 10, 5)
-        assert _is_valid_edge(a, b) is False
+        assert _is_valid_edge(ADAPTER, a, b) is False
 
 
 # ---------------------------------------------------------------------------
@@ -851,3 +894,101 @@ class TestReceiverMemberFallback:
         build_edges_via_definitions(adapter, ctx, [src])
         queried = {(line, col) for call in lsp.send_definition_batch.call_args_list for _, line, col in call.args[0]}
         assert (3, 4) not in queried
+
+
+class TestConstructorCalledThroughItsClass:
+    """A server that answers a constructor call with the class leaves the constructor to be picked here."""
+
+    SOURCE = (
+        "class Box(val a: Int) {\n"
+        "    constructor(a: Int, b: Int) : this(a + b)\n"
+        "    fun copy() = Box(1, 2)\n"
+        "    fun one() = Box(1)\n"
+        "}\n"
+    )
+
+    def _setup(self, tmp_path: Path) -> tuple[SymbolInfo, dict[str, list[SymbolInfo]], SourceInspector, Path]:
+        src = tmp_path / "Box.kt"
+        src.write_text(self.SOURCE)
+        box = _sym("Box", "Box", NodeType.CLASS, str(src), 0, 6)
+        primary = _sym("Box", "Box.Box(Int)", NodeType.CONSTRUCTOR, str(src), 0, 9)
+        secondary = _sym("Box", "Box.Box(Int, Int)", NodeType.CONSTRUCTOR, str(src), 1, 4)
+        return box, {"Box": [secondary, primary]}, SourceInspector(), src
+
+    def test_the_constructor_is_picked_by_argument_count(self, tmp_path: Path):
+        box, constructors, si, src = self._setup(tmp_path)
+        two = CallSite.from_lsp_position(str(src), 2, 17)
+        one = CallSite.from_lsp_position(str(src), 3, 16)
+        delegation = CallSite.from_lsp_position(str(src), 1, 34)
+        picked = [_constructor_called(KOTLIN, box, constructors, si, site) for site in (two, one, delegation)]
+        assert [sym.qualified_name if sym else None for sym in picked] == [
+            "Box.Box(Int, Int)",
+            "Box.Box(Int)",
+            "Box.Box(Int)",
+        ]
+
+    def test_a_single_constructor_needs_no_count_and_a_class_without_one_stays(self, tmp_path: Path):
+        box, constructors, si, src = self._setup(tmp_path)
+        site = CallSite.from_lsp_position(str(src), 3, 16)
+        only = constructors["Box"][1]
+        assert _constructor_called(KOTLIN, box, {"Box": [only]}, si, site) is only
+        assert _constructor_called(KOTLIN, box, {}, si, site) is None
+
+    def test_a_synthetic_member_answered_with_the_class_is_not_a_construction(self, tmp_path: Path):
+        src = tmp_path / "Mode.kt"
+        src.write_text("enum class Mode(val on: Boolean) {\n    A(true);\n    fun all() = values()\n}\n")
+        mode = _sym("Mode", "Mode", NodeType.ENUM, str(src), 0, 11)
+        constructor = _sym("Mode", "Mode.Mode(Boolean)", NodeType.CONSTRUCTOR, str(src), 0, 15)
+        site = CallSite.from_lsp_position(str(src), 2, 16)
+        assert _constructor_called(KOTLIN, mode, {"Mode": [constructor]}, SourceInspector(), site) is None
+
+    def test_a_call_answered_with_the_companion_runs_its_invoke(self, tmp_path: Path):
+        src = tmp_path / "Rule.kt"
+        src.write_text(
+            "class Rule private constructor(val id: String) {\n"
+            "    companion object {\n"
+            "        operator fun invoke(id: String, n: Int): Rule = Rule(id)\n"
+            "    }\n"
+            "}\n"
+            'fun make() = Rule("a", 1)\n'
+        )
+        companion = _sym("Companion", "Rule.Companion", NodeType.CLASS, str(src), 1, 4)
+        invoke = _sym("invoke", "Rule.Companion.invoke(String, Int)", NodeType.METHOD, str(src), 2, 21)
+        site = CallSite.from_lsp_position(str(src), 5, 13)
+        constructors = {"Rule.Companion": [invoke]}
+        assert _constructor_called(KOTLIN, companion, constructors, SourceInspector(), site) is invoke
+
+    def test_same_arity_overloads_keep_the_edge_on_the_class(self, tmp_path: Path):
+        src = tmp_path / "Packet.kt"
+        src.write_text(
+            "class Packet {\n    constructor(id: Int)\n    constructor(name: String)\n}\n" 'fun make() = Packet("x")\n'
+        )
+        packet = _sym("Packet", "Packet", NodeType.CLASS, str(src), 0, 6)
+        by_id = _sym("Packet", "Packet.Packet(Int)", NodeType.CONSTRUCTOR, str(src), 1, 4)
+        by_name = _sym("Packet", "Packet.Packet(String)", NodeType.CONSTRUCTOR, str(src), 2, 4)
+        site = CallSite.from_lsp_position(str(src), 4, 13)
+        assert _constructor_called(KOTLIN, packet, {"Packet": [by_id, by_name]}, SourceInspector(), site) is None
+
+    def test_a_call_no_overload_matches_runs_the_primary_constructor(self, tmp_path: Path):
+        """Why: default arguments fill the rest, and they usually sit on the primary constructor."""
+        src = tmp_path / "Cfg.kt"
+        src.write_text(
+            "class Cfg(val a: Int, val b: Int = 0) {\n    constructor(s: String, t: String, u: String) : this(1)\n}\n"
+            "fun make() = Cfg(1)\n"
+        )
+        cfg = _sym("Cfg", "Cfg", NodeType.CLASS, str(src), 0, 6)
+        primary = _sym("Cfg", "Cfg.Cfg(Int, Int)", NodeType.CONSTRUCTOR, str(src), 0, 9)
+        secondary = _sym("Cfg", "Cfg.Cfg(String, String, String)", NodeType.CONSTRUCTOR, str(src), 1, 4)
+        site = CallSite.from_lsp_position(str(src), 3, 13)
+        assert _constructor_called(KOTLIN, cfg, {"Cfg": [secondary, primary]}, SourceInspector(), site) is primary
+
+    def test_an_unreadable_callee_keeps_the_edge_on_the_class(self, tmp_path: Path):
+        box, constructors, si, src = self._setup(tmp_path)
+        nowhere = CallSite.from_lsp_position(str(src), 4, 1)
+        assert _constructor_called(KOTLIN, box, constructors, si, nowhere) is None
+
+    def test_parameter_counts_read_the_signature(self):
+        assert _parameter_count("a.B.f()") == 0
+        assert _parameter_count("a.B.f(Map<String, Int>, (Int) -> Unit)") == 2
+        assert _parameter_count("a.B.f((Int) -> Unit, String)") == 2
+        assert _parameter_count("a.B") is None

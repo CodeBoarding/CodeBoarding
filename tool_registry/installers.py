@@ -10,7 +10,9 @@ import logging
 import os
 import platform
 import shutil
+import stat
 import subprocess
+import sys
 import tarfile
 import zipfile
 from pathlib import Path
@@ -43,6 +45,8 @@ from .registry import (
 logger = logging.getLogger(__name__)
 
 PACKAGE_MANAGER_TOOL_STAMP = ".codeboarding-tool.json"
+# The version an archive with a launcher was extracted at, so a version bump replaces it.
+ARCHIVE_VERSION_STAMP = ".codeboarding-version"
 
 
 # -- Download primitive -------------------------------------------------------
@@ -51,7 +55,7 @@ PACKAGE_MANAGER_TOOL_STAMP = ".codeboarding-tool.json"
 def asset_url(source: ToolSource, asset_name: str) -> str:
     """Construct the download URL for a tool asset."""
     if isinstance(source, UpstreamToolSource):
-        return source.url_template.format(version=source.tag, build=source.build)
+        return source.url_template.format(version=source.tag, build=source.build, asset=asset_name)
     if isinstance(source, GitHubToolSource):
         return f"https://github.com/{source.repo}/releases/download/{source.tag}/{asset_name}"
     raise TypeError(f"Unknown source type: {type(source)}")
@@ -469,7 +473,23 @@ def install_node_tools(
         logger.exception("Node.js package installation failed")
 
 
-# -- Archive installer (JDTLS) ------------------------------------------------
+# -- Archive installer (JDTLS, kotlin-lsp) ------------------------------------
+
+
+def archive_launcher_path(target_dir: Path, dep: ToolDependency) -> Path | None:
+    """The launcher an extracted archive is run through, or None for one the adapter launches itself."""
+    if not dep.archive_entry:
+        return None
+    return target_dir / "bin" / dep.archive_subdir / f"{dep.archive_entry}{exe_suffix()}"
+
+
+def archive_tool_is_installed(target_dir: Path, dep: ToolDependency) -> bool:
+    """Whether an archive tool is extracted in full: its launcher at the pinned version, or JDTLS's ``plugins/``."""
+    launcher = archive_launcher_path(target_dir, dep)
+    if launcher is not None:
+        stamp = target_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP
+        return launcher.is_file() and dep.source is not None and _read_stamp(stamp) == dep.source.tag
+    return (target_dir / "bin" / dep.archive_subdir / "plugins").is_dir()
 
 
 def install_archive_tool(
@@ -477,7 +497,7 @@ def install_archive_tool(
     dep: ToolDependency,
     on_progress: ProgressCallback | None = None,
 ) -> None:
-    """Download and extract an archive tool."""
+    """Download and extract an archive tool, a ``.tar.gz`` or a zip (``.zip``, ``.sit``)."""
     assert dep.source, f"{dep.key}: source required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
 
@@ -485,28 +505,94 @@ def install_archive_tool(
         on_progress(dep.key, 1, 1)
 
     extract_dir = target_dir / "bin" / dep.archive_subdir
-    if extract_dir.exists() and (extract_dir / "plugins").is_dir():
+    if archive_tool_is_installed(target_dir, dep):
         logger.info("%s already installed", dep.key)
         return
 
     logger.info("Downloading %s...", dep.key)
-    extract_dir.mkdir(parents=True, exist_ok=True)
-    archive_path = target_dir / "bin" / f"{dep.archive_subdir}.tar.gz"
-
-    url = asset_url(dep.source, "")
-    expected_hash = dep.source.sha256.get("") if isinstance(dep.source, GitHubToolSource) else None
+    if dep.license_url:
+        notice = f"{dep.binary_name} ({dep.key}) is distributed under its own terms: {dep.license_url}"
+        logger.info(notice)
+        print(notice, file=sys.stderr, flush=True)
+    asset_name = ""
+    expected_hash: str | None = None
+    if isinstance(dep.source, (GitHubToolSource, UpstreamToolSource)):
+        overrides = dep.source.asset_arch_overrides
+        asset_name = overrides.get((platform.system(), platform.machine()), "") if overrides else ""
+        if overrides and not asset_name:
+            logger.warning("%s has no build for %s/%s", dep.key, platform.system(), platform.machine())
+            return
+        if isinstance(dep.source, GitHubToolSource) and not asset_name:
+            asset_name = dep.source.asset_template
+        expected_hash = dep.source.sha256.get(asset_name)
+    url = asset_url(dep.source, asset_name)
+    is_zip = url.lower().endswith((".zip", ".sit"))
+    archive_path = target_dir / "bin" / f"{dep.archive_subdir}{'.zip' if is_zip else '.tar.gz'}"
+    # Extracted beside the destination and moved into place whole, so an interrupted install
+    # leaves nothing that looks installed.
+    staging = target_dir / "bin" / f"{dep.archive_subdir}.partial"
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True, exist_ok=True)
     try:
         if not download_asset(url, archive_path, expected_sha256=expected_hash):
             logger.warning("%s download failed (empty file)", dep.key)
+            shutil.rmtree(staging, ignore_errors=True)
             return
 
-        with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(path=extract_dir, filter="tar")
+        if is_zip:
+            _extract_zip(archive_path, staging)
+        else:
+            with tarfile.open(archive_path, "r:gz") as tar:
+                tar.extractall(path=staging, filter="tar")
         archive_path.unlink()
+        root = _single_root(staging)
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        os.replace(root, extract_dir)
+        shutil.rmtree(staging, ignore_errors=True)
+        (extract_dir / ARCHIVE_VERSION_STAMP).write_text(dep.source.tag)
         logger.info("%s installed successfully", dep.key)
     except Exception:
         logger.exception("%s installation failed", dep.key)
         archive_path.unlink(missing_ok=True)
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+def _read_stamp(stamp: Path) -> str | None:
+    try:
+        return stamp.read_text().strip()
+    except OSError:
+        return None
+
+
+def _single_root(directory: Path) -> Path:
+    """The archive's own top-level folder when it has exactly one, else *directory* itself."""
+    entries = list(directory.iterdir())
+    return entries[0] if len(entries) == 1 and entries[0].is_dir() else directory
+
+
+def _extract_zip(archive_path: Path, destination: Path) -> None:
+    """Extract a zip keeping each member's Unix mode and symlinks, which ``ZipFile.extractall`` drops.
+
+    Why: a bundled Java runtime needs its executables marked so, and links to its own files.
+    """
+    root = destination.resolve()
+    with zipfile.ZipFile(archive_path) as zf:
+        for info in zf.infolist():
+            target = (destination / info.filename).resolve()
+            if not target.is_relative_to(root):
+                raise ValueError(f"zip member escapes the destination: {info.filename}")
+            mode = info.external_attr >> 16
+            if stat.S_ISLNK(mode):
+                link = zf.read(info).decode()
+                if not (target.parent / link).resolve().is_relative_to(root):
+                    raise ValueError(f"zip symlink escapes the destination: {info.filename} -> {link}")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.unlink(missing_ok=True)
+                os.symlink(link, target)
+                continue
+            zf.extract(info, destination)
+            if mode and not info.is_dir() and platform.system() != "Windows":
+                os.chmod(target, stat.S_IMODE(mode))
 
 
 # -- Top-level install_tools orchestrator -------------------------------------

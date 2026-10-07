@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from static_analyzer.config import NodeType
 from static_analyzer.engine.models import CallSite
 from static_analyzer.engine.source_inspector import SourceInspector
 
@@ -1098,3 +1099,166 @@ class TestDeclaresSetter:
 
         assert si.declares_setter(f, 6, 8) is True
         assert si.declares_setter(f, 2, 8) is False
+
+
+class TestKotlinCallSites:
+    def _sites(self, tmp_path: Path, body: str) -> dict[tuple[int, int], str]:
+        f = tmp_path / "Main.kt"
+        f.write_text(body)
+        si = SourceInspector()
+        return {
+            (s.lsp_line, s.lsp_column): (si.get_source_line(f, s.lsp_line) or "")[s.lsp_column :].split("(")[0]
+            for s in si.find_call_sites(f)
+        }
+
+    def test_a_call_names_its_callee_and_a_member_call_its_member(self, tmp_path: Path):
+        sites = self._sites(tmp_path, "fun main() {\n    run(1)\n    dog.speak()\n    a?.b().c()\n}\n")
+        assert sites == {(1, 4): "run", (2, 8): "speak", (3, 7): "b", (3, 11): "c"}
+
+    def test_a_trailing_lambda_does_not_name_the_call_it_follows_twice(self, tmp_path: Path):
+        sites = self._sites(tmp_path, "fun main() {\n    with(dog) { speak() }\n}\n")
+        assert sites == {(1, 4): "with", (1, 16): "speak"}
+
+    def test_callable_references_are_sites_but_a_class_literal_is_not(self, tmp_path: Path):
+        sites = self._sites(
+            tmp_path,
+            "fun main() {\n    val f = ::helper\n    val g = Dog::speak\n    val k = Dog::class\n"
+            "    val h = this::speak\n    val j = this::class\n}\n",
+        )
+        assert set(sites) == {(1, 14), (2, 17), (4, 18)}
+
+    def test_a_supertype_constructor_and_a_delegation_call_are_sites(self, tmp_path: Path):
+        sites = self._sites(tmp_path, 'class Dog(n: String) : Animal(n) {\n    constructor() : this("Rex")\n}\n')
+        assert set(sites) == {(0, 23), (1, 20)}
+
+    def test_a_call_with_one_type_argument_is_not_read_as_a_comparison(self, tmp_path: Path):
+        sites = self._sites(tmp_path, "fun main() {\n    val b = Box<Int>(1)\n    val c = a.make<Int>(x)\n}\n")
+        assert set(sites) == {(1, 12), (2, 14)}
+
+    def test_a_chained_comparison_shape_in_another_language_is_left_alone(self, tmp_path: Path):
+        f = tmp_path / "m.js"
+        f.write_text("const x = a < b > (c);\n")
+        assert SourceInspector().find_call_sites(f) == []
+
+
+class TestKotlinSplitConstructorHeader:
+    SOURCE = (
+        "class Outer : Base {\n"
+        "  class Builder\n"
+        "  internal constructor(val name: String) : Holder, Named<String> {\n"
+        "    fun build() = make(name)\n"
+        "  }\n"
+        "  fun after() = later()\n"
+        "}\n"
+    )
+
+    def test_the_rest_of_the_file_is_still_read_at_its_own_positions(self, tmp_path: Path):
+        """A primary constructor on the line after its class name: tree-sitter-kotlin 1.1.0 lost the file after it."""
+        f = tmp_path / "Outer.kt"
+        f.write_text(self.SOURCE)
+        si = SourceInspector()
+
+        assert {(s.lsp_line, s.lsp_column) for s in si.find_call_sites(f)} == {(3, 18), (5, 16)}
+        assert si.find_base_type_sites(f) == [((0, 6), [(0, 14)]), ((1, 8), [(2, 43), (2, 51)])]
+        assert si.attribution_position(f, 3, 18) == (3, 18)
+
+    def test_the_constructor_is_keyed_where_the_server_starts_it(self, tmp_path: Path):
+        f = tmp_path / "Outer.kt"
+        f.write_text(self.SOURCE)
+        assert SourceInspector().kotlin_declarations(f).signatures[(2, 2)] == "(String)"
+
+
+class TestKotlinDeclarations:
+    def test_signatures_drop_type_arguments_and_package_qualifiers(self, tmp_path: Path):
+        f = tmp_path / "Util.kt"
+        f.write_text(
+            "fun f(a: java.io.File, b: Map<String, List<Int>>?, vararg c: Int, d: (String) -> Unit) {}\n"
+            "fun <T> List<T>.second(): T = this[1]\n"
+        )
+        signatures = SourceInspector().kotlin_declarations(f).signatures
+        assert signatures[(0, 4)] == "(File, Map?, Int, (String) -> Unit)"
+        assert signatures[(1, 16)] == "(List)"
+
+    def test_a_nested_type_keeps_its_outer_type(self, tmp_path: Path):
+        """Why: two overloads on ``A.Builder`` and ``B.Builder`` would otherwise share one name."""
+        f = tmp_path / "Builders.kt"
+        f.write_text(
+            "fun A.Builder.tune(c: java.io.File) {}\n"
+            "fun B.Builder.tune(c: java.io.File) {}\n"
+            "fun entries(e: kotlin.collections.Map.Entry<String, Int>) {}\n"
+        )
+        signatures = SourceInspector().kotlin_declarations(f).signatures
+        assert signatures[(0, 14)] == "(A.Builder, File)"
+        assert signatures[(1, 14)] == "(B.Builder, File)"
+        assert signatures[(2, 4)] == "(Map.Entry)"
+
+    def test_a_function_type_inside_type_arguments_is_dropped_with_them(self, tmp_path: Path):
+        f = tmp_path / "Rules.kt"
+        f.write_text("fun rules(a: List<(Config) -> Rule>, b: Map<String, (Int) -> Unit>, c: () -> List<Int>) {}\n")
+        signatures = SourceInspector().kotlin_declarations(f).signatures
+        assert signatures[(0, 4)] == "(List, Map, () -> List)"
+
+    def test_a_documented_constructor_is_also_keyed_at_its_kdoc(self, tmp_path: Path):
+        """The server counts the KDoc as part of a secondary constructor, so its symbol starts there."""
+        f = tmp_path / "Dog.kt"
+        f.write_text("class Dog {\n  /** A puppy. */\n  constructor(age: Int)\n}\n")
+        signatures = SourceInspector().kotlin_declarations(f).signatures
+        assert signatures[(1, 2)] == signatures[(2, 2)] == "(Int)"
+
+    def test_kinds_the_server_does_not_tell_apart(self, tmp_path: Path):
+        f = tmp_path / "Kinds.kt"
+        f.write_text(
+            'interface I\nfun interface F {\n  fun g()\n}\nenum class E {\n  A,\n  B {\n    override fun toString() = "b"\n  }\n}\n'
+        )
+        kinds = SourceInspector().kotlin_declarations(f).kinds
+        assert kinds == {
+            (0, 10): NodeType.INTERFACE,
+            (1, 14): NodeType.INTERFACE,
+            (4, 11): NodeType.ENUM,
+            (5, 2): NodeType.ENUM_MEMBER,
+            (6, 2): NodeType.CLASS,
+        }, "an entry with a body subclasses its enum, so it is a class"
+
+    def test_an_unreadable_file_declares_nothing(self, tmp_path: Path):
+        declarations = SourceInspector().kotlin_declarations(tmp_path / "Missing.kt")
+        assert declarations.kinds == {} and declarations.signatures == {}
+
+
+class TestKotlinTypeBases:
+    def test_bases_name_the_type_not_its_arguments_or_package(self, tmp_path: Path):
+        f = tmp_path / "A.kt"
+        f.write_text("class A : java.io.Serializable, b.Base<Int>(), Iface by impl\nobject O : Iface\n")
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("A", ["Serializable", "Base", "Iface"]), ("O", ["Iface"])]
+        assert si.find_base_type_sites(f) == [((0, 6), [(0, 18), (0, 34), (0, 47)]), ((1, 7), [(1, 11)])]
+
+    def test_an_enum_entry_with_a_body_derives_from_its_enum(self, tmp_path: Path):
+        f = tmp_path / "Mode.kt"
+        f.write_text(
+            'enum class Mode {\n  ON,\n  OFF {\n    override fun label() = "off"\n  };\n  open fun label() = "on"\n}\n'
+        )
+        si = SourceInspector()
+        assert si.find_type_bases(f) == [("OFF", ["Mode"])]
+        assert si.find_base_type_sites(f) == [((2, 2), [(0, 11)])]
+
+    def test_a_super_member_is_named_on_the_base(self, tmp_path: Path):
+        f = tmp_path / "Dog.kt"
+        f.write_text("class Dog : Animal() {\n  override fun move() = super.move()\n}\n")
+        site = CallSite.from_lsp_position(file=str(f), line=1, column=30)
+        assert SourceInspector().names_base_member(site) is True
+
+
+class TestCallArgumentCount:
+    def test_arguments_and_a_trailing_lambda_are_counted(self, tmp_path: Path):
+        f = tmp_path / "Calls.kt"
+        f.write_text("fun f() {\n    g(1, 2)\n    h()\n    run(3) { it }\n}\nclass C(x: Int) : B(x, 1)\n")
+        si = SourceInspector()
+        assert si.call_argument_count(f, 1, 4) == 2
+        assert si.call_argument_count(f, 2, 4) == 0
+        assert si.call_argument_count(f, 3, 4) == 2
+        assert si.call_argument_count(f, 5, 18) == 2
+
+    def test_a_position_on_no_call_counts_nothing(self, tmp_path: Path):
+        f = tmp_path / "Calls.kt"
+        f.write_text("val x = 1\n")
+        assert SourceInspector().call_argument_count(f, 0, 4) is None

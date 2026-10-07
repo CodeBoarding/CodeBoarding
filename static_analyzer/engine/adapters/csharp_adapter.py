@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import threading
+from collections.abc import Sequence
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
@@ -386,7 +387,7 @@ class CSharpAdapter(LanguageAdapter):
         logger.info("dotnet restore per project: %d of %d restored", restored, len(projects))
         self._build_analyzers(resolution.dotnet_path, projects, project_root, env)
 
-    def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
+    def get_lsp_env(self, project_root: Path | None = None, source_files: Sequence[Path] = ()) -> dict[str, str]:
         """Return the .NET environment needed by csharp-ls.
 
         With a project root, this may point at CodeBoarding's private SDK
