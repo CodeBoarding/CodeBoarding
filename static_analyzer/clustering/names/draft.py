@@ -526,11 +526,21 @@ def _file_rules(
     grouper: Grouper,
     links: Links,
 ) -> tuple[list[ComponentRule], str]:
-    """One candidate per file, labelled by its own name: kinship on the names, then the fold along the graph."""
+    """Refine exposed files without opening the directory boundaries the frontier kept."""
+    frontier = walk(Trie(units), role_words, transpose=False, layers=True)
+    candidates = [
+        candidate
+        for candidate in frontier.candidates
+        if candidate.kind == BOX and all(prefix not in frontier.opened for prefix in candidate.prefixes)
+    ]
+    boundaries = [prefix for candidate in candidates for prefix in candidate.prefixes]
     by_key: dict[Prefix, list[Unit]] = {}
     for unit in units:
-        by_key.setdefault(unit.key, []).append(unit)
-    candidates = [Candidate(f"{FILE}:{'/'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)]
+        if not any(unit.position[: len(prefix)] == prefix for prefix in boundaries):
+            by_key.setdefault(unit.key, []).append(unit)
+    candidates.extend(
+        Candidate(f"{FILE}:{'/'.join(key)}", FILE, _label(key), prefixes=(key,)) for key in sorted(by_key)
+    )
     return _grouped_rules(scope_id, units, candidates, role_words, grouper, FILES, links), FILES
 
 
