@@ -1,12 +1,13 @@
 import argparse
 import io
+import logging
 import os
 import platform
 import shutil
 import subprocess
 import sys
 import tarfile
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -17,6 +18,7 @@ from tool_registry import (
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
     ProgressCallback,
+    ToolDependency,
     ToolKind,
     acquire_lock,
     archive_launcher_path,
@@ -33,12 +35,16 @@ from tool_registry import (
     platform_bin_dir,
     preferred_node_path,
     preferred_npm_command,
+    required_tools,
     write_manifest,
 )
 from tool_registry.registry import ConfigSection, PackageManagerToolSource
 from vscode_constants import VSCODE_CONFIG
 from static_analyzer.config import Language
+from static_analyzer.scanner import ProjectScanner
 from user_config import ensure_config_template
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -295,25 +301,26 @@ def get_platform_bin_dir(servers_dir: Path) -> Path:
     return platform_bin_dir(servers_dir)
 
 
-def install_node_servers(target_dir: Path, on_progress: ProgressCallback | None = None):
-    """Install Node.js based servers (TypeScript, Pyright) using npm in target_dir."""
+def install_node_servers(
+    target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] | None = None
+):
+    """Install the Node.js based servers of *deps* (every one when None) using npm in target_dir."""
     print("Step: Node.js servers installation started")
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    node_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NODE]
+    node_deps = [d for d in (TOOL_REGISTRY if deps is None else deps) if d.kind is ToolKind.NODE]
     install_node_tools(target_dir, node_deps, on_progress=on_progress)
 
     # Verify the installation
-    ts_lsp_path = target_dir / "node_modules" / ".bin" / "typescript-language-server"
-    py_lsp_path = target_dir / "node_modules" / ".bin" / "pyright-langserver"
-    php_lsp_path = target_dir / "node_modules" / ".bin" / "intelephense"
+    names = {
+        "typescript": "TypeScript Language Server",
+        "python": "Pyright Language Server",
+        "php": "Intelephense",
+    }
 
     success = True
-    for name, path in [
-        ("TypeScript Language Server", ts_lsp_path),
-        ("Pyright Language Server", py_lsp_path),
-        ("Intelephense", php_lsp_path),
-    ]:
+    for dep in node_deps:
+        name, path = names.get(dep.key, dep.binary_name), target_dir / "node_modules" / ".bin" / dep.binary_name
         if path.exists():
             print(f"Step: {name} installation finished: success")
         else:
@@ -457,10 +464,15 @@ def resolve_missing_vcpp(auto_install_vcpp: bool = False) -> bool:
     return False
 
 
-def download_binaries(target_dir: Path, auto_install_vcpp: bool = False, on_progress: ProgressCallback | None = None):
-    """Download tokei and gopls binaries from the latest GitHub release."""
+def download_binaries(
+    target_dir: Path,
+    auto_install_vcpp: bool = False,
+    on_progress: ProgressCallback | None = None,
+    deps: Collection[ToolDependency] | None = None,
+):
+    """Download the native binaries of *deps* (every one when None): tokei, gopls, rust-analyzer."""
     print("Step: Binary download started")
-    native_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE]
+    native_deps = [d for d in (TOOL_REGISTRY if deps is None else deps) if d.kind is ToolKind.NATIVE]
     install_native_tools(target_dir, native_deps, on_progress=on_progress)
 
     # Verify downloaded binaries actually work (catch missing DLL issues on Windows)
@@ -499,10 +511,12 @@ def download_binaries(target_dir: Path, auto_install_vcpp: bool = False, on_prog
     print("Step: Binary download finished")
 
 
-def download_jdtls(target_dir: Path, on_progress: ProgressCallback | None = None):
-    """Download and extract the archive tools: JDTLS and kotlin-lsp."""
+def download_jdtls(
+    target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] | None = None
+):
+    """Download and extract the archive tools of *deps* (every one when None): JDTLS and kotlin-lsp."""
     print("Step: JDTLS download started")
-    archive_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE]
+    archive_deps = [d for d in (TOOL_REGISTRY if deps is None else deps) if d.kind is ToolKind.ARCHIVE]
     for dep in archive_deps:
         install_archive_tool(target_dir, dep, on_progress=on_progress)
 
@@ -510,13 +524,15 @@ def download_jdtls(target_dir: Path, on_progress: ProgressCallback | None = None
     return True
 
 
-def install_package_manager_lsp_servers(target_dir: Path, on_progress: ProgressCallback | None = None) -> None:
-    """Install LSP servers distributed via user-provided package managers.
+def install_package_manager_lsp_servers(
+    target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] | None = None
+) -> None:
+    """Install the LSP servers of *deps* (every one when None) distributed via user-provided package managers.
 
     Skips cleanly when the package manager itself is absent — the adapter raises a meaningful error
     at analysis time.
     """
-    pm_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.PACKAGE_MANAGER]
+    pm_deps = [d for d in (TOOL_REGISTRY if deps is None else deps) if d.kind is ToolKind.PACKAGE_MANAGER]
     if not pm_deps:
         return
     print("Step: Package-manager tool installation started")
@@ -698,8 +714,12 @@ def ensure_tools(
     auto_install_npm: bool = False,
     auto_install_vcpp: bool = False,
     on_progress: ProgressCallback | None = None,
+    repo_path: Path | None = None,
 ) -> None:
     """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current.
+
+    With *repo_path*, only the tools that repository's languages need: tokei first, which finds
+    them, then each language's server. Without it, every tool.
 
     Uses a file lock so that concurrent instances (multiple VSCode windows)
     don't corrupt binaries by downloading simultaneously.
@@ -711,23 +731,31 @@ def ensure_tools(
     servers_dir.mkdir(parents=True, exist_ok=True)
     lock_path = servers_dir / ".download.lock"
 
-    with open(lock_path, "w") as lock_fd:
-        acquire_lock(lock_fd)
-
-        # Run above needs_install() so a deleted nodeenv/ is always repaired
-        # (fingerprints alone wouldn't detect it).
-        ensure_node_runtime(target_dir=servers_dir, auto_install_npm=auto_install_npm)
-
-        if not needs_install():
+    def install(deps: list[ToolDependency]) -> None:
+        if any(dep.kind is ToolKind.NODE for dep in deps):
+            # Run above needs_install() so a deleted nodeenv/ is always repaired
+            # (fingerprints alone wouldn't detect it).
+            ensure_node_runtime(target_dir=servers_dir, auto_install_npm=auto_install_npm)
+        if not needs_install([dep.key for dep in deps]):
             return
-
         run_install(
             target_dir=servers_dir,
             auto_install_npm=auto_install_npm,
             auto_install_vcpp=auto_install_vcpp,
             on_progress=on_progress,
+            deps=deps,
         )
-        write_manifest()
+        write_manifest(deps)
+
+    with open(lock_path, "w") as lock_fd:
+        acquire_lock(lock_fd)
+        if repo_path is None:
+            install(required_tools())
+            return
+        install(required_tools(()))
+        languages = ProjectScanner(repo_path).lsp_server_keys()
+        logger.info("Tools for %s: tokei%s", repo_path, "".join(f", {key}" for key in sorted(languages)))
+        install(required_tools(languages))
 
 
 def run_install(
@@ -735,30 +763,34 @@ def run_install(
     auto_install_npm: bool = False,
     auto_install_vcpp: bool = False,
     on_progress: ProgressCallback | None = None,
+    deps: Collection[ToolDependency] | None = None,
 ) -> None:
     """Core installation logic — callable programmatically or via CLI.
 
-    Downloads language server binaries to target_dir (defaults to ~/.codeboarding/servers/).
-    Safe to call multiple times; already-installed tools are skipped.
+    Downloads the language server binaries of *deps* (every registered tool when None) to
+    target_dir (defaults to ~/.codeboarding/servers/). Safe to call multiple times;
+    already-installed tools are skipped.
 
     The ``on_progress`` callback receives ``(tool_name, step, total)`` where
     step/total count across *all* tool categories (native, node, archive).
     """
     target = (target_dir or get_servers_dir()).resolve()
     target.mkdir(parents=True, exist_ok=True)
+    selected = list(TOOL_REGISTRY if deps is None else deps)
 
     ensure_config_template()
 
-    # Covers the codeboarding-setup -> run_install path, which bypasses ensure_tools().
-    ensure_node_runtime(target_dir=target, auto_install_npm=auto_install_npm)
+    node_deps = [d for d in selected if d.kind is ToolKind.NODE]
+    if node_deps:
+        # Covers the codeboarding-setup -> run_install path, which bypasses ensure_tools().
+        ensure_node_runtime(target_dir=target, auto_install_npm=auto_install_npm)
 
     # Compute a unified total so the caller sees a single progress stream.
-    native_count = sum(1 for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE and d.source)
-    node_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NODE]
-    archive_count = sum(1 for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE)
-    pm_count = sum(1 for d in TOOL_REGISTRY if d.kind is ToolKind.PACKAGE_MANAGER)
-    npm_available = resolve_npm_availability(auto_install_npm=auto_install_npm, target_dir=target)
-    total_steps = native_count + (1 if npm_available and node_deps else 0) + archive_count + pm_count
+    native_count = sum(1 for d in selected if d.kind is ToolKind.NATIVE and d.source)
+    archive_count = sum(1 for d in selected if d.kind is ToolKind.ARCHIVE)
+    pm_count = sum(1 for d in selected if d.kind is ToolKind.PACKAGE_MANAGER)
+    npm_available = bool(node_deps) and resolve_npm_availability(auto_install_npm=auto_install_npm, target_dir=target)
+    total_steps = native_count + (1 if npm_available else 0) + archive_count + pm_count
 
     step = 0
 
@@ -771,14 +803,18 @@ def run_install(
     tracker = unified_progress if on_progress else None
 
     if npm_available:
-        install_node_servers(target, on_progress=tracker)
+        install_node_servers(target, on_progress=tracker, deps=selected)
 
-    download_binaries(target, auto_install_vcpp=auto_install_vcpp, on_progress=tracker)
-    download_jdtls(target, on_progress=tracker)
-    install_package_manager_lsp_servers(target, on_progress=tracker)
-    download_grammars(target)
+    if native_count:
+        download_binaries(target, auto_install_vcpp=auto_install_vcpp, on_progress=tracker, deps=selected)
+    if archive_count:
+        download_jdtls(target, on_progress=tracker, deps=selected)
+    install_package_manager_lsp_servers(target, on_progress=tracker, deps=selected)
+    if any(d.key == "kotlin" for d in selected):
+        download_grammars(target)
     install_pre_commit_hooks()
-    print_language_support_summary(npm_available, target)
+    if deps is None:
+        print_language_support_summary(npm_available, target)
 
 
 def main() -> None:

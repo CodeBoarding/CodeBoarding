@@ -153,7 +153,7 @@ codeboarding-render /path/to/analysis.json --format mdx --output-dir /path/to/do
 python codeboarding_cli/render.py ../../demo/markitdown/.codeboarding/analysis.json --format md
 ```
 
-`python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
+An analysis downloads the language servers its repository's languages need into `~/.codeboarding/servers/` the first time it needs them, shared across projects; `python install.py` and `codeboarding-setup` download all of them up front. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
 
 ## Configuration
 

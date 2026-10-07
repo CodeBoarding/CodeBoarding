@@ -454,7 +454,7 @@ class TestFullCliLocal(unittest.TestCase):
     @patch("codeboarding_cli.commands.full_analysis.run_full")
     @patch("codeboarding_workflows.orchestration.RunContext")
     @patch("codeboarding_cli.commands.full_analysis.bootstrap_environment")
-    def test_local_full_calls_run_full(self, _mock_bootstrap, mock_run_context, mock_run_full):
+    def test_local_full_calls_run_full(self, mock_bootstrap, mock_run_context, mock_run_full):
         mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l")
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -463,6 +463,8 @@ class TestFullCliLocal(unittest.TestCase):
 
             run_from_args(self._make_args(repo_path), MagicMock())
 
+        # The repository is handed to the bootstrap, which installs the tools its languages need.
+        self.assertEqual(mock_bootstrap.call_args.args[2], repo_path.resolve())
         mock_run_full.assert_called_once()
         run_paths = mock_run_full.call_args.args[0]
         self.assertEqual(run_paths.repo_path, repo_path.resolve())
@@ -485,8 +487,12 @@ class TestFullCliLocal(unittest.TestCase):
 
 
 class TestFullCliRemote(unittest.TestCase):
-    def _run(self, process_side_effect) -> Mock:
-        args = MagicMock(repositories=["https://github.com/a/one", "https://github.com/a/two"], upload=False)
+    def _run(self, process_side_effect, binary_location: Path | None = None) -> Mock:
+        args = MagicMock(
+            repositories=["https://github.com/a/one", "https://github.com/a/two"],
+            upload=False,
+            binary_location=binary_location,
+        )
         with tempfile.TemporaryDirectory() as temp_dir:
             with (
                 patch.object(Path, "cwd", return_value=Path(temp_dir)),
@@ -506,6 +512,10 @@ class TestFullCliRemote(unittest.TestCase):
         process = self._run([RuntimeError("clone failed"), None])
 
         self.assertEqual(process.call_count, 2)
+
+    def test_each_clone_installs_its_own_tools_unless_binaries_are_given(self):
+        self.assertTrue(self._run([None, None]).call_args.kwargs["install_tools"])
+        self.assertFalse(self._run([None, None], binary_location=Path("/bin")).call_args.kwargs["install_tools"])
 
 
 class TestPartialCliLocal(unittest.TestCase):

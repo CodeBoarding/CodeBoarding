@@ -301,3 +301,93 @@ class TestMainCliLock(unittest.TestCase):
         # And it happened before run_install, which happened before
         # write_manifest.  Both must be inside the lock's critical section.
         self.assertEqual(call_order, ["acquire", "run_install", "write_manifest"])
+
+
+class TestEnsureToolsOnDemand(unittest.TestCase):
+    """An analysis installs what its repository's languages need: tokei, which finds them, then their servers."""
+
+    def _ensure(self, languages: set[str], **kwargs) -> tuple[list[list[str]], list[list[str]], Mock]:
+        installs: list[list[str]] = []
+        recorded: list[list[str]] = []
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("install.get_servers_dir", return_value=Path(tmp)),
+            patch("install.acquire_lock"),
+            patch("install.needs_install", return_value=True),
+            patch("install.ensure_node_runtime") as node,
+            patch("install.run_install", side_effect=lambda **kw: installs.append([d.key for d in kw["deps"]])),
+            patch("install.write_manifest", side_effect=lambda deps: recorded.append([d.key for d in deps])),
+            patch("install.ProjectScanner") as scanner,
+        ):
+            scanner.return_value.lsp_server_keys.return_value = languages
+            install.ensure_tools(**kwargs)
+        return installs, recorded, node
+
+    def test_a_repository_gets_tokei_then_only_its_languages_servers(self):
+        installs, recorded, node = self._ensure({"python"}, repo_path=Path("/repo"))
+        self.assertEqual(installs, [["tokei"], ["tokei", "python"]])
+        self.assertEqual(recorded, installs)
+        node.assert_called_once()
+
+    def test_a_repository_without_node_languages_needs_no_node_runtime(self):
+        installs, _, node = self._ensure({"go", "kotlin"}, repo_path=Path("/repo"))
+        self.assertEqual(installs, [["tokei"], ["tokei", "go", "kotlin"]])
+        node.assert_not_called()
+
+    def test_without_a_repository_every_tool_is_installed(self):
+        installs, _, _ = self._ensure(set())
+        self.assertEqual(installs, [[d.key for d in install.TOOL_REGISTRY]])
+
+    def test_tools_already_current_are_not_installed_again(self):
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("install.get_servers_dir", return_value=Path(tmp)),
+            patch("install.acquire_lock"),
+            patch("install.needs_install", return_value=False) as needs,
+            patch("install.ensure_node_runtime"),
+            patch("install.run_install") as run,
+            patch("install.ProjectScanner") as scanner,
+        ):
+            scanner.return_value.lsp_server_keys.return_value = {"typescript"}
+            install.ensure_tools(repo_path=Path("/repo"))
+        run.assert_not_called()
+        self.assertEqual([call.args[0] for call in needs.call_args_list], [["tokei"], ["tokei", "typescript"]])
+
+
+class TestRunInstallSelection(unittest.TestCase):
+    """``run_install`` hands each installer only the selected tools."""
+
+    def test_only_the_selected_tools_reach_the_installers(self):
+        selected = [d for d in install.TOOL_REGISTRY if d.key in ("tokei", "go")]
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("install.ensure_config_template"),
+            patch("install.ensure_node_runtime") as node,
+            patch("install.resolve_npm_availability") as npm,
+            patch("install.install_node_tools") as node_tools,
+            patch("install.install_native_tools") as native,
+            patch("install.install_archive_tool") as archive,
+            patch("install.install_package_manager_tools") as package_manager,
+            patch("install.download_grammars") as grammars,
+            patch("install.install_pre_commit_hooks"),
+            patch("install.print_language_support_summary") as summary,
+        ):
+            install.run_install(target_dir=Path(tmp), deps=selected)
+        self.assertEqual([d.key for d in native.call_args.args[1]], ["tokei", "go"])
+        for untouched in (node, npm, node_tools, archive, package_manager, grammars, summary):
+            untouched.assert_not_called()
+
+    def test_kotlin_brings_its_grammar(self):
+        selected = [d for d in install.TOOL_REGISTRY if d.key in ("tokei", "kotlin")]
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("install.ensure_config_template"),
+            patch("install.install_native_tools"),
+            patch("install.install_archive_tool") as archive,
+            patch("install.install_package_manager_tools"),
+            patch("install.download_grammars") as grammars,
+            patch("install.install_pre_commit_hooks"),
+        ):
+            install.run_install(target_dir=Path(tmp), deps=selected)
+        self.assertEqual([call.args[1].key for call in archive.call_args_list], ["kotlin"])
+        grammars.assert_called_once()

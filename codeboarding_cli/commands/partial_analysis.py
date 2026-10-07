@@ -39,7 +39,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     run_paths = resolve_local_run_paths(args)
 
     try:
-        bootstrap_environment(run_paths.output_dir, args.binary_location)
+        bootstrap_environment(run_paths.output_dir, args.binary_location, run_paths.repo_path)
     except LLMConfigError as exc:
         logger.error("LLM provider not configured: %s", exc)
         raise SystemExit(1) from exc
