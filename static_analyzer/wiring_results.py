@@ -92,6 +92,7 @@ class DiagnosticCode(StrEnum):
     IGNORED_MANIFEST = "ignored_manifest"
     NO_BOX_FOR_UNIT = "no_box_for_unit"
     UNIT_WITHOUT_MANIFEST = "unit_without_manifest"
+    UNKNOWN_IMAGE_KIND = "unknown_image_kind"
     UNREADABLE_MANIFEST = "unreadable_manifest"
     UNRESOLVED_IMAGE = "unresolved_image"
     UNRESOLVED_USE = "unresolved_use"
@@ -187,11 +188,21 @@ class ResourceChild:
 
 @dataclass(frozen=True)
 class Resource:
+    """A thing the code talks to that holds no source here, named as the repository names it (§7).
+
+    ``display_name`` is the catalogue's name for its kind of thing (`mssql/server` -> SQL Server), for
+    rendering a node whose declared name would tell a reader nothing. ``home_unit`` is whose it is
+    in P1 — a unit or the directory its users share — because a component is the clustering's
+    answer and the clustering has not run when the pass does; the PR that places these nodes
+    resolves it to a component id.
+    """
+
     key: str
     kind: ResourceKind
     name: str
+    display_name: str = ""
     declared_by: tuple[str, ...] = ()
-    home: str = ""
+    home_unit: str = ""
     children: tuple[ResourceChild, ...] = ()
 
 

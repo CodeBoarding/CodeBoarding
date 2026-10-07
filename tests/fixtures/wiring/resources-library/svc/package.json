@@ -1,0 +1,7 @@
+{
+  "name": "svc-lib",
+  "dependencies": {
+    "pg": "8.0.0",
+    "ioredis": "5.0.0"
+  }
+}
