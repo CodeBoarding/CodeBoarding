@@ -61,7 +61,6 @@ from .installers import (  # noqa: F401
     NODEENV_VERSION_STAMP,
     archive_launcher_path,
     archive_tool_is_installed,
-    ensure_archive_tool,
     asset_url,
     download_asset,
     embedded_node_is_healthy,

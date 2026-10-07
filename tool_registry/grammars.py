@@ -2,6 +2,9 @@
 
 Kotlin comes from tree-sitter-language-pack, which builds fwcd/tree-sitter-kotlin at the commit
 its pinned version names and downloads it on first use.
+
+Why not the ``tree-sitter-kotlin`` wheel: it is built from another grammar, unchanged since January
+2025, whose error recovery swallows whole declarations (on detekt, 913 calls in 39 files).
 """
 
 import logging

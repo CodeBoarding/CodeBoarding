@@ -95,7 +95,7 @@ For the engine's own architecture, [open its interactive map](https://app.codebo
 
 To try the product without installing anything, [open a public map](https://app.codeboarding.org/CodeBoarding/CodeBoarding). To connect your own repositories, [sign in to the web platform](https://app.codeboarding.org) and choose which repositories CodeBoarding can access. See the [getting-started guide](https://codeboarding.org/getting-started) for the GitHub and editor workflows.
 
-To run the analysis engine yourself, use either option below. Both require **Python 3.12** and a [configured model provider](#configuration). On Linux they need glibc 2.34 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later).
+To run the analysis engine yourself, use either option below. Both require **Python 3.12** and a [configured model provider](#configuration).
 
 ### Run from source
 
@@ -247,7 +247,7 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 - Languages: Python, TypeScript, JavaScript, Java, Kotlin, Go, PHP, Rust, C#.
   - Java needs a JDK (21 recommended).
-  - Kotlin is analysed with JetBrains' [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp), downloaded on the first analysis of a Kotlin repository (about 360 MB, with its own Java runtime) under the [JetBrains Free Plugin License](https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt). It imports Gradle and Maven builds itself; when a build cannot be imported (for example an Android project without an Android SDK), calls between your own code still resolve, library types do not. Kotlin Multiplatform projects are read the same way, from their sources.
+  - Kotlin is analysed with JetBrains' [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp) (about 360 MB with its own Java runtime, under the [JetBrains Free Plugin License](https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt)) and needs glibc 2.34 or newer on Linux.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, LiteLLM proxy, and more.
 
 ## Examples

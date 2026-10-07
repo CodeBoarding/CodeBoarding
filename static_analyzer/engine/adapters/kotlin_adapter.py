@@ -16,9 +16,11 @@ from pathlib import Path
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import ErrorVerdict, LSPClient
+from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import KotlinDeclarations, SourceInspector
 from static_analyzer.engine.utils import total_ram_gb
-from tool_registry import TOOL_REGISTRY, ensure_archive_tool, user_data_dir
+from static_analyzer.internal_references import parent_qualified_name, simple_name
+from tool_registry import user_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,7 @@ _INDEXING_QUIET_SECONDS = 5
 _INDEXING_TIMEOUT_SECONDS = 900
 # Rounds of 50 definition requests.
 _REQUEST_TIMEOUT_SECONDS = 120
+_DRAIN_PROBE_ROUND_SECONDS = 60
 # Heap for the server's JVM: a base for the IntelliJ platform plus the analysed sources.
 _BASE_HEAP_GB = 4
 _HEAP_GB_PER_SOURCE_MB = 1.5
@@ -38,6 +41,7 @@ _PACKAGE = re.compile(rb"^\s*package\s+([\w.`]+)", re.MULTILINE)
 _NOT_SOURCES = {".git", ".gradle", ".idea", "build", "node_modules", "target"}
 # The server's platform jars carry the Kotlin standard library it was built with.
 _STDLIB_MODULE = "META-INF/kotlin-stdlib.kotlin_module"
+_COMPANION = "Companion"
 
 
 class KotlinAdapter(LanguageAdapter):
@@ -48,8 +52,6 @@ class KotlinAdapter(LanguageAdapter):
         # with the file's other top-level declarations, keyed by (project root, path). Why: the stem
         # folds into that type, which files those declarations beside the members.
         self._files_named_for_their_type: set[tuple[str, str]] = set()
-        # Picked with the command, which sees the analysed files; handed over through the environment.
-        self._heap = f"{_BASE_HEAP_GB}G"
 
     @property
     def language(self) -> str:
@@ -67,14 +69,13 @@ class KotlinAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "kotlin"
 
-    def get_lsp_command(self, project_root: Path, source_files: Sequence[Path] = ()) -> list[str]:
+    def get_lsp_command(self, project_root: Path) -> list[str]:
         """Run the server over stdio, keeping its caches and indexes per project under the user's data directory."""
-        self._heap = _heap_size(source_files)
         return [str(self._launcher(project_root)), "--stdio", f"--system-path={_system_path(project_root)}"]
 
-    def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
-        """The launcher appends ``IJ_JAVA_OPTIONS`` after its own VM options, so this heap wins."""
-        return {"IJ_JAVA_OPTIONS": f"-Xmx{self._heap}"}
+    def get_lsp_env(self, project_root: Path | None = None, source_files: Sequence[Path] = ()) -> dict[str, str]:
+        """A heap sized to the sources. The launcher appends ``IJ_JAVA_OPTIONS`` after its own VM options, so it wins."""
+        return {"IJ_JAVA_OPTIONS": f"-Xmx{_heap_size(source_files)}"}
 
     def get_lsp_default_timeout(self) -> int:
         return _REQUEST_TIMEOUT_SECONDS
@@ -92,7 +93,8 @@ class KotlinAdapter(LanguageAdapter):
                 "kotlin-lsp could not import the build (%s); library types will not resolve", client.import_phase
             )
         if not client.wait_for_progress_quiet("indexing", _INDEXING_QUIET_SECONDS, _INDEXING_TIMEOUT_SECONDS):
-            logger.warning("kotlin-lsp was still indexing after %ds; continuing", _INDEXING_TIMEOUT_SECONDS)
+            # Why: an incomplete index answers definitions with nothing, which would read as missing edges.
+            raise RuntimeError(f"kotlin-lsp was still indexing after {_INDEXING_TIMEOUT_SECONDS}s")
 
     def workspace_folders(self, project_root: Path, source_files: Sequence[Path]) -> list[Path]:
         """A Kotlin Multiplatform project is read from its sources, without its build.
@@ -171,8 +173,41 @@ class KotlinAdapter(LanguageAdapter):
         return True
 
     @property
+    def drain_probe_round_seconds(self) -> int | None:
+        """kotlin-lsp can leave a request that arrives during a large didOpen burst unanswered."""
+        return _DRAIN_PROBE_ROUND_SECONDS
+
+    @property
     def constructor_calls_resolve_to_class(self) -> bool:
         return True
+
+    def constructed_class(self, symbol: SymbolInfo) -> str | None:
+        """A companion's ``invoke`` too: a call that names a class but is answered with its companion runs it."""
+        if self.is_callable(symbol.kind) and simple_name(symbol.qualified_name) == "invoke":
+            companion = parent_qualified_name(symbol.qualified_name.split("(", 1)[0])
+            if simple_name(companion) == _COMPANION:
+                return companion
+        return super().constructed_class(symbol)
+
+    def constructs(self, target: SymbolInfo, callee: str) -> bool:
+        """A call naming the class, or a delegation with ``this`` / ``super``; for a companion, a call
+        naming its class."""
+        if target.name == _COMPANION and callee == simple_name(parent_qualified_name(target.qualified_name)):
+            return True
+        return callee in (target.name, "this", "super")
+
+    def declared_apart(self, a: SymbolInfo, b: SymbolInfo) -> bool:
+        """Two declarations of one file, the deeper-named one written outside the other and not naming
+        it among its declaring parents.
+
+        Why: a type declared in a file of its own name is named after the file, so the file's other
+        top-level declarations read as its members.
+        """
+        if str(a.file_path) != str(b.file_path):
+            return False
+        outer, inner = (a, b) if len(a.qualified_name) < len(b.qualified_name) else (b, a)
+        declaring = {name for name, _ in inner.parent_chain}
+        return outer.name not in declaring and not (_encloses(a, b) or _encloses(b, a))
 
     @property
     def resolves_method_groups(self) -> bool:
@@ -181,13 +216,9 @@ class KotlinAdapter(LanguageAdapter):
 
     def _launcher(self, project_root: Path) -> Path:
         launcher = shutil.which(super().get_lsp_command(project_root)[0])
-        if launcher is not None:
-            return Path(launcher)
-        # Installed by the first analysis that has Kotlin to read, not by setup.
-        installed = ensure_archive_tool(next(dep for dep in TOOL_REGISTRY if dep.key == "kotlin"))
-        if installed is None:
-            raise RuntimeError("kotlin-lsp is not installed and could not be downloaded; check the network.")
-        return installed
+        if launcher is None:
+            raise RuntimeError("kotlin-lsp is not installed; run codeboarding-setup.")
+        return Path(launcher)
 
     def _sources_folder(self, project_root: Path, source_files: Sequence[Path]) -> Path:
         """A folder holding a ``workspace.json`` of the source roots and the standard library."""
@@ -308,3 +339,10 @@ def _heap_size(source_files: Sequence[Path]) -> str:
     if ram_gb is not None:
         desired_gb = min(desired_gb, int(ram_gb * 0.5))
     return f"{max(2, desired_gb)}G"
+
+
+def _encloses(outer: SymbolInfo, inner: SymbolInfo) -> bool:
+    return (outer.start_line, outer.start_char) <= (inner.start_line, inner.start_char) and (
+        outer.end_line,
+        outer.end_char,
+    ) >= (inner.end_line, inner.end_char)

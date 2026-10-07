@@ -223,25 +223,13 @@ class TestLaunch:
         assert command == again
         assert other[2] != command[2]
 
-    def test_a_missing_server_is_installed_on_first_use(self):
-        with (
-            patch("static_analyzer.engine.adapters.kotlin_adapter.shutil.which", return_value=None),
-            patch(
-                "static_analyzer.engine.adapters.kotlin_adapter.ensure_archive_tool",
-                return_value=Path("/servers/bin/kotlin-lsp/bin/intellij-server"),
-            ) as ensure,
-        ):
-            command = KotlinAdapter().get_lsp_command(ROOT)
-        assert ensure.call_args.args[0].key == "kotlin"
-        assert command[0] == "/servers/bin/kotlin-lsp/bin/intellij-server"
-
-    def test_a_server_that_cannot_be_downloaded_fails_fast(self):
-        with (
-            patch("static_analyzer.engine.adapters.kotlin_adapter.shutil.which", return_value=None),
-            patch("static_analyzer.engine.adapters.kotlin_adapter.ensure_archive_tool", return_value=None),
-        ):
-            with pytest.raises(RuntimeError, match="could not be downloaded"):
+    def test_a_missing_server_fails_fast(self):
+        with patch("static_analyzer.engine.adapters.kotlin_adapter.shutil.which", return_value=None):
+            with pytest.raises(RuntimeError, match="run codeboarding-setup"):
                 KotlinAdapter().get_lsp_command(ROOT)
+
+    def test_the_didopen_drain_probe_is_asked_in_rounds(self):
+        assert KotlinAdapter().drain_probe_round_seconds == 60
 
     def test_requests_are_bounded_apart_from_the_import(self):
         assert KotlinAdapter().get_lsp_default_timeout() == 120
@@ -249,13 +237,8 @@ class TestLaunch:
     def test_the_heap_reaches_the_launcher_through_its_options(self, tmp_path: Path):
         source = tmp_path / "Big.kt"
         source.write_bytes(b" " * 2_000_000)
-        adapter = KotlinAdapter()
-        with (
-            patch("static_analyzer.engine.adapters.kotlin_adapter.shutil.which", return_value="/s/bin/intellij-server"),
-            patch("static_analyzer.engine.adapters.kotlin_adapter.total_ram_gb", return_value=None),
-        ):
-            adapter.get_lsp_command(tmp_path, [source])
-        assert adapter.get_lsp_env(tmp_path) == {"IJ_JAVA_OPTIONS": "-Xmx7G"}
+        with patch("static_analyzer.engine.adapters.kotlin_adapter.total_ram_gb", return_value=None):
+            assert KotlinAdapter().get_lsp_env(tmp_path, [source]) == {"IJ_JAVA_OPTIONS": "-Xmx7G"}
 
     def test_the_heap_grows_with_the_analysed_sources_within_half_the_memory(self, tmp_path: Path):
         small, large = tmp_path / "Small.kt", tmp_path / "Large.kt"
@@ -278,6 +261,13 @@ class TestImport:
     def test_a_failed_import_still_analyses_the_sources(self, caplog: pytest.LogCaptureFixture):
         KotlinAdapter().validate_workspace_ready(_client("FAILED"))
         assert "could not import the build" in caplog.text
+
+    def test_an_index_still_building_at_the_limit_fails(self):
+        """Why: an incomplete index answers definitions with nothing, which would read as missing edges."""
+        client = _client("FINISHED")
+        client.wait_for_progress_quiet.return_value = False
+        with pytest.raises(RuntimeError, match="still indexing"):
+            KotlinAdapter().validate_workspace_ready(client)
 
     def test_an_import_that_never_ends_fails(self):
         with patch("static_analyzer.engine.adapters.kotlin_adapter._IMPORT_TIMEOUT_SECONDS", 0.01):
@@ -305,14 +295,20 @@ class TestSourcesFallback:
         root, files = self._project(tmp_path)
         client = _client("FINISHED")
         client.import_folder_statuses = ["BLOCKED"]
-        with patch("static_analyzer.engine.adapters.kotlin_adapter.user_data_dir", return_value=tmp_path / "data"):
+        with (
+            patch("static_analyzer.engine.adapters.kotlin_adapter.user_data_dir", return_value=tmp_path / "data"),
+            patch.object(KotlinAdapter, "_launcher", return_value=tmp_path / "kotlin-lsp" / "bin" / "intellij-server"),
+        ):
             assert KotlinAdapter().fallback_workspace_folders(client, root, files)
 
     def test_a_failed_import_falls_back_to_a_workspace_of_source_roots(self, tmp_path: Path):
         root, files = self._project(tmp_path)
         client = _client("FINISHED")
         client.import_failed = True
-        with patch("static_analyzer.engine.adapters.kotlin_adapter.user_data_dir", return_value=tmp_path / "data"):
+        with (
+            patch("static_analyzer.engine.adapters.kotlin_adapter.user_data_dir", return_value=tmp_path / "data"),
+            patch.object(KotlinAdapter, "_launcher", return_value=tmp_path / "kotlin-lsp" / "bin" / "intellij-server"),
+        ):
             folders = KotlinAdapter().fallback_workspace_folders(client, root, files)
 
         assert len(folders) == 1 and folders[0].is_relative_to(tmp_path / "data" / "kotlin-lsp")
@@ -342,7 +338,6 @@ class TestSourcesFallback:
             patch("static_analyzer.engine.adapters.kotlin_adapter.shutil.which", return_value=str(launcher)),
             patch("static_analyzer.engine.adapters.kotlin_adapter.user_data_dir", return_value=tmp_path / "data"),
         ):
-            adapter.get_lsp_command(root, files)
             (folder,) = adapter.fallback_workspace_folders(client, root, files)
 
         workspace = json.loads((folder / "workspace.json").read_text())

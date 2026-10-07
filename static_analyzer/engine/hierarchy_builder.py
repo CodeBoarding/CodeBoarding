@@ -146,9 +146,11 @@ class HierarchyBuilder:
         """
         st = self._symbol_table
         by_position = {sym.definition_location: sym for sym in class_symbols}
+        # Primary symbols only: an alias at the same location names no owner.
         declarations = {
             sym.definition_location: sym
-            for sym in st.symbols.values()
+            for syms in st.primary_file_symbols.values()
+            for sym in syms
             if self._adapter.is_class_like(sym.kind) or sym.kind == NodeType.CONSTRUCTOR
         }
         for file_path in sorted({sym.file_path for sym in class_symbols}):

@@ -185,7 +185,7 @@ class CSharpAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "csharp"
 
-    def get_lsp_command(self, project_root: Path, source_files: Sequence[Path] = ()) -> list[str]:
+    def get_lsp_command(self, project_root: Path) -> list[str]:
         """Resolve the .NET SDK and ensure the managed csharp-ls install is current."""
         try:
             resolution = resolve_dotnet_sdk(project_root)
@@ -193,7 +193,7 @@ class CSharpAdapter(LanguageAdapter):
             raise RuntimeError(str(exc)) from exc
 
         self._ensure_csharp_ls_installed(project_root, resolution.dotnet_path, resolution.env)
-        return super().get_lsp_command(project_root, source_files)
+        return super().get_lsp_command(project_root)
 
     def _ensure_csharp_ls_installed(self, project_root: Path, dotnet_path: str, dotnet_env: dict[str, str]) -> None:
         dep = next((d for d in TOOL_REGISTRY if d.key == "csharp" and d.kind is ToolKind.PACKAGE_MANAGER), None)
@@ -387,7 +387,7 @@ class CSharpAdapter(LanguageAdapter):
         logger.info("dotnet restore per project: %d of %d restored", restored, len(projects))
         self._build_analyzers(resolution.dotnet_path, projects, project_root, env)
 
-    def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
+    def get_lsp_env(self, project_root: Path | None = None, source_files: Sequence[Path] = ()) -> dict[str, str]:
         """Return the .NET environment needed by csharp-ls.
 
         With a project root, this may point at CodeBoarding's private SDK

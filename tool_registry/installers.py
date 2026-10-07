@@ -21,7 +21,6 @@ from typing import Any, cast
 import requests
 
 from .paths import (
-    get_servers_dir,
     embedded_node_path,
     exe_suffix,
     node_version_tuple,
@@ -46,6 +45,8 @@ from .registry import (
 logger = logging.getLogger(__name__)
 
 PACKAGE_MANAGER_TOOL_STAMP = ".codeboarding-tool.json"
+# The version an archive with a launcher was extracted at, so a version bump replaces it.
+ARCHIVE_VERSION_STAMP = ".codeboarding-version"
 
 
 # -- Download primitive -------------------------------------------------------
@@ -482,30 +483,12 @@ def archive_launcher_path(target_dir: Path, dep: ToolDependency) -> Path | None:
     return target_dir / "bin" / dep.archive_subdir / f"{dep.archive_entry}{exe_suffix()}"
 
 
-def ensure_archive_tool(dep: ToolDependency) -> Path | None:
-    """The launcher of an on-demand archive tool, installing it first when it is missing.
-
-    Why under the setup lock: two analyses starting together would otherwise download it twice
-    into the same directory.
-    """
-    from .manifest import acquire_lock  # manifest imports this module
-
-    servers_dir = get_servers_dir()
-    if archive_tool_is_installed(servers_dir, dep):
-        return archive_launcher_path(servers_dir, dep)
-    servers_dir.mkdir(parents=True, exist_ok=True)
-    with open(servers_dir / ".download.lock", "w") as lock_fd:
-        acquire_lock(lock_fd)
-        if not archive_tool_is_installed(servers_dir, dep):
-            install_archive_tool(servers_dir, dep)
-    return archive_launcher_path(servers_dir, dep) if archive_tool_is_installed(servers_dir, dep) else None
-
-
 def archive_tool_is_installed(target_dir: Path, dep: ToolDependency) -> bool:
-    """Whether an archive tool is extracted in full: its launcher, or JDTLS's ``plugins/``."""
+    """Whether an archive tool is extracted in full: its launcher at the pinned version, or JDTLS's ``plugins/``."""
     launcher = archive_launcher_path(target_dir, dep)
     if launcher is not None:
-        return launcher.is_file()
+        stamp = target_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP
+        return launcher.is_file() and dep.source is not None and _read_stamp(stamp) == dep.source.tag
     return (target_dir / "bin" / dep.archive_subdir / "plugins").is_dir()
 
 
@@ -566,11 +549,19 @@ def install_archive_tool(
         shutil.rmtree(extract_dir, ignore_errors=True)
         os.replace(root, extract_dir)
         shutil.rmtree(staging, ignore_errors=True)
+        (extract_dir / ARCHIVE_VERSION_STAMP).write_text(dep.source.tag)
         logger.info("%s installed successfully", dep.key)
     except Exception:
         logger.exception("%s installation failed", dep.key)
         archive_path.unlink(missing_ok=True)
         shutil.rmtree(staging, ignore_errors=True)
+
+
+def _read_stamp(stamp: Path) -> str | None:
+    try:
+        return stamp.read_text().strip()
+    except OSError:
+        return None
 
 
 def _single_root(directory: Path) -> Path:
@@ -627,8 +618,7 @@ def install_tools(target_dir: Path) -> None:
     if node_deps:
         install_node_tools(target_dir, node_deps)
     for dep in archive_deps:
-        if not dep.install_on_demand:
-            install_archive_tool(target_dir, dep)
+        install_archive_tool(target_dir, dep)
     if pm_deps:
         install_package_manager_tools(target_dir, pm_deps)
 

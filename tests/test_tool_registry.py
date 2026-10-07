@@ -30,7 +30,6 @@ from tool_registry import (
     asset_url,
     download_asset,
     embedded_node_is_healthy,
-    ensure_archive_tool,
     ensure_node_on_path,
     exe_suffix,
     has_required_tools,
@@ -54,6 +53,7 @@ from tool_registry import (
 from tool_registry import PackageManagerToolSource
 from tool_registry.installers import (
     _extract_zip,
+    ARCHIVE_VERSION_STAMP,
     PACKAGE_MANAGER_TOOL_STAMP,
     _extract_compressed_binary,
     install_package_manager_tools,
@@ -994,6 +994,7 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
             else:
                 launcher.parent.mkdir(parents=True, exist_ok=True)
                 launcher.write_text("#!/bin/sh\n")
+                (base_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP).write_text(dep.source.tag)  # type: ignore[union-attr]
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             subdir = dep.archive_subdir or dep.key
             pm_dir = bin_dir / "pm-tools" / subdir
@@ -1819,6 +1820,7 @@ class TestArchiveLauncherTools(unittest.TestCase):
             root = base / "bin" / "kotlin-lsp"
             launcher = root / "bin" / "intellij-server"
             self.assertTrue(archive_tool_is_installed(base, self.KOTLIN))
+            self.assertEqual((root / ARCHIVE_VERSION_STAMP).read_text(), self.VERSION)
             self.assertTrue(os.access(launcher, os.X_OK))
             self.assertTrue((root / "jbr" / "legal" / "LICENSE").is_symlink())
             self.assertEqual((root / "jbr" / "legal" / "LICENSE").read_text(), "terms")
@@ -1850,13 +1852,20 @@ class TestArchiveLauncherTools(unittest.TestCase):
     def test_an_installed_archive_is_not_downloaded_again(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
-            launcher = archive_launcher_path(base, self.KOTLIN)
-            assert launcher is not None
-            launcher.parent.mkdir(parents=True)
-            launcher.write_text("#!/bin/sh\n")
+            _populate_complete_servers_dir(base)
             with patch("tool_registry.installers.download_asset") as download:
                 install_archive_tool(base, self.KOTLIN)
             download.assert_not_called()
+
+    def test_an_archive_extracted_at_another_version_is_not_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _populate_complete_servers_dir(base)
+            stamp = base / "bin" / "kotlin-lsp" / ARCHIVE_VERSION_STAMP
+            stamp.write_text("262.0.0")
+            self.assertFalse(archive_tool_is_installed(base, self.KOTLIN))
+            stamp.unlink()
+            self.assertFalse(archive_tool_is_installed(base, self.KOTLIN))
 
     def test_an_interrupted_install_leaves_nothing_that_looks_installed(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1909,13 +1918,12 @@ class TestArchiveLauncherTools(unittest.TestCase):
         self.assertEqual(config["lsp_servers"]["kotlin"]["command"][0], "/usr/bin/intellij-server")
 
 
-class TestOnDemandArchiveTools(unittest.TestCase):
-    """kotlin-lsp is fetched by the first analysis that needs it, never by setup."""
+class TestKotlinArchiveSetup(unittest.TestCase):
+    """kotlin-lsp is installed and required by setup, like JDTLS."""
 
     KOTLIN = next(dep for dep in TOOL_REGISTRY if dep.key == "kotlin")
 
-    def test_setup_skips_it_and_does_not_require_it(self):
-        self.assertTrue(self.KOTLIN.install_on_demand)
+    def test_setup_installs_it_and_requires_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             with (
@@ -1925,41 +1933,23 @@ class TestOnDemandArchiveTools(unittest.TestCase):
                 patch("tool_registry.installers.install_package_manager_tools"),
             ):
                 install_tools(base)
-            self.assertNotIn(self.KOTLIN, [call.args[1] for call in install.call_args_list])
+            self.assertIn(self.KOTLIN, [call.args[1] for call in install.call_args_list])
+            _populate_complete_servers_dir(base)
+            self.assertTrue(has_required_tools(base))
+            launcher = archive_launcher_path(base, self.KOTLIN)
+            assert launcher is not None
+            launcher.unlink()
+            self.assertFalse(has_required_tools(base))
+
+    def test_a_host_with_no_build_does_not_require_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
             _populate_complete_servers_dir(base)
             launcher = archive_launcher_path(base, self.KOTLIN)
             assert launcher is not None
             launcher.unlink()
-            self.assertTrue(has_required_tools(base))
-
-    def test_first_use_installs_once_under_the_setup_lock(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
-
-            def fake_install(target_dir: Path, dep: ToolDependency, on_progress=None) -> None:
-                launcher = archive_launcher_path(target_dir, dep)
-                assert launcher is not None
-                launcher.parent.mkdir(parents=True)
-                launcher.write_text("#!/bin/sh\n")
-
-            with (
-                patch("tool_registry.installers.get_servers_dir", return_value=base),
-                patch("tool_registry.installers.install_archive_tool", side_effect=fake_install) as install,
-            ):
-                first = ensure_archive_tool(self.KOTLIN)
-                second = ensure_archive_tool(self.KOTLIN)
-            self.assertEqual(first, archive_launcher_path(base, self.KOTLIN))
-            self.assertEqual(second, first)
-            install.assert_called_once()
-            self.assertTrue((base / ".download.lock").exists())
-
-    def test_a_failed_download_reports_no_launcher(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with (
-                patch("tool_registry.installers.get_servers_dir", return_value=Path(tmp)),
-                patch("tool_registry.installers.install_archive_tool"),
-            ):
-                self.assertIsNone(ensure_archive_tool(self.KOTLIN))
+            with patch.object(type(self.KOTLIN), "is_available_on_host", lambda dep: dep.key != "kotlin"):
+                self.assertTrue(has_required_tools(base))
 
     def test_the_download_names_the_licence(self):
         with tempfile.TemporaryDirectory() as tmp:

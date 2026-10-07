@@ -415,8 +415,11 @@ class TestResolveBasesByDefinition:
         constructor = _sym("Animal(String)", "zoo.Animal.Animal(String)", NodeType.CONSTRUCTOR, self.KT, 0, 12)
         constructor.owner_qualified_name = "zoo.Animal"
         dog = _sym("Dog", "zoo.Dog", NodeType.CLASS, self.KT, start_line=2, start_char=6)
-        st = _setup_symbol_table(adapter, [animal, dog])
-        st._symbols[constructor.qualified_name] = constructor
+        # The unqualified alias sits at the constructor's location and names no owner.
+        alias = _sym("Animal(String)", "zoo.Animal(String)", NodeType.CONSTRUCTOR, self.KT, 0, 12)
+        st = _setup_symbol_table(adapter, [animal, dog, constructor])
+        st._symbols[alias.qualified_name] = alias
+        st._file_symbols[str(self.KT)].append(alias)
 
         lsp = MagicMock()
         lsp.type_hierarchy_prepare.side_effect = MethodNotFoundError("not offered")

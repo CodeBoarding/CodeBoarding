@@ -10,6 +10,7 @@ from pathlib import Path
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.lsp_client import ErrorVerdict, LSPClient
+from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
@@ -69,10 +70,9 @@ class LanguageAdapter(ABC):
         """
         return self.language_id
 
-    def get_lsp_command(self, project_root: Path, source_files: Sequence[Path] = ()) -> list[str]:
+    def get_lsp_command(self, project_root: Path) -> list[str]:
         """Get the LSP command with binary paths resolved from tool_registry.
 
-        *source_files* are the files the engine will analyse, for servers sized to them.
         Looks up the resolved command for this language in the tool config
         (which checks ~/.codeboarding/servers/ then system PATH).  Falls
         back to the bare command names from ``lsp_command`` if the config
@@ -260,8 +260,11 @@ class LanguageAdapter(ABC):
         """Raise if a ready signal represents an unusable workspace state."""
         return None
 
-    def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
-        """Return extra environment variables for the LSP server process."""
+    def get_lsp_env(self, project_root: Path | None = None, source_files: Sequence[Path] = ()) -> dict[str, str]:
+        """Return extra environment variables for the LSP server process.
+
+        *source_files* are the files the engine will analyse, for servers sized to them.
+        """
         return {}
 
     def workspace_folders(self, project_root: Path, source_files: Sequence[Path]) -> list[Path]:
@@ -367,9 +370,31 @@ class LanguageAdapter(ABC):
         return False
 
     @property
+    def drain_probe_round_seconds(self) -> int | None:
+        """Seconds after which the didOpen drain probe is asked again, or None to wait the whole budget
+        on one request. Why: a server that drops a request arriving during a large didOpen burst still
+        answers it when asked again."""
+        return None
+
+    @property
     def constructor_calls_resolve_to_class(self) -> bool:
         """Whether the server answers a constructor call with the class it constructs rather than the
         constructor. Why it matters: a call from inside that class would then read as containment."""
+        return False
+
+    def constructed_class(self, symbol: SymbolInfo) -> str | None:
+        """The class a call answered with that class runs *symbol* for, or None. Read only where
+        ``constructor_calls_resolve_to_class``. Default: a constructor's owner."""
+        return symbol.owner_qualified_name if symbol.kind == NodeType.CONSTRUCTOR else None
+
+    def constructs(self, target: SymbolInfo, callee: str) -> bool:
+        """Whether a call naming *callee* that the server answered with the class *target* constructs
+        it. Why: a synthetic member, such as an enum's ``values()``, is answered with the class too."""
+        return callee == target.name
+
+    def declared_apart(self, a: SymbolInfo, b: SymbolInfo) -> bool:
+        """Whether two declarations whose qualified names nest are written apart, so an edge between
+        them is not containment. Default: never."""
         return False
 
     @property

@@ -18,7 +18,7 @@
 ## Requirements
 
 - **Python 3.12 or 3.13** — other versions are currently not supported.
-- **Linux:** glibc 2.34 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later).
+- **Linux:** glibc 2.34 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later), for the Kotlin parser.
 
 ## Installation
 

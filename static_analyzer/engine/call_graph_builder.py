@@ -21,10 +21,6 @@ from static_analyzer.engine.symbol_table import SymbolTable
 
 logger = logging.getLogger(__name__)
 
-# The didOpen drain probe is asked again after this long. Why: kotlin-lsp can leave a request that
-# arrives during a large didOpen burst unanswered, while the same request asked again is answered.
-_PROBE_ROUND_SECONDS = 60
-
 
 class CallGraphBuilder:
     """Builds a call flow graph using LSP document symbols and references."""
@@ -243,7 +239,9 @@ class CallGraphBuilder:
             time.sleep(0.1)
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
-        return self._send_sync_probe(source_files, probe_timeout, "didOpen drain", _PROBE_ROUND_SECONDS)
+        return self._send_sync_probe(
+            source_files, probe_timeout, "didOpen drain", self._adapter.drain_probe_round_seconds
+        )
 
     def _send_sync_probe(
         self, source_files: list[Path], probe_timeout: int, label: str = "indexing", round_seconds: int | None = None
@@ -256,7 +254,7 @@ class CallGraphBuilder:
         round_seconds = round_seconds or probe_timeout
         rounds = math.ceil(probe_timeout / round_seconds) if source_files else 0
         for attempt in range(rounds):
-            timeout = max(1, int(min(deadline - time.monotonic(), round_seconds)))
+            timeout = max(1, math.ceil(min(deadline - time.monotonic(), round_seconds)))
             try:
                 probe_result = self._lsp.document_symbol(source_files[0], timeout=timeout)
                 break

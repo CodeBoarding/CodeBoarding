@@ -300,9 +300,6 @@ def has_required_tools(base_dir: Path) -> bool:
         return False
 
     for dep in TOOL_REGISTRY:
-        if dep.install_on_demand:
-            # Fetched by the first analysis that needs it, never by setup.
-            continue
         if dep.kind is ToolKind.NATIVE:
             # Skip the check when the installer would also skip the download,
             # otherwise ``needs_install`` loops forever on unsupported hosts.
@@ -350,6 +347,9 @@ def has_required_tools(base_dir: Path) -> bool:
                 return False
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
+            # As for NATIVE: no build for this host means the installer skips it too.
+            if not dep.is_available_on_host():
+                continue
             if not archive_tool_is_installed(base_dir, dep):
                 logger.info(
                     "has_required_tools: %s archive missing or incomplete at %s",

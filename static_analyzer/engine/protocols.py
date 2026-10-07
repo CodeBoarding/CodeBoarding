@@ -11,6 +11,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
+from static_analyzer.engine.models import SymbolInfo
+
 
 class SymbolNaming(Protocol):
     """Methods needed by SymbolTable to build and query symbol names."""
@@ -43,6 +45,12 @@ class EdgeBuildAdapter(Protocol):
 
     @property
     def constructor_calls_resolve_to_class(self) -> bool: ...
+
+    def constructed_class(self, symbol: SymbolInfo) -> str | None: ...
+
+    def constructs(self, target: SymbolInfo, callee: str) -> bool: ...
+
+    def declared_apart(self, a: SymbolInfo, b: SymbolInfo) -> bool: ...
 
     @property
     def resolves_iterated_types(self) -> bool: ...

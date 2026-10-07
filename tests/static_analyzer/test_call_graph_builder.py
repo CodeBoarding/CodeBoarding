@@ -56,6 +56,7 @@ def _make_adapter() -> MagicMock:
     adapter.probe_before_open = False
     adapter.interleave_did_open_with_symbols = False
     adapter.workspace_owns_documents = False
+    adapter.drain_probe_round_seconds = None
     adapter.read_document_symbols.return_value = []
     return adapter
 
@@ -152,11 +153,11 @@ class TestDiscoverSymbols:
         files = [Path(f"/project/file_{i}.py") for i in range(100)]
         lsp.document_symbol.return_value = []
 
-        with patch.object(builder, "_send_sync_probe", wraps=builder._send_sync_probe) as probe:
-            builder._discover_symbols(files)
+        builder._discover_symbols(files)
 
         # 60s startup base + 2.0s per file
-        assert probe.call_args_list[0].args[1] == 260
+        probe_call = lsp.document_symbol.call_args_list[0]
+        assert probe_call.kwargs.get("timeout") == 260
 
     def test_probe_timeout_capped_at_maximum(self):
         lsp = _make_lsp()
@@ -166,10 +167,10 @@ class TestDiscoverSymbols:
         files = [Path(f"/project/file_{i}.py") for i in range(20000)]
         lsp.document_symbol.return_value = []
 
-        with patch.object(builder, "_send_sync_probe", wraps=builder._send_sync_probe) as probe:
-            builder._discover_symbols(files)
+        builder._discover_symbols(files)
 
-        assert probe.call_args_list[0].args[1] == 1800
+        probe_call = lsp.document_symbol.call_args_list[0]
+        assert probe_call.kwargs.get("timeout") == 1800
 
     def test_interleaves_did_open_with_symbol_queries(self):
         lsp = _make_lsp()
@@ -268,8 +269,8 @@ class TestDiscoverSymbols:
             ("did_open", files[1]),
             ("document_symbol", files[0]),
         ]
-        # The barrier waits on the scaled probe budget, not the per-request default, a round at a time.
-        assert lsp.document_symbol.call_args_list[-1].kwargs.get("timeout") == 60
+        # The barrier gets the scaled probe timeout, not the per-request default.
+        assert lsp.document_symbol.call_args_list[-1].kwargs.get("timeout") == 64
 
     def test_a_drain_probe_left_unanswered_is_asked_again(self):
         """Why: kotlin-lsp can drop a request that arrives during a large didOpen burst; asked
@@ -281,6 +282,15 @@ class TestDiscoverSymbols:
 
         assert builder._send_sync_probe([Path("/project/a.kt")], 600, "didOpen drain", 60) == [served]
         assert lsp.document_symbol.call_count == 2
+
+    def test_a_drain_probe_waits_its_whole_budget_on_one_request_unless_the_adapter_asks_in_rounds(self):
+        lsp = _make_lsp()
+        served = {"name": "A", "kind": NodeType.CLASS, "range": _range(0, 3), "selectionRange": _range(0, 0)}
+        lsp.document_symbol.return_value = [served]
+        builder = CallGraphBuilder(lsp, _make_adapter(), Path("/project"), Path("/project"))
+
+        assert builder._send_sync_probe([Path("/project/a.py")], 600, "didOpen drain", None) == [served]
+        assert [call.kwargs["timeout"] for call in lsp.document_symbol.call_args_list] == [600]
 
     def test_a_drain_probe_still_unanswered_at_the_budget_fails(self):
         lsp = _make_lsp()

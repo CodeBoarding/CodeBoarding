@@ -143,8 +143,6 @@ class ToolDependency:
     # Launcher inside an extracted archive, relative to ``bin/<archive_subdir>``, with ``.exe``
     # on Windows. Empty for an archive the adapter launches itself (JDTLS).
     archive_entry: str = ""
-    # Installed the first time an analysis needs it rather than by setup, for a large tool few users need.
-    install_on_demand: bool = False
     # Terms shown when the tool is downloaded, for one not under an open-source licence.
     license_url: str = ""
     js_entry_file: str = ""
@@ -288,7 +286,6 @@ TOOL_REGISTRY: list[ToolDependency] = [
         ),
         archive_subdir="kotlin-lsp",
         archive_entry="bin/intellij-server",
-        install_on_demand=True,
         license_url=KOTLIN_LSP_LICENSE_URL,
     ),
     ToolDependency(

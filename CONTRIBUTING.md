@@ -97,7 +97,7 @@ ToolDependency(
 )
 ```
 
-**Release archive with a launcher** (e.g. kotlin-lsp) — a zip or tarball per platform whose launcher is run from inside it; `install_on_demand` defers the download to the first analysis that needs it:
+**Release archive with a launcher** (e.g. kotlin-lsp) — a zip or tarball per platform whose launcher is run from inside it:
 ```python
 ToolDependency(
     key="kotlin",
@@ -112,7 +112,6 @@ ToolDependency(
     ),
     archive_subdir="kotlin-lsp",
     archive_entry="bin/intellij-server",
-    install_on_demand=True,
     license_url=KOTLIN_LSP_LICENSE_URL,
 )
 ```

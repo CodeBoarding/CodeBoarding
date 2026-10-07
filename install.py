@@ -500,10 +500,9 @@ def download_binaries(target_dir: Path, auto_install_vcpp: bool = False, on_prog
 
 
 def download_jdtls(target_dir: Path, on_progress: ProgressCallback | None = None):
-    """Download and extract JDTLS from the latest GitHub release."""
+    """Download and extract the archive tools: JDTLS and kotlin-lsp."""
     print("Step: JDTLS download started")
-    # On-demand archives (kotlin-lsp) are fetched by the first analysis that needs them.
-    archive_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE and not d.install_on_demand]
+    archive_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE]
     for dep in archive_deps:
         install_archive_tool(target_dir, dep, on_progress=on_progress)
 
@@ -656,9 +655,6 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
             if dep.key == "java":
                 fallback_available = bool(find_java_21_or_later())
                 reason_binary = "jdtls or Java 21+ not found"
-            # Downloaded by the first analysis that needs it.
-            if dep.install_on_demand:
-                fallback_available = True
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             pm_path = package_manager_tool_path(target_dir, dep)
             if pm_path is not None:

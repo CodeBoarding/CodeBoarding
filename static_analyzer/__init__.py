@@ -474,9 +474,9 @@ class StaticAnalyzer:
         """Launch the server, initialize it, and wait for its workspace where the adapter asks to."""
         adapter, project_path = engine_config.adapter, engine_config.project_path
         t_start = time.monotonic()
-        command = adapter.get_lsp_command(project_path, engine_config.source_files)
+        command = adapter.get_lsp_command(project_path)
         init_options = adapter.get_lsp_init_options(self.ignore_manager)
-        extra_env = adapter.get_lsp_env(project_path)
+        extra_env = adapter.get_lsp_env(project_path, engine_config.source_files)
         # Node-based LSPs spawn child ``node`` processes by name; on
         # a Node-less host the embedded runtime's dir must be on PATH.
         ensure_node_on_path(command, extra_env)
