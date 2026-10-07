@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-addresses
+data:
+  BILLING_ADDR: billing:8080
+  LOG_LEVEL: info
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unused-config
+data:
+  REPORTS_ADDR: reports:8080

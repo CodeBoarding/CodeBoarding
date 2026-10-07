@@ -1,0 +1,8 @@
+security:
+  oauth2:
+    client:
+      accessTokenUri: http://auth-service:5000/uaa/oauth/token
+spring:
+  data:
+    mongodb:
+      host: account-mongodb

@@ -1,0 +1,7 @@
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://registry:8761/eureka/
+spring:
+  rabbitmq:
+    host: rabbitmq

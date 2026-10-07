@@ -82,6 +82,27 @@ class TestCompose(unittest.TestCase):
         (project,) = compose_projects(Scan(root))
 
         self.assertEqual(project.services[0].profiles, ("debug",))
+        self.assertEqual(project.services[0].ports, ("8080",))
+
+    def test_a_service_line_is_where_its_key_is_written(self) -> None:
+        """`api:` occurs inside an earlier image name; the service is declared on line 6."""
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        write(
+            root,
+            "compose.yaml",
+            "services:\n  web:\n    image: registry/api:1\n    environment:\n      - API_URL=http://api\n"
+            "  api:\n    build: ./api\n    environment:\n      PORT: 8080\n",
+        )
+        write(root, "api/Dockerfile", "FROM node:22\nCOPY . /app\n")
+        write(root, "api/package.json", '{"name": "api"}')
+
+        (project,) = compose_projects(Scan(root))
+        by_name = {service.name: service for service in project.services}
+
+        self.assertEqual(by_name["api"].line, 6)
+        self.assertEqual(by_name["web"].line, 2)
+        self.assertEqual([(entry.key, entry.line) for entry in by_name["web"].environment], [("API_URL", 5)])
+        self.assertEqual([(entry.key, entry.line) for entry in by_name["api"].environment], [("PORT", 9)])
 
     def test_a_service_with_no_name_is_a_row_and_not_a_crash(self) -> None:
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))

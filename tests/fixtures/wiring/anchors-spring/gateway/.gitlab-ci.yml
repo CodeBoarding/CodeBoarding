@@ -1,0 +1,2 @@
+variables:
+  SERVICE_URL: http://vets-service

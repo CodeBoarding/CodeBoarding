@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Sequence
 
 from static_analyzer.wiring import manifests, topology
-from static_analyzer.wiring.compose import compose_projects
+from static_analyzer.wiring.compose import ComposeProject
 from static_analyzer.wiring.images import ImageIndex
 from static_analyzer.wiring.manifests import Declaration
 from static_analyzer.wiring.scan import Scan
@@ -28,16 +29,15 @@ _KIND_ORDER = list(UnitKind)
 _NOT_A_NAME = re.compile(r"[^a-z0-9]")
 
 
-def build_units(scan: Scan, repo_name: str) -> list[Unit]:
+def build_units(scan: Scan, repo_name: str, projects: Sequence[ComposeProject]) -> list[Unit]:
     """Every unit of the repository, sorted by directory. Diagnostics accumulate on the scan."""
     reading = manifests.build_manifests(scan)
-    projects = compose_projects(scan)
 
     index = ImageIndex()
     for build in (
         *reading.images,
         *topology.skaffold_builds(scan),
-        *topology.compose_builds(scan, projects),
+        *topology.compose_builds(scan, list(projects)),
         *topology.workflow_builds(scan),
     ):
         index.add(build)
@@ -47,7 +47,7 @@ def build_units(scan: Scan, repo_name: str) -> list[Unit]:
     declarations = list(reading.declarations)
     for found in (
         topology.skaffold_units(scan, index),
-        topology.compose_units(scan, projects, index, repo_name),
+        topology.compose_units(scan, list(projects), index, repo_name),
         topology.kubernetes(scan, index, repo_name),
         topology.helm(scan, index, repo_name),
         topology.aspire(scan),

@@ -1,0 +1,18 @@
+services:
+  api:
+    build: ./api
+    container_name: api-box
+    environment:
+      SERVICE_TRACING_URL: http://tracing:9411
+      PLAIN_VALUE: "7"
+    depends_on:
+      - tracing
+    ports:
+      - "8080:8080"
+  worker:
+    build: ./api
+    environment:
+      - QUEUE_HOST=broker:5672
+      - EMPTY=
+  tracing:
+    image: "openzipkin/zipkin:${TRACING_TAG}"
