@@ -261,7 +261,10 @@ class StaticReferenceResolver:
         static_edge = self.find_static_edge(edge)
         if static_edge is None:
             return
-        edge.call_sites = [RelationCallSite.model_validate(site) for site in static_edge.call_sites]
+        # Line and column only: a call site names the file its endpoints already name.
+        edge.call_sites = [
+            RelationCallSite(line=site["line"], column=site["column"]) for site in static_edge.call_sites
+        ]
 
     def find_static_edge(self, relation_edge: RelationEdge):
         source_qname = relation_edge.source.qualified_name

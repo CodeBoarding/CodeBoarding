@@ -7,9 +7,11 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     Relation,
+    RelationCallSite,
     RelationEdge,
     SourceCodeReference,
     assign_component_ids,
+    static_relation_label,
 )
 from agents.component_ownership import ComponentOwnershipIndex
 from agents.file_index_models import FileMethodGroup, MethodEntry
@@ -25,7 +27,7 @@ from static_analyzer.cluster_relations import (
     is_self_or_descendant,
 )
 from static_analyzer.config import NodeType
-from static_analyzer.cfg import CallGraph, Edge
+from static_analyzer.cfg import CallGraph, Edge, EdgeKind, ReferenceEdge
 from static_analyzer.node import Node
 
 
@@ -565,3 +567,40 @@ class TestDropReverseDuplicates(unittest.TestCase):
     def test_a_static_relation_is_never_collapsed(self):
         kept = drop_reverse_duplicates([self._rel("1", "2", edges=1), self._rel("2", "1", static=True)])
         self.assertEqual(sorted((r.src_id, r.dst_id) for r in kept), [("1", "2"), ("2", "1")])
+
+
+class TestReferenceEdgesBecomeRelations(unittest.TestCase):
+    OWNERS = {"a.Cls": "1", "a.Cls.run": "1", "b.Cls": "2", "b.Cls.run": "2"}
+
+    def _graph(self, kind: EdgeKind, with_call: bool = False, sites: tuple = ()) -> CallGraph:
+        cfg = CallGraph(edges=[_make_edge("a.Cls.run", "b.Cls.run", "src/a.py", "src/b.py")] if with_call else [])
+        cfg.add_node(_make_node("a.Cls", "src/a.py"))
+        cfg.add_node(_make_node("b.Cls", "src/b.py"))
+        cfg.add_reference_edge(ReferenceEdge("a.Cls", "b.Cls", kind, sites))
+        return cfg
+
+    def test_a_wiring_edge_alone_is_a_relation_with_its_verb(self) -> None:
+        relations = build_component_relations(self.OWNERS, {"python": self._graph(EdgeKind.ROUTES_TO)})
+        self.assertEqual([(r.src_cluster_id, r.dst_cluster_id) for r in relations], [("1", "2")])
+        (edge,) = relations[0].all_edges
+        self.assertEqual((edge.source.qualified_name, edge.target.qualified_name), ("a.Cls", "b.Cls"))
+        self.assertEqual((edge.kind, edge.description), (EdgeKind.ROUTES_TO, "routes to"))
+        self.assertEqual(static_relation_label(relations[0].all_edges), "routes to")
+
+    def test_a_reference_edge_keeps_the_sites_that_made_it(self) -> None:
+        graph = self._graph(EdgeKind.USES, sites=({"line": 3, "column": 19}, {"line": 8, "column": 5}))
+        (edge,) = build_component_relations(self.OWNERS, {"python": graph})[0].all_edges
+        self.assertEqual(edge.call_sites, [RelationCallSite(line=3, column=19), RelationCallSite(line=8, column=5)])
+
+    def test_structural_references_are_not_relations(self) -> None:
+        for kind in (EdgeKind.CONTAINS, EdgeKind.INHERITS, EdgeKind.TYPEREF, EdgeKind.IMPORT):
+            self.assertEqual(build_component_relations(self.OWNERS, {"python": self._graph(kind)}), [], kind)
+
+    def test_a_call_outranks_a_wiring_edge(self) -> None:
+        relations = build_component_relations(self.OWNERS, {"python": self._graph(EdgeKind.USES, with_call=True)})
+        self.assertEqual(len(relations[0].all_edges), 2)
+        self.assertEqual(static_relation_label(relations[0].all_edges), "calls")
+
+    def test_a_reference_inside_one_component_is_not_a_relation(self) -> None:
+        owners = dict.fromkeys(self.OWNERS, "1")
+        self.assertEqual(build_component_relations(owners, {"python": self._graph(EdgeKind.USES)}), [])
