@@ -38,7 +38,7 @@ pip install codeboarding --extra-index-url https://pip.codeboarding.org/simple/
 
 > Installing into the global Python environment with `pip` is not recommended — it can cause dependency conflicts and will fail if the system Python is not 3.12 or 3.13.
 
-Language server binaries are downloaded automatically on first use. To pre-install them explicitly (useful in CI or restricted environments):
+Each analysis downloads the language servers its repository's languages need, on first use. To pre-install all of them (useful in CI or restricted environments):
 
 ```bash
 codeboarding-setup

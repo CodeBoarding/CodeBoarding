@@ -14,6 +14,7 @@ from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source, remote_source
 from infra.constants import CLI_ROOT_DOCUMENT_NAME
 from diagram_analysis import DEFAULT_DEPTH_CAP, RunContext, RunPaths
+from infra.install import ensure_tools
 from infra.monitoring import monitor_execution
 from infra.monitoring.paths import get_monitoring_run_dir
 from output_generators.rendering import render_docs
@@ -94,7 +95,7 @@ def _run_local(args: argparse.Namespace) -> None:
     run_paths = resolve_local_run_paths(args)
 
     try:
-        bootstrap_environment(run_paths.output_dir, args.binary_location)
+        bootstrap_environment(run_paths.output_dir, args.binary_location, run_paths.repo_path)
     except LLMConfigError as exc:
         logger.error("LLM provider not configured: %s", exc)
         raise SystemExit(1) from exc
@@ -160,6 +161,7 @@ def _run_remote(args: argparse.Namespace) -> None:
                 depth_cap=args.depth_cap,
                 upload=args.upload,
                 should_monitor=should_monitor,
+                install_tools=args.binary_location is None,
             )
         except (LLMAuthError, LLMQuotaError, ScopeSemanticsError):
             # The next repository would fail the same way, so stop the run.
@@ -177,8 +179,11 @@ def _process_one_remote(
     depth_cap: int,
     upload: bool,
     should_monitor: bool,
+    install_tools: bool,
 ) -> None:
     def scope(src: SourceContext, run_context: RunContext) -> None:
+        if install_tools:
+            ensure_tools(auto_install_npm=True, auto_install_vcpp=True, repo_path=src.repo_path)
         repo_output_dir = workspace_root / src.project_name / CODEBOARDING_DIR_NAME
         repo_output_dir.mkdir(parents=True, exist_ok=True)
         initialize_codeboardingignore(repo_output_dir)

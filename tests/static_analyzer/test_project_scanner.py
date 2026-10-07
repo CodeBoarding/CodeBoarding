@@ -1,3 +1,4 @@
+import json
 import subprocess
 import unittest
 from pathlib import Path
@@ -109,3 +110,32 @@ class TestProjectScanner(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    @patch("static_analyzer.scanner.track_tech_stack")
+    @patch("static_analyzer.scanner.get_config")
+    @patch("static_analyzer.scanner.subprocess.run")
+    def test_lsp_server_keys_name_the_supported_languages_without_reporting_the_scan(
+        self, mock_run, mock_get_config, mock_track
+    ):
+        mock_get_config.side_effect = lambda key: (
+            {"tokei": {"command": ["tokei", "-o", "json"]}}
+            if key == "tools"
+            else {
+                "python": {"command": ["pyright-langserver"], "file_extensions": [".py"]},
+                "typescript": {"command": ["cli.mjs"], "file_extensions": [".ts", ".js"]},
+            }
+        )
+        report = lambda name, code: {"code": code, "reports": [{"name": name}]}  # noqa: E731
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps(
+                {
+                    "Python": report("a.py", 80),
+                    "JavaScript": report("b.js", 15),
+                    "Markdown": report("README.md", 5),
+                    "Total": {"code": 100},
+                }
+            )
+        )
+
+        self.assertEqual(self.scanner.lsp_server_keys(), {"python", "typescript"})
+        mock_track.assert_not_called()

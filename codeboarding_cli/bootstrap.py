@@ -26,7 +26,8 @@ def resolve_local_run_paths(args: argparse.Namespace) -> RunPaths:
     return RunPaths(repo_path=repo_path, output_dir=output_dir, project_name=project_name)
 
 
-def bootstrap_environment(output_dir: Path, binary_location: Path | None) -> None:
+def bootstrap_environment(output_dir: Path, binary_location: Path | None, repo_path: Path | None = None) -> None:
+    """Set up logging, config and models, and the tools *repo_path* needs (a remote run installs them per clone)."""
     setup_logging(log_dir=output_dir)
     ensure_config_template()
     user_cfg = load_user_config()
@@ -36,9 +37,9 @@ def bootstrap_environment(output_dir: Path, binary_location: Path | None) -> Non
     load_plugins(get_registries())
     if binary_location is not None:
         update_config(binary_location)
-    else:
+    elif repo_path is not None:
         # Why: ensure_tools() already short-circuits via needs_install() and also
         # repairs a deleted ~/.codeboarding/servers/nodeenv/ independently of the
         # fingerprint check. Pre-gating with needs_install() here would skip that
         # repair when binaries look current but the runtime directory was deleted.
-        ensure_tools(auto_install_npm=True, auto_install_vcpp=True)
+        ensure_tools(auto_install_npm=True, auto_install_vcpp=True, repo_path=repo_path)

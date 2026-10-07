@@ -75,6 +75,18 @@ class ProjectScanner:
         Returns:
             list[ProgrammingLanguage]: technologies with their sizes, percentages, and suffixes
         """
+        programming_languages, total_code, all_files = self._read()
+        self.all_text_files = all_files
+        if total_code:
+            track_tech_stack(self.repo_location, total_code, programming_languages)
+        return programming_languages
+
+    def lsp_server_keys(self) -> set[str]:
+        """The ``lsp_servers`` keys of the repository's supported languages, which name the servers it needs."""
+        return {language.lsp_server_key for language in self._read()[0]}
+
+    def _read(self) -> tuple[list[ProgrammingLanguage], int, list[str]]:
+        """Run Tokei: the supported languages, the total lines of code, and every text file it read."""
 
         commands = get_config("tools")["tokei"]["command"]
         try:
@@ -121,7 +133,7 @@ class ProjectScanner:
         total_code = tokei_data.get("Total", {}).get("code", 0)
         if not total_code:
             logger.warning("No total code count found in Tokei output")
-            return []
+            return [], 0, []
 
         programming_languages: list[ProgrammingLanguage] = []
         all_files: list[str] = []
@@ -156,9 +168,7 @@ class ProjectScanner:
             if pl.is_supported_lang():
                 programming_languages.append(pl)
 
-        self.all_text_files = all_files
-        track_tech_stack(self.repo_location, total_code, programming_languages)
-        return programming_languages
+        return programming_languages, total_code, all_files
 
     @staticmethod
     def _extract_suffixes(files: list[str]) -> set[str]:

@@ -9,6 +9,7 @@ import shutil
 import sys
 import time
 from copy import deepcopy
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any, cast
 
@@ -27,6 +28,7 @@ from .installers import (
 )
 from .paths import exe_suffix, get_servers_dir, native_binary_ok, platform_bin_dir, preferred_node_path
 from .registry import (
+    BASE_TOOL_KEYS,
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
     GitHubToolSource,
@@ -60,59 +62,48 @@ def read_manifest() -> dict:
     return {}
 
 
-def npm_specs_fingerprint() -> str:
-    """Deterministic fingerprint of all pinned npm package specs.
+def tool_fingerprint(dep: ToolDependency) -> str:
+    """What a tool was installed from: its pinned source, npm packages, and for Node tools the runtime.
 
-    Changes whenever an npm version pin in TOOL_REGISTRY is updated,
-    causing ``needs_install()`` to trigger a reinstall.
+    A change makes ``needs_install()`` run that tool's installer again.
     """
-    specs: list[str] = []
-    for dep in TOOL_REGISTRY:
-        if dep.kind is ToolKind.NODE:
-            specs.extend(sorted(dep.npm_packages))
-    return ",".join(specs)
+    parts: list[str] = []
+    if isinstance(dep.source, GitHubToolSource):
+        parts.append(f"{dep.source.repo}:{dep.source.tag}")
+    elif isinstance(dep.source, UpstreamToolSource):
+        parts.append(f"{dep.source.tag}-{dep.source.build}")
+    elif isinstance(dep.source, PackageManagerToolSource):
+        # ``install_args`` is included: flag changes (pinned version, channel) must reinstall.
+        parts.append(f"{dep.source.manager_binary}:{dep.source.tag}:{'|'.join(dep.source.install_args)}")
+    if dep.kind is ToolKind.NODE:
+        parts.extend([f"node:{PINNED_NODE_VERSION}", *sorted(dep.npm_packages)])
+    return ",".join(parts)
 
 
-def tools_fingerprint() -> str:
-    """Deterministic fingerprint of all pinned tool sources.
+def required_tools(languages: Collection[str] | None = None) -> list[ToolDependency]:
+    """The tools analysing *languages* needs: each language's server, plus the base tools. None means every tool.
 
-    Changes whenever a tool version or source in TOOL_REGISTRY is updated,
-    causing ``needs_install()`` to trigger a reinstall.  Also incorporates
-    ``PINNED_NODE_VERSION`` so bumping the embedded Node.js runtime invalidates
-    any previously-written manifest and forces the bootstrap to re-run.
+    *languages* are ``lsp_servers`` keys (``python``, ``typescript``...), which name their server's registry entry.
     """
-    parts: list[str] = [f"node:{PINNED_NODE_VERSION}"]
-    for dep in TOOL_REGISTRY:
-        if dep.source:
-            if isinstance(dep.source, GitHubToolSource):
-                parts.append(f"{dep.key}:{dep.source.repo}:{dep.source.tag}")
-            elif isinstance(dep.source, UpstreamToolSource):
-                parts.append(f"{dep.key}::{dep.source.tag}-{dep.source.build}")
-            elif isinstance(dep.source, PackageManagerToolSource):
-                # ``install_args`` is included: flag changes (pinned version, channel) must invalidate the manifest.
-                parts.append(
-                    f"{dep.key}:{dep.source.manager_binary}:{dep.source.tag}:{'|'.join(dep.source.install_args)}"
-                )
-    return ",".join(sorted(parts))
+    if languages is None:
+        return list(TOOL_REGISTRY)
+    wanted = BASE_TOOL_KEYS | set(languages)
+    return [dep for dep in TOOL_REGISTRY if dep.key in wanted]
 
 
-def write_manifest() -> None:
-    """Atomically persist the install manifest via tmp-file + ``os.replace``.
+def write_manifest(deps: Collection[ToolDependency] | None = None) -> None:
+    """Record *deps* (every tool when None) as installed at their current fingerprints.
 
-    ``flush + fsync`` before the rename guarantees the bytes hit disk before
-    the rename becomes visible — without it, a post-rename crash can leave
-    the manifest pointing at a file whose contents are only in page cache.
+    Entries of other tools installed by this package version are kept. Persisted atomically via
+    tmp-file + ``os.replace``; ``flush + fsync`` before the rename guarantees the bytes hit disk
+    before the rename becomes visible.
     """
     target = manifest_path()
     target.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(
-        {
-            "version": installed_version(),
-            "npm_specs": npm_specs_fingerprint(),
-            "tools": tools_fingerprint(),
-        },
-        indent=2,
-    )
+    manifest = read_manifest()
+    tools = _recorded_tools(manifest) if manifest.get("version") == installed_version() else {}
+    tools.update({dep.key: tool_fingerprint(dep) for dep in (TOOL_REGISTRY if deps is None else deps)})
+    payload = json.dumps({"version": installed_version(), "tools": tools}, indent=2)
     tmp = target.with_name(target.name + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(payload)
@@ -121,16 +112,23 @@ def write_manifest() -> None:
     os.replace(tmp, target)
 
 
-def needs_install() -> bool:
-    """Return True when binaries are missing or installed by a different package version."""
+def needs_install(languages: Collection[str] | None = None) -> bool:
+    """Whether a tool *languages* need (every tool when None) is missing, or was installed from another pin
+    or by another package version."""
+    deps = required_tools(languages)
     manifest = read_manifest()
     if manifest.get("version") != installed_version():
         return True
-    if manifest.get("npm_specs") != npm_specs_fingerprint():
+    recorded = _recorded_tools(manifest)
+    if any(recorded.get(dep.key) != tool_fingerprint(dep) for dep in deps):
         return True
-    if manifest.get("tools") != tools_fingerprint():
-        return True
-    return not has_required_tools(get_servers_dir())
+    return not has_required_tools(get_servers_dir(), deps)
+
+
+def _recorded_tools(manifest: dict) -> dict[str, str]:
+    # A manifest from before per-tool entries holds one fingerprint string, which records no tool.
+    tools = manifest.get("tools")
+    return dict(tools) if isinstance(tools, dict) else {}
 
 
 # -- Concurrency lock ---------------------------------------------------------
@@ -287,8 +285,8 @@ def resolve_config_from_path() -> dict[str, Any]:
     return config
 
 
-def has_required_tools(base_dir: Path) -> bool:
-    """Return True when every ``TOOL_REGISTRY`` artifact is present on disk.
+def has_required_tools(base_dir: Path, deps: Collection[ToolDependency] | None = None) -> bool:
+    """Return True when every artifact of *deps* (every ``TOOL_REGISTRY`` entry when None) is present on disk.
 
     Validation rules are kept in sync with ``resolve_config``:
     NATIVE -> ``platform_bin_dir/<binary><exe>`` exists;
@@ -299,7 +297,7 @@ def has_required_tools(base_dir: Path) -> bool:
     if not base_dir.exists():
         return False
 
-    for dep in TOOL_REGISTRY:
+    for dep in TOOL_REGISTRY if deps is None else deps:
         if dep.kind is ToolKind.NATIVE:
             # Skip the check when the installer would also skip the download,
             # otherwise ``needs_install`` loops forever on unsupported hosts.
