@@ -42,12 +42,12 @@ from tool_registry import (
     needs_install,
     node_is_acceptable,
     node_version_tuple,
-    npm_specs_fingerprint,
     platform_bin_dir,
     preferred_node_path,
     resolve_config,
     resolve_config_from_path,
-    tools_fingerprint,
+    required_tools,
+    tool_fingerprint,
     write_manifest,
 )
 from tool_registry import PackageManagerToolSource
@@ -880,40 +880,73 @@ class TestToolSource(unittest.TestCase):
             self.assertTrue(dest.exists())
 
 
+def _all_recorded() -> dict[str, str]:
+    return {dep.key: tool_fingerprint(dep) for dep in TOOL_REGISTRY}
+
+
 class TestManifest(unittest.TestCase):
-    def test_tools_fingerprint_includes_sources(self):
-        fp = tools_fingerprint()
-        self.assertIn("tokei:", fp)
+    def test_tool_fingerprint_includes_the_source(self):
+        tokei = next(d for d in TOOL_REGISTRY if d.key == "tokei")
+        fp = tool_fingerprint(tokei)
         self.assertIn(TOOLS_REPO, fp)
         self.assertIn(TOOLS_TAG, fp)
+        self.assertEqual(fp, tool_fingerprint(tokei))
 
-    def test_tools_fingerprint_changes_on_version_bump(self):
-        fp1 = tools_fingerprint()
-        self.assertIsInstance(fp1, str)
-        self.assertTrue(len(fp1) > 0)
-        # The fingerprint is deterministic
-        fp2 = tools_fingerprint()
-        self.assertEqual(fp1, fp2)
+    def test_a_node_tool_fingerprint_includes_its_packages_and_the_runtime(self):
+        python = next(d for d in TOOL_REGISTRY if d.key == "python")
+        fp = tool_fingerprint(python)
+        self.assertIn(PINNED_NODE_VERSION, fp)
+        for package in python.npm_packages:
+            self.assertIn(package, fp)
 
     @patch("tool_registry.manifest.get_servers_dir")
-    def test_write_manifest_includes_tools(self, mock_servers_dir):
+    def test_write_manifest_records_every_tool(self, mock_servers_dir):
         with tempfile.TemporaryDirectory() as tmp:
             mock_servers_dir.return_value = Path(tmp)
             write_manifest()
             manifest = json.loads((Path(tmp) / "installed.json").read_text())
-            self.assertIn("tools", manifest)
-            self.assertEqual(manifest["tools"], tools_fingerprint())
+            self.assertEqual(manifest["tools"], _all_recorded())
+
+    @patch("tool_registry.manifest.get_servers_dir")
+    def test_write_manifest_adds_to_the_tools_already_recorded(self, mock_servers_dir):
+        with tempfile.TemporaryDirectory() as tmp:
+            mock_servers_dir.return_value = Path(tmp)
+            write_manifest(required_tools(["python"]))
+            write_manifest(required_tools(["go"]))
+            manifest = json.loads((Path(tmp) / "installed.json").read_text())
+            self.assertEqual(set(manifest["tools"]), {"tokei", "python", "go"})
 
     @patch("tool_registry.manifest.has_required_tools", return_value=True)
     @patch("tool_registry.manifest.read_manifest")
     @patch("tool_registry.manifest.installed_version", return_value="1.0.0")
-    def test_needs_install_triggers_on_tools_change(self, mock_version, mock_manifest, mock_tools):
-        mock_manifest.return_value = {
-            "version": "1.0.0",
-            "npm_specs": npm_specs_fingerprint(),
-            "tools": "old-fingerprint",
-        }
+    def test_needs_install_triggers_on_a_changed_pin(self, mock_version, mock_manifest, mock_tools):
+        mock_manifest.return_value = {"version": "1.0.0", "tools": {**_all_recorded(), "go": "old-fingerprint"}}
         self.assertTrue(needs_install())
+        self.assertTrue(needs_install(["go"]))
+        self.assertFalse(needs_install(["python"]))
+
+    @patch("tool_registry.manifest.has_required_tools", return_value=True)
+    @patch("tool_registry.manifest.read_manifest")
+    @patch("tool_registry.manifest.installed_version", return_value="1.0.0")
+    def test_needs_install_asks_only_for_the_languages_given(self, mock_version, mock_manifest, mock_tools):
+        recorded = _all_recorded()
+        mock_manifest.return_value = {"version": "1.0.0", "tools": {k: recorded[k] for k in ("tokei", "python")}}
+        self.assertFalse(needs_install(["python"]))
+        self.assertTrue(needs_install(["kotlin"]))
+        self.assertTrue(needs_install())
+
+    @patch("tool_registry.manifest.has_required_tools", return_value=True)
+    @patch("tool_registry.manifest.read_manifest")
+    @patch("tool_registry.manifest.installed_version", return_value="1.0.0")
+    def test_a_manifest_from_before_per_tool_entries_records_nothing(self, mock_version, mock_manifest, mock_tools):
+        mock_manifest.return_value = {"version": "1.0.0", "npm_specs": "x", "tools": "one,string"}
+        self.assertTrue(needs_install(["python"]))
+
+    def test_required_tools_are_the_languages_servers_and_tokei(self):
+        self.assertEqual([d.key for d in required_tools(())], ["tokei"])
+        self.assertEqual({d.key for d in required_tools(["python", "kotlin"])}, {"tokei", "python", "kotlin"})
+        self.assertEqual(required_tools(), TOOL_REGISTRY)
+        self.assertEqual({d.key for d in required_tools(["markdown"])}, {"tokei"})
 
     def test_registry_native_tools_have_source(self):
         # Tools resolved externally (e.g. csharp-ls via `dotnet tool install`)
@@ -953,7 +986,7 @@ class TestManifest(unittest.TestCase):
             write_manifest()
 
             manifest = json.loads(target.read_text())
-            self.assertEqual(manifest["tools"], tools_fingerprint())
+            self.assertEqual(manifest["tools"], _all_recorded())
             self.assertNotEqual(manifest["version"], "old")
 
     @patch("tool_registry.manifest.get_servers_dir")
@@ -1089,11 +1122,7 @@ class TestHasRequiredTools(unittest.TestCase):
                 with patch("tool_registry.manifest.installed_version", return_value="1.0.0"):
                     with patch(
                         "tool_registry.manifest.read_manifest",
-                        return_value={
-                            "version": "1.0.0",
-                            "npm_specs": npm_specs_fingerprint(),
-                            "tools": tools_fingerprint(),
-                        },
+                        return_value={"version": "1.0.0", "tools": _all_recorded()},
                     ):
                         self.assertTrue(needs_install())
 
@@ -1613,7 +1642,7 @@ class TestRustRegistryEntry(unittest.TestCase):
         """Bumping ``RUST_ANALYZER_TAG`` must invalidate manifests."""
         rust = next(d for d in TOOL_REGISTRY if d.key == "rust")
         assert isinstance(rust.source, GitHubToolSource)
-        self.assertIn(rust.source.tag, tools_fingerprint())
+        self.assertIn(rust.source.tag, tool_fingerprint(rust))
 
 
 class TestInstallPackageManagerTools(unittest.TestCase):
@@ -1746,7 +1775,7 @@ class TestInstallPackageManagerTools(unittest.TestCase):
         """
         csharp = next(d for d in TOOL_REGISTRY if d.key == "csharp")
         assert isinstance(csharp.source, PackageManagerToolSource)
-        self.assertIn(csharp.source.tag, tools_fingerprint())
+        self.assertIn(csharp.source.tag, tool_fingerprint(csharp))
 
     def test_csharp_registry_uses_modern_default_framework(self):
         """C# install should let dotnet select the package's default target

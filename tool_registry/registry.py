@@ -32,7 +32,7 @@ JDTLS_URL_TEMPLATE = "https://download.eclipse.org/jdtls/snapshots/jdt-language-
 
 # rust-analyzer is pulled directly from upstream (weekly releases, ~17MB
 # per platform) rather than mirrored. Bumping the tag triggers a reinstall
-# via ``tools_fingerprint()``.
+# via ``tool_fingerprint()``.
 RUST_ANALYZER_REPO = "rust-lang/rust-analyzer"
 RUST_ANALYZER_TAG = "2026-03-30"
 
@@ -43,7 +43,7 @@ KOTLIN_LSP_LICENSE_URL = "https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-
 
 # Pinned Node.js runtime for users without system Node; downloaded to
 # <servers_dir>/nodeenv/ via install_embedded_node(). A bump is folded into
-# tools_fingerprint() and triggers a full reinstall.
+# the Node tools' tool_fingerprint() and reinstalls them.
 PINNED_NODE_VERSION = "20.18.1"
 
 PLATFORM_SUFFIX = {
@@ -161,6 +161,9 @@ class ToolDependency:
             return True
         return (platform.system(), platform.machine()) in self.source.asset_arch_overrides
 
+
+# Installed before any language is known: tokei is what finds a repository's languages.
+BASE_TOOL_KEYS = frozenset({"tokei"})
 
 TOOL_REGISTRY: list[ToolDependency] = [
     ToolDependency(
@@ -297,7 +300,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
             tag=RUST_ANALYZER_TAG,
             repo=RUST_ANALYZER_REPO,
             # ``asset_template`` is unused for arch-aware tools but kept
-            # non-empty so ``tools_fingerprint()`` formatting stays stable.
+            # non-empty so ``tool_fingerprint()`` formatting stays stable.
             asset_template="rust-analyzer-{platform_suffix}",
             asset_arch_overrides={
                 ("Linux", "x86_64"): "rust-analyzer-x86_64-unknown-linux-gnu.gz",

@@ -37,7 +37,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     run_paths.output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        bootstrap_environment(run_paths.output_dir, args.binary_location)
+        bootstrap_environment(run_paths.output_dir, args.binary_location, run_paths.repo_path)
     except LLMConfigError as exc:
         logger.warning("Incremental bootstrap failed: LLM provider not configured: %s", exc)
         _emit({"mode": RunMode.INCREMENTAL, "error": str(exc), "kind": "api_key_missing"})
