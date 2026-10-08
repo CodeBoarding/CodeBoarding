@@ -181,6 +181,186 @@
       ]
     }
   },
+  "release/codeboarding-pr626": {
+    "depths": {
+      "1": {
+        "base_groups": 8,
+        "head_groups": 8,
+        "identical_groups": 8,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 19,
+        "head_groups": 19,
+        "identical_groups": 19,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 18,
+        "head_groups": 21,
+        "identical_groups": 14,
+        "removed": [
+          {
+            "id": "1.1.1",
+            "name": "Analysis Orchestration and LSP Execution",
+            "files": [
+              "static_analyzer/__init__.py",
+              "static_analyzer/engine/adapters/csharp_adapter.py",
+              "static_analyzer/engine/adapters/rust_adapter.py",
+              "static_analyzer/engine/call_graph_builder.py",
+              "static_analyzer/engine/hierarchy_builder.py",
+              "static_analyzer/engine/lsp_client.py",
+              "static_analyzer/engine/lsp_recycler.py",
+              "static_analyzer/engine/progress.py",
+              "static_analyzer/engine/utils.py"
+            ]
+          },
+          {
+            "id": "1.1.4",
+            "name": "Adapter Registry and Process Memory Monitoring",
+            "files": [
+              "static_analyzer/engine/adapters/__init__.py",
+              "static_analyzer/engine/process_memory.py"
+            ]
+          },
+          {
+            "id": "1.1.3",
+            "name": "Language Adapter Implementations",
+            "files": [
+              "static_analyzer/engine/adapters/go_adapter.py",
+              "static_analyzer/engine/adapters/java_adapter.py",
+              "static_analyzer/engine/adapters/php_adapter.py",
+              "static_analyzer/engine/adapters/python_adapter.py",
+              "static_analyzer/engine/adapters/typescript_adapter.py",
+              "static_analyzer/engine/language_adapter.py"
+            ]
+          },
+          {
+            "id": "1.1.2",
+            "name": "Symbol Resolution and Edge Building",
+            "files": [
+              "static_analyzer/engine/edge_build_context.py",
+              "static_analyzer/engine/edge_builder.py",
+              "static_analyzer/engine/models.py",
+              "static_analyzer/engine/protocols.py",
+              "static_analyzer/engine/result_converter.py",
+              "static_analyzer/engine/source_inspector.py",
+              "static_analyzer/engine/symbol_table.py"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "1.1.1",
+            "name": "Analysis Orchestration and Graph Construction",
+            "files": [
+              "static_analyzer/__init__.py",
+              "static_analyzer/engine/call_graph_builder.py",
+              "static_analyzer/engine/hierarchy_builder.py",
+              "static_analyzer/engine/language_adapter.py",
+              "static_analyzer/engine/models.py",
+              "static_analyzer/engine/progress.py",
+              "static_analyzer/engine/source_inspector.py",
+              "static_analyzer/engine/utils.py"
+            ]
+          },
+          {
+            "id": "1.3.1",
+            "name": "Name-Based Partitioning and Tree Specification",
+            "files": [
+              "static_analyzer/cluster_relations.py",
+              "static_analyzer/clustering/names/draft.py",
+              "static_analyzer/clustering/names/frontier.py",
+              "static_analyzer/clustering/names/inventory.py",
+              "static_analyzer/clustering/names/replay.py",
+              "static_analyzer/clustering/names/spec.py",
+              "static_analyzer/clustering/names/tokens.py",
+              "static_analyzer/config.py"
+            ]
+          },
+          {
+            "id": "1.3.2",
+            "name": "Hierarchical Clustering Service",
+            "files": [
+              "static_analyzer/clustering/exceptions.py",
+              "static_analyzer/clustering/models.py",
+              "static_analyzer/clustering/service.py"
+            ]
+          },
+          {
+            "id": "1.1.2",
+            "name": "Language-Specific Adapters",
+            "files": [
+              "static_analyzer/engine/adapters/__init__.py",
+              "static_analyzer/engine/adapters/csharp_adapter.py",
+              "static_analyzer/engine/adapters/go_adapter.py",
+              "static_analyzer/engine/adapters/java_adapter.py",
+              "static_analyzer/engine/adapters/php_adapter.py",
+              "static_analyzer/engine/adapters/python_adapter.py",
+              "static_analyzer/engine/adapters/rust_adapter.py",
+              "static_analyzer/engine/adapters/typescript_adapter.py"
+            ]
+          },
+          {
+            "id": "1.1.3",
+            "name": "Call Edge Construction and Result Conversion",
+            "files": [
+              "static_analyzer/engine/edge_build_context.py",
+              "static_analyzer/engine/edge_builder.py",
+              "static_analyzer/engine/protocols.py",
+              "static_analyzer/engine/result_converter.py"
+            ]
+          },
+          {
+            "id": "1.1.5",
+            "name": "LSP Client and Process Recycler",
+            "files": [
+              "static_analyzer/engine/lsp_client.py",
+              "static_analyzer/engine/lsp_recycler.py"
+            ]
+          },
+          {
+            "id": "1.1.4",
+            "name": "Symbol Table and Process Memory Management",
+            "files": [
+              "static_analyzer/engine/process_memory.py",
+              "static_analyzer/engine/symbol_table.py"
+            ]
+          }
+        ]
+      }
+    },
+    "base_files": 149,
+    "head_files": 149,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 173,
+    "head_relations": 188,
+    "unique_relation_edges": {
+      "base": 1007,
+      "head": 1085,
+      "lost": 95,
+      "added": 173
+    },
+    "largest_leaves": {
+      "base": [
+        11,
+        9,
+        7,
+        7,
+        7
+      ],
+      "head": [
+        8,
+        8,
+        8,
+        7,
+        7
+      ]
+    }
+  },
   "release/eshop": {
     "depths": {
       "1": {
@@ -1613,6 +1793,1188 @@
         7,
         7,
         7
+      ]
+    }
+  },
+  "full/click-before-colorama-removal": {
+    "depths": {
+      "1": {
+        "base_groups": 9,
+        "head_groups": 9,
+        "identical_groups": 9,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 16,
+    "head_files": 16,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 31,
+    "head_relations": 31,
+    "unique_relation_edges": {
+      "base": 210,
+      "head": 210,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        3,
+        2,
+        2,
+        2,
+        2
+      ],
+      "head": [
+        3,
+        2,
+        2,
+        2,
+        2
+      ]
+    }
+  },
+  "full/click-before-get-strerror-removal": {
+    "depths": {
+      "1": {
+        "base_groups": 5,
+        "head_groups": 5,
+        "identical_groups": 5,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 15,
+    "head_files": 15,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 11,
+    "head_relations": 11,
+    "unique_relation_edges": {
+      "base": 85,
+      "head": 85,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        7,
+        3,
+        2,
+        2,
+        1
+      ],
+      "head": [
+        7,
+        3,
+        2,
+        2,
+        1
+      ]
+    }
+  },
+  "full/click-before-typing-modernisation": {
+    "depths": {
+      "1": {
+        "base_groups": 9,
+        "head_groups": 9,
+        "identical_groups": 9,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 15,
+    "head_files": 15,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 30,
+    "head_relations": 30,
+    "unique_relation_edges": {
+      "base": 197,
+      "head": 197,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "head": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ]
+    }
+  },
+  "full/codeboarding-before-health-checks": {
+    "depths": {
+      "1": {
+        "base_groups": 9,
+        "head_groups": 9,
+        "identical_groups": 9,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 14,
+        "head_groups": 13,
+        "identical_groups": 9,
+        "removed": [
+          {
+            "id": "3.1",
+            "name": "Core LSP Client and Results Model",
+            "files": [
+              "install.py",
+              "static_analyzer/analysis_result.py",
+              "static_analyzer/lsp_client/client.py",
+              "static_analyzer/reference_resolve_mixin.py"
+            ]
+          },
+          {
+            "id": "3.3",
+            "name": "Analysis Orchestrator and Scanner",
+            "files": [
+              "static_analyzer/__init__.py",
+              "static_analyzer/scanner.py"
+            ]
+          },
+          {
+            "id": "3.4",
+            "name": "Call Graph and Clustering",
+            "files": [
+              "static_analyzer/cluster_helpers.py",
+              "static_analyzer/graph.py"
+            ]
+          },
+          {
+            "id": "3.2",
+            "name": "Java Language Support",
+            "files": [
+              "static_analyzer/java_config_scanner.py",
+              "static_analyzer/java_utils.py",
+              "static_analyzer/lsp_client/java_client.py",
+              "static_analyzer/programming_language.py"
+            ]
+          },
+          {
+            "id": "3.5",
+            "name": "TypeScript Language Support",
+            "files": [
+              "static_analyzer/lsp_client/typescript_client.py",
+              "static_analyzer/typescript_config_scanner.py"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "3.1",
+            "name": "Analysis Results and Reference Resolution",
+            "files": [
+              "install.py",
+              "static_analyzer/analysis_result.py",
+              "static_analyzer/cluster_helpers.py",
+              "static_analyzer/reference_resolve_mixin.py"
+            ]
+          },
+          {
+            "id": "3.3",
+            "name": "Project Scanning and Orchestration",
+            "files": [
+              "static_analyzer/__init__.py",
+              "static_analyzer/scanner.py",
+              "static_analyzer/typescript_config_scanner.py"
+            ]
+          },
+          {
+            "id": "3.2",
+            "name": "LSP Clients and Graph Representation",
+            "files": [
+              "static_analyzer/graph.py",
+              "static_analyzer/lsp_client/client.py",
+              "static_analyzer/lsp_client/java_client.py",
+              "static_analyzer/lsp_client/typescript_client.py"
+            ]
+          },
+          {
+            "id": "3.4",
+            "name": "Language Configuration and Java Support",
+            "files": [
+              "static_analyzer/java_config_scanner.py",
+              "static_analyzer/java_utils.py",
+              "static_analyzer/programming_language.py"
+            ]
+          }
+        ]
+      },
+      "3": {
+        "base_groups": 5,
+        "head_groups": 6,
+        "identical_groups": 1,
+        "removed": [
+          {
+            "id": "1.1.1",
+            "name": "Core Agent and Structural Tool Tests",
+            "files": [
+              "tests/agents/prompts/test_prompts.py",
+              "tests/agents/test_abstraction_agent.py",
+              "tests/agents/test_agent.py",
+              "tests/agents/test_agent_responses.py",
+              "tests/agents/test_cluster_methods_mixin.py",
+              "tests/agents/test_details_agent.py",
+              "tests/agents/test_meta_agent.py",
+              "tests/agents/test_monitoring.py",
+              "tests/agents/test_planner_agent.py",
+              "tests/agents/test_validation.py",
+              "tests/agents/tools/test_cfg_tools.py",
+              "tests/agents/tools/test_external_deps.py",
+              "tests/agents/tools/test_file_structure_tool.py"
+            ]
+          },
+          {
+            "id": "1.1.2",
+            "name": "File and Content Reading Tool Tests",
+            "files": [
+              "tests/agents/tools/test_read_docs.py",
+              "tests/agents/tools/test_read_file.py",
+              "tests/agents/tools/test_read_git_diff.py",
+              "tests/agents/tools/test_read_source_tool.py"
+            ]
+          },
+          {
+            "id": "1.2.3",
+            "name": "Java Static Analysis Tests",
+            "files": [
+              "tests/static_analyzer/lsp_client/test_java_client.py",
+              "tests/static_analyzer/test_java_config_scanner.py",
+              "tests/static_analyzer/test_java_utils.py"
+            ]
+          },
+          {
+            "id": "1.2.1",
+            "name": "LSP Client and Analysis Results Tests",
+            "files": [
+              "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "tests/static_analyzer/lsp_client/test_typescript_client.py",
+              "tests/static_analyzer/test_analysis_cache.py",
+              "tests/static_analyzer/test_analysis_result.py",
+              "tests/static_analyzer/test_code_structure.py"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "1.1.1",
+            "name": "Agent Workflow Tests",
+            "files": [
+              "tests/agents/prompts/test_prompts.py",
+              "tests/agents/test_abstraction_agent.py",
+              "tests/agents/test_agent.py",
+              "tests/agents/test_agent_responses.py",
+              "tests/agents/test_cluster_methods_mixin.py",
+              "tests/agents/test_details_agent.py",
+              "tests/agents/test_meta_agent.py",
+              "tests/agents/test_monitoring.py",
+              "tests/agents/test_planner_agent.py",
+              "tests/agents/test_validation.py"
+            ]
+          },
+          {
+            "id": "1.1.2",
+            "name": "Agent Tool Tests",
+            "files": [
+              "tests/agents/tools/test_cfg_tools.py",
+              "tests/agents/tools/test_external_deps.py",
+              "tests/agents/tools/test_file_structure_tool.py",
+              "tests/agents/tools/test_read_docs.py",
+              "tests/agents/tools/test_read_file.py",
+              "tests/agents/tools/test_read_git_diff.py",
+              "tests/agents/tools/test_read_source_tool.py"
+            ]
+          },
+          {
+            "id": "1.2.2",
+            "name": "LSP Client Tests",
+            "files": [
+              "tests/static_analyzer/lsp_client/test_java_client.py",
+              "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "tests/static_analyzer/lsp_client/test_typescript_client.py"
+            ]
+          },
+          {
+            "id": "1.2.3",
+            "name": "Analysis Cache and Structure Tests",
+            "files": [
+              "tests/static_analyzer/test_analysis_cache.py",
+              "tests/static_analyzer/test_analysis_result.py",
+              "tests/static_analyzer/test_code_structure.py"
+            ]
+          },
+          {
+            "id": "1.2.4",
+            "name": "Java Scanner and Utility Tests",
+            "files": [
+              "tests/static_analyzer/test_java_config_scanner.py",
+              "tests/static_analyzer/test_java_utils.py"
+            ]
+          }
+        ]
+      }
+    },
+    "base_files": 118,
+    "head_files": 118,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 78,
+    "head_relations": 72,
+    "unique_relation_edges": {
+      "base": 1861,
+      "head": 1825,
+      "lost": 47,
+      "added": 11
+    },
+    "largest_leaves": {
+      "base": [
+        13,
+        12,
+        9,
+        7,
+        6
+      ],
+      "head": [
+        12,
+        10,
+        9,
+        7,
+        7
+      ]
+    }
+  },
+  "full/codeboarding-before-local-server-removal": {
+    "depths": {
+      "1": {
+        "base_groups": 8,
+        "head_groups": 8,
+        "identical_groups": 8,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 19,
+        "head_groups": 15,
+        "identical_groups": 6,
+        "removed": [
+          {
+            "id": "3.1",
+            "name": "Diagram Generation & Analysis Persistence",
+            "files": [
+              "diagram_analysis/analysis_json.py",
+              "diagram_analysis/diagram_generator.py",
+              "diagram_analysis/incremental/io_utils.py",
+              "diagram_analysis/incremental/validation.py",
+              "diagram_analysis/version.py"
+            ]
+          },
+          {
+            "id": "3.3",
+            "name": "File Coverage & Assignment Manager",
+            "files": [
+              "diagram_analysis/file_coverage.py",
+              "diagram_analysis/incremental/file_manager.py"
+            ]
+          },
+          {
+            "id": "3.2",
+            "name": "Incremental Update Coordinator",
+            "files": [
+              "diagram_analysis/incremental/component_checker.py",
+              "diagram_analysis/incremental/models.py",
+              "diagram_analysis/incremental/path_patching.py",
+              "diagram_analysis/incremental/reexpansion.py",
+              "diagram_analysis/incremental/updater.py"
+            ]
+          },
+          {
+            "id": "3.4",
+            "name": "Change Impact & Scoped Analysis",
+            "files": [
+              "diagram_analysis/incremental/impact_analyzer.py",
+              "diagram_analysis/incremental/scoped_analysis.py"
+            ]
+          },
+          {
+            "id": "3.5",
+            "name": "Analysis Manifest Manager",
+            "files": [
+              "diagram_analysis/manifest.py"
+            ]
+          },
+          {
+            "id": "4.1",
+            "name": "Health CLI and Structural Checks",
+            "files": [
+              "health/checks/circular_deps.py",
+              "health/checks/cohesion.py",
+              "health/checks/function_size.py",
+              "health/checks/god_class.py",
+              "health/checks/inheritance.py",
+              "health/checks/instability.py",
+              "health/config.py",
+              "health/constants.py",
+              "health_main.py"
+            ]
+          },
+          {
+            "id": "4.2",
+            "name": "Health Check Runner and Diagnostics",
+            "files": [
+              "health/checks/coupling.py",
+              "health/checks/unused_code_diagnostics.py",
+              "health/runner.py"
+            ]
+          },
+          {
+            "id": "4.3",
+            "name": "Health Data Models",
+            "files": [
+              "health/models.py"
+            ]
+          },
+          {
+            "id": "2.3",
+            "name": "Base LSP Client",
+            "files": [
+              "install.py",
+              "static_analyzer/lsp_client/client.py",
+              "static_analyzer/lsp_client/language_settings.py"
+            ]
+          },
+          {
+            "id": "2.2",
+            "name": "Analysis Runner and Language Detection",
+            "files": [
+              "static_analyzer/__init__.py",
+              "static_analyzer/programming_language.py",
+              "static_analyzer/scanner.py"
+            ]
+          },
+          {
+            "id": "2.1",
+            "name": "Analysis Models and Result Cache",
+            "files": [
+              "static_analyzer/analysis_cache.py",
+              "static_analyzer/analysis_result.py",
+              "static_analyzer/constants.py",
+              "static_analyzer/graph.py",
+              "static_analyzer/lsp_client/diagnostics.py"
+            ]
+          },
+          {
+            "id": "2.4",
+            "name": "Java Language Support",
+            "files": [
+              "static_analyzer/java_config_scanner.py",
+              "static_analyzer/java_utils.py",
+              "static_analyzer/lsp_client/java_client.py"
+            ]
+          },
+          {
+            "id": "2.7",
+            "name": "TypeScript Language Support",
+            "files": [
+              "static_analyzer/lsp_client/typescript_client.py",
+              "static_analyzer/typescript_config_scanner.py"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "3.2",
+            "name": "diagram_generator",
+            "files": [
+              "diagram_analysis/analysis_json.py",
+              "diagram_analysis/diagram_generator.py",
+              "diagram_analysis/file_coverage.py",
+              "diagram_analysis/manifest.py",
+              "diagram_analysis/version.py"
+            ]
+          },
+          {
+            "id": "3.1",
+            "name": "incremental_updater",
+            "files": [
+              "diagram_analysis/incremental/component_checker.py",
+              "diagram_analysis/incremental/file_manager.py",
+              "diagram_analysis/incremental/impact_analyzer.py",
+              "diagram_analysis/incremental/io_utils.py",
+              "diagram_analysis/incremental/models.py",
+              "diagram_analysis/incremental/path_patching.py",
+              "diagram_analysis/incremental/reexpansion.py",
+              "diagram_analysis/incremental/scoped_analysis.py",
+              "diagram_analysis/incremental/updater.py",
+              "diagram_analysis/incremental/validation.py"
+            ]
+          },
+          {
+            "id": "4.1",
+            "name": "health_checks",
+            "files": [
+              "health/checks/circular_deps.py",
+              "health/checks/cohesion.py",
+              "health/checks/coupling.py",
+              "health/checks/function_size.py",
+              "health/checks/god_class.py",
+              "health/checks/inheritance.py",
+              "health/checks/instability.py",
+              "health/checks/unused_code_diagnostics.py"
+            ]
+          },
+          {
+            "id": "4.2",
+            "name": "health_cli_and_config",
+            "files": [
+              "health/config.py",
+              "health/constants.py",
+              "health_main.py"
+            ]
+          },
+          {
+            "id": "4.3",
+            "name": "health_runner_and_models",
+            "files": [
+              "health/models.py",
+              "health/runner.py"
+            ]
+          },
+          {
+            "id": "2.1",
+            "name": "analysis_models_and_caching",
+            "files": [
+              "install.py",
+              "static_analyzer/analysis_cache.py",
+              "static_analyzer/analysis_result.py",
+              "static_analyzer/constants.py",
+              "static_analyzer/graph.py"
+            ]
+          },
+          {
+            "id": "2.3",
+            "name": "static_analyzer_engine",
+            "files": [
+              "static_analyzer/__init__.py",
+              "static_analyzer/scanner.py",
+              "static_analyzer/typescript_config_scanner.py"
+            ]
+          },
+          {
+            "id": "2.4",
+            "name": "language_specifications_and_java_support",
+            "files": [
+              "static_analyzer/java_config_scanner.py",
+              "static_analyzer/java_utils.py",
+              "static_analyzer/programming_language.py"
+            ]
+          },
+          {
+            "id": "2.2",
+            "name": "lsp_client_subsystem",
+            "files": [
+              "static_analyzer/lsp_client/client.py",
+              "static_analyzer/lsp_client/diagnostics.py",
+              "static_analyzer/lsp_client/java_client.py",
+              "static_analyzer/lsp_client/language_settings.py",
+              "static_analyzer/lsp_client/typescript_client.py"
+            ]
+          }
+        ]
+      },
+      "3": {
+        "base_groups": 2,
+        "head_groups": 6,
+        "identical_groups": 2,
+        "removed": [],
+        "added": [
+          {
+            "id": "3.1.1",
+            "name": "update_orchestrator",
+            "files": [
+              "diagram_analysis/incremental/component_checker.py",
+              "diagram_analysis/incremental/file_manager.py",
+              "diagram_analysis/incremental/models.py",
+              "diagram_analysis/incremental/path_patching.py",
+              "diagram_analysis/incremental/reexpansion.py",
+              "diagram_analysis/incremental/updater.py"
+            ]
+          },
+          {
+            "id": "3.1.2",
+            "name": "change_impact_analyzer",
+            "files": [
+              "diagram_analysis/incremental/impact_analyzer.py",
+              "diagram_analysis/incremental/scoped_analysis.py"
+            ]
+          },
+          {
+            "id": "3.1.4",
+            "name": "analysis_store",
+            "files": [
+              "diagram_analysis/incremental/io_utils.py"
+            ]
+          },
+          {
+            "id": "3.1.3",
+            "name": "update_validator",
+            "files": [
+              "diagram_analysis/incremental/validation.py"
+            ]
+          }
+        ]
+      }
+    },
+    "base_files": 104,
+    "head_files": 104,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 78,
+    "head_relations": 76,
+    "unique_relation_edges": {
+      "base": 590,
+      "head": 551,
+      "lost": 57,
+      "added": 18
+    },
+    "largest_leaves": {
+      "base": [
+        12,
+        10,
+        9,
+        7,
+        7
+      ],
+      "head": [
+        12,
+        10,
+        8,
+        7,
+        7
+      ]
+    }
+  },
+  "full/codeboarding-before-model-env-removal": {
+    "depths": {
+      "1": {
+        "base_groups": 8,
+        "head_groups": 8,
+        "identical_groups": 8,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 8,
+        "head_groups": 6,
+        "identical_groups": 4,
+        "removed": [
+          {
+            "id": "2.2",
+            "name": "Static Analysis Orchestrator",
+            "files": [
+              "static_analyzer/__init__.py",
+              "static_analyzer/scanner.py"
+            ]
+          },
+          {
+            "id": "2.3",
+            "name": "LSP Client & Call Graph Builder",
+            "files": [
+              "static_analyzer/graph.py",
+              "static_analyzer/lsp_client/client.py"
+            ]
+          },
+          {
+            "id": "2.4",
+            "name": "TypeScript LSP Client & Config Scanner",
+            "files": [
+              "static_analyzer/lsp_client/typescript_client.py",
+              "static_analyzer/typescript_config_scanner.py"
+            ]
+          },
+          {
+            "id": "2.5",
+            "name": "Programming Language Configuration",
+            "files": [
+              "static_analyzer/programming_language.py"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "2.2",
+            "name": "Project Scanning and Analysis Orchestration",
+            "files": [
+              "static_analyzer/__init__.py",
+              "static_analyzer/scanner.py",
+              "static_analyzer/typescript_config_scanner.py"
+            ]
+          },
+          {
+            "id": "2.1",
+            "name": "LSP Clients and Call Graph Analysis",
+            "files": [
+              "static_analyzer/graph.py",
+              "static_analyzer/lsp_client/client.py",
+              "static_analyzer/lsp_client/typescript_client.py",
+              "static_analyzer/programming_language.py"
+            ]
+          }
+        ]
+      },
+      "3": {
+        "base_groups": 7,
+        "head_groups": 7,
+        "identical_groups": 7,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 73,
+    "head_files": 73,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 52,
+    "head_relations": 47,
+    "unique_relation_edges": {
+      "base": 406,
+      "head": 381,
+      "lost": 25,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        12,
+        7,
+        7,
+        6,
+        6
+      ],
+      "head": [
+        12,
+        7,
+        7,
+        6,
+        6
+      ]
+    }
+  },
+  "full/mediatr-before-fsharp-assembly-support": {
+    "depths": {
+      "1": {
+        "base_groups": 2,
+        "head_groups": 2,
+        "identical_groups": 2,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 14,
+        "head_groups": 12,
+        "identical_groups": 7,
+        "removed": [
+          {
+            "id": "2.1",
+            "name": "Example Host Runners and Handlers",
+            "files": [
+              "samples/MediatR.Examples.AspNetCore/Program.cs",
+              "samples/MediatR.Examples.Autofac/Program.cs",
+              "samples/MediatR.Examples.DryIoc/Program.cs",
+              "samples/MediatR.Examples.Lamar/Program.cs",
+              "samples/MediatR.Examples.LightInject/Program.cs",
+              "samples/MediatR.Examples.SimpleInjector/Program.cs",
+              "samples/MediatR.Examples.Stashbox/Program.cs",
+              "samples/MediatR.Examples/ConstrainedRequestPostProcessor.cs",
+              "samples/MediatR.Examples/ExceptionHandler/ExceptionsHandlers.cs",
+              "samples/MediatR.Examples/ExceptionHandler/ExceptionsHandlersOverrides.cs",
+              "samples/MediatR.Examples/ExceptionHandler/Requests.cs",
+              "samples/MediatR.Examples/ExceptionHandler/RequestsOverrides.cs",
+              "samples/MediatR.Examples/Ping.cs",
+              "samples/MediatR.Examples/PingHandler.cs",
+              "samples/MediatR.Examples/Pinged.cs",
+              "samples/MediatR.Examples/PingedHandler.cs",
+              "samples/MediatR.Examples/Pong.cs",
+              "samples/MediatR.Examples/Ponged.cs",
+              "samples/MediatR.Examples/Runner.cs"
+            ]
+          },
+          {
+            "id": "2.3",
+            "name": "Custom Publish Strategies",
+            "files": [
+              "samples/MediatR.Examples.PublishStrategies/AsyncPingedHandler.cs",
+              "samples/MediatR.Examples.PublishStrategies/CustomMediator.cs",
+              "samples/MediatR.Examples.PublishStrategies/Program.cs",
+              "samples/MediatR.Examples.PublishStrategies/Publisher.cs",
+              "samples/MediatR.Examples.PublishStrategies/SyncPingedHandler.cs"
+            ]
+          },
+          {
+            "id": "2.4",
+            "name": "Example Auxiliary Models and Actions",
+            "files": [
+              "samples/MediatR.Examples.PublishStrategies/PublishStrategy.cs",
+              "samples/MediatR.Examples/ExceptionHandler/LogExceptionAction.cs",
+              "samples/MediatR.Examples/Streams/Song.cs"
+            ]
+          },
+          {
+            "id": "2.5",
+            "name": "Exception Handling Request Handlers",
+            "files": [
+              "samples/MediatR.Examples/ExceptionHandler/Exceptions.cs",
+              "samples/MediatR.Examples/ExceptionHandler/Handlers.cs"
+            ]
+          },
+          {
+            "id": "2.2",
+            "name": "Generic Pipeline Behaviors",
+            "files": [
+              "samples/MediatR.Examples/GenericHandler.cs",
+              "samples/MediatR.Examples/GenericPipelineBehavior.cs",
+              "samples/MediatR.Examples/GenericRequestPostProcessor.cs",
+              "samples/MediatR.Examples/GenericRequestPreProcessor.cs",
+              "samples/MediatR.Examples/Streams/GenericStreamPipelineBehavior.cs"
+            ]
+          },
+          {
+            "id": "2.6",
+            "name": "Void Request Handling Example",
+            "files": [
+              "samples/MediatR.Examples/Jing.cs",
+              "samples/MediatR.Examples/JingHandler.cs"
+            ]
+          },
+          {
+            "id": "2.7",
+            "name": "Stream Request Handling Example",
+            "files": [
+              "samples/MediatR.Examples/Streams/Sing.cs",
+              "samples/MediatR.Examples/Streams/SingHandler.cs"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "2.2",
+            "name": "Sample Application Runners",
+            "files": [
+              "samples/MediatR.Examples.AspNetCore/Program.cs",
+              "samples/MediatR.Examples.Autofac/Program.cs",
+              "samples/MediatR.Examples.DryIoc/Program.cs",
+              "samples/MediatR.Examples.Lamar/Program.cs",
+              "samples/MediatR.Examples.LightInject/Program.cs",
+              "samples/MediatR.Examples.PublishStrategies/CustomMediator.cs",
+              "samples/MediatR.Examples.PublishStrategies/Program.cs",
+              "samples/MediatR.Examples.PublishStrategies/Publisher.cs",
+              "samples/MediatR.Examples.SimpleInjector/Program.cs",
+              "samples/MediatR.Examples.Stashbox/Program.cs",
+              "samples/MediatR.Examples/ExceptionHandler/Requests.cs",
+              "samples/MediatR.Examples/Ping.cs",
+              "samples/MediatR.Examples/Pinged.cs",
+              "samples/MediatR.Examples/Runner.cs"
+            ]
+          },
+          {
+            "id": "2.1",
+            "name": "Sample Message Handlers",
+            "files": [
+              "samples/MediatR.Examples.PublishStrategies/AsyncPingedHandler.cs",
+              "samples/MediatR.Examples.PublishStrategies/SyncPingedHandler.cs",
+              "samples/MediatR.Examples/ExceptionHandler/Exceptions.cs",
+              "samples/MediatR.Examples/ExceptionHandler/ExceptionsHandlers.cs",
+              "samples/MediatR.Examples/ExceptionHandler/ExceptionsHandlersOverrides.cs",
+              "samples/MediatR.Examples/ExceptionHandler/Handlers.cs",
+              "samples/MediatR.Examples/ExceptionHandler/LogExceptionAction.cs",
+              "samples/MediatR.Examples/ExceptionHandler/RequestsOverrides.cs",
+              "samples/MediatR.Examples/GenericHandler.cs",
+              "samples/MediatR.Examples/JingHandler.cs",
+              "samples/MediatR.Examples/PingHandler.cs",
+              "samples/MediatR.Examples/PingedHandler.cs",
+              "samples/MediatR.Examples/Pong.cs",
+              "samples/MediatR.Examples/Ponged.cs",
+              "samples/MediatR.Examples/Streams/SingHandler.cs"
+            ]
+          },
+          {
+            "id": "2.3",
+            "name": "Stream and Void Request Contracts",
+            "files": [
+              "samples/MediatR.Examples.PublishStrategies/PublishStrategy.cs",
+              "samples/MediatR.Examples/Jing.cs",
+              "samples/MediatR.Examples/Streams/Sing.cs",
+              "samples/MediatR.Examples/Streams/Song.cs"
+            ]
+          },
+          {
+            "id": "2.4",
+            "name": "Request Pre and Post Processors",
+            "files": [
+              "samples/MediatR.Examples/ConstrainedRequestPostProcessor.cs",
+              "samples/MediatR.Examples/GenericRequestPostProcessor.cs",
+              "samples/MediatR.Examples/GenericRequestPreProcessor.cs"
+            ]
+          },
+          {
+            "id": "2.5",
+            "name": "Pipeline Behaviors",
+            "files": [
+              "samples/MediatR.Examples/GenericPipelineBehavior.cs",
+              "samples/MediatR.Examples/Streams/GenericStreamPipelineBehavior.cs"
+            ]
+          }
+        ]
+      },
+      "3": {
+        "base_groups": 15,
+        "head_groups": 16,
+        "identical_groups": 5,
+        "removed": [
+          {
+            "id": "2.1.1",
+            "name": "Container Host Programs",
+            "files": [
+              "samples/MediatR.Examples.AspNetCore/Program.cs",
+              "samples/MediatR.Examples.Autofac/Program.cs",
+              "samples/MediatR.Examples.DryIoc/Program.cs",
+              "samples/MediatR.Examples.Lamar/Program.cs",
+              "samples/MediatR.Examples.LightInject/Program.cs",
+              "samples/MediatR.Examples.SimpleInjector/Program.cs",
+              "samples/MediatR.Examples.Stashbox/Program.cs"
+            ]
+          },
+          {
+            "id": "2.1.4",
+            "name": "Exception Pipeline Requests and Post-Processors",
+            "files": [
+              "samples/MediatR.Examples/ConstrainedRequestPostProcessor.cs",
+              "samples/MediatR.Examples/ExceptionHandler/Requests.cs",
+              "samples/MediatR.Examples/ExceptionHandler/RequestsOverrides.cs"
+            ]
+          },
+          {
+            "id": "2.1.2",
+            "name": "Response Models and Exception Handlers",
+            "files": [
+              "samples/MediatR.Examples/ExceptionHandler/ExceptionsHandlers.cs",
+              "samples/MediatR.Examples/ExceptionHandler/ExceptionsHandlersOverrides.cs",
+              "samples/MediatR.Examples/Pong.cs",
+              "samples/MediatR.Examples/Ponged.cs"
+            ]
+          },
+          {
+            "id": "2.1.3",
+            "name": "Ping Request and Notification Handlers",
+            "files": [
+              "samples/MediatR.Examples/Ping.cs",
+              "samples/MediatR.Examples/PingHandler.cs",
+              "samples/MediatR.Examples/Pinged.cs",
+              "samples/MediatR.Examples/PingedHandler.cs"
+            ]
+          },
+          {
+            "id": "2.1.5",
+            "name": "Sample Scenario Runner",
+            "files": [
+              "samples/MediatR.Examples/Runner.cs"
+            ]
+          },
+          {
+            "id": "1.1.1",
+            "name": "Notification Contracts and Publisher Strategy",
+            "files": [
+              "src/MediatR.Contracts/INotification.cs",
+              "src/MediatR/INotificationPublisher.cs",
+              "src/MediatR/NotificationHandlerExecutor.cs"
+            ]
+          },
+          {
+            "id": "1.1.2",
+            "name": "Request Handler Contracts and DI Registration",
+            "files": [
+              "src/MediatR.Contracts/IRequest.cs",
+              "src/MediatR/IRequestHandler.cs",
+              "src/MediatR/Registration/ServiceRegistrar.cs"
+            ]
+          },
+          {
+            "id": "1.1.3",
+            "name": "Request Sender and Streaming Contracts",
+            "files": [
+              "src/MediatR.Contracts/IStreamRequest.cs",
+              "src/MediatR/ISender.cs",
+              "src/MediatR/IStreamRequestHandler.cs"
+            ]
+          },
+          {
+            "id": "1.1.4",
+            "name": "Publisher Abstraction and Common Primitives",
+            "files": [
+              "src/MediatR.Contracts/Unit.cs",
+              "src/MediatR/Entities/OpenBehavior.cs",
+              "src/MediatR/IPublisher.cs"
+            ]
+          },
+          {
+            "id": "1.1.5",
+            "name": "Mediator Dispatcher",
+            "files": [
+              "src/MediatR/IMediator.cs",
+              "src/MediatR/Mediator.cs"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "2.2.1",
+            "name": "DI Container Sample Entry Points",
+            "files": [
+              "samples/MediatR.Examples.AspNetCore/Program.cs",
+              "samples/MediatR.Examples.Autofac/Program.cs",
+              "samples/MediatR.Examples.DryIoc/Program.cs",
+              "samples/MediatR.Examples.Lamar/Program.cs",
+              "samples/MediatR.Examples.LightInject/Program.cs",
+              "samples/MediatR.Examples.PublishStrategies/Program.cs",
+              "samples/MediatR.Examples.SimpleInjector/Program.cs",
+              "samples/MediatR.Examples.Stashbox/Program.cs"
+            ]
+          },
+          {
+            "id": "2.1.1",
+            "name": "Sample Handler Implementations",
+            "files": [
+              "samples/MediatR.Examples.PublishStrategies/AsyncPingedHandler.cs",
+              "samples/MediatR.Examples.PublishStrategies/SyncPingedHandler.cs",
+              "samples/MediatR.Examples/ExceptionHandler/ExceptionsHandlers.cs",
+              "samples/MediatR.Examples/ExceptionHandler/ExceptionsHandlersOverrides.cs",
+              "samples/MediatR.Examples/ExceptionHandler/Handlers.cs",
+              "samples/MediatR.Examples/ExceptionHandler/RequestsOverrides.cs",
+              "samples/MediatR.Examples/GenericHandler.cs",
+              "samples/MediatR.Examples/JingHandler.cs",
+              "samples/MediatR.Examples/PingHandler.cs",
+              "samples/MediatR.Examples/PingedHandler.cs",
+              "samples/MediatR.Examples/Streams/SingHandler.cs"
+            ]
+          },
+          {
+            "id": "2.2.2",
+            "name": "Custom Publish Strategies",
+            "files": [
+              "samples/MediatR.Examples.PublishStrategies/CustomMediator.cs",
+              "samples/MediatR.Examples.PublishStrategies/Publisher.cs"
+            ]
+          },
+          {
+            "id": "2.1.2",
+            "name": "Sample Exception Types and Actions",
+            "files": [
+              "samples/MediatR.Examples/ExceptionHandler/Exceptions.cs",
+              "samples/MediatR.Examples/ExceptionHandler/LogExceptionAction.cs"
+            ]
+          },
+          {
+            "id": "2.2.4",
+            "name": "Sample Verification Runner",
+            "files": [
+              "samples/MediatR.Examples/ExceptionHandler/Requests.cs",
+              "samples/MediatR.Examples/Runner.cs"
+            ]
+          },
+          {
+            "id": "2.2.3",
+            "name": "Sample Messages",
+            "files": [
+              "samples/MediatR.Examples/Ping.cs",
+              "samples/MediatR.Examples/Pinged.cs"
+            ]
+          },
+          {
+            "id": "2.1.3",
+            "name": "Sample Response and Notification Models",
+            "files": [
+              "samples/MediatR.Examples/Pong.cs",
+              "samples/MediatR.Examples/Ponged.cs"
+            ]
+          },
+          {
+            "id": "1.1.1",
+            "name": "Sender Contracts and Primitives",
+            "files": [
+              "src/MediatR.Contracts/INotification.cs",
+              "src/MediatR.Contracts/Unit.cs",
+              "src/MediatR/Entities/OpenBehavior.cs",
+              "src/MediatR/ISender.cs"
+            ]
+          },
+          {
+            "id": "1.1.4",
+            "name": "Request Contracts and Service Registration",
+            "files": [
+              "src/MediatR.Contracts/IRequest.cs",
+              "src/MediatR.Contracts/IStreamRequest.cs",
+              "src/MediatR/Registration/ServiceRegistrar.cs"
+            ]
+          },
+          {
+            "id": "1.1.2",
+            "name": "Mediator and Publisher Dispatcher",
+            "files": [
+              "src/MediatR/IMediator.cs",
+              "src/MediatR/INotificationPublisher.cs",
+              "src/MediatR/IPublisher.cs",
+              "src/MediatR/Mediator.cs"
+            ]
+          },
+          {
+            "id": "1.1.3",
+            "name": "Handler Interfaces and Execution",
+            "files": [
+              "src/MediatR/IRequestHandler.cs",
+              "src/MediatR/IStreamRequestHandler.cs",
+              "src/MediatR/NotificationHandlerExecutor.cs"
+            ]
+          }
+        ]
+      }
+    },
+    "base_files": 79,
+    "head_files": 79,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 58,
+    "head_relations": 54,
+    "unique_relation_edges": {
+      "base": 183,
+      "head": 196,
+      "lost": 6,
+      "added": 19
+    },
+    "largest_leaves": {
+      "base": [
+        7,
+        5,
+        5,
+        5,
+        4
+      ],
+      "head": [
+        11,
+        8,
+        5,
+        4,
+        4
       ]
     }
   }
