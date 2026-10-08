@@ -307,6 +307,19 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "opper": LLMConfig(
+        chat_class=ChatOpenAI,
+        selection_envs=["OPPER_API_KEY"],
+        api_key_env="OPPER_API_KEY",
+        agent_model="gemini-3.8-flash",
+        base_url_env="OPPER_BASE_URL",
+        default_base_url="https://api.opper.ai/v3/compat",
+        extra_args={
+            "max_tokens": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+            "max_retries": 0,
+        },
+    ),
     "litellm": LLMConfig(
         chat_class=ChatOpenAI,
         # Base URL only: a key alone must not select litellm, since there is no

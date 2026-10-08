@@ -107,6 +107,7 @@ class TestProviderSelection:
             "openrouter": "google/gemini-3.8-flash",
             "orcarouter": "openai/gpt-5.4-mini",
             "requesty": "gemini-3.8-flash",
+            "opper": "gemini-3.8-flash",
             "litellm": "gpt-4o",
         }
 
@@ -123,6 +124,7 @@ class TestProviderSelection:
             ("openrouter", "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
             ("orcarouter", "ORCAROUTER_BASE_URL", "https://api.orcarouter.ai/v1"),
             ("requesty", "REQUESTY_BASE_URL", "https://router.requesty.ai/v1"),
+            ("opper", "OPPER_BASE_URL", "https://api.opper.ai/v3/compat"),
             ("litellm", "LITELLM_BASE_URL", None),
         ],
     )
@@ -195,6 +197,14 @@ class TestProviderSelection:
             assert requesty.is_selected_by_env() is True
             assert requesty.has_real_api_key() is True
             assert requesty.get_resolved_extra_args()["base_url"] == "https://router.requesty.ai/v1"
+
+    def test_opper_selected_via_api_key(self):
+        opper = LLM_PROVIDERS["opper"]
+        env = {"OPPER_API_KEY": "opper-test"}
+        with patch.dict(os.environ, env, clear=True):
+            assert opper.is_selected_by_env() is True
+            assert opper.has_real_api_key() is True
+            assert opper.get_resolved_extra_args()["base_url"] == "https://api.opper.ai/v3/compat"
 
     def test_aws_has_no_api_key_env(self):
         # botocore consumes AWS_BEARER_TOKEN_BEDROCK directly; it is never passed as a kwarg.

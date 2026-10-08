@@ -105,6 +105,20 @@ class TestUserConfigApplyToEnv:
             os.environ.clear()
             os.environ.update(original)
 
+    def test_injects_opper_api_key(self):
+        cfg = UserConfig(provider=ProviderUserConfig(opper_api_key="opper-test"))
+
+        original = os.environ.copy()
+        try:
+            os.environ.pop("OPPER_API_KEY", None)
+
+            cfg.apply_to_env()
+
+            assert os.environ["OPPER_API_KEY"] == "opper-test"
+        finally:
+            os.environ.clear()
+            os.environ.update(original)
+
     def test_injects_openai_base_url_for_self_hosted_proxy(self):
         cfg = UserConfig(provider=ProviderUserConfig(openai_base_url="http://127.0.0.1:8000/v1"))
 
