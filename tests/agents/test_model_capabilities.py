@@ -43,6 +43,11 @@ _FAKE_MODELSDEV = {
             "gemini-3.8-flash": {"limit": {"context": 1_048_576, "output": 65_535}},
         }
     },
+    "opper": {
+        "models": {
+            "gemini-3.8-flash": {"limit": {"context": 1_048_576, "output": 65_536}},
+        }
+    },
 }
 
 _FAKE_LITELLM = {
@@ -123,6 +128,12 @@ class TestModelsdevResolution:
     def test_requesty_managed_model_resolves_via_modelsdev(self, fake_catalogs):
         cw = get_context_window("requesty", "gemini-3.8-flash")
         assert cw.input_tokens == 1_048_576
+        assert not cw.is_fallback
+
+    def test_opper_pool_model_resolves_via_modelsdev(self, fake_catalogs):
+        cw = get_context_window("opper", "gemini-3.8-flash")
+        assert cw.input_tokens == 1_048_576
+        assert cw.output_tokens == 65_536
         assert not cw.is_fallback
 
 

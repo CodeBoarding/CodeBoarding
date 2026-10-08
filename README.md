@@ -172,6 +172,7 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 # openrouter_api_key        = "sk-..."
 # orcarouter_api_key        = "sk-orca-..."   # model routing gateway (https://www.orcarouter.ai)
 # requesty_api_key          = "rqsty-..."     # LLM gateway (https://www.requesty.ai)
+# opper_api_key             = "..."           # EU-hosted AI gateway (https://opper.ai)
 # litellm_base_url          = "http://localhost:4000"  # LiteLLM proxy server URL (required)
 # litellm_api_key           = "sk-..."           # LiteLLM proxy server key (optional)
 
@@ -248,7 +249,7 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 - Languages: Python, TypeScript, JavaScript, Java, Kotlin, Go, PHP, Rust, C#.
   - Java needs a JDK (21 recommended).
   - Kotlin is analysed with JetBrains' [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp) (about 360 MB with its own Java runtime, under the [JetBrains Free Plugin License](https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt)) and needs glibc 2.34 or newer on Linux. Kotlin calls into Java are not drawn yet.
-- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, LiteLLM proxy, and more.
+- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, Opper, LiteLLM proxy, and more.
 
 ## Examples
 
