@@ -1,0 +1,884 @@
+{
+  "release/eshop": {
+    "depths": {
+      "1": {
+        "base_groups": 10,
+        "head_groups": 10,
+        "identical_groups": 10,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 34,
+        "head_groups": 34,
+        "identical_groups": 34,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 75,
+        "head_groups": 74,
+        "identical_groups": 72,
+        "removed": [
+          {
+            "id": "1.4.1",
+            "name": "General Application Views and Navigation",
+            "files": [
+              "src/ClientApp/Views/BadgeView.cs",
+              "src/ClientApp/Views/CheckoutView.xaml.cs",
+              "src/ClientApp/Views/ContentPageBase.cs",
+              "src/ClientApp/Views/CustomNavigationView.xaml.cs",
+              "src/ClientApp/Views/FiltersView.xaml.cs",
+              "src/ClientApp/Views/LoginView.xaml.cs",
+              "src/ClientApp/Views/MapView.xaml.cs",
+              "src/ClientApp/Views/MauiAuthenticationBrowser.cs",
+              "src/ClientApp/Views/ProfileView.xaml.cs",
+              "src/ClientApp/Views/SettingsView.xaml.cs",
+              "src/ClientApp/Views/Templates/CampaignTemplate.xaml.cs",
+              "src/ClientApp/Views/Templates/ProductTemplate.xaml.cs"
+            ]
+          },
+          {
+            "id": "1.4.3",
+            "name": "Basket Presentation Views",
+            "files": [
+              "src/ClientApp/Views/BasketView.xaml.cs",
+              "src/ClientApp/Views/Templates/BasketItemTemplate.xaml.cs"
+            ]
+          },
+          {
+            "id": "1.4.2",
+            "name": "Order Presentation Views",
+            "files": [
+              "src/ClientApp/Views/OrderDetailView.xaml.cs",
+              "src/ClientApp/Views/Templates/OrderItemTemplate.xaml.cs",
+              "src/ClientApp/Views/Templates/OrderTemplate.xaml.cs"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "1.4.1",
+            "name": "Application Pages and Controls",
+            "files": [
+              "src/ClientApp/Views/BadgeView.cs",
+              "src/ClientApp/Views/BasketView.xaml.cs",
+              "src/ClientApp/Views/CheckoutView.xaml.cs",
+              "src/ClientApp/Views/ContentPageBase.cs",
+              "src/ClientApp/Views/CustomNavigationView.xaml.cs",
+              "src/ClientApp/Views/FiltersView.xaml.cs",
+              "src/ClientApp/Views/LoginView.xaml.cs",
+              "src/ClientApp/Views/MapView.xaml.cs",
+              "src/ClientApp/Views/MauiAuthenticationBrowser.cs",
+              "src/ClientApp/Views/OrderDetailView.xaml.cs",
+              "src/ClientApp/Views/ProfileView.xaml.cs",
+              "src/ClientApp/Views/SettingsView.xaml.cs"
+            ]
+          },
+          {
+            "id": "1.4.2",
+            "name": "Item View Templates",
+            "files": [
+              "src/ClientApp/Views/Templates/BasketItemTemplate.xaml.cs",
+              "src/ClientApp/Views/Templates/CampaignTemplate.xaml.cs",
+              "src/ClientApp/Views/Templates/OrderItemTemplate.xaml.cs",
+              "src/ClientApp/Views/Templates/OrderTemplate.xaml.cs",
+              "src/ClientApp/Views/Templates/ProductTemplate.xaml.cs"
+            ]
+          }
+        ]
+      }
+    },
+    "base_files": 481,
+    "head_files": 481,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 154,
+    "head_relations": 154,
+    "unique_relation_edges": {
+      "base": 802,
+      "head": 802,
+      "lost": 2,
+      "added": 2
+    },
+    "largest_leaves": {
+      "base": [
+        36,
+        21,
+        19,
+        18,
+        14
+      ],
+      "head": [
+        36,
+        21,
+        19,
+        18,
+        14
+      ]
+    }
+  },
+  "release/gson": {
+    "depths": {
+      "1": {
+        "base_groups": 4,
+        "head_groups": 4,
+        "identical_groups": 4,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 11,
+        "head_groups": 11,
+        "identical_groups": 11,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 7,
+        "head_groups": 7,
+        "identical_groups": 7,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 109,
+    "head_files": 109,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 87,
+    "head_relations": 87,
+    "unique_relation_edges": {
+      "base": 3514,
+      "head": 3514,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        18,
+        15,
+        14,
+        9,
+        7
+      ],
+      "head": [
+        18,
+        15,
+        14,
+        9,
+        7
+      ]
+    }
+  },
+  "release/hono": {
+    "depths": {
+      "1": {
+        "base_groups": 4,
+        "head_groups": 4,
+        "identical_groups": 4,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 14,
+        "head_groups": 14,
+        "identical_groups": 14,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 32,
+        "head_groups": 32,
+        "identical_groups": 32,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 164,
+    "head_files": 164,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 82,
+    "head_relations": 82,
+    "unique_relation_edges": {
+      "base": 345,
+      "head": 345,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        16,
+        13,
+        9,
+        8,
+        8
+      ],
+      "head": [
+        16,
+        13,
+        9,
+        8,
+        8
+      ]
+    }
+  },
+  "release/jsoup": {
+    "depths": {
+      "1": {
+        "base_groups": 7,
+        "head_groups": 7,
+        "identical_groups": 7,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 27,
+        "head_groups": 27,
+        "identical_groups": 27,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 86,
+    "head_files": 86,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 261,
+    "head_relations": 261,
+    "unique_relation_edges": {
+      "base": 4968,
+      "head": 4968,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        11,
+        7,
+        7,
+        6,
+        5
+      ],
+      "head": [
+        11,
+        7,
+        7,
+        6,
+        5
+      ]
+    }
+  },
+  "release/junit4": {
+    "depths": {
+      "1": {
+        "base_groups": 7,
+        "head_groups": 7,
+        "identical_groups": 7,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 18,
+        "head_groups": 18,
+        "identical_groups": 18,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 32,
+        "head_groups": 32,
+        "identical_groups": 32,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 204,
+    "head_files": 204,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 224,
+    "head_relations": 224,
+    "unique_relation_edges": {
+      "base": 1610,
+      "head": 1610,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        14,
+        14,
+        13,
+        11,
+        10
+      ],
+      "head": [
+        14,
+        14,
+        13,
+        11,
+        10
+      ]
+    }
+  },
+  "release/mermaid": {
+    "depths": {
+      "1": {
+        "base_groups": 5,
+        "head_groups": 5,
+        "identical_groups": 5,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 28,
+        "head_groups": 28,
+        "identical_groups": 28,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 40,
+        "head_groups": 40,
+        "identical_groups": 40,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 462,
+    "head_files": 462,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 121,
+    "head_relations": 121,
+    "unique_relation_edges": {
+      "base": 549,
+      "head": 549,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        89,
+        62,
+        35,
+        27,
+        13
+      ],
+      "head": [
+        89,
+        62,
+        35,
+        27,
+        13
+      ]
+    }
+  },
+  "release/polly": {
+    "depths": {
+      "1": {
+        "base_groups": 8,
+        "head_groups": 8,
+        "identical_groups": 8,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 44,
+        "head_groups": 41,
+        "identical_groups": 34,
+        "removed": [
+          {
+            "id": "3.2",
+            "name": "Legacy Policy Benchmarks and Workloads",
+            "files": [
+              "bench/Polly.Benchmarks/Bulkhead.cs",
+              "bench/Polly.Benchmarks/Fallback.cs",
+              "bench/Polly.Benchmarks/NoOp.cs",
+              "bench/Polly.Benchmarks/PolicyWrap.cs",
+              "bench/Polly.Benchmarks/Workloads.cs"
+            ]
+          },
+          {
+            "id": "3.1",
+            "name": "Core Infrastructure and Pipeline Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/Cache.cs",
+              "bench/Polly.Benchmarks/PollyConfig.cs",
+              "bench/Polly.Core.Benchmarks/BridgeBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/CompositeComponentBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/CreationBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/DelegatingComponentBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/GenericOverheadBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/PipelineBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/PollyVersion.cs",
+              "bench/Polly.Core.Benchmarks/PredicateBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/TelemetryBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.cs",
+              "bench/Polly.Core.Benchmarks/Utils/MeteringUtil.cs"
+            ]
+          },
+          {
+            "id": "3.3",
+            "name": "Circuit Breaker Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/CircuitBreaker.cs",
+              "bench/Polly.Core.Benchmarks/CircuitBreakerBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/CircuitBreakerOpenedBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.CircuitBreaker.cs"
+            ]
+          },
+          {
+            "id": "3.5",
+            "name": "Rate Limiter Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/RateLimit.cs",
+              "bench/Polly.Core.Benchmarks/RateLimiterBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.RateLimiting.cs"
+            ]
+          },
+          {
+            "id": "3.6",
+            "name": "Retry Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/Retry.cs",
+              "bench/Polly.Core.Benchmarks/RetryBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.Retry.cs"
+            ]
+          },
+          {
+            "id": "3.7",
+            "name": "Timeout Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/Timeout.cs",
+              "bench/Polly.Core.Benchmarks/TimeoutBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.Timeout.cs"
+            ]
+          },
+          {
+            "id": "3.8",
+            "name": "Hedging Benchmarks",
+            "files": [
+              "bench/Polly.Core.Benchmarks/HedgingBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.Hedging.cs"
+            ]
+          },
+          {
+            "id": "3.9",
+            "name": "Composite Strategy Pipeline Benchmarks",
+            "files": [
+              "bench/Polly.Core.Benchmarks/MultipleStrategiesBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.MultipleStrategies.cs"
+            ]
+          },
+          {
+            "id": "3.10",
+            "name": "Resilience Pipeline Execution Benchmarks",
+            "files": [
+              "bench/Polly.Core.Benchmarks/ResiliencePipelineBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/ResiliencePipelineProviderBenchmark.cs"
+            ]
+          },
+          {
+            "id": "3.4",
+            "name": "Pipeline Strategy Benchmark Utilities",
+            "files": [
+              "bench/Polly.Core.Benchmarks/Utils/EmptyResilienceOptions.cs",
+              "bench/Polly.Core.Benchmarks/Utils/EmptyResilienceStrategy.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.StrategyPipeline.cs"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "3.1",
+            "name": "Resilience Strategy and Pipeline Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/Bulkhead.cs",
+              "bench/Polly.Benchmarks/Cache.cs",
+              "bench/Polly.Benchmarks/Fallback.cs",
+              "bench/Polly.Benchmarks/NoOp.cs",
+              "bench/Polly.Benchmarks/PolicyWrap.cs",
+              "bench/Polly.Benchmarks/PollyConfig.cs",
+              "bench/Polly.Core.Benchmarks/BridgeBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/CircuitBreakerBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/CircuitBreakerOpenedBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/CompositeComponentBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/CreationBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/DelegatingComponentBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/GenericOverheadBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/HedgingBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/MultipleStrategiesBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/PipelineBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/PollyVersion.cs",
+              "bench/Polly.Core.Benchmarks/PredicateBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/RateLimiterBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/ResiliencePipelineBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/ResiliencePipelineProviderBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/RetryBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/TelemetryBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/TimeoutBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/Utils/EmptyResilienceOptions.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.Hedging.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.StrategyPipeline.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.cs",
+              "bench/Polly.Core.Benchmarks/Utils/MeteringUtil.cs"
+            ]
+          },
+          {
+            "id": "3.2",
+            "name": "Circuit Breaker Strategy Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/CircuitBreaker.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.CircuitBreaker.cs"
+            ]
+          },
+          {
+            "id": "3.3",
+            "name": "Rate Limiter Strategy Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/RateLimit.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.RateLimiting.cs"
+            ]
+          },
+          {
+            "id": "3.4",
+            "name": "Retry Strategy Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/Retry.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.Retry.cs"
+            ]
+          },
+          {
+            "id": "3.6",
+            "name": "Timeout Strategy Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/Timeout.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.Timeout.cs"
+            ]
+          },
+          {
+            "id": "3.7",
+            "name": "Benchmark Workloads",
+            "files": [
+              "bench/Polly.Benchmarks/Workloads.cs"
+            ]
+          },
+          {
+            "id": "3.5",
+            "name": "Multi-Strategy Pipeline Benchmarks",
+            "files": [
+              "bench/Polly.Core.Benchmarks/Utils/EmptyResilienceStrategy.cs",
+              "bench/Polly.Core.Benchmarks/Utils/Helper.MultipleStrategies.cs"
+            ]
+          }
+        ]
+      },
+      "3": {
+        "base_groups": 88,
+        "head_groups": 87,
+        "identical_groups": 80,
+        "removed": [
+          {
+            "id": "3.1.1",
+            "name": "Pipeline Execution Benchmarks",
+            "files": [
+              "bench/Polly.Benchmarks/Cache.cs",
+              "bench/Polly.Benchmarks/PollyConfig.cs",
+              "bench/Polly.Core.Benchmarks/BridgeBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/CompositeComponentBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/CreationBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/DelegatingComponentBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/GenericOverheadBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/PipelineBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/PollyVersion.cs",
+              "bench/Polly.Core.Benchmarks/PredicateBenchmark.cs",
+              "bench/Polly.Core.Benchmarks/TelemetryBenchmark.cs"
+            ]
+          },
+          {
+            "id": "3.1.2",
+            "name": "Benchmark Utilities",
+            "files": [
+              "bench/Polly.Core.Benchmarks/Utils/Helper.cs",
+              "bench/Polly.Core.Benchmarks/Utils/MeteringUtil.cs"
+            ]
+          },
+          {
+            "id": "1.5.2",
+            "name": "Hedging Task Execution",
+            "files": [
+              "src/Polly.Core/Hedging/Controller/HedgedTaskType.cs",
+              "src/Polly.Core/Hedging/Controller/TaskExecution.cs",
+              "src/Polly.Core/Hedging/HedgingActionGeneratorArguments.cs",
+              "src/Polly.Core/Hedging/HedgingPredicateArguments.cs",
+              "src/Polly.Core/Hedging/OnHedgingArguments.cs"
+            ]
+          },
+          {
+            "id": "1.5.1",
+            "name": "Hedging Execution Orchestration",
+            "files": [
+              "src/Polly.Core/Hedging/Controller/HedgingController.cs",
+              "src/Polly.Core/Hedging/Controller/HedgingExecutionContext.cs",
+              "src/Polly.Core/Hedging/HedgingDelayGeneratorArguments.cs",
+              "src/Polly.Core/Hedging/HedgingResiliencePipelineBuilderExtensions.cs",
+              "src/Polly.Core/Hedging/HedgingResilienceStrategy.cs"
+            ]
+          },
+          {
+            "id": "1.5.3",
+            "name": "Hedging Strategy Options and Handler",
+            "files": [
+              "src/Polly.Core/Hedging/Controller/HedgingHandler.cs",
+              "src/Polly.Core/Hedging/HedgingConstants.cs",
+              "src/Polly.Core/Hedging/HedgingStrategyOptions.TResult.cs"
+            ]
+          },
+          {
+            "id": "1.3.1",
+            "name": "Pipeline Component Composition & Lifecycle",
+            "files": [
+              "src/Polly.Core/Utils/DisposeBehavior.cs",
+              "src/Polly.Core/Utils/DisposeHelper.cs",
+              "src/Polly.Core/Utils/ExceptionUtilities.cs",
+              "src/Polly.Core/Utils/IOutcomeArguments.cs",
+              "src/Polly.Core/Utils/OutcomeUtilities.cs",
+              "src/Polly.Core/Utils/Pipeline/ComponentDisposeHelper.cs",
+              "src/Polly.Core/Utils/Pipeline/ComponentWithDisposeCallbacks.cs",
+              "src/Polly.Core/Utils/Pipeline/CompositeComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/CompositeComponentDebuggerProxy.cs",
+              "src/Polly.Core/Utils/Pipeline/DelegatingComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/ExecutionTrackingComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/ExternalComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/PipelineComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/PipelineComponentFactory.cs",
+              "src/Polly.Core/Utils/Pipeline/ReloadableComponent.cs",
+              "src/Polly.Core/Utils/TaskHelper.cs"
+            ]
+          },
+          {
+            "id": "1.3.4",
+            "name": "Strategy Bridge Components",
+            "files": [
+              "src/Polly.Core/Utils/Pipeline/BridgeComponent.TResult.cs",
+              "src/Polly.Core/Utils/Pipeline/BridgeComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/BridgeComponentBase.cs"
+            ]
+          },
+          {
+            "id": "2.1.1",
+            "name": "Policy Execution and Context",
+            "files": [
+              "src/Polly/AsyncPolicy.ContextAndKeys.cs",
+              "src/Polly/AsyncPolicy.ExecuteOverloads.cs",
+              "src/Polly/AsyncPolicy.GenericImplementation.cs",
+              "src/Polly/AsyncPolicy.NonGenericImplementation.cs",
+              "src/Polly/AsyncPolicy.TResult.ExecuteOverloads.cs",
+              "src/Polly/AsyncPolicy.TResult.cs",
+              "src/Polly/AsyncPolicy.cs",
+              "src/Polly/Context.Dictionary.cs",
+              "src/Polly/Context.cs",
+              "src/Polly/DelegateResult.cs",
+              "src/Polly/IAsyncPolicy.TResult.cs",
+              "src/Polly/IAsyncPolicy.cs",
+              "src/Polly/IAsyncPolicyExtensions.cs",
+              "src/Polly/IsPolicy.cs",
+              "src/Polly/Policy.ContextAndKeys.cs",
+              "src/Polly/Policy.ExecuteOverloads.cs",
+              "src/Polly/Policy.TResult.ExecuteOverloads.cs",
+              "src/Polly/Policy.TResult.cs",
+              "src/Polly/PolicyBase.ContextAndKeys.cs",
+              "src/Polly/PolicyResult.cs",
+              "src/Polly/ResiliencePipelineConversionExtensions.cs",
+              "src/Polly/ResultPredicate.cs",
+              "src/Polly/ResultPredicates.cs"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "1.5.1",
+            "name": "Hedging Execution Controller",
+            "files": [
+              "src/Polly.Core/Hedging/Controller/HedgedTaskType.cs",
+              "src/Polly.Core/Hedging/Controller/HedgingController.cs",
+              "src/Polly.Core/Hedging/Controller/HedgingExecutionContext.cs",
+              "src/Polly.Core/Hedging/Controller/HedgingHandler.cs",
+              "src/Polly.Core/Hedging/Controller/TaskExecution.cs",
+              "src/Polly.Core/Hedging/HedgingActionGeneratorArguments.cs",
+              "src/Polly.Core/Hedging/HedgingPredicateArguments.cs"
+            ]
+          },
+          {
+            "id": "1.5.3",
+            "name": "Hedging Configuration Options",
+            "files": [
+              "src/Polly.Core/Hedging/HedgingConstants.cs",
+              "src/Polly.Core/Hedging/HedgingStrategyOptions.TResult.cs",
+              "src/Polly.Core/Hedging/OnHedgingArguments.cs"
+            ]
+          },
+          {
+            "id": "1.5.2",
+            "name": "Hedging Resilience Strategy",
+            "files": [
+              "src/Polly.Core/Hedging/HedgingDelayGeneratorArguments.cs",
+              "src/Polly.Core/Hedging/HedgingResiliencePipelineBuilderExtensions.cs",
+              "src/Polly.Core/Hedging/HedgingResilienceStrategy.cs"
+            ]
+          },
+          {
+            "id": "1.3.4",
+            "name": "Safe Disposal Utilities",
+            "files": [
+              "src/Polly.Core/Utils/DisposeBehavior.cs",
+              "src/Polly.Core/Utils/DisposeHelper.cs"
+            ]
+          },
+          {
+            "id": "1.3.1",
+            "name": "Pipeline Execution Components",
+            "files": [
+              "src/Polly.Core/Utils/ExceptionUtilities.cs",
+              "src/Polly.Core/Utils/IOutcomeArguments.cs",
+              "src/Polly.Core/Utils/OutcomeUtilities.cs",
+              "src/Polly.Core/Utils/Pipeline/BridgeComponent.TResult.cs",
+              "src/Polly.Core/Utils/Pipeline/BridgeComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/BridgeComponentBase.cs",
+              "src/Polly.Core/Utils/Pipeline/ComponentDisposeHelper.cs",
+              "src/Polly.Core/Utils/Pipeline/ComponentWithDisposeCallbacks.cs",
+              "src/Polly.Core/Utils/Pipeline/CompositeComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/CompositeComponentDebuggerProxy.cs",
+              "src/Polly.Core/Utils/Pipeline/DelegatingComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/ExecutionTrackingComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/ExternalComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/PipelineComponent.cs",
+              "src/Polly.Core/Utils/Pipeline/PipelineComponentFactory.cs",
+              "src/Polly.Core/Utils/Pipeline/ReloadableComponent.cs",
+              "src/Polly.Core/Utils/TaskHelper.cs"
+            ]
+          },
+          {
+            "id": "2.1.1",
+            "name": "Async Policies and Execution Context",
+            "files": [
+              "src/Polly/AsyncPolicy.ContextAndKeys.cs",
+              "src/Polly/AsyncPolicy.ExecuteOverloads.cs",
+              "src/Polly/AsyncPolicy.GenericImplementation.cs",
+              "src/Polly/AsyncPolicy.NonGenericImplementation.cs",
+              "src/Polly/AsyncPolicy.TResult.ExecuteOverloads.cs",
+              "src/Polly/AsyncPolicy.TResult.cs",
+              "src/Polly/AsyncPolicy.cs",
+              "src/Polly/Context.Dictionary.cs",
+              "src/Polly/Context.cs",
+              "src/Polly/DelegateResult.cs",
+              "src/Polly/IAsyncPolicy.TResult.cs",
+              "src/Polly/IAsyncPolicy.cs",
+              "src/Polly/IAsyncPolicyExtensions.cs",
+              "src/Polly/IsPolicy.cs",
+              "src/Polly/Policy.ContextAndKeys.cs",
+              "src/Polly/Policy.ExecuteOverloads.cs",
+              "src/Polly/PolicyBase.ContextAndKeys.cs",
+              "src/Polly/PolicyResult.cs",
+              "src/Polly/ResiliencePipelineConversionExtensions.cs",
+              "src/Polly/ResultPredicate.cs",
+              "src/Polly/ResultPredicates.cs"
+            ]
+          },
+          {
+            "id": "2.1.5",
+            "name": "Synchronous Generic Policy",
+            "files": [
+              "src/Polly/Policy.TResult.ExecuteOverloads.cs",
+              "src/Polly/Policy.TResult.cs"
+            ]
+          }
+        ]
+      }
+    },
+    "base_files": 459,
+    "head_files": 459,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 446,
+    "head_relations": 429,
+    "unique_relation_edges": {
+      "base": 3198,
+      "head": 3213,
+      "lost": 64,
+      "added": 79
+    },
+    "largest_leaves": {
+      "base": [
+        23,
+        16,
+        15,
+        14,
+        14
+      ],
+      "head": [
+        29,
+        21,
+        17,
+        15,
+        14
+      ]
+    }
+  },
+  "release/serilog": {
+    "depths": {
+      "1": {
+        "base_groups": 9,
+        "head_groups": 9,
+        "identical_groups": 9,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 12,
+        "head_groups": 12,
+        "identical_groups": 12,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 11,
+        "head_groups": 11,
+        "identical_groups": 11,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 109,
+    "head_files": 109,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 120,
+    "head_relations": 122,
+    "unique_relation_edges": {
+      "base": 1420,
+      "head": 1422,
+      "lost": 0,
+      "added": 2
+    },
+    "largest_leaves": {
+      "base": [
+        8,
+        8,
+        7,
+        7,
+        7
+      ],
+      "head": [
+        8,
+        8,
+        7,
+        7,
+        7
+      ]
+    }
+  }
+}

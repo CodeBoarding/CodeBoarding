@@ -1,0 +1,1280 @@
+[
+  {
+    "benchmark": "release",
+    "test": "codeboarding",
+    "arm": "head",
+    "engine_commit": "9e86d3d18388e467ee64210552f5a57c28df89fa",
+    "engine_fingerprint": "5d82f1868fd8cb1db94bdc7af0e5f50693b73eea79b3f60a459ea913000dcdb2",
+    "subject": {
+      "repo": "CodeBoarding/CodeBoarding",
+      "repo_url": "https://github.com/CodeBoarding/CodeBoarding",
+      "commit": "b61e5abfc7dcd2fc8f492c4d53817aaa83c6d396",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 259.91,
+      "engine_s": 246.626,
+      "judge_s": null
+    },
+    "raw_full_tokens": 923766,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 146 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "146 file(s) analysed of 167 eligible (87%); 0 ignored-but-analysed, 21 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "eshop",
+    "arm": "base",
+    "engine_commit": "79db8c8010dde1b6e0394002c5e68312da5a1b26",
+    "engine_fingerprint": null,
+    "subject": {
+      "repo": "dotnet/eShop",
+      "repo_url": "https://github.com/dotnet/eShop",
+      "commit": "b4a40872005d4bb29e5b1fa1ff7e244143d39215",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 357.7,
+      "engine_s": 348.861,
+      "judge_s": null
+    },
+    "raw_full_tokens": 1444089,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 481 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "481 file(s) analysed of 498 eligible (95%); 0 ignored-but-analysed, 27 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "eshop",
+    "arm": "head",
+    "engine_commit": "9e86d3d18388e467ee64210552f5a57c28df89fa",
+    "engine_fingerprint": "5d82f1868fd8cb1db94bdc7af0e5f50693b73eea79b3f60a459ea913000dcdb2",
+    "subject": {
+      "repo": "dotnet/eShop",
+      "repo_url": "https://github.com/dotnet/eShop",
+      "commit": "b4a40872005d4bb29e5b1fa1ff7e244143d39215",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 352.27,
+      "engine_s": 342.007,
+      "judge_s": null
+    },
+    "raw_full_tokens": 1458506,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 481 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "481 file(s) analysed of 498 eligible (95%); 0 ignored-but-analysed, 27 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "failproofai",
+    "arm": "head",
+    "engine_commit": "9e86d3d18388e467ee64210552f5a57c28df89fa",
+    "engine_fingerprint": "5d82f1868fd8cb1db94bdc7af0e5f50693b73eea79b3f60a459ea913000dcdb2",
+    "subject": {
+      "repo": "exospherehost/failproofai",
+      "repo_url": "https://github.com/exospherehost/failproofai",
+      "commit": "1bd1fb393d940d229b32627c20096b4b25a1fbd8",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 443.86,
+      "engine_s": 428.119,
+      "judge_s": null
+    },
+    "raw_full_tokens": 2587756,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 388 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "388 file(s) analysed of 289 eligible (97%); 0 ignored-but-analysed, 9 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "gson",
+    "arm": "base",
+    "engine_commit": "79db8c8010dde1b6e0394002c5e68312da5a1b26",
+    "engine_fingerprint": null,
+    "subject": {
+      "repo": "google/gson",
+      "repo_url": "https://github.com/google/gson",
+      "commit": "2032818ecb1a5d0932d4702ff36a8cc5b3bc20aa",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 302.04,
+      "engine_s": 298.515,
+      "judge_s": null
+    },
+    "raw_full_tokens": 420726,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 109 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "109 file(s) analysed of 114 eligible (96%); 0 ignored-but-analysed, 5 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "gson",
+    "arm": "head",
+    "engine_commit": "9e86d3d18388e467ee64210552f5a57c28df89fa",
+    "engine_fingerprint": "5d82f1868fd8cb1db94bdc7af0e5f50693b73eea79b3f60a459ea913000dcdb2",
+    "subject": {
+      "repo": "google/gson",
+      "repo_url": "https://github.com/google/gson",
+      "commit": "2032818ecb1a5d0932d4702ff36a8cc5b3bc20aa",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 346.62,
+      "engine_s": 342.989,
+      "judge_s": null
+    },
+    "raw_full_tokens": 330582,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 109 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "109 file(s) analysed of 114 eligible (96%); 0 ignored-but-analysed, 5 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "hono",
+    "arm": "base",
+    "engine_commit": "79db8c8010dde1b6e0394002c5e68312da5a1b26",
+    "engine_fingerprint": null,
+    "subject": {
+      "repo": "honojs/hono",
+      "repo_url": "https://github.com/honojs/hono",
+      "commit": "eebdf7be39abf0a872671835ccce0c4f03ea497a",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 193.95,
+      "engine_s": 189.106,
+      "judge_s": null
+    },
+    "raw_full_tokens": 772804,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 164 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "164 file(s) analysed of 213 eligible (64%); 0 ignored-but-analysed, 76 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "hono",
+    "arm": "head",
+    "engine_commit": "9e86d3d18388e467ee64210552f5a57c28df89fa",
+    "engine_fingerprint": "5d82f1868fd8cb1db94bdc7af0e5f50693b73eea79b3f60a459ea913000dcdb2",
+    "subject": {
+      "repo": "honojs/hono",
+      "repo_url": "https://github.com/honojs/hono",
+      "commit": "eebdf7be39abf0a872671835ccce0c4f03ea497a",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 170.93,
+      "engine_s": 167.09,
+      "judge_s": null
+    },
+    "raw_full_tokens": 772609,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 164 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "164 file(s) analysed of 213 eligible (64%); 0 ignored-but-analysed, 76 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "jsoup",
+    "arm": "base",
+    "engine_commit": "79db8c8010dde1b6e0394002c5e68312da5a1b26",
+    "engine_fingerprint": null,
+    "subject": {
+      "repo": "jhy/jsoup",
+      "repo_url": "https://github.com/jhy/jsoup",
+      "commit": "7860d088e044236e288c1f88a743b68b2a0edece",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 246.19,
+      "engine_s": 243.123,
+      "judge_s": null
+    },
+    "raw_full_tokens": 324120,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 86 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "86 file(s) analysed of 93 eligible (92%); 0 ignored-but-analysed, 7 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "jsoup",
+    "arm": "head",
+    "engine_commit": "9e86d3d18388e467ee64210552f5a57c28df89fa",
+    "engine_fingerprint": "5d82f1868fd8cb1db94bdc7af0e5f50693b73eea79b3f60a459ea913000dcdb2",
+    "subject": {
+      "repo": "jhy/jsoup",
+      "repo_url": "https://github.com/jhy/jsoup",
+      "commit": "7860d088e044236e288c1f88a743b68b2a0edece",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 274.28,
+      "engine_s": 271.585,
+      "judge_s": null
+    },
+    "raw_full_tokens": 390451,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 86 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "86 file(s) analysed of 93 eligible (92%); 0 ignored-but-analysed, 7 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "junit4",
+    "arm": "base",
+    "engine_commit": "79db8c8010dde1b6e0394002c5e68312da5a1b26",
+    "engine_fingerprint": null,
+    "subject": {
+      "repo": "junit-team/junit4",
+      "repo_url": "https://github.com/junit-team/junit4",
+      "commit": "890f3c972647de378f25e7271d8fbbd9d3456b79",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 254.93,
+      "engine_s": 248.443,
+      "judge_s": null
+    },
+    "raw_full_tokens": 907371,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 204 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "204 file(s) analysed of 215 eligible (94%); 0 ignored-but-analysed, 12 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "junit4",
+    "arm": "head",
+    "engine_commit": "9e86d3d18388e467ee64210552f5a57c28df89fa",
+    "engine_fingerprint": "5d82f1868fd8cb1db94bdc7af0e5f50693b73eea79b3f60a459ea913000dcdb2",
+    "subject": {
+      "repo": "junit-team/junit4",
+      "repo_url": "https://github.com/junit-team/junit4",
+      "commit": "890f3c972647de378f25e7271d8fbbd9d3456b79",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 227.63,
+      "engine_s": 221.781,
+      "judge_s": null
+    },
+    "raw_full_tokens": 1035214,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 204 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "204 file(s) analysed of 215 eligible (94%); 0 ignored-but-analysed, 12 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "mermaid",
+    "arm": "base",
+    "engine_commit": "79db8c8010dde1b6e0394002c5e68312da5a1b26",
+    "engine_fingerprint": null,
+    "subject": {
+      "repo": "mermaid-js/mermaid",
+      "repo_url": "https://github.com/mermaid-js/mermaid",
+      "commit": "fe0e2375348eb23ddc85c71c721010b6db2478ea",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 311.03,
+      "engine_s": 275.619,
+      "judge_s": null
+    },
+    "raw_full_tokens": 1425674,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 462 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "462 file(s) analysed of 626 eligible (73%); 0 ignored-but-analysed, 166 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "mermaid",
+    "arm": "head",
+    "engine_commit": "9e86d3d18388e467ee64210552f5a57c28df89fa",
+    "engine_fingerprint": "5d82f1868fd8cb1db94bdc7af0e5f50693b73eea79b3f60a459ea913000dcdb2",
+    "subject": {
+      "repo": "mermaid-js/mermaid",
+      "repo_url": "https://github.com/mermaid-js/mermaid",
+      "commit": "fe0e2375348eb23ddc85c71c721010b6db2478ea",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 322.2,
+      "engine_s": 285.149,
+      "judge_s": null
+    },
+    "raw_full_tokens": 1676468,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 462 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "462 file(s) analysed of 626 eligible (73%); 0 ignored-but-analysed, 166 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "polly",
+    "arm": "base",
+    "engine_commit": "79db8c8010dde1b6e0394002c5e68312da5a1b26",
+    "engine_fingerprint": null,
+    "subject": {
+      "repo": "App-vNext/Polly",
+      "repo_url": "https://github.com/App-vNext/Polly",
+      "commit": "a057350b3a0cbf4f457104ed6981f97db71b94e1",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 394.26,
+      "engine_s": 371.0,
+      "judge_s": null
+    },
+    "raw_full_tokens": 1952258,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 459 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "459 file(s) analysed of 479 eligible (96%); 0 ignored-but-analysed, 20 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "polly",
+    "arm": "head",
+    "engine_commit": "9e86d3d18388e467ee64210552f5a57c28df89fa",
+    "engine_fingerprint": "5d82f1868fd8cb1db94bdc7af0e5f50693b73eea79b3f60a459ea913000dcdb2",
+    "subject": {
+      "repo": "App-vNext/Polly",
+      "repo_url": "https://github.com/App-vNext/Polly",
+      "commit": "a057350b3a0cbf4f457104ed6981f97db71b94e1",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 396.91,
+      "engine_s": 375.717,
+      "judge_s": null
+    },
+    "raw_full_tokens": 1879150,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 459 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "459 file(s) analysed of 479 eligible (96%); 0 ignored-but-analysed, 20 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "serilog",
+    "arm": "base",
+    "engine_commit": "79db8c8010dde1b6e0394002c5e68312da5a1b26",
+    "engine_fingerprint": null,
+    "subject": {
+      "repo": "serilog/serilog",
+      "repo_url": "https://github.com/serilog/serilog",
+      "commit": "63f1da33b80672e69d067acf32405b62eaedb110",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 269.21,
+      "engine_s": 247.217,
+      "judge_s": null
+    },
+    "raw_full_tokens": 464435,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 109 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "109 file(s) analysed of 112 eligible (97%); 0 ignored-but-analysed, 3 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  },
+  {
+    "benchmark": "release",
+    "test": "serilog",
+    "arm": "head",
+    "engine_commit": "9e86d3d18388e467ee64210552f5a57c28df89fa",
+    "engine_fingerprint": "5d82f1868fd8cb1db94bdc7af0e5f50693b73eea79b3f60a459ea913000dcdb2",
+    "subject": {
+      "repo": "serilog/serilog",
+      "repo_url": "https://github.com/serilog/serilog",
+      "commit": "63f1da33b80672e69d067acf32405b62eaedb110",
+      "base_commit": null,
+      "depth_level": 3
+    },
+    "outcome": "ok",
+    "summary": {
+      "met": 5,
+      "violated": 0,
+      "reported": 1,
+      "skipped": 2,
+      "not_applicable": 0,
+      "violated_criteria": []
+    },
+    "speed": {
+      "wall_s": 234.22,
+      "engine_s": 213.847,
+      "judge_s": null
+    },
+    "raw_full_tokens": 570598,
+    "criteria": [
+      {
+        "id": "document_invariants",
+        "outcome": "met",
+        "headline": "all 27 invariants hold"
+      },
+      {
+        "id": "tree_shape",
+        "outcome": "met",
+        "headline": "every expanded component splits into more than one sub-component"
+      },
+      {
+        "id": "edge_grounding",
+        "outcome": "met",
+        "headline": "every backing edge is grounded"
+      },
+      {
+        "id": "no_phantom_files",
+        "outcome": "met",
+        "headline": "every one of the 109 described file(s) exists here"
+      },
+      {
+        "id": "no_ignored_files",
+        "outcome": "met",
+        "headline": "nothing the repository excludes is described"
+      },
+      {
+        "id": "source_coverage",
+        "outcome": "reported",
+        "headline": "109 file(s) analysed of 112 eligible (97%); 0 ignored-but-analysed, 3 missing, 0 not present at the commit."
+      },
+      {
+        "id": "naming",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      },
+      {
+        "id": "description_grounding",
+        "outcome": "skipped",
+        "headline": "the judge did not run"
+      }
+    ]
+  }
+]
