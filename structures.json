@@ -1,4 +1,186 @@
 {
+  "release/codeboarding": {
+    "depths": {
+      "1": {
+        "base_groups": 8,
+        "head_groups": 8,
+        "identical_groups": 8,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 19,
+        "head_groups": 19,
+        "identical_groups": 19,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 17,
+        "head_groups": 20,
+        "identical_groups": 13,
+        "removed": [
+          {
+            "id": "1.1.1",
+            "name": "Analysis Pipeline & Call Graph Builder",
+            "files": [
+              "static_analyzer/__init__.py",
+              "static_analyzer/engine/adapters/java_adapter.py",
+              "static_analyzer/engine/call_graph_builder.py",
+              "static_analyzer/engine/edge_build_context.py",
+              "static_analyzer/engine/edge_builder.py",
+              "static_analyzer/engine/hierarchy_builder.py",
+              "static_analyzer/engine/models.py",
+              "static_analyzer/engine/progress.py",
+              "static_analyzer/engine/protocols.py",
+              "static_analyzer/engine/result_converter.py",
+              "static_analyzer/engine/source_inspector.py",
+              "static_analyzer/engine/symbol_table.py",
+              "static_analyzer/engine/utils.py"
+            ]
+          },
+          {
+            "id": "1.1.4",
+            "name": "Language Adapter Registry",
+            "files": [
+              "static_analyzer/engine/adapters/__init__.py"
+            ]
+          },
+          {
+            "id": "1.1.3",
+            "name": "LSP Client & Process Lifecycle Management",
+            "files": [
+              "static_analyzer/engine/adapters/csharp_adapter.py",
+              "static_analyzer/engine/adapters/rust_adapter.py",
+              "static_analyzer/engine/lsp_client.py",
+              "static_analyzer/engine/lsp_constants.py",
+              "static_analyzer/engine/lsp_recycler.py",
+              "static_analyzer/engine/process_memory.py"
+            ]
+          },
+          {
+            "id": "1.1.2",
+            "name": "Language Adapter Base & Dialect Implementations",
+            "files": [
+              "static_analyzer/engine/adapters/go_adapter.py",
+              "static_analyzer/engine/adapters/php_adapter.py",
+              "static_analyzer/engine/adapters/python_adapter.py",
+              "static_analyzer/engine/adapters/typescript_adapter.py",
+              "static_analyzer/engine/language_adapter.py"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "1.1.2",
+            "name": "Static Analysis Pipeline Orchestrator",
+            "files": [
+              "static_analyzer/__init__.py",
+              "static_analyzer/engine/call_graph_builder.py",
+              "static_analyzer/engine/hierarchy_builder.py",
+              "static_analyzer/engine/models.py",
+              "static_analyzer/engine/progress.py",
+              "static_analyzer/engine/source_inspector.py",
+              "static_analyzer/engine/utils.py"
+            ]
+          },
+          {
+            "id": "1.3.1",
+            "name": "Name Partitioning and Tree Specification",
+            "files": [
+              "static_analyzer/cluster_relations.py",
+              "static_analyzer/clustering/names/draft.py",
+              "static_analyzer/clustering/names/frontier.py",
+              "static_analyzer/clustering/names/inventory.py",
+              "static_analyzer/clustering/names/replay.py",
+              "static_analyzer/clustering/names/spec.py",
+              "static_analyzer/clustering/names/tokens.py",
+              "static_analyzer/config.py"
+            ]
+          },
+          {
+            "id": "1.3.2",
+            "name": "Component Clustering Service",
+            "files": [
+              "static_analyzer/clustering/exceptions.py",
+              "static_analyzer/clustering/models.py",
+              "static_analyzer/clustering/service.py"
+            ]
+          },
+          {
+            "id": "1.1.1",
+            "name": "Language-Specific Adapters",
+            "files": [
+              "static_analyzer/engine/adapters/__init__.py",
+              "static_analyzer/engine/adapters/csharp_adapter.py",
+              "static_analyzer/engine/adapters/go_adapter.py",
+              "static_analyzer/engine/adapters/java_adapter.py",
+              "static_analyzer/engine/adapters/php_adapter.py",
+              "static_analyzer/engine/adapters/python_adapter.py",
+              "static_analyzer/engine/adapters/rust_adapter.py",
+              "static_analyzer/engine/adapters/typescript_adapter.py",
+              "static_analyzer/engine/language_adapter.py"
+            ]
+          },
+          {
+            "id": "1.1.4",
+            "name": "Edge Resolution and Result Conversion",
+            "files": [
+              "static_analyzer/engine/edge_build_context.py",
+              "static_analyzer/engine/edge_builder.py",
+              "static_analyzer/engine/protocols.py",
+              "static_analyzer/engine/result_converter.py"
+            ]
+          },
+          {
+            "id": "1.1.3",
+            "name": "LSP Client and Process Lifecycle",
+            "files": [
+              "static_analyzer/engine/lsp_client.py",
+              "static_analyzer/engine/lsp_constants.py",
+              "static_analyzer/engine/lsp_recycler.py",
+              "static_analyzer/engine/process_memory.py"
+            ]
+          },
+          {
+            "id": "1.1.5",
+            "name": "Symbol Table Management",
+            "files": [
+              "static_analyzer/engine/symbol_table.py"
+            ]
+          }
+        ]
+      }
+    },
+    "base_files": 146,
+    "head_files": 146,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 169,
+    "head_relations": 184,
+    "unique_relation_edges": {
+      "base": 959,
+      "head": 1103,
+      "lost": 16,
+      "added": 160
+    },
+    "largest_leaves": {
+      "base": [
+        13,
+        11,
+        7,
+        7,
+        6
+      ],
+      "head": [
+        9,
+        8,
+        7,
+        7,
+        7
+      ]
+    }
+  },
   "release/eshop": {
     "depths": {
       "1": {
@@ -114,6 +296,559 @@
         21,
         19,
         18,
+        14
+      ]
+    }
+  },
+  "release/failproofai": {
+    "depths": {
+      "1": {
+        "base_groups": 7,
+        "head_groups": 7,
+        "identical_groups": 7,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 38,
+        "head_groups": 30,
+        "identical_groups": 23,
+        "removed": [
+          {
+            "id": "5.5",
+            "name": "CLI Formatting and Utility Helpers",
+            "files": [
+              "fp-cloud-cli/fp_cli/_click_compat.py",
+              "fp-cloud-cli/fp_cli/dates.py",
+              "fp-cloud-cli/fp_cli/theme.py"
+            ]
+          },
+          {
+            "id": "5.11",
+            "name": "CLI Execution Context",
+            "files": [
+              "fp-cloud-cli/fp_cli/_context.py"
+            ]
+          },
+          {
+            "id": "5.3",
+            "name": "CLI Application and Analytics",
+            "files": [
+              "fp-cloud-cli/fp_cli/analytics.py",
+              "fp-cloud-cli/fp_cli/analytics_config.py",
+              "fp-cloud-cli/fp_cli/analytics_registry.py",
+              "fp-cloud-cli/fp_cli/app.py"
+            ]
+          },
+          {
+            "id": "5.4",
+            "name": "Authentication and Configuration",
+            "files": [
+              "fp-cloud-cli/fp_cli/auth.py",
+              "fp-cloud-cli/fp_cli/commands/auth_cmds.py",
+              "fp-cloud-cli/fp_cli/config.py",
+              "fp-cloud-cli/fp_cli/select.py"
+            ]
+          },
+          {
+            "id": "5.12",
+            "name": "Cloud API Client",
+            "files": [
+              "fp-cloud-cli/fp_cli/client.py"
+            ]
+          },
+          {
+            "id": "5.2",
+            "name": "Operations and Incident Commands",
+            "files": [
+              "fp-cloud-cli/fp_cli/commands/_write.py",
+              "fp-cloud-cli/fp_cli/commands/agent_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/alerts_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/audits_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/incidents_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/users_cmds.py"
+            ]
+          },
+          {
+            "id": "5.7",
+            "name": "Error Handling and Reporting",
+            "files": [
+              "fp-cloud-cli/fp_cli/commands/errors_cmds.py",
+              "fp-cloud-cli/fp_cli/errors.py"
+            ]
+          },
+          {
+            "id": "5.1",
+            "name": "Observability and Query Commands",
+            "files": [
+              "fp-cloud-cli/fp_cli/commands/evals_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/events_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/guardrails_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/list_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/queries_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/sessions_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/settings_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/usage_cmds.py"
+            ]
+          },
+          {
+            "id": "5.8",
+            "name": "Fleet Management and Core Models",
+            "files": [
+              "fp-cloud-cli/fp_cli/commands/fleet_cmds.py",
+              "fp-cloud-cli/fp_cli/models.py"
+            ]
+          },
+          {
+            "id": "5.10",
+            "name": "API Key and Permissions Management",
+            "files": [
+              "fp-cloud-cli/fp_cli/commands/keys_cmds.py",
+              "fp-cloud-cli/fp_cli/permissions.py"
+            ]
+          },
+          {
+            "id": "5.9",
+            "name": "Organization Management",
+            "files": [
+              "fp-cloud-cli/fp_cli/commands/orgs_cmds.py",
+              "fp-cloud-cli/fp_cli/orgs.py"
+            ]
+          },
+          {
+            "id": "5.6",
+            "name": "Policy Enforcement and Management",
+            "files": [
+              "fp-cloud-cli/fp_cli/commands/policies_cmds.py",
+              "fp-cloud-cli/fp_cli/enforcement.py",
+              "fp-cloud-cli/fp_cli/policy_check.py"
+            ]
+          },
+          {
+            "id": "5.13",
+            "name": "Terminal Output Formatting",
+            "files": [
+              "fp-cloud-cli/fp_cli/output.py"
+            ]
+          },
+          {
+            "id": "7.1",
+            "name": "Release and Operations Scripts",
+            "files": [
+              "scripts/build-policy-pack.mjs",
+              "scripts/changelog-section.py",
+              "scripts/docs-audit.ts",
+              "scripts/launch.ts",
+              "scripts/parse-script-args.ts",
+              "scripts/prune-standalone.mjs",
+              "scripts/publish-aliases.mjs",
+              "scripts/python-version.py",
+              "scripts/release-announcement.mjs",
+              "scripts/skew-log-filter.ts"
+            ]
+          },
+          {
+            "id": "7.2",
+            "name": "Documentation Translation and Validation",
+            "files": [
+              "scripts/translate-docs/cache.ts",
+              "scripts/translate-docs/cli.ts",
+              "scripts/translate-docs/config.ts",
+              "scripts/translate-docs/mdx-translator.ts",
+              "scripts/translate-docs/mintlify-nav.ts",
+              "scripts/translate-docs/readme-translator.ts",
+              "scripts/translate-docs/translator.ts",
+              "scripts/translate-docs/types.ts",
+              "scripts/translate-docs/validate-translation.ts",
+              "scripts/validate-mdx.ts"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "5.2",
+            "name": "Validation and CLI Utilities",
+            "files": [
+              "fp-cloud-cli/fp_cli/_click_compat.py",
+              "fp-cloud-cli/fp_cli/dates.py",
+              "fp-cloud-cli/fp_cli/orgs.py",
+              "fp-cloud-cli/fp_cli/policy_check.py"
+            ]
+          },
+          {
+            "id": "5.1",
+            "name": "Command Handlers and Context",
+            "files": [
+              "fp-cloud-cli/fp_cli/_context.py",
+              "fp-cloud-cli/fp_cli/auth.py",
+              "fp-cloud-cli/fp_cli/commands/_write.py",
+              "fp-cloud-cli/fp_cli/commands/agent_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/alerts_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/audits_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/auth_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/errors_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/evals_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/events_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/fleet_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/guardrails_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/incidents_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/keys_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/list_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/orgs_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/policies_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/queries_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/sessions_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/settings_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/usage_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/users_cmds.py",
+              "fp-cloud-cli/fp_cli/enforcement.py"
+            ]
+          },
+          {
+            "id": "5.5",
+            "name": "Configuration and Telemetry Analytics",
+            "files": [
+              "fp-cloud-cli/fp_cli/analytics.py",
+              "fp-cloud-cli/fp_cli/analytics_config.py",
+              "fp-cloud-cli/fp_cli/analytics_registry.py",
+              "fp-cloud-cli/fp_cli/config.py"
+            ]
+          },
+          {
+            "id": "5.3",
+            "name": "Application Entry and Terminal Output",
+            "files": [
+              "fp-cloud-cli/fp_cli/app.py",
+              "fp-cloud-cli/fp_cli/output.py",
+              "fp-cloud-cli/fp_cli/select.py",
+              "fp-cloud-cli/fp_cli/theme.py"
+            ]
+          },
+          {
+            "id": "5.4",
+            "name": "Cloud API Client and Models",
+            "files": [
+              "fp-cloud-cli/fp_cli/client.py",
+              "fp-cloud-cli/fp_cli/errors.py",
+              "fp-cloud-cli/fp_cli/models.py",
+              "fp-cloud-cli/fp_cli/permissions.py"
+            ]
+          },
+          {
+            "id": "7.1",
+            "name": "Lifecycle and Validation Utilities",
+            "files": [
+              "scripts/build-policy-pack.mjs",
+              "scripts/changelog-section.py",
+              "scripts/docs-audit.ts",
+              "scripts/launch.ts",
+              "scripts/parse-script-args.ts",
+              "scripts/prune-standalone.mjs",
+              "scripts/publish-aliases.mjs",
+              "scripts/python-version.py",
+              "scripts/release-announcement.mjs",
+              "scripts/skew-log-filter.ts",
+              "scripts/validate-mdx.ts"
+            ]
+          },
+          {
+            "id": "7.2",
+            "name": "Documentation Translation Toolchain",
+            "files": [
+              "scripts/translate-docs/cache.ts",
+              "scripts/translate-docs/cli.ts",
+              "scripts/translate-docs/config.ts",
+              "scripts/translate-docs/mdx-translator.ts",
+              "scripts/translate-docs/mintlify-nav.ts",
+              "scripts/translate-docs/readme-translator.ts",
+              "scripts/translate-docs/translator.ts",
+              "scripts/translate-docs/types.ts",
+              "scripts/translate-docs/validate-translation.ts"
+            ]
+          }
+        ]
+      },
+      "3": {
+        "base_groups": 58,
+        "head_groups": 62,
+        "identical_groups": 49,
+        "removed": [
+          {
+            "id": "2.1.2",
+            "name": "Log Viewer and Entry Presentation",
+            "files": [
+              "app/components/cli-badge.tsx",
+              "app/components/date-picker-input.tsx",
+              "app/components/log-viewer/content-block-view.tsx",
+              "app/components/log-viewer/entry-icon.tsx",
+              "app/components/log-viewer/entry-link-button.tsx",
+              "app/components/log-viewer/entry-row.tsx",
+              "app/components/log-viewer/tool-input-output.tsx",
+              "app/components/log-viewer/type-badge.tsx",
+              "app/components/raw-log-viewer.tsx"
+            ]
+          },
+          {
+            "id": "2.1.3",
+            "name": "Session Listing and Activity Inspection",
+            "files": [
+              "app/components/copy-button.tsx",
+              "app/components/pagination-controls.tsx",
+              "app/components/session-hooks-panel.tsx",
+              "app/components/sessions-list.tsx"
+            ]
+          },
+          {
+            "id": "2.1.1",
+            "name": "Project Directory and Status Controls",
+            "files": [
+              "app/components/error-fallback.tsx",
+              "app/components/global-error-listeners.tsx",
+              "app/components/lazy-log-viewer.tsx",
+              "app/components/log-viewer/queue-divider.tsx",
+              "app/components/log-viewer/stats-bar.tsx",
+              "app/components/pause-notices.tsx",
+              "app/components/project-list.tsx",
+              "app/components/refresh-button.tsx",
+              "app/components/toast.tsx"
+            ]
+          },
+          {
+            "id": "7.2.1",
+            "name": "Translation Core and Cache",
+            "files": [
+              "scripts/translate-docs/cache.ts",
+              "scripts/translate-docs/readme-translator.ts",
+              "scripts/translate-docs/translator.ts",
+              "scripts/translate-docs/types.ts"
+            ]
+          },
+          {
+            "id": "7.2.2",
+            "name": "Documentation Translation CLI and MDX Processing",
+            "files": [
+              "scripts/translate-docs/cli.ts",
+              "scripts/translate-docs/config.ts",
+              "scripts/translate-docs/mdx-translator.ts",
+              "scripts/translate-docs/mintlify-nav.ts"
+            ]
+          },
+          {
+            "id": "7.2.3",
+            "name": "Translation and MDX Validation",
+            "files": [
+              "scripts/translate-docs/validate-translation.ts",
+              "scripts/validate-mdx.ts"
+            ]
+          },
+          {
+            "id": "6.1.1",
+            "name": "Core Adapter Infrastructure and Framework Integrations",
+            "files": [
+              "sdk/python/docs/_shared/__init__.py",
+              "sdk/python/failproofai_sdk/integrations/_compat.py",
+              "sdk/python/failproofai_sdk/integrations/_core.py",
+              "sdk/python/failproofai_sdk/integrations/langchain.py",
+              "sdk/python/failproofai_sdk/integrations/llama_index.py"
+            ]
+          },
+          {
+            "id": "6.1.2",
+            "name": "SDK Configuration, Event Writer, and Adapter Registry",
+            "files": [
+              "sdk/python/failproofai_sdk/__init__.py",
+              "sdk/python/failproofai_sdk/_environment.py",
+              "sdk/python/failproofai_sdk/_resolver.py",
+              "sdk/python/failproofai_sdk/_writer.py",
+              "sdk/python/failproofai_sdk/integrations/__init__.py"
+            ]
+          },
+          {
+            "id": "6.1.3",
+            "name": "Context Scopes and CrewAI/Pydantic AI Integrations",
+            "files": [
+              "sdk/python/failproofai_sdk/_context.py",
+              "sdk/python/failproofai_sdk/_scopes.py",
+              "sdk/python/failproofai_sdk/integrations/crewai.py",
+              "sdk/python/failproofai_sdk/integrations/pydantic_ai.py"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "id": "2.1.1",
+            "name": "Session Explorer and Log Entry Views",
+            "files": [
+              "app/components/cli-badge.tsx",
+              "app/components/copy-button.tsx",
+              "app/components/date-picker-input.tsx",
+              "app/components/log-viewer/content-block-view.tsx",
+              "app/components/log-viewer/entry-link-button.tsx",
+              "app/components/log-viewer/entry-row.tsx",
+              "app/components/log-viewer/tool-input-output.tsx",
+              "app/components/log-viewer/type-badge.tsx",
+              "app/components/pagination-controls.tsx",
+              "app/components/project-list.tsx",
+              "app/components/refresh-button.tsx",
+              "app/components/session-hooks-panel.tsx",
+              "app/components/sessions-list.tsx"
+            ]
+          },
+          {
+            "id": "2.1.3",
+            "name": "Notifications and Error Handlers",
+            "files": [
+              "app/components/error-fallback.tsx",
+              "app/components/global-error-listeners.tsx",
+              "app/components/pause-notices.tsx",
+              "app/components/toast.tsx"
+            ]
+          },
+          {
+            "id": "2.1.2",
+            "name": "Virtualized Log Stream Viewer",
+            "files": [
+              "app/components/lazy-log-viewer.tsx",
+              "app/components/log-viewer/entry-icon.tsx",
+              "app/components/log-viewer/queue-divider.tsx",
+              "app/components/log-viewer/stats-bar.tsx",
+              "app/components/raw-log-viewer.tsx"
+            ]
+          },
+          {
+            "id": "5.1.3",
+            "name": "Execution Context and Audit Commands",
+            "files": [
+              "fp-cloud-cli/fp_cli/_context.py",
+              "fp-cloud-cli/fp_cli/commands/audits_cmds.py"
+            ]
+          },
+          {
+            "id": "5.1.4",
+            "name": "Authentication Flow and Commands",
+            "files": [
+              "fp-cloud-cli/fp_cli/auth.py",
+              "fp-cloud-cli/fp_cli/commands/auth_cmds.py"
+            ]
+          },
+          {
+            "id": "5.1.5",
+            "name": "Command Mutation Helpers",
+            "files": [
+              "fp-cloud-cli/fp_cli/commands/_write.py"
+            ]
+          },
+          {
+            "id": "5.1.1",
+            "name": "Resource Command Handlers",
+            "files": [
+              "fp-cloud-cli/fp_cli/commands/agent_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/alerts_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/errors_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/evals_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/events_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/guardrails_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/incidents_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/keys_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/list_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/orgs_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/queries_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/sessions_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/settings_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/usage_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/users_cmds.py"
+            ]
+          },
+          {
+            "id": "5.1.2",
+            "name": "Fleet and Policy Enforcement",
+            "files": [
+              "fp-cloud-cli/fp_cli/commands/fleet_cmds.py",
+              "fp-cloud-cli/fp_cli/commands/policies_cmds.py",
+              "fp-cloud-cli/fp_cli/enforcement.py"
+            ]
+          },
+          {
+            "id": "7.2.1",
+            "name": "Content Translation and Cache Services",
+            "files": [
+              "scripts/translate-docs/cache.ts",
+              "scripts/translate-docs/mdx-translator.ts",
+              "scripts/translate-docs/readme-translator.ts",
+              "scripts/translate-docs/translator.ts",
+              "scripts/translate-docs/types.ts",
+              "scripts/translate-docs/validate-translation.ts"
+            ]
+          },
+          {
+            "id": "7.2.2",
+            "name": "Translation CLI and Navigation Generator",
+            "files": [
+              "scripts/translate-docs/cli.ts",
+              "scripts/translate-docs/config.ts",
+              "scripts/translate-docs/mintlify-nav.ts"
+            ]
+          },
+          {
+            "id": "6.1.2",
+            "name": "Ambient Context and Spool Path Resolution",
+            "files": [
+              "sdk/python/docs/_shared/__init__.py",
+              "sdk/python/failproofai_sdk/_context.py",
+              "sdk/python/failproofai_sdk/_resolver.py"
+            ]
+          },
+          {
+            "id": "6.1.3",
+            "name": "SDK Configuration and Event Spool Writer",
+            "files": [
+              "sdk/python/failproofai_sdk/__init__.py",
+              "sdk/python/failproofai_sdk/_environment.py",
+              "sdk/python/failproofai_sdk/_writer.py"
+            ]
+          },
+          {
+            "id": "6.1.1",
+            "name": "Execution Scopes and Framework Adapters",
+            "files": [
+              "sdk/python/failproofai_sdk/_scopes.py",
+              "sdk/python/failproofai_sdk/integrations/__init__.py",
+              "sdk/python/failproofai_sdk/integrations/_compat.py",
+              "sdk/python/failproofai_sdk/integrations/_core.py",
+              "sdk/python/failproofai_sdk/integrations/crewai.py",
+              "sdk/python/failproofai_sdk/integrations/langchain.py",
+              "sdk/python/failproofai_sdk/integrations/llama_index.py",
+              "sdk/python/failproofai_sdk/integrations/pydantic_ai.py"
+            ]
+          }
+        ]
+      }
+    },
+    "base_files": 388,
+    "head_files": 388,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 388,
+    "head_relations": 356,
+    "unique_relation_edges": {
+      "base": 2241,
+      "head": 2032,
+      "lost": 334,
+      "added": 125
+    },
+    "largest_leaves": {
+      "base": [
+        38,
+        17,
+        17,
+        14,
+        14
+      ],
+      "head": [
+        38,
+        17,
+        17,
+        15,
         14
       ]
     }
