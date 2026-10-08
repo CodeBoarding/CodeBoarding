@@ -2571,6 +2571,218 @@
       ]
     }
   },
+  "full/gson-before-alternate-field-names": {
+    "depths": {
+      "1": {
+        "base_groups": 4,
+        "head_groups": 4,
+        "identical_groups": 4,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 11,
+        "head_groups": 11,
+        "identical_groups": 11,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 7,
+        "head_groups": 7,
+        "identical_groups": 7,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 111,
+    "head_files": 111,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 87,
+    "head_relations": 87,
+    "unique_relation_edges": {
+      "base": 3485,
+      "head": 3485,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        18,
+        17,
+        14,
+        9,
+        7
+      ],
+      "head": [
+        18,
+        17,
+        14,
+        9,
+        7
+      ]
+    }
+  },
+  "full/gson-before-gson-types-rename": {
+    "depths": {
+      "1": {
+        "base_groups": 4,
+        "head_groups": 4,
+        "identical_groups": 4,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 11,
+        "head_groups": 11,
+        "identical_groups": 11,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 7,
+        "head_groups": 7,
+        "identical_groups": 7,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 111,
+    "head_files": 111,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 87,
+    "head_relations": 87,
+    "unique_relation_edges": {
+      "base": 3485,
+      "head": 3485,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        18,
+        17,
+        14,
+        9,
+        7
+      ],
+      "head": [
+        18,
+        17,
+        14,
+        9,
+        7
+      ]
+    }
+  },
+  "full/gson-before-java-time-adapters": {
+    "depths": {
+      "1": {
+        "base_groups": 4,
+        "head_groups": 4,
+        "identical_groups": 4,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 11,
+        "head_groups": 11,
+        "identical_groups": 11,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 7,
+        "head_groups": 7,
+        "identical_groups": 7,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 111,
+    "head_files": 111,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 87,
+    "head_relations": 87,
+    "unique_relation_edges": {
+      "base": 3380,
+      "head": 3380,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        17,
+        17,
+        14,
+        9,
+        8
+      ],
+      "head": [
+        17,
+        17,
+        14,
+        9,
+        8
+      ]
+    }
+  },
+  "full/gson-before-reflection-helper-move": {
+    "depths": {
+      "1": {
+        "base_groups": 4,
+        "head_groups": 4,
+        "identical_groups": 4,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 11,
+        "head_groups": 11,
+        "identical_groups": 11,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 7,
+        "head_groups": 7,
+        "identical_groups": 7,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 109,
+    "head_files": 109,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 87,
+    "head_relations": 87,
+    "unique_relation_edges": {
+      "base": 3514,
+      "head": 3514,
+      "lost": 0,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        18,
+        15,
+        14,
+        9,
+        7
+      ],
+      "head": [
+        18,
+        15,
+        14,
+        9,
+        7
+      ]
+    }
+  },
   "full/mediatr-before-fsharp-assembly-support": {
     "depths": {
       "1": {
@@ -2975,6 +3187,59 @@
         5,
         4,
         4
+      ]
+    }
+  },
+  "full/serilog-before-restricted-sink-forwarding": {
+    "depths": {
+      "1": {
+        "base_groups": 9,
+        "head_groups": 9,
+        "identical_groups": 9,
+        "removed": [],
+        "added": []
+      },
+      "2": {
+        "base_groups": 12,
+        "head_groups": 12,
+        "identical_groups": 12,
+        "removed": [],
+        "added": []
+      },
+      "3": {
+        "base_groups": 11,
+        "head_groups": 11,
+        "identical_groups": 11,
+        "removed": [],
+        "added": []
+      }
+    },
+    "base_files": 109,
+    "head_files": 109,
+    "same_indexed_files": true,
+    "same_method_ids": true,
+    "base_relations": 121,
+    "head_relations": 120,
+    "unique_relation_edges": {
+      "base": 1421,
+      "head": 1420,
+      "lost": 1,
+      "added": 0
+    },
+    "largest_leaves": {
+      "base": [
+        8,
+        8,
+        7,
+        7,
+        7
+      ],
+      "head": [
+        8,
+        8,
+        7,
+        7,
+        7
       ]
     }
   }
