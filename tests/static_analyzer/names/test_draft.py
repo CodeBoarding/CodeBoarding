@@ -1,7 +1,9 @@
 """Drafting: the frontier grouped into components, the ladder below them, and the guard."""
 
+import json
 import re
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +14,7 @@ from static_analyzer.clustering.names import (
     CandidateGroup,
     KinshipGrouper,
     ROLE_WORDS,
+    TreeSpec,
     draft_scope,
     draft_tree,
     replay,
@@ -70,6 +73,56 @@ def eshop() -> dict[str, list[str]]:
 
 def names_of(scope) -> list[str]:
     return [rule.name for rule in scope.rules]
+
+
+def test_depth_three_keeps_language_implementations_separate_from_lsp_transport():
+    fixture = json.loads((Path(__file__).parent / "fixtures/codeboarding-engine.json").read_text())
+    units = units_from_layout(fixture["files"])
+    links = {(left, right): weight for left, right, weight in fixture["links"]}
+    scope, partition = draft_scope(fixture["scope_id"], units, ROLE_WORDS, AffinityGrouper(), links=links)
+    prefix = "static_analyzer/engine/"
+    expected = {
+        prefix + "adapters/" + name
+        for name in (
+            "__init__.py",
+            "csharp_adapter.py",
+            "go_adapter.py",
+            "java_adapter.py",
+            "kotlin_adapter.py",
+            "php_adapter.py",
+            "python_adapter.py",
+            "rust_adapter.py",
+            "typescript_adapter.py",
+        )
+    }
+    owner = partition.assignment[prefix + "adapters/csharp_adapter.py"]
+    assert len(owner.split(".")) == 3
+    assert {unit.unit_id for unit in partition.members[owner]} == expected
+    assert partition.assignment[prefix + "lsp_client.py"] != owner
+    assert set(partition.assignment) == set(fixture["files"])
+
+    spec = TreeSpec(scopes={scope.scope_id: scope})
+    restored = TreeSpec.from_dict(spec.to_dict())
+    assert replay(units, scope_of(restored, scope.scope_id), ROLE_WORDS).assignment == partition.assignment
+
+
+def test_file_fallback_preserves_unopened_directories_before_voting_on_names():
+    layout = {
+        f"engine/extensions/{family}_{i}.py": [f"engine.extensions.{family}_{i}.run"]
+        for family in ("socket", "symbol")
+        for i in range(2)
+    }
+    layout |= {
+        f"engine/{family}_{i}.py": [f"engine.{family}_{i}.run"] for family in ("socket", "symbol") for i in range(3)
+    }
+    scope, partition = draft_scope("1.1", units_from_layout(layout), ROLE_WORDS, KinshipGrouper())
+    assert scope.rung == FILES
+    owner = partition.assignment["engine/extensions/socket_0.py"]
+    assert {unit.unit_id for unit in partition.members[owner]} == {
+        path for path in layout if path.startswith("engine/extensions/")
+    }
+    added = units_from_layout({"engine/extensions/socket_new.py": ["engine.extensions.socket_new.run"]})
+    assert replay(added, scope, ROLE_WORDS).assignment == {added[0].unit_id: owner}
 
 
 class TestRootDraft:
