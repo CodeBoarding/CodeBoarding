@@ -110,6 +110,7 @@ include-package-data = true
 codeboarding = "codeboarding_cli.main:main"
 codeboarding-setup = "infra.install:main"
 codeboarding-render = "codeboarding_cli.render:main"
+codeboarding-expand = "codeboarding_cli.expand:main"
 
 [project.urls]
 Repository = "https://github.com/CodeBoarding/CodeBoarding"
