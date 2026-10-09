@@ -15,7 +15,7 @@ from static_analyzer.clustering import (
 )
 from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
-from static_analyzer.reference_resolver import StaticReferenceResolver
+from diagram_analysis.reference_resolver import StaticReferenceResolver
 
 
 def _component(component_id: str, name: str) -> Component:

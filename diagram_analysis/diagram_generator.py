@@ -71,8 +71,8 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalysisFatalError, StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.reference_resolver import StaticReferenceResolver
-from static_analyzer.cluster_relations import (
+from diagram_analysis.reference_resolver import StaticReferenceResolver
+from diagram_analysis.cluster_relations import (
     build_global_node_to_component_map,
     build_global_relations,
     is_self_or_descendant,

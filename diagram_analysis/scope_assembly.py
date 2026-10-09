@@ -24,7 +24,7 @@ from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.cfg import Edge
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult, GroupConnection
-from static_analyzer.reference_resolver import StaticReferenceResolver
+from diagram_analysis.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
 

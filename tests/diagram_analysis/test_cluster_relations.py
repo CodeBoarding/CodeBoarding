@@ -20,7 +20,7 @@ from agents.relation_edges import (
     ground_relation_edges,
     prune_ungrounded_edges,
 )
-from static_analyzer.cluster_relations import (
+from diagram_analysis.cluster_relations import (
     build_component_relations,
     is_self_or_descendant,
 )

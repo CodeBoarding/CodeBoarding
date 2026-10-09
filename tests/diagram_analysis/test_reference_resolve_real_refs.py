@@ -21,7 +21,7 @@ from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import NodeType
 from static_analyzer.node import Node
-from static_analyzer.reference_resolver import StaticReferenceResolver
+from diagram_analysis.reference_resolver import StaticReferenceResolver
 
 
 # ---------------------------------------------------------------------------

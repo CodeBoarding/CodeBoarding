@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 
 from agents.llm_config import configure_models, validate_api_key_provided
-from core import get_registries, load_plugins
+from health.plugins import get_registries, load_plugins
 from diagram_analysis.run_context import RunPaths
 from install import ensure_tools
 from logging_config import setup_logging

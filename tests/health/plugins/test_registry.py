@@ -1,6 +1,6 @@
 import pytest
 
-from core.registry import DuplicateRegistrationError, Registry
+from health.plugins.registry import DuplicateRegistrationError, Registry
 
 
 def test_register_and_get():

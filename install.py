@@ -12,7 +12,6 @@ from enum import StrEnum
 from pathlib import Path
 
 import requests
-from static_analyzer.java_utils import find_java_21_or_later
 from tool_registry import (
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
@@ -35,9 +34,9 @@ from tool_registry import (
     preferred_npm_command,
     write_manifest,
 )
+from tool_registry.java import find_java_21_or_later
 from tool_registry.registry import ConfigSection, PackageManagerToolSource
 from vscode_constants import VSCODE_CONFIG
-from static_analyzer.config import Language
 from user_config import ensure_config_template
 
 
@@ -672,7 +671,7 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
         for lang in languages:
             checks.append(
                 LanguageSupportCheck(
-                    language=Language(lang).value,
+                    language=lang,
                     paths=list(paths),
                     requires_npm=requires_npm,
                     fallback_available=fallback_available,
