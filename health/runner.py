@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from core import run_plugin_health_checks
+from health.plugins import run_plugin_health_checks
 from health.checks.circular_deps import check_circular_dependencies
 from health.checks.function_size import check_function_size
 from health.checks.unused_code_diagnostics import (

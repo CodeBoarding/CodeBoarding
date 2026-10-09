@@ -7,7 +7,7 @@ from importlib.metadata import entry_points
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core import Registries
+    from health.plugins import Registries
 
 logger = logging.getLogger(__name__)
 

@@ -26,7 +26,7 @@ from diagram_analysis.scope_assembly import ScopeAssembler
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterScopeResult
-from static_analyzer.reference_resolver import StaticReferenceResolver
+from diagram_analysis.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
 

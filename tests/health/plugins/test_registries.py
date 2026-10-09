@@ -1,5 +1,5 @@
-from core import Registries, get_registries, reset_registries
-from core.registry import Registry
+from health.plugins import Registries, get_registries, reset_registries
+from health.plugins.registry import Registry
 
 
 def test_get_registries_returns_singleton():

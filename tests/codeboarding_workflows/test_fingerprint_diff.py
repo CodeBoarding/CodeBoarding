@@ -4,7 +4,7 @@ import pytest
 
 from agents.content_hash import hash_repo_source_files
 from diagram_analysis.io_utils import write_fingerprint
-from repo_utils.fingerprint_diff import (
+from codeboarding_workflows.fingerprint_diff import (
     BaselineUnavailableError,
     detect_changes_from_fingerprint,
     diff_file_maps,

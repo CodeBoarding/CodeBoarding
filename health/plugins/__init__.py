@@ -2,21 +2,21 @@
 CodeBoarding plugin infrastructure.
 
 Usage:
-    from core import get_registries, load_plugins
+    from health.plugins import get_registries, load_plugins
 
     registries = get_registries()
     load_plugins(registries)
 
-Type aliases for plugin contracts are available in core.protocols:
-    from core.protocols import HealthCheckFunc, ToolFactory
+Type aliases for plugin contracts are available in health.plugins.protocols:
+    from health.plugins.protocols import HealthCheckFunc, ToolFactory
 """
 
 import logging
 from typing import TYPE_CHECKING
 
-from core.plugin_loader import load_plugins
-from core.protocols import HealthCheckFunc, ToolFactory
-from core.registry import Registry
+from health.plugins.plugin_loader import load_plugins
+from health.plugins.protocols import HealthCheckFunc, ToolFactory
+from health.plugins.registry import Registry
 
 if TYPE_CHECKING:
     from agents.tools.base import BaseRepoTool, RepoContext
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class Registries:
     """Namespace holding all plugin registries.
 
-    Type contracts for each registry are defined in core.protocols.
+    Type contracts for each registry are defined in health.plugins.protocols.
     """
 
     def __init__(self) -> None:

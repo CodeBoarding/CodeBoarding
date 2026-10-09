@@ -1,7 +1,7 @@
 """Domain model for the incremental change set.
 
 Pure data + methods, no I/O. Produced by the content-hash fingerprint diff
-(:func:`repo_utils.fingerprint_diff.detect_changes_from_fingerprint`),
+(:func:`codeboarding_workflows.fingerprint_diff.detect_changes_from_fingerprint`),
 consumed by the incremental analysis pipeline:
 
 - file-level accessors: ``added_files``, ``modified_files``, ``deleted_files``,
