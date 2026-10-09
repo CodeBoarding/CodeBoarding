@@ -1,4 +1,4 @@
-from constants import (
+from infra.constants import (
     ANALYSIS_FILENAME,
     CODEBOARDING_VERSION_FILENAME,
     FINGERPRINT_FILENAME,
@@ -10,8 +10,8 @@ from static_analyzer.analysis_cache import (
     STATIC_ANALYSIS_PKL as COMPAT_STATIC_ANALYSIS_PKL,
     STATIC_ANALYSIS_SHA as COMPAT_STATIC_ANALYSIS_SHA,
 )
-from utils import ANALYSIS_FILENAME as COMPAT_ANALYSIS_FILENAME
-from utils import FINGERPRINT_FILENAME as COMPAT_FINGERPRINT_FILENAME
+from infra.utils import ANALYSIS_FILENAME as COMPAT_ANALYSIS_FILENAME
+from infra.utils import FINGERPRINT_FILENAME as COMPAT_FINGERPRINT_FILENAME
 
 
 def test_persisted_analysis_artifact_manifest_and_compatibility_imports():

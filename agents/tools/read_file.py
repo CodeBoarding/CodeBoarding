@@ -4,7 +4,7 @@ from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
 
 from agents.tools.base import BaseRepoTool
-from repo_utils.path_utils import normalize_repo_path
+from infra.repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
 

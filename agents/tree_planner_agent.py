@@ -13,12 +13,13 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent_responses import PlannedGroup, TreePlanInsights
-from agents.llm_config import MONITORING_CALLBACK, get_current_prompt_profile, supports_json_mode
+from agents.llm_config import get_current_prompt_profile, supports_json_mode
+from infra.monitoring.callbacks import MONITORING_CALLBACK
 from agents.llm_errors import LLMAuthError, raise_if_auth_error
 from agents.prompts import get_tree_plan_prompts
 from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries
-from monitoring import trace
-from monitoring.mixin import MonitoringMixin
+from infra.monitoring import trace
+from infra.monitoring.mixin import MonitoringMixin
 from static_analyzer.clustering.names import CandidateGroup, GroupingContext, KinshipGrouper, stem, tokenize
 from static_analyzer.clustering.names.draft import GUARD_SHARE, MIN_UNITS
 from static_analyzer.clustering.names.frontier import Candidate

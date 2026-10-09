@@ -4,9 +4,9 @@ import unittest
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from monitoring import MonitoringCallback
-from monitoring.stats import RunStats
-from monitoring.context import current_step
+from infra.monitoring import MonitoringCallback
+from infra.monitoring.stats import RunStats
+from infra.monitoring.context import current_step
 from langchain_core.outputs import LLMResult
 
 
@@ -112,7 +112,7 @@ class TestMonitoringCallback(unittest.TestCase):
         token = current_step.set("dummyStep")
         try:
             self.callback.model_name = "dummyModel"
-            with patch("monitoring.callbacks.logger.info") as mock_info:
+            with patch("infra.monitoring.callbacks.logger.info") as mock_info:
                 self.callback.on_llm_end(response)
 
                 expected = (

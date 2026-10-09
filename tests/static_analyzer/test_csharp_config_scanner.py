@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from static_analyzer.csharp_config_scanner import CSharpConfigScanner, CSharpProjectConfig
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 
 
 class TestCSharpProjectConfig:

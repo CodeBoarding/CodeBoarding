@@ -31,7 +31,7 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from diagram_analysis.run_context import DEFAULT_DEPTH_CAP
-from utils import ANALYSIS_FILENAME, FINGERPRINT_FILENAME
+from infra.utils import ANALYSIS_FILENAME, FINGERPRINT_FILENAME
 
 logger = logging.getLogger(__name__)
 

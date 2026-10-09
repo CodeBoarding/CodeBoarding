@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
+from infra.clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
 from static_analyzer.cfg import CallGraph, CallSiteLocation
 
 

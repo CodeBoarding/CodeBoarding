@@ -5,7 +5,7 @@ from dataclasses import replace
 
 import pytest
 
-from clustering_ids import ROOT_SCOPE_ID
+from infra.clustering_ids import ROOT_SCOPE_ID
 from static_analyzer.clustering.names import (
     AffinityGrouper,
     Candidate,

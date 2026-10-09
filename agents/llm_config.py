@@ -15,12 +15,7 @@ from langchain_openai import ChatOpenAI
 from agents.constants import LLMDefaults, ModelCapabilities
 from agents.model_capabilities import ContextWindow, get_context_window
 from agents.prompts import PromptProfile, resolve_prompt_profile
-from monitoring.callbacks import MonitoringCallback
-
-# Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
-from monitoring.stats import RunStats
-
-MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
+from infra.monitoring.callbacks import MONITORING_CALLBACK
 
 logger = logging.getLogger(__name__)
 

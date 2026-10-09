@@ -60,13 +60,13 @@ Adding language support requires changes across several files. Use [PR #276 (Rus
 | `static_analyzer/engine/adapters/__init__.py` | Import the adapter and add it to `ADAPTER_REGISTRY`. |
 | `static_analyzer/config.py` | Add a value to the `Language` enum. Qualified names use the universal `.` delimiter defined in `ClusteringConfig.QUALIFIED_NAME_DELIMITER`. |
 | `static_analyzer/__init__.py` | Add a mapping in `_lang_to_adapter_name()` from the `ProgrammingLanguage` name to the adapter registry key. |
-| `vscode_constants.py` | Add an LSP server config entry to `VSCODE_CONFIG["lsp_servers"]` with the server name, command, languages, file extensions, and install command. |
-| `tool_registry/registry.py` | Add a `ToolDependency` entry to `TOOL_REGISTRY` (see below). |
-| `static_analyzer/engine/source_inspector.py` + `pyproject.toml` | Add the language's `tree-sitter-<lang>` grammar: call sites are found in its parse tree and resolved through `textDocument/definition`. Check that its call, member-access and type-declaration node shapes are recognised. A grammar with no current wheel of its own can come from `tree-sitter-language-pack`, as Kotlin's does (`tool_registry/grammars.py`); setup downloads it. |
+| `infra/vscode_constants.py` | Add an LSP server config entry to `VSCODE_CONFIG["lsp_servers"]` with the server name, command, languages, file extensions, and install command. |
+| `infra/tool_registry/registry.py` | Add a `ToolDependency` entry to `TOOL_REGISTRY` (see below). |
+| `static_analyzer/engine/source_inspector.py` + `pyproject.toml` | Add the language's `tree-sitter-<lang>` grammar: call sites are found in its parse tree and resolved through `textDocument/definition`. Check that its call, member-access and type-declaration node shapes are recognised. A grammar with no current wheel of its own can come from `tree-sitter-language-pack`, as Kotlin's does (`infra/tool_registry/grammars.py`); setup downloads it. |
 
 ### 5b) Registering the LSP server dependency
 
-The LSP server must be registered in `tool_registry/registry.py` so it gets installed automatically. The `ToolDependency` entry depends on how the server is distributed:
+The LSP server must be registered in `infra/tool_registry/registry.py` so it gets installed automatically. The `ToolDependency` entry depends on how the server is distributed:
 
 **npm package** (e.g. pyright, typescript-language-server) — no pipeline update needed:
 ```python

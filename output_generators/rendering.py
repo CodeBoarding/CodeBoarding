@@ -8,14 +8,14 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 from agents.agent_responses import AnalysisInsights, Relation
-from constants import DEFAULT_ROOT_DOCUMENT_NAME
+from infra.constants import DEFAULT_ROOT_DOCUMENT_NAME
 from agents.relation_edges import append_or_merge_relation
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from output_generators.html import generate_html_file
 from output_generators.markdown import generate_markdown_file
 from output_generators.mdx import generate_mdx_file
 from output_generators.sphinx import generate_rst_file
-from utils import sanitize
+from infra.utils import sanitize
 
 logger = logging.getLogger(__name__)
 

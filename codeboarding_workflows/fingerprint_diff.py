@@ -11,7 +11,7 @@ from pathlib import Path
 
 from agents.content_hash import hash_repo_source_files
 from diagram_analysis.io_utils import read_fingerprint
-from repo_utils.change_detector import ChangeSet
+from infra.repo_utils.change_detector import ChangeSet
 
 logger = logging.getLogger(__name__)
 

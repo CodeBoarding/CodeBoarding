@@ -1,0 +1,725 @@
+import io
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+from codeboarding_cli import main
+from agents.llm_config import CODEBOARDING_KEY_TAIL
+from agents.llm_errors import LLMAuthError
+from codeboarding_cli.commands.full_analysis import _run_remote, run_from_args, validate_arguments
+from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental, run_partial
+from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
+from diagram_analysis.exceptions import ScopeSemanticsError
+from diagram_analysis.run_context import RunContext, RunPaths
+from infra.repo_utils.change_detector import ChangeSet
+
+
+class TestOnboardingMaterialsExist(unittest.TestCase):
+    @patch("codeboarding_workflows.sources.remote.requests.get")
+    def test_onboarding_materials_exist_true(self, mock_get):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_get.return_value = mock_response
+
+        result = onboarding_materials_exist("test_project")
+
+        self.assertTrue(result)
+        mock_get.assert_called_once()
+        call_args = mock_get.call_args[0][0]
+        self.assertIn("test_project", call_args)
+
+    @patch("codeboarding_workflows.sources.remote.requests.get")
+    def test_onboarding_materials_exist_false(self, mock_get):
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+
+        self.assertFalse(onboarding_materials_exist("test_project"))
+
+
+class TestGenerateAnalysis(unittest.TestCase):
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    def test_generate_analysis(self, mock_generator_class):
+        mock_generator = MagicMock()
+        mock_generator.generate_analysis.return_value = Path("analysis.json")
+        mock_generator_class.return_value = mock_generator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            result = run_full(
+                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_repo"),
+                RunContext(run_id="test-run-id", log_path="test_repo/test-run-log"),
+                depth_cap=2,
+            )
+
+            self.assertEqual(result, Path("analysis.json"))
+            mock_generator_class.assert_called_once_with(
+                repo_location=repo_path,
+                temp_folder=output_dir,
+                repo_name="test_repo",
+                output_dir=output_dir,
+                depth_cap=2,
+                run_id="test-run-id",
+                log_path="test_repo/test-run-log",
+                monitoring_enabled=False,
+                static_analyzer=None,
+                changes=None,
+            )
+            mock_generator.generate_analysis.assert_called_once()
+
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    def test_generate_analysis_with_force_full(self, mock_generator_class):
+        mock_generator = MagicMock()
+        mock_generator.generate_analysis.return_value = [Path("analysis.json")]
+        mock_generator_class.return_value = mock_generator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            run_full(
+                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_repo"),
+                RunContext(run_id="test-run-id", log_path="test_repo/test-run-log"),
+                force_full=True,
+            )
+
+        self.assertTrue(mock_generator.force_full_analysis)
+
+
+class TestPartialUpdate(unittest.TestCase):
+    @patch("codeboarding_workflows.analysis.load_full_analysis")
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    def test_partial_update_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
+        mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash"}
+        from agents.agent_responses import AnalysisInsights, Component
+
+        mock_generator = MagicMock()
+        mock_generator_class.return_value = mock_generator
+
+        mock_sub_analysis = AnalysisInsights(
+            description="test sub-analysis",
+            components=[
+                Component(
+                    name="SubComponent",
+                    description="Sub",
+                    key_entities=[],
+                    source_cluster_ids=[],
+                )
+            ],
+            components_relations=[],
+        )
+        mock_generator.process_component.return_value = ("test_comp_id", mock_sub_analysis, [])
+
+        root_component = Component(
+            name="TestComponent",
+            component_id="test_comp_id",
+            description="Test",
+            key_entities=[],
+            source_cluster_ids=[],
+        )
+        root_analysis = AnalysisInsights(description="test", components=[root_component], components_relations=[])
+        mock_load_full.return_value = (root_analysis, {})
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            with (
+                patch("codeboarding_workflows.analysis.compute_source_tree_hash", return_value="source-hash"),
+                patch(
+                    "codeboarding_workflows.analysis.load_expandable_component_ids",
+                    return_value={"test_comp_id"},
+                ),
+            ):
+                run_partial(
+                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                    RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
+                    component_id="test_comp_id",
+                )
+
+            mock_generator.prepare_analysis.assert_called_once_with(
+                hierarchy_depth=2,
+                target_component=root_component,
+                persisted_scopes={"root": root_analysis},
+            )
+            mock_generator.process_component.assert_called_once_with(root_component)
+            changes = mock_generator_class.call_args.kwargs["changes"]
+            self.assertIsInstance(changes, ChangeSet)
+            self.assertEqual(changes.files, [])
+            mock_generator.finalize_and_save.assert_called_once_with(
+                root_analysis,
+                {"test_comp_id": mock_sub_analysis},
+                persist_side_artifacts=False,
+                preserved_expandable_ids={"test_comp_id"},
+            )
+            mock_generator._persist_static_analysis_artifact.assert_called_once_with()
+
+    @patch("codeboarding_workflows.analysis.load_full_analysis")
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    def test_partial_update_nested_component_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
+        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 2, "source_tree_hash": "source-hash"}
+        from agents.agent_responses import AnalysisInsights, Component
+
+        mock_generator = MagicMock()
+        mock_generator_class.return_value = mock_generator
+
+        mock_sub_analysis_result = AnalysisInsights(
+            description="nested sub-analysis result",
+            components=[],
+            components_relations=[],
+        )
+        mock_generator.process_component.return_value = ("nested_comp_id", mock_sub_analysis_result, [])
+
+        root_component = Component(
+            name="RootComponent",
+            component_id="root_comp_id",
+            description="Root",
+            key_entities=[],
+            source_cluster_ids=[],
+        )
+        nested_component = Component(
+            name="NestedComponent",
+            component_id="nested_comp_id",
+            description="Nested",
+            key_entities=[],
+            source_cluster_ids=[],
+        )
+        sub_analysis_of_root = AnalysisInsights(
+            description="sub of root",
+            components=[nested_component],
+            components_relations=[],
+        )
+        root_analysis = AnalysisInsights(description="root", components=[root_component], components_relations=[])
+        mock_load_full.return_value = (root_analysis, {"root_comp_id": sub_analysis_of_root})
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            with patch("codeboarding_workflows.analysis.compute_source_tree_hash", return_value="source-hash"):
+                run_partial(
+                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                    RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
+                    component_id="nested_comp_id",
+                )
+
+            mock_generator.prepare_analysis.assert_called_once_with(
+                hierarchy_depth=3,
+                target_component=nested_component,
+                persisted_scopes={"root": root_analysis, "root_comp_id": sub_analysis_of_root},
+            )
+            mock_generator.process_component.assert_called_once_with(nested_component)
+            self.assertEqual(mock_generator_class.call_args.kwargs["depth_cap"], 2)
+            mock_generator.finalize_and_save.assert_called_once()
+            mock_generator._persist_static_analysis_artifact.assert_called_once_with()
+
+    @patch("codeboarding_workflows.analysis.load_full_analysis")
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    def test_partial_update_rejects_unusable_source_baseline(
+        self, mock_generator_class, mock_load_metadata, mock_load_full
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            cases = (
+                ({"depth_level": 2}, "Run a full analysis first"),
+                ({"depth_level": 2, "source_tree_hash": "baseline-hash"}, "Run incremental analysis"),
+            )
+            for metadata, expected_message in cases:
+                with self.subTest(metadata=metadata):
+                    mock_load_metadata.return_value = metadata
+                    with (
+                        patch("codeboarding_workflows.analysis.compute_source_tree_hash", return_value="current-hash"),
+                        self.assertRaisesRegex(BaselineUnavailableError, expected_message),
+                    ):
+                        run_partial(
+                            RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                            RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
+                            component_id="nested_comp_id",
+                        )
+
+        mock_load_full.assert_not_called()
+        mock_generator_class.assert_not_called()
+
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    def test_partial_update_file_not_found(self, mock_generator_class, mock_load_metadata):
+        mock_load_metadata.return_value = None
+        mock_generator = MagicMock()
+        mock_generator_class.return_value = mock_generator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            with self.assertRaises(BaselineUnavailableError):
+                run_partial(
+                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                    RunContext(run_id="test-run-id", log_path="test_project/test-run-log"),
+                    component_id="TestComponent",
+                )
+
+            # No metadata: raise before building the generator or touching prepare_analysis.
+            mock_generator_class.assert_not_called()
+            mock_generator.prepare_analysis.assert_not_called()
+            mock_generator.process_component.assert_not_called()
+
+
+class TestIncrementalDepthSource(unittest.TestCase):
+    """Incremental reuses the configured cap, not the realized depth."""
+
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    def test_cold_start_raises_incremental_unavailable(self, mock_load_metadata):
+        mock_load_metadata.return_value = None
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            with self.assertRaises(BaselineUnavailableError):
+                run_incremental(
+                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                    RunContext(run_id="r", log_path="l"),
+                )
+
+    @patch("codeboarding_workflows.analysis.run_incremental_workflow")
+    @patch("codeboarding_workflows.analysis.detect_changes_from_fingerprint")
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    def test_depth_cap_taken_from_metadata(self, mock_load_metadata, mock_generator_class, mock_detect, mock_workflow):
+        mock_detect.return_value = MagicMock(files=[])
+        mock_workflow.return_value = Path("analysis.json")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            for metadata, expected_cap in (
+                ({"depth_level": 1, "depth_cap": 4}, 4),
+                ({"depth_level": 1}, 1),
+                ({}, 3),
+            ):
+                with self.subTest(metadata=metadata):
+                    mock_load_metadata.return_value = metadata
+                    run_incremental(
+                        RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                        RunContext(run_id="r", log_path="l"),
+                    )
+                    self.assertEqual(mock_generator_class.call_args.kwargs["depth_cap"], expected_cap)
+
+
+class TestRemoteSource(unittest.TestCase):
+    """Source-layer contract: clone/cache/cleanup orthogonal to scope."""
+
+    @patch("codeboarding_workflows.sources.remote.clone_repository")
+    @patch("codeboarding_workflows.sources.remote.onboarding_materials_exist")
+    @patch("codeboarding_workflows.sources.remote.get_repo_name")
+    def test_cache_hit_yields_none(self, mock_get_repo_name, mock_materials_exist, mock_clone):
+        mock_get_repo_name.return_value = "test_repo"
+        mock_materials_exist.return_value = True
+
+        with remote_source("https://github.com/test/repo") as src:
+            self.assertIsNone(src)
+
+        mock_clone.assert_not_called()
+
+    @patch("codeboarding_workflows.sources.remote.upload_onboarding_materials")
+    @patch("codeboarding_workflows.sources.remote.remove_temp_repo_folder")
+    @patch("codeboarding_workflows.sources.remote.create_temp_repo_folder")
+    @patch("codeboarding_workflows.sources.remote.clone_repository")
+    @patch("codeboarding_workflows.sources.remote.onboarding_materials_exist")
+    @patch("codeboarding_workflows.sources.remote.get_repo_name")
+    def test_clones_yields_context_and_cleans_up_on_exit(
+        self,
+        mock_get_repo_name,
+        mock_materials_exist,
+        mock_clone,
+        mock_create_temp,
+        mock_remove_temp,
+        mock_upload,
+    ):
+        mock_get_repo_name.return_value = "test_repo"
+        mock_materials_exist.return_value = False
+        mock_clone.return_value = "test_repo"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_folder = Path(temp_dir)
+            mock_create_temp.return_value = temp_folder
+
+            with remote_source("https://github.com/test/repo", upload=True) as src:
+                self.assertIsNotNone(src)
+                assert src is not None  # narrow for type-checker
+                self.assertEqual(src.project_name, "test_repo")
+                self.assertEqual(src.artifact_dir, temp_folder)
+
+            mock_clone.assert_called_once()
+            mock_remove_temp.assert_called_once_with(str(temp_folder))
+            mock_upload.assert_called_once()
+
+
+class TestLocalSource(unittest.TestCase):
+    def test_yields_repo_path_unchanged(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "out"
+            output_dir.mkdir()
+
+            with local_source(repo_path=repo_path, project_name="proj", artifact_dir=output_dir) as src:
+                self.assertEqual(src.repo_path, repo_path)
+                self.assertEqual(src.project_name, "proj")
+                self.assertEqual(src.artifact_dir, output_dir)
+
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    @patch("codeboarding_workflows.analysis.load_full_analysis")
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    def test_local_source_composes_with_partial_update(self, mock_load_metadata, mock_load_full, mock_generator_class):
+        """Axes are orthogonal: the local source composes with any scope, not just full."""
+        from agents.agent_responses import AnalysisInsights, Component
+
+        component = Component(
+            name="Target",
+            component_id="target",
+            description="",
+            key_entities=[],
+        )
+        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 1, "source_tree_hash": "source-hash"}
+        root_analysis = AnalysisInsights(description="root", components=[component], components_relations=[])
+        mock_load_full.return_value = (root_analysis, {})
+        mock_generator_class.return_value.process_component.return_value = ("target", None, [])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "out"
+            output_dir.mkdir()
+
+            with local_source(repo_path=repo_path, project_name="proj", artifact_dir=output_dir) as src:
+                with patch("codeboarding_workflows.analysis.compute_source_tree_hash", return_value="source-hash"):
+                    run_partial(
+                        RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
+                        RunContext(run_id="r", log_path="l"),
+                        component_id="target",
+                    )
+
+            mock_generator_class.return_value.prepare_analysis.assert_called_once_with(
+                hierarchy_depth=2,
+                target_component=component,
+                persisted_scopes={"root": root_analysis},
+            )
+
+
+class TestFullCliLocal(unittest.TestCase):
+    """CLI-level composition: `full --local` routes to the right scope and passes args through."""
+
+    def _make_args(self, repo_path: Path, **overrides) -> MagicMock:
+        args = MagicMock()
+        args.local = repo_path
+        args.repositories = []
+        args.output_dir = None
+        args.project_name = None
+        args.binary_location = None
+        args.depth_cap = 1
+        args.upload = False
+        args.enable_monitoring = False
+        args.force = False
+        args.render = None
+        for k, v in overrides.items():
+            setattr(args, k, v)
+        return args
+
+    @patch("codeboarding_cli.commands.full_analysis.run_full")
+    @patch("codeboarding_workflows.orchestration.RunContext")
+    @patch("codeboarding_cli.commands.full_analysis.bootstrap_environment")
+    def test_local_full_calls_run_full(self, _mock_bootstrap, mock_run_context, mock_run_full):
+        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+
+            run_from_args(self._make_args(repo_path), MagicMock())
+
+        mock_run_full.assert_called_once()
+        run_paths = mock_run_full.call_args.args[0]
+        self.assertEqual(run_paths.repo_path, repo_path.resolve())
+        self.assertEqual(mock_run_full.call_args.kwargs["depth_cap"], 1)
+        self.assertFalse(mock_run_full.call_args.kwargs["force_full"])
+
+    @patch("codeboarding_cli.commands.full_analysis.run_full")
+    @patch("codeboarding_workflows.orchestration.RunContext")
+    @patch("codeboarding_cli.commands.full_analysis.bootstrap_environment")
+    def test_force_flag_propagates(self, _mock_bootstrap, mock_run_context, mock_run_full):
+        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+
+            run_from_args(self._make_args(repo_path, force=True), MagicMock())
+
+        self.assertTrue(mock_run_full.call_args.kwargs["force_full"])
+
+
+class TestFullCliRemote(unittest.TestCase):
+    def _run(self, process_side_effect) -> Mock:
+        args = MagicMock(repositories=["https://github.com/a/one", "https://github.com/a/two"], upload=False)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(Path, "cwd", return_value=Path(temp_dir)),
+                patch("codeboarding_cli.commands.full_analysis.bootstrap_environment"),
+                patch(
+                    "codeboarding_cli.commands.full_analysis._process_one_remote", side_effect=process_side_effect
+                ) as process,
+            ):
+                _run_remote(args)
+        return process
+
+    def test_an_llm_failure_stops_the_run(self):
+        with self.assertRaises(ScopeSemanticsError):
+            self._run(ScopeSemanticsError("root", telemetry_properties={}))
+
+    def test_other_failures_move_on_to_the_next_repository(self):
+        process = self._run([RuntimeError("clone failed"), None])
+
+        self.assertEqual(process.call_count, 2)
+
+
+class TestPartialCliLocal(unittest.TestCase):
+    """CLI-level composition: `partial` dispatches to run_partial with the component id."""
+
+    @patch("codeboarding_cli.commands.partial_analysis.run_partial")
+    @patch("codeboarding_workflows.orchestration.RunContext")
+    @patch("codeboarding_cli.commands.partial_analysis.bootstrap_environment")
+    def test_dispatch(self, _mock_bootstrap, mock_run_context, mock_run_partial):
+        from codeboarding_cli.commands.partial_analysis import run_from_args as partial_run
+
+        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+
+            args = MagicMock()
+            args.local = repo_path
+            args.output_dir = None
+            args.project_name = None
+            args.binary_location = None
+            args.component_id = "c1"
+            args.enable_monitoring = False
+
+            partial_run(args, MagicMock())
+
+        mock_run_partial.assert_called_once()
+        self.assertEqual(mock_run_partial.call_args.kwargs["component_id"], "c1")
+
+    def test_requires_local(self):
+        from codeboarding_cli.commands.partial_analysis import validate_arguments as partial_validate
+
+        parser = MagicMock()
+        args = MagicMock()
+        args.local = None
+
+        partial_validate(args, parser)
+        parser.error.assert_called_once()
+
+
+class TestCopyFiles(unittest.TestCase):
+    def test_copy_files_copies_each_file_to_target(self):
+        from infra.utils import copy_files
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "src"
+            source.mkdir()
+            target = Path(temp_dir) / "dst"
+
+            (source / "test.md").write_text("# Test")
+            (source / "data.json").write_text('{"key": "value"}')
+            (source / "ignore.txt").write_text("ignore me")
+
+            copy_files([source / "test.md", source / "data.json"], target)
+
+            self.assertTrue((target / "test.md").exists())
+            self.assertTrue((target / "data.json").exists())
+            self.assertFalse((target / "ignore.txt").exists())
+
+    def test_copy_files_creates_missing_target_dir(self):
+        from infra.utils import copy_files
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "src"
+            source.mkdir()
+            (source / "x.md").write_text("x")
+
+            target = Path(temp_dir) / "not-yet-existing" / "dst"
+            copy_files([source / "x.md"], target)
+
+            self.assertTrue((target / "x.md").exists())
+
+
+class TestValidateArguments(unittest.TestCase):
+    def test_valid_local(self):
+        with tempfile.TemporaryDirectory() as repo_path:
+            parser = MagicMock()
+            args = MagicMock()
+            args.repositories = None
+            args.local = Path(repo_path)
+            args.output_dir = None
+            args.project_name = None
+            args.upload = False
+            args.render = None
+
+            validate_arguments(args, parser)
+
+            parser.error.assert_not_called()
+
+    def test_missing_local_directory_exits_without_creating_it(self):
+        from codeboarding_cli import main
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "missing"
+
+            with (
+                patch("codeboarding_cli.commands.full_analysis.bootstrap_environment") as mock_bootstrap,
+                self.assertRaises(SystemExit) as ctx,
+            ):
+                main.main(["full", "--local", str(repo_path)])
+
+            self.assertEqual(ctx.exception.code, 2)
+            self.assertFalse(repo_path.exists())
+            mock_bootstrap.assert_not_called()
+
+    def test_valid_remote(self):
+        parser = MagicMock()
+        args = MagicMock()
+        args.repositories = ["https://github.com/test/repo"]
+        args.local = None
+        args.output_dir = None
+        args.project_name = None
+        args.upload = False
+        args.render = None
+
+        validate_arguments(args, parser)
+        parser.error.assert_not_called()
+
+    def test_both_local_and_remote_errors(self):
+        parser = MagicMock()
+        args = MagicMock()
+        args.repositories = ["https://github.com/test/repo"]
+        args.local = "/path/to/repo"
+        args.output_dir = None
+        args.project_name = None
+        args.upload = False
+
+        validate_arguments(args, parser)
+        parser.error.assert_called_once()
+
+    def test_upload_with_local_errors(self):
+        with tempfile.TemporaryDirectory() as repo_path:
+            parser = MagicMock()
+            args = MagicMock()
+            args.repositories = None
+            args.local = Path(repo_path)
+            args.output_dir = None
+            args.project_name = None
+            args.upload = True
+
+            validate_arguments(args, parser)
+
+            parser.error.assert_called_once()
+
+
+class TestMainAuthErrorHandler(unittest.TestCase):
+    """`_dispatch` turns a rejected key into a clean exit, not a traceback."""
+
+    @patch("codeboarding_cli.main.full_analysis.run_from_args")
+    def test_auth_error_exits_with_distinct_code(self, mock_run):
+        from codeboarding_cli import main
+        from agents.llm_errors import LLMAuthError
+
+        mock_run.side_effect = LLMAuthError(
+            "Your openai API key was rejected (HTTP 401). Verify the key ending in '…a8dd'.",
+            provider="openai",
+            key_tail="a8dd",
+            telemetry_properties={"error_type": "auth"},
+        )
+
+        with self.assertRaises(SystemExit) as ctx:
+            main.main(["full", "--local", "/tmp/repo"])
+
+        self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
+
+    @patch("codeboarding_cli.main.full_analysis.run_from_args")
+    def test_a_hosted_run_is_not_told_to_check_a_key_it_never_set(self, mock_run):
+        """Why: the action's hosted credentials are a placeholder its relay swaps out, so the generic
+        "check your API key in ~/.codeboarding/config.toml" line would contradict the error above it."""
+        mock_run.side_effect = LLMAuthError(
+            "CodeBoarding's hosted openrouter credentials were rejected (HTTP 401).",
+            provider="openrouter",
+            key_tail=CODEBOARDING_KEY_TAIL,
+            telemetry_properties={"error_type": "auth"},
+        )
+
+        with patch("sys.stderr", new_callable=io.StringIO) as stderr, self.assertRaises(SystemExit) as ctx:
+            main.main(["full", "--local", "/tmp/repo"])
+
+        self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
+        self.assertIn("hosted", stderr.getvalue())
+        self.assertNotIn("config.toml", stderr.getvalue())
+
+    @patch("codeboarding_cli.main.full_analysis.run_from_args")
+    def test_quota_error_exits_with_distinct_code(self, mock_run):
+        from codeboarding_cli import main
+
+        mock_run.side_effect = ScopeSemanticsError("root", telemetry_properties={"error_type": "quota"})
+
+        with patch("sys.stderr"), self.assertRaises(SystemExit) as ctx:
+            main.main(["full", "--local", "/tmp/repo"])
+
+        self.assertEqual(ctx.exception.code, main.EXIT_QUOTA_EXHAUSTED)
+
+    @patch("codeboarding_cli.main.full_analysis.run_from_args")
+    def test_other_llm_failures_are_not_swallowed(self, mock_run):
+        from codeboarding_cli import main
+
+        mock_run.side_effect = ScopeSemanticsError("root", telemetry_properties={"error_type": "llm"})
+
+        with self.assertRaises(ScopeSemanticsError):
+            main.main(["full", "--local", "/tmp/repo"])
+
+    @patch("codeboarding_cli.main.full_analysis.run_from_args")
+    def test_non_auth_error_is_not_swallowed(self, mock_run):
+        from codeboarding_cli import main
+
+        mock_run.side_effect = RuntimeError("something else broke")
+
+        # Only auth errors get the friendly-exit treatment; everything else propagates.
+        with self.assertRaises(RuntimeError):
+            main.main(["full", "--local", "/tmp/repo"])
+
+
+if __name__ == "__main__":
+    unittest.main()

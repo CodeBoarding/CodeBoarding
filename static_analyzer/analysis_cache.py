@@ -29,8 +29,8 @@ from typing import Any
 
 from filelock import FileLock
 
-from constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
-from repo_utils.path_utils import to_absolute_path, to_relative_path
+from infra.constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
+from infra.repo_utils.path_utils import to_absolute_path, to_relative_path
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge, StaticAnalysisResults
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap

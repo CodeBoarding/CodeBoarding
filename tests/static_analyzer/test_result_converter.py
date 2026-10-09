@@ -691,7 +691,7 @@ class TestIgnoredFilesExcluded:
     table; the converter must keep them out of the call graph."""
 
     def test_symbols_in_ignored_files_are_dropped(self):
-        from repo_utils.ignore import RepoIgnoreManager
+        from infra.repo_utils.ignore import RepoIgnoreManager
 
         adapter = _make_adapter()
         st = SymbolTable(adapter)

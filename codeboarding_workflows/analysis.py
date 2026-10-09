@@ -24,9 +24,9 @@ from diagram_analysis.io_utils import (
     snapshot_analysis,
 )
 from diagram_analysis.run_context import DEFAULT_DEPTH_CAP, RunContext, RunPaths
-from repo_utils.change_detector import ChangeSet
+from infra.repo_utils.change_detector import ChangeSet
 from codeboarding_workflows.fingerprint_diff import BaselineUnavailableError, detect_changes_from_fingerprint
-from telemetry.events import track_analysis
+from infra.monitoring.telemetry.events import track_analysis
 
 logger = logging.getLogger(__name__)
 

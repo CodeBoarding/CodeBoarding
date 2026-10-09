@@ -9,7 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from agents.constants import ModelCapabilities
-from utils import get_cache_dir
+from infra.utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ def _resolve_user_config(provider: str, model_name: str) -> tuple[int, int] | No
 def _user_context_window_override() -> int | None:
     # Why: delayed import avoids a module-load cycle; lru_cache avoids re-parsing
     # config.toml on every get_context_window call.
-    from user_config import load_user_config
+    from infra.user_config import load_user_config
 
     return load_user_config().llm.context_window
 

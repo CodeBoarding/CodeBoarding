@@ -1,0 +1,351 @@
+import logging
+from pathlib import Path
+from typing import Any
+
+import pathspec
+
+from infra.constants import CODEBOARDING_DIR_NAME, CODEBOARDINGIGNORE_FILENAME, GITIGNORE_FILENAME
+
+logger = logging.getLogger(__name__)
+
+CODEBOARDINGIGNORE_TEMPLATE = """# CodeBoarding Ignore File
+# Add patterns here for files and directories that should be excluded from CodeBoarding analysis.
+# Use the same format as .gitignore (gitignore syntax / gitwildmatch patterns).
+#
+# To stop ignoring a pattern, prefix it with ! (e.g., !important_file.txt)
+#
+# NOTE: The following are ALWAYS excluded (not configurable):
+#   - Hidden directories (starting with .)
+#   - .git/, .codeboarding/, node_modules/, __pycache__/
+#   - Build output: build/, dist/, coverage/
+#
+# This file is automatically loaded by CodeBoarding analysis tools to exclude
+# specified paths from code analysis, architecture generation, and other processing.
+
+# ============================================================================
+# Ignored directories (customizable — remove lines to include them)
+# ============================================================================
+
+# Python virtual environments
+venv/
+env/
+*.egg-info/
+
+# Java (Maven/Gradle) and Rust (Cargo) build output. Both ecosystems
+# produce a top-level ``target/`` directory full of compiled artifacts —
+# kept here as well as in ``_ALWAYS_IGNORED_DIRS`` so users who customize
+# their ``.codeboardingignore`` continue to skip it even after edits.
+target/
+bin/
+out/
+
+# .NET / C# build output
+obj/
+
+# Go
+vendor/
+testdata/
+
+# PHP
+cache/
+
+# Custom
+temp/
+repos/
+runs/
+
+# ============================================================================
+# Test and infrastructure files
+# ============================================================================
+
+# Test directories
+**/__tests__/**
+**/tests/**
+**/test/**
+**/__test__/**
+**/testing/**
+**/testutil/**
+
+# Java/Kotlin test directories (Maven/Gradle structure)
+**/src/test/**
+**/src/testFixtures/**
+**/src/integration-test/**
+**/src/jmh/**
+**/src/contractTest/**
+**/osgi-tests/**
+
+# Test files by naming convention
+*.test.*
+*.spec.*
+*_test.*
+*test_*.py
+test_*.py
+*Test.java
+*IT.java
+*Test.kt
+*IT.kt
+*Tests.java
+
+# Mock, fixture, and stub directories
+**/__mocks__/**
+**/mocks/**
+**/fixtures/**
+**/fixture/**
+**/stubs/**
+**/stub/**
+**/fakes/**
+**/fake/**
+
+# E2E and integration test directories
+**/e2e/**
+**/integration-tests/**
+**/integration_test*/**
+
+# ============================================================================
+# Non-production code
+# ============================================================================
+
+# Example and documentation code
+**/examples/**
+**/documentation/examples/**
+
+# Generated code
+*.pb.go
+**/generated_parser*
+
+# Java/Kotlin metadata files
+module-info.java
+
+# ============================================================================
+# Build artifacts and minified files
+# ============================================================================
+
+*.bundle.js
+*.bundle.js.map
+*.min.js
+*.min.css
+*.chunk.js
+*.chunk.js.map
+
+# ============================================================================
+# Build tool configs and infrastructure
+# ============================================================================
+
+esbuild*
+webpack*
+rollup*
+vite.config.*
+gulpfile*
+gruntfile*
+*.config.*
+"""
+
+
+# Directories that are always excluded, even without a .codeboardingignore file.
+# These contain compiled output, dependency installs, or tooling artifacts —
+# never source code, regardless of language or user preference.
+_ALWAYS_IGNORED_DIRS = {
+    # Version control and tooling
+    ".git",
+    CODEBOARDING_DIR_NAME,
+    # Dependency installs
+    "node_modules",
+    # Compiled / build output (universal across ecosystems — never source)
+    "__pycache__",
+    "build",
+    "dist",
+    "coverage",
+    "target",  # Java (Maven), Rust (Cargo)
+}
+
+
+class RepoIgnoreManager:
+    """Centralized manager for handling file and directory exclusions across the repository.
+
+    Combines patterns from .gitignore and .codeboardingignore. Default exclusion
+    patterns are defined in the CODEBOARDINGIGNORE_TEMPLATE and written to
+    ``.codeboarding/.codeboardingignore`` on first run — users can then
+    customize which patterns to keep, remove, or add.
+    """
+
+    def __init__(self, repo_root: Path):
+        self.repo_root = repo_root.resolve()
+        self.reload()
+
+    def reload(self):
+        """Reload ignore patterns from .gitignore and .codeboardingignore."""
+        self._checked_paths: dict[str, bool] = {}
+        gitignore_patterns = self._load_gitignore_patterns()
+        codeboardingignore_patterns = self._load_codeboardingignore_patterns()
+
+        # Build separate specs for categorization
+        self.gitignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", gitignore_patterns)
+        self.codeboardingignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", codeboardingignore_patterns)
+
+        # Combined spec for the should_ignore() fast path
+        all_patterns = list(gitignore_patterns)
+        all_patterns.extend(codeboardingignore_patterns)
+        self.spec = pathspec.PathSpec.from_lines("gitwildmatch", all_patterns)
+
+    def _load_gitignore_patterns(self) -> list[str]:
+        """Load .gitignore if it is present and readable.
+
+        Opens directly rather than checking ``exists()`` first: ``Path.exists()``
+        re-raises ``PermissionError`` (it only swallows not-found errors), so an
+        unreadable ignore file must be treated as "no patterns", never a crash.
+        """
+        gitignore_path = self.repo_root / GITIGNORE_FILENAME
+        try:
+            with gitignore_path.open("r", encoding="utf-8") as f:
+                return f.readlines()
+        except FileNotFoundError:
+            return []
+        except OSError as e:
+            logger.warning(f"Failed to read .gitignore at {gitignore_path}: {e}")
+            return []
+
+    def _load_codeboardingignore_patterns(self) -> list[str]:
+        """Load and parse .codeboardingignore file from .codeboarding directory.
+
+        If the file does not exist, returns the default template patterns so that
+        first-run analysis still has sensible exclusions even before
+        ``initialize_codeboardingignore`` is called.
+        """
+        codeboardingignore_path = self.repo_root / CODEBOARDING_DIR_NAME / CODEBOARDINGIGNORE_FILENAME
+
+        try:
+            with codeboardingignore_path.open("r", encoding="utf-8") as f:
+                return f.readlines()
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            logger.warning(f"Failed to read .codeboardingignore at {codeboardingignore_path}: {e}")
+
+        # Fall back to the default template so analysis works before the file is created
+        return list(CODEBOARDINGIGNORE_TEMPLATE.splitlines(keepends=True))
+
+    def should_ignore(self, path: Path) -> bool:
+        """Check if a given path should be ignored.
+
+        Handles both absolute paths and paths relative to repo_root.
+
+        Records the result for each checked path until ``reload`` because callers
+        ask about the same files during discovery and again while converting
+        symbols and references.
+        """
+        path_key = str(path)
+        should_ignore = self._checked_paths.get(path_key)
+        if should_ignore is not None:
+            return should_ignore
+
+        should_ignore = self._compute_should_ignore(path)
+        self._checked_paths[path_key] = should_ignore
+        return should_ignore
+
+    def _compute_should_ignore(self, path: Path) -> bool:
+        try:
+            # Convert to relative path if absolute
+            if path.is_absolute():
+                path = path.resolve()
+                if not path.is_relative_to(self.repo_root):
+                    return False
+                rel_path = path.relative_to(self.repo_root)
+            else:
+                rel_path = path
+
+            # Always exclude hidden directories (starting with .) and a small
+            # set of universally non-source directories. Everything else is
+            # handled by pathspec patterns from .codeboardingignore.
+            for part in rel_path.parts:
+                if part in _ALWAYS_IGNORED_DIRS:
+                    return True
+                if part.startswith("."):
+                    return True
+
+            # Use pathspec for .gitignore + .codeboardingignore patterns
+            return self.spec.match_file(str(rel_path))
+        except Exception as e:
+            logger.error(f"Error checking ignore status for {path}: {e}")
+            return False
+
+    def filter_paths(self, paths: list[Path]) -> list[Path]:
+        """Filter a list of paths, returning only those that should not be ignored."""
+        return [p for p in paths if not self.should_ignore(p)]
+
+    def strip_ignored(self, analysis: Any) -> Any:
+        """Drop file_methods + key_entities entries whose file_path is ignored.
+
+        Single chokepoint applied right before ``analysis.json`` is written so
+        the rendered architecture honors ``.codeboardingignore`` regardless of
+        which discovery path (LSP, agent, plugin) introduced a file. Other
+        layers — file_monitor, file_coverage, function_size — already use this
+        manager's ``should_ignore``; this call extends the same authority to
+        the analyzer's serialized output.
+
+        Mutates `analysis` in place and returns it for convenient chaining.
+        Idempotent: a second call is a no-op since all surviving entries
+        already pass ``should_ignore``.
+
+        Components left with empty ``file_methods`` are *kept* — relations
+        already reference their component_ids, and pruning them risks dangling
+        edges. They serialize as zero-method components, which downstream
+        renderers handle.
+        """
+        for component in getattr(analysis, "components", []) or []:
+            file_methods = getattr(component, "file_methods", None)
+            if file_methods is not None:
+                component.file_methods = [fm for fm in file_methods if not self.should_ignore(Path(fm.file_path))]
+            key_entities = getattr(component, "key_entities", None)
+            if key_entities is not None:
+                component.key_entities = [
+                    ke
+                    for ke in key_entities
+                    if not getattr(ke, "file_path", None) or not self.should_ignore(Path(ke.file_path))
+                ]
+        return analysis
+
+    def categorize_file(self, path: Path) -> str:
+        """Return the exclusion reason for a file.
+
+        Reasons for excluded files: "ignored_directory", "codeboardingignore", "gitignore".
+        Returns "other" if the file is not excluded by any known rule.
+        """
+        try:
+            if path.is_absolute():
+                path = path.resolve()
+                if not path.is_relative_to(self.repo_root):
+                    return "other"
+                rel_path = path.relative_to(self.repo_root)
+            else:
+                rel_path = path
+
+            for part in rel_path.parts:
+                if part in _ALWAYS_IGNORED_DIRS or part.startswith("."):
+                    return "ignored_directory"
+
+            rel_str = str(rel_path)
+            if self.codeboardingignore_spec.match_file(rel_str):
+                return "codeboardingignore"
+            if self.gitignore_spec.match_file(rel_str):
+                return "gitignore"
+
+            return "other"
+        except Exception as e:
+            logger.error(f"Error categorizing file {path}: {e}")
+            return "other"
+
+
+def initialize_codeboardingignore(output_dir: Path) -> None:
+    """Initialize .codeboardingignore file in the .codeboarding directory if it doesn't exist.
+
+    Args:
+        output_dir: Path to the .codeboarding directory
+    """
+    codeboardingignore_path = output_dir / CODEBOARDINGIGNORE_FILENAME
+
+    if not codeboardingignore_path.exists():
+        try:
+            codeboardingignore_path.write_text(CODEBOARDINGIGNORE_TEMPLATE, encoding="utf-8")
+            logger.debug(f"Created .codeboardingignore file at {codeboardingignore_path}")
+        except Exception as e:
+            logger.warning(f"Failed to create .codeboardingignore at {codeboardingignore_path}: {e}")

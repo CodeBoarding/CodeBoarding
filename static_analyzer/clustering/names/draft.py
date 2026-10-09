@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Protocol
 
-from clustering_ids import ROOT_SCOPE_ID, ScopeId
+from infra.clustering_ids import ROOT_SCOPE_ID, ScopeId
 from static_analyzer.clustering.names.frontier import BOX, FILE, HEAD, LOOSE, RESIDUAL, WORD, Candidate, walk
 from static_analyzer.clustering.names.inventory import Trie, Unit
 from static_analyzer.clustering.names.replay import Partition, replay

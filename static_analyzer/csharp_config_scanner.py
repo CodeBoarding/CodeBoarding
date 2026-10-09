@@ -7,7 +7,7 @@ standalone C# source trees to support mono-repo analysis with csharp-ls.
 import logging
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
 

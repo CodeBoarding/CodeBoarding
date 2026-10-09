@@ -10,7 +10,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from constants import DEFAULT_STATIC_RELATION_LABEL
+from infra.constants import DEFAULT_STATIC_RELATION_LABEL
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
 from agents.component_ownership import ComponentOwnershipIndex
 from agents.relation_edges import (
@@ -19,7 +19,7 @@ from agents.relation_edges import (
     edge_crosses_components,
     ground_relation_edges,
 )
-from clustering_ids import is_self_or_descendant
+from infra.clustering_ids import is_self_or_descendant
 from static_analyzer.cfg import CallGraph
 
 logger = logging.getLogger(__name__)

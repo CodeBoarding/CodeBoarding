@@ -15,7 +15,7 @@ from tree_sitter import Parser, Point, Tree
 
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.models import CallSite
-from tool_registry import kotlin_language
+from infra.tool_registry import kotlin_language
 
 import tree_sitter_c_sharp
 import tree_sitter_go

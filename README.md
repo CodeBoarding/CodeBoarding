@@ -104,8 +104,8 @@ git clone https://github.com/CodeBoarding/CodeBoarding.git
 cd CodeBoarding
 uv sync --frozen
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-python install.py
-python main.py full --local /path/to/repo
+python -m infra.install
+python -m codeboarding_cli.main full --local /path/to/repo
 ```
 
 ### Use the packaged CLI
@@ -153,7 +153,7 @@ codeboarding-render /path/to/analysis.json --format mdx --output-dir /path/to/do
 python codeboarding_cli/render.py ../../demo/markitdown/.codeboarding/analysis.json --format md
 ```
 
-`python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
+`python -m infra.install` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
 
 ## Configuration
 
@@ -196,21 +196,21 @@ Two environment variables tune the static analysis itself:
 
 ```bash
 # Analyze a local repository
-python main.py full --local ./my-project
+python -m codeboarding_cli.main full --local ./my-project
 
 # Raise the depth ceiling to auto-expand deeper (rarely needed — a component that
 # outgrows the leaf ceiling is flagged expandable at whatever depth the run stops
 # and can be expanded on demand; --depth-cap is a safety-valve cap, default 3)
-python main.py full --local ./my-project --depth-cap 5
+python -m codeboarding_cli.main full --local ./my-project --depth-cap 5
 
 # Re-analyze only changed parts when possible
-python main.py incremental --local ./my-project
+python -m codeboarding_cli.main incremental --local ./my-project
 
 # Update a single component by ID
-python main.py partial --local ./my-project --component-id "1.2"
+python -m codeboarding_cli.main partial --local ./my-project --component-id "1.2"
 
 # Analyze a remote GitHub repository
-python main.py full https://github.com/pytorch/pytorch
+python -m codeboarding_cli.main full https://github.com/pytorch/pytorch
 ```
 
 `--depth-cap` configures `metadata.depth_cap`; `metadata.depth_level` records the

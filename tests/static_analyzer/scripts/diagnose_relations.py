@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from static_analyzer import get_static_analysis
 from diagram_analysis.cluster_relations import build_component_relations
 from static_analyzer.cfg import CallGraph
-from utils import get_artifact_dir
+from infra.utils import get_artifact_dir
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
