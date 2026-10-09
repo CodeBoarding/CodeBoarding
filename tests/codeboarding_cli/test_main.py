@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-import main
+from codeboarding_cli import main
 from agents.llm_config import CODEBOARDING_KEY_TAIL
 from agents.llm_errors import LLMAuthError
 from codeboarding_cli.commands.full_analysis import _run_remote, run_from_args, validate_arguments
@@ -597,7 +597,7 @@ class TestValidateArguments(unittest.TestCase):
             parser.error.assert_not_called()
 
     def test_missing_local_directory_exits_without_creating_it(self):
-        import main
+        from codeboarding_cli import main
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "missing"
@@ -655,9 +655,9 @@ class TestValidateArguments(unittest.TestCase):
 class TestMainAuthErrorHandler(unittest.TestCase):
     """`_dispatch` turns a rejected key into a clean exit, not a traceback."""
 
-    @patch("main.full_analysis.run_from_args")
+    @patch("codeboarding_cli.main.full_analysis.run_from_args")
     def test_auth_error_exits_with_distinct_code(self, mock_run):
-        import main
+        from codeboarding_cli import main
         from agents.llm_errors import LLMAuthError
 
         mock_run.side_effect = LLMAuthError(
@@ -672,7 +672,7 @@ class TestMainAuthErrorHandler(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
 
-    @patch("main.full_analysis.run_from_args")
+    @patch("codeboarding_cli.main.full_analysis.run_from_args")
     def test_a_hosted_run_is_not_told_to_check_a_key_it_never_set(self, mock_run):
         """Why: the action's hosted credentials are a placeholder its relay swaps out, so the generic
         "check your API key in ~/.codeboarding/config.toml" line would contradict the error above it."""
@@ -690,9 +690,9 @@ class TestMainAuthErrorHandler(unittest.TestCase):
         self.assertIn("hosted", stderr.getvalue())
         self.assertNotIn("config.toml", stderr.getvalue())
 
-    @patch("main.full_analysis.run_from_args")
+    @patch("codeboarding_cli.main.full_analysis.run_from_args")
     def test_quota_error_exits_with_distinct_code(self, mock_run):
-        import main
+        from codeboarding_cli import main
 
         mock_run.side_effect = ScopeSemanticsError("root", telemetry_properties={"error_type": "quota"})
 
@@ -701,18 +701,18 @@ class TestMainAuthErrorHandler(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, main.EXIT_QUOTA_EXHAUSTED)
 
-    @patch("main.full_analysis.run_from_args")
+    @patch("codeboarding_cli.main.full_analysis.run_from_args")
     def test_other_llm_failures_are_not_swallowed(self, mock_run):
-        import main
+        from codeboarding_cli import main
 
         mock_run.side_effect = ScopeSemanticsError("root", telemetry_properties={"error_type": "llm"})
 
         with self.assertRaises(ScopeSemanticsError):
             main.main(["full", "--local", "/tmp/repo"])
 
-    @patch("main.full_analysis.run_from_args")
+    @patch("codeboarding_cli.main.full_analysis.run_from_args")
     def test_non_auth_error_is_not_swallowed(self, mock_run):
-        import main
+        from codeboarding_cli import main
 
         mock_run.side_effect = RuntimeError("something else broke")
 

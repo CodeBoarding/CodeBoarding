@@ -6,6 +6,6 @@ or API keys are ever sent; the repository's owning account is, so events are
 pseudonymous rather than anonymous. See ``service.py`` for the identity rules.
 """
 
-from telemetry.service import ProductTelemetry, telemetry
+from monitoring.telemetry.service import ProductTelemetry, telemetry
 
 __all__ = ["ProductTelemetry", "telemetry"]

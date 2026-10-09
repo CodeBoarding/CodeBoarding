@@ -18,7 +18,7 @@ from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from telemetry.schemas import (
+from monitoring.telemetry.schemas import (
     AnalysisCompleted,
     AnalysisStarted,
     LanguageStat,
@@ -26,9 +26,9 @@ from telemetry.schemas import (
     RepoScanned,
     TokenSnapshot,
 )
-from telemetry.service import telemetry
+from monitoring.telemetry.service import telemetry
 
-from agents.llm_config import MONITORING_CALLBACK
+from monitoring.callbacks import MONITORING_CALLBACK
 
 logger = logging.getLogger(__name__)
 

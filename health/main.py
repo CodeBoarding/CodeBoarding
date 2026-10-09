@@ -5,10 +5,10 @@ Useful for testing health checks in isolation and for CI/CD health gates.
 
 Usage:
     # Local repository (output written to <repo>/.codeboarding/health/)
-    python health_main.py --local /path/to/repo
+    python -m health.main --local /path/to/repo
 
     # Remote repository (cloned to cwd/repos/, output to cwd/<repo_name>/.codeboarding/health/)
-    python health_main.py https://github.com/user/repo
+    python -m health.main https://github.com/user/repo
 """
 
 import argparse
@@ -102,10 +102,10 @@ def main():
         epilog="""
 Examples:
   # Local repository (output written to <repo>/.codeboarding/health/)
-  python health_main.py --local /path/to/repo
+  python -m health.main --local /path/to/repo
 
   # Remote repository (cloned to cwd/repos/, output to cwd/<repo_name>/.codeboarding/health/)
-  python health_main.py https://github.com/user/repo
+  python -m health.main https://github.com/user/repo
 
         """,
     )

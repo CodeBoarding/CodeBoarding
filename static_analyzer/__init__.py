@@ -32,7 +32,7 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
-from telemetry.events import track_lsp_result
+from monitoring.telemetry.events import track_lsp_result
 from tool_registry import ensure_node_on_path
 from utils import get_artifact_dir
 

@@ -77,7 +77,7 @@ Every event also carries:
 - `internal` — `true` when that source is **not** a person using the product
   (`tests`, `evals`). Automated runs still emit, because an eval run is real
   signal about analysis quality, but they must never be counted as usage. It is
-  derived from `source` in one place (`telemetry/service.py`) so a product
+  derived from `source` in one place (`monitoring/telemetry/service.py`) so a product
   metric filters on one condition and stays correct when another internal
   source is added — a hand-kept list of source values is right until it is
   quietly not.
@@ -152,13 +152,13 @@ cannot read any data back.
 
 ## Where it lives in the code
 
-All telemetry is contained in the [`telemetry/`](telemetry/) package:
+All telemetry is contained in the [`monitoring/telemetry/`](monitoring/telemetry/) package:
 
-- [`telemetry/service.py`](telemetry/service.py) — the PostHog client, opt-out
+- [`monitoring/telemetry/service.py`](monitoring/telemetry/service.py) — the PostHog client, opt-out
   check, and device-id resolution.
-- [`telemetry/schemas.py`](telemetry/schemas.py) — Pydantic models for event payloads.
-- [`telemetry/device_id.py`](telemetry/device_id.py) — the device-id algorithm.
-- [`telemetry/events.py`](telemetry/events.py) — the analysis lifecycle and
+- [`monitoring/telemetry/schemas.py`](monitoring/telemetry/schemas.py) — Pydantic models for event payloads.
+- [`monitoring/telemetry/device_id.py`](monitoring/telemetry/device_id.py) — the device-id algorithm.
+- [`monitoring/telemetry/events.py`](monitoring/telemetry/events.py) — the analysis lifecycle and
   repository-scan events. The `repo_scanned` event is emitted from
   [`static_analyzer/scanner.py`](static_analyzer/scanner.py).
 

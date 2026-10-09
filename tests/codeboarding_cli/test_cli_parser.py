@@ -10,14 +10,14 @@ from codeboarding_cli.render import main as render_main
 from codeboarding_workflows.analysis import build_generator, run_full
 from codeboarding_workflows.sources import SourceContext
 from diagram_analysis import DEFAULT_DEPTH_CAP, DiagramGenerator, RunContext, RunPaths
-from main import build_parser, main
+from codeboarding_cli.main import build_parser, main
 from output_generators import SUPPORTED_FORMATS
 
 
 def test_cli_dispatches_incremental_mode() -> None:
     with (
-        patch("main.incremental_analysis.run_from_args") as run_incremental,
-        patch("main.full_analysis.run_from_args") as run_full,
+        patch("codeboarding_cli.main.incremental_analysis.run_from_args") as run_incremental,
+        patch("codeboarding_cli.main.full_analysis.run_from_args") as run_full,
     ):
         main(["incremental", "--local", "/tmp/repo"])
 
@@ -27,8 +27,8 @@ def test_cli_dispatches_incremental_mode() -> None:
 
 def test_cli_dispatches_full_by_default() -> None:
     with (
-        patch("main.incremental_analysis.run_from_args") as run_incremental,
-        patch("main.full_analysis.run_from_args") as run_full,
+        patch("codeboarding_cli.main.incremental_analysis.run_from_args") as run_incremental,
+        patch("codeboarding_cli.main.full_analysis.run_from_args") as run_full,
     ):
         main(["full", "--local", "/tmp/repo"])
 
@@ -38,8 +38,8 @@ def test_cli_dispatches_full_by_default() -> None:
 
 def test_cli_defaults_to_full_when_leading_arg_is_a_flag() -> None:
     with (
-        patch("main.incremental_analysis.run_from_args") as run_incremental,
-        patch("main.full_analysis.run_from_args") as run_full,
+        patch("codeboarding_cli.main.incremental_analysis.run_from_args") as run_incremental,
+        patch("codeboarding_cli.main.full_analysis.run_from_args") as run_full,
     ):
         main(["--local", "/tmp/repo"])
 
@@ -49,8 +49,8 @@ def test_cli_defaults_to_full_when_leading_arg_is_a_flag() -> None:
 
 def test_cli_defaults_to_full_when_leading_arg_is_a_repo_url() -> None:
     with (
-        patch("main.incremental_analysis.run_from_args") as run_incremental,
-        patch("main.full_analysis.run_from_args") as run_full,
+        patch("codeboarding_cli.main.incremental_analysis.run_from_args") as run_incremental,
+        patch("codeboarding_cli.main.full_analysis.run_from_args") as run_full,
     ):
         main(["https://github.com/user/repo"])
 
@@ -62,8 +62,8 @@ def test_cli_defaults_to_full_when_leading_arg_is_a_repo_url() -> None:
 
 def test_cli_incremental_subcommand_is_not_swallowed_as_positional() -> None:
     with (
-        patch("main.incremental_analysis.run_from_args") as run_incremental,
-        patch("main.full_analysis.run_from_args") as run_full,
+        patch("codeboarding_cli.main.incremental_analysis.run_from_args") as run_incremental,
+        patch("codeboarding_cli.main.full_analysis.run_from_args") as run_full,
     ):
         main(["incremental", "--local", "/tmp/repo"])
 
@@ -90,7 +90,7 @@ def test_depth_cap_default_is_unchanged() -> None:
 
 @pytest.mark.parametrize("command", [[], ["full"]])
 def test_depth_cap_has_canonical_destination(command: list[str]) -> None:
-    with patch("main.full_analysis.run_from_args") as run_full:
+    with patch("codeboarding_cli.main.full_analysis.run_from_args") as run_full:
         main([*command, "--local", "/tmp/repo", "--depth-cap", "5"])
 
     args = run_full.call_args.args[0]
@@ -103,7 +103,7 @@ def test_depth_cap_has_canonical_destination(command: list[str]) -> None:
 @pytest.mark.parametrize("extra", [[], ["--depth-cap", "4"]])
 def test_old_depth_input_is_rejected(command, remote, extra, capsys) -> None:
     target = ["https://github.com/user/repo"] if remote else ["--local", "/tmp/repo"]
-    with patch("main.full_analysis.run_from_args") as run_full:
+    with patch("codeboarding_cli.main.full_analysis.run_from_args") as run_full:
         with pytest.raises(SystemExit) as exc:
             main([*command, *target, "--depth-level", "5", *extra])
     assert exc.value.code == 2
@@ -224,12 +224,15 @@ def test_standalone_render_rejects_invalid_analysis(
 @pytest.mark.parametrize(
     ("command_module", "command_args"),
     [
-        ("main.full_analysis.run_from_args", ["full", "--local", "/tmp/repo"]),
-        ("main.incremental_analysis.run_from_args", ["incremental", "--local", "/tmp/repo"]),
-        ("main.partial_analysis.run_from_args", ["partial", "--local", "/tmp/repo", "--component-id", "1"]),
+        ("codeboarding_cli.main.full_analysis.run_from_args", ["full", "--local", "/tmp/repo"]),
+        ("codeboarding_cli.main.incremental_analysis.run_from_args", ["incremental", "--local", "/tmp/repo"]),
+        (
+            "codeboarding_cli.main.partial_analysis.run_from_args",
+            ["partial", "--local", "/tmp/repo", "--component-id", "1"],
+        ),
     ],
 )
-@patch("main.render_output")
+@patch("codeboarding_cli.main.render_output")
 def test_main_renders_after_any_successful_analysis(
     mock_render_output,
     command_module: str,
@@ -240,7 +243,7 @@ def test_main_renders_after_any_successful_analysis(
     mock_render_output.side_effect = lambda *args, **kwargs: events.append("render")
     with (
         patch(command_module, side_effect=lambda *args, **kwargs: events.append("analysis")),
-        patch("main.Path.is_file", return_value=True),
+        patch("codeboarding_cli.main.Path.is_file", return_value=True),
     ):
         main([*command_args, "--render", "rst"])
 
@@ -253,8 +256,8 @@ def test_main_renders_after_any_successful_analysis(
     )
 
 
-@patch("main.render_output")
-@patch("main.incremental_analysis.run_from_args")
+@patch("codeboarding_cli.main.render_output")
+@patch("codeboarding_cli.main.incremental_analysis.run_from_args")
 def test_main_skips_render_when_analysis_does_not_exist(
     _mock_run_incremental,
     mock_render_output,

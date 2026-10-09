@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from telemetry.service import INTERNAL_SOURCES, ProductTelemetry
+from monitoring.telemetry.service import INTERNAL_SOURCES, ProductTelemetry
 
 
 @pytest.fixture

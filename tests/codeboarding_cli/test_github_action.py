@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from diagram_analysis import DEFAULT_DEPTH_CAP
-from github_action import (
+from codeboarding_cli.github_action import (
     _resolve_depth_cap,
     generate_analysis,
     generate_html,
@@ -183,12 +183,12 @@ class TestGenerateRst(unittest.TestCase):
 
 
 class TestGenerateAnalysis(unittest.TestCase):
-    @patch("github_action.generate_markdown")
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
-    @patch("github_action.create_temp_repo_folder")
-    @patch("github_action.checkout_repo")
-    @patch("github_action.clone_repository")
+    @patch("codeboarding_cli.github_action.generate_markdown")
+    @patch("codeboarding_cli.github_action.run_incremental_workflow")
+    @patch("codeboarding_cli.github_action.DiagramGenerator")
+    @patch("codeboarding_cli.github_action.create_temp_repo_folder")
+    @patch("codeboarding_cli.github_action.checkout_repo")
+    @patch("codeboarding_cli.github_action.clone_repository")
     @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "2"})
     def test_generate_analysis_markdown(
         self,
@@ -241,12 +241,12 @@ class TestGenerateAnalysis(unittest.TestCase):
             # Check return value
             self.assertEqual(result, temp_path)
 
-    @patch("github_action.generate_html")
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
-    @patch("github_action.create_temp_repo_folder")
-    @patch("github_action.checkout_repo")
-    @patch("github_action.clone_repository")
+    @patch("codeboarding_cli.github_action.generate_html")
+    @patch("codeboarding_cli.github_action.run_incremental_workflow")
+    @patch("codeboarding_cli.github_action.DiagramGenerator")
+    @patch("codeboarding_cli.github_action.create_temp_repo_folder")
+    @patch("codeboarding_cli.github_action.checkout_repo")
+    @patch("codeboarding_cli.github_action.clone_repository")
     @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_html(
         self,
@@ -278,12 +278,12 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_generate_html.assert_called_once()
             self.assertEqual(result, temp_path)
 
-    @patch("github_action.generate_mdx")
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
-    @patch("github_action.create_temp_repo_folder")
-    @patch("github_action.checkout_repo")
-    @patch("github_action.clone_repository")
+    @patch("codeboarding_cli.github_action.generate_mdx")
+    @patch("codeboarding_cli.github_action.run_incremental_workflow")
+    @patch("codeboarding_cli.github_action.DiagramGenerator")
+    @patch("codeboarding_cli.github_action.create_temp_repo_folder")
+    @patch("codeboarding_cli.github_action.checkout_repo")
+    @patch("codeboarding_cli.github_action.clone_repository")
     @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_mdx(
         self,
@@ -315,12 +315,12 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_generate_mdx.assert_called_once()
             self.assertEqual(result, temp_path)
 
-    @patch("github_action.generate_rst")
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
-    @patch("github_action.create_temp_repo_folder")
-    @patch("github_action.checkout_repo")
-    @patch("github_action.clone_repository")
+    @patch("codeboarding_cli.github_action.generate_rst")
+    @patch("codeboarding_cli.github_action.run_incremental_workflow")
+    @patch("codeboarding_cli.github_action.DiagramGenerator")
+    @patch("codeboarding_cli.github_action.create_temp_repo_folder")
+    @patch("codeboarding_cli.github_action.checkout_repo")
+    @patch("codeboarding_cli.github_action.clone_repository")
     @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_rst(
         self,
@@ -352,11 +352,11 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_generate_rst.assert_called_once()
             self.assertEqual(result, temp_path)
 
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
-    @patch("github_action.create_temp_repo_folder")
-    @patch("github_action.checkout_repo")
-    @patch("github_action.clone_repository")
+    @patch("codeboarding_cli.github_action.run_incremental_workflow")
+    @patch("codeboarding_cli.github_action.DiagramGenerator")
+    @patch("codeboarding_cli.github_action.create_temp_repo_folder")
+    @patch("codeboarding_cli.github_action.checkout_repo")
+    @patch("codeboarding_cli.github_action.clone_repository")
     @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_unsupported_extension(
         self,
@@ -387,12 +387,12 @@ class TestGenerateAnalysis(unittest.TestCase):
 
             self.assertIn("Unsupported extension", str(context.exception))
 
-    @patch("github_action.generate_markdown")
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
-    @patch("github_action.create_temp_repo_folder")
-    @patch("github_action.checkout_repo")
-    @patch("github_action.clone_repository")
+    @patch("codeboarding_cli.github_action.generate_markdown")
+    @patch("codeboarding_cli.github_action.run_incremental_workflow")
+    @patch("codeboarding_cli.github_action.DiagramGenerator")
+    @patch("codeboarding_cli.github_action.create_temp_repo_folder")
+    @patch("codeboarding_cli.github_action.checkout_repo")
+    @patch("codeboarding_cli.github_action.clone_repository")
     @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_CAP": "1"})
     def test_generate_analysis_branch_checkout(
         self,

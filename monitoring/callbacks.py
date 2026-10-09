@@ -161,3 +161,7 @@ class MonitoringCallback(BaseCallbackHandler):
             return {}
 
         return _extract_usage_from_mapping(usage_mapping)
+
+
+MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
+"""Process-wide LLM usage callback with its own stats container, so it needs no ContextVar."""

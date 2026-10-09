@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import telemetry.events as events
-from telemetry.events import capture_error, track_analysis, track_lsp_result
+import monitoring.telemetry.events as events
+from monitoring.telemetry.events import capture_error, track_analysis, track_lsp_result
 
 
 @pytest.fixture

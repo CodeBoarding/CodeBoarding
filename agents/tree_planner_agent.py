@@ -13,7 +13,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent_responses import PlannedGroup, TreePlanInsights
-from agents.llm_config import MONITORING_CALLBACK, get_current_prompt_profile, supports_json_mode
+from agents.llm_config import get_current_prompt_profile, supports_json_mode
+from monitoring.callbacks import MONITORING_CALLBACK
 from agents.llm_errors import LLMAuthError, raise_if_auth_error
 from agents.prompts import get_tree_plan_prompts
 from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries

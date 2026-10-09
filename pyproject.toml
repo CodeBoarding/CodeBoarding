@@ -87,6 +87,7 @@ packages = [
     "health.checks",
     "health.plugins",
     "monitoring",
+    "monitoring.telemetry",
     "output_generators",
     "repo_utils",
     "static_analyzer",
@@ -101,7 +102,6 @@ packages = [
     "codeboarding_cli.commands",
     "codeboarding_workflows",
     "codeboarding_workflows.sources",
-    "telemetry",
 ]
 py-modules = [
     "clustering_ids",
@@ -109,15 +109,13 @@ py-modules = [
     "utils",
     "vscode_constants",
     "logging_config",
-    "github_action",
     "user_config",
-    "main",
     "install",
 ]
 include-package-data = true
 
 [project.scripts]
-codeboarding = "main:main"
+codeboarding = "codeboarding_cli.main:main"
 codeboarding-setup = "install:main"
 codeboarding-render = "codeboarding_cli.render:main"
 

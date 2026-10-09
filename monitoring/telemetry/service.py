@@ -3,7 +3,7 @@ import os
 
 from posthog import Posthog
 
-from telemetry.device_id import generate_device_id
+from monitoring.telemetry.device_id import generate_device_id
 
 logger = logging.getLogger(__name__)
 

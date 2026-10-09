@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from diagram_analysis.exceptions import ScopeSemanticsError
-from main import main
+from codeboarding_cli.main import main
 
 
 @pytest.fixture

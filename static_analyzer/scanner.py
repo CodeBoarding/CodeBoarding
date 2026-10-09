@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 from static_analyzer.programming_language import ProgrammingLanguage, ProgrammingLanguageBuilder
-from telemetry.events import track_tech_stack
+from monitoring.telemetry.events import track_tech_stack
 from tool_registry.paths import is_wsl
 from utils import get_config
 

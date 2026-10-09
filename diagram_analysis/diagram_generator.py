@@ -90,7 +90,7 @@ from user_config import GROUPER_ENV, GROUPERS
 from static_analyzer.config import AdapterName
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
-from telemetry.events import track_analysis
+from monitoring.telemetry.events import track_analysis
 
 logger = logging.getLogger(__name__)
 
