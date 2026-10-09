@@ -1,0 +1,56 @@
+{
+  "arm": "base",
+  "subject": "329eaa80c3194e2effb990ff685a3199171d03bf",
+  "projects": {
+    "Volo.Abp.AI": {
+      "targets": [
+        "netstandard2.0"
+      ],
+      "errors": [
+        {
+          "code": "NU1201",
+          "level": "Error",
+          "message": "Project Volo.Abp.Core is not compatible with netstandard2.0 (.NETStandard,Version=v2.0). Project Volo.Abp.Core supports: net10.0 (.NETCoreApp,Version=v10.0)",
+          "libraryId": "Volo.Abp.Core",
+          "targetGraphs": [
+            "netstandard2.0"
+          ]
+        }
+      ]
+    },
+    "Volo.Abp.AI.Abstractions": {
+      "targets": [
+        "netstandard2.0"
+      ],
+      "errors": [
+        {
+          "code": "NU1201",
+          "level": "Error",
+          "message": "Project Volo.Abp.Core is not compatible with netstandard2.0 (.NETStandard,Version=v2.0). Project Volo.Abp.Core supports: net10.0 (.NETCoreApp,Version=v10.0)",
+          "libraryId": "Volo.Abp.Core",
+          "targetGraphs": [
+            "netstandard2.0"
+          ]
+        }
+      ]
+    },
+    "Volo.Abp.Core": {
+      "targets": [
+        "net10.0"
+      ],
+      "errors": []
+    },
+    "Volo.Abp.Auditing": {
+      "targets": [
+        "net10.0"
+      ],
+      "errors": []
+    },
+    "Volo.Abp.Auditing.Contracts": {
+      "targets": [
+        "net10.0"
+      ],
+      "errors": []
+    }
+  }
+}
