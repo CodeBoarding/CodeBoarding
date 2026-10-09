@@ -10,7 +10,7 @@ from codeboarding_cli.bootstrap import resolve_local_run_paths
 from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
 from diagram_analysis.exceptions import ScopeSemanticsError
 from output_generators import SUPPORTED_FORMATS, render as render_output
-from utils import ANALYSIS_FILENAME
+from infra.utils import ANALYSIS_FILENAME
 
 _SUBCOMMANDS = {"full", "incremental", "partial"}
 

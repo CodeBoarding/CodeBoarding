@@ -17,12 +17,12 @@ from agents.relation_edges import (
 )
 from agents.scope_analysis_agent import ScopeAnalysisResult
 from agents.scope_ids import ROOT_SCOPE_ID
-from clustering_ids import CodeBoardingClusterIds
-from constants import DEFAULT_STATIC_RELATION_LABEL
+from infra.clustering_ids import CodeBoardingClusterIds
+from infra.constants import DEFAULT_STATIC_RELATION_LABEL
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
 from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.cfg import Edge
-from repo_utils.path_utils import normalize_repo_path
+from infra.repo_utils.path_utils import normalize_repo_path
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult, GroupConnection
 from diagram_analysis.reference_resolver import StaticReferenceResolver
 

@@ -15,7 +15,7 @@ from agents.agent_responses import (
 )
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry, MethodIndexEntry
 from agents.relation_edges import merge_relations_by_pair
-from repo_utils.path_utils import normalize_repo_path
+from infra.repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
 

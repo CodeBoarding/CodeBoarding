@@ -12,7 +12,7 @@ from agents.model_capabilities import (
     _resolve_ollama,
     get_context_window,
 )
-from utils import CODEBOARDING_DIR_NAME
+from infra.utils import CODEBOARDING_DIR_NAME
 
 _FAKE_MODELSDEV = {
     "openai": {

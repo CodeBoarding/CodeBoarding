@@ -1,0 +1,275 @@
+import logging
+import os
+import shutil
+import hashlib
+from functools import wraps
+from pathlib import Path
+from collections.abc import Collection
+from typing import Callable, Any
+
+from infra.repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
+from infra.repo_utils.git_ops import approve_https_credentials
+from infra.repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.path_utils import normalize_repo_path, to_absolute_path, to_relative_path
+
+logger = logging.getLogger(__name__)
+NO_REPO_STATE_HASH = "NoRepoStateHash"
+
+# Handle the case where git is not installed on the system
+try:
+    from git import Repo, Git, GitCommandError, GitError
+
+    GIT_AVAILABLE = True
+except ImportError:
+    GIT_AVAILABLE = False
+    Repo = None  # type: ignore[misc, assignment]
+    Git = None  # type: ignore[misc, assignment]
+    GitCommandError = None  # type: ignore[misc, assignment]
+
+
+def require_git_import(default: Any | None = None) -> Callable:
+    """
+    Decorator that ensures git module is available for a function.
+    If git import fails and a default value is provided, returns that value.
+    Otherwise, re-raises the ImportError.
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if not GIT_AVAILABLE:
+                if default is not None:
+                    logger.warning(f"Git module not available for {func.__name__}, returning default: {default}")
+                    return default
+                logger.error(f"Git module required for {func.__name__} but not installed")
+                raise ImportError("GitPython is not installed. Install it with: pip install gitpython")
+            try:
+                return func(*args, **kwargs)
+            except GitError as e:
+                # No repository / invalid repo state. When a default is provided the
+                # caller is git-optional (e.g. analysing a non-git frozen copy), so
+                # this is an expected fallback, not an error — log it quietly. Only
+                # a default-less caller genuinely failed.
+                if default is not None:
+                    logger.debug(f"{func.__name__}: no usable git repository ({e}); using default {default!r}")
+                    return default
+                logger.error(f"Invalid Git repository: {e}")
+                raise e
+
+        return wrapper
+
+    return decorator
+
+
+def sanitize_repo_url(repo_url: str) -> str:
+    """
+    Normalizes Git URLs to ensure proper format for cloning.
+    Preserves HTTPS URLs for CI compatibility while supporting SSH URLs.
+    """
+    repo_url = repo_url.rstrip("/")  # else the suffix below yields ``.../repo/.git``
+
+    if repo_url.startswith("git@") or repo_url.startswith("ssh://"):
+        return repo_url  # already in SSH format
+    elif repo_url.startswith("https://") or repo_url.startswith("http://"):
+        # Keep HTTPS format for compatibility with CI environments
+        # Normalize to ensure .git suffix
+        if not repo_url.endswith(".git"):
+            return f"{repo_url}.git"
+        return repo_url
+    else:
+        raise ValueError("Unsupported URL format.")
+
+
+@require_git_import(default=False)
+def remote_repo_exists(repo_url: str) -> bool:
+    if repo_url is None:
+        return False
+    try:
+        Git().ls_remote(repo_url)
+        return True
+    except GitCommandError as e:
+        stderr = (e.stderr or "").lower()
+        if "not found" in stderr or "repository not found" in stderr:
+            return False
+        # something else went wrong (auth, network); re-raise so caller can decide
+        raise e
+
+
+def get_repo_name(repo_url: str):
+    base = sanitize_repo_url(repo_url).split("/")[-1]
+    repo_name, _ = os.path.splitext(base)
+    return repo_name
+
+
+@require_git_import()
+def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
+    repo_url = sanitize_repo_url(repo_url)
+    if not remote_repo_exists(repo_url):
+        raise RepoDontExistError()
+
+    repo_name = get_repo_name(repo_url)
+
+    dest = target_dir / repo_name
+    if dest.exists():
+        repo = Repo(dest)
+        if repo.is_dirty(untracked_files=True):
+            logger.info(f"Repository {repo_name} has uncommitted changes, skipping pull.")
+        else:
+            logger.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
+            try:
+                repo.remotes.origin.pull()
+            except GitCommandError as e:
+                logger.warning(f"Failed to pull latest changes for {repo_name}: {e}. Continuing with existing code.")
+    else:
+        logger.info(f"Cloning {repo_url} into {dest}")
+        Repo.clone_from(repo_url, dest)
+    logger.info("Cloning finished!")
+    return repo_name
+
+
+@require_git_import()
+def checkout_repo(repo_dir: Path, branch: str = "main") -> None:
+    repo = Repo(repo_dir)
+    if branch not in repo.heads:
+        logger.info(f"Branch {branch} does not exist, creating it.")
+        raise ValueError(f"Branch {branch} does not exist in the repository {repo_dir}: {repo.heads}")
+    logger.info(f"Checking out branch {branch}.")
+    repo.git.checkout(branch)
+    repo.git.pull()  # Ensure we have the latest changes
+
+
+def store_token():
+    if not os.environ.get("GITHUB_TOKEN"):  # Using .get() for safer access
+        raise NoGithubTokenFoundError()
+    logger.info(f"Setting up credentials with token: {os.environ['GITHUB_TOKEN'][:7]}")  # only first 7 for safety
+    approve_https_credentials(host="github.com", username="git", password=os.environ["GITHUB_TOKEN"])
+
+
+@require_git_import()
+def upload_onboarding_materials(project_name, output_dir, repo_dir):
+    repo = Repo(repo_dir)
+    origin = repo.remote(name="origin")
+    origin.pull()
+
+    no_new_files = True
+    for filename in os.listdir(output_dir):
+        if filename.endswith(".md"):
+            no_new_files = False
+            break
+    if no_new_files:
+        logger.info(f"No new onboarding files to upload for {project_name}.")
+        return
+
+    onboarding_repo_location = os.path.join(repo_dir, project_name)
+    if os.path.exists(onboarding_repo_location):
+        shutil.rmtree(onboarding_repo_location)
+    os.makedirs(onboarding_repo_location)
+
+    for filename in os.listdir(output_dir):
+        if filename.endswith(".md"):
+            shutil.copy(
+                os.path.join(output_dir, filename),
+                os.path.join(onboarding_repo_location, filename),
+            )
+    # Now commit the changes
+    # Equivalent to `git add onboarding_repo_location .`.git.add(A=True)  # Equivalent to `git add .`
+    repo.git.add(onboarding_repo_location, A=True)
+    repo.index.commit(f"Uploading onboarding materials for {project_name}")
+    origin.push()
+
+
+@require_git_import(default=False)
+def is_repo_dirty(repo_dir: str) -> bool:
+    """Check if the repository has uncommitted changes."""
+    repo = Repo(repo_dir)
+    return repo.is_dirty(untracked_files=True)
+
+
+@require_git_import(default=NO_REPO_STATE_HASH)
+def get_repo_state_hash(repo_dir: str | Path) -> str:
+    """
+    Get a hash that represents the exact state of the repository,
+    including both the commit hash and any uncommitted changes.
+
+    This is useful for caching based on the actual content state rather than
+    just the commit hash, allowing caches to be valid even with dirty repos.
+
+    Returns a 12-character hash combining:
+    - The current commit hash
+    - A hash of all staged and unstaged changes (git diff)
+    - A hash of untracked file paths (not content, for performance)
+    - The most recent modification time of any tracked file
+    """
+    repo = Repo(repo_dir)
+    repo_path = Path(repo_dir)
+    commit_hash = repo.head.commit.hexsha
+
+    # Get diff of staged and unstaged changes against HEAD
+    diff_content = repo.git.diff("HEAD")
+
+    # Use RepoIgnoreManager to properly filter untracked files based on all ignore patterns
+    ignore_manager = RepoIgnoreManager(repo_path)
+    untracked_files = sorted(f for f in repo.untracked_files if not ignore_manager.should_ignore(Path(f)))
+    untracked_str = "\n".join(untracked_files)
+
+    # Combine all state components (excluding commit_hash since it's in the prefix)
+    state_content = f"{diff_content}\n{untracked_str}"
+    state_hash = hashlib.sha256(state_content.encode("utf-8")).hexdigest()
+
+    return f"{commit_hash[:7]}_{state_hash[:8]}"
+
+
+@require_git_import(default="main")
+def get_branch(repo_dir: Path) -> str:
+    """
+    Get the current branch name of the repository.
+    """
+    repo = Repo(repo_dir)
+    return repo.active_branch.name if repo.active_branch else "main"
+
+
+def normalize_path(path: str | Path, root: str | Path | None = None) -> Path:
+    """Normalize a path for consistent comparison and storage.
+
+    Performs the following normalizations:
+    - If root is provided and path is absolute, makes it relative to root
+    - Normalizes using os.path.normpath() to handle '.', '..', redundant separators
+    - Returns as Path object for further operations
+
+    Args:
+        path: The path to normalize (str or Path)
+        root: Optional root directory to make the path relative to
+
+    Returns:
+        Normalized Path object
+    """
+    path_obj = Path(path)
+    root_obj = Path(root) if root else None
+
+    if root_obj and path_obj.is_absolute():
+        try:
+            path_obj = path_obj.relative_to(root_obj)
+        except (ValueError, TypeError):
+            try:
+                # Reconcile symlinked roots (e.g. macOS /var -> /private/var) that make a
+                # plain relative_to fail even though the file really is under root. Without
+                # this the path stays absolute and never matches the relative all-files set,
+                # so file-coverage counts it as not-analyzed (totals then fail to add up).
+                path_obj = path_obj.resolve().relative_to(root_obj.resolve())
+            except (ValueError, TypeError):
+                pass
+
+    return Path(normalize_repo_path(path_obj))
+
+
+def normalize_paths(paths: Collection[str | Path], root: str | Path | None = None) -> set[Path]:
+    """Normalize a collection of paths for consistent comparison.
+
+    Args:
+        paths: Collection of paths to normalize
+        root: Optional root directory to make paths relative to
+
+    Returns:
+        Set of normalized Path objects
+    """
+    return {normalize_path(p, root) for p in paths}

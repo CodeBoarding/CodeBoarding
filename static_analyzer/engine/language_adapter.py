@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Collection, Iterator, Sequence
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.lsp_client import ErrorVerdict, LSPClient
 from static_analyzer.engine.models import SymbolInfo
@@ -16,7 +16,7 @@ from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
 )
-from utils import get_config
+from infra.utils import get_config
 
 logger = logging.getLogger(__name__)
 

@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from monitoring.paths import generate_log_path
-from utils import generate_run_id
+from infra.monitoring.paths import generate_log_path
+from infra.utils import generate_run_id
 
 # Safety-valve depth cap, not a target — see --depth-cap help / README for why.
 # A component that outgrows the leaf ceiling is flagged expandable at whatever depth

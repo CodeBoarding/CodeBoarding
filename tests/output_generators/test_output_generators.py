@@ -10,7 +10,7 @@ from agents.agent_responses import (
     SourceCodeReference,
     assign_component_ids,
 )
-from utils import sanitize
+from infra.utils import sanitize
 from output_generators.html import (
     component_header_html,
     generate_cytoscape_data,

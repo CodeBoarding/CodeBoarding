@@ -12,7 +12,7 @@ from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, 
 from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
 from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_context import RunContext, RunPaths
-from repo_utils.change_detector import ChangeSet
+from infra.repo_utils.change_detector import ChangeSet
 
 
 class TestOnboardingMaterialsExist(unittest.TestCase):
@@ -549,7 +549,7 @@ class TestPartialCliLocal(unittest.TestCase):
 
 class TestCopyFiles(unittest.TestCase):
     def test_copy_files_copies_each_file_to_target(self):
-        from utils import copy_files
+        from infra.utils import copy_files
 
         with tempfile.TemporaryDirectory() as temp_dir:
             source = Path(temp_dir) / "src"
@@ -567,7 +567,7 @@ class TestCopyFiles(unittest.TestCase):
             self.assertFalse((target / "ignore.txt").exists())
 
     def test_copy_files_creates_missing_target_dir(self):
-        from utils import copy_files
+        from infra.utils import copy_files
 
         with tempfile.TemporaryDirectory() as temp_dir:
             source = Path(temp_dir) / "src"

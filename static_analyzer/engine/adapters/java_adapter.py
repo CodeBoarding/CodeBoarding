@@ -16,7 +16,7 @@ from static_analyzer.engine.lsp_constants import (
 )
 from static_analyzer.engine.utils import total_ram_gb
 from static_analyzer.java_utils import create_jdtls_command, find_java_21_or_later
-from utils import CODEBOARDING_DIR_NAME, get_config
+from infra.utils import CODEBOARDING_DIR_NAME, get_config
 
 logger = logging.getLogger(__name__)
 

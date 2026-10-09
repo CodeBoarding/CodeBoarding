@@ -1,4 +1,4 @@
-from clustering_ids import ROOT_SCOPE_ID
+from infra.clustering_ids import ROOT_SCOPE_ID
 from static_analyzer.clustering.names import ComponentRule, KinshipGrouper, ScopeSpec, TreeSpec, draft_tree
 from static_analyzer.clustering.names.spec import SPEC_VERSION
 from tests.static_analyzer.names.conftest import units_from_layout

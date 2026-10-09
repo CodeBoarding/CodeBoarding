@@ -86,10 +86,12 @@ packages = [
     "health",
     "health.checks",
     "health.plugins",
-    "monitoring",
-    "monitoring.telemetry",
+    "infra",
+    "infra.monitoring",
+    "infra.monitoring.telemetry",
+    "infra.repo_utils",
+    "infra.tool_registry",
     "output_generators",
-    "repo_utils",
     "static_analyzer",
     "static_analyzer.cfg",
     "static_analyzer.clustering",
@@ -97,26 +99,16 @@ packages = [
     "static_analyzer.engine",
     "static_analyzer.engine.adapters",
     "static_analyzer.lsp_client",
-    "tool_registry",
     "codeboarding_cli",
     "codeboarding_cli.commands",
     "codeboarding_workflows",
     "codeboarding_workflows.sources",
 ]
-py-modules = [
-    "clustering_ids",
-    "constants",
-    "utils",
-    "vscode_constants",
-    "logging_config",
-    "user_config",
-    "install",
-]
 include-package-data = true
 
 [project.scripts]
 codeboarding = "codeboarding_cli.main:main"
-codeboarding-setup = "install:main"
+codeboarding-setup = "infra.install:main"
 codeboarding-render = "codeboarding_cli.render:main"
 
 [project.urls]

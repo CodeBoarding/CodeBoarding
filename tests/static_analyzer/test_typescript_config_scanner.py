@@ -11,7 +11,7 @@ from static_analyzer.typescript_config_scanner import (
     TypeScriptProject,
     _resolve_system_tsc,
 )
-from utils import CODEBOARDING_DIR_NAME
+from infra.utils import CODEBOARDING_DIR_NAME
 
 
 def _force_fallback_walk(monkeypatch: pytest.MonkeyPatch) -> None:

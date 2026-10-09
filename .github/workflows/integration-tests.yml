@@ -33,18 +33,18 @@ on:
   # skip behavior when the listed files are touched.
   pull_request:
     paths:
-      - 'install.py'
-      - 'tool_registry/**'
-      - 'vscode_constants.py'
+      - 'infra/install.py'
+      - 'infra/tool_registry/**'
+      - 'infra/vscode_constants.py'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'static_analyzer/**'
-      - 'repo_utils/ignore.py'
+      - 'infra/repo_utils/ignore.py'
       - 'agents/model_capabilities.py'
       - 'agents/llm_config.py'
       - 'health/**'
-      - 'tests/test_install.py'
-      - 'tests/test_tool_registry.py'
+      - 'tests/infra/test_install.py'
+      - 'tests/infra/test_tool_registry.py'
       - '.github/workflows/integration-tests.yml'
 
   # A completed sync pushes this generated baseline commit. Trigger from that

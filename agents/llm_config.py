@@ -15,7 +15,7 @@ from langchain_openai import ChatOpenAI
 from agents.constants import LLMDefaults, ModelCapabilities
 from agents.model_capabilities import ContextWindow, get_context_window
 from agents.prompts import PromptProfile, resolve_prompt_profile
-from monitoring.callbacks import MONITORING_CALLBACK
+from infra.monitoring.callbacks import MONITORING_CALLBACK
 
 logger = logging.getLogger(__name__)
 

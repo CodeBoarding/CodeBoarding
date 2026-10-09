@@ -19,7 +19,7 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language
 

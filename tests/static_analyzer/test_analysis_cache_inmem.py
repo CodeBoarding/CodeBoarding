@@ -27,7 +27,7 @@ from static_analyzer.engine.models import CallSite, ExternalCallSite
 from static_analyzer.engine.utils import definition_location
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
-from utils import CODEBOARDING_DIR_NAME
+from infra.utils import CODEBOARDING_DIR_NAME
 
 
 def _node(qname: str, file_path: str, line_start: int = 1) -> Node:

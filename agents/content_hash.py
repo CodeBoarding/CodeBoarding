@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 
 SOURCE_ENCODING = "utf-8"
 SOURCE_DECODE_ERRORS = "surrogateescape"

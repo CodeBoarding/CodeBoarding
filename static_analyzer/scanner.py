@@ -6,9 +6,9 @@ import subprocess
 from pathlib import Path
 
 from static_analyzer.programming_language import ProgrammingLanguage, ProgrammingLanguageBuilder
-from monitoring.telemetry.events import track_tech_stack
-from tool_registry.paths import is_wsl
-from utils import get_config
+from infra.monitoring.telemetry.events import track_tech_stack
+from infra.tool_registry.paths import is_wsl
+from infra.utils import get_config
 
 logger = logging.getLogger(__name__)
 

@@ -38,8 +38,8 @@ from agents.relation_edges import (
     prune_ungrounded_edges,
 )
 from agents.scope_ids import ROOT_SCOPE_ID
-from clustering_ids import CodeBoardingClusterIds
-from constants import ROOT_DOCUMENT_NAMES
+from infra.clustering_ids import CodeBoardingClusterIds
+from infra.constants import ROOT_DOCUMENT_NAMES
 from agents.scope_analysis_agent import ScopeAnalysisAgent
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
@@ -57,17 +57,17 @@ from diagram_analysis.file_index import build_files_index, refresh_method_spans_
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from diagram_analysis.incremental_changes import compute_changed_members
 from diagram_analysis.scope_assembly import ScopeAssembler
-from repo_utils.path_utils import normalize_repo_path
-from utils import sanitize
+from infra.repo_utils.path_utils import normalize_repo_path
+from infra.utils import sanitize
 from diagram_analysis.scope_plan import plan_scope_result_update
 from diagram_analysis.tree_shape import absorb_single_child_components
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
-from monitoring import StreamingStatsWriter
-from monitoring.mixin import MonitoringMixin
-from monitoring.paths import get_monitoring_run_dir
-from repo_utils.change_detector import ChangeSet
-from repo_utils.ignore import RepoIgnoreManager
+from infra.monitoring import StreamingStatsWriter
+from infra.monitoring.mixin import MonitoringMixin
+from infra.monitoring.paths import get_monitoring_run_dir
+from infra.repo_utils.change_detector import ChangeSet
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalysisFatalError, StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -86,11 +86,11 @@ from static_analyzer.clustering.names import AffinityGrouper, Grouper, KinshipGr
 from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
 from agents.tree_planner_agent import TreePlannerAgent
-from user_config import GROUPER_ENV, GROUPERS
+from infra.user_config import GROUPER_ENV, GROUPERS
 from static_analyzer.config import AdapterName
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
-from monitoring.telemetry.events import track_analysis
+from infra.monitoring.telemetry.events import track_analysis
 
 logger = logging.getLogger(__name__)
 

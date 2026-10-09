@@ -20,10 +20,10 @@ from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
 from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
-from clustering_ids import CodeBoardingClusterIds
+from infra.clustering_ids import CodeBoardingClusterIds
 from diagram_analysis.file_index import build_file_methods_from_nodes, build_files_index
 from diagram_analysis.scope_assembly import ScopeAssembler
-from repo_utils.change_detector import ChangeSet
+from infra.repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterScopeResult
 from diagram_analysis.reference_resolver import StaticReferenceResolver

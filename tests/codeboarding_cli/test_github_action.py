@@ -14,7 +14,7 @@ from codeboarding_cli.github_action import (
     generate_mdx,
     generate_rst,
 )
-from utils import CODEBOARDING_DIR_NAME
+from infra.utils import CODEBOARDING_DIR_NAME
 
 UNIFIED_ANALYSIS_JSON = {
     "version": 2,

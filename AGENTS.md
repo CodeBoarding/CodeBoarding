@@ -14,7 +14,7 @@
 ### 3. Code Quality and Testing Standards
 - **Run tests with coverage requirements**: Execute `uv run pytest --cov=. --cov-report=term --cov-fail-under=80` to validate changes. The project enforces an 80% minimum code coverage threshold. The integration suite is not in this repo — it lives in the private `CodeBoarding-tests` repo and runs in CI (see `CONTRIBUTING.md` §5e).
 - **Format and lint before commits**: Run `uv run black .` (line length: 120) and `uv run mypy .` to ensure code quality. These are enforced in pre-commit hooks and GitHub CI/CD workflows.
-- **Respect project structure**: Code is organized by functional domain (e.g., `agents/`, `static_analyzer/`, `output_generators/`, `monitoring/`). Place new code in the appropriate directory and follow existing module patterns.
+- **Respect project structure**: Code is organized by functional domain (e.g., `agents/`, `static_analyzer/`, `output_generators/`, `infra/`). Place new code in the appropriate directory and follow existing module patterns.
 - **Public methods first, private below**: within a class or module, order all public methods above the `_`-prefixed ones so the API reads first when scrolling. Don't interleave them.
 - **Add imports at the top of the file**: avoid function or class level imports. Do not use `if TYPE_CHECKING` import blocks; keep runtime imports explicit and resolve cycles by moving shared types or decoupling modules instead.
 - **Avoid trivial pass-through methods**: don't add one-line functions or methods that only call another helper with fixed arguments. Inline the call, or give the helper a real domain responsibility that hides meaningful complexity.
@@ -40,6 +40,6 @@
 - **Run pre-commit hooks locally**: Execute `git commit` with the pre-commit hooks enabled to catch formatting and type errors before pushing. This mirrors the CI/CD validation.
 
 ### 7. Output and Logging
-- **Logging is centralized**: Review `logging_config.py` for logging configuration. Structured logging is used throughout the project; integrate logs into this system rather than using ad-hoc print statements.
+- **Logging is centralized**: Review `infra/logging_config.py` for logging configuration. Structured logging is used throughout the project; integrate logs into this system rather than using ad-hoc print statements.
 - **Multiple output formats supported**: The project generates Markdown, HTML, MDX, and Sphinx documentation. When adding features, consider all output generators if they are affected.
-- **Monitor execution stats**: The `monitoring/` directory provides `StreamingStatsWriter` for tracking LLM usage and performance metrics. Use this for tracking long-running operations.
+- **Monitor execution stats**: The `infra/monitoring/` package provides `StreamingStatsWriter` for tracking LLM usage and performance metrics. Use this for tracking long-running operations.

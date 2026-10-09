@@ -14,7 +14,7 @@ from static_analyzer.analysis_cache import (
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language
-from utils import CODEBOARDING_DIR_NAME
+from infra.utils import CODEBOARDING_DIR_NAME
 
 
 def _realpaths(paths: list[str]) -> list[str]:

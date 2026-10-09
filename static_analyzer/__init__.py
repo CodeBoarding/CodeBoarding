@@ -6,8 +6,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from repo_utils.git_ops import get_changed_files_since
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.git_ops import get_changed_files_since
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
@@ -32,9 +32,9 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
-from monitoring.telemetry.events import track_lsp_result
-from tool_registry import ensure_node_on_path
-from utils import get_artifact_dir
+from infra.monitoring.telemetry.events import track_lsp_result
+from infra.tool_registry import ensure_node_on_path
+from infra.utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ from static_analyzer.java_config_scanner import (
     JavaConfigScanner,
     scan_java_projects,
 )
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 
 
 class TestJavaProjectConfig(unittest.TestCase):

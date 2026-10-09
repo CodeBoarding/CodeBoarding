@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 from agents.agent_responses import AnalysisInsights
 from output_generators.html_template import populate_html_template
-from utils import sanitize
+from infra.utils import sanitize
 
 logger = logging.getLogger(__name__)
 

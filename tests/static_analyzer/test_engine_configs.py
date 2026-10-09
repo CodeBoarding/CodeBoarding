@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import (
     StaticAnalysisFatalError,
     StaticAnalyzer,

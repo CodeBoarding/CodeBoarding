@@ -2,7 +2,7 @@ import logging
 import platform
 from pathlib import Path
 
-from tool_registry.java import find_java_21_or_later
+from infra.tool_registry.java import find_java_21_or_later
 
 logger = logging.getLogger(__name__)
 

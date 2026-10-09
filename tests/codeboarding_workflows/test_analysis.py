@@ -12,7 +12,7 @@ from codeboarding_workflows.analysis import (
 )
 from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_context import RunContext, RunPaths
-from repo_utils.change_detector import ChangeSet
+from infra.repo_utils.change_detector import ChangeSet
 
 
 @pytest.fixture

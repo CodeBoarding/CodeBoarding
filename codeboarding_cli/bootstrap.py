@@ -5,11 +5,11 @@ from pathlib import Path
 from agents.llm_config import configure_models, validate_api_key_provided
 from health.plugins import get_registries, load_plugins
 from diagram_analysis.run_context import RunPaths
-from install import ensure_tools
-from logging_config import setup_logging
-from user_config import ensure_config_template, load_user_config
-from utils import CODEBOARDING_DIR_NAME
-from vscode_constants import update_config
+from infra.install import ensure_tools
+from infra.logging_config import setup_logging
+from infra.user_config import ensure_config_template, load_user_config
+from infra.utils import CODEBOARDING_DIR_NAME
+from infra.vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
 

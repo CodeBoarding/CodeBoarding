@@ -14,7 +14,7 @@ from agents.agent_responses import (
     ScopeUpdateDecision,
 )
 from diagram_analysis.exceptions import IncrementalClusteringError
-from clustering_ids import CodeBoardingClusterIds
+from infra.clustering_ids import CodeBoardingClusterIds
 from static_analyzer.clustering import ClusterGroup, ClusterResult, ClusterScopeResult
 
 logger = logging.getLogger(__name__)

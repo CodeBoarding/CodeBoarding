@@ -7,8 +7,8 @@ from codeboarding_workflows.analysis import run_incremental_workflow
 from diagram_analysis import DEFAULT_DEPTH_CAP, DiagramGenerator, RunContext
 from diagram_analysis.io_utils import load_analysis_metadata
 from output_generators.rendering import render_docs
-from repo_utils import checkout_repo, clone_repository
-from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, create_temp_repo_folder
+from infra.repo_utils import checkout_repo, clone_repository
+from infra.utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, create_temp_repo_folder
 
 logger = logging.getLogger(__name__)
 

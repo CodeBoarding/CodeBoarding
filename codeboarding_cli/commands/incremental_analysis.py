@@ -12,7 +12,7 @@ from codeboarding_workflows.analysis import BaselineUnavailableError, run_increm
 from diagram_analysis import RunContext
 from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_mode import RunMode
-from utils import monitoring_enabled
+from infra.utils import monitoring_enabled
 
 logger = logging.getLogger(__name__)
 

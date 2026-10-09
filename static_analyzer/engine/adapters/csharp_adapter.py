@@ -10,14 +10,14 @@ import threading
 from collections.abc import Sequence
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import Language, NodeType
 from static_analyzer.dotnet_sdk import DotnetSdkError, resolve_dotnet_sdk, system_dotnet_env
 from static_analyzer.dotnet_solution import analyzer_project_references, solution_projects
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.source_inspector import SourceInspector
-from tool_registry import (
+from infra.tool_registry import (
     TOOL_REGISTRY,
     ToolKind,
     acquire_lock,

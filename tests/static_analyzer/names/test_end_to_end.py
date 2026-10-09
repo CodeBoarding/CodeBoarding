@@ -2,7 +2,7 @@ from pathlib import Path
 
 """The public path the pipeline will use: CallGraph -> units -> draft -> replay."""
 
-from clustering_ids import ROOT_SCOPE_ID
+from infra.clustering_ids import ROOT_SCOPE_ID
 from static_analyzer.cfg import CallGraph
 from static_analyzer.clustering.names import KinshipGrouper, draft_tree, replay, role_words_for, units_from_graphs
 from static_analyzer.config import NodeType

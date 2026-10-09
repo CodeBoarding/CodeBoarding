@@ -26,13 +26,13 @@ from pydantic import Field
 from agents.agent_responses import AnalysisInsights, LLMBaseModel, RelationEdge, SourceCodeReference
 from agents.constants import ModelCapabilities
 from agents.llm_config import get_current_agent_context_window, get_current_prompt_profile
-from monitoring.callbacks import MONITORING_CALLBACK
+from infra.monitoring.callbacks import MONITORING_CALLBACK
 from agents.llm_errors import ScopeContextTooLargeError, raise_if_auth_error
 from agents.llm_renderers import render_scope_context, scope_file_paths, scope_method_names
 from agents.prompts import get_scope_analysis_prompts
 from agents.tools import MethodCallsTool, ReadFileTool
 from agents.tools.base import RepoContext
-from monitoring.mixin import MonitoringMixin
+from infra.monitoring.mixin import MonitoringMixin
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterScopeResult
 

@@ -20,7 +20,7 @@ from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import KotlinDeclarations, SourceInspector
 from static_analyzer.engine.utils import total_ram_gb
 from static_analyzer.internal_references import parent_qualified_name, simple_name
-from tool_registry import user_data_dir
+from infra.tool_registry import user_data_dir
 
 logger = logging.getLogger(__name__)
 

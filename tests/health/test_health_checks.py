@@ -5,7 +5,7 @@ from pathlib import Path
 from health.checks.circular_deps import check_circular_dependencies
 from health.checks.function_size import check_function_size
 from health.models import HealthCheckConfig, Severity
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import NodeType
 from static_analyzer.node import Node

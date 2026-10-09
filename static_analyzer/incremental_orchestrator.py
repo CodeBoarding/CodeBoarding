@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import AnalysisData, InvalidatedEdge
 from static_analyzer.analysis_cache import (
     invalidate_files,

@@ -17,11 +17,11 @@ from pathlib import Path
 
 from health.runner import run_health_checks
 from health.config import initialize_health_dir, load_health_config
-from logging_config import setup_logging
-from repo_utils import clone_repository, get_repo_name
+from infra.logging_config import setup_logging
+from infra.repo_utils import clone_repository, get_repo_name
 from static_analyzer import get_static_analysis
-from utils import CODEBOARDING_DIR_NAME, get_artifact_dir
-from vscode_constants import update_config
+from infra.utils import CODEBOARDING_DIR_NAME, get_artifact_dir
+from infra.vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
 
