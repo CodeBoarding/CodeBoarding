@@ -60,6 +60,9 @@ class EngineConfig:
     """Started by the full pass and stopped once its own analysis is done, a bounded number at a time,
     instead of living as long as the analyzer. Why: one server per package of a large monorepo does
     not fit in memory at once, while each one alone does."""
+    files_root: Path | None = None
+    """For a deferred engine, the directory whose new files it takes on a warm start; the deepest
+    one holding a file wins. None means ``project_path``."""
 
 
 MAX_CONCURRENT_ENGINES_ENV_VAR = "CODEBOARDING_MAX_CONCURRENT_ENGINES"
@@ -78,8 +81,9 @@ def max_concurrent_engines() -> int:
     """How many engine LSP servers may be resident at once. 0 disables the bound.
 
     Why off by default: the bound hands each client's lifetime to the full pass,
-    so warm-start and the editor-facing file queries have no live client to use.
-    They refuse to run rather than answer emptily — see ``_live_clients``.
+    so the editor-facing file queries have no live client to use. They refuse to
+    run rather than answer emptily (see ``_live_clients``); a warm start starts
+    the engines whose files changed itself.
     """
     raw = os.environ.get(MAX_CONCURRENT_ENGINES_ENV_VAR, "").strip()
     if not raw:
@@ -962,36 +966,76 @@ class StaticAnalyzer:
         carried: dict[Language, dict] = {}
         carried_adapters: dict[Language, LanguageAdapter] = {}
         rebuilt: list[tuple[LanguageAdapter, dict]] = []
-        for engine_config, engine_client in self._live_clients("warm-start"):
+        configs = [config for config in self._engine_configs if config.source_files or not self._is_deferred(config)]
+        if not any(self._is_deferred(config) for config in configs):
+            # Refuses, as ever, when there is work but no server is running.
+            self._live_clients("warm-start")
+        live = {id(config): client for config, client in self._engine_clients}
+        known: dict[str, set[Path]] = {}
+        for config in configs:
+            known.setdefault(config.adapter.language, set()).update(path.resolve() for path in config.source_files)
+
+        for engine_config in configs:
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
+            deferred = self._is_deferred(engine_config)
+            engine_client = live.get(id(engine_config))
+            if not deferred and engine_client is None:
+                continue
             t_lang_start = time.monotonic()
             changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
-
-            if changed_files is None:
-                analysis = self._run_full_analysis(engine_config, engine_client)
-                rebuilt.append((adapter, analysis))
-            else:
+            if changed_files is not None:
                 changed_files = {
                     path
                     for path in changed_files
                     if not any(path.is_relative_to(root) for root in engine_config.excluded_roots)
                 }
-                logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
-                cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
-                analysis = update_cfg_for_changed_files(
-                    cached_lang_dict,
-                    changed_files,
-                    adapter,
-                    project_path,
-                    self.repository_path,
-                    engine_client,
-                    self.ignore_manager,
+            if deferred:
+                # A git failure re-reads this engine's own files: a full rebuild beside the threaded
+                # dict would keep that dict's copy of them too.
+                changed_files = (
+                    set(engine_config.source_files)
+                    if changed_files is None
+                    else self._owned_changes(engine_config, changed_files, configs, known[adapter.language])
                 )
-                carried[language] = analysis
-                carried_adapters[language] = adapter
+                if not changed_files:
+                    logger.info(f"warmstart {adapter.language} at {self._files_root(engine_config)}: nothing changed")
+                    continue
+                try:
+                    engine_client = self._spawn_engine_client(engine_config)
+                except Exception as exc:
+                    raise StaticAnalysisFatalError(
+                        f"warm-start could not start the {adapter.language} server for "
+                        f"{self._files_root(engine_config)}: {exc}. Keeping the cache rather than updating it "
+                        "without these files."
+                    ) from exc
+            assert engine_client is not None
+            try:
+                if changed_files is None:
+                    analysis = self._run_full_analysis(engine_config, engine_client)
+                    rebuilt.append((adapter, analysis))
+                else:
+                    logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
+                    cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
+                    analysis = update_cfg_for_changed_files(
+                        cached_lang_dict,
+                        changed_files,
+                        adapter,
+                        project_path,
+                        self.repository_path,
+                        engine_client,
+                        self.ignore_manager,
+                    )
+                    carried[language] = analysis
+                    carried_adapters[language] = adapter
 
-            self._collect_diagnostics_for(adapter, engine_client, analysis)
+                self._collect_diagnostics_for(adapter, engine_client, analysis)
+            finally:
+                if deferred:
+                    try:
+                        engine_client.shutdown()
+                    except Exception:
+                        logger.exception(f"Error shutting down {adapter.language} client for {project_path}")
             track_lsp_result(
                 language=adapter.language_enum.value,
                 loc=self._loc_for_adapter(adapter),
@@ -1005,6 +1049,48 @@ class StaticAnalyzer:
         )
         results.incremental_base_results = cached_results
         return results
+
+    @staticmethod
+    def _files_root(engine_config: EngineConfig) -> Path:
+        return engine_config.files_root or engine_config.project_path
+
+    def _owned_changes(
+        self,
+        engine_config: EngineConfig,
+        changed_files: set[Path],
+        configs: list[EngineConfig],
+        known: set[Path],
+    ) -> set[Path]:
+        """The changed files a deferred engine reads: its own, and the new ones its directory holds most closely.
+
+        Why not by project root: one language's deferred engines can share a root (one tsserver per
+        package, all rooted at the repository), so the root would hand every engine every change.
+        """
+        own = {path.resolve() for path in engine_config.source_files}
+        extensions = set(engine_config.adapter.file_extensions)
+        mine: set[Path] = set()
+        for path in changed_files:
+            resolved = path.resolve()
+            if resolved in own:
+                mine.add(path)
+            elif (
+                resolved not in known
+                and resolved.suffix in extensions
+                and self._new_file_owner(resolved, configs) is engine_config
+            ):
+                mine.add(path)
+        return mine
+
+    def _new_file_owner(self, path: Path, configs: list[EngineConfig]) -> EngineConfig | None:
+        """The deferred engine of this file's language whose directory holds it most closely."""
+        holders = [
+            config
+            for config in configs
+            if self._is_deferred(config)
+            and path.suffix in set(config.adapter.file_extensions)
+            and path.is_relative_to(self._files_root(config).resolve())
+        ]
+        return max(holders, key=lambda config: len(self._files_root(config).resolve().parts), default=None)
 
     def _changed_files_for_language(self, project_path: Path, cached_sha: str, language: str) -> set[Path] | None:
         """The warm-start changed-file set scoped to one language's project root.

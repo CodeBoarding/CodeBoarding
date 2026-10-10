@@ -85,9 +85,9 @@ class TestWarmStartChangedFiles(unittest.TestCase):
         """Why: a config that copies the cache hands back the nodes another config invalidated."""
         analyzer = _analyzer_with_one_engine(self.project, changed_files={self.project / "a.py"})
         ((config, client),) = analyzer._engine_clients
-        analyzer._engine_clients.append(
-            (EngineConfig(adapter=config.adapter, project_path=self.project / "sub"), client)
-        )
+        sub = EngineConfig(adapter=config.adapter, project_path=self.project / "sub")
+        analyzer._engine_configs.append(sub)
+        analyzer._engine_clients.append((sub, client))
         first, second = {"call_graph": "first"}, {"call_graph": "second"}
         with (
             patch("static_analyzer.update_cfg_for_changed_files", side_effect=[first, second]) as mock_update,
@@ -117,6 +117,7 @@ class TestWarmStartChangedFiles(unittest.TestCase):
                 outer.excluded_roots = [excluded]
                 outer.source_files = [self.project / "Unchanged.cs"]
                 inner = EngineConfig(outer.adapter, inner_root, source_files=[excluded / "modified.cs"])
+                analyzer._engine_configs.append(inner)
                 analyzer._engine_clients.append((inner, client))
                 with (
                     patch(
