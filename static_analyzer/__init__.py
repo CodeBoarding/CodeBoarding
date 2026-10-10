@@ -56,6 +56,10 @@ class EngineConfig:
     source_files: list[Path] = field(default_factory=list)
     # Retain discovery exclusions for incremental edits, including deleted files.
     excluded_roots: list[Path] = field(default_factory=list)
+    deferred: bool = False
+    """Started by the full pass and stopped once its own analysis is done, a bounded number at a time,
+    instead of living as long as the analyzer. Why: one server per package of a large monorepo does
+    not fit in memory at once, while each one alone does."""
 
 
 MAX_CONCURRENT_ENGINES_ENV_VAR = "CODEBOARDING_MAX_CONCURRENT_ENGINES"
@@ -342,7 +346,7 @@ class StaticAnalyzer:
             return
 
         started: list[tuple[EngineConfig, LSPClient]] = []
-        attempted: list[str] = []
+        runnable: list[EngineConfig] = []
         failed_languages: list[str] = []
         failed_details: list[str] = []
 
@@ -358,12 +362,33 @@ class StaticAnalyzer:
             if not engine_config.source_files:
                 logger.info(f"No {adapter.language} source files under {project_path}; skipping its LSP server.")
                 continue
+            runnable.append(engine_config)
 
-            attempted.append(adapter.language)
-            if max_concurrent_engines():
-                # Deferred: the full pass owns the lifetime so only a bounded
-                # number of servers are resident at once.
+        if not runnable:
+            logger.info(f"No source files for any detected language in {self.repository_path}; no LSP clients started.")
+            self._engine_clients = []
+            self._clients_started = True
+            return
+
+        deferred = [engine_config for engine_config in runnable if self._is_deferred(engine_config)]
+        if deferred:
+            logger.info(
+                "%d engine LSP client(s) will start during analysis, at most %d running at a time.",
+                len(deferred),
+                self._deferred_limit(len(deferred)),
+            )
+            # Prepare them now, before any server is resident: a project must
+            # not be analyzed before its siblings are restored.
+            for engine_config in deferred:
+                try:
+                    self._prepare_project_once(engine_config)
+                except Exception:
+                    logger.exception(f"Failed to prepare {engine_config.project_path}; the full pass will report it")
+
+        for engine_config in runnable:
+            if self._is_deferred(engine_config):
                 continue
+            adapter = engine_config.adapter
             try:
                 started.append((engine_config, self._spawn_engine_client(engine_config)))
             except Exception as exc:
@@ -374,35 +399,11 @@ class StaticAnalyzer:
                 failed_languages.append(adapter.language)
                 failed_details.append(f"{adapter.language}: {exc}")
 
-        if not attempted:
-            logger.info(f"No source files for any detected language in {self.repository_path}; no LSP clients started.")
-            self._engine_clients = []
-            self._clients_started = True
-            return
-
-        if max_concurrent_engines():
-            logger.info(
-                "%d engine LSP client(s) will start during analysis, at most %d running at a time.",
-                len(attempted),
-                max_concurrent_engines(),
-            )
-            # Prepare everything now, while nothing is resident: a project must
-            # not be analyzed before its siblings are restored.
-            for engine_config in self._engine_configs:
-                if not engine_config.source_files:
-                    continue
-                try:
-                    self._prepare_project_once(engine_config)
-                except Exception:
-                    logger.exception(f"Failed to prepare {engine_config.project_path}; the full pass will report it")
-            self._engine_clients = []
-            self._clients_started = True
-            return
-
-        if not started:
+        if not started and not deferred:
             self._clients_started = False
             details = f"; failures: {'; '.join(failed_details)}" if failed_details else ""
-            raise RuntimeError(f"Failed to start any engine LSP client (attempted: {', '.join(attempted)}){details}")
+            attempted = ", ".join(engine_config.adapter.language for engine_config in runnable)
+            raise RuntimeError(f"Failed to start any engine LSP client (attempted: {attempted}){details}")
 
         if failed_languages:
             details = f" Details: {'; '.join(failed_details)}." if failed_details else ""
@@ -415,6 +416,20 @@ class StaticAnalyzer:
 
         self._engine_clients = started
         self._clients_started = True
+
+    @staticmethod
+    def _is_deferred(engine_config: EngineConfig) -> bool:
+        """Whether the full pass starts and stops this engine's server, rather than the analyzer.
+
+        Every engine is, under ``CODEBOARDING_MAX_CONCURRENT_ENGINES``; otherwise only the ones
+        their scanner marked.
+        """
+        return engine_config.deferred or max_concurrent_engines() > 0
+
+    @staticmethod
+    def _deferred_limit(engine_count: int) -> int:
+        """Deferred servers resident at once: the env var when set, else what cores and memory allow."""
+        return max_concurrent_engines() or recommended_engine_concurrency(engine_count)
 
     def _prepare_project_once(self, engine_config: EngineConfig) -> None:
         """Let the adapter prepare a project exactly once (e.g. ``dotnet restore``).
@@ -547,20 +562,21 @@ class StaticAnalyzer:
         self._cached_results = None
 
     def _live_clients(self, operation: str) -> list[tuple[EngineConfig, LSPClient]]:
-        """The started engine clients, refusing callers the concurrency bound cannot serve.
+        """The started engine clients, refusing callers a deferred engine cannot serve.
 
-        Why: under ``CODEBOARDING_MAX_CONCURRENT_ENGINES`` the full pass owns
-        each client's lifetime, so nothing is resident outside it. Every caller
-        below iterates the client list, and an empty one reads as a successful
-        empty answer — for warm-start that answer is then persisted over a good
-        cache, so a loud refusal is the only safe reading of this state.
+        Why: the full pass owns a deferred engine's server, so nothing of it is resident outside the
+        pass. Every caller below iterates the client list, and a missing engine reads as a successful
+        empty answer; for warm-start that answer is then persisted over a good cache, so a loud
+        refusal is the only safe reading of this state.
         """
-        if self._engine_clients or not any(config.source_files for config in self._engine_configs):
+        with_files = [config for config in self._engine_configs if config.source_files]
+        deferred = [config for config in with_files if self._is_deferred(config)]
+        if not deferred and (self._engine_clients or not with_files):
             return self._engine_clients
         raise StaticAnalysisFatalError(
-            f"{operation} needs live LSP clients, but {MAX_CONCURRENT_ENGINES_ENV_VAR}="
-            f"{max_concurrent_engines()} defers them to the full pass. Unset it, or run a full "
-            "analysis (skip_cache=True) so the pass owns the servers."
+            f"{operation} needs live LSP clients, but {len(deferred) or len(with_files)} engine(s) start only during "
+            f"the full pass ({MAX_CONCURRENT_ENGINES_ENV_VAR} or the engine's scanner defers them). Unset it, or run "
+            "a full analysis (skip_cache=True) so the pass owns the servers."
         )
 
     def collect_fresh_diagnostics(self) -> dict[Language, FileDiagnosticsMap]:
@@ -871,12 +887,12 @@ class StaticAnalyzer:
                     except Exception:
                         logger.exception(f"Error shutting down {adapter.language} client for {project_path}")
 
-        cap = max_concurrent_engines()
-        if not cap:
-            for order, (engine_config, engine_client) in enumerate(self._engine_clients):
-                run_one(engine_config, engine_client, order)
-        else:
-            pending = [cfg for cfg in self._engine_configs if cfg.source_files]
+        position = {id(config): index for index, config in enumerate(self._engine_configs)}
+        for engine_config, engine_client in self._engine_clients:
+            run_one(engine_config, engine_client, position[id(engine_config)])
+        pending = [cfg for cfg in self._engine_configs if cfg.source_files and self._is_deferred(cfg)]
+        if pending:
+            cap = self._deferred_limit(len(pending))
             logger.info("Running %d engine(s) with at most %d resident at a time", len(pending), cap)
             # Not ``with``: its ``__exit__`` waits without cancelling, so one
             # engine's fatal error would still drain every queued engine — a full
@@ -884,12 +900,12 @@ class StaticAnalyzer:
             # wait so each in-flight ``run_one`` still shuts its own client down.
             pool = ThreadPoolExecutor(max_workers=cap)
             try:
-                futures = [pool.submit(run_one, cfg, None, order) for order, cfg in enumerate(pending)]
+                futures = [pool.submit(run_one, cfg, None, position[id(cfg)]) for cfg in pending]
                 for future in as_completed(futures):
                     future.result()
             finally:
                 pool.shutdown(wait=True, cancel_futures=True)
-            if pending and not spawned:
+            if not spawned and not self._engine_clients:
                 details = f"; failures: {'; '.join(spawn_failures)}" if spawn_failures else ""
                 raise RuntimeError(
                     "Failed to start any engine LSP client "

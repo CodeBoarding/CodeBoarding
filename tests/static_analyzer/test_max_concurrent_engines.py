@@ -7,6 +7,7 @@ at a time.
 
 import time
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -236,3 +237,77 @@ class TestPerEngineMemoryBudget:
         # Below the floor a server recycles faster than it can index, so the
         # split stops rather than shrinking without limit.
         assert per_engine_memory_budget(1000) == MIN_ENGINE_MEMORY_BUDGET
+
+
+class TestDeferredEngines:
+    """A deferred engine's server lives only for its own analysis; every other engine keeps today's lifetime."""
+
+    def _analyzer(self, tmp_path: Path) -> tuple[StaticAnalyzer, EngineConfig, EngineConfig]:
+        analyzer = StaticAnalyzer.__new__(StaticAnalyzer)
+        analyzer.repository_path = tmp_path
+        analyzer.collected_diagnostics = {}
+        analyzer._clients_started = False
+        analyzer._engine_clients = []
+        analyzer._prepared_projects = {}
+        analyzer._prepared_lock = __import__("threading").Lock()
+        python, typescript = MagicMock(), MagicMock()
+        python.language, python.language_enum = "Python", Language.PYTHON
+        python.results_language = Language.PYTHON
+        typescript.language, typescript.language_enum = "TypeScript", Language.TYPESCRIPT
+        typescript.results_language = Language.TYPESCRIPT
+        eager = EngineConfig(python, tmp_path, source_files=[tmp_path / "a.py"])
+        deferred = EngineConfig(typescript, tmp_path / "web", source_files=[tmp_path / "web" / "a.ts"], deferred=True)
+        analyzer._engine_configs = [deferred, eager]
+        analyzer._loc_for_adapter = MagicMock(return_value=0)
+        analyzer._absorb_into_results = MagicMock()
+        analyzer._collect_diagnostics_for = MagicMock()
+        return analyzer, eager, deferred
+
+    def test_only_the_eager_engine_starts_with_the_analyzer(self, tmp_path: Path):
+        analyzer, eager, deferred = self._analyzer(tmp_path)
+        spawn = MagicMock(return_value=MagicMock(name="python client"))
+        analyzer._spawn_engine_client = spawn  # type: ignore[method-assign]
+        with patch.dict("os.environ", {}, clear=True):
+            analyzer.start_clients()
+        spawn.assert_called_once_with(eager)
+        cast(MagicMock, deferred.adapter).prepare_project.assert_called_once_with(deferred.project_path)
+
+    def test_the_pass_starts_and_stops_the_deferred_server_and_merges_in_configuration_order(self, tmp_path: Path):
+        analyzer, eager, deferred = self._analyzer(tmp_path)
+        eager_client, deferred_client = MagicMock(name="python client"), MagicMock(name="typescript client")
+        analyzer._engine_clients = [(eager, eager_client)]
+        analyzer._clients_started = True
+        spawn = MagicMock(return_value=deferred_client)
+        analyzer._spawn_engine_client = spawn  # type: ignore[method-assign]
+        merged: list[str] = []
+        analyzer._absorb_into_results = MagicMock(side_effect=lambda _r, language, _a: merged.append(language.value))
+        analyzer._run_full_analysis = MagicMock(
+            side_effect=lambda config, _client: {
+                "source_files": [],
+                "call_graph": None,
+                "lang": config.adapter.language,
+            }
+        )
+
+        with patch.dict("os.environ", {}, clear=True):
+            analyzer._run_full_lsp_pass()
+
+        spawn.assert_called_once_with(deferred)
+        deferred_client.shutdown.assert_called_once()
+        eager_client.shutdown.assert_not_called()
+        assert merged == ["typescript", "python"]
+
+    def test_a_warm_start_is_refused_while_a_deferred_engine_has_files(self, tmp_path: Path):
+        analyzer, eager, _deferred = self._analyzer(tmp_path)
+        analyzer._engine_clients = [(eager, MagicMock())]
+        with patch.dict("os.environ", {}, clear=True):
+            with pytest.raises(StaticAnalysisFatalError, match="1 engine\\(s\\) start only during the full pass"):
+                analyzer._live_clients("warm-start")
+
+    def test_without_deferred_engines_nothing_changes(self, tmp_path: Path):
+        analyzer, eager, deferred = self._analyzer(tmp_path)
+        deferred.deferred = False
+        clients = [(eager, MagicMock()), (deferred, MagicMock())]
+        analyzer._engine_clients = clients
+        with patch.dict("os.environ", {}, clear=True):
+            assert analyzer._live_clients("warm-start") == clients

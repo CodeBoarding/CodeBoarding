@@ -16,6 +16,7 @@ class TestDiscoverFileDependencies(unittest.TestCase):
         adapter.file_extensions = {file_ext}
         client = MagicMock()
         cfg = EngineConfig(adapter=adapter, project_path=Path("/fake"))
+        analyzer._engine_configs = [cfg]
         analyzer._engine_clients = [(cfg, client)]
         return analyzer, client
 

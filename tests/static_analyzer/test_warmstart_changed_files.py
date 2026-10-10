@@ -21,7 +21,9 @@ def _analyzer_with_one_engine(project_path: Path, changed_files: set[Path] | Non
     adapter.language = "Python"
     adapter.language_enum = MagicMock()
     client = MagicMock()
-    analyzer._engine_clients = [(EngineConfig(adapter=adapter, project_path=project_path), client)]
+    config = EngineConfig(adapter=adapter, project_path=project_path)
+    analyzer._engine_configs = [config]
+    analyzer._engine_clients = [(config, client)]
     analyzer.collected_diagnostics = {}
     analyzer.ignore_manager = MagicMock()
     analyzer._loc_for_adapter = MagicMock(return_value=0)
