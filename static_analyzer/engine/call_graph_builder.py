@@ -12,6 +12,7 @@ from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_definitions
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
+from static_analyzer.engine.liveness import MIN_SILENT_FILES, Canary
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
@@ -176,6 +177,7 @@ class CallGraphBuilder:
         # Phase 1: extract symbols from each file
         read_from_source: list[Path] = []
         opened_early: list[Path] = []
+        canary: Canary[Path] = Canary("Phase 1 (symbols)", lambda path: bool(self._lsp.document_symbol(path)))
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
         for idx, file_path in enumerate(source_files, 1):
             if interleave_open:
@@ -191,14 +193,18 @@ class CallGraphBuilder:
                 symbols = self._lsp.document_symbol(file_path, timeout=probe_timeout)
             else:
                 symbols = self._lsp.document_symbol(file_path)
+            from_source = False
             if not symbols and owns_documents:
                 symbols = self._adapter.read_document_symbols(file_path, self._source_inspector, self._lsp)
                 if symbols:
                     read_from_source.append(file_path)
+                    from_source = True
                 else:
                     opened_early.append(file_path)
                     self._lsp.did_open(file_path)
                     symbols = self._lsp.document_symbol(file_path)
+            if symbols and not from_source:
+                canary.answered(file_path)
             symbols = self._adapter.refine_document_symbols(file_path, symbols, self._source_inspector)
             self._adapter.record_document_symbols(file_path, symbols, self._repository)
             self._symbol_table.register_symbols(
@@ -210,7 +216,10 @@ class CallGraphBuilder:
             )
             pbar.set_postfix(symbols=len(self._symbol_table.symbols))
             pbar.update(1)
+            canary.tick()
         pbar.finish()
+        canary.finish()
+        canary.require_heard(total, MIN_SILENT_FILES, "document symbol requests")
         if owns_documents:
             already = set(read_from_source) | set(opened_early)
             self._bulk_did_open([file_path for file_path in source_files if file_path not in already], probe_timeout)

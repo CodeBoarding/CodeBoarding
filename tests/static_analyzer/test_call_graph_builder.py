@@ -61,6 +61,17 @@ def _make_adapter() -> MagicMock:
     return adapter
 
 
+ONE_SYMBOL = [
+    {
+        "name": "foo",
+        "kind": NodeType.FUNCTION,
+        "range": {"start": {"line": 0, "character": 0}, "end": {"line": 5, "character": 0}},
+        "selectionRange": {"start": {"line": 0, "character": 4}, "end": {"line": 0, "character": 7}},
+    }
+]
+"""What a live server answers for a file; a server answering nothing for 50 files reads as stalled."""
+
+
 def _make_lsp() -> MagicMock:
     lsp = MagicMock()
     lsp.document_symbol.return_value = []
@@ -137,7 +148,7 @@ class TestDiscoverSymbols:
 
         # Create more files than a single batch
         files = [Path(f"/project/file_{i}.py") for i in range(DID_OPEN_BATCH_SIZE + 5)]
-        lsp.document_symbol.return_value = []
+        lsp.document_symbol.return_value = ONE_SYMBOL
 
         builder._discover_symbols(files)
 
@@ -151,7 +162,7 @@ class TestDiscoverSymbols:
         builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         files = [Path(f"/project/file_{i}.py") for i in range(100)]
-        lsp.document_symbol.return_value = []
+        lsp.document_symbol.return_value = ONE_SYMBOL
 
         builder._discover_symbols(files)
 
@@ -165,7 +176,7 @@ class TestDiscoverSymbols:
         builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
 
         files = [Path(f"/project/file_{i}.py") for i in range(20000)]
-        lsp.document_symbol.return_value = []
+        lsp.document_symbol.return_value = ONE_SYMBOL
 
         builder._discover_symbols(files)
 

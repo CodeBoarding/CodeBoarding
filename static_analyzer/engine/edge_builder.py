@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
+from static_analyzer.engine.liveness import MIN_SILENT_CALL_SITES, Canary
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.config import NodeType
 from static_analyzer.engine.lsp_constants import (
@@ -302,6 +303,9 @@ def _resolve_definitions(
             if constructed:
                 constructors.setdefault(constructed, []).append(sym)
 
+    canary: Canary[tuple[Path, int, int]] = Canary(
+        "Phase 2 (definitions)", lambda query: bool(ctx.lsp.send_definition_batch([query])[0])
+    )
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
         potential = potential_calls(file_path, si, adapter, index.callable_names)
@@ -313,8 +317,9 @@ def _resolve_definitions(
         total_sites += len(call_sites)
         unresolved: list[CallSite] = []
 
-        results = ctx.lsp.send_definition_batch([(file_path, site.lsp_line, site.lsp_column) for site in call_sites])
-        for call_site, defs in zip(call_sites, results):
+        queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
+        results = ctx.lsp.send_definition_batch(queries)
+        for query, call_site, defs in zip(queries, call_sites, results):
             position = (call_site.lsp_line, call_site.lsp_column)
             kind = potential.definition_kind_at(position)
 
@@ -322,6 +327,7 @@ def _resolve_definitions(
                 if kind == CALL:
                     unresolved.append(call_site)
                 continue
+            canary.answered(query)
 
             caller = _caller_at(ctx, file_path, call_site.lsp_line, call_site.lsp_column)
             if caller is None:
@@ -361,7 +367,10 @@ def _resolve_definitions(
 
         pbar.set_postfix(edges=len(sink.edges), resolved=total_resolved)
         pbar.update(1)
+        canary.tick()
     pbar.finish()
+    canary.finish()
+    canary.require_heard(total_sites, MIN_SILENT_CALL_SITES, "definition requests")
 
     return DefinitionResolution(
         edge_set=sink.edges,

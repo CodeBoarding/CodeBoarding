@@ -17,6 +17,7 @@ from static_analyzer.dotnet_solution import solution_projects
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.liveness import LanguageServerStalledError
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_recycler import default_memory_budget, per_engine_memory_budget
 from static_analyzer.engine.models import ExternalCallSite
@@ -514,6 +515,24 @@ class StaticAnalyzer:
             raise
         return engine_client
 
+    def _restart_engine_client(self, engine_config: EngineConfig, engine_client: LSPClient) -> LSPClient:
+        """Replace a server that stopped answering with a fresh one, in the started clients too."""
+        adapter = engine_config.adapter
+        try:
+            engine_client.shutdown()
+        except Exception:
+            logger.exception(f"Error shutting down the stalled {adapter.language} client")
+        try:
+            fresh = self._spawn_engine_client(engine_config)
+        except Exception as exc:
+            raise StaticAnalysisFatalError(
+                f"Could not restart the {adapter.language} server after it stopped answering: {exc}"
+            ) from exc
+        self._engine_clients = [
+            (config, fresh if client is engine_client else client) for config, client in self._engine_clients
+        ]
+        return fresh
+
     def stop_clients(self) -> None:
         """Gracefully shut down all engine LSP server processes. Idempotent."""
         if not self._clients_started:
@@ -803,7 +822,20 @@ class StaticAnalyzer:
                         spawned.append(adapter.language)
                     engine_client = owned_client
                 logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
-                analysis = self._run_full_analysis(engine_config, engine_client)
+                try:
+                    analysis = self._run_full_analysis(engine_config, engine_client)
+                except LanguageServerStalledError as stalled:
+                    logger.warning(f"{adapter.language} in {project_path}: {stalled}. Restarting its server once.")
+                    engine_client = self._restart_engine_client(engine_config, engine_client)
+                    if owned_client is not None:
+                        owned_client = engine_client
+                    try:
+                        analysis = self._run_full_analysis(engine_config, engine_client)
+                    except LanguageServerStalledError as again:
+                        raise LanguageServerStalledError(
+                            f"{adapter.language} in {project_path}: {again}, after a restart too. Not caching a "
+                            "partial graph; a server that stops answering twice has usually run out of memory."
+                        ) from again
                 duration_ms = round((time.monotonic() - t_lang_start) * 1000)
                 logger.info(f"Engine analysis for {adapter.language} completed in {duration_ms / 1000:.1f}s")
                 with absorb_lock:
