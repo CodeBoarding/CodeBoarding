@@ -50,7 +50,7 @@
     "infra/monitoring/telemetry/__init__.py": "9db883bd4135d3f8",
     "infra/monitoring/telemetry/device_id.py": "6ff6156ae3784119",
     "infra/monitoring/telemetry/events.py": "16f496ad3a98a878",
-    "infra/repo_utils/ignore.py": "cc905828956fa880",
+    "infra/repo_utils/ignore.py": "cc65d5d9cf7a153a",
     "infra/repo_utils/path_utils.py": "6326d2c1426e20a6",
     "infra/repo_utils/change_detector.py": "3bbe336544644ab0",
     "infra/repo_utils/errors.py": "49da74ec64006d26",

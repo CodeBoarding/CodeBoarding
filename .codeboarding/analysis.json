@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-10-09T16:43:24.921768+00:00",
-    "source_tree_hash": "1486c316802cd860d3f30b1b8bb29c4f625f61a9fc5e9cf66a612e7a0d872938",
+    "generated_at": "2026-10-11T11:10:29.292025+00:00",
+    "source_tree_hash": "476654f861019dfad1c05929e8b97fa50050ad4d48cb9d935116f3280343cbad",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -4203,8 +4203,8 @@
         "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.categorize_file",
         "infra/repo_utils/ignore.py|infra.repo_utils.ignore.initialize_codeboardingignore"
       ],
-      "content_hash": "cc905828956fa880",
-      "module_hash": "50c963945039ac96"
+      "content_hash": "cc65d5d9cf7a153a",
+      "module_hash": "086f6cb2109eb3ef"
     },
     "infra/repo_utils/path_utils.py": {
       "method_keys": [
@@ -17693,88 +17693,88 @@
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager",
-      "start_line": 162,
-      "end_line": 335,
+      "start_line": 160,
+      "end_line": 333,
       "type": "CLASS",
       "content_hash": "9294736b9a6a4daf"
     },
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.__init__": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager.__init__",
-      "start_line": 171,
-      "end_line": 173,
+      "start_line": 169,
+      "end_line": 171,
       "type": "METHOD",
       "content_hash": "09cab2672e5ebd5c"
     },
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.reload": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager.reload",
-      "start_line": 175,
-      "end_line": 188,
+      "start_line": 173,
+      "end_line": 186,
       "type": "METHOD",
       "content_hash": "d2b4103ae57bdb3b"
     },
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager._load_gitignore_patterns": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager._load_gitignore_patterns",
-      "start_line": 190,
-      "end_line": 205,
+      "start_line": 188,
+      "end_line": 203,
       "type": "METHOD",
       "content_hash": "6d773825984d4fca"
     },
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager._load_codeboardingignore_patterns": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager._load_codeboardingignore_patterns",
-      "start_line": 207,
-      "end_line": 225,
+      "start_line": 205,
+      "end_line": 223,
       "type": "METHOD",
       "content_hash": "923d852d7fb1b176"
     },
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
-      "start_line": 227,
-      "end_line": 243,
+      "start_line": 225,
+      "end_line": 241,
       "type": "METHOD",
       "content_hash": "8a93bffe1efec5a6"
     },
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager._compute_should_ignore": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager._compute_should_ignore",
-      "start_line": 245,
-      "end_line": 269,
+      "start_line": 243,
+      "end_line": 267,
       "type": "METHOD",
       "content_hash": "cbc9212370c59e9f"
     },
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.filter_paths": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager.filter_paths",
-      "start_line": 271,
-      "end_line": 273,
+      "start_line": 269,
+      "end_line": 271,
       "type": "METHOD",
       "content_hash": "595b3e7238a05c59"
     },
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.strip_ignored": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager.strip_ignored",
-      "start_line": 275,
-      "end_line": 305,
+      "start_line": 273,
+      "end_line": 303,
       "type": "METHOD",
       "content_hash": "3acc7a2b87194e16"
     },
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.categorize_file": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager.categorize_file",
-      "start_line": 307,
-      "end_line": 335,
+      "start_line": 305,
+      "end_line": 333,
       "type": "METHOD",
       "content_hash": "b11e91aad1dfc998"
     },
     "infra/repo_utils/ignore.py|infra.repo_utils.ignore.initialize_codeboardingignore": {
       "file_path": "infra/repo_utils/ignore.py",
       "qualified_name": "infra.repo_utils.ignore.initialize_codeboardingignore",
-      "start_line": 338,
-      "end_line": 351,
+      "start_line": 336,
+      "end_line": 349,
       "type": "FUNCTION",
       "content_hash": "6a23e084d74b7caf"
     },
@@ -27645,8 +27645,8 @@
         {
           "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager",
           "reference_file": "infra/repo_utils/ignore.py",
-          "reference_start_line": 162,
-          "reference_end_line": 335
+          "reference_start_line": 160,
+          "reference_end_line": 333
         },
         {
           "qualified_name": "infra.user_config.UserConfig",
@@ -28286,7 +28286,7 @@
         },
         {
           "name": "repository_utilities",
-          "description": "Provides Git operations, path resolution, change detection, and core repository utilities.",
+          "description": "Provides Git operations, path resolution, repository change detection, and file exclusion management.",
           "key_entities": [
             {
               "qualified_name": "infra.utils.get_project_root",
@@ -28299,6 +28299,12 @@
               "reference_file": "infra/utils.py",
               "reference_start_line": 81,
               "reference_end_line": 87
+            },
+            {
+              "qualified_name": "infra.repo_utils.ignore.RepoIgnoreManager",
+              "reference_file": "infra/repo_utils/ignore.py",
+              "reference_start_line": 160,
+              "reference_end_line": 333
             }
           ],
           "source_cluster_ids": [
@@ -28699,76 +28705,6 @@
       ],
       "components_relations": [
         {
-          "relation": "resolves project root for monitoring runs",
-          "src_name": "monitoring_and_telemetry",
-          "dst_name": "repository_utilities",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "infra/monitoring/paths.py|infra.monitoring.paths.get_monitoring_base_dir",
-              "target": "infra/utils.py|infra.utils.get_project_root",
-              "call_sites": [
-                {
-                  "line": 12,
-                  "column": 12
-                }
-              ],
-              "description": "Uses project root resolution to establish the base directory for monitoring runs"
-            }
-          ],
-          "src_id": "9.1",
-          "dst_id": "9.2",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "infra/monitoring/paths.py|infra.monitoring.paths.get_monitoring_base_dir",
-              "target": "infra/utils.py|infra.utils.get_project_root",
-              "call_sites": [
-                {
-                  "line": 12,
-                  "column": 12
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "builds tool and language server configuration",
-          "src_name": "repository_utilities",
-          "dst_name": "tool_registry_and_installers",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "infra/utils.py|infra.utils.get_config",
-              "target": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.build_config",
-              "call_sites": [
-                {
-                  "line": 84,
-                  "column": 14
-                }
-              ],
-              "description": "Retrieves installed tool and language server configuration from the manifest registry"
-            }
-          ],
-          "src_id": "9.2",
-          "dst_id": "9.3",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "infra/utils.py|infra.utils.get_config",
-              "target": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.build_config",
-              "call_sites": [
-                {
-                  "line": 84,
-                  "column": 14
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
           "relation": "resolves runnable paths and config templates",
           "src_name": "tool_registry_and_installers",
           "dst_name": "configuration_and_constants",
@@ -28841,6 +28777,76 @@
                 {
                   "line": 277,
                   "column": 28
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "resolves project root for monitoring runs",
+          "src_name": "monitoring_and_telemetry",
+          "dst_name": "repository_utilities",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "infra/monitoring/paths.py|infra.monitoring.paths.get_monitoring_base_dir",
+              "target": "infra/utils.py|infra.utils.get_project_root",
+              "call_sites": [
+                {
+                  "line": 12,
+                  "column": 12
+                }
+              ],
+              "description": "Resolves base directory for telemetry monitoring using repository root"
+            }
+          ],
+          "src_id": "9.1",
+          "dst_id": "9.2",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "infra/monitoring/paths.py|infra.monitoring.paths.get_monitoring_base_dir",
+              "target": "infra/utils.py|infra.utils.get_project_root",
+              "call_sites": [
+                {
+                  "line": 12,
+                  "column": 12
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "builds tool and language server configuration",
+          "src_name": "repository_utilities",
+          "dst_name": "tool_registry_and_installers",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "infra/utils.py|infra.utils.get_config",
+              "target": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.build_config",
+              "call_sites": [
+                {
+                  "line": 84,
+                  "column": 14
+                }
+              ],
+              "description": "Builds language server and tool configuration from repository config"
+            }
+          ],
+          "src_id": "9.2",
+          "dst_id": "9.3",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "infra/utils.py|infra.utils.get_config",
+              "target": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.build_config",
+              "call_sites": [
+                {
+                  "line": 84,
+                  "column": 14
                 }
               ],
               "description": ""
@@ -30136,7 +30142,23 @@
       "src_name": "Language Engine and LSP Orchestration",
       "dst_name": "monitoring_and_telemetry",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass.run_one",
+          "target": "infra/monitoring/telemetry/events.py|infra.monitoring.telemetry.events.track_lsp_result",
+          "call_sites": [
+            {
+              "line": 812,
+              "column": 21
+            },
+            {
+              "line": 825,
+              "column": 21
+            }
+          ],
+          "description": "Analysis pass execution emits telemetry events."
+        }
+      ],
       "src_id": "1.1",
       "dst_id": "9.1",
       "is_static": true,
@@ -30176,6 +30198,17 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
+          "target": "infra/repo_utils/git_ops.py|infra.repo_utils.git_ops.get_changed_files_since",
+          "call_sites": [
+            {
+              "line": 969,
+              "column": 24
+            }
+          ],
+          "description": "Incremental analysis queries git operations for changed files."
+        },
+        {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
@@ -30191,17 +30224,6 @@
       "dst_id": "9.2",
       "is_static": true,
       "all_edges": [
-        {
-          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 297,
-              "column": 31
-            }
-          ],
-          "description": ""
-        },
         {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
           "target": "infra/repo_utils/git_ops.py|infra.repo_utils.git_ops.get_changed_files_since",
@@ -30220,6 +30242,39 @@
             {
               "line": 594,
               "column": 72
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter._find_jdtls_root",
+          "target": "infra/utils.py|infra.utils.get_config",
+          "call_sites": [
+            {
+              "line": 78,
+              "column": 23
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.get_lsp_command",
+          "target": "infra/utils.py|infra.utils.get_config",
+          "call_sites": [
+            {
+              "line": 81,
+              "column": 23
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 297,
+              "column": 31
             }
           ],
           "description": ""
@@ -30247,17 +30302,6 @@
           "description": ""
         },
         {
-          "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter._find_jdtls_root",
-          "target": "infra/utils.py|infra.utils.get_config",
-          "call_sites": [
-            {
-              "line": 78,
-              "column": 23
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter._walk",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
@@ -30275,17 +30319,6 @@
             {
               "line": 328,
               "column": 31
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.get_lsp_command",
-          "target": "infra/utils.py|infra.utils.get_config",
-          "call_sites": [
-            {
-              "line": 81,
-              "column": 23
             }
           ],
           "description": ""
@@ -31572,6 +31605,21 @@
           "description": ""
         },
         {
+          "source": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner.scan",
+          "target": "infra/utils.py|infra.utils.get_config",
+          "call_sites": [
+            {
+              "line": 79,
+              "column": 20
+            },
+            {
+              "line": 114,
+              "column": 25
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "static_analyzer/csharp_config_scanner.py|static_analyzer.csharp_config_scanner.CSharpConfigScanner.__init__",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
@@ -31679,21 +31727,6 @@
             {
               "line": 90,
               "column": 40
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner.scan",
-          "target": "infra/utils.py|infra.utils.get_config",
-          "call_sites": [
-            {
-              "line": 79,
-              "column": 20
-            },
-            {
-              "line": 114,
-              "column": 25
             }
           ],
           "description": ""
@@ -36104,6 +36137,17 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._relativize_key_entities",
+          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 201,
+              "column": 57
+            }
+          ],
+          "description": "Analysis serialization normalizes repository file paths."
+        },
+        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
@@ -36137,17 +36181,6 @@
             {
               "line": 188,
               "column": 17
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 1174,
-              "column": 26
             }
           ],
           "description": ""
@@ -36248,40 +36281,6 @@
             {
               "line": 1032,
               "column": 13
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 1167,
-              "column": 26
-            },
-            {
-              "line": 1168,
-              "column": 24
-            },
-            {
-              "line": 1170,
-              "column": 28
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.strip_ignored",
-          "call_sites": [
-            {
-              "line": 1168,
-              "column": 24
-            },
-            {
-              "line": 1170,
-              "column": 28
             }
           ],
           "description": ""
@@ -36396,28 +36395,6 @@
           "description": ""
         },
         {
-          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.build",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 60,
-              "column": 42
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.build",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.categorize_file",
-          "call_sites": [
-            {
-              "line": 60,
-              "column": 42
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.update",
           "target": "infra/repo_utils/__init__.py|infra.repo_utils.__init__.normalize_paths",
           "call_sites": [
@@ -36428,28 +36405,6 @@
             {
               "line": 100,
               "column": 31
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.update",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 119,
-              "column": 42
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.update",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.categorize_file",
-          "call_sites": [
-            {
-              "line": 119,
-              "column": 42
             }
           ],
           "description": ""
@@ -36472,32 +36427,6 @@
             {
               "line": 36,
               "column": 21
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 78,
-              "column": 22
-            },
-            {
-              "line": 82,
-              "column": 31
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
-          "call_sites": [
-            {
-              "line": 82,
-              "column": 31
             }
           ],
           "description": ""
@@ -36564,6 +36493,121 @@
             {
               "line": 358,
               "column": 17
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 1174,
+              "column": 26
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 1167,
+              "column": 26
+            },
+            {
+              "line": 1168,
+              "column": 24
+            },
+            {
+              "line": 1170,
+              "column": 28
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.strip_ignored",
+          "call_sites": [
+            {
+              "line": 1168,
+              "column": 24
+            },
+            {
+              "line": 1170,
+              "column": 28
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.build",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 60,
+              "column": 42
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.build",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.categorize_file",
+          "call_sites": [
+            {
+              "line": 60,
+              "column": 42
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.update",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 119,
+              "column": 42
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.update",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.categorize_file",
+          "call_sites": [
+            {
+              "line": 119,
+              "column": 42
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 78,
+              "column": 22
+            },
+            {
+              "line": 82,
+              "column": 31
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
+          "call_sites": [
+            {
+              "line": 82,
+              "column": 31
             }
           ],
           "description": ""
@@ -37111,28 +37155,6 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "health/checks/function_size.py|health.checks.function_size.check_function_size",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 45,
-              "column": 27
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "health/checks/function_size.py|health.checks.function_size.check_function_size",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
-          "call_sites": [
-            {
-              "line": 45,
-              "column": 27
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "health/main.py|health.main._run_health_checks",
           "target": "infra/utils.py|infra.utils.get_artifact_dir",
           "call_sites": [
@@ -37161,6 +37183,28 @@
             {
               "line": 65,
               "column": 45
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "health/checks/function_size.py|health.checks.function_size.check_function_size",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 45,
+              "column": 27
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "health/checks/function_size.py|health.checks.function_size.check_function_size",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
+          "call_sites": [
+            {
+              "line": 45,
+              "column": 27
             }
           ],
           "description": ""
@@ -37752,6 +37796,28 @@
       "is_static": true,
       "all_edges": [
         {
+          "source": "agents/model_capabilities.py|agents.model_capabilities._load",
+          "target": "infra/utils.py|infra.utils.get_cache_dir",
+          "call_sites": [
+            {
+              "line": 187,
+              "column": 12
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
+          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 43,
+              "column": 29
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
@@ -37781,28 +37847,6 @@
             {
               "line": 119,
               "column": 23
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/model_capabilities.py|agents.model_capabilities._load",
-          "target": "infra/utils.py|infra.utils.get_cache_dir",
-          "call_sites": [
-            {
-              "line": 187,
-              "column": 12
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/relation_edges.py|agents.relation_edges.index_relation_endpoints",
-          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
-          "call_sites": [
-            {
-              "line": 43,
-              "column": 29
             }
           ],
           "description": ""
@@ -38251,7 +38295,31 @@
       "src_name": "Scope Semantic Analysis",
       "dst_name": "repository_utilities",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "agents/llm_renderers/scope.py|agents.llm_renderers.scope._boundary_reasons",
+          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 268,
+              "column": 24
+            },
+            {
+              "line": 271,
+              "column": 24
+            },
+            {
+              "line": 285,
+              "column": 24
+            },
+            {
+              "line": 288,
+              "column": 24
+            }
+          ],
+          "description": "Scope renderer normalizes relative repository paths for boundary reasons."
+        }
+      ],
       "src_id": "3.2",
       "dst_id": "9.2",
       "is_static": true,
@@ -38952,33 +39020,11 @@
         },
         {
           "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.initialize_codeboardingignore",
-          "call_sites": [
-            {
-              "line": 184,
-              "column": 9
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope",
           "target": "infra/utils.py|infra.utils.copy_files",
           "call_sites": [
             {
               "line": 212,
               "column": 17
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_local",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.initialize_codeboardingignore",
-          "call_sites": [
-            {
-              "line": 105,
-              "column": 5
             }
           ],
           "description": ""
@@ -39039,17 +39085,6 @@
           "description": ""
         },
         {
-          "source": "codeboarding_cli/commands/partial_analysis.py|codeboarding_cli.commands.partial_analysis.run_from_args",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.initialize_codeboardingignore",
-          "call_sites": [
-            {
-              "line": 49,
-              "column": 5
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "codeboarding_cli/github_action.py|codeboarding_cli.github_action.generate_analysis",
           "target": "infra/repo_utils/__init__.py|infra.repo_utils.__init__.checkout_repo",
           "call_sites": [
@@ -39078,6 +39113,39 @@
             {
               "line": 116,
               "column": 24
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._process_one_remote.scope",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.initialize_codeboardingignore",
+          "call_sites": [
+            {
+              "line": 184,
+              "column": 9
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "codeboarding_cli/commands/full_analysis.py|codeboarding_cli.commands.full_analysis._run_local",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.initialize_codeboardingignore",
+          "call_sites": [
+            {
+              "line": 105,
+              "column": 5
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "codeboarding_cli/commands/partial_analysis.py|codeboarding_cli.commands.partial_analysis.run_from_args",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.initialize_codeboardingignore",
+          "call_sites": [
+            {
+              "line": 49,
+              "column": 5
             }
           ],
           "description": ""
@@ -39125,6 +39193,17 @@
       "dst_name": "configuration_and_constants",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
+          "target": "infra/logging_config.py|infra.logging_config.setup_logging",
+          "call_sites": [
+            {
+              "line": 30,
+              "column": 5
+            }
+          ],
+          "description": "CLI bootstrapping initializes system logging configuration."
+        },
         {
           "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
           "target": "infra/user_config.py|infra.user_config.UserConfig",
