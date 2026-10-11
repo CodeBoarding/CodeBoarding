@@ -5,6 +5,7 @@ starting them all at once costs peak memory for work that then runs one engine
 at a time.
 """
 
+import threading
 import time
 from pathlib import Path
 from typing import cast
@@ -112,7 +113,7 @@ class TestPrepareProjectOnce:
     def _analyzer(self, tmp_path: Path) -> StaticAnalyzer:
         analyzer = StaticAnalyzer.__new__(StaticAnalyzer)
         analyzer._prepared_projects = {}
-        analyzer._prepared_lock = __import__("threading").Lock()
+        analyzer._prepared_lock = threading.Lock()
         return analyzer
 
     def test_prepares_once(self, tmp_path: Path):
@@ -249,7 +250,7 @@ class TestDeferredEngines:
         analyzer._clients_started = False
         analyzer._engine_clients = []
         analyzer._prepared_projects = {}
-        analyzer._prepared_lock = __import__("threading").Lock()
+        analyzer._prepared_lock = threading.Lock()
         python, typescript = MagicMock(), MagicMock()
         python.language, python.language_enum = "Python", Language.PYTHON
         python.results_language = Language.PYTHON
@@ -311,3 +312,19 @@ class TestDeferredEngines:
         analyzer._engine_clients = clients
         with patch.dict("os.environ", {}, clear=True):
             assert analyzer._live_clients("warm-start") == clients
+
+    def test_the_eager_servers_take_their_share_of_the_allowance_first(self):
+        # 12 cores allow 4 servers; 3 eager ones are resident throughout, so one more at a time.
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("static_analyzer.default_memory_budget", return_value=64 * 1024**3),
+            patch("os.cpu_count", return_value=12),
+        ):
+            assert StaticAnalyzer._deferred_limit(10, resident=0) == 4
+            assert StaticAnalyzer._deferred_limit(10, resident=3) == 1
+            assert StaticAnalyzer._deferred_limit(10, resident=6) == 1
+            assert StaticAnalyzer._deferred_limit(1, resident=2) == 1
+
+    def test_the_env_var_is_the_deferred_limit_as_given(self):
+        with patch.dict("os.environ", {MAX_CONCURRENT_ENGINES_ENV_VAR: "3"}):
+            assert StaticAnalyzer._deferred_limit(10, resident=5) == 3

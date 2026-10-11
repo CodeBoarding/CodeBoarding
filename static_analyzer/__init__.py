@@ -375,7 +375,7 @@ class StaticAnalyzer:
             logger.info(
                 "%d engine LSP client(s) will start during analysis, at most %d running at a time.",
                 len(deferred),
-                self._deferred_limit(len(deferred)),
+                self._deferred_limit(len(deferred), resident=len(runnable) - len(deferred)),
             )
             # Prepare them now, before any server is resident: a project must
             # not be analyzed before its siblings are restored.
@@ -427,9 +427,13 @@ class StaticAnalyzer:
         return engine_config.deferred or max_concurrent_engines() > 0
 
     @staticmethod
-    def _deferred_limit(engine_count: int) -> int:
-        """Deferred servers resident at once: the env var when set, else what cores and memory allow."""
-        return max_concurrent_engines() or recommended_engine_concurrency(engine_count)
+    def _deferred_limit(engine_count: int, resident: int) -> int:
+        """Deferred servers resident at once: the env var when set, else what cores and memory allow.
+
+        Why *resident*: the eager servers stay up through the deferred ones, so they take their share
+        of what the host allows first.
+        """
+        return max_concurrent_engines() or max(1, recommended_engine_concurrency(engine_count + resident) - resident)
 
     def _prepare_project_once(self, engine_config: EngineConfig) -> None:
         """Let the adapter prepare a project exactly once (e.g. ``dotnet restore``).
@@ -892,7 +896,7 @@ class StaticAnalyzer:
             run_one(engine_config, engine_client, position[id(engine_config)])
         pending = [cfg for cfg in self._engine_configs if cfg.source_files and self._is_deferred(cfg)]
         if pending:
-            cap = self._deferred_limit(len(pending))
+            cap = self._deferred_limit(len(pending), resident=len(self._engine_clients))
             logger.info("Running %d engine(s) with at most %d resident at a time", len(pending), cap)
             # Not ``with``: its ``__exit__`` waits without cancelling, so one
             # engine's fatal error would still drain every queued engine — a full
