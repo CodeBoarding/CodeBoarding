@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.engine.liveness import MIN_SILENT_CALL_SITES, Canary
+from static_analyzer.engine.liveness import MIN_SILENT_CALL_SITES
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.config import NodeType
 from static_analyzer.engine.lsp_constants import (
@@ -303,9 +303,7 @@ def _resolve_definitions(
             if constructed:
                 constructors.setdefault(constructed, []).append(sym)
 
-    canary: Canary[tuple[Path, int, int]] = Canary(
-        "Phase 2 (definitions)", lambda query: bool(ctx.lsp.send_definition_batch([query])[0])
-    )
+    canary = ctx.definitions
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
         potential = potential_calls(file_path, si, adapter, index.callable_names)
@@ -405,6 +403,8 @@ def _resolve_through_receivers(
     resolved = 0
     for position, definitions in zip(positions, results):
         call_site, member = by_receiver[position]
+        if definitions:
+            ctx.definitions.answered((file_path, *position))
         caller = _caller_at(ctx, file_path, call_site.lsp_line, call_site.lsp_column)
         if caller is None:
             continue

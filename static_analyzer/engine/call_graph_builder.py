@@ -89,6 +89,9 @@ class CallGraphBuilder:
             hierarchy = hierarchy_builder.build()
             logger.info("Phase %d (hierarchy): %.1fs", next_phase, time.monotonic() - t_edges_done)
             next_phase += 1
+        # Implementations, iterated types and the hierarchy came after the last re-ask, and an empty
+        # answer there reads as "no subtypes", not as a server that is gone.
+        ctx.definitions.check()
 
         t_pre_pkgdeps = time.monotonic()
         package_deps = self._build_package_deps(edge_set, source_files)
@@ -177,7 +180,9 @@ class CallGraphBuilder:
         # Phase 1: extract symbols from each file
         read_from_source: list[Path] = []
         opened_early: list[Path] = []
-        canary: Canary[Path] = Canary("Phase 1 (symbols)", lambda path: bool(self._lsp.document_symbol(path)))
+        canary: Canary[Path] = Canary(
+            "Phase 1 (symbols)", lambda path: bool(self._lsp.document_symbol(path, timeout=probe_timeout))
+        )
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
         for idx, file_path in enumerate(source_files, 1):
             if interleave_open:
@@ -203,8 +208,9 @@ class CallGraphBuilder:
                     opened_early.append(file_path)
                     self._lsp.did_open(file_path)
                     symbols = self._lsp.document_symbol(file_path)
-            if symbols and not from_source:
-                canary.answered(file_path)
+            if symbols:
+                # A source read (C# linked files) answers through a workspace query, not this file's.
+                canary.answered(None if from_source else file_path)
             symbols = self._adapter.refine_document_symbols(file_path, symbols, self._source_inspector)
             self._adapter.record_document_symbols(file_path, symbols, self._repository)
             self._symbol_table.register_symbols(

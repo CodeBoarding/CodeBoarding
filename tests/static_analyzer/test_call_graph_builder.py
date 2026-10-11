@@ -222,6 +222,7 @@ class TestDiscoverSymbols:
         assert calls == [
             ("document_symbol", files[0]),
             ("document_symbol", files[1]),
+            ("document_symbol", files[0]),  # the end-of-phase liveness re-ask
             ("did_open", files[0]),
             ("document_symbol", files[0]),
         ]
@@ -253,6 +254,7 @@ class TestDiscoverSymbols:
             ("document_symbol", files[1]),
             ("did_open", files[1]),
             ("document_symbol", files[1]),
+            ("document_symbol", files[0]),  # the end-of-phase liveness re-ask
             ("did_open", files[0]),
             ("document_symbol", files[0]),
         ]
@@ -276,6 +278,7 @@ class TestDiscoverSymbols:
         assert calls == [
             ("document_symbol", files[0]),
             ("document_symbol", files[1]),
+            ("document_symbol", files[0]),  # the end-of-phase liveness re-ask
             ("did_open", files[0]),
             ("did_open", files[1]),
             ("document_symbol", files[0]),

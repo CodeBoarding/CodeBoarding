@@ -59,12 +59,46 @@ class TestCanary:
             canary.tick()
         canary.finish()
 
-    def test_a_short_phase_is_not_asked_again_at_the_end(self):
+    def test_a_one_file_phase_is_not_asked_again_at_the_end(self):
+        """The one answer it has is the one the phase just got."""
         ask = MagicMock(return_value=False)
         canary: Canary[str] = Canary("Phase X", ask)
         canary.answered("first")
-        for _ in range(CHECK_EVERY - 1):
+        canary.tick()
+        canary.finish()
+        ask.assert_not_called()
+
+    def test_a_short_phase_is_asked_again_at_the_end(self):
+        canary: Canary[str] = Canary("Phase X", lambda _q: False)
+        canary.answered("first")
+        canary.tick()
+        canary.tick()
+        with pytest.raises(LanguageServerStalledError, match="after 2 files"):
+            canary.finish()
+
+    def test_a_phase_ending_on_a_re_ask_is_not_asked_twice(self):
+        ask = MagicMock(return_value=True)
+        canary: Canary[str] = Canary("Phase X", ask)
+        canary.answered("first")
+        for _ in range(CHECK_EVERY):
             canary.tick()
+        canary.finish()
+        ask.assert_called_once_with("first")
+
+    def test_a_re_ask_that_times_out_is_a_stall(self):
+        canary: Canary[str] = Canary("Phase X", MagicMock(side_effect=TimeoutError))
+        canary.answered("first")
+        with pytest.raises(LanguageServerStalledError):
+            canary.check()
+
+    def test_an_answer_with_nothing_to_ask_again_still_counts_as_heard(self):
+        """A C# linked file's symbols come from a workspace query, not from a question about that file."""
+        ask = MagicMock(return_value=False)
+        canary: Canary[str] = Canary("Phase X", ask)
+        canary.answered()
+        canary.require_heard(MIN_SILENT_FILES, MIN_SILENT_FILES, "requests")
+        canary.tick()
+        canary.tick()
         canary.finish()
         ask.assert_not_called()
 
@@ -144,6 +178,21 @@ class TestDefinitionsPhase:
         lsp, ctx, adapter = _definitions_ctx(files, target)
         assert build_edges_via_definitions(adapter, ctx, files) == {}
 
+    def test_an_answer_through_the_receiver_counts_as_heard(self, tmp_path: Path):
+        """A member typed as something external answers nothing, its receiver still does (mermaid's ``log``)."""
+        files, target = _calling_files(tmp_path, 1, calls_per_file=MIN_SILENT_CALL_SITES)
+        lsp, ctx, adapter = _definitions_ctx(files, target)
+        answer = [{"uri": target.as_uri(), "range": {"start": {"line": 0, "character": 4}}}]
+        lsp.send_definition_batch.side_effect = lambda queries: [[] if len(queries) > 1 else answer for _ in queries]
+
+        def receivers(_path: Path, unresolved: list) -> dict:
+            site = unresolved[0]
+            return {(site.lsp_line, site.lsp_column): (site, "member")}
+
+        with patch.object(ctx.source_inspector, "receivers_of", side_effect=receivers):
+            build_edges_via_definitions(adapter, ctx, files)
+        assert ctx.definitions.heard
+
     def test_a_live_server_passes_every_check(self, tmp_path: Path):
         files, target = _calling_files(tmp_path, CHECK_EVERY * 2 + 5)
         lsp, ctx, adapter = _definitions_ctx(files, target)
@@ -181,6 +230,27 @@ class TestSymbolsPhase:
         lsp = _make_symbol_lsp()
         files = [Path(f"/project/file_{i}.py") for i in range(MIN_SILENT_FILES - 1)]
         self._builder(lsp)._discover_symbols(files)
+
+
+class TestAfterTheLastPhase:
+    def test_the_server_is_asked_once_more_after_the_hierarchy(self):
+        """Implementations and the hierarchy read an empty answer as "no subtypes", so they come after a re-ask."""
+        lsp = _make_symbol_lsp()
+        lsp.document_symbol.return_value = ONE_SYMBOL
+        lsp.send_definition_batch.return_value = [[]]
+        builder = CallGraphBuilder(lsp, _make_adapter(), Path("/project"), Path("/project"))
+
+        def edges(_adapter, ctx, _files) -> dict:
+            ctx.definitions.answered((Path("/project/a.py"), 0, 0))
+            return {}
+
+        with (
+            patch("static_analyzer.engine.call_graph_builder.build_edges_via_definitions", side_effect=edges),
+            patch("static_analyzer.engine.call_graph_builder.HierarchyBuilder") as hierarchy,
+        ):
+            hierarchy.return_value.build.return_value = {}
+            with pytest.raises(LanguageServerStalledError, match="Phase 2 \\(definitions\\)"):
+                builder.build([Path("/project/a.py")])
 
 
 class TestRestartOnce:
