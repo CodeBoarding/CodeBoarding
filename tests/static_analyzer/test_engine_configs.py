@@ -342,7 +342,7 @@ class TestTscIsAskedForJavaScript(unittest.TestCase):
         payload = '{"files": [], "exclude": ["legacy", "**/*.gen.ts"]}'
         with patch("static_analyzer.typescript_config_scanner.subprocess.run") as run:
             run.return_value = SimpleNamespace(returncode=0, stdout=payload, stderr="")
-            _, excluded = scanner._resolve_project_files(Path("/repo"), ["tsc", "--showConfig"], [])
+            _, excluded, _ = scanner._resolve_project_files(Path("/repo"), ["tsc", "--showConfig"], [])
         self.assertEqual(excluded, ["legacy", "**/*.gen.ts"])
 
 

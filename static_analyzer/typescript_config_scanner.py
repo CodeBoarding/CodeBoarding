@@ -82,12 +82,21 @@ class TypeScriptConfigScanner:
             )
 
         projects: list[TypeScriptProject] = []
-        for project_dir in candidate_dirs:
-            files, excluded = self._resolve_project_files(project_dir, tsc_cmd_prefix, candidate_dirs)
+        # A directory, or a config file one of them references (``tsconfig.app.json``).
+        pending: list[Path] = list(candidate_dirs)
+        seen = {_config_key(path) for path in pending}
+        while pending:
+            config = pending.pop(0)
+            files, excluded, references = self._resolve_project_files(config, tsc_cmd_prefix, candidate_dirs)
+            for reference in references:
+                key = _config_key(reference)
+                if key not in seen:
+                    seen.add(key)
+                    pending.append(reference)
             if not files:
-                logger.debug(f"Skipping tsconfig at {project_dir} (no owned files)")
+                logger.debug(f"Skipping tsconfig at {config} (no owned files)")
                 continue
-            projects.append(TypeScriptProject(root=project_dir, files=files, exclude=excluded))
+            projects.append(TypeScriptProject(root=_project_dir(config), files=files, exclude=excluded))
 
         projects = self._trim_overlap(projects)
 
@@ -134,16 +143,23 @@ class TypeScriptConfigScanner:
 
     def _resolve_project_files(
         self,
-        project_dir: Path,
+        config: Path,
         tsc_cmd_prefix: list[str] | None,
         all_candidates: list[Path],
-    ) -> tuple[list[Path], list[str]]:
+    ) -> tuple[list[Path], list[str], list[Path]]:
+        """The files *config* owns, what it excludes, and the configs its ``references`` name.
+
+        *config* is a project directory or a config file. Why references: a solution config
+        (``files: []`` plus ``references``, as Vite scaffolds ``webview-ui/``) owns nothing itself;
+        its files sit in the configs it references, which carry names discovery never looks for.
+        """
+        project_dir = _project_dir(config)
         if tsc_cmd_prefix is not None:
-            config = self._showconfig(project_dir, tsc_cmd_prefix)
-            if config is not None:
-                excluded = [e for e in config.get("exclude", []) if isinstance(e, str)]
+            shown = self._showconfig(config, tsc_cmd_prefix)
+            if shown is not None:
+                excluded = [e for e in shown.get("exclude", []) if isinstance(e, str)]
                 files = []
-                for raw in config.get("files", []):
+                for raw in shown.get("files", []):
                     if not isinstance(raw, str):
                         continue
                     p = Path(raw)
@@ -154,17 +170,33 @@ class TypeScriptConfigScanner:
                 # files (e.g. ``*.test.ts``) the user has skipped via
                 # .codeboardingignore — keep that consistent with the FS fallback.
                 kept = [f for f in files if f.suffix in _ALL_EXTENSIONS and not self.ignore_manager.should_ignore(f)]
-                return kept, excluded
+                return kept, excluded, self._references(shown, project_dir)
             # tsc available but failed for this project — try the FS walk.
-        return self._fallback_walk(project_dir, all_candidates), []
+        return self._fallback_walk(project_dir, all_candidates), [], []
 
-    def _showconfig(self, project_dir: Path, tsc_cmd_prefix: list[str]) -> dict | None:
-        """Invoke ``tsc --showConfig -p <dir> --allowJs`` and return parsed JSON.
+    def _references(self, shown: dict, project_dir: Path) -> list[Path]:
+        """The configs a shown config references that exist inside the repository and are not ignored."""
+        found: list[Path] = []
+        for reference in shown.get("references", []):
+            raw = reference.get("path") if isinstance(reference, dict) else None
+            if not isinstance(raw, str):
+                continue
+            target = (project_dir / raw).resolve()
+            config_file = target / "tsconfig.json" if target.is_dir() else target
+            if not config_file.is_file() or not config_file.is_relative_to(self.repo_location):
+                continue
+            if self.ignore_manager.should_ignore(config_file):
+                continue
+            found.append(target)
+        return found
+
+    def _showconfig(self, config: Path, tsc_cmd_prefix: list[str]) -> dict | None:
+        """Invoke ``tsc --showConfig -p <config> --allowJs`` and return parsed JSON.
 
         Why ``--allowJs``: one adapter owns the family, so we want the project's JavaScript too.
         It overrides only that setting, leaving tsc the authority on membership.
         """
-        cmd = [*tsc_cmd_prefix, "-p", str(project_dir), "--allowJs"]
+        cmd = [*tsc_cmd_prefix, "-p", str(config), "--allowJs"]
         try:
             result = subprocess.run(
                 cmd,
@@ -174,18 +206,16 @@ class TypeScriptConfigScanner:
                 check=False,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-            logger.debug(f"tsc --showConfig invocation failed for {project_dir}: {e}")
+            logger.debug(f"tsc --showConfig invocation failed for {config}: {e}")
             return None
 
         if result.returncode != 0:
-            logger.debug(
-                f"tsc --showConfig exited {result.returncode} for {project_dir}: " f"{result.stderr.strip()[:200]}"
-            )
+            logger.debug(f"tsc --showConfig exited {result.returncode} for {config}: " f"{result.stderr.strip()[:200]}")
             return None
         try:
             return json.loads(result.stdout)
         except json.JSONDecodeError as e:
-            logger.debug(f"tsc --showConfig JSON parse failed for {project_dir}: {e}")
+            logger.debug(f"tsc --showConfig JSON parse failed for {config}: {e}")
             return None
 
     def _fallback_walk(self, project_dir: Path, all_candidates: list[Path]) -> list[Path]:
@@ -238,6 +268,16 @@ class TypeScriptConfigScanner:
 
         survivors.sort(key=lambda ip: ip[0])
         return [p for _, p in survivors]
+
+
+def _project_dir(config: Path) -> Path:
+    """The directory a config resolves paths against: itself for a directory, else its parent."""
+    return config if config.is_dir() else config.parent
+
+
+def _config_key(config: Path) -> Path:
+    """One key per config, so a directory and the ``tsconfig.json`` inside it count once."""
+    return config.resolve() if config.is_dir() or config.name != "tsconfig.json" else config.parent.resolve()
 
 
 def _is_ancestor(maybe_ancestor: Path, descendant: Path) -> bool:
