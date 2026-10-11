@@ -130,7 +130,7 @@
     "docs/design/clustering-ledger.md": "d2ab95b39e7d3e4b",
     "docs/images/codeboarding-story-static.png": "9298116b463467e5",
     "docs/images/codeboarding-story.gif": "984c2529d5f42ff3",
-    "static_analyzer/typescript_config_scanner.py": "05f65614bdd3f8f4",
+    "static_analyzer/typescript_config_scanner.py": "906d28c6a10278a9",
     "static_analyzer/incremental_orchestrator.py": "2b7de577aa73b638",
     "static_analyzer/dotnet_sdk.py": "9b2013874409b456",
     "static_analyzer/node.py": "fb08af50fc556694",
