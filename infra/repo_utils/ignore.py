@@ -51,8 +51,6 @@ cache/
 
 # Custom
 temp/
-repos/
-runs/
 
 # ============================================================================
 # Test and infrastructure files
