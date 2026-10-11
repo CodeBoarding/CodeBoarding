@@ -221,6 +221,11 @@ def _restore_inbound_edges_via_definitions(
     logger.info("Restored %d of %d cached inbound edge(s) via definitions", restored, len(pending))
 
 
+def drop_deleted_files(analysis: dict[str, Any]) -> dict[str, Any]:
+    """*analysis* without the files that no longer exist, for a language no engine re-read."""
+    return _filter_to_live_files(AnalysisData.from_dict(analysis)).to_dict()
+
+
 def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
     """Drop entries whose file no longer exists on disk.
 

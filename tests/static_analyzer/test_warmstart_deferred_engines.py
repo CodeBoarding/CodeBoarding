@@ -10,7 +10,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from static_analyzer import EngineConfig, StaticAnalysisFatalError, StaticAnalyzer
-from static_analyzer.config import Language
+from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cfg import CallGraph
+from static_analyzer.config import Language, NodeType
+from static_analyzer.node import Node
 
 
 def _adapter() -> MagicMock:
@@ -115,3 +118,58 @@ class TestDeferredWarmStart:
         spawn = MagicMock(side_effect=RuntimeError("tsserver missing"))
         with pytest.raises(StaticAnalysisFatalError, match="Keeping the cache"):
             self._run(analyzer, spawn)
+
+    def _cached(self, repo: Path) -> StaticAnalysisResults:
+        """A cache holding package a and a package deleted since, which calls into a."""
+        a, gone = repo / "packages/a/src/a.ts", repo / "packages/gone/src/g.ts"
+        cfg = CallGraph(language="typescript")
+        cfg.add_node(Node("a.f", NodeType.FUNCTION, str(a), 1, 2))
+        cfg.add_node(Node("gone.g", NodeType.FUNCTION, str(gone), 1, 2))
+        cfg.add_edge("gone.g", "a.f")
+        cached = StaticAnalysisResults()
+        cached.add_cfg(Language.TYPESCRIPT, cfg)
+        cached.add_source_files(Language.TYPESCRIPT, [str(a), str(gone)])
+        return cached
+
+    def test_a_language_with_nothing_changed_keeps_its_cached_graph_less_deleted_files(self, repo: Path):
+        """The deleted package's engine has no files left to run, and no other engine had a change."""
+        analyzer, engines = self._analyzer(repo, {repo / "packages/gone/src/g.ts", repo / "tool.py"})
+        gone = EngineConfig(_adapter(), repo, [], deferred=True, files_root=repo / "packages/gone")
+        analyzer._engine_configs = [engines["a"], engines["b"], gone]
+        spawn = MagicMock()
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch.object(analyzer, "_spawn_engine_client", spawn),
+            patch("static_analyzer.track_lsp_result"),
+        ):
+            results = analyzer._update_cached_results(self._cached(repo), cached_sha="baseline")
+        spawn.assert_not_called()
+        assert set(results.get_cfg(Language.TYPESCRIPT).nodes) == {"a.f"}
+        assert results.get_source_files(Language.TYPESCRIPT) == [str(repo / "packages/a/src/a.ts")]
+
+    def test_a_changed_eager_engine_without_a_server_keeps_the_cache(self, repo: Path):
+        """Its server failed to start, and the deferred engines kept the analyzer going."""
+        analyzer, _engines = self._analyzer(repo, {repo / "lib/core.py"})
+        python = MagicMock()
+        python.language = "Python"
+        python.results_language = Language.PYTHON
+        python.file_extensions = (".py",)
+        analyzer._engine_configs.append(EngineConfig(python, repo, [repo / "lib/core.py"]))
+        with pytest.raises(StaticAnalysisFatalError, match="no running Python server"):
+            self._run(analyzer, MagicMock())
+
+    def test_every_engine_of_a_language_keeps_its_external_call_sites_for_the_merge(self, repo: Path):
+        analyzer, _engines = self._analyzer(repo, {repo / "packages/a/src/a.ts", repo / "packages/b/src/b.ts"})
+        updates = iter([{"external_call_sites": ["from a"]}, {"external_call_sites": ["from b"]}])
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch.object(analyzer, "_spawn_engine_client", MagicMock(return_value=MagicMock())),
+            patch("static_analyzer.update_cfg_for_changed_files", side_effect=lambda *_a: next(updates)),
+            patch.object(analyzer, "_extract_language_dict", return_value={}),
+            patch.object(analyzer, "_absorb_and_link") as absorb,
+            patch.object(analyzer, "_collect_diagnostics_for"),
+            patch("static_analyzer.track_lsp_result"),
+        ):
+            analyzer._update_cached_results(MagicMock(), cached_sha="baseline")
+        [(_adapter_used, analysis)] = absorb.call_args.args[1]
+        assert analysis["external_call_sites"] == ["from a", "from b"]

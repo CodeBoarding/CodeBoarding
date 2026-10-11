@@ -27,7 +27,7 @@ from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.exceptions import StaticAnalysisFatalError
 from static_analyzer.external_calls import link_external_call_sites, record_package_imports
 from static_analyzer.graph_definitions import GraphIndex
-from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
+from static_analyzer.incremental_orchestrator import drop_deleted_files, update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
@@ -980,8 +980,6 @@ class StaticAnalyzer:
             language = adapter.results_language
             deferred = self._is_deferred(engine_config)
             engine_client = live.get(id(engine_config))
-            if not deferred and engine_client is None:
-                continue
             t_lang_start = time.monotonic()
             changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
             if changed_files is not None:
@@ -990,6 +988,14 @@ class StaticAnalyzer:
                     for path in changed_files
                     if not any(path.is_relative_to(root) for root in engine_config.excluded_roots)
                 }
+            if not deferred and engine_client is None:
+                # Its server failed to start, and the run went on without it.
+                if changed_files is None or changed_files:
+                    raise StaticAnalysisFatalError(
+                        f"warm-start has no running {adapter.language} server for {project_path}, which has "
+                        "changed files. Keeping the cache rather than updating it without them."
+                    )
+                continue
             if deferred:
                 # A git failure re-reads this engine's own files: a full rebuild beside the threaded
                 # dict would keep that dict's copy of them too.
@@ -1017,6 +1023,7 @@ class StaticAnalyzer:
                 else:
                     logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
                     cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
+                    earlier_sites = cached_lang_dict.get("external_call_sites", [])
                     analysis = update_cfg_for_changed_files(
                         cached_lang_dict,
                         changed_files,
@@ -1026,6 +1033,8 @@ class StaticAnalyzer:
                         engine_client,
                         self.ignore_manager,
                     )
+                    # The engines before this one in the language left theirs for the final merge too.
+                    analysis["external_call_sites"] = earlier_sites + analysis.get("external_call_sites", [])
                     carried[language] = analysis
                     carried_adapters[language] = adapter
 
@@ -1044,6 +1053,19 @@ class StaticAnalyzer:
                 analysis=analysis,
                 diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
             )
+        # A language no engine re-read is still the cached one, less any file deleted since: its
+        # deleted files may be a whole project, whose emptied engine had nothing left to run.
+        rebuilt_languages = {adapter.results_language for adapter, _ in rebuilt}
+        cached_languages = set(cached_results.get_languages())
+        for config in configs:
+            language = config.adapter.results_language
+            if language in carried or language in rebuilt_languages or language not in cached_languages:
+                continue
+            carried_adapters[language] = config.adapter
+            carried[language] = {
+                **drop_deleted_files(self._extract_language_dict(cached_results, language)),
+                "external_call_sites": [],
+            }
         self._absorb_and_link(
             results, rebuilt + [(carried_adapters[language], analysis) for language, analysis in carried.items()]
         )
