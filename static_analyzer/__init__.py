@@ -468,6 +468,14 @@ class StaticAnalyzer:
         engine_client.shutdown()
         return self._start_engine_client(engine_config, fallback)
 
+    def _replace_client(self, engine_config: EngineConfig, engine_client: LSPClient) -> LSPClient:
+        """Shut one engine's server down and swap a freshly spawned one into its place."""
+        logger.warning(f"Replacing the {engine_config.adapter.language} server for {engine_config.project_path}")
+        engine_client.shutdown()
+        fresh = self._spawn_engine_client(engine_config)
+        self._engine_clients = [(cfg, fresh if c is engine_client else c) for cfg, c in self._engine_clients]
+        return fresh
+
     def _start_engine_client(
         self, engine_config: EngineConfig, workspace_folders: list[Path] | None = None
     ) -> LSPClient:
@@ -621,9 +629,6 @@ class StaticAnalyzer:
     def get_file_symbols(self, file_path: Path) -> list[dict]:
         """Query the LSP server for document symbols in a single file.
 
-        The file must have been opened previously (via ``notify_file_changed``
-        or during the initial analysis) so the LSP server has indexed it.
-
         Args:
             file_path: Absolute path to the file.
 
@@ -634,13 +639,12 @@ class StaticAnalyzer:
         suffix = file_path.suffix
         for engine_config, client in self._live_clients("get_file_symbols"):
             if suffix in engine_config.adapter.file_extensions:
-                try:
-                    symbols = client.document_symbol(file_path)
-                    logger.debug(f"Got {len(symbols)} symbols for {file_path}")
-                    return symbols
-                except Exception:
-                    logger.warning(f"Failed to get symbols for {file_path}", exc_info=True)
-                    return []
+                # Why: a replaced server starts with nothing open, and tsls answers an unopened document with [].
+                if not engine_config.adapter.workspace_owns_documents:
+                    client.did_open(file_path)
+                symbols = client.document_symbol(file_path)
+                logger.debug(f"Got {len(symbols)} symbols for {file_path}")
+                return symbols
         return []
 
     def get_adapter_for_file(self, file_path: Path) -> tuple[LanguageAdapter, Path] | None:
@@ -657,9 +661,6 @@ class StaticAnalyzer:
         Uses ``SourceInspector`` to find call sites in the file, then resolves
         each call site to its definition location using the LSP server.
 
-        The file must have been opened previously (via ``notify_file_changed``
-        or during the initial analysis) so the LSP server has indexed it.
-
         Args:
             file_path: Absolute path to the source file.
 
@@ -668,22 +669,25 @@ class StaticAnalyzer:
             Returns an empty list if no client serves the file; a failed query raises.
         """
         suffix = file_path.suffix
-        client = next(
+        engine = next(
             (
-                c
-                for engine_config, c in self._live_clients("discover_file_dependencies")
+                (engine_config, client)
+                for engine_config, client in self._live_clients("discover_file_dependencies")
                 if suffix in engine_config.adapter.file_extensions
             ),
             None,
         )
-        if client is None:
+        if engine is None:
             return []
+        engine_config, client = engine
 
         call_sites = SourceInspector().find_call_sites(file_path)
         if not call_sites:
             return []
 
         queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
+        if not engine_config.adapter.workspace_owns_documents:
+            client.did_open(file_path)
         results = client.send_definition_batch(queries)
 
         resolved = file_path.resolve()
@@ -802,6 +806,8 @@ class StaticAnalyzer:
                     with absorb_lock:
                         spawned.append(adapter.language)
                     engine_client = owned_client
+                elif not engine_client.alive:
+                    engine_client = self._replace_client(engine_config, engine_client)
                 logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
                 analysis = self._run_full_analysis(engine_config, engine_client)
                 duration_ms = round((time.monotonic() - t_lang_start) * 1000)
@@ -914,6 +920,9 @@ class StaticAnalyzer:
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
             t_lang_start = time.monotonic()
+            # Why: an editor keeps its analyzer, so a server that died in an earlier run would fail every later one.
+            if not engine_client.alive:
+                engine_client = self._replace_client(engine_config, engine_client)
             changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
 
             if changed_files is None:
@@ -936,6 +945,7 @@ class StaticAnalyzer:
                     engine_client,
                     self.ignore_manager,
                 )
+                engine_client.check_alive()
                 carried[language] = analysis
                 carried_adapters[language] = adapter
 
@@ -1105,6 +1115,8 @@ class StaticAnalyzer:
         )
         engine_result = builder.build(source_files)
         logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")
+        # Why: the builder tolerates failed requests, so a server lost midway would otherwise yield a hollow graph.
+        engine_client.check_alive()
         if adapter.fail_on_empty_symbols is True and not builder.symbol_table.symbols:
             raise StaticAnalysisFatalError(
                 f"{adapter.language} analysis produced 0 symbols across {len(source_files)} source files in "

@@ -21,7 +21,7 @@ from pathlib import Path
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
 from static_analyzer.engine.lsp_constants import REQUEST_BATCH_SIZE
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.exceptions import StaticAnalysisFatalError
+from static_analyzer.exceptions import LanguageServerStalledError, StaticAnalysisFatalError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
@@ -166,6 +166,8 @@ class LSPClient:
         self.import_failed = False
         # Each workspace folder's import status as the server last reported it, e.g. ``BLOCKED``.
         self.import_folder_statuses: list[str] = []
+        # Set once the server reports that the backend it fronts died; it never recovers from that.
+        self.server_failure = ""
 
     def __enter__(self) -> LSPClient:
         self.start()
@@ -324,6 +326,7 @@ class LSPClient:
         self._work_done_progress_titles.clear()
         self._work_done_progress_failures.clear()
         self._init_failed = False
+        self.server_failure = ""
         # Drop responses the dead server never got to be asked about, so a
         # stale id cannot satisfy a pending request on the new connection.
         self._msg_queue = queue.Queue()
@@ -335,6 +338,21 @@ class LSPClient:
         if self._process is None or self._process.poll() is not None:
             return None
         return self._process.pid
+
+    @property
+    def alive(self) -> bool:
+        """Whether the server process runs and still has the backend that answers for it."""
+        return self.pid is not None and not self.server_failure
+
+    def check_alive(self) -> None:
+        """Raise if the server process exited or reported that its backend died."""
+        if self.server_failure:
+            raise LanguageServerStalledError(
+                f"The language server lost its backend ({self.server_failure}), most often to running out of "
+                "memory; every later answer would read as empty, so the analysis stops here."
+            )
+        if self.pid is None:
+            raise StaticAnalysisFatalError("The language server process exited during analysis.")
 
     # ---- Document management ----
 
@@ -629,6 +647,8 @@ class LSPClient:
         A retryable failure is asked once more; anything still unserved raises rather than
         reading as "nothing is declared here".
         """
+        if self.server_failure:
+            self.check_alive()
         results: list[list[dict]] = []
         for start in range(0, len(queries), REQUEST_BATCH_SIZE):
             chunk = queries[start : start + REQUEST_BATCH_SIZE]
@@ -688,6 +708,8 @@ class LSPClient:
 
     def _send_request(self, method: str, params: dict | list | None, timeout: int) -> dict | list | None:
         """Send a JSON-RPC request and wait for the response."""
+        if self.server_failure:
+            self.check_alive()
         self._request_id += 1
         req_id = self._request_id
 
@@ -945,6 +967,9 @@ class LSPClient:
             if "initial workspace load failed" in message_text.lower():
                 self._server_ready.clear()
                 self._work_done_progress_failures.update(self._work_done_progress_titles)
+            # Why: typescript-language-server outlives a crashed tsserver and answers every later request empty.
+            if "[tsserver] Exited." in message_text:
+                self.server_failure = message_text
             # csharp-ls signals workspace readiness via logMessage
             if "Finished loading solution" in message_text:
                 self._server_ready.set()
