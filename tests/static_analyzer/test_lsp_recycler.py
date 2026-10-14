@@ -1,6 +1,6 @@
 """Tests for the per-engine language-server memory budget."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -32,19 +32,21 @@ def test_process_tree_rss_includes_descendants_only():
 
 
 class TestBudget:
-    def test_scales_with_physical_memory(self):
-        with patch("static_analyzer.engine.lsp_recycler.physical_memory_bytes", return_value=16 * GB):
-            assert default_memory_budget() == int(16 * GB * 0.4)
+    def test_three_quarters_of_physical_memory(self):
+        assert _budget(ram_gb=8) == 6 * GB
 
-    def test_clamped_at_both_ends(self):
-        with patch("static_analyzer.engine.lsp_recycler.physical_memory_bytes", return_value=1 * GB):
-            assert default_memory_budget() == MIN_MEMORY_BUDGET
-        with patch("static_analyzer.engine.lsp_recycler.physical_memory_bytes", return_value=512 * GB):
-            assert default_memory_budget() == MAX_MEMORY_BUDGET
+    def test_a_cgroup_v2_limit_below_the_ram_is_what_is_shared(self):
+        """A container sees the host's RAM; its limit is what the kernel enforces."""
+        assert _budget(ram_gb=64, cgroup=str(4 * GB)) == 3 * GB
 
-    def test_unknown_physical_memory_falls_back_to_the_floor(self):
-        with patch("static_analyzer.engine.lsp_recycler.physical_memory_bytes", return_value=0):
-            assert default_memory_budget() == MIN_MEMORY_BUDGET
+    def test_a_cgroup_without_a_limit_leaves_the_ram(self):
+        assert _budget(ram_gb=8, cgroup="max") == 6 * GB
+
+    def test_capped(self):
+        assert _budget(ram_gb=512) == MAX_MEMORY_BUDGET
+
+    def test_unknown_memory_falls_back_to_the_floor(self):
+        assert _budget(ram_gb=None) == MIN_MEMORY_BUDGET
 
     def test_env_override_wins(self, monkeypatch):
         monkeypatch.setenv(MEMORY_BUDGET_ENV_VAR, "1536")
@@ -52,5 +54,15 @@ class TestBudget:
 
     def test_unparseable_env_override_falls_back_to_the_derived_budget(self, monkeypatch):
         monkeypatch.setenv(MEMORY_BUDGET_ENV_VAR, "lots")
-        with patch("static_analyzer.engine.lsp_recycler.physical_memory_bytes", return_value=16 * GB):
-            assert default_memory_budget() == int(16 * GB * 0.4)
+        assert _budget(ram_gb=8) == 6 * GB
+
+
+def _budget(ram_gb: float | None, cgroup: str | None = None) -> int:
+    memory_max = MagicMock()
+    memory_max.read_text.side_effect = OSError if cgroup is None else None
+    memory_max.read_text.return_value = cgroup
+    with (
+        patch("static_analyzer.engine.lsp_recycler.total_ram_gb", return_value=ram_gb),
+        patch("static_analyzer.engine.lsp_recycler.Path", return_value=memory_max),
+    ):
+        return default_memory_budget()

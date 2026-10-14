@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 from static_analyzer.engine.lsp_constants import (
     MAX_MEMORY_BUDGET,
@@ -12,23 +13,29 @@ from static_analyzer.engine.lsp_constants import (
     MIN_MEMORY_BUDGET,
     MIN_ENGINE_MEMORY_BUDGET,
 )
-from static_analyzer.engine.process_memory import physical_memory_bytes
+from static_analyzer.engine.utils import total_ram_gb
 
 logger = logging.getLogger(__name__)
 
 
 def default_memory_budget() -> int:
-    """Bytes a language server may occupy."""
+    """Bytes the language servers up at once may occupy: a share of RAM, or of a cgroup v2 limit below it."""
     override = os.environ.get(MEMORY_BUDGET_ENV_VAR, "").strip()
     if override:
         try:
             return int(float(override) * 1024**2)
         except ValueError:
             logger.warning("Ignoring %s=%r: not a number of megabytes", MEMORY_BUDGET_ENV_VAR, override)
-    physical = physical_memory_bytes()
-    if not physical:
+    memory = int((total_ram_gb() or 0) * 1024**3)
+    try:
+        limit = Path("/sys/fs/cgroup/memory.max").read_text().strip()
+    except OSError:
+        limit = "max"
+    if limit.isdigit():
+        memory = min(memory, int(limit)) if memory else int(limit)
+    if not memory:
         return MIN_MEMORY_BUDGET
-    return int(min(max(physical * MEMORY_BUDGET_FRACTION, MIN_MEMORY_BUDGET), MAX_MEMORY_BUDGET))
+    return int(min(memory * MEMORY_BUDGET_FRACTION, MAX_MEMORY_BUDGET))
 
 
 def per_engine_memory_budget(resident_engines: int) -> int:

@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 from static_analyzer.cfg import DEFAULT_REFERENCE_KINDS, CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.config import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
+from static_analyzer.engine.models import CallFlowGraph, CallSite, ExternalCallSite, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.result_converter import (
     _add_reference_edges,
     _map_symbol_kind,
@@ -457,6 +457,26 @@ class TestCallGraphConversion:
         cg = out["call_graph"]
         assert "mod.handler" in cg.nodes
         assert "mod.process" in cg.nodes
+
+    def test_an_external_call_from_a_declaration_only_an_edge_keeps_takes_its_caller_along(self):
+        """``const logger = getLogger()`` calling into another engine's file: the merge adds ``logger`` if it links."""
+        adapter = _make_adapter()
+        st = SymbolTable(adapter)
+        _register(st, [_lsp_sym("logger", NodeType.CONSTANT, 0, 0), _lsp_sym("helper", NodeType.FUNCTION, 2, 4)])
+        site = ExternalCallSite("mod.logger", "/root/other.py", 3, 4, CallSite("/root/mod.py", 1, 16))
+        from_node = ExternalCallSite("mod.helper", "/root/other.py", 3, 4, CallSite("/root/mod.py", 4, 2))
+        unknown = ExternalCallSite("mod.missing", "/root/other.py", 3, 4, CallSite("/root/mod.py", 9, 1))
+        result = LanguageAnalysisResult(external_call_sites=[site, from_node, unknown])
+
+        out = convert_to_codeboarding_format(st, result, adapter)
+
+        assert "mod.logger" not in out["call_graph"].nodes
+        assert out["external_call_sites"] == [site, from_node]
+        assert [(node.fully_qualified_name, node.col_start) for node in out["external_callers"]] == [("mod.logger", 4)]
+        assert {(ref.fully_qualified_name, ref.col_start) for ref in out["references"]} == {
+            ("mod.logger", 4),
+            ("mod.helper", 4),
+        }
 
     def test_a_known_declaration_is_output_only_as_an_edge_endpoint(self):
         """The cache keeps its node; the partial build must not repeat it, nor reference it."""

@@ -149,6 +149,10 @@ class LanguageAdapter(ABC):
         """Return LSP initialization options specific to this language server."""
         return {}
 
+    def get_lsp_heap_options(self, heap_bytes: int) -> dict:
+        """Initialization options keeping the server's heap within *heap_bytes*; none where Core leaves it alone."""
+        return {}
+
     def get_workspace_settings(self) -> dict | None:
         """Return settings to send via ``workspace/didChangeConfiguration``.
 

@@ -6,6 +6,7 @@ import logging
 import re
 import time
 
+from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.config import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
@@ -248,7 +249,11 @@ class HierarchyBuilder:
         short_name_to_qnames: dict[str, list[str]],
         hierarchy: dict[str, dict],
     ) -> None:
-        """Link a child class to a parent class in the hierarchy by short name."""
+        """Link a child class to a parent class in the hierarchy by short name.
+
+        Why the name is kept on the child too: ``link_declared_bases`` links it across engines and warm starts.
+        """
+        hierarchy[child_qname].setdefault("declared_bases", []).append(parent_short_name)
         candidates = short_name_to_qnames.get(parent_short_name, [])
         for parent_qname in candidates:
             if parent_qname == child_qname:
@@ -258,3 +263,18 @@ class HierarchyBuilder:
                     hierarchy[child_qname]["superclasses"].append(parent_qname)
                 if child_qname not in hierarchy[parent_qname]["subclasses"]:
                     hierarchy[parent_qname]["subclasses"].append(child_qname)
+
+
+def link_declared_bases(hierarchy: dict[str, dict], call_graph: CallGraph) -> None:
+    """Link each class to every class named as a base in its source, among all engines' classes.
+
+    Why: an engine links bases among its own classes only, so split engines and warm starts miss the rest.
+    """
+    by_short_name: dict[str, list[str]] = {}
+    for qname in sorted(hierarchy):
+        by_short_name.setdefault(qname.rsplit(".", 1)[-1], []).append(qname)
+    for child, info in hierarchy.items():
+        for parent in [parent for base in info.get("declared_bases", []) for parent in by_short_name.get(base, [])]:
+            if parent != child and parent not in info["superclasses"]:
+                HierarchyBuilder._link(child, parent, hierarchy)
+                call_graph.add_reference_edge(ReferenceEdge(child, parent, EdgeKind.INHERITS))

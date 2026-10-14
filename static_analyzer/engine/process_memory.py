@@ -8,14 +8,6 @@ _PAGE_SIZE = os.sysconf("SC_PAGE_SIZE") if hasattr(os, "sysconf") else 4096
 _IS_LINUX = sys.platform.startswith("linux")
 
 
-def physical_memory_bytes() -> int:
-    """Return total physical memory, or zero when it cannot be determined."""
-    try:
-        return os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
-    except (ValueError, OSError, AttributeError):
-        return 0
-
-
 def format_bytes(num_bytes: float) -> str:
     """Render a byte count as a short human-readable string."""
     for unit in ("B", "KB", "MB", "GB"):
