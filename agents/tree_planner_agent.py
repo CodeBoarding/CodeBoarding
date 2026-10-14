@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import time
 from collections import Counter
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -136,11 +137,19 @@ class TreePlannerAgent(MonitoringMixin):
                 raise ValueError("planner returned malformed JSON")
             return insights
 
+        # Why: ``_draw`` stops waiting after DRAW_TIMEOUT_SECONDS but cannot stop this worker, so no new
+        # attempt starts once the draw has been abandoned.
+        deadline = time.monotonic() + DRAW_TIMEOUT_SECONDS
+
         def classify(exc: Exception, attempt: int) -> RetryDecision:
             raise_if_auth_error(exc)
             if isinstance(exc, ValueError):
-                return RetryDecision(action=RetryAction.RETRY_NOW)
-            return classify_llm_error(exc, attempt)
+                decision = RetryDecision(action=RetryAction.RETRY_NOW)
+            else:
+                decision = classify_llm_error(exc, attempt)
+            if time.monotonic() + decision.backoff_s >= deadline:
+                return RetryDecision(action=RetryAction.GIVE_UP)
+            return decision
 
         return with_retries(once, max_attempts=LLM_MAX_ATTEMPTS, classify=classify, log_prefix="Planner draw")
 

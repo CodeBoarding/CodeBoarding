@@ -15,8 +15,10 @@ dashboard's structured ``error`` columns — populate instead of staying null.
 
 from __future__ import annotations
 
+import email.utils
 import logging
 import re
+import time
 
 from agents.llm_config import CODEBOARDING_KEY_TAIL, current_provider_key_context
 
@@ -117,6 +119,10 @@ def _status_code(exc: BaseException) -> int | None:
     if code is None:
         code = getattr(exc, "code", None)  # google GoogleAPICallError.code
     if code is None:
+        response = getattr(exc, "response", None)  # botocore ClientError (Bedrock) keeps it in a dict
+        if isinstance(response, dict):
+            code = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    if code is None:
         return None
     try:
         return int(code)
@@ -179,7 +185,8 @@ def detect_auth_error(exc: BaseException, *, provider: str, key_tail: str) -> LL
 
 def _is_quota_exhausted(exc: BaseException) -> bool:
     status = _status_code(exc)
-    return status == 402 or (status == 429 and "insufficient_quota" in str(exc))
+    quota_code = getattr(exc, "code", None) == "insufficient_quota" or "insufficient_quota" in str(exc)
+    return status == 402 or (status == 429 and quota_code)
 
 
 def llm_failure_properties(exc: BaseException) -> dict:
@@ -214,12 +221,25 @@ def is_transient_llm_error(exc: BaseException) -> bool:
 
 
 def retry_after_seconds(exc: BaseException) -> float | None:
-    """The wait a provider asked for in a ``Retry-After`` header of seconds, when the exception carries the response."""
-    headers = getattr(getattr(exc, "response", None), "headers", {})
-    try:
-        return max(0.0, float(headers.get("retry-after", "")))
-    except (AttributeError, TypeError, ValueError):
+    """The wait a provider asked for, when the exception carries the response: ``retry-after-ms``, or
+    ``Retry-After`` as seconds or an HTTP date. None when absent, unreadable or already past."""
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    if headers is None:
         return None
+    try:
+        return max(0.0, float(headers.get("retry-after-ms", "")) / 1000)
+    except (TypeError, ValueError):
+        pass
+    value = headers.get("retry-after", "")
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        pass
+    try:
+        wait = email.utils.parsedate_to_datetime(value).timestamp() - time.time()
+    except (TypeError, ValueError):
+        return None
+    return wait if wait > 0 else None
 
 
 def raise_if_auth_error(exc: Exception) -> None:

@@ -3,6 +3,7 @@
 import os
 from unittest.mock import patch
 
+import botocore.exceptions
 import httpx
 import openai
 import pytest
@@ -251,6 +252,11 @@ def _openai_status_error(cls: type[openai.APIStatusError], status: int, body: di
     return cls(f"Error code: {status} - {body}", response=response, body=body)
 
 
+def _bedrock_error(code: str, status: int) -> botocore.exceptions.ClientError:
+    response = {"Error": {"Code": code, "Message": code}, "ResponseMetadata": {"HTTPStatusCode": status}}
+    return botocore.exceptions.ClientError(response, "Converse")  # type: ignore[arg-type]
+
+
 class TestTransientLLMError:
     """Why: one throttled call from the hosted proxy used to fail a whole run; a permanent failure must not be retried."""
 
@@ -272,6 +278,10 @@ class TestTransientLLMError:
             openai.APITimeoutError(request=_REQUEST),
             httpx.ConnectError("connection refused"),
             TimeoutError("provider did not answer"),
+            _bedrock_error("ThrottlingException", 429),
+            _bedrock_error("ServiceUnavailableException", 503),
+            botocore.exceptions.EndpointConnectionError(endpoint_url="https://bedrock-runtime.us-east-1.amazonaws.com"),
+            botocore.exceptions.ReadTimeoutError(endpoint_url="https://bedrock-runtime.us-east-1.amazonaws.com"),
         ],
     )
     def test_retries_throttling_server_errors_and_lost_connections(self, error: Exception):
@@ -283,6 +293,13 @@ class TestTransientLLMError:
             _openai_status_error(
                 openai.RateLimitError, 429, {"error": {"code": "insufficient_quota", "type": "insufficient_quota"}}
             ),
+            # The quota code only on the exception, not in its message.
+            openai.RateLimitError(
+                "You exceeded your current quota.",
+                response=httpx.Response(429, request=_REQUEST),
+                body={"code": "insufficient_quota"},
+            ),
+            _bedrock_error("ValidationException", 400),
             _FakeStatusError("Resource exhausted: token limit reached", status_code=402),
             _openai_status_error(openai.AuthenticationError, 401, {"error": {"message": "invalid api key"}}),
             _FakeStatusError("permission denied", status_code=403),
@@ -298,15 +315,29 @@ class TestTransientLLMError:
         error = _openai_status_error(openai.RateLimitError, 429, {}, headers={"Retry-After": "7"})
         assert retry_after_seconds(error) == 7.0
 
+    def test_reads_retry_after_ms(self):
+        error = _openai_status_error(openai.RateLimitError, 429, {}, headers={"retry-after-ms": "1500"})
+        assert retry_after_seconds(error) == 1.5
+
+    def test_reads_retry_after_http_date(self):
+        error = _openai_status_error(
+            openai.RateLimitError, 429, {}, headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}
+        )
+        with patch("agents.llm_errors.time.time", return_value=1792567660.0):  # 07:27:40 GMT that day
+            assert retry_after_seconds(error) == 20.0
+
     @pytest.mark.parametrize(
         "error",
         [
             _openai_status_error(openai.RateLimitError, 429, {}),
             _openai_status_error(
-                openai.RateLimitError, 429, {}, headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}
+                openai.RateLimitError, 429, {}, headers={"Retry-After": "Wed, 21 Oct 2026 07:27:00 GMT"}
             ),
+            _openai_status_error(openai.RateLimitError, 429, {}, headers={"Retry-After": "soon"}),
             _FakeStatusError("Rate limit reached", status_code=429),
+            _bedrock_error("ThrottlingException", 429),
         ],
     )
-    def test_no_retry_after_when_absent_or_not_seconds(self, error: Exception):
-        assert retry_after_seconds(error) is None
+    def test_no_retry_after_when_absent_unreadable_or_past(self, error: Exception):
+        with patch("agents.llm_errors.time.time", return_value=1792567660.0):
+            assert retry_after_seconds(error) is None
