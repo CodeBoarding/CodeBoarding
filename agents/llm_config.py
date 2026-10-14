@@ -302,6 +302,19 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "cheaperinference": LLMConfig(
+        chat_class=ChatOpenAI,
+        selection_envs=["CHEAPER_INFERENCE_API_KEY"],
+        api_key_env="CHEAPER_INFERENCE_API_KEY",
+        agent_model="gpt-5.4-mini",
+        base_url_env="CHEAPER_INFERENCE_BASE_URL",
+        default_base_url="https://api.cheaperinference.com/v1",
+        extra_args={
+            "max_tokens": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+            "max_retries": 0,
+        },
+    ),
     "litellm": LLMConfig(
         chat_class=ChatOpenAI,
         # Base URL only: a key alone must not select litellm, since there is no
