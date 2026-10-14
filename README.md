@@ -190,7 +190,7 @@ Two environment variables tune the static analysis itself:
 | Variable | Effect |
 | --- | --- |
 | `CODEBOARDING_LSP_REQUEST_TIMEOUT` | Seconds a language-server request may block *when it uses the per-language default* (120s for C# and Kotlin, 60s elsewhere). Not a hard cap on every request: `initialize` has its own startup budget (the request default), Kotlin's build import is awaited separately (up to 1800s), and the indexing and didOpen-drain probes pass their own scaled budget (60s plus 2s per file, capped at 1800s); neither is affected. Applies to every language in the run. Unset or empty leaves the defaults alone; any other unusable value fails the run rather than falling back. |
-| `CODEBOARDING_MAX_CONCURRENT_ENGINES` | How many language servers may be resident at once. `0` (the default) leaves the bound off. |
+| `CODEBOARDING_MAX_CONCURRENT_ENGINES` | How many language servers an analysis runs at once. Unset or `0`, the CLI and the GitHub Action run one at a time, each stopped when its language is done, and the editor keeps one per project running. Set, the editor's servers also start only for an analysis, so its file queries are unavailable. |
 
 ## Common commands
 

@@ -88,6 +88,7 @@ def _analyzer(tmp_path: Path, client: MagicMock, owns_documents: bool = False) -
     analyzer.changed_files = {source}
     analyzer.ignore_manager = MagicMock()
     analyzer.collected_diagnostics = {}
+    analyzer._server_slots = 0
     adapter = MagicMock(file_extensions={".ts"}, results_language=Language.TYPESCRIPT, fail_on_empty_symbols=True)
     # Explicit: a MagicMock attribute is truthy, which would read as a server that owns its documents.
     adapter.workspace_owns_documents = owns_documents
