@@ -74,8 +74,9 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v11: every language builds its call edges from definitions at the call site.
 # v12: a large TypeScript monorepo runs one server per tsconfig project, so a graph one out-of-memory
 # server left without edges is rebuilt; bases, implementations and edge-only declarations link across engines.
+# v13: a TypeScript call into a sibling workspace package resolves to its sources without an install or build.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v12"
+_TAG_VERSION = "v13"
 
 
 class StaticAnalysisCache:

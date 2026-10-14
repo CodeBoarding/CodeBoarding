@@ -363,6 +363,10 @@ class StaticAnalyzer:
                 continue
             try:
                 started.append((engine_config, self._spawn_engine_client(engine_config)))
+            except StaticAnalysisFatalError:
+                for _, client in started:  # never handed to ``stop_clients``
+                    client.shutdown()
+                raise
             except Exception as exc:
                 logger.exception(
                     f"Failed to start engine LSP client for {adapter.language}; "
@@ -500,6 +504,7 @@ class StaticAnalyzer:
             extra_client_capabilities=getattr(adapter, "extra_client_capabilities", {}) or {},
             error_verdict=adapter.error_verdict,
             workspace_folders=workspace_folders,
+            commands=adapter.get_lsp_commands(project_path),
         )
         try:
             engine_client.start()
@@ -918,6 +923,12 @@ class StaticAnalyzer:
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
             changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
+            if changed_files is not None and adapter.rebuilds_for(changed_files, project_path):
+                logger.info(f"warmstart {adapter.language}: a change alters how imports resolve; rebuilding")
+                changed_files = None
+                if resident_client is not None:
+                    # Why: a server resolves imports as the project was when it started; a stopped one is replaced.
+                    resident_client.shutdown()
             # A full re-analysis is the full pass's, so a split config runs as its parts. Changed files stay on the
             # config's own server: tsserver loads only the projects of the files it opens.
             if changed_files is None:

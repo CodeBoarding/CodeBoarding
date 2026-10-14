@@ -21,7 +21,7 @@ from pathlib import Path
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
 from static_analyzer.engine.lsp_constants import REQUEST_BATCH_SIZE
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.exceptions import LanguageServerStalledError, StaticAnalysisFatalError
+from static_analyzer.exceptions import LanguageServerStalledError, StaticAnalysisFatalError, WorkspaceSetupError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
@@ -113,6 +113,7 @@ class LSPClient:
         extra_client_capabilities: dict | None = None,
         error_verdict: Callable[[dict], ErrorVerdict] | None = None,
         workspace_folders: list[Path] | None = None,
+        commands: list[dict] | None = None,
     ) -> None:
         self._command = command
         self._project_root = project_root
@@ -129,6 +130,7 @@ class LSPClient:
         self._error_verdict = error_verdict
         # Announced in place of the project folder, for a server handed a workspace described apart from it.
         self._workspace_folders = workspace_folders or []
+        self._commands = commands or []
         self._process: subprocess.Popen | None = None  # type: ignore[type-arg]
         self._stdout_fd: int | None = None
         self._request_id = 0
@@ -257,6 +259,8 @@ class LSPClient:
         if isinstance(init_result, dict):
             self._server_capabilities = init_result.get("capabilities") or {}
         self._send_notification("initialized", {})
+        for command in self._commands:
+            self._send_request("workspace/executeCommand", command, timeout=self._default_timeout, required=True)
 
         # LSP servers receive configuration through three mechanisms:
         #   1. initializationOptions  — sent in the initialize request above.
@@ -706,8 +710,10 @@ class LSPClient:
             answers.append(BatchAnswer(parsed, req_id not in unserved, req_id in retryable))
         return answers
 
-    def _send_request(self, method: str, params: dict | list | None, timeout: int) -> dict | list | None:
-        """Send a JSON-RPC request and wait for the response."""
+    def _send_request(
+        self, method: str, params: dict | list | None, timeout: int, required: bool = False
+    ) -> dict | list | None:
+        """Send a JSON-RPC request and wait for the response; a *required* one that does not succeed is fatal."""
         if self.server_failure:
             self.check_alive()
         self._request_id += 1
@@ -731,6 +737,8 @@ class LSPClient:
 
             if "error" in msg:
                 error = msg["error"]
+                if required:
+                    raise WorkspaceSetupError(f"The language server rejected {method} {params}: {error}")
                 if isinstance(error, dict) and error.get("code") == LSP_METHOD_NOT_FOUND:
                     raise MethodNotFoundError(error.get("message", "Method not found"))
                 logger.warning("LSP error for request %d (%s): %s", req_id, method, error)
@@ -742,6 +750,8 @@ class LSPClient:
                 return None
             return msg.get("result")
 
+        if required:
+            raise WorkspaceSetupError(f"The language server did not answer {method} {params} within {timeout}s")
         raise TimeoutError(f"Timeout waiting for LSP response to request {req_id}")
 
     def _send_notification(self, method: str, params: dict | list | None) -> None:
