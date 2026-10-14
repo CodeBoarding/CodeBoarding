@@ -113,6 +113,7 @@ class LSPClient:
         extra_client_capabilities: dict | None = None,
         error_verdict: Callable[[dict], ErrorVerdict] | None = None,
         workspace_folders: list[Path] | None = None,
+        commands: list[dict] | None = None,
     ) -> None:
         self._command = command
         self._project_root = project_root
@@ -129,6 +130,7 @@ class LSPClient:
         self._error_verdict = error_verdict
         # Announced in place of the project folder, for a server handed a workspace described apart from it.
         self._workspace_folders = workspace_folders or []
+        self._commands = commands or []
         self._process: subprocess.Popen | None = None  # type: ignore[type-arg]
         self._stdout_fd: int | None = None
         self._request_id = 0
@@ -255,6 +257,8 @@ class LSPClient:
         if isinstance(init_result, dict):
             self._server_capabilities = init_result.get("capabilities") or {}
         self._send_notification("initialized", {})
+        for command in self._commands:
+            self._send_request("workspace/executeCommand", command, timeout=self._default_timeout)
 
         # LSP servers receive configuration through three mechanisms:
         #   1. initializationOptions  — sent in the initialize request above.

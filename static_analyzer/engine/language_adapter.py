@@ -267,6 +267,14 @@ class LanguageAdapter(ABC):
         """
         return {}
 
+    def get_lsp_commands(self, project_root: Path) -> list[dict]:
+        """``workspace/executeCommand`` params the server is sent once initialized, and again on a restart."""
+        return []
+
+    def rebuilds_for(self, changed_files: Collection[Path], project_root: Path) -> bool:
+        """Whether a warm start over *changed_files* must re-analyse the whole project on a fresh server."""
+        return False
+
     def workspace_folders(self, project_root: Path, source_files: Sequence[Path]) -> list[Path]:
         """Workspace folders to announce to the server in place of the project, or none."""
         return []

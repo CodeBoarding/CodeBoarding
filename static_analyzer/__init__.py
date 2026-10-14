@@ -365,6 +365,8 @@ class StaticAnalyzer:
                 continue
             try:
                 started.append((engine_config, self._spawn_engine_client(engine_config)))
+            except StaticAnalysisFatalError:
+                raise
             except Exception as exc:
                 logger.exception(
                     f"Failed to start engine LSP client for {adapter.language}; "
@@ -492,6 +494,7 @@ class StaticAnalyzer:
             extra_client_capabilities=getattr(adapter, "extra_client_capabilities", {}) or {},
             error_verdict=adapter.error_verdict,
             workspace_folders=workspace_folders,
+            commands=adapter.get_lsp_commands(project_path),
         )
         try:
             engine_client.start()
@@ -910,11 +913,18 @@ class StaticAnalyzer:
         carried: dict[Language, dict] = {}
         carried_adapters: dict[Language, LanguageAdapter] = {}
         rebuilt: list[tuple[LanguageAdapter, dict]] = []
-        for engine_config, engine_client in self._live_clients("warm-start"):
+        for index, (engine_config, engine_client) in enumerate(self._live_clients("warm-start")):
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
             t_lang_start = time.monotonic()
             changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
+            if changed_files is not None and adapter.rebuilds_for(changed_files, project_path):
+                # Why a fresh server: the running one resolves imports as the project was when it started.
+                logger.info(f"warmstart {adapter.language}: a change alters how imports resolve; rebuilding")
+                engine_client.shutdown()
+                engine_client = self._spawn_engine_client(engine_config)
+                self._engine_clients[index] = (engine_config, engine_client)
+                changed_files = None
 
             if changed_files is None:
                 analysis = self._run_full_analysis(engine_config, engine_client)
