@@ -1,6 +1,7 @@
 """Tests for TypeScript / JavaScript project configuration scanner."""
 
 import json
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -290,6 +291,32 @@ class TestFallbackWhenTscMissing:
         # Sanity: every file appears in exactly one project's list.
         all_files = [f for files in roots_to_files.values() for f in files]
         assert sorted(all_files) == sorted(set(all_files))
+
+
+def test_no_scan_walks_into_installed_dependencies(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """After a dependency install node_modules holds hundreds of thousands of entries, none of them the repository's."""
+    _force_fallback_walk(monkeypatch)
+    (tmp_path / "tsconfig.json").write_text(json.dumps({}))
+    (tmp_path / "a.ts").write_text("export {};")
+    for directory in ("node_modules/dep", ".git/objects"):
+        (tmp_path / directory).mkdir(parents=True)
+        (tmp_path / directory / "tsconfig.json").write_text(json.dumps({}))
+        (tmp_path / directory / "index.ts").write_text("export {};")
+    scanned: list[Path] = []
+    scandir = os.scandir
+
+    def recording(path=".", *args):
+        scanned.append(Path(path))
+        return scandir(path, *args)
+
+    monkeypatch.setattr(os, "scandir", recording)
+    scanner = TypeScriptConfigScanner(tmp_path)
+    projects = scanner.find_typescript_projects()
+    unclaimed = scanner.find_unclaimed_family_files(projects)
+
+    assert [project.root for project in projects] == [tmp_path.resolve()]
+    assert {f.name for f in projects[0].files} == {"a.ts"} and unclaimed == []
+    assert not [path for path in scanned if {"node_modules", ".git"} & set(path.parts)]
 
 
 class TestTypeScriptProjectDataclass:
