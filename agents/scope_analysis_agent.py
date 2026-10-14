@@ -30,6 +30,7 @@ from infra.monitoring.callbacks import MONITORING_CALLBACK
 from agents.llm_errors import ScopeContextTooLargeError, raise_if_auth_error
 from agents.llm_renderers import render_scope_context, scope_file_paths, scope_method_names
 from agents.prompts import get_scope_analysis_prompts
+from agents.retry import LLM_MAX_ATTEMPTS, classify_llm_error, with_retries
 from agents.tools import MethodCallsTool, ReadFileTool
 from agents.tools.base import RepoContext
 from infra.monitoring.mixin import MonitoringMixin
@@ -160,6 +161,24 @@ class ScopeInputBudget(AgentMiddleware):
             logger.warning("Scope %s: truncating tool result %s to fit context", self.scope_id, message.tool_call_id)
 
 
+class TransientErrorRetry(AgentMiddleware):
+    """Send a model request again when the provider failed it transiently (throttled, 5xx, connection lost).
+
+    Why here: one model request is retried, not the agent run, so the tool calls already made are kept.
+    """
+
+    def __init__(self, scope_id: str):
+        self.scope_id = scope_id
+
+    def wrap_model_call(self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]) -> ModelResponse:
+        return with_retries(
+            lambda: handler(request),
+            max_attempts=LLM_MAX_ATTEMPTS,
+            classify=classify_llm_error,
+            log_prefix=f"Scope {self.scope_id} model call",
+        )
+
+
 class ScopeAnalysisAgent(MonitoringMixin):
     """Analyze any deterministic scope with two scope-restricted tools."""
 
@@ -210,6 +229,7 @@ class ScopeAnalysisAgent(MonitoringMixin):
             RepositoryToolBudget(run_limit=MAX_SCOPE_TOOL_CALLS, exit_behavior="continue"),
             ModelCallLimitMiddleware(run_limit=MAX_SCOPE_MODEL_CALLS, exit_behavior="error"),
             input_budget,
+            TransientErrorRetry(scope.scope_id),
         ]
         agent: CompiledStateGraph = create_agent(
             model=self.agent_llm,

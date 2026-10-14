@@ -2,8 +2,11 @@ import unittest
 from unittest.mock import patch
 
 from agents.retry import (
+    LLM_BACKOFF_MAX_S,
+    LLM_MAX_ATTEMPTS,
     RetryAction,
     RetryDecision,
+    classify_llm_error,
     default_backoff,
     with_retries,
 )
@@ -141,3 +144,84 @@ class TestWithRetries(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _StatusError(Exception):
+    def __init__(self, message: str, status_code: int, retry_after: str | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response = type("Response", (), {"headers": {"retry-after": retry_after} if retry_after else {}})()
+
+
+THROTTLED = "Error code: 429 - {'Reason': 'ConcurrentInvocationLimitExceeded', 'message': 'Rate Exceeded.'}"
+
+
+class TestClassifyLLMError(unittest.TestCase):
+    def test_gives_up_on_permanent_failures(self):
+        for error in (
+            _StatusError("Error code: 429 - {'code': 'insufficient_quota'}", 429),
+            _StatusError("payment required", 402),
+            _StatusError("invalid api key", 401),
+            _StatusError("bad request", 400),
+        ):
+            self.assertEqual(classify_llm_error(error, 0).action, RetryAction.GIVE_UP, error)
+
+    def test_full_jitter_under_a_doubling_ceiling(self):
+        with patch("agents.retry.random.uniform", side_effect=lambda low, high: high) as uniform:
+            delays = [classify_llm_error(_StatusError(THROTTLED, 429), attempt).backoff_s for attempt in range(6)]
+        self.assertEqual(delays, [4.0, 8.0, 16.0, 32.0, 60.0, 60.0])
+        self.assertTrue(all(call.args[0] == 0.0 for call in uniform.call_args_list))
+
+    def test_honours_retry_after_up_to_the_cap(self):
+        decision = classify_llm_error(_StatusError(THROTTLED, 429, retry_after="7"), 0)
+        self.assertEqual(decision, RetryDecision(RetryAction.RETRY, backoff_s=7.0))
+        decision = classify_llm_error(_StatusError("Bad gateway", 502, retry_after="600"), 0)
+        self.assertEqual(decision.backoff_s, LLM_BACKOFF_MAX_S)
+
+
+class TestRetryTransientLLMErrors(unittest.TestCase):
+    """Why: one throttled call from the hosted proxy used to fail a four-minute run."""
+
+    @patch("agents.retry.time.sleep")
+    def test_a_throttled_call_is_retried_and_logged(self, sleep):
+        results: list = [_StatusError(THROTTLED, 429), _StatusError("Upstream request failed.", 502), "ok"]
+
+        def fn():
+            result = results.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        with self.assertLogs("agents.retry", level="WARNING") as logs:
+            self.assertEqual(
+                with_retries(fn, max_attempts=LLM_MAX_ATTEMPTS, classify=classify_llm_error, log_prefix="Scope 3"), "ok"
+            )
+        self.assertEqual(sleep.call_count, 2)
+        self.assertIn("Scope 3 failed (attempt 1/5): Error code: 429", logs.output[0])
+        self.assertIn("attempt 2/5", logs.output[1])
+
+    @patch("agents.retry.time.sleep")
+    def test_a_quota_failure_is_not_retried(self, sleep):
+        calls = []
+
+        def fn():
+            calls.append(1)
+            raise _StatusError("payment required", 402)
+
+        with self.assertRaises(_StatusError):
+            with_retries(fn, max_attempts=LLM_MAX_ATTEMPTS, classify=classify_llm_error)
+        self.assertEqual(len(calls), 1)
+        sleep.assert_not_called()
+
+    @patch("agents.retry.time.sleep")
+    def test_gives_up_after_the_budget(self, sleep):
+        calls = []
+
+        def fn():
+            calls.append(1)
+            raise _StatusError("Upstream request failed.", 502)
+
+        with self.assertRaises(_StatusError):
+            with_retries(fn, max_attempts=LLM_MAX_ATTEMPTS, classify=classify_llm_error)
+        self.assertEqual(len(calls), LLM_MAX_ATTEMPTS)
+        self.assertEqual(sleep.call_count, LLM_MAX_ATTEMPTS - 1)

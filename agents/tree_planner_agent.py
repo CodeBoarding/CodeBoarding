@@ -17,7 +17,7 @@ from agents.llm_config import get_current_prompt_profile, supports_json_mode
 from infra.monitoring.callbacks import MONITORING_CALLBACK
 from agents.llm_errors import LLMAuthError, raise_if_auth_error
 from agents.prompts import get_tree_plan_prompts
-from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries
+from agents.retry import LLM_MAX_ATTEMPTS, RetryAction, RetryDecision, classify_llm_error, with_retries
 from infra.monitoring import trace
 from infra.monitoring.mixin import MonitoringMixin
 from static_analyzer.clustering.names import CandidateGroup, GroupingContext, KinshipGrouper, stem, tokenize
@@ -140,11 +140,9 @@ class TreePlannerAgent(MonitoringMixin):
             raise_if_auth_error(exc)
             if isinstance(exc, ValueError):
                 return RetryDecision(action=RetryAction.RETRY_NOW)
-            return RetryDecision(
-                action=RetryAction.RETRY, backoff_s=default_backoff(attempt, initial_s=10.0, multiplier=2.0, max_s=60.0)
-            )
+            return classify_llm_error(exc, attempt)
 
-        return with_retries(once, max_attempts=3, classify=classify, log_prefix="Planner draw")
+        return with_retries(once, max_attempts=LLM_MAX_ATTEMPTS, classify=classify, log_prefix="Planner draw")
 
     @staticmethod
     def _read(text: str, labelled: dict[str, CandidateGroup]) -> TreePlanInsights | None:
