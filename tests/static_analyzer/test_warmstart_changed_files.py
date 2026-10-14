@@ -8,6 +8,7 @@ directly and never touch git.
 
 import unittest
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from static_analyzer import EngineConfig, StaticAnalyzer
@@ -21,6 +22,7 @@ def _analyzer_with_one_engine(project_path: Path, changed_files: set[Path] | Non
     adapter = MagicMock()
     adapter.language = "Python"
     adapter.language_enum = MagicMock()
+    adapter.rebuilds_for.return_value = False
     client = MagicMock()
     analyzer._engine_clients = [(EngineConfig(adapter=adapter, project_path=project_path), client)]
     analyzer.collected_diagnostics = {}
@@ -163,6 +165,28 @@ class TestWarmStartChangedFiles(unittest.TestCase):
             analyzer._update_cached_results(self.cached, cached_sha="badsha")
         mock_full.assert_called_once()
         mock_update.assert_not_called()
+
+    @patch("static_analyzer.update_cfg_for_changed_files", return_value={})
+    def test_a_change_that_alters_how_imports_resolve_rebuilds_on_a_fresh_server(self, mock_update) -> None:
+        analyzer = _analyzer_with_one_engine(self.project, changed_files={self.project / "pnpm-workspace.yaml"})
+        [(config, stale)] = analyzer._engine_clients
+        adapter, stale_client = cast(MagicMock, config.adapter), cast(MagicMock, stale)
+        adapter.rebuilds_for.return_value = True
+        stale_client.shutdown.side_effect = lambda: setattr(stale_client, "alive", False)
+        fresh = MagicMock()
+        with (
+            patch.object(analyzer, "_spawn_engine_client", return_value=fresh),
+            patch.object(analyzer, "_run_full_analysis", return_value={}) as mock_full,
+            patch.object(analyzer, "_absorb_into_results"),
+            patch.object(analyzer, "_collect_diagnostics_for"),
+            patch("static_analyzer.track_lsp_result"),
+        ):
+            analyzer._update_cached_results(self.cached, cached_sha="deadbeef")
+
+        stale_client.shutdown.assert_called()
+        mock_full.assert_called_once_with(config, fresh)
+        mock_update.assert_not_called()
+        self.assertEqual(analyzer._engine_clients, [(config, fresh)])
 
 
 if __name__ == "__main__":

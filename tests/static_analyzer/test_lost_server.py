@@ -92,6 +92,7 @@ def _analyzer(tmp_path: Path, client: MagicMock, owns_documents: bool = False) -
     adapter = MagicMock(file_extensions={".ts"}, results_language=Language.TYPESCRIPT, fail_on_empty_symbols=True)
     # Explicit: a MagicMock attribute is truthy, which would read as a server that owns its documents.
     adapter.workspace_owns_documents = owns_documents
+    adapter.rebuilds_for.return_value = False
     config = EngineConfig(adapter, tmp_path, [source])
     analyzer._engine_configs = [config]
     analyzer._engine_clients = [(config, client)]

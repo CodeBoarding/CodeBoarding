@@ -202,6 +202,7 @@ def _adapter(language: Language) -> MagicMock:
     adapter.language = language.value
     adapter.language_enum = language
     adapter.results_language = language
+    adapter.rebuilds_for.return_value = False
     return adapter
 
 
