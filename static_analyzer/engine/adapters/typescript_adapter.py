@@ -36,6 +36,10 @@ class TypeScriptAdapter(LanguageAdapter):
         # that needs an inferred type -- ``.then(t => t.serialize())`` -- comes back empty on a cold start.
         return {"tsserver": {"useSyntaxServer": "never"}}
 
+    def get_lsp_heap_options(self, heap_bytes: int) -> dict:
+        # Why: at Node's default heap tsserver runs out of memory on a large tsconfig project and answers nothing.
+        return {"maxTsServerMemory": heap_bytes // 1024**2}
+
     def extract_package(self, qualified_name: str) -> str:
         return self._extract_deep_package(qualified_name)
 

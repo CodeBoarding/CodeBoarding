@@ -159,17 +159,28 @@ class CallTargets:
 
 
 class GraphIndex:
-    """A graph's nodes by file, so a position lookup does not scan every node."""
+    """A graph's nodes by file, so a position lookup does not scan every node.
 
-    def __init__(self, call_graph: CallGraph) -> None:
+    Why *endpoints*: an engine keeps a constant or a property as a node only once an edge reaches it, and a call
+    from another engine can be that edge, so the merge resolves against them too.
+    """
+
+    def __init__(self, call_graph: CallGraph, endpoints: Iterable[Node] = ()) -> None:
         self.call_graph = call_graph
+        self._endpoints = {
+            node.fully_qualified_name: node for node in endpoints if not call_graph.has_node(node.fully_qualified_name)
+        }
         self._by_file: dict[str, list[Node]] = defaultdict(list)
-        for node in call_graph.nodes.values():
+        for node in [*call_graph.nodes.values(), *self._endpoints.values()]:
             self._by_file[node.file_path].append(node)
         self._by_name: dict[str, dict[str, dict[tuple[int, int], Node]]] = {}
 
     def nodes_in(self, file_path: str) -> list[Node]:
         return self._by_file.get(file_path, [])
+
+    def node(self, qualified_name: str) -> Node | None:
+        """The graph's node by this name, else the endpoint declared under it."""
+        return self.call_graph.nodes.get(qualified_name) or self._endpoints.get(qualified_name)
 
     @cached_property
     def callable_names(self) -> set[str]:

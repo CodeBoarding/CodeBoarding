@@ -16,8 +16,11 @@ from static_analyzer.csharp_config_scanner import SOLUTION_GLOBS, CSharpConfigSc
 from static_analyzer.dotnet_solution import solution_projects
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
+from static_analyzer.engine.hierarchy_builder import link_declared_bases
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_constants import SERVER_NON_HEAP_BYTES
+from static_analyzer.engine.lsp_recycler import per_engine_memory_budget
 from static_analyzer.engine.models import ExternalCallSite
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
@@ -54,7 +57,12 @@ class EngineConfig:
     source_files: list[Path] = field(default_factory=list)
     # Retain discovery exclusions for incremental edits, including deleted files.
     excluded_roots: list[Path] = field(default_factory=list)
+    # Configs a full pass or full re-analysis runs in its place, each on a server of its own.
+    split: list["EngineConfig"] = field(default_factory=list)
 
+
+TYPESCRIPT_SPLIT_MIN_FILES = 1000
+"""TypeScript files from which the full pass runs one server per tsconfig project; below it one server starts once."""
 
 MAX_CONCURRENT_ENGINES_ENV_VAR = "CODEBOARDING_MAX_CONCURRENT_ENGINES"
 LSP_REQUEST_TIMEOUT_ENV_VAR = "CODEBOARDING_LSP_REQUEST_TIMEOUT"
@@ -159,11 +167,11 @@ def _create_engine_configs(
                     # One LSP rooted at the repo, fed the union of all
                     # leaf-tsconfig files. Why: tsserver attaches each
                     # ``didOpen`` file to its nearest enclosing tsconfig
-                    # (Configured Project), so cross-project navigation
-                    # via ``references`` keeps working — but only when a
-                    # single language-service instance sees both ends of
-                    # the edge. Spawning one LSP per tsconfig partitions
-                    # the workspace and drops cross-project edges.
+                    # (Configured Project), and one server sees both ends
+                    # of every cross-project call. A large monorepo's full
+                    # pass runs one server per project instead, as one
+                    # holding every project runs out of memory; the merge
+                    # links the calls between them.
                     union: list[Path] = []
                     seen: set[Path] = set()
                     for project in typescript_projects:
@@ -184,7 +192,15 @@ def _create_engine_configs(
                     if unclaimed:
                         logger.info(f"Adding {len(unclaimed)} family file(s) claimed by no tsconfig")
                         union.extend(unclaimed)
-                    configs.append(EngineConfig(adapter, repository_path, source_files=union))
+                    split: list[EngineConfig] = []
+                    if len(typescript_projects) > 1 and len(union) >= TYPESCRIPT_SPLIT_MIN_FILES:
+                        # Largest first, so a project too large for one server fails the run before the rest ran.
+                        for project in sorted(typescript_projects, key=lambda p: (-len(p.files), str(p.root))):
+                            split.append(EngineConfig(adapter, repository_path, source_files=list(project.files)))
+                        if unclaimed:
+                            split.append(EngineConfig(adapter, repository_path, source_files=unclaimed))
+                        logger.info(f"The {adapter_name} full pass runs {len(split)} servers in turn")
+                    configs.append(EngineConfig(adapter, repository_path, source_files=union, split=split))
                 else:
                     logger.info(f"No TypeScript config files found, using repository root for {adapter_name}")
                     configs.append(EngineConfig(adapter, repository_path))
@@ -464,7 +480,9 @@ class StaticAnalyzer:
         adapter, project_path = engine_config.adapter, engine_config.project_path
         t_start = time.monotonic()
         command = adapter.get_lsp_command(project_path)
-        init_options = adapter.get_lsp_init_options(self.ignore_manager)
+        # Servers run N at a time share the memory budget; one at a time, or resident, each may use all of it.
+        heap = per_engine_memory_budget(self._server_slots) - SERVER_NON_HEAP_BYTES
+        init_options = {**adapter.get_lsp_init_options(self.ignore_manager), **adapter.get_lsp_heap_options(heap)}
         extra_env = adapter.get_lsp_env(project_path, engine_config.source_files)
         # Node-based LSPs spawn child ``node`` processes by name; on
         # a Node-less host the embedded runtime's dir must be on PATH.
@@ -824,30 +842,44 @@ class StaticAnalyzer:
     def _analyse_config(
         self, engine_config: EngineConfig, resident_client: LSPClient | None
     ) -> list[tuple[LanguageAdapter, dict]]:
-        """Analyse one config fully, on its resident server or on one started for it and stopped after."""
+        """Analyse one config fully, on its resident server or on one started for it and stopped after.
+
+        A split config runs its parts in turn, each on a server of its own, with its resident server down meanwhile:
+        one server at a time holds the memory budget. Any part failing fails the config.
+        """
         adapter, project_path = engine_config.adapter, engine_config.project_path
         t_start = time.monotonic()
-        # Why: an editor keeps its analyzer, so a server that died in an earlier run would fail every later one.
-        if resident_client is not None and not resident_client.alive:
+        if resident_client is not None and engine_config.split:
+            resident_client.shutdown()  # replaced once the parts are done
+        elif resident_client is not None and not resident_client.alive:
+            # Why: an editor keeps its analyzer, so a server that died in an earlier run would fail every later one.
             resident_client = self._replace_client(engine_config, resident_client)
-        engine_client = resident_client or self._spawn_engine_client(engine_config)
+        server = None if engine_config.split else resident_client
+        analyses: list[dict] = []
         try:
-            logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
-            analysis = self._run_full_analysis(engine_config, engine_client)
-            self._collect_diagnostics_for(adapter, engine_client, analysis)
+            for part in engine_config.split or [engine_config]:
+                engine_client = server or self._spawn_engine_client(part)
+                try:
+                    logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
+                    analyses.append(self._run_full_analysis(part, engine_client))
+                    self._collect_diagnostics_for(adapter, engine_client, analyses[-1])
+                finally:
+                    if server is None:
+                        engine_client.shutdown()
         finally:
-            if resident_client is None:
-                engine_client.shutdown()
+            if resident_client is not None and engine_config.split:
+                self._replace_client(engine_config, resident_client)
         logger.info(f"Engine analysis for {adapter.language} completed in {time.monotonic() - t_start:.1f}s")
-        track_lsp_result(
-            language=adapter.language_enum.value,
-            loc=self._loc_for_adapter(adapter),
-            status="success",
-            duration_ms=round((time.monotonic() - t_start) * 1000),
-            analysis=analysis,
-            diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
-        )
-        return [(adapter, analysis)]
+        for analysis in analyses:
+            track_lsp_result(
+                language=adapter.language_enum.value,
+                loc=self._loc_for_adapter(adapter),
+                status="success",
+                duration_ms=round((time.monotonic() - t_start) * 1000),
+                analysis=analysis,
+                diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
+            )
+        return [(adapter, analysis) for analysis in analyses]
 
     def _update_cached_results(
         self,
@@ -885,6 +917,8 @@ class StaticAnalyzer:
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
             changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
+            # A full re-analysis is the full pass's, so a split config runs as its parts. Changed files stay on the
+            # config's own server: tsserver loads only the projects of the files it opens.
             if changed_files is None:
                 rebuilt += self._analyse_config(engine_config, resident_client)
                 continue
@@ -991,6 +1025,8 @@ class StaticAnalyzer:
         """
         for adapter, analysis in analyses:
             self._absorb_into_results(results, adapter.results_language, analysis)
+        for language in results.get_languages():
+            link_declared_bases(results.get_hierarchy(language), results.get_cfg(language))
         inspector = SourceInspector()
         for adapter, analysis in analyses:
             sites: list[ExternalCallSite] = analysis.get("external_call_sites", [])
@@ -998,7 +1034,9 @@ class StaticAnalyzer:
                 continue
             language = adapter.results_language
             analysed_files = {str(path) for path in analysis.get("source_files", [])}
-            index = GraphIndex(results.get_cfg(language))
+            # Why the references and callers too: an engine keeps a constant or a local only as an edge's end.
+            endpoints = [*results.iter_reference_nodes(language), *analysis.get("external_callers", [])]
+            index = GraphIndex(results.get_cfg(language), endpoints)
             linked = link_external_call_sites(index, sites, adapter, inspector, analysed_files)
             record_package_imports(results.get_package_dependencies(language), adapter, linked.edges)
 

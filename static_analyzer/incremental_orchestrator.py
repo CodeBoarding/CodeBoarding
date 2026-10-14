@@ -96,6 +96,7 @@ def update_cfg_for_changed_files(
             "source_files": [],
             "diagnostics": {},
             "external_call_sites": [],
+            "external_callers": [],
         }
 
     fresh_diagnostics = engine_client.get_collected_diagnostics()
@@ -116,6 +117,7 @@ def update_cfg_for_changed_files(
     updated = _filter_to_live_files(merged_analysis).to_dict()
     # What still lies outside is another engine's, for the final merge to link.
     updated["external_call_sites"] = new_analysis["external_call_sites"]
+    updated["external_callers"] = new_analysis["external_callers"]
     return updated
 
 
