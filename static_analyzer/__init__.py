@@ -34,6 +34,7 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
+from static_analyzer.workspace_dependencies import install_workspace_dependencies
 from infra.monitoring.telemetry.events import track_lsp_result
 from infra.tool_registry import ensure_node_on_path
 from infra.utils import get_artifact_dir
@@ -1194,6 +1195,7 @@ def get_static_analysis(
     Returns:
         StaticAnalysisResults reflecting the live source state.
     """
+    install_workspace_dependencies(repo_path)  # before the analyzer: its tsconfig scan reads what ``extends`` names
     analyzer = StaticAnalyzer(repo_path, changed_files=changed_files, resident_servers=False)
     with analyzer:
         results = analyzer.analyze(
