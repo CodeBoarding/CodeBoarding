@@ -16,6 +16,7 @@ from static_analyzer import EngineConfig, StaticAnalysisFatalError, StaticAnalyz
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.typescript_workspace import WorkspaceSetupError
 
 
 def _make_adapter(
@@ -128,6 +129,17 @@ class TestStartClientsGracefulDegradation:
         good_client_ts.shutdown.assert_not_called()
         # Failing client gets a best-effort shutdown for partial-state cleanup.
         bad_client_cs.shutdown.assert_called_once()
+
+    def test_a_workspace_that_cannot_be_set_up_fails_the_run_instead_of_skipping_the_language(
+        self, analyzer: StaticAnalyzer, tmp_path: Path
+    ) -> None:
+        py_adapter = _make_adapter("Python")
+        ts_adapter = _make_adapter("TypeScript")
+        cast(MagicMock, ts_adapter).get_lsp_commands.side_effect = WorkspaceSetupError("unreadable pnpm-workspace.yaml")
+        analyzer._engine_configs = [EngineConfig(py_adapter, tmp_path), EngineConfig(ts_adapter, tmp_path)]
+
+        with patch("static_analyzer.LSPClient"), pytest.raises(WorkspaceSetupError):
+            analyzer.start_clients()
 
     def test_total_failure_raises_runtime_error_listing_attempted_languages(
         self, analyzer: StaticAnalyzer, tmp_path: Path

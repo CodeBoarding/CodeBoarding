@@ -141,6 +141,34 @@ class TestExtraClientCapabilitiesMerge:
         assert caps["textDocument"] == "broken"
 
 
+class TestCommands:
+    def test_the_commands_are_sent_once_initialized_and_again_on_a_restart(self):
+        command = {"command": "_typescript.configurePlugin", "arguments": ["plugin", {"members": {}}]}
+        client = LSPClient(["cmd"], Path("/root"), commands=[command])
+        sent: list[tuple[str, object]] = []
+
+        with (
+            patch.object(
+                client, "_send_request", side_effect=lambda method, params, timeout=None: sent.append((method, params))
+            ),
+            patch.object(
+                client, "_send_notification", side_effect=lambda method, params: sent.append((method, params))
+            ),
+            patch("subprocess.Popen", side_effect=lambda *args, **kwargs: MagicMock()),
+            patch("os.dup", return_value=99),
+            patch("os.close"),
+            patch("threading.Thread"),
+        ):
+            client.start()
+            client.restart()
+
+        methods = [method for method, _ in sent]
+        executed = [index for index, method in enumerate(methods) if method == "workspace/executeCommand"]
+        assert len(executed) == 2
+        assert all(methods[index - 1] == "initialized" for index in executed)
+        assert sent[executed[0]][1] == command
+
+
 class TestWriteMessage:
     def test_writes_json_rpc_with_content_length(self):
         client = LSPClient(["cmd"], Path("/root"))
