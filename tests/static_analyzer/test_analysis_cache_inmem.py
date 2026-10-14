@@ -388,10 +388,12 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
         partial_graph.add_edge("app.main", "lib.helper", call_sites=[{"file": str(app), "line": 2, "column": 5}])
         call = CallSite.from_lsp_position(str(app), 1, 4)
         elsewhere = ExternalCallSite("app.main", str(tmp_path / "vendor.py"), 3, 0, call)
+        logger_node = Node("app.logger", NodeType.CONSTANT, str(app), line_start=1, line_end=1, col_start=0)
         partial = {
             **_result(partial_graph, source_files=[str(app)]),
             "diagnostics": {},
             "external_call_sites": [elsewhere],
+            "external_callers": [logger_node],
         }
 
         client = MagicMock()
@@ -413,6 +415,7 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
             ("app.main", "lib.helper")
         ]
         assert updated["external_call_sites"] == [elsewhere]
+        assert updated["external_callers"] == [logger_node]
         client.send_implementation_batch.assert_not_called()
 
 

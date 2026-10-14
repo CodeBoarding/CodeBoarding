@@ -236,6 +236,21 @@ class TestBuildWithSourceInference:
 
         assert "mod.Base" in hierarchy["mod.Child"]["superclasses"]
 
+    def test_a_base_outside_the_engine_is_kept_for_the_merge(self):
+        """A class extending another project's: no candidate here, but the name is what the merge links."""
+        adapter = _make_adapter()
+        child = _sym("Child", "mod.Child", NodeType.CLASS, fpath=MOD_PHP_PATH, start_line=5)
+        st = _setup_symbol_table(adapter, [child])
+        lsp = MagicMock()
+        lsp.type_hierarchy_prepare.return_value = None
+        si = MagicMock(spec=SourceInspector)
+        si.get_source_line.side_effect = lambda fp, line: {5: "class Child extends Base {"}.get(line)
+
+        hierarchy = HierarchyBuilder(lsp, st, si, adapter).build()
+
+        assert hierarchy["mod.Child"]["superclasses"] == []
+        assert hierarchy["mod.Child"]["declared_bases"] == ["Base"]
+
     def test_infers_php_implements(self):
         adapter = _make_adapter()
         iface = _sym("Speakable", "mod.Speakable", NodeType.CLASS, fpath=MOD_PHP_PATH, start_line=0)
