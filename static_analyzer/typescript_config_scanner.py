@@ -9,10 +9,12 @@ reference / package counts.
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 
 import pathspec
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -113,7 +115,7 @@ class TypeScriptConfigScanner:
         claimed = {f.resolve() for project in projects for f in project.files}
         specs = [(p.root.resolve(), _exclude_spec(p.exclude)) for p in projects]
         found: set[Path] = set()
-        for path in self.repo_location.rglob("*"):
+        for path in _files_under(self.repo_location):
             if not path.is_file() or path.suffix not in _ALL_EXTENSIONS:
                 continue
             resolved = path.resolve()
@@ -127,8 +129,9 @@ class TypeScriptConfigScanner:
     def _discover_candidates(self) -> list[Path]:
         seen: set[Path] = set()
         candidates: list[Path] = []
+        configs = [path for path in _files_under(self.repo_location) if path.name in self.CONFIG_FILES]
         for config_file in self.CONFIG_FILES:
-            for config_path in self.repo_location.rglob(config_file):
+            for config_path in (path for path in configs if path.name == config_file):
                 if not config_path.is_file():
                     continue
                 if self.ignore_manager.should_ignore(config_path):
@@ -227,7 +230,7 @@ class TypeScriptConfigScanner:
         """
         nested = [c for c in all_candidates if c != project_dir and _is_ancestor(project_dir, c)]
         files: list[Path] = []
-        for path in project_dir.rglob("*"):
+        for path in _files_under(project_dir):
             if not path.is_file():
                 continue
             if path.suffix not in _ALL_EXTENSIONS:
@@ -317,3 +320,10 @@ def _excluded_by(path: Path, project_root: Path, spec: pathspec.PathSpec) -> boo
         return spec.match_file(path.relative_to(project_root).as_posix())
     except ValueError:
         return False
+
+
+def _files_under(root: Path) -> Iterator[Path]:
+    """Every file under *root*, never walking ``node_modules`` or dot folders (ignored anyway, and huge once installed)."""
+    for directory, folders, files in os.walk(root):
+        folders[:] = [name for name in folders if name != "node_modules" and not name.startswith(".")]
+        yield from (Path(directory, name) for name in files)
