@@ -1,8 +1,8 @@
 {
   "files": {
-    "pyproject.toml": "ce5c3ffde42b091c",
+    "pyproject.toml": "c5399eea8b952ab7",
     "CONTRIBUTING.md": "e164cbac826441af",
-    "uv.lock": "cb41c03894048364",
+    "uv.lock": "e0f1e24478b23c2e",
     "REVIEW.md": "46689ae119270a98",
     "LICENSE": "6fb7a9b883cbc39d",
     "llms.txt": "d7250ff1da2830ef",

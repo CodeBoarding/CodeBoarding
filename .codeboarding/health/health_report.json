@@ -1,6 +1,6 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-10-15T02:48:26.510245+00:00",
+  "timestamp": "2026-10-15T02:52:41.081845+00:00",
   "overall_score": 0.9883848133848134,
   "check_summaries": [
     {
@@ -13,26 +13,6 @@
       "warning_count": 0,
       "score": 1.0,
       "finding_groups": []
-    },
-    {
-      "check_name": "circular_dependencies",
-      "description": "Detects circular dependencies between packages",
-      "languages": [],
-      "check_type": "circular_dependencies",
-      "cycles": [
-        "codeboarding_cli.commands -> codeboarding_cli -> codeboarding_cli.commands",
-        "health -> health.checks -> health",
-        "agents.llm_renderers -> agents -> agents.llm_renderers",
-        "static_analyzer.cfg -> static_analyzer -> static_analyzer.cfg",
-        "static_analyzer.cfg -> static_analyzer -> static_analyzer.engine -> static_analyzer.cfg",
-        "static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer.cfg",
-        "static_analyzer.engine.adapters -> static_analyzer -> static_analyzer.engine.adapters",
-        "static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer -> static_analyzer.engine.adapters",
-        "static_analyzer.engine -> static_analyzer -> static_analyzer.engine",
-        "infra -> infra.tool_registry -> infra"
-      ],
-      "packages_checked": 25,
-      "packages_in_cycles": 12
     },
     {
       "check_name": "unused_code_diagnostics",
