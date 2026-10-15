@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import httpx
+import openai
 from langchain.agents.middleware import ModelCallLimitMiddleware, ModelRequest, ToolCallLimitMiddleware
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.callbacks import BaseCallbackHandler
@@ -53,6 +55,20 @@ class ToolCallingFakeModel(FakeMessagesListChatModel):
         **kwargs: Any,
     ) -> Runnable[LanguageModelInput, AIMessage]:
         return self
+
+
+class ThrottledOnceModel(ToolCallingFakeModel):
+    """Answers like its parent after one 429 from the hosted proxy's concurrency cap."""
+
+    throttled: bool = False
+
+    def _generate(self, *args: Any, **kwargs: Any):
+        if not self.throttled:
+            self.throttled = True
+            response = httpx.Response(429, request=httpx.Request("POST", "https://proxy.example/v1/chat/completions"))
+            body = {"Reason": "ConcurrentInvocationLimitExceeded", "Type": "User", "message": "Rate Exceeded."}
+            raise openai.RateLimitError(f"Error code: 429 - {body}", response=response, body=body)
+        return super()._generate(*args, **kwargs)
 
 
 def _inputs() -> tuple[StaticAnalysisResults, ClusterScopeResult, AnalysisInsights]:
@@ -246,6 +262,23 @@ class TestScopeAnalysisAgent(unittest.TestCase):
             agent.analyze(scope, analysis, {"1"})
 
         runtime.invoke.assert_called_once()
+
+    @patch("agents.retry.time.sleep")
+    def test_a_throttled_model_call_is_retried_inside_the_run(self, sleep):
+        """Why: one 429 from the hosted proxy used to fail the scope, and with it the whole run."""
+        static_analysis, scope, analysis = _inputs()
+        final_response = AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "ScopeAnalysisResult", "args": _answer().model_dump(), "id": "final", "type": "tool_call"}
+            ],
+        )
+        model = ThrottledOnceModel(responses=[final_response])
+
+        result = ScopeAnalysisAgent(Path("/repo"), static_analysis, model).analyze(scope, analysis, {"1"})
+
+        self.assertEqual(result, _answer())
+        sleep.assert_called_once()
 
     @patch.object(ReadFileTool, "_run", return_value="source")
     def test_graph_ceiling_allows_tool_budget_to_terminate_the_run(self, read_file):

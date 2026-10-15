@@ -1,10 +1,12 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+import httpx
+import openai
 from langchain_core.messages import AIMessage
 
 from agents.agent_responses import PlannedGroup, TreePlanInsights
-from agents.tree_planner_agent import BUDGET, TreePlannerAgent
+from agents.tree_planner_agent import BUDGET, DRAW_TIMEOUT_SECONDS, TreePlannerAgent
 from static_analyzer.clustering.names import ROLE_WORDS, CandidateGroup, GroupingContext
 from static_analyzer.clustering.names.frontier import BOX, Candidate
 
@@ -177,6 +179,38 @@ class TestTreePlannerAgent(unittest.TestCase):
 
         self.assertEqual(result.groups[0].name, "All")
         self.assertEqual(llm.invoke.call_count, 2)
+
+    @patch("agents.retry.time.sleep")
+    def test_a_throttled_draw_is_retried(self, sleep):
+        items = candidates(BUDGET + 1)
+        labelled = {f"G{i + 1}": CandidateGroup(c.label, (c.key,)) for i, c in enumerate(items)}
+        response = httpx.Response(429, request=httpx.Request("POST", "https://proxy.example/v1/chat/completions"))
+        llm = MagicMock()
+        llm.invoke.side_effect = [
+            openai.RateLimitError("Error code: 429 - Rate Exceeded.", response=response, body=None),
+            AIMessage(content='{"groups":[{"name":"All","members":["G1"]}]}'),
+        ]
+
+        result = TreePlannerAgent(llm, draws=1)._ask("prompt", labelled)
+
+        self.assertEqual(result.groups[0].name, "All")
+        sleep.assert_called_once()
+
+    @patch("agents.retry.time.sleep")
+    def test_no_retry_starts_after_the_draw_deadline(self, sleep):
+        items = candidates(BUDGET + 1)
+        labelled = {f"G{i + 1}": CandidateGroup(c.label, (c.key,)) for i, c in enumerate(items)}
+        response = httpx.Response(429, request=httpx.Request("POST", "https://proxy.example/v1/chat/completions"))
+        llm = MagicMock()
+        llm.invoke.side_effect = openai.RateLimitError("Error code: 429 - Rate Exceeded.", response=response, body=None)
+
+        # The draw starts at 0; the first failure comes back after the deadline.
+        with patch("agents.tree_planner_agent.time.monotonic", side_effect=[0.0, DRAW_TIMEOUT_SECONDS + 1.0]):
+            with self.assertRaises(openai.RateLimitError):
+                TreePlannerAgent(llm, draws=1)._ask("prompt", labelled)
+
+        self.assertEqual(llm.invoke.call_count, 1)
+        sleep.assert_not_called()
 
     def test_three_draws_fold_to_the_one_the_others_agree_with(self):
         items = candidates(BUDGET + 3)

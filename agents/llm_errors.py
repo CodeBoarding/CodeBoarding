@@ -15,8 +15,10 @@ dashboard's structured ``error`` columns — populate instead of staying null.
 
 from __future__ import annotations
 
+import email.utils
 import logging
 import re
+import time
 
 from agents.llm_config import CODEBOARDING_KEY_TAIL, current_provider_key_context
 
@@ -60,6 +62,11 @@ _AUTH_MESSAGE_PATTERNS = (
     re.compile(r"access denied", re.IGNORECASE),
     re.compile(r"invalid github oidc token", re.IGNORECASE),
 )
+
+
+# Class names, across SDKs, for a request that never got an answer: openai/anthropic/cerebras raise
+# ``APIConnectionError`` (``APITimeoutError`` subclasses it), ollama lets httpx's ``TransportError`` through.
+_TRANSIENT_TYPE_NAMES = {"APIConnectionError", "TransportError", "TimeoutError", "ConnectionError"}
 
 
 # What each provider says when the prompt is over the model's context window: Google, OpenAI, Anthropic.
@@ -112,6 +119,10 @@ def _status_code(exc: BaseException) -> int | None:
     if code is None:
         code = getattr(exc, "code", None)  # google GoogleAPICallError.code
     if code is None:
+        response = getattr(exc, "response", None)  # botocore ClientError (Bedrock) keeps it in a dict
+        if isinstance(response, dict):
+            code = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    if code is None:
         return None
     try:
         return int(code)
@@ -144,7 +155,11 @@ def detect_auth_error(exc: BaseException, *, provider: str, key_tail: str) -> LL
     status = _status_code(exc)
     provider_message = str(exc)
     status_note = f" (HTTP {status})" if status is not None else ""
-    if key_tail == CODEBOARDING_KEY_TAIL:
+    if status == 403:
+        # A 403 can refuse one request (a router's moderation, a model the key may not use) while the same key
+        # serves the rest, so the provider's own reason says more than a hint about the key.
+        friendly = f"{provider} refused the request (HTTP 403): {provider_message[:500]}"
+    elif key_tail == CODEBOARDING_KEY_TAIL:
         friendly = (
             f"CodeBoarding's hosted {provider} credentials were rejected{status_note}. This run used no key of "
             "yours: check that the workflow grants `id-token: write`, then re-run."
@@ -168,6 +183,12 @@ def detect_auth_error(exc: BaseException, *, provider: str, key_tail: str) -> LL
     )
 
 
+def _is_quota_exhausted(exc: BaseException) -> bool:
+    status = _status_code(exc)
+    quota_code = getattr(exc, "code", None) == "insufficient_quota" or "insufficient_quota" in str(exc)
+    return status == 402 or (status == 429 and quota_code)
+
+
 def llm_failure_properties(exc: BaseException) -> dict:
     """``$exception`` properties for a failed LLM call, telling an exhausted quota or an oversized prompt
     apart from other failures.
@@ -175,16 +196,50 @@ def llm_failure_properties(exc: BaseException) -> dict:
     Why: the hosted proxy's paywall is a 402, and OpenAI reports an empty balance as a 429 ``insufficient_quota``.
     An oversized prompt is ours to fix, not the provider's, so it gets its own type on the dashboard.
     """
-    status = _status_code(exc)
-    quota = status == 402 or (status == 429 and "insufficient_quota" in str(exc))
+    quota = _is_quota_exhausted(exc)
     context = isinstance(exc, ScopeContextTooLargeError) or any(p.search(str(exc)) for p in _CONTEXT_OVERFLOW_PATTERNS)
     provider, _key_tail = current_provider_key_context()
     return {
         "error_type": "quota" if quota else "context" if context else "llm",
         "error_provider": provider,
-        "error_status_code": status,
+        "error_status_code": _status_code(exc),
         "error_message": str(exc)[:500],
     }
+
+
+def is_transient_llm_error(exc: BaseException) -> bool:
+    """Whether the same request may succeed if sent again: throttled, a server error, or no answer at all.
+
+    Why: the hosted proxy answers a burst over its concurrency cap with a 429 and a failed upstream call with a
+    502, and one of either used to fail the whole run. A rejected key, a spent quota or a malformed request fails
+    the same way every time.
+    """
+    status = _status_code(exc)
+    if status is not None:
+        return status in (408, 429) and not _is_quota_exhausted(exc) or status >= 500
+    return any(cls.__name__ in _TRANSIENT_TYPE_NAMES for cls in type(exc).__mro__)
+
+
+def retry_after_seconds(exc: BaseException) -> float | None:
+    """The wait a provider asked for, when the exception carries the response: ``retry-after-ms``, or
+    ``Retry-After`` as seconds or an HTTP date. None when absent, unreadable or already past."""
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    if headers is None:
+        return None
+    try:
+        return max(0.0, float(headers.get("retry-after-ms", "")) / 1000)
+    except (TypeError, ValueError):
+        pass
+    value = headers.get("retry-after", "")
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        pass
+    try:
+        wait = email.utils.parsedate_to_datetime(value).timestamp() - time.time()
+    except (TypeError, ValueError):
+        return None
+    return wait if wait > 0 else None
 
 
 def raise_if_auth_error(exc: Exception) -> None:

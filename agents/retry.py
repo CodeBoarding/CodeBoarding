@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+import random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TypeVar
+
+from agents.llm_errors import is_transient_llm_error, retry_after_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,29 @@ def default_backoff(attempt: int, *, initial_s: float, multiplier: float, max_s:
     """Standard exponential backoff: ``initial * multiplier**attempt`` clamped to ``max_s``."""
     delay = initial_s * (multiplier**attempt)
     return min(delay, max_s) if max_s is not None else delay
+
+
+#: Attempts per model request. Why these numbers: the full-jitter ceilings run 4, 8, 16 and 32 s, so the
+#: four retries span up to a minute — long enough for a slot to free up behind the hosted proxy's concurrency cap
+#: (one held slot is one model call in flight, often tens of seconds) without doubling a run that is failing anyway.
+LLM_MAX_ATTEMPTS = 5
+LLM_BACKOFF_INITIAL_S = 4.0
+LLM_BACKOFF_MAX_S = 60.0
+
+
+def classify_llm_error(exc: Exception, attempt: int) -> RetryDecision:
+    """Retry a transient provider failure after the wait its ``Retry-After`` asks for, else a full-jitter backoff.
+
+    Why full jitter: the parallel calls one burst throttles would otherwise all retry in the same second and
+    collide again.
+    """
+    if not is_transient_llm_error(exc):
+        return RetryDecision(action=RetryAction.GIVE_UP)
+    delay = retry_after_seconds(exc)
+    if delay is None:
+        ceiling = default_backoff(attempt, initial_s=LLM_BACKOFF_INITIAL_S, multiplier=2.0, max_s=LLM_BACKOFF_MAX_S)
+        delay = random.uniform(0.0, ceiling)
+    return RetryDecision(action=RetryAction.RETRY, backoff_s=min(delay, LLM_BACKOFF_MAX_S))
 
 
 def _default_classify(_exc: Exception, _attempt: int) -> RetryDecision:
