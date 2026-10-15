@@ -6,6 +6,7 @@ without starting a real LSP server.
 
 import json
 import os
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -19,7 +20,7 @@ from static_analyzer.engine.lsp_client import (
     MethodNotFoundError,
 )
 from static_analyzer.engine.lsp_constants import REQUEST_BATCH_SIZE
-from static_analyzer.exceptions import StaticAnalysisFatalError
+from static_analyzer.exceptions import StaticAnalysisFatalError, WorkspaceSetupError
 
 
 class TestLSPClientInit:
@@ -139,6 +140,61 @@ class TestExtraClientCapabilitiesMerge:
         # Adapter intentionally clobbered the dict — merge logic falls
         # back to assignment when types don't match.
         assert caps["textDocument"] == "broken"
+
+
+class TestCommands:
+    def test_the_commands_are_sent_once_initialized_and_again_on_a_restart(self):
+        command = {"command": "_typescript.configurePlugin", "arguments": ["plugin", {"members": {}}]}
+        client = LSPClient(["cmd"], Path("/root"), commands=[command])
+        sent: list[tuple[str, object]] = []
+
+        with (
+            patch.object(
+                client, "_send_request", side_effect=lambda method, params, **_: sent.append((method, params))
+            ),
+            patch.object(
+                client, "_send_notification", side_effect=lambda method, params: sent.append((method, params))
+            ),
+            patch("subprocess.Popen", side_effect=lambda *args, **kwargs: MagicMock()),
+            patch("os.dup", return_value=99),
+            patch("os.close"),
+            patch("threading.Thread"),
+        ):
+            client.start()
+            client.restart()
+
+        methods = [method for method, _ in sent]
+        executed = [index for index, method in enumerate(methods) if method == "workspace/executeCommand"]
+        assert len(executed) == 2
+        assert all(methods[index - 1] == "initialized" for index in executed)
+        assert sent[executed[0]][1] == command
+
+    @pytest.mark.parametrize("code", [-32601, -32603, None], ids=["method-not-found", "internal-error", "no-answer"])
+    def test_a_command_the_server_rejects_or_does_not_answer_fails_the_start(self, code: int | None):
+        """Otherwise the server answers without the plugin, and every cross-package call silently goes missing."""
+        client = LSPClient(
+            ["cmd"], Path("/root"), default_timeout=1, commands=[{"command": "_typescript.configurePlugin"}]
+        )
+        written: list[dict] = []
+
+        def respond(deadline: float) -> dict | None:
+            request = written[-1]
+            if request["method"] != "workspace/executeCommand":
+                return {"id": request["id"], "result": {}}
+            if code is None:
+                time.sleep(max(0.0, deadline - time.monotonic()))
+                return None
+            return {"id": request["id"], "error": {"code": code, "message": "rejected"}}
+
+        with (
+            patch.object(client, "_write_message", side_effect=written.append),
+            patch.object(client, "_next_response", side_effect=respond),
+            patch("subprocess.Popen", side_effect=lambda *args, **kwargs: MagicMock()),
+            patch("os.dup", return_value=99),
+            patch("threading.Thread"),
+            pytest.raises(WorkspaceSetupError, match="rejected" if code else "did not answer"),
+        ):
+            client.start()
 
 
 class TestWriteMessage:

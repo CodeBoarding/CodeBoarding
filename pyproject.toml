@@ -106,6 +106,10 @@ packages = [
 ]
 include-package-data = true
 
+[tool.setuptools.package-data]
+# tsserver loads a plugin only from <location>/node_modules/<name>.
+static_analyzer = ["typescript_plugin/node_modules/codeboarding-workspace-sources/*"]
+
 [project.scripts]
 codeboarding = "codeboarding_cli.main:main"
 codeboarding-setup = "infra.install:main"
