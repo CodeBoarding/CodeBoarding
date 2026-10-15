@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-10-14T23:31:14.933808+00:00",
-    "source_tree_hash": "9dfec26c224e5be843646d0b30ce7e38ac4f698b28fbda15bbddf9e993eb396f",
+    "generated_at": "2026-10-15T00:05:41.449478+00:00",
+    "source_tree_hash": "71591f9bec0261e848836746675af887774e19ae1f68b95bcc87e87eac983c6e",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -1675,7 +1675,7 @@
       }
     }
   },
-  "description": "The CodeBoarding root scope coordinates static code analysis, LLM-driven architectural diagram planning, codebase health auditing, and documentation rendering. Execution flows from CLI and workflow orchestration entry points through static language analyzers, tree-planning LLM agents, and diagram generators, all supported by shared tool installation, repository inspection, and telemetry infrastructure.",
+  "description": "The CodeBoarding root scope coordinates static code analysis, LLM-driven architectural diagram planning, codebase health auditing, and documentation rendering. Execution flows from CLI and workflow orchestration entry points through static language analyzers, tree-planning LLM agents, and diagram generators, supported by shared tool installation, repository inspection, and telemetry infrastructure.",
   "files": {
     "static_analyzer/__init__.py": {
       "method_keys": [
@@ -3536,11 +3536,14 @@
         "agents/llm_errors.py|agents.llm_errors._status_code",
         "agents/llm_errors.py|agents.llm_errors._is_auth_failure",
         "agents/llm_errors.py|agents.llm_errors.detect_auth_error",
+        "agents/llm_errors.py|agents.llm_errors._is_quota_exhausted",
         "agents/llm_errors.py|agents.llm_errors.llm_failure_properties",
+        "agents/llm_errors.py|agents.llm_errors.is_transient_llm_error",
+        "agents/llm_errors.py|agents.llm_errors.retry_after_seconds",
         "agents/llm_errors.py|agents.llm_errors.raise_if_auth_error"
       ],
-      "content_hash": "4779e60206eefe77",
-      "module_hash": "d6beb1fadf6b41fa"
+      "content_hash": "731f234705891f3d",
+      "module_hash": "065b1ee59d772549"
     },
     "agents/llm_renderers/call_graph.py": {
       "method_keys": [
@@ -3651,11 +3654,12 @@
         "agents/retry.py|agents.retry.RetryAction",
         "agents/retry.py|agents.retry.RetryDecision",
         "agents/retry.py|agents.retry.default_backoff",
+        "agents/retry.py|agents.retry.classify_llm_error",
         "agents/retry.py|agents.retry._default_classify",
         "agents/retry.py|agents.retry.with_retries"
       ],
-      "content_hash": "71c25adfb13b36c7",
-      "module_hash": "602822bc6b1db48e"
+      "content_hash": "3d0fb96f71b3f0d0",
+      "module_hash": "f261106212b5cd76"
     },
     "agents/scope_analysis_agent.py": {
       "method_keys": [
@@ -3671,12 +3675,15 @@
         "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeInputBudget.__init__",
         "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeInputBudget.count_tokens",
         "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeInputBudget.wrap_model_call",
+        "agents/scope_analysis_agent.py|agents.scope_analysis_agent.TransientErrorRetry",
+        "agents/scope_analysis_agent.py|agents.scope_analysis_agent.TransientErrorRetry.__init__",
+        "agents/scope_analysis_agent.py|agents.scope_analysis_agent.TransientErrorRetry.wrap_model_call",
         "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent",
         "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
         "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze"
       ],
-      "content_hash": "cae16fd7cdf0071b",
-      "module_hash": "6ceb91231a6644f3"
+      "content_hash": "419d7795cd8ba306",
+      "module_hash": "4526118308eef5da"
     },
     "agents/tools/base.py": {
       "method_keys": [
@@ -3726,8 +3733,8 @@
         "agents/tree_planner_agent.py|agents.tree_planner_agent._sample",
         "agents/tree_planner_agent.py|agents.tree_planner_agent._stems"
       ],
-      "content_hash": "91e69e953ee3f10d",
-      "module_hash": "1d2b0d36f026cfa4"
+      "content_hash": "dacfe8293e3f93f6",
+      "module_hash": "99ba6ed11b61469c"
     },
     "codeboarding_cli/bootstrap.py": {
       "method_keys": [
@@ -14818,72 +14825,96 @@
     "agents/llm_errors.py|agents.llm_errors.ScopeContextTooLargeError": {
       "file_path": "agents/llm_errors.py",
       "qualified_name": "agents.llm_errors.ScopeContextTooLargeError",
-      "start_line": 73,
-      "end_line": 89,
+      "start_line": 80,
+      "end_line": 96,
       "type": "CLASS",
       "content_hash": "2941bc88a073a143"
     },
     "agents/llm_errors.py|agents.llm_errors.ScopeContextTooLargeError.__init__": {
       "file_path": "agents/llm_errors.py",
       "qualified_name": "agents.llm_errors.ScopeContextTooLargeError.__init__",
-      "start_line": 81,
-      "end_line": 89,
+      "start_line": 88,
+      "end_line": 96,
       "type": "METHOD",
       "content_hash": "3b21dce3d92ecd08"
     },
     "agents/llm_errors.py|agents.llm_errors.LLMAuthError": {
       "file_path": "agents/llm_errors.py",
       "qualified_name": "agents.llm_errors.LLMAuthError",
-      "start_line": 92,
-      "end_line": 107,
+      "start_line": 99,
+      "end_line": 114,
       "type": "CLASS",
       "content_hash": "25555f3d67fa2953"
     },
     "agents/llm_errors.py|agents.llm_errors.LLMAuthError.__init__": {
       "file_path": "agents/llm_errors.py",
       "qualified_name": "agents.llm_errors.LLMAuthError.__init__",
-      "start_line": 103,
-      "end_line": 107,
+      "start_line": 110,
+      "end_line": 114,
       "type": "METHOD",
       "content_hash": "dca0b966c96e6741"
     },
     "agents/llm_errors.py|agents.llm_errors._status_code": {
       "file_path": "agents/llm_errors.py",
       "qualified_name": "agents.llm_errors._status_code",
-      "start_line": 110,
-      "end_line": 119,
+      "start_line": 117,
+      "end_line": 130,
       "type": "FUNCTION",
-      "content_hash": "d85598ddc18d7f4b"
+      "content_hash": "2922a97ee1bec14b"
     },
     "agents/llm_errors.py|agents.llm_errors._is_auth_failure": {
       "file_path": "agents/llm_errors.py",
       "qualified_name": "agents.llm_errors._is_auth_failure",
-      "start_line": 122,
-      "end_line": 130,
+      "start_line": 133,
+      "end_line": 141,
       "type": "FUNCTION",
       "content_hash": "d502968d0dfa9ad1"
     },
     "agents/llm_errors.py|agents.llm_errors.detect_auth_error": {
       "file_path": "agents/llm_errors.py",
       "qualified_name": "agents.llm_errors.detect_auth_error",
-      "start_line": 133,
-      "end_line": 168,
+      "start_line": 144,
+      "end_line": 183,
       "type": "FUNCTION",
-      "content_hash": "9095fcb34dfd957f"
+      "content_hash": "7c1cbf339a60f236"
+    },
+    "agents/llm_errors.py|agents.llm_errors._is_quota_exhausted": {
+      "file_path": "agents/llm_errors.py",
+      "qualified_name": "agents.llm_errors._is_quota_exhausted",
+      "start_line": 186,
+      "end_line": 189,
+      "type": "FUNCTION",
+      "content_hash": "7b05e9fb4ac4edeb"
     },
     "agents/llm_errors.py|agents.llm_errors.llm_failure_properties": {
       "file_path": "agents/llm_errors.py",
       "qualified_name": "agents.llm_errors.llm_failure_properties",
-      "start_line": 171,
-      "end_line": 187,
+      "start_line": 192,
+      "end_line": 207,
       "type": "FUNCTION",
-      "content_hash": "a3cd6ede1135ff53"
+      "content_hash": "04009e2307213361"
+    },
+    "agents/llm_errors.py|agents.llm_errors.is_transient_llm_error": {
+      "file_path": "agents/llm_errors.py",
+      "qualified_name": "agents.llm_errors.is_transient_llm_error",
+      "start_line": 210,
+      "end_line": 220,
+      "type": "FUNCTION",
+      "content_hash": "64901ce27aa7a476"
+    },
+    "agents/llm_errors.py|agents.llm_errors.retry_after_seconds": {
+      "file_path": "agents/llm_errors.py",
+      "qualified_name": "agents.llm_errors.retry_after_seconds",
+      "start_line": 223,
+      "end_line": 242,
+      "type": "FUNCTION",
+      "content_hash": "37dd40b048a31f16"
     },
     "agents/llm_errors.py|agents.llm_errors.raise_if_auth_error": {
       "file_path": "agents/llm_errors.py",
       "qualified_name": "agents.llm_errors.raise_if_auth_error",
-      "start_line": 190,
-      "end_line": 196,
+      "start_line": 245,
+      "end_line": 251,
       "type": "FUNCTION",
       "content_hash": "3656c27c805a9594"
     },
@@ -15386,162 +15417,194 @@
     "agents/retry.py|agents.retry.RetryAction": {
       "file_path": "agents/retry.py",
       "qualified_name": "agents.retry.RetryAction",
-      "start_line": 17,
-      "end_line": 20,
+      "start_line": 20,
+      "end_line": 23,
       "type": "CLASS",
       "content_hash": "1edf86bfac199e9f"
     },
     "agents/retry.py|agents.retry.RetryDecision": {
       "file_path": "agents/retry.py",
       "qualified_name": "agents.retry.RetryDecision",
-      "start_line": 24,
-      "end_line": 31,
+      "start_line": 27,
+      "end_line": 34,
       "type": "CLASS",
       "content_hash": "3966f830067ce689"
     },
     "agents/retry.py|agents.retry.default_backoff": {
       "file_path": "agents/retry.py",
       "qualified_name": "agents.retry.default_backoff",
-      "start_line": 34,
-      "end_line": 37,
+      "start_line": 37,
+      "end_line": 40,
       "type": "FUNCTION",
       "content_hash": "3bbc6883fcea6c03"
+    },
+    "agents/retry.py|agents.retry.classify_llm_error": {
+      "file_path": "agents/retry.py",
+      "qualified_name": "agents.retry.classify_llm_error",
+      "start_line": 51,
+      "end_line": 63,
+      "type": "FUNCTION",
+      "content_hash": "be0b46f92facd3bb"
     },
     "agents/retry.py|agents.retry._default_classify": {
       "file_path": "agents/retry.py",
       "qualified_name": "agents.retry._default_classify",
-      "start_line": 40,
-      "end_line": 41,
+      "start_line": 66,
+      "end_line": 67,
       "type": "FUNCTION",
       "content_hash": "65245c5905aa18d0"
     },
     "agents/retry.py|agents.retry.with_retries": {
       "file_path": "agents/retry.py",
       "qualified_name": "agents.retry.with_retries",
-      "start_line": 44,
-      "end_line": 94,
+      "start_line": 70,
+      "end_line": 120,
       "type": "FUNCTION",
       "content_hash": "17c62406873843b3"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeComponentSemantics": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeComponentSemantics",
-      "start_line": 49,
-      "end_line": 61,
+      "start_line": 50,
+      "end_line": 62,
       "type": "CLASS",
       "content_hash": "e3134fc375f2f704"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeComponentSemantics.llm_str": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeComponentSemantics.llm_str",
-      "start_line": 60,
-      "end_line": 61,
+      "start_line": 61,
+      "end_line": 62,
       "type": "METHOD",
       "content_hash": "a0ff3a55469bd013"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeRelationSemantics": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeRelationSemantics",
-      "start_line": 64,
-      "end_line": 80,
+      "start_line": 65,
+      "end_line": 81,
       "type": "CLASS",
       "content_hash": "ee046c2a0efdfc41"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeRelationSemantics.llm_str": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeRelationSemantics.llm_str",
-      "start_line": 79,
-      "end_line": 80,
+      "start_line": 80,
+      "end_line": 81,
       "type": "METHOD",
       "content_hash": "cd63bd6ae8cdf066"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisResult": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeAnalysisResult",
-      "start_line": 83,
-      "end_line": 93,
+      "start_line": 84,
+      "end_line": 94,
       "type": "CLASS",
       "content_hash": "75ae5d50fd203814"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisResult.llm_str": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeAnalysisResult.llm_str",
-      "start_line": 90,
-      "end_line": 93,
+      "start_line": 91,
+      "end_line": 94,
       "type": "METHOD",
       "content_hash": "6228b04cafc73969"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.RepositoryToolBudget": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.RepositoryToolBudget",
-      "start_line": 96,
-      "end_line": 104,
+      "start_line": 97,
+      "end_line": 105,
       "type": "CLASS",
       "content_hash": "c7068b9606b736a3"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.RepositoryToolBudget._matches_tool_filter": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.RepositoryToolBudget._matches_tool_filter",
-      "start_line": 103,
-      "end_line": 104,
+      "start_line": 104,
+      "end_line": 105,
       "type": "METHOD",
       "content_hash": "b6285b80e2d3aa12"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeInputBudget": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeInputBudget",
-      "start_line": 107,
-      "end_line": 160,
+      "start_line": 108,
+      "end_line": 161,
       "type": "CLASS",
       "content_hash": "3a99545194271c2b"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeInputBudget.__init__": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeInputBudget.__init__",
-      "start_line": 110,
-      "end_line": 112,
+      "start_line": 111,
+      "end_line": 113,
       "type": "METHOD",
       "content_hash": "c0c9af8e2f408841"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeInputBudget.count_tokens": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeInputBudget.count_tokens",
-      "start_line": 115,
-      "end_line": 125,
+      "start_line": 116,
+      "end_line": 126,
       "type": "METHOD",
       "content_hash": "0e78c84cf05146d7"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeInputBudget.wrap_model_call": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeInputBudget.wrap_model_call",
-      "start_line": 127,
-      "end_line": 160,
+      "start_line": 128,
+      "end_line": 161,
       "type": "METHOD",
       "content_hash": "84a41e84df5c0a70"
+    },
+    "agents/scope_analysis_agent.py|agents.scope_analysis_agent.TransientErrorRetry": {
+      "file_path": "agents/scope_analysis_agent.py",
+      "qualified_name": "agents.scope_analysis_agent.TransientErrorRetry",
+      "start_line": 164,
+      "end_line": 179,
+      "type": "CLASS",
+      "content_hash": "ced8a62ae91c0fb2"
+    },
+    "agents/scope_analysis_agent.py|agents.scope_analysis_agent.TransientErrorRetry.__init__": {
+      "file_path": "agents/scope_analysis_agent.py",
+      "qualified_name": "agents.scope_analysis_agent.TransientErrorRetry.__init__",
+      "start_line": 170,
+      "end_line": 171,
+      "type": "METHOD",
+      "content_hash": "50fc8ca8f0bc36be"
+    },
+    "agents/scope_analysis_agent.py|agents.scope_analysis_agent.TransientErrorRetry.wrap_model_call": {
+      "file_path": "agents/scope_analysis_agent.py",
+      "qualified_name": "agents.scope_analysis_agent.TransientErrorRetry.wrap_model_call",
+      "start_line": 173,
+      "end_line": 179,
+      "type": "METHOD",
+      "content_hash": "e76b9ad7845c947a"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeAnalysisAgent",
-      "start_line": 163,
-      "end_line": 247,
+      "start_line": 182,
+      "end_line": 267,
       "type": "CLASS",
-      "content_hash": "c757007464624a31"
+      "content_hash": "e815b16ba36d601e"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
-      "start_line": 166,
-      "end_line": 176,
+      "start_line": 185,
+      "end_line": 195,
       "type": "METHOD",
       "content_hash": "17277fd8c824fe9b"
     },
     "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze": {
       "file_path": "agents/scope_analysis_agent.py",
       "qualified_name": "agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
-      "start_line": 178,
-      "end_line": 247,
+      "start_line": 197,
+      "end_line": 267,
       "type": "METHOD",
-      "content_hash": "e7ea5bdff03d3df0"
+      "content_hash": "36d631d42555488e"
     },
     "agents/tools/base.py|agents.tools.base.RepoContext": {
       "file_path": "agents/tools/base.py",
@@ -15626,136 +15689,136 @@
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent",
-      "start_line": 45,
-      "end_line": 245,
+      "start_line": 46,
+      "end_line": 252,
       "type": "CLASS",
-      "content_hash": "929aa7efdc7ae035"
+      "content_hash": "17b6204a199a5a39"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent.__init__",
-      "start_line": 50,
-      "end_line": 68,
+      "start_line": 51,
+      "end_line": 69,
       "type": "METHOD",
       "content_hash": "8d848f489bce7298"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.group": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent.group",
-      "start_line": 71,
-      "end_line": 102,
+      "start_line": 72,
+      "end_line": 103,
       "type": "METHOD",
       "content_hash": "fccb08260e2fedf4"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._draw": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent._draw",
-      "start_line": 104,
-      "end_line": 125,
+      "start_line": 105,
+      "end_line": 126,
       "type": "METHOD",
       "content_hash": "09221040e9782c84"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent._ask",
-      "start_line": 127,
-      "end_line": 147,
+      "start_line": 128,
+      "end_line": 154,
       "type": "METHOD",
-      "content_hash": "5b187a6c4e2c38e6"
+      "content_hash": "d5a2552b6de34cc8"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask.once": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent._ask.once",
-      "start_line": 128,
-      "end_line": 137,
+      "start_line": 129,
+      "end_line": 138,
       "type": "FUNCTION",
       "content_hash": "008e1819db163d8c"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask.classify": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent._ask.classify",
-      "start_line": 139,
-      "end_line": 145,
+      "start_line": 144,
+      "end_line": 152,
       "type": "FUNCTION",
-      "content_hash": "cb8029a5f8a44c86"
+      "content_hash": "d9feb0713fc0884b"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._read": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent._read",
-      "start_line": 150,
-      "end_line": 182,
+      "start_line": 157,
+      "end_line": 189,
       "type": "METHOD",
       "content_hash": "0a757d7c0911dd68"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._describe": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent._describe",
-      "start_line": 185,
-      "end_line": 190,
+      "start_line": 192,
+      "end_line": 197,
       "type": "METHOD",
       "content_hash": "4de544f468494e47"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._consensus": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent._consensus",
-      "start_line": 193,
-      "end_line": 204,
+      "start_line": 200,
+      "end_line": 211,
       "type": "METHOD",
       "content_hash": "70c4ce78b5a078bd"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._consensus.agreement": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent._consensus.agreement",
-      "start_line": 201,
-      "end_line": 202,
+      "start_line": 208,
+      "end_line": 209,
       "type": "FUNCTION",
       "content_hash": "2e4673af084b4fa3"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._fold": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent.TreePlannerAgent._fold",
-      "start_line": 207,
-      "end_line": 245,
+      "start_line": 214,
+      "end_line": 252,
       "type": "METHOD",
       "content_hash": "ba0a330fea43f377"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent._placement": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent._placement",
-      "start_line": 248,
-      "end_line": 257,
+      "start_line": 255,
+      "end_line": 264,
       "type": "FUNCTION",
       "content_hash": "65a787d701b07494"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent._pairs": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent._pairs",
-      "start_line": 260,
-      "end_line": 265,
+      "start_line": 267,
+      "end_line": 272,
       "type": "FUNCTION",
       "content_hash": "76304be1359f1e57"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent._pair_f1": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent._pair_f1",
-      "start_line": 268,
-      "end_line": 272,
+      "start_line": 275,
+      "end_line": 279,
       "type": "FUNCTION",
       "content_hash": "61947db7661a764d"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent._sample": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent._sample",
-      "start_line": 275,
-      "end_line": 279,
+      "start_line": 282,
+      "end_line": 286,
       "type": "FUNCTION",
       "content_hash": "ddb1844b5fc4cfe4"
     },
     "agents/tree_planner_agent.py|agents.tree_planner_agent._stems": {
       "file_path": "agents/tree_planner_agent.py",
       "qualified_name": "agents.tree_planner_agent._stems",
-      "start_line": 282,
-      "end_line": 289,
+      "start_line": 289,
+      "end_line": 296,
       "type": "FUNCTION",
       "content_hash": "69060bfa14e660be"
     },
@@ -25821,7 +25884,7 @@
     },
     {
       "name": "LLM Planning and Analysis Agents",
-      "description": "Configures LLM providers and executes AI agents for hierarchical architecture planning and scope analysis.",
+      "description": "Configures LLM providers and executes AI agents with retry policies for hierarchical architecture planning and scope analysis.",
       "key_entities": [
         {
           "qualified_name": "agents.agent_responses.AnalysisInsights",
@@ -25844,14 +25907,14 @@
         {
           "qualified_name": "agents.scope_analysis_agent.ScopeAnalysisAgent",
           "reference_file": "agents/scope_analysis_agent.py",
-          "reference_start_line": 163,
-          "reference_end_line": 247
+          "reference_start_line": 182,
+          "reference_end_line": 267
         },
         {
           "qualified_name": "agents.tree_planner_agent.TreePlannerAgent",
           "reference_file": "agents/tree_planner_agent.py",
-          "reference_start_line": 45,
-          "reference_end_line": 245
+          "reference_start_line": 46,
+          "reference_end_line": 252
         }
       ],
       "source_cluster_ids": [
@@ -26024,7 +26087,10 @@
             "agents.llm_errors._status_code",
             "agents.llm_errors._is_auth_failure",
             "agents.llm_errors.detect_auth_error",
+            "agents.llm_errors._is_quota_exhausted",
             "agents.llm_errors.llm_failure_properties",
+            "agents.llm_errors.is_transient_llm_error",
+            "agents.llm_errors.retry_after_seconds",
             "agents.llm_errors.raise_if_auth_error"
           ]
         },
@@ -26131,6 +26197,7 @@
             "agents.retry.RetryAction",
             "agents.retry.RetryDecision",
             "agents.retry.default_backoff",
+            "agents.retry.classify_llm_error",
             "agents.retry._default_classify",
             "agents.retry.with_retries"
           ]
@@ -26150,6 +26217,9 @@
             "agents.scope_analysis_agent.ScopeInputBudget.__init__",
             "agents.scope_analysis_agent.ScopeInputBudget.count_tokens",
             "agents.scope_analysis_agent.ScopeInputBudget.wrap_model_call",
+            "agents.scope_analysis_agent.TransientErrorRetry",
+            "agents.scope_analysis_agent.TransientErrorRetry.__init__",
+            "agents.scope_analysis_agent.TransientErrorRetry.wrap_model_call",
             "agents.scope_analysis_agent.ScopeAnalysisAgent",
             "agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
             "agents.scope_analysis_agent.ScopeAnalysisAgent.analyze"
@@ -26208,13 +26278,13 @@
       "components": [
         {
           "name": "Tree Planning and Expansion",
-          "description": "Plans hierarchical component expansions, tracks incremental changes, and manages consensus and retry policies.",
+          "description": "Plans hierarchical component expansions, tracks incremental changes, and reconciles consensus across planning draws.",
           "key_entities": [
             {
               "qualified_name": "agents.tree_planner_agent.TreePlannerAgent",
               "reference_file": "agents/tree_planner_agent.py",
-              "reference_start_line": 45,
-              "reference_end_line": 245
+              "reference_start_line": 46,
+              "reference_end_line": 252
             },
             {
               "qualified_name": "agents.planner_agent.should_expand_component",
@@ -26250,7 +26320,6 @@
             "3.11",
             "3.12",
             "3.15",
-            "3.16",
             "3.21"
           ],
           "file_methods": [
@@ -26364,16 +26433,6 @@
               ]
             },
             {
-              "file_path": "agents/retry.py",
-              "methods": [
-                "agents.retry.RetryAction",
-                "agents.retry.RetryDecision",
-                "agents.retry.default_backoff",
-                "agents.retry._default_classify",
-                "agents.retry.with_retries"
-              ]
-            },
-            {
               "file_path": "agents/tree_planner_agent.py",
               "methods": [
                 "agents.tree_planner_agent.TreePlannerAgent",
@@ -26403,13 +26462,13 @@
         },
         {
           "name": "Scope Semantic Analysis",
-          "description": "Executes LLM-driven semantic scope analysis, rendering context, structuring responses, and handling model errors.",
+          "description": "Executes LLM-driven semantic scope analysis, rendering context, structuring responses, and handling model errors and retries.",
           "key_entities": [
             {
               "qualified_name": "agents.scope_analysis_agent.ScopeAnalysisAgent",
               "reference_file": "agents/scope_analysis_agent.py",
-              "reference_start_line": 163,
-              "reference_end_line": 247
+              "reference_start_line": 182,
+              "reference_end_line": 267
             },
             {
               "qualified_name": "agents.agent_responses.AnalysisInsights",
@@ -26432,8 +26491,8 @@
             {
               "qualified_name": "agents.llm_errors.detect_auth_error",
               "reference_file": "agents/llm_errors.py",
-              "reference_start_line": 133,
-              "reference_end_line": 168
+              "reference_start_line": 144,
+              "reference_end_line": 183
             }
           ],
           "source_cluster_ids": [
@@ -26443,6 +26502,7 @@
             "3.8",
             "3.9",
             "3.10",
+            "3.16",
             "3.17"
           ],
           "file_methods": [
@@ -26538,7 +26598,10 @@
                 "agents.llm_errors._status_code",
                 "agents.llm_errors._is_auth_failure",
                 "agents.llm_errors.detect_auth_error",
+                "agents.llm_errors._is_quota_exhausted",
                 "agents.llm_errors.llm_failure_properties",
+                "agents.llm_errors.is_transient_llm_error",
+                "agents.llm_errors.retry_after_seconds",
                 "agents.llm_errors.raise_if_auth_error"
               ]
             },
@@ -26570,6 +26633,17 @@
               ]
             },
             {
+              "file_path": "agents/retry.py",
+              "methods": [
+                "agents.retry.RetryAction",
+                "agents.retry.RetryDecision",
+                "agents.retry.default_backoff",
+                "agents.retry.classify_llm_error",
+                "agents.retry._default_classify",
+                "agents.retry.with_retries"
+              ]
+            },
+            {
               "file_path": "agents/scope_analysis_agent.py",
               "methods": [
                 "agents.scope_analysis_agent.ScopeComponentSemantics",
@@ -26584,6 +26658,9 @@
                 "agents.scope_analysis_agent.ScopeInputBudget.__init__",
                 "agents.scope_analysis_agent.ScopeInputBudget.count_tokens",
                 "agents.scope_analysis_agent.ScopeInputBudget.wrap_model_call",
+                "agents.scope_analysis_agent.TransientErrorRetry",
+                "agents.scope_analysis_agent.TransientErrorRetry.__init__",
+                "agents.scope_analysis_agent.TransientErrorRetry.wrap_model_call",
                 "agents.scope_analysis_agent.ScopeAnalysisAgent",
                 "agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
                 "agents.scope_analysis_agent.ScopeAnalysisAgent.analyze"
@@ -26706,11 +26783,22 @@
       ],
       "components_relations": [
         {
-          "relation": "populates and merges response models in",
+          "relation": "merges relation edges and response models in",
           "src_name": "Tree Planning and Expansion",
           "dst_name": "Scope Semantic Analysis",
           "evidence": "",
           "key_edges": [
+            {
+              "source": "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording",
+              "target": "agents/agent_responses.py|agents.agent_responses.Relation.unique_edges",
+              "call_sites": [
+                {
+                  "line": 368,
+                  "column": 35
+                }
+              ],
+              "description": "Restores baseline relation wording across unique edge pairs"
+            },
             {
               "source": "agents/relation_edges.py|agents.relation_edges.append_or_merge_relation",
               "target": "agents/agent_responses.py|agents.agent_responses.Relation",
@@ -26732,7 +26820,7 @@
                   "column": 18
                 }
               ],
-              "description": "Merges relation records into structured agent responses"
+              "description": "Merges and normalizes architectural relation edges using structured relation response types"
             }
           ],
           "src_id": "3.1",
@@ -26938,7 +27026,7 @@
               "target": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
               "call_sites": [
                 {
-                  "line": 56,
+                  "line": 57,
                   "column": 66
                 }
               ],
@@ -26949,7 +27037,18 @@
               "target": "agents/llm_config.py|agents.llm_config.supports_json_mode",
               "call_sites": [
                 {
-                  "line": 66,
+                  "line": 67,
+                  "column": 16
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask",
+              "target": "agents/retry.py|agents.retry.with_retries",
+              "call_sites": [
+                {
+                  "line": 154,
                   "column": 16
                 }
               ],
@@ -26960,8 +27059,34 @@
               "target": "agents/llm_errors.py|agents.llm_errors.raise_if_auth_error",
               "call_sites": [
                 {
-                  "line": 140,
+                  "line": 145,
                   "column": 13
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask.classify",
+              "target": "agents/retry.py|agents.retry.RetryDecision",
+              "call_sites": [
+                {
+                  "line": 147,
+                  "column": 28
+                },
+                {
+                  "line": 151,
+                  "column": 24
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask.classify",
+              "target": "agents/retry.py|agents.retry.classify_llm_error",
+              "call_sites": [
+                {
+                  "line": 149,
+                  "column": 28
                 }
               ],
               "description": ""
@@ -26971,7 +27096,7 @@
               "target": "agents/agent_responses.py|agents.agent_responses.PlannedGroup",
               "call_sites": [
                 {
-                  "line": 176,
+                  "line": 183,
                   "column": 17
                 }
               ],
@@ -26982,7 +27107,7 @@
               "target": "agents/agent_responses.py|agents.agent_responses.TreePlanInsights",
               "call_sites": [
                 {
-                  "line": 182,
+                  "line": 189,
                   "column": 16
                 }
               ],
@@ -26991,7 +27116,7 @@
           ]
         },
         {
-          "relation": "fetches planning prompts from",
+          "relation": "fetches planning prompt templates from",
           "src_name": "Tree Planning and Expansion",
           "dst_name": "Agent Prompt Templates",
           "evidence": "",
@@ -27001,11 +27126,11 @@
               "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_tree_plan_prompts",
               "call_sites": [
                 {
-                  "line": 56,
+                  "line": 57,
                   "column": 44
                 }
               ],
-              "description": "Retrieves prompt templates for tree planning"
+              "description": "Retrieves tree planning system and task prompt templates during agent initialization"
             }
           ],
           "src_id": "3.1",
@@ -27017,7 +27142,7 @@
               "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_tree_plan_prompts",
               "call_sites": [
                 {
-                  "line": 56,
+                  "line": 57,
                   "column": 44
                 }
               ],
@@ -27026,7 +27151,7 @@
           ]
         },
         {
-          "relation": "queries model capability metadata from",
+          "relation": "queries model capability and context window metadata from",
           "src_name": "Scope Semantic Analysis",
           "dst_name": "Tree Planning and Expansion",
           "evidence": "",
@@ -27038,6 +27163,17 @@
                 {
                   "line": 453,
                   "column": 12
+                }
+              ],
+              "description": "Resolves model context window token limits and capabilities"
+            },
+            {
+              "source": "agents/llm_config.py|agents.llm_config.get_current_agent_context_window",
+              "target": "agents/model_capabilities.py|agents.model_capabilities.get_context_window",
+              "call_sites": [
+                {
+                  "line": 449,
+                  "column": 15
                 }
               ],
               "description": "Retrieves context window limits for active agent models"
@@ -27072,21 +27208,43 @@
           ]
         },
         {
-          "relation": "configures and executes repository tools in",
+          "relation": "configures and executes repository inspection tools in",
           "src_name": "Scope Semantic Analysis",
           "dst_name": "Scope Inspection Tools",
           "evidence": "",
           "key_edges": [
             {
               "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
+              "target": "agents/tools/base.py|agents.tools.base.RepoContext",
+              "call_sites": [
+                {
+                  "line": 208,
+                  "column": 19
+                }
+              ],
+              "description": "Instantiates repo context for tool execution"
+            },
+            {
+              "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
+              "target": "agents/tools/get_method_calls.py|agents.tools.get_method_calls.MethodCallsTool",
+              "call_sites": [
+                {
+                  "line": 216,
+                  "column": 49
+                }
+              ],
+              "description": "Queries method calls during semantic inspection"
+            },
+            {
+              "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
               "target": "agents/tools/read_file.py|agents.tools.read_file.ReadFileTool",
               "call_sites": [
                 {
-                  "line": 197,
+                  "line": 216,
                   "column": 18
                 }
               ],
-              "description": "Instantiates file reader tool for agent execution"
+              "description": "Executes file read tool during semantic inspection"
             }
           ],
           "src_id": "3.2",
@@ -27098,7 +27256,7 @@
               "target": "agents/tools/base.py|agents.tools.base.RepoContext",
               "call_sites": [
                 {
-                  "line": 189,
+                  "line": 208,
                   "column": 19
                 }
               ],
@@ -27109,7 +27267,7 @@
               "target": "agents/tools/get_method_calls.py|agents.tools.get_method_calls.MethodCallsTool",
               "call_sites": [
                 {
-                  "line": 197,
+                  "line": 216,
                   "column": 49
                 }
               ],
@@ -27120,7 +27278,7 @@
               "target": "agents/tools/read_file.py|agents.tools.read_file.ReadFileTool",
               "call_sites": [
                 {
-                  "line": 197,
+                  "line": 216,
                   "column": 18
                 }
               ],
@@ -27129,21 +27287,36 @@
           ]
         },
         {
-          "relation": "loads prompt configurations from",
+          "relation": "resolves prompt profiles and loads analysis prompts from",
           "src_name": "Scope Semantic Analysis",
           "dst_name": "Agent Prompt Templates",
           "evidence": "",
           "key_edges": [
             {
+              "source": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
+              "target": "agents/prompts/profiles.py|agents.prompts.profiles.resolve_prompt_profile",
+              "call_sites": [
+                {
+                  "line": 470,
+                  "column": 20
+                },
+                {
+                  "line": 471,
+                  "column": 12
+                }
+              ],
+              "description": "Resolves prompt profile for active agent model configuration"
+            },
+            {
               "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
               "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_scope_analysis_prompts",
               "call_sites": [
                 {
-                  "line": 176,
+                  "line": 195,
                   "column": 52
                 }
               ],
-              "description": "Initializes analysis prompts for scope analysis agent"
+              "description": "Loads scope analysis prompts for agent execution"
             }
           ],
           "src_id": "3.2",
@@ -27170,7 +27343,7 @@
               "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_scope_analysis_prompts",
               "call_sites": [
                 {
-                  "line": 176,
+                  "line": 195,
                   "column": 52
                 }
               ],
@@ -35295,17 +35468,6 @@
           "description": ""
         },
         {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._grouper",
-          "target": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent",
-          "call_sites": [
-            {
-              "line": 767,
-              "column": 19
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
           "target": "agents/file_index_models.py|agents.file_index_models.FileEntry",
           "call_sites": [
@@ -35994,6 +36156,17 @@
             }
           ],
           "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._grouper",
+          "target": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent",
+          "call_sites": [
+            {
+              "line": 767,
+              "column": 19
+            }
+          ],
+          "description": ""
         }
       ]
     },
@@ -36228,39 +36401,6 @@
           "description": ""
         },
         {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_scope_semantics",
-          "target": "agents/llm_errors.py|agents.llm_errors.llm_failure_properties",
-          "call_sites": [
-            {
-              "line": 824,
-              "column": 76
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_scope_semantics",
-          "target": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent",
-          "call_sites": [
-            {
-              "line": 812,
-              "column": 45
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_scope_semantics",
-          "target": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
-          "call_sites": [
-            {
-              "line": 812,
-              "column": 45
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._grouper",
           "target": "agents/llm_config.py|agents.llm_config.initialize_agent_llm",
           "call_sites": [
@@ -36278,17 +36418,6 @@
             {
               "line": 776,
               "column": 35
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._scope_agent",
-          "target": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent",
-          "call_sites": [
-            {
-              "line": 777,
-              "column": 41
             }
           ],
           "description": ""
@@ -36716,6 +36845,50 @@
             {
               "line": 29,
               "column": 16
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_scope_semantics",
+          "target": "agents/llm_errors.py|agents.llm_errors.llm_failure_properties",
+          "call_sites": [
+            {
+              "line": 824,
+              "column": 76
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_scope_semantics",
+          "target": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent",
+          "call_sites": [
+            {
+              "line": 812,
+              "column": 45
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_scope_semantics",
+          "target": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
+          "call_sites": [
+            {
+              "line": 812,
+              "column": 45
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._scope_agent",
+          "target": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent",
+          "call_sites": [
+            {
+              "line": 777,
+              "column": 41
             }
           ],
           "description": ""
@@ -37963,7 +38136,7 @@
           "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.KinshipGrouper",
           "call_sites": [
             {
-              "line": 61,
+              "line": 62,
               "column": 25
             }
           ],
@@ -37974,7 +38147,7 @@
           "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.CandidateGroup",
           "call_sites": [
             {
-              "line": 237,
+              "line": 244,
               "column": 17
             }
           ],
@@ -37985,7 +38158,7 @@
           "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.stem",
           "call_sites": [
             {
-              "line": 234,
+              "line": 241,
               "column": 50
             }
           ],
@@ -37996,7 +38169,7 @@
           "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.tokenize",
           "call_sites": [
             {
-              "line": 234,
+              "line": 241,
               "column": 20
             }
           ],
@@ -38007,7 +38180,7 @@
           "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.KinshipGrouper",
           "call_sites": [
             {
-              "line": 72,
+              "line": 73,
               "column": 32
             }
           ],
@@ -38018,7 +38191,7 @@
           "target": "static_analyzer/clustering/names/draft.py|static_analyzer.clustering.names.draft.KinshipGrouper.group",
           "call_sites": [
             {
-              "line": 72,
+              "line": 73,
               "column": 32
             }
           ],
@@ -38029,7 +38202,7 @@
           "target": "static_analyzer/clustering/names/spec.py|static_analyzer.clustering.names.spec.is_root",
           "call_sites": [
             {
-              "line": 86,
+              "line": 87,
               "column": 32
             }
           ],
@@ -38040,7 +38213,7 @@
           "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.stem",
           "call_sites": [
             {
-              "line": 284,
+              "line": 291,
               "column": 9
             }
           ],
@@ -38051,7 +38224,7 @@
           "target": "static_analyzer/clustering/names/tokens.py|static_analyzer.clustering.names.tokens.tokenize",
           "call_sites": [
             {
-              "line": 288,
+              "line": 295,
               "column": 21
             }
           ],
@@ -38060,11 +38233,22 @@
       ]
     },
     {
-      "relation": "populates and merges response models in",
+      "relation": "merges relation edges and response models in",
       "src_name": "Tree Planning and Expansion",
       "dst_name": "Scope Semantic Analysis",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording",
+          "target": "agents/agent_responses.py|agents.agent_responses.Relation.unique_edges",
+          "call_sites": [
+            {
+              "line": 368,
+              "column": 35
+            }
+          ],
+          "description": "Restores baseline relation wording across unique edge pairs"
+        },
         {
           "source": "agents/relation_edges.py|agents.relation_edges.append_or_merge_relation",
           "target": "agents/agent_responses.py|agents.agent_responses.Relation",
@@ -38086,29 +38270,7 @@
               "column": 18
             }
           ],
-          "description": "Appends and merges relation edges into agent response models"
-        },
-        {
-          "source": "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording",
-          "target": "agents/agent_responses.py|agents.agent_responses.Relation",
-          "call_sites": [
-            {
-              "line": 368,
-              "column": 35
-            }
-          ],
-          "description": "Relation edge reconstruction updates and verifies Relation data structures"
-        },
-        {
-          "source": "agents/relation_edges.py|agents.relation_edges._restore_baseline_wording",
-          "target": "agents/agent_responses.py|agents.agent_responses.Relation.unique_edges",
-          "call_sites": [
-            {
-              "line": 368,
-              "column": 35
-            }
-          ],
-          "description": "Preserves baseline wording across unique relationship edges."
+          "description": "Merges and normalizes architectural relation edges using structured relation response types"
         }
       ],
       "src_id": "3.1",
@@ -38314,7 +38476,7 @@
           "target": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
           "call_sites": [
             {
-              "line": 56,
+              "line": 57,
               "column": 66
             }
           ],
@@ -38325,7 +38487,18 @@
           "target": "agents/llm_config.py|agents.llm_config.supports_json_mode",
           "call_sites": [
             {
-              "line": 66,
+              "line": 67,
+              "column": 16
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask",
+          "target": "agents/retry.py|agents.retry.with_retries",
+          "call_sites": [
+            {
+              "line": 154,
               "column": 16
             }
           ],
@@ -38336,8 +38509,34 @@
           "target": "agents/llm_errors.py|agents.llm_errors.raise_if_auth_error",
           "call_sites": [
             {
-              "line": 140,
+              "line": 145,
               "column": 13
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask.classify",
+          "target": "agents/retry.py|agents.retry.RetryDecision",
+          "call_sites": [
+            {
+              "line": 147,
+              "column": 28
+            },
+            {
+              "line": 151,
+              "column": 24
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask.classify",
+          "target": "agents/retry.py|agents.retry.classify_llm_error",
+          "call_sites": [
+            {
+              "line": 149,
+              "column": 28
             }
           ],
           "description": ""
@@ -38347,7 +38546,7 @@
           "target": "agents/agent_responses.py|agents.agent_responses.PlannedGroup",
           "call_sites": [
             {
-              "line": 176,
+              "line": 183,
               "column": 17
             }
           ],
@@ -38358,7 +38557,7 @@
           "target": "agents/agent_responses.py|agents.agent_responses.TreePlanInsights",
           "call_sites": [
             {
-              "line": 182,
+              "line": 189,
               "column": 16
             }
           ],
@@ -38377,7 +38576,7 @@
           "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_tree_plan_prompts",
           "call_sites": [
             {
-              "line": 56,
+              "line": 57,
               "column": 44
             }
           ],
@@ -38393,7 +38592,7 @@
           "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_tree_plan_prompts",
           "call_sites": [
             {
-              "line": 56,
+              "line": 57,
               "column": 44
             }
           ],
@@ -38416,7 +38615,7 @@
           "target": "infra/monitoring/mixin.py|infra.monitoring.mixin.MonitoringMixin",
           "call_sites": [
             {
-              "line": 55,
+              "line": 56,
               "column": 17
             }
           ],
@@ -38427,7 +38626,7 @@
           "target": "infra/monitoring/mixin.py|infra.monitoring.mixin.MonitoringMixin.__init__",
           "call_sites": [
             {
-              "line": 55,
+              "line": 56,
               "column": 17
             }
           ],
@@ -38438,7 +38637,7 @@
           "target": "infra/monitoring/context.py|infra.monitoring.context.trace",
           "call_sites": [
             {
-              "line": 70,
+              "line": 71,
               "column": 6
             }
           ],
@@ -38767,21 +38966,10 @@
       "key_edges": [
         {
           "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
-          "target": "agents/tools/read_file.py|agents.tools.read_file.ReadFileTool",
-          "call_sites": [
-            {
-              "line": 197,
-              "column": 18
-            }
-          ],
-          "description": "Instantiates and executes code inspection tools with repo context"
-        },
-        {
-          "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
           "target": "agents/tools/base.py|agents.tools.base.RepoContext",
           "call_sites": [
             {
-              "line": 189,
+              "line": 208,
               "column": 19
             }
           ],
@@ -38792,11 +38980,22 @@
           "target": "agents/tools/get_method_calls.py|agents.tools.get_method_calls.MethodCallsTool",
           "call_sites": [
             {
-              "line": 197,
+              "line": 216,
               "column": 49
             }
           ],
           "description": "Instantiates and queries method calls tool"
+        },
+        {
+          "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
+          "target": "agents/tools/read_file.py|agents.tools.read_file.ReadFileTool",
+          "call_sites": [
+            {
+              "line": 216,
+              "column": 18
+            }
+          ],
+          "description": "Instantiates and executes code inspection tools with repo context"
         }
       ],
       "src_id": "3.2",
@@ -38808,7 +39007,7 @@
           "target": "agents/tools/base.py|agents.tools.base.RepoContext",
           "call_sites": [
             {
-              "line": 189,
+              "line": 208,
               "column": 19
             }
           ],
@@ -38819,7 +39018,7 @@
           "target": "agents/tools/get_method_calls.py|agents.tools.get_method_calls.MethodCallsTool",
           "call_sites": [
             {
-              "line": 197,
+              "line": 216,
               "column": 49
             }
           ],
@@ -38830,7 +39029,7 @@
           "target": "agents/tools/read_file.py|agents.tools.read_file.ReadFileTool",
           "call_sites": [
             {
-              "line": 197,
+              "line": 216,
               "column": 18
             }
           ],
@@ -38845,17 +39044,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
-          "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_scope_analysis_prompts",
-          "call_sites": [
-            {
-              "line": 176,
-              "column": 52
-            }
-          ],
-          "description": "Retrieves tailored scope analysis prompts based on model prompt profiles"
-        },
-        {
           "source": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
           "target": "agents/prompts/profiles.py|agents.prompts.profiles.resolve_prompt_profile",
           "call_sites": [
@@ -38869,6 +39057,17 @@
             }
           ],
           "description": "Resolves prompt profile for active LLM configuration"
+        },
+        {
+          "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
+          "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_scope_analysis_prompts",
+          "call_sites": [
+            {
+              "line": 195,
+              "column": 52
+            }
+          ],
+          "description": "Retrieves tailored scope analysis prompts based on model prompt profiles"
         }
       ],
       "src_id": "3.2",
@@ -38895,7 +39094,7 @@
           "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_scope_analysis_prompts",
           "call_sites": [
             {
-              "line": 176,
+              "line": 195,
               "column": 52
             }
           ],
@@ -38952,7 +39151,7 @@
           "target": "infra/monitoring/mixin.py|infra.monitoring.mixin.MonitoringMixin",
           "call_sites": [
             {
-              "line": 172,
+              "line": 191,
               "column": 17
             }
           ],
@@ -38963,7 +39162,7 @@
           "target": "infra/monitoring/mixin.py|infra.monitoring.mixin.MonitoringMixin.__init__",
           "call_sites": [
             {
-              "line": 172,
+              "line": 191,
               "column": 17
             }
           ],
@@ -40661,6 +40860,17 @@
       "dst_name": "Tree Planning and Expansion",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "codeboarding_workflows/analysis.py|codeboarding_workflows.analysis.run_partial",
+          "target": "agents/content_hash.py|agents.content_hash.compute_source_tree_hash",
+          "call_sites": [
+            {
+              "line": 115,
+              "column": 27
+            }
+          ],
+          "description": "Computes repository source hashes to check caching status during workflow runs"
+        },
         {
           "source": "codeboarding_workflows/fingerprint_diff.py|codeboarding_workflows.fingerprint_diff.detect_changes_from_fingerprint",
           "target": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",

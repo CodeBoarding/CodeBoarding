@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-10-14T23:30:24.245168+00:00",
-  "overall_score": 0.9857512953367875,
+  "timestamp": "2026-10-15T00:04:34.014952+00:00",
+  "overall_score": 0.986442866365397,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1522,
+      "total_entities_checked": 1528,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -19,8 +19,8 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 22,
-      "findings_count": 22,
+      "total_entities_checked": 21,
+      "findings_count": 21,
       "warning_count": 2,
       "score": 0.0,
       "finding_groups": [
@@ -29,20 +29,6 @@
           "threshold": 0,
           "description": "Variables declared but never used",
           "entities": [
-            {
-              "entity_name": "[unused_variable] \"_exc\" is not accessed",
-              "file_path": "agents/retry.py",
-              "line_start": 40,
-              "line_end": 40,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_key_tail\" is not accessed",
-              "file_path": "agents/llm_errors.py",
-              "line_start": 181,
-              "line_end": 181,
-              "metric_value": 0.0
-            },
             {
               "entity_name": "[unused_variable] \"_config\" is not accessed",
               "file_path": "agents/llm_config.py",
@@ -168,6 +154,13 @@
               "line_start": 37,
               "line_end": 37,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_key_tail\" is not accessed",
+              "file_path": "agents/llm_errors.py",
+              "line_start": 201,
+              "line_end": 201,
+              "metric_value": 0.0
             }
           ]
         },
@@ -221,18 +214,6 @@
       "composite_risk_score": 20.0
     },
     {
-      "file_path": "agents/retry.py",
-      "total_findings": 1,
-      "warning_findings": 0,
-      "composite_risk_score": 10.0
-    },
-    {
-      "file_path": "agents/llm_errors.py",
-      "total_findings": 1,
-      "warning_findings": 0,
-      "composite_risk_score": 10.0
-    },
-    {
       "file_path": "agents/model_capabilities.py",
       "total_findings": 1,
       "warning_findings": 0,
@@ -240,6 +221,12 @@
     },
     {
       "file_path": "static_analyzer/__init__.py",
+      "total_findings": 1,
+      "warning_findings": 0,
+      "composite_risk_score": 10.0
+    },
+    {
+      "file_path": "agents/llm_errors.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
