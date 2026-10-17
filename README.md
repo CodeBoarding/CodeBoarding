@@ -159,6 +159,11 @@ python codeboarding_cli/render.py ../../demo/markitdown/.codeboarding/analysis.j
 
 On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provider there or use environment variables.
 
+Exhausted credits stop analysis with a logged message without a traceback. Exit code `4`
+identifies the GitHub owner's exhausted CodeBoarding free allowance; provider quota
+failures retain exit code `3`. The GitHub Action uses these codes to show the appropriate
+recovery instructions and [license purchase link](https://codeboarding.org/pricing).
+
 ```toml
 [provider]
 # openai_api_key            = "sk-..."

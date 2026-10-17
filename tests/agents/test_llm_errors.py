@@ -36,6 +36,17 @@ class _FakeGoogleError(Exception):
         self.code = code
 
 
+def test_quota_classification_survives_wrapping_without_looping_on_a_cycle():
+    error = _FakeStatusError("Resource exhausted", 402)
+    wrapped = RuntimeError("planner failed")
+    wrapped.__cause__ = error
+    properties = llm_failure_properties(wrapped)
+    assert properties["error_type"] == "quota"
+    assert properties["error_status_code"] == 402
+    wrapped.__cause__ = wrapped
+    assert llm_failure_properties(wrapped)["error_type"] == "llm"
+
+
 class TestDetectAuthError:
     def test_openai_style_401_detected(self):
         exc = _FakeStatusError("Error code: 401 - invalid api key", status_code=401)
