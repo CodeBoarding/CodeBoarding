@@ -1,11 +1,12 @@
 import argparse
+import json
+import logging
 import os
 import sys
-import traceback
 from pathlib import Path
 
 from agents.llm_config import CODEBOARDING_KEY_TAIL
-from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_QUOTA_EXHAUSTED, LLMAuthError
+from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_QUOTA_EXHAUSTED, LLMAuthError, LLMQuotaError, detect_quota_error
 from codeboarding_cli.bootstrap import resolve_local_run_paths
 from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
 from diagram_analysis.exceptions import ScopeSemanticsError
@@ -117,13 +118,28 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
                 file=sys.stderr,
             )
         raise SystemExit(EXIT_AUTH_ERROR) from exc
-    except ScopeSemanticsError as exc:
-        if exc.telemetry_properties.get("error_type") != "quota":
+    except (LLMQuotaError, ScopeSemanticsError) as exc:
+        quota_error = detect_quota_error(exc)
+        if quota_error is None and exc.telemetry_properties.get("error_type") != "quota":
             raise
-        # Same exit as any failure, but with a code callers (the GitHub Action) can name.
-        traceback.print_exception(exc)
-        print("\nCodeBoarding: the LLM provider's token or credit quota is exhausted.", file=sys.stderr)
-        print("Add credits or raise the quota for this provider, then re-run.", file=sys.stderr)
+        message = (
+            str(quota_error)
+            if quota_error
+            else (
+                "The LLM provider's token or credit quota is exhausted. "
+                "Add credits or raise the quota for this provider, then re-run."
+            )
+        )
+        print(f"\nCodeBoarding: {message}", file=sys.stderr)
+        error_file = os.getenv("CODEBOARDING_ERROR_FILE")
+        if error_file:
+            try:
+                Path(error_file).write_text(
+                    json.dumps({"version": 1, "code": quota_error.code if quota_error else "provider_quota_exhausted"}),
+                    encoding="utf-8",
+                )
+            except OSError:
+                logging.getLogger(__name__).warning("Could not write the CLI error report.")
         raise SystemExit(EXIT_QUOTA_EXHAUSTED) from exc
 
 

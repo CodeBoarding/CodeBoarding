@@ -159,6 +159,12 @@ python codeboarding_cli/render.py ../../demo/markitdown/.codeboarding/analysis.j
 
 On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provider there or use environment variables.
 
+Exhausted credits stop analysis with exit code `3` and an actionable message without a traceback.
+Automation can set `CODEBOARDING_ERROR_FILE` to a writable path to receive
+`{"version": 1, "code": "free_quota_exhausted"}`. Other quota codes are
+`license_not_accepted`, `hosted_provider_quota_exhausted`, and `provider_quota_exhausted`.
+The report contains no credentials; stdout remains reserved for the command's normal result.
+
 ```toml
 [provider]
 # openai_api_key            = "sk-..."
