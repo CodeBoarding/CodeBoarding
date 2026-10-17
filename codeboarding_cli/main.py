@@ -1,12 +1,11 @@
 import argparse
-import json
 import logging
 import os
 import sys
 from pathlib import Path
 
 from agents.llm_config import CODEBOARDING_KEY_TAIL
-from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_QUOTA_EXHAUSTED, LLMAuthError, LLMQuotaError, detect_quota_error
+from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_FREE_CREDITS_EXHAUSTED, EXIT_QUOTA_EXHAUSTED, LLMAuthError
 from codeboarding_cli.bootstrap import resolve_local_run_paths
 from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
 from diagram_analysis.exceptions import ScopeSemanticsError
@@ -14,6 +13,7 @@ from output_generators import SUPPORTED_FORMATS, render as render_output
 from infra.utils import ANALYSIS_FILENAME
 
 _SUBCOMMANDS = {"full", "incremental", "partial"}
+logger = logging.getLogger(__name__)
 
 
 def _build_shared_parser() -> argparse.ArgumentParser:
@@ -109,37 +109,24 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
                     output_dir=run_paths.output_dir,
                 )
     except LLMAuthError as exc:
-        # A rejected API key is the user's to fix, not a crash: print one
-        # actionable line (no traceback) and exit with a distinct code.
-        print(f"\nCodeBoarding: {exc}", file=sys.stderr)
+        logger.error("CodeBoarding: %s", exc)
         if exc.key_tail != CODEBOARDING_KEY_TAIL:
-            print(
-                "Check your LLM provider API key (shell env or ~/.codeboarding/config.toml) and re-run.",
-                file=sys.stderr,
-            )
+            logger.error("Check your LLM provider API key (shell env or ~/.codeboarding/config.toml) and re-run.")
         raise SystemExit(EXIT_AUTH_ERROR) from exc
-    except (LLMQuotaError, ScopeSemanticsError) as exc:
-        quota_error = detect_quota_error(exc)
-        if quota_error is None and exc.telemetry_properties.get("error_type") != "quota":
+    except ScopeSemanticsError as exc:
+        if exc.telemetry_properties.get("error_type") != "quota":
             raise
-        message = (
-            str(quota_error)
-            if quota_error
-            else (
-                "The LLM provider's token or credit quota is exhausted. "
-                "Add credits or raise the quota for this provider, then re-run."
+        if exc.telemetry_properties.get("error_code") == "free_credits_exhausted":
+            logger.error(
+                "Your GitHub owner's free CodeBoarding credits for this week are exhausted. "
+                "Buy a CodeBoarding license at https://codeboarding.org/pricing, "
+                "or wait for the weekly allowance to reset."
             )
+            raise SystemExit(EXIT_FREE_CREDITS_EXHAUSTED) from exc
+        logger.error(
+            "The LLM provider's token or credit quota is exhausted. "
+            "Add credits or raise the quota for this provider, then re-run."
         )
-        print(f"\nCodeBoarding: {message}", file=sys.stderr)
-        error_file = os.getenv("CODEBOARDING_ERROR_FILE")
-        if error_file:
-            try:
-                Path(error_file).write_text(
-                    json.dumps({"version": 1, "code": quota_error.code if quota_error else "provider_quota_exhausted"}),
-                    encoding="utf-8",
-                )
-            except OSError:
-                logging.getLogger(__name__).warning("Could not write the CLI error report.")
         raise SystemExit(EXIT_QUOTA_EXHAUSTED) from exc
 
 

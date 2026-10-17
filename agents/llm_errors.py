@@ -1,4 +1,4 @@
-"""Provider-agnostic detection and typing of terminal LLM refusals.
+"""Provider-agnostic detection and typing of LLM authentication failures.
 
 A rejected API key (HTTP 401, or a provider's equivalent auth/permission
 error) is *permanent* for the run: retrying it wastes minutes of backoff and
@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import email.utils
 import logging
-import os
 import re
 import time
 
@@ -34,7 +33,8 @@ EXIT_AUTH_ERROR = 2
 # Process exit code for an exhausted token or credit quota: the key is fine, the account is not.
 EXIT_QUOTA_EXHAUSTED = 3
 
-PRICING_URL = "https://codeboarding.org/pricing"
+# The GitHub Action's free allowance, distinct from upstream provider billing.
+EXIT_FREE_CREDITS_EXHAUSTED = 4
 
 # Class names, across SDKs, that always mean "credentials were rejected".
 # openai/anthropic/cerebras raise ``AuthenticationError``; google raises
@@ -117,91 +117,6 @@ class LLMAuthError(RuntimeError):
         self.telemetry_properties = telemetry_properties
 
 
-class LLMQuotaError(RuntimeError):
-    """A terminal credit refusal, preserving which service needs attention."""
-
-    def __init__(self, message: str, *, code: str, telemetry_properties: dict):
-        super().__init__(message)
-        self.code = code
-        self.telemetry_properties = telemetry_properties
-
-
-def detect_quota_error(exc: BaseException) -> LLMQuotaError | None:
-    """Recognize quota refusals in SDK errors and their exception chains."""
-    seen: set[int] = set()
-    current: BaseException | None = exc
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, LLMQuotaError):
-            return current
-        if _is_quota_exhausted(current):
-            error = _error_body(current)
-            provider, key_tail = current_provider_key_context()
-            code = "provider_quota_exhausted"
-            message = (
-                "The LLM provider's token or credit quota is exhausted. Add credits or raise the quota, then re-run."
-            )
-            if error.get("type") == "gha_proxy" and (
-                error.get("code") == "free_quota_exhausted"
-                or error.get("message") == "Resource exhausted: token limit reached"
-            ):
-                code = "free_quota_exhausted"
-                message = (
-                    "Your GitHub owner's free CodeBoarding credits for this week are exhausted. "
-                    f"Buy a CodeBoarding license at {PRICING_URL}, or wait for the weekly allowance to reset."
-                )
-                if error.get("license_status") == "not_accepted" or os.getenv("CODEBOARDING_LLM_TIER") == "license":
-                    code = "license_not_accepted"
-                    message = (
-                        "The supplied CodeBoarding license did not grant paid access, and your GitHub owner's "
-                        "free credits are exhausted. Check that your license is active and the license_key "
-                        f"input uses the correct secret. Manage or buy a license at {PRICING_URL}."
-                    )
-            elif key_tail == CODEBOARDING_KEY_TAIL:
-                code = "hosted_provider_quota_exhausted"
-                message = (
-                    "CodeBoarding's hosted LLM provider has exhausted its credits or quota. "
-                    "Please contact CodeBoarding support; this is not your free-credit allowance."
-                )
-            return LLMQuotaError(
-                message,
-                code=code,
-                telemetry_properties={
-                    "error_type": "quota",
-                    "error_code": code,
-                    "error_provider": provider,
-                    "error_status_code": _status_code(current),
-                    "error_message": str(current)[:500],
-                },
-            )
-        current = current.__cause__ or current.__context__
-    return None
-
-
-def raise_if_llm_refusal(exc: Exception) -> None:
-    """Stop immediately on exhausted credits or rejected credentials."""
-    quota_error = detect_quota_error(exc)
-    if quota_error is not None:
-        if quota_error is exc:
-            raise quota_error
-        raise quota_error from exc
-    raise_if_auth_error(exc)
-
-
-def _error_body(exc: BaseException) -> dict:
-    body = getattr(exc, "body", None)
-    if not isinstance(body, dict):
-        response = getattr(exc, "response", None)
-        try:
-            body = response.json() if response is not None else {}
-        except (ValueError, AttributeError):
-            body = {}
-    if not isinstance(body, dict):
-        return {}
-    error = body.get("error", body)
-    return error if isinstance(error, dict) else {}
-
-
 def _status_code(exc: BaseException) -> int | None:
     code = getattr(exc, "status_code", None)
     if code is None:
@@ -273,11 +188,7 @@ def detect_auth_error(exc: BaseException, *, provider: str, key_tail: str) -> LL
 
 def _is_quota_exhausted(exc: BaseException) -> bool:
     status = _status_code(exc)
-    quota_code = (
-        getattr(exc, "code", None) == "insufficient_quota"
-        or _error_body(exc).get("code") == "insufficient_quota"
-        or "insufficient_quota" in str(exc)
-    )
+    quota_code = getattr(exc, "code", None) == "insufficient_quota" or "insufficient_quota" in str(exc)
     return status == 402 or (status == 429 and quota_code)
 
 
@@ -288,17 +199,33 @@ def llm_failure_properties(exc: BaseException) -> dict:
     Why: the hosted proxy's paywall is a 402, and OpenAI reports an empty balance as a 429 ``insufficient_quota``.
     An oversized prompt is ours to fix, not the provider's, so it gets its own type on the dashboard.
     """
-    quota_error = detect_quota_error(exc)
-    if quota_error is not None:
-        return quota_error.telemetry_properties
+    cause = exc
+    seen: set[int] = set()
+    while id(cause) not in seen and not _is_quota_exhausted(cause):
+        seen.add(id(cause))
+        next_cause = cause.__cause__ or cause.__context__
+        if next_cause is None:
+            break
+        cause = next_cause
+    quota = _is_quota_exhausted(cause)
     context = isinstance(exc, ScopeContextTooLargeError) or any(p.search(str(exc)) for p in _CONTEXT_OVERFLOW_PATTERNS)
     provider, _key_tail = current_provider_key_context()
-    return {
-        "error_type": "context" if context else "llm",
+    properties = {
+        "error_type": "quota" if quota else "context" if context else "llm",
         "error_provider": provider,
-        "error_status_code": _status_code(exc),
-        "error_message": str(exc)[:500],
+        "error_status_code": _status_code(cause),
+        "error_message": str(cause)[:500],
     }
+    body = getattr(cause, "body", {})
+    error = body.get("error", body) if isinstance(body, dict) else {}
+    if (
+        _status_code(cause) == 402
+        and isinstance(error, dict)
+        and error.get("type") == "gha_proxy"
+        and error.get("message") == "Resource exhausted: token limit reached"
+    ):
+        properties["error_code"] = "free_credits_exhausted"
+    return properties
 
 
 def is_transient_llm_error(exc: BaseException) -> bool:

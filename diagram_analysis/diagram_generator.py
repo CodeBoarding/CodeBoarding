@@ -30,7 +30,7 @@ from diagram_analysis.incremental_update import (
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_agent_llm
-from agents.llm_errors import LLMAuthError, LLMQuotaError, llm_failure_properties
+from agents.llm_errors import LLMAuthError, llm_failure_properties
 from agents.relation_edges import (
     drop_misattributed_edges,
     index_relation_endpoints,
@@ -818,7 +818,7 @@ class DiagramGenerator:
                 incremental,
                 enclosing_names=enclosing_names,
             )
-        except (LLMAuthError, LLMQuotaError):
+        except LLMAuthError:
             raise
         except Exception as error:
             raise ScopeSemanticsError(scope.scope_id, telemetry_properties=llm_failure_properties(error)) from error
@@ -1120,7 +1120,7 @@ class DiagramGenerator:
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
-        except (LLMAuthError, LLMQuotaError, ScopeSemanticsError):
+        except (LLMAuthError, ScopeSemanticsError):
             # An LLM failure aborts the whole run rather than shipping this component with deterministic names.
             raise
         except Exception:
@@ -1335,7 +1335,7 @@ class DiagramGenerator:
                     stats["completed"] += 1
                     try:
                         outcomes.append((component, level, future.result()))
-                    except (LLMAuthError, LLMQuotaError, ScopeSemanticsError):
+                    except (LLMAuthError, ScopeSemanticsError):
                         for pending in future_to_task:
                             pending.cancel()
                         raise

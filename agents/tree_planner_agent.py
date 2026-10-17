@@ -16,9 +16,10 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent_responses import PlannedGroup, TreePlanInsights
 from agents.llm_config import get_current_prompt_profile, supports_json_mode
 from infra.monitoring.callbacks import MONITORING_CALLBACK
-from agents.llm_errors import LLMAuthError, LLMQuotaError, raise_if_llm_refusal
+from agents.llm_errors import LLMAuthError, llm_failure_properties, raise_if_auth_error
 from agents.prompts import get_tree_plan_prompts
 from agents.retry import LLM_MAX_ATTEMPTS, RetryAction, RetryDecision, classify_llm_error, with_retries
+from diagram_analysis.exceptions import ScopeSemanticsError
 from infra.monitoring import trace
 from infra.monitoring.mixin import MonitoringMixin
 from static_analyzer.clustering.names import CandidateGroup, GroupingContext, KinshipGrouper, stem, tokenize
@@ -89,7 +90,7 @@ class TreePlannerAgent(MonitoringMixin):
                 self._describe(label, group, size[group.keys], by_key, context) for label, group in labelled.items()
             ),
         )
-        answers = self._draw(prompt, labelled)
+        answers = self._draw(prompt, labelled, context.scope_id)
         insights = answers[0] if len(answers) == 1 else self._consensus(answers, labelled)
         folded = self._fold(labelled, insights, context)
         folded.extend(group for group in groups if not size[group.keys])
@@ -102,7 +103,7 @@ class TreePlannerAgent(MonitoringMixin):
         )
         return folded
 
-    def _draw(self, prompt: str, labelled: dict[str, CandidateGroup]) -> list[TreePlanInsights]:
+    def _draw(self, prompt: str, labelled: dict[str, CandidateGroup], scope_id: str) -> list[TreePlanInsights]:
         """``draws`` answers to one prompt, drawn concurrently; a draw that fails is dropped."""
         # Not ``with``: its ``__exit__`` waits for a stalled draw; a copied context carries the
         # monitoring step into each worker.
@@ -114,9 +115,12 @@ class TreePlannerAgent(MonitoringMixin):
             for future in futures:
                 try:
                     answers.append(future.result(timeout=DRAW_TIMEOUT_SECONDS))
-                except (LLMAuthError, LLMQuotaError):
+                except LLMAuthError:
                     raise
                 except Exception as exc:
+                    properties = llm_failure_properties(exc)
+                    if properties["error_type"] == "quota":
+                        raise ScopeSemanticsError(scope_id, telemetry_properties=properties) from exc
                     failures.append(exc)
                     logger.warning("[Planner] draw failed: %s", exc)
         finally:
@@ -142,7 +146,7 @@ class TreePlannerAgent(MonitoringMixin):
         deadline = time.monotonic() + DRAW_TIMEOUT_SECONDS
 
         def classify(exc: Exception, attempt: int) -> RetryDecision:
-            raise_if_llm_refusal(exc)
+            raise_if_auth_error(exc)
             if isinstance(exc, ValueError):
                 decision = RetryDecision(action=RetryAction.RETRY_NOW)
             else:
