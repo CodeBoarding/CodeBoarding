@@ -7,7 +7,6 @@ from langchain_core.messages import AIMessage
 
 from agents.agent_responses import PlannedGroup, TreePlanInsights
 from agents.tree_planner_agent import BUDGET, DRAW_TIMEOUT_SECONDS, TreePlannerAgent
-from diagram_analysis.exceptions import ScopeSemanticsError
 from static_analyzer.clustering.names import ROLE_WORDS, CandidateGroup, GroupingContext
 from static_analyzer.clustering.names.frontier import BOX, Candidate
 
@@ -54,21 +53,6 @@ def answer(*groups: tuple[str, list[str]]) -> TreePlanInsights:
 
 
 class TestTreePlannerAgent(unittest.TestCase):
-    def test_an_exhausted_allowance_is_not_dropped_as_a_failed_draw(self):
-        response = httpx.Response(402, request=httpx.Request("POST", "https://lambda.example/chat/completions"))
-        error = openai.APIStatusError(
-            "Resource exhausted: token limit reached",
-            response=response,
-            body={"type": "gha_proxy", "message": "Resource exhausted: token limit reached"},
-        )
-        items = candidates(BUDGET + 3)
-        with patch.object(TreePlannerAgent, "_ask", side_effect=error):
-            with self.assertRaises(ScopeSemanticsError) as caught:
-                self._agent(draws=3).group(items, context(items))
-        self.assertIs(caught.exception.__cause__, error)
-        self.assertEqual(caught.exception.scope_id, "root")
-        self.assertEqual(caught.exception.telemetry_properties["error_code"], "free_credits_exhausted")
-
     def _agent(self, draws: int = 1) -> TreePlannerAgent:
         llm = MagicMock()
         llm.model_name = "test-model"

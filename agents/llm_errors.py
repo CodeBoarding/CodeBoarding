@@ -33,9 +33,6 @@ EXIT_AUTH_ERROR = 2
 # Process exit code for an exhausted token or credit quota: the key is fine, the account is not.
 EXIT_QUOTA_EXHAUSTED = 3
 
-# The GitHub Action's free allowance, distinct from upstream provider billing.
-EXIT_FREE_CREDITS_EXHAUSTED = 4
-
 # Class names, across SDKs, that always mean "credentials were rejected".
 # openai/anthropic/cerebras raise ``AuthenticationError``; google raises
 # ``Unauthenticated``/``PermissionDenied``; Bedrock (botocore) surfaces
@@ -199,27 +196,19 @@ def llm_failure_properties(exc: BaseException) -> dict:
     Why: the hosted proxy's paywall is a 402, and OpenAI reports an empty balance as a 429 ``insufficient_quota``.
     An oversized prompt is ours to fix, not the provider's, so it gets its own type on the dashboard.
     """
-    cause = exc
-    seen: set[int] = set()
-    while id(cause) not in seen and not _is_quota_exhausted(cause):
-        seen.add(id(cause))
-        next_cause = cause.__cause__ or cause.__context__
-        if next_cause is None:
-            break
-        cause = next_cause
-    quota = _is_quota_exhausted(cause)
+    quota = _is_quota_exhausted(exc)
     context = isinstance(exc, ScopeContextTooLargeError) or any(p.search(str(exc)) for p in _CONTEXT_OVERFLOW_PATTERNS)
     provider, _key_tail = current_provider_key_context()
     properties = {
         "error_type": "quota" if quota else "context" if context else "llm",
         "error_provider": provider,
-        "error_status_code": _status_code(cause),
-        "error_message": str(cause)[:500],
+        "error_status_code": _status_code(exc),
+        "error_message": str(exc)[:500],
     }
-    body = getattr(cause, "body", {})
+    body = getattr(exc, "body", {})
     error = body.get("error", body) if isinstance(body, dict) else {}
     if (
-        _status_code(cause) == 402
+        _status_code(exc) == 402
         and isinstance(error, dict)
         and error.get("type") == "gha_proxy"
         and error.get("message") == "Resource exhausted: token limit reached"

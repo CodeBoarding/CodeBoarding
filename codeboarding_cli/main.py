@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from agents.llm_config import CODEBOARDING_KEY_TAIL
-from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_FREE_CREDITS_EXHAUSTED, EXIT_QUOTA_EXHAUSTED, LLMAuthError
+from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_QUOTA_EXHAUSTED, LLMAuthError
 from codeboarding_cli.bootstrap import resolve_local_run_paths
 from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
 from diagram_analysis.exceptions import ScopeSemanticsError
@@ -109,24 +109,30 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
                     output_dir=run_paths.output_dir,
                 )
     except LLMAuthError as exc:
-        logger.error("CodeBoarding: %s", exc)
+        # A rejected API key is the user's to fix, not a crash: print one
+        # actionable line (no traceback) and exit with a distinct code.
+        print(f"\nCodeBoarding: {exc}", file=sys.stderr)
         if exc.key_tail != CODEBOARDING_KEY_TAIL:
-            logger.error("Check your LLM provider API key (shell env or ~/.codeboarding/config.toml) and re-run.")
+            print(
+                "Check your LLM provider API key (shell env or ~/.codeboarding/config.toml) and re-run.",
+                file=sys.stderr,
+            )
         raise SystemExit(EXIT_AUTH_ERROR) from exc
     except ScopeSemanticsError as exc:
         if exc.telemetry_properties.get("error_type") != "quota":
             raise
         if exc.telemetry_properties.get("error_code") == "free_credits_exhausted":
-            logger.error(
-                "Your GitHub owner's free CodeBoarding credits for this week are exhausted. "
+            message = (
+                "Your free CodeBoarding quota is exhausted. "
                 "Buy a CodeBoarding license at https://codeboarding.org/pricing, "
-                "or wait for the weekly allowance to reset."
+                "or wait for your weekly reset."
             )
-            raise SystemExit(EXIT_FREE_CREDITS_EXHAUSTED) from exc
-        logger.error(
-            "The LLM provider's token or credit quota is exhausted. "
-            "Add credits or raise the quota for this provider, then re-run."
-        )
+        else:
+            message = (
+                "The LLM provider's token or credit quota is exhausted. "
+                "Add credits or raise the quota for this provider, then re-run."
+            )
+        logger.error("CodeBoarding: %s", message)
         raise SystemExit(EXIT_QUOTA_EXHAUSTED) from exc
 
 

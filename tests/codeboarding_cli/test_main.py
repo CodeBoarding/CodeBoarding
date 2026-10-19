@@ -683,12 +683,12 @@ class TestMainAuthErrorHandler(unittest.TestCase):
             telemetry_properties={"error_type": "auth"},
         )
 
-        with self.assertLogs("codeboarding_cli.main", level="ERROR") as logs, self.assertRaises(SystemExit) as ctx:
+        with patch("sys.stderr", new_callable=io.StringIO) as stderr, self.assertRaises(SystemExit) as ctx:
             main.main(["full", "--local", "/tmp/repo"])
 
         self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
-        self.assertIn("hosted", "\n".join(logs.output))
-        self.assertNotIn("config.toml", "\n".join(logs.output))
+        self.assertIn("hosted", stderr.getvalue())
+        self.assertNotIn("config.toml", stderr.getvalue())
 
     @patch("codeboarding_cli.main.full_analysis.run_from_args")
     def test_quota_error_exits_with_distinct_code(self, mock_run):

@@ -22,15 +22,15 @@ from static_analyzer.node import Node
 
 
 @pytest.mark.parametrize(
-    "status,error,expected_exit",
+    "status,error,codeboarding_quota",
     [
-        (402, {"type": "gha_proxy", "message": "Resource exhausted: token limit reached"}, 4),
-        (402, {"message": "Insufficient upstream credits"}, 3),
-        (402, {"type": "provider", "message": "Resource exhausted: token limit reached"}, 3),
-        (429, {"code": "insufficient_quota", "message": "Balance empty"}, 3),
+        (402, {"type": "gha_proxy", "message": "Resource exhausted: token limit reached"}, True),
+        (402, {"message": "Insufficient upstream credits"}, False),
+        (402, {"type": "provider", "message": "Resource exhausted: token limit reached"}, False),
+        (429, {"code": "insufficient_quota", "message": "Balance empty"}, False),
     ],
 )
-def test_lambda_refusal_reaches_cli_without_a_traceback(tmp_path, capsys, caplog, status, error, expected_exit):
+def test_lambda_refusal_reaches_cli_without_a_traceback(tmp_path, capsys, caplog, status, error, codeboarding_quota):
     requests = []
 
     def lambda_response(request):
@@ -79,7 +79,7 @@ def test_lambda_refusal_reaches_cli_without_a_traceback(tmp_path, capsys, caplog
         ):
             main(["full", "--local", str(tmp_path)])
 
-    assert exit_info.value.code == expected_exit
+    assert exit_info.value.code == 3
     assert len(requests) == 1
     assert requests[0].url.path == "/v1/chat/completions"
     output = capsys.readouterr()
@@ -88,9 +88,10 @@ def test_lambda_refusal_reaches_cli_without_a_traceback(tmp_path, capsys, caplog
     assert isinstance(exit_info.value.__cause__, ScopeSemanticsError)
     assert exit_info.value.__cause__.__cause__ is not None
     assert all(record.exc_info is None for record in caplog.records if record.name == "codeboarding_cli.main")
-    if expected_exit == 4:
+    if codeboarding_quota:
         assert "https://codeboarding.org/pricing" in caplog.text
-        assert "free CodeBoarding credits" in caplog.text
+        assert "Your free CodeBoarding quota is exhausted" in caplog.text
+        assert "or wait for your weekly reset" in caplog.text
     else:
         assert "https://codeboarding.org/pricing" not in caplog.text
         assert "LLM provider's token or credit quota is exhausted" in caplog.text
