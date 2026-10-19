@@ -120,7 +120,7 @@ def test_quota_logs_trace_then_guidance(tmp_path, capsys, caplog, status, error,
     assert records[-1].getMessage().startswith("CodeBoarding: ")
     if codeboarding_quota:
         assert "https://codeboarding.org/pricing" in caplog.text
-        assert "Your free CodeBoarding quota is exhausted" in caplog.text
+        assert "CodeBoarding quota is exhausted" in caplog.text
         assert "or wait for your weekly reset" in caplog.text
     else:
         assert "https://codeboarding.org/pricing" not in caplog.text

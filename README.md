@@ -160,7 +160,7 @@ python codeboarding_cli/render.py ../../demo/markitdown/.codeboarding/analysis.j
 On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provider there or use environment variables.
 
 Exhausted quotas stop analysis with exit code `3`, logging the full traceback followed by recovery guidance.
-If your free CodeBoarding quota is exhausted, [buy a license](https://codeboarding.org/pricing)
+If your CodeBoarding quota is exhausted, [buy a license](https://codeboarding.org/pricing)
 or wait for your weekly reset. Provider quota failures retain their provider billing guidance.
 
 ```toml

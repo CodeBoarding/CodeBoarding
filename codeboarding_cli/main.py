@@ -124,7 +124,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         logger.exception("LLM quota failure")
         if exc.telemetry_properties.get("error_code") == "free_credits_exhausted":
             message = (
-                "Your free CodeBoarding quota is exhausted. "
+                "CodeBoarding quota is exhausted. "
                 "Buy a CodeBoarding license at https://codeboarding.org/pricing, "
                 "or wait for your weekly reset."
             )
