@@ -121,6 +121,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     except ScopeSemanticsError as exc:
         if exc.telemetry_properties.get("error_type") != "quota":
             raise
+        logger.exception("LLM quota failure")
         if exc.telemetry_properties.get("error_code") == "free_credits_exhausted":
             message = (
                 "Your free CodeBoarding quota is exhausted. "
