@@ -30,7 +30,7 @@ from diagram_analysis.incremental_update import (
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_agent_llm
-from agents.llm_errors import LLMAuthError, llm_failure_properties
+from agents.llm_errors import LLMAuthError, LLMQueryError
 from agents.relation_edges import (
     drop_misattributed_edges,
     index_relation_endpoints,
@@ -818,10 +818,13 @@ class DiagramGenerator:
                 incremental,
                 enclosing_names=enclosing_names,
             )
-        except LLMAuthError:
+        except (LLMAuthError, LLMQueryError, ScopeSemanticsError):
             raise
         except Exception as error:
-            raise ScopeSemanticsError(scope.scope_id, telemetry_properties=llm_failure_properties(error)) from error
+            query_error = LLMQueryError(error)
+            if query_error.is_quota:
+                raise query_error from error
+            raise ScopeSemanticsError(scope.scope_id, telemetry_properties=query_error.telemetry_properties) from error
         if semantics is None:
             with self._naming_counts_lock:
                 self._scopes_unnamed += 1
@@ -1120,7 +1123,7 @@ class DiagramGenerator:
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
-        except (LLMAuthError, ScopeSemanticsError):
+        except (LLMAuthError, LLMQueryError, ScopeSemanticsError):
             # An LLM failure aborts the whole run rather than shipping this component with deterministic names.
             raise
         except Exception:
@@ -1335,7 +1338,7 @@ class DiagramGenerator:
                     stats["completed"] += 1
                     try:
                         outcomes.append((component, level, future.result()))
-                    except (LLMAuthError, ScopeSemanticsError):
+                    except (LLMAuthError, LLMQueryError, ScopeSemanticsError):
                         for pending in future_to_task:
                             pending.cancel()
                         raise

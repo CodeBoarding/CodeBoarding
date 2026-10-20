@@ -5,12 +5,12 @@ import sys
 from typing import Any
 
 from agents.llm_config import LLMConfigError
-from agents.llm_errors import LLMAuthError
+from agents.llm_errors import LLMAuthError, LLMQueryError
+from diagram_analysis.exceptions import ScopeSemanticsError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
 from diagram_analysis import RunContext
-from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_mode import RunMode
 from infra.utils import monitoring_enabled
 
@@ -61,7 +61,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         # to prompt for a full run; no stack trace needed.
         logger.info("Incremental unavailable: %s", exc)
         _emit_error(str(exc))
-    except (LLMAuthError, ScopeSemanticsError):
+    except (LLMAuthError, LLMQueryError, ScopeSemanticsError):
         # A full run would fail the same way, so don't ask for one.
         raise
     except Exception as exc:
