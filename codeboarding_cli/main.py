@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from agents.llm_config import CODEBOARDING_KEY_TAIL
-from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_QUOTA_EXHAUSTED, LLMAuthError, LLMQueryError
+from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_QUOTA_EXHAUSTED, LLMAuthError, LLMQuotaError
 from codeboarding_cli.bootstrap import resolve_local_run_paths
 from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
 from output_generators import SUPPORTED_FORMATS, render as render_output
@@ -116,9 +116,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
                 "Check your LLM provider API key (shell env or ~/.codeboarding/config.toml) and re-run.",
             )
         raise SystemExit(EXIT_AUTH_ERROR) from exc
-    except LLMQueryError as exc:
-        if not exc.is_quota:
-            raise
+    except LLMQuotaError as exc:
         logger.exception("LLM quota failure")
         logger.error("%s%s", _ERROR_PREFIX, exc)
         raise SystemExit(EXIT_QUOTA_EXHAUSTED) from exc

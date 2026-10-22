@@ -7,7 +7,7 @@ from langchain_core.messages import AIMessage
 
 from agents.agent_responses import PlannedGroup, TreePlanInsights
 from agents.tree_planner_agent import BUDGET, DRAW_TIMEOUT_SECONDS, TreePlannerAgent
-from agents.llm_errors import LLMQueryError
+from agents.llm_errors import LLMQuotaError
 from static_analyzer.clustering.names import ROLE_WORDS, CandidateGroup, GroupingContext
 from static_analyzer.clustering.names.frontier import BOX, Candidate
 
@@ -64,10 +64,9 @@ class TestTreePlannerAgent(unittest.TestCase):
         items = candidates(BUDGET + 3)
         successful = answer(("Everything", [f"G{i}" for i in range(1, len(items) + 1)]))
         with patch.object(TreePlannerAgent, "_ask", side_effect=[successful, error]):
-            with self.assertRaises(LLMQueryError) as caught:
+            with self.assertRaises(LLMQuotaError) as caught:
                 self._agent(draws=2).group(items, context(items))
         self.assertIs(caught.exception.__cause__, error)
-        self.assertTrue(caught.exception.is_quota)
         self.assertEqual(caught.exception.telemetry_properties["error_code"], "free_credits_exhausted")
 
     def _agent(self, draws: int = 1) -> TreePlannerAgent:

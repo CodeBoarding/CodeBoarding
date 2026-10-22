@@ -20,6 +20,11 @@ EXIT_AUTH_ERROR = 2
 # Process exit code for an exhausted token or credit quota: the key is fine, the account is not.
 EXIT_QUOTA_EXHAUSTED = 3
 
+CODEBOARDING_QUOTA_CODE = "free_credits_exhausted"
+# Response contract: licensing-aws/gha_proxy/handler.py.
+PROXY_ERROR_TYPE = "gha_proxy"
+PROXY_QUOTA_MESSAGE = "Resource exhausted: token limit reached"
+
 # Class names, across SDKs, that always mean "credentials were rejected".
 # openai/anthropic/cerebras raise ``AuthenticationError``; google raises
 # ``Unauthenticated``/``PermissionDenied``; Bedrock (botocore) surfaces
@@ -101,22 +106,14 @@ class LLMAuthError(RuntimeError):
         self.telemetry_properties = telemetry_properties
 
 
-class LLMQueryError(RuntimeError):
-    """An LLM query failed, with classification and telemetry for the caller."""
-
-    MESSAGE_QUOTA_EXHAUSTED = "free_credits_exhausted"
-    # Response contract: licensing-aws/gha_proxy/handler.py.
-    PROXY_ERROR_TYPE = "gha_proxy"
-    PROXY_QUOTA_MESSAGE = "Resource exhausted: token limit reached"
+class LLMQuotaError(RuntimeError):
+    """An LLM quota is exhausted, with recovery guidance and failure telemetry."""
 
     def __init__(self, error: BaseException):
-        self.is_quota = self.is_quota_exhausted(error)
-        self.telemetry_properties = self.llm_failure_properties(error)
-        self.is_codeboarding_quota = self.telemetry_properties.get("error_code") == self.MESSAGE_QUOTA_EXHAUSTED
+        self.telemetry_properties = llm_failure_properties(error)
+        self.is_codeboarding_quota = _is_codeboarding_quota(error)
         _, key_tail = current_provider_key_context()
-        if not self.is_quota:
-            message = f"LLM query failed: {error}"
-        elif self.is_codeboarding_quota:
+        if self.is_codeboarding_quota:
             message = (
                 "Your CodeBoarding quota is exhausted. "
                 "Buy a CodeBoarding license at https://codeboarding.org/pricing, "
@@ -134,36 +131,38 @@ class LLMQueryError(RuntimeError):
             )
         super().__init__(message)
 
-    @classmethod
-    def llm_failure_properties(cls, exc: BaseException) -> dict:
-        """Classify a failed LLM call for exception telemetry."""
-        quota = cls.is_quota_exhausted(exc)
-        context = isinstance(exc, ScopeContextTooLargeError) or any(
-            p.search(str(exc)) for p in _CONTEXT_OVERFLOW_PATTERNS
-        )
-        provider, _key_tail = current_provider_key_context()
-        properties = {
-            "error_type": "quota" if quota else "context" if context else "llm",
-            "error_provider": provider,
-            "error_status_code": _status_code(exc),
-            "error_message": str(exc)[:500],
-        }
-        body = getattr(exc, "body", {})
-        error = body.get("error", body) if isinstance(body, dict) else {}
-        if (
-            _status_code(exc) == 402
-            and isinstance(error, dict)
-            and error.get("type") == cls.PROXY_ERROR_TYPE
-            and error.get("message") == cls.PROXY_QUOTA_MESSAGE
-        ):
-            properties["error_code"] = cls.MESSAGE_QUOTA_EXHAUSTED
-        return properties
 
-    @staticmethod
-    def is_quota_exhausted(exc: BaseException) -> bool:
-        status = _status_code(exc)
-        quota_code = getattr(exc, "code", None) == "insufficient_quota" or "insufficient_quota" in str(exc)
-        return status == 402 or (status == 429 and quota_code)
+def llm_failure_properties(exc: BaseException) -> dict:
+    """Classify a failed LLM call for exception telemetry."""
+    quota = is_quota_exhausted(exc)
+    context = isinstance(exc, ScopeContextTooLargeError) or any(p.search(str(exc)) for p in _CONTEXT_OVERFLOW_PATTERNS)
+    provider, _key_tail = current_provider_key_context()
+    properties = {
+        "error_type": "quota" if quota else "context" if context else "llm",
+        "error_provider": provider,
+        "error_status_code": _status_code(exc),
+        "error_message": str(exc)[:500],
+    }
+    if _is_codeboarding_quota(exc):
+        properties["error_code"] = CODEBOARDING_QUOTA_CODE
+    return properties
+
+
+def is_quota_exhausted(exc: BaseException) -> bool:
+    status = _status_code(exc)
+    quota_code = getattr(exc, "code", None) == "insufficient_quota" or "insufficient_quota" in str(exc)
+    return status == 402 or (status == 429 and quota_code)
+
+
+def _is_codeboarding_quota(exc: BaseException) -> bool:
+    body = getattr(exc, "body", {})
+    error = body.get("error", body) if isinstance(body, dict) else {}
+    return (
+        _status_code(exc) == 402
+        and isinstance(error, dict)
+        and error.get("type") == PROXY_ERROR_TYPE
+        and error.get("message") == PROXY_QUOTA_MESSAGE
+    )
 
 
 def _status_code(exc: BaseException) -> int | None:
@@ -244,7 +243,7 @@ def is_transient_llm_error(exc: BaseException) -> bool:
     """
     status = _status_code(exc)
     if status is not None:
-        return status in (408, 429) and not LLMQueryError.is_quota_exhausted(exc) or status >= 500
+        return status in (408, 429) and not is_quota_exhausted(exc) or status >= 500
     return any(cls.__name__ in _TRANSIENT_TYPE_NAMES for cls in type(exc).__mro__)
 
 

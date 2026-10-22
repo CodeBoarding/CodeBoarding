@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
 from agents.agent_responses import AnalysisInsights, Component
-from agents.llm_errors import LLMQueryError
+from agents.llm_errors import LLMQuotaError
 from agents.scope_analysis_agent import ScopeAnalysisAgent
 from agents.tree_planner_agent import BUDGET, TreePlannerAgent
 from codeboarding_cli.main import main
@@ -98,11 +98,11 @@ def test_quota_logs_trace_then_guidance(tmp_path, capsys, caplog, stage, remote)
     assert requests[0].url.path == "/v1/chat/completions"
     output = capsys.readouterr()
     assert not output.out
-    assert isinstance(exit_info.value.__cause__, LLMQueryError)
+    assert isinstance(exit_info.value.__cause__, LLMQuotaError)
     assert exit_info.value.__cause__.__cause__ is not None
     diagnostic = (tmp_path / "quota.log").read_text()
     assert "Traceback (most recent call last)" in diagnostic
-    assert "LLMQueryError" in diagnostic
+    assert "LLMQuotaError" in diagnostic
     assert error["message"] in diagnostic
     assert diagnostic.index("Traceback") < diagnostic.rindex("CodeBoarding: ")
     records = [record for record in caplog.records if record.name == "codeboarding_cli.main"]

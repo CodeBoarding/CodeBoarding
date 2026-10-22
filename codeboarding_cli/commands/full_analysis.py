@@ -5,7 +5,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from agents.llm_config import LLMConfigError
-from agents.llm_errors import LLMAuthError, LLMQueryError
+from agents.llm_errors import LLMAuthError, LLMQuotaError
 from diagram_analysis.exceptions import ScopeSemanticsError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_cli.view_instructions import print_view_instructions
@@ -161,7 +161,7 @@ def _run_remote(args: argparse.Namespace) -> None:
                 upload=args.upload,
                 should_monitor=should_monitor,
             )
-        except (LLMAuthError, LLMQueryError, ScopeSemanticsError):
+        except (LLMAuthError, LLMQuotaError, ScopeSemanticsError):
             # The next repository would fail the same way, so stop the run.
             raise
         except Exception:

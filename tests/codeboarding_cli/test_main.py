@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 from codeboarding_cli import main
 from agents.llm_config import CODEBOARDING_KEY_TAIL
-from agents.llm_errors import LLMAuthError, LLMQueryError
+from agents.llm_errors import LLMAuthError, LLMQuotaError
 from codeboarding_cli.commands.full_analysis import _run_remote, run_from_args, validate_arguments
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental, run_partial
 from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
@@ -500,7 +500,7 @@ class TestFullCliRemote(unittest.TestCase):
     def test_an_llm_failure_stops_the_run(self):
         for error in (
             ScopeSemanticsError("root", telemetry_properties={}),
-            LLMQueryError(RuntimeError("query failed")),
+            LLMQuotaError(type("QuotaError", (Exception,), {"status_code": 402})("quota exhausted")),
         ):
             with self.subTest(error=type(error).__name__), self.assertRaises(type(error)):
                 self._run(error)
@@ -702,7 +702,7 @@ class TestMainAuthErrorHandler(unittest.TestCase):
     def test_quota_error_exits_with_distinct_code(self, mock_run):
         from codeboarding_cli import main
 
-        mock_run.side_effect = LLMQueryError(type("QuotaError", (Exception,), {"status_code": 402})("quota exhausted"))
+        mock_run.side_effect = LLMQuotaError(type("QuotaError", (Exception,), {"status_code": 402})("quota exhausted"))
 
         with patch("sys.stderr"), self.assertRaises(SystemExit) as ctx:
             main.main(["full", "--local", "/tmp/repo"])
@@ -713,9 +713,9 @@ class TestMainAuthErrorHandler(unittest.TestCase):
     def test_other_llm_failures_are_not_swallowed(self, mock_run):
         from codeboarding_cli import main
 
-        mock_run.side_effect = LLMQueryError(TimeoutError("provider did not answer"))
+        mock_run.side_effect = TimeoutError("provider did not answer")
 
-        with self.assertRaises(LLMQueryError):
+        with self.assertRaises(TimeoutError):
             main.main(["full", "--local", "/tmp/repo"])
 
     @patch("codeboarding_cli.main.full_analysis.run_from_args")

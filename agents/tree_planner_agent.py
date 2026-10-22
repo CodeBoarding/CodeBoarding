@@ -16,7 +16,7 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent_responses import PlannedGroup, TreePlanInsights
 from agents.llm_config import get_current_prompt_profile, supports_json_mode
 from infra.monitoring.callbacks import MONITORING_CALLBACK
-from agents.llm_errors import LLMAuthError, LLMQueryError, raise_if_auth_error
+from agents.llm_errors import LLMAuthError, LLMQuotaError, is_quota_exhausted, raise_if_auth_error
 from agents.prompts import get_tree_plan_prompts
 from agents.retry import LLM_MAX_ATTEMPTS, RetryAction, RetryDecision, classify_llm_error, with_retries
 from infra.monitoring import trace
@@ -117,9 +117,8 @@ class TreePlannerAgent(MonitoringMixin):
                 except LLMAuthError:
                     raise
                 except Exception as exc:
-                    error = LLMQueryError(exc)
-                    if error.is_quota:
-                        raise error from exc
+                    if is_quota_exhausted(exc):
+                        raise LLMQuotaError(exc) from exc
                     failures.append(exc)
                     logger.warning("[Planner] draw failed: %s", exc)
         finally:

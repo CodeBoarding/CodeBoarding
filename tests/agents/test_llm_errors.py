@@ -11,10 +11,12 @@ import pytest
 from agents.llm_config import CODEBOARDING_KEY_TAIL, OIDC_RELAY_PLACEHOLDER_KEY, current_provider_key_context
 from agents.llm_errors import (
     LLMAuthError,
-    LLMQueryError,
+    LLMQuotaError,
     ScopeContextTooLargeError,
     detect_auth_error,
+    is_quota_exhausted,
     is_transient_llm_error,
+    llm_failure_properties,
     raise_if_auth_error,
     retry_after_seconds,
 )
@@ -220,11 +222,10 @@ def test_raise_if_auth_error_uses_current_provider_context():
 )
 def test_llm_failure_properties_tells_quota_apart(error: Exception, error_type: str):
     with patch("agents.llm_errors.current_provider_key_context", return_value=("openai", "1234")):
-        query_error = LLMQueryError(error)
-        props = query_error.telemetry_properties
+        props = llm_failure_properties(error)
 
-    assert query_error.is_quota == (error_type == "quota")
-    assert not query_error.is_codeboarding_quota
+    assert is_quota_exhausted(error) == (error_type == "quota")
+    assert "error_code" not in props
 
     assert props["error_type"] == error_type
     assert props["error_provider"] == "openai"
@@ -242,7 +243,7 @@ def test_llm_failure_properties_tells_quota_apart(error: Exception, error_type: 
         (429, {"code": "insufficient_quota", "message": "Balance empty"}, False),
     ],
 )
-def test_query_error_owns_quota_guidance(hosted, status, body, codeboarding_quota):
+def test_quota_error_owns_quota_guidance(hosted, status, body, codeboarding_quota):
     error = openai.APIStatusError(
         body["message"],
         response=httpx.Response(status, request=httpx.Request("POST", "https://proxy.example/chat/completions")),
@@ -250,12 +251,14 @@ def test_query_error_owns_quota_guidance(hosted, status, body, codeboarding_quot
     )
     key_tail = CODEBOARDING_KEY_TAIL if hosted else "1234"
     with patch("agents.llm_errors.current_provider_key_context", return_value=("openrouter", key_tail)):
-        query_error = LLMQueryError(error)
+        quota_error = LLMQuotaError(error)
 
-    assert query_error.is_quota
-    assert query_error.is_codeboarding_quota == codeboarding_quota
-    assert query_error.telemetry_properties["error_message"] == str(error)
-    message = str(query_error)
+    assert quota_error.is_codeboarding_quota == codeboarding_quota
+    assert quota_error.telemetry_properties["error_message"] == str(error)
+    assert quota_error.telemetry_properties.get("error_code") == (
+        "free_credits_exhausted" if codeboarding_quota else None
+    )
+    message = str(quota_error)
     if codeboarding_quota:
         assert "https://codeboarding.org/pricing" in message
         assert "weekly reset" in message
@@ -279,19 +282,13 @@ class TestOversizedPromptTelemetry:
             "Error code: 400 - The input token count exceeds the maximum number of tokens allowed 1048576.",
             status_code=400,
         )
-        assert LLMQueryError.llm_failure_properties(exc)["error_type"] == "context"
+        assert llm_failure_properties(exc)["error_type"] == "context"
 
     def test_a_refused_scope_is_typed_context(self):
-        assert (
-            LLMQueryError.llm_failure_properties(ScopeContextTooLargeError("root", 900_000, 524_288))["error_type"]
-            == "context"
-        )
+        assert llm_failure_properties(ScopeContextTooLargeError("root", 900_000, 524_288))["error_type"] == "context"
 
     def test_quota_still_wins(self):
-        assert (
-            LLMQueryError.llm_failure_properties(_FakeStatusError("Resource exhausted", status_code=402))["error_type"]
-            == "quota"
-        )
+        assert llm_failure_properties(_FakeStatusError("Resource exhausted", status_code=402))["error_type"] == "quota"
 
 
 _REQUEST = httpx.Request("POST", "https://proxy.example/v1/chat/completions")
