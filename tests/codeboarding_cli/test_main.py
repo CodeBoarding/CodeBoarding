@@ -1,4 +1,3 @@
-import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,7 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 from codeboarding_cli import main
 from agents.llm_config import CODEBOARDING_KEY_TAIL
-from agents.llm_errors import LLMAuthError
+from agents.llm_errors import LLMAuthError, LLMQuotaError
 from codeboarding_cli.commands.full_analysis import _run_remote, run_from_args, validate_arguments
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental, run_partial
 from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
@@ -499,8 +498,12 @@ class TestFullCliRemote(unittest.TestCase):
         return process
 
     def test_an_llm_failure_stops_the_run(self):
-        with self.assertRaises(ScopeSemanticsError):
-            self._run(ScopeSemanticsError("root", telemetry_properties={}))
+        for error in (
+            ScopeSemanticsError("root", telemetry_properties={}),
+            LLMQuotaError(type("QuotaError", (Exception,), {"status_code": 402})("quota exhausted")),
+        ):
+            with self.subTest(error=type(error).__name__), self.assertRaises(type(error)):
+                self._run(error)
 
     def test_other_failures_move_on_to_the_next_repository(self):
         process = self._run([RuntimeError("clone failed"), None])
@@ -667,10 +670,13 @@ class TestMainAuthErrorHandler(unittest.TestCase):
             telemetry_properties={"error_type": "auth"},
         )
 
-        with self.assertRaises(SystemExit) as ctx:
+        with self.assertLogs("codeboarding_cli.main", level="ERROR") as logs, self.assertRaises(SystemExit) as ctx:
             main.main(["full", "--local", "/tmp/repo"])
 
         self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
+        self.assertEqual(logs.records[0].getMessage(), f"CodeBoarding: {mock_run.side_effect}")
+        self.assertIn("config.toml", logs.records[1].getMessage())
+        self.assertTrue(all(record.exc_info is None for record in logs.records))
 
     @patch("codeboarding_cli.main.full_analysis.run_from_args")
     def test_a_hosted_run_is_not_told_to_check_a_key_it_never_set(self, mock_run):
@@ -683,18 +689,20 @@ class TestMainAuthErrorHandler(unittest.TestCase):
             telemetry_properties={"error_type": "auth"},
         )
 
-        with patch("sys.stderr", new_callable=io.StringIO) as stderr, self.assertRaises(SystemExit) as ctx:
+        with self.assertLogs("codeboarding_cli.main", level="ERROR") as logs, self.assertRaises(SystemExit) as ctx:
             main.main(["full", "--local", "/tmp/repo"])
 
         self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
-        self.assertIn("hosted", stderr.getvalue())
-        self.assertNotIn("config.toml", stderr.getvalue())
+        self.assertEqual(len(logs.records), 1)
+        self.assertIn("hosted", logs.records[0].getMessage())
+        self.assertNotIn("config.toml", logs.records[0].getMessage())
+        self.assertIsNone(logs.records[0].exc_info)
 
     @patch("codeboarding_cli.main.full_analysis.run_from_args")
     def test_quota_error_exits_with_distinct_code(self, mock_run):
         from codeboarding_cli import main
 
-        mock_run.side_effect = ScopeSemanticsError("root", telemetry_properties={"error_type": "quota"})
+        mock_run.side_effect = LLMQuotaError(type("QuotaError", (Exception,), {"status_code": 402})("quota exhausted"))
 
         with patch("sys.stderr"), self.assertRaises(SystemExit) as ctx:
             main.main(["full", "--local", "/tmp/repo"])
@@ -705,9 +713,9 @@ class TestMainAuthErrorHandler(unittest.TestCase):
     def test_other_llm_failures_are_not_swallowed(self, mock_run):
         from codeboarding_cli import main
 
-        mock_run.side_effect = ScopeSemanticsError("root", telemetry_properties={"error_type": "llm"})
+        mock_run.side_effect = TimeoutError("provider did not answer")
 
-        with self.assertRaises(ScopeSemanticsError):
+        with self.assertRaises(TimeoutError):
             main.main(["full", "--local", "/tmp/repo"])
 
     @patch("codeboarding_cli.main.full_analysis.run_from_args")

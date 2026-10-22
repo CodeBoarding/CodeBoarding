@@ -16,7 +16,7 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent_responses import PlannedGroup, TreePlanInsights
 from agents.llm_config import get_current_prompt_profile, supports_json_mode
 from infra.monitoring.callbacks import MONITORING_CALLBACK
-from agents.llm_errors import LLMAuthError, raise_if_auth_error
+from agents.llm_errors import LLMAuthError, LLMQuotaError, is_quota_exhausted, raise_if_auth_error
 from agents.prompts import get_tree_plan_prompts
 from agents.retry import LLM_MAX_ATTEMPTS, RetryAction, RetryDecision, classify_llm_error, with_retries
 from infra.monitoring import trace
@@ -103,7 +103,7 @@ class TreePlannerAgent(MonitoringMixin):
         return folded
 
     def _draw(self, prompt: str, labelled: dict[str, CandidateGroup]) -> list[TreePlanInsights]:
-        """``draws`` answers to one prompt, drawn concurrently; a draw that fails is dropped."""
+        """Draw concurrently, dropping failed draws unless credentials or quota prevent further work."""
         # Not ``with``: its ``__exit__`` waits for a stalled draw; a copied context carries the
         # monitoring step into each worker.
         pool = ThreadPoolExecutor(max_workers=self.draws)
@@ -117,6 +117,8 @@ class TreePlannerAgent(MonitoringMixin):
                 except LLMAuthError:
                     raise
                 except Exception as exc:
+                    if is_quota_exhausted(exc):
+                        raise LLMQuotaError(exc) from exc
                     failures.append(exc)
                     logger.warning("[Planner] draw failed: %s", exc)
         finally:

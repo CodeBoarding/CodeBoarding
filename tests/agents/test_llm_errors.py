@@ -11,8 +11,10 @@ import pytest
 from agents.llm_config import CODEBOARDING_KEY_TAIL, OIDC_RELAY_PLACEHOLDER_KEY, current_provider_key_context
 from agents.llm_errors import (
     LLMAuthError,
+    LLMQuotaError,
     ScopeContextTooLargeError,
     detect_auth_error,
+    is_quota_exhausted,
     is_transient_llm_error,
     llm_failure_properties,
     raise_if_auth_error,
@@ -222,9 +224,54 @@ def test_llm_failure_properties_tells_quota_apart(error: Exception, error_type: 
     with patch("agents.llm_errors.current_provider_key_context", return_value=("openai", "1234")):
         props = llm_failure_properties(error)
 
+    assert is_quota_exhausted(error) == (error_type == "quota")
+    assert "error_code" not in props
+
     assert props["error_type"] == error_type
     assert props["error_provider"] == "openai"
     assert props["error_status_code"] == getattr(error, "status_code", None)
+
+
+@pytest.mark.parametrize("hosted", [False, True])
+@pytest.mark.parametrize(
+    "status,body,codeboarding_quota",
+    [
+        (402, {"type": "gha_proxy", "message": "Resource exhausted: token limit reached"}, True),
+        (402, {"message": "Insufficient upstream credits"}, False),
+        (402, {"type": "provider", "message": "Resource exhausted: token limit reached"}, False),
+        (402, {"type": "gha_proxy", "message": "Insufficient upstream credits"}, False),
+        (429, {"code": "insufficient_quota", "message": "Balance empty"}, False),
+    ],
+)
+def test_quota_error_owns_quota_guidance(hosted, status, body, codeboarding_quota):
+    error = openai.APIStatusError(
+        body["message"],
+        response=httpx.Response(status, request=httpx.Request("POST", "https://proxy.example/chat/completions")),
+        body=body,
+    )
+    key_tail = CODEBOARDING_KEY_TAIL if hosted else "1234"
+    with patch("agents.llm_errors.current_provider_key_context", return_value=("openrouter", key_tail)):
+        quota_error = LLMQuotaError(error)
+
+    assert quota_error.is_codeboarding_quota == codeboarding_quota
+    assert quota_error.telemetry_properties["error_message"] == str(error)
+    assert quota_error.telemetry_properties.get("error_code") == (
+        "free_credits_exhausted" if codeboarding_quota else None
+    )
+    message = str(quota_error)
+    if codeboarding_quota:
+        assert "https://codeboarding.org/pricing" in message
+        assert "weekly reset" in message
+        assert "service issue" not in message
+    elif hosted:
+        assert "CodeBoarding service issue" in message
+        assert "try again later or contact CodeBoarding support" in message
+        assert "Add credits" not in message
+        assert "https://codeboarding.org/pricing" not in message
+    else:
+        assert "Add credits or raise the quota for this provider" in message
+        assert "service issue" not in message
+        assert "https://codeboarding.org/pricing" not in message
 
 
 class TestOversizedPromptTelemetry:

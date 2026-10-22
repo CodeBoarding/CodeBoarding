@@ -1,18 +1,20 @@
 import argparse
+import logging
 import os
 import sys
-import traceback
 from pathlib import Path
 
 from agents.llm_config import CODEBOARDING_KEY_TAIL
-from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_QUOTA_EXHAUSTED, LLMAuthError
+from agents.llm_errors import EXIT_AUTH_ERROR, EXIT_QUOTA_EXHAUSTED, LLMAuthError, LLMQuotaError
 from codeboarding_cli.bootstrap import resolve_local_run_paths
 from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
-from diagram_analysis.exceptions import ScopeSemanticsError
 from output_generators import SUPPORTED_FORMATS, render as render_output
 from infra.utils import ANALYSIS_FILENAME
 
 _SUBCOMMANDS = {"full", "incremental", "partial"}
+# CodeBoarding-action/scripts/analyze_repository.py parses this prefix; keep it stable.
+_ERROR_PREFIX = "CodeBoarding: "
+logger = logging.getLogger(__name__)
 
 
 def _build_shared_parser() -> argparse.ArgumentParser:
@@ -108,22 +110,15 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
                     output_dir=run_paths.output_dir,
                 )
     except LLMAuthError as exc:
-        # A rejected API key is the user's to fix, not a crash: print one
-        # actionable line (no traceback) and exit with a distinct code.
-        print(f"\nCodeBoarding: {exc}", file=sys.stderr)
+        logger.error("%s%s", _ERROR_PREFIX, exc)
         if exc.key_tail != CODEBOARDING_KEY_TAIL:
-            print(
+            logger.error(
                 "Check your LLM provider API key (shell env or ~/.codeboarding/config.toml) and re-run.",
-                file=sys.stderr,
             )
         raise SystemExit(EXIT_AUTH_ERROR) from exc
-    except ScopeSemanticsError as exc:
-        if exc.telemetry_properties.get("error_type") != "quota":
-            raise
-        # Same exit as any failure, but with a code callers (the GitHub Action) can name.
-        traceback.print_exception(exc)
-        print("\nCodeBoarding: the LLM provider's token or credit quota is exhausted.", file=sys.stderr)
-        print("Add credits or raise the quota for this provider, then re-run.", file=sys.stderr)
+    except LLMQuotaError as exc:
+        logger.exception("LLM quota failure")
+        logger.error("%s%s", _ERROR_PREFIX, exc)
         raise SystemExit(EXIT_QUOTA_EXHAUSTED) from exc
 
 
