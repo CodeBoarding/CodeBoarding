@@ -47,6 +47,7 @@ _FAKE_MODELSDEV = {
 
 _FAKE_LITELLM = {
     "anthropic.claude-3-haiku-20240307-v1:0": {"max_input_tokens": 200_000, "max_output_tokens": 4_096},
+    "gpt-5.4-mini": {"max_input_tokens": 272_000, "max_output_tokens": 128_000},
 }
 
 _FAKE_OPENROUTER = {
@@ -132,6 +133,11 @@ class TestLitellmResolution:
         # resolver must strip `us.` before looking up.
         cw = get_context_window("aws", "us.anthropic.claude-3-haiku-20240307-v1:0")
         assert cw.input_tokens == 200_000
+
+    def test_cheaperinference_bare_model_resolves_via_litellm(self, fake_catalogs):
+        cw = get_context_window("cheaperinference", "gpt-5.4-mini")
+        assert cw.input_tokens == 272_000
+        assert not cw.is_fallback
 
 
 class TestOpenrouterResolution:
