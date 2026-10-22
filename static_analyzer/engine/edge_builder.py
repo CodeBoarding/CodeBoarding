@@ -19,6 +19,7 @@ from static_analyzer.engine.lsp_constants import (
     CLASS_LIKE_KINDS,
     DISPATCHED_KINDS,
     REQUEST_BATCH_SIZE,
+    RUNTIME_REFERENCE_KINDS,
 )
 from static_analyzer.engine.models import CallSite, ExternalCallSite, SymbolInfo
 from static_analyzer.engine.protocols import EdgeBuildAdapter
@@ -34,6 +35,7 @@ from static_analyzer.graph_definitions import (
     METHOD_GROUP,
     OVERRIDE,
     RECEIVER,
+    RUNTIME_REFERENCE,
     potential_calls,
     resolve_declaration,
 )
@@ -105,7 +107,14 @@ class CallEdgeSink:
         self._inspector = inspector
         self._dispatch = dispatch
 
-    def add(self, caller: SymbolInfo, target: SymbolInfo, call_site: CallSite, collection: bool = False) -> None:
+    def add(
+        self,
+        caller: SymbolInfo,
+        target: SymbolInfo,
+        call_site: CallSite,
+        collection: bool = False,
+        reference_only: bool = False,
+    ) -> None:
         """Record the call from *caller* to *target*, unless the pair is not an edge at all."""
         if not _is_valid_edge(self._adapter, caller, target):
             return
@@ -117,11 +126,13 @@ class CallEdgeSink:
         _add_edge_call_site(self.edges, attributed.qualified_name, target.qualified_name, call_site)
 
         # A constructor, or a member named on the base, runs exactly the declaration resolved.
-        dispatched = target.kind in DISPATCHED_KINDS and not self._inspector.names_base_member(call_site)
+        dispatched = (
+            not reference_only and target.kind in DISPATCHED_KINDS and not self._inspector.names_base_member(call_site)
+        )
         extra = _override_targets(target, self._st, self._dispatch) if dispatched else []
         if collection:
             extra.extend(_members_named(target, self._st, "Add"))
-        if self._adapter.is_callable(target.kind) and target.parent_chain:
+        if (self._adapter.is_callable(target.kind) or target.kind == NodeType.ENUM_MEMBER) and target.parent_chain:
             _, parent_kind = target.parent_chain[-1]
             if self._adapter.is_class_like(parent_kind):
                 parent = self._st.symbols.get(parent_qualified_name(target.qualified_name))
@@ -340,6 +351,8 @@ def _resolve_definitions(
                 total_resolved += 1
                 resolved_here = True
 
+                if kind == RUNTIME_REFERENCE and target.kind not in RUNTIME_REFERENCE_KINDS:
+                    continue
                 if kind == METHOD_GROUP and not (
                     adapter.is_callable(target.kind)
                     or adapter.is_class_like(target.kind)
@@ -352,7 +365,13 @@ def _resolve_definitions(
                 if kind == MEMBER_WRITE and (location is None or not si.declares_setter(*location)):
                     continue
 
-                sink.add(caller, target, call_site, collection=position in potential.collection)
+                sink.add(
+                    caller,
+                    target,
+                    call_site,
+                    collection=position in potential.collection,
+                    reference_only=kind == RUNTIME_REFERENCE,
+                )
 
             if not resolved_here and kind == CALL:
                 unresolved.append(call_site)

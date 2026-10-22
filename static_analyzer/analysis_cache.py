@@ -75,8 +75,9 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v12: a large TypeScript monorepo runs one server per tsconfig project, so a graph one out-of-memory
 # server left without edges is rebuilt; bases, implementations and edge-only declarations link across engines.
 # v13: a TypeScript call into a sibling workspace package resolves to its sources without an install or build.
+# v14: handlers, runtime type tests, and variant patterns contribute dependencies without invoking their targets.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v13"
+_TAG_VERSION = "v14"
 
 
 class StaticAnalysisCache:

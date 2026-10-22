@@ -20,6 +20,7 @@ from static_analyzer.graph_definitions import (
     CALL,
     MEMBER_READ,
     METHOD_GROUP,
+    RUNTIME_REFERENCE,
     GraphIndex,
     targets_for,
 )
@@ -172,6 +173,25 @@ def test_both_resolvers_agree_on_what_a_member_read_reaches(
 
     assert engine_target == bool(targets)
     assert [node.fully_qualified_name for node in nodes] == targets
+
+
+@pytest.mark.parametrize("position,expected", [((6, 6), ["m.Box"]), ((0, 4), ["m.head"]), ((16, 0), [])])
+def test_runtime_reference_does_not_dispatch_or_reach_data(
+    module: Path, position: tuple[int, int], expected: list[str]
+) -> None:
+    line, character = position
+    result = targets_for(
+        _graph_index(module),
+        SourceInspector(),
+        str(module),
+        line,
+        character,
+        RUNTIME_REFERENCE,
+        PythonAdapter(),
+        CallSite.from_lsp_position(str(module), line, character),
+    )
+    assert [node.fully_qualified_name for node in result.nodes] == expected
+    assert result.implementations == []
 
 
 def test_both_resolvers_take_an_overload_signature_to_its_own_class_implementation(tmp_path: Path) -> None:

@@ -185,6 +185,44 @@ _NAME_SHAPED_NODE_TYPES = frozenset(
         "selector_expression",
     }
 )
+# Grammar roles that inspect a type or variant at runtime, rather than construct it.
+_RUNTIME_TYPE_FIELDS = {
+    "except_clause": "value",
+    "catch_clause": "type",
+    "catch_declaration": "type",
+    "instanceof_expression": "right",
+    "type_assertion_expression": "type",
+    "type_case": "type",
+    "is_pattern_expression": "pattern",
+    "declaration_pattern": "type",
+    "type_pattern": "type",
+    "recursive_pattern": "type",
+}
+_RUNTIME_TYPE_GROUPS = frozenset({"catch_type", "match_pattern"})
+_TYPE_TEST_OPERATORS = frozenset({"instanceof", "is", "!is"})
+_RUNTIME_REFERENCE_WRAPPERS = frozenset(
+    {
+        "tuple",
+        "parenthesized_expression",
+        "type_list",
+        "catch_type",
+        "named_type",
+        "pointer_type",
+        "nullable_type",
+        "match_pattern",
+        "or_pattern",
+        "reference_pattern",
+        "tuple_struct_pattern",
+        "constant_pattern",
+        "negated_pattern",
+        "binary_pattern",
+        "parenthesized_pattern",
+        "tuple_pattern",
+    }
+)
+_RUNTIME_REFERENCE_NAMES = _NAME_SHAPED_NODE_TYPES | frozenset(
+    {"type_identifier", "name", "user_type", "scoped_type_identifier", "qualified_type"}
+)
 # Literals that hold a group of values, each of which can be a name: a dispatch table is
 # written as one of these and every callable in it is reached through it.
 _VALUE_GROUP_NODE_TYPES = frozenset(
@@ -723,6 +761,36 @@ class SourceInspector:
                 sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
 
+    def find_runtime_reference_sites(self, file_path: Path) -> list[CallSite]:
+        """Types and variants inspected by handlers, type tests, and patterns, without invoking them."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+        positions: set[tuple[int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            field = _RUNTIME_TYPE_FIELDS.get(node.type)
+            if field is not None:
+                operands = node.children_by_field_name(field)
+            elif node.type in _RUNTIME_TYPE_GROUPS:
+                operands = [node]
+            elif node.type == "catch_block":
+                operands = [child for child in node.named_children if child.type == "user_type"]
+            elif node.type in {"binary_expression", "check_expression", "is_expression"} and any(
+                child.type in _TYPE_TEST_OPERATORS for child in node.children
+            ):
+                operands = node.named_children[-1:]
+            else:
+                continue
+            for operand in operands:
+                for name in self._runtime_reference_names(operand):
+                    target = self._select_query_node(name)
+                    if target is not None:
+                        positions.add(parsed.lsp_position(target.start_point))
+        return [
+            CallSite.from_lsp_position(file=str(file_path), line=line, column=column)
+            for line, column in sorted(positions)
+        ]
+
     def find_member_sites(self, file_path: Path, names: Collection[str]) -> tuple[list[CallSite], list[CallSite]]:
         """Positions of the members read, and of the members written, under one of *names*.
 
@@ -781,6 +849,26 @@ class SourceInspector:
         else:
             return []
         return self._value_names(candidate) if candidate is not None else []
+
+    def _runtime_reference_names(self, node: TreeSitterNode) -> list[TreeSitterNode]:
+        """Names in a matching operand; definition resolution rejects any that are bindings."""
+        if node.type in _RUNTIME_REFERENCE_NAMES:
+            return [node]
+        if node.type == "as_pattern":
+            return self._runtime_reference_names(node.named_children[0])
+        if node.type == "field_pattern":
+            held = node.children_by_field_name("pattern")
+        elif node.type == "captured_pattern":
+            held = node.named_children[-1:]
+        elif node.type == "struct_pattern":
+            held = node.children_by_field_name("type")
+            # Nested variants are dependencies too, but field names and bindings are not.
+            held += [child for child in node.named_children if child.type.endswith("_pattern")]
+        elif node.type in _RUNTIME_REFERENCE_WRAPPERS:
+            held = [child for child in node.named_children if child != node.child_by_field_name("condition")]
+        else:
+            return []
+        return [name for child in held for name in self._runtime_reference_names(child)]
 
     def _value_names(self, value: TreeSitterNode) -> list[TreeSitterNode]:
         """The names this value is, or holds, that could denote something callable.

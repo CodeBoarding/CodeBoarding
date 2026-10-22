@@ -14,9 +14,10 @@ from functools import cached_property
 from pathlib import Path
 
 from static_analyzer.cfg import CallGraph, EdgeKind
+from static_analyzer.config import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.lsp_constants import DISPATCHED_KINDS
+from static_analyzer.engine.lsp_constants import DISPATCHED_KINDS, RUNTIME_REFERENCE_KINDS
 from static_analyzer.engine.models import CallSite
 from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
@@ -27,6 +28,7 @@ from static_analyzer.node import Node
 # How a call site was found in source; it decides what a resolved definition may become.
 CALL = "call"
 METHOD_GROUP = "method_group"
+RUNTIME_REFERENCE = "runtime_reference"
 MEMBER_READ = "member_read"
 MEMBER_WRITE = "member_write"
 COLLECTION_INITIALIZER = "collection"
@@ -40,13 +42,7 @@ OVERRIDE = "override"
 
 @dataclass(frozen=True)
 class PotentialCalls:
-    """The positions in one file that may be calls, and how each is written.
-
-    Tree-sitter finds candidates -- a call, a method passed as a value, a member read or write,
-    a collection initializer, a loop -- and a definition answer at the position decides whether
-    it is a call, by the rule for how it is written. The full build and every update read the
-    same candidates, so they resolve them alike.
-    """
+    """Dependency-query positions and their resolution rules, shared by full and incremental builds."""
 
     call_sites: list[CallSite]
     method_group: set[tuple[int, int]]
@@ -54,9 +50,12 @@ class PotentialCalls:
     member_write: set[tuple[int, int]]
     collection: set[tuple[int, int]]
     iterated: set[tuple[int, int]]
+    runtime_reference: set[tuple[int, int]]
 
     def definition_kind_at(self, position: tuple[int, int]) -> str:
         """Which shape a definition query at this position resolves as."""
+        if position in self.runtime_reference:
+            return RUNTIME_REFERENCE
         if position in self.method_group:
             return METHOD_GROUP
         if position in self.member_read:
@@ -92,6 +91,13 @@ def potential_calls(
     """
     call_sites = inspector.find_call_sites(file_path)
     claimed = {(site.lsp_line, site.lsp_column) for site in call_sites}
+    runtime_reference: set[tuple[int, int]] = set()
+    for site in inspector.find_runtime_reference_sites(file_path):
+        position = (site.lsp_line, site.lsp_column)
+        if position not in claimed:
+            claimed.add(position)
+            runtime_reference.add(position)
+            call_sites.append(site)
     method_group: set[tuple[int, int]] = set()
     member_read: set[tuple[int, int]] = set()
     member_write: set[tuple[int, int]] = set()
@@ -117,7 +123,7 @@ def potential_calls(
     iterated: set[tuple[int, int]] = set()
     if adapter.resolves_iterated_types:
         iterated = {(site.lsp_line, site.lsp_column) for site in inspector.find_iterated_expression_sites(file_path)}
-    return PotentialCalls(call_sites, method_group, member_read, member_write, collection, iterated)
+    return PotentialCalls(call_sites, method_group, member_read, member_write, collection, iterated, runtime_reference)
 
 
 def resolve_declaration[T](
@@ -248,7 +254,10 @@ def _innermost(nodes: Iterable[Node]) -> Node | None:
 
 def _with_owning_class(index: GraphIndex, target: Node, include_owner: bool) -> list[Node]:
     """The declaration, and the class it belongs to when a call on it reaches that too."""
-    if not ((include_owner and target.is_callable()) or target.type.name == "CONSTRUCTOR"):
+    if not (
+        (include_owner and (target.is_callable() or target.type == NodeType.ENUM_MEMBER))
+        or target.type.name == "CONSTRUCTOR"
+    ):
         return [target]
     owner = index.call_graph.nodes.get(parent_qualified_name(target.fully_qualified_name))
     return [target, owner] if owner is not None and owner.is_class() else [target]
@@ -329,6 +338,10 @@ def targets_for(
     declaration = index.declaration_at(inspector, file_path, line, character)
     if declaration is None:
         return CallTargets.none()
+    if kind == RUNTIME_REFERENCE:
+        if declaration.type not in RUNTIME_REFERENCE_KINDS:
+            return CallTargets.none()
+        return CallTargets(_with_owning_class(index, declaration, include_owner=True), [])
     if kind == IMPLEMENTATION:
         return CallTargets(_with_owning_class(index, declaration, include_owner=False), [])
     if kind == METHOD_GROUP and not (
