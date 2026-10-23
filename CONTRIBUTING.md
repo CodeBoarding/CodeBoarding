@@ -29,6 +29,98 @@ CodeBoarding is an early-stage project, and we love contributors! :heart:
 
 ## 4) Development setup (for contributors)
 
+For a zero-setup environment, see [Dev Container / GitHub Codespaces](#dev-container--github-codespaces-zero-setup) below. Otherwise, set up locally:
+
+### Dev Container / GitHub Codespaces (zero-setup)
+
+Open the repo with VS Code's "Reopen in Container" or the Codespaces "Code" button. The post-create script runs `uv sync --dev`, `codeboarding-setup`, installs the pre-commit hook, and installs the Claude Code CLI. The default config (`.devcontainer/devcontainer.json`) has no host mounts and is Codespaces-safe; to bind-mount `~/.claude` and `~/.ssh/known_hosts` locally, select "CodeBoarding (local, host mounts)" in the VS Code picker, or use `--config .devcontainer/local/devcontainer.json` with the CLI.
+
+- `codeboarding` commands always use the latest source (editable install).
+- `~/.codeboarding` persists in a named volume, so language servers and `config.toml` survive rebuilds. To remove it, find it with `docker volume ls | grep codeboarding-` and delete it with `docker volume rm`.
+- Telemetry is off (`DO_NOT_TRACK=1`).
+- CI (`.github/workflows/devcontainer.yml`) builds the container on PRs and pushes to `main` that touch `.devcontainer/**`, `pyproject.toml`, `uv.lock`, `.pre-commit-config.yaml`, or `tests/test_devcontainer.py`, using `CODEBOARDING_DEVCONTAINER_CI=1` to skip the language-server download and Claude CLI install.
+- Java, .NET, Go and Rust toolchains are not included, so those languages show as unavailable.
+- Apple Silicon (arm64): `codeboarding full` does not work (tokei/gopls are x86_64-only); tests, mypy and black work fine.
+- LLM provider key: set it in `~/.codeboarding/config.toml` (persisted) or as a Codespaces secret.
+
+#### Claude Code inside the container (local Dev Containers only)
+
+> **GitHub Codespaces:** the default config has no host mounts and works in Codespaces. Run `claude auth login` and set up SSH inside the container.
+
+The Claude Code extension (`anthropic.claude-code`) is installed automatically. The local config (`.devcontainer/local/devcontainer.json`) bind-mounts `~/.claude` and your SSH `known_hosts` file from the host. Private keys are never mounted; SSH uses agent forwarding.
+
+| Host path | Container path | Purpose |
+| --- | --- | --- |
+| `~/.claude` | `/home/vscode/.claude` | Claude Code settings, memory, and skills |
+| `~/.ssh/known_hosts` | `/etc/ssh/ssh_known_hosts` | GitHub host keys (read-only, no secrets) |
+
+**Note:** `.devcontainer/local/devcontainer-lock.json` is a copy of `.devcontainer/devcontainer-lock.json` — update both when bumping feature versions.
+
+**SSH access**
+
+Private keys stay on your host; the container uses SSH agent forwarding.
+
+- **Keys:** load them into your host agent with `ssh-add ~/.ssh/id_ed25519` and verify with `ssh-add -l`.
+- **VS Code:** the agent is forwarded automatically — nothing to configure.
+- **devcontainer CLI (macOS/Docker Desktop):**
+  ```bash
+  SOCK=/run/host-services/ssh-auth.sock  # Linux: SOCK="$SSH_AUTH_SOCK"
+  devcontainer up --workspace-folder . --config .devcontainer/local/devcontainer.json \
+    --mount "type=bind,source=$SOCK,target=/ssh-agent"
+  devcontainer exec --workspace-folder . --config .devcontainer/local/devcontainer.json \
+    --remote-env SSH_AUTH_SOCK=/ssh-agent git fetch
+  ```
+  Add `--remove-existing-container` to `up` if the container already exists.
+  `--remote-env SSH_AUTH_SOCK=/ssh-agent` must be repeated on every `devcontainer exec` call, or set `SSH_AUTH_SOCK=/ssh-agent` in the container's shell profile (e.g. `~/.bashrc`) to apply it to all sessions.
+
+The `initializeCommand` creates an empty `~/.ssh/known_hosts` on your host if it is missing. To populate it with GitHub's host key, run on your host:
+```bash
+ssh-keyscan github.com >> ~/.ssh/known_hosts
+# Verify fingerprints against GitHub's published list:
+# https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
+# e.g. ED25519: SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU
+```
+
+**First-time auth:** The OAuth token lives in the macOS Keychain, which Docker cannot access. After the first rebuild, open a terminal inside the container and run:
+
+```bash
+claude auth login
+```
+
+Complete the browser OAuth flow once. With the local config, `~/.claude` is bind-mounted to your host, so the credentials file is written there and persists across future rebuilds — you will not need to log in again. With the default config the login does not survive a rebuild.
+
+#### Running an analysis in the container
+
+```bash
+# Analyze the repo (x86_64 only; see arm64 note above)
+codeboarding full --local /path/to/repo
+
+# Render HTML from the existing analysis (no re-analysis)
+codeboarding-render /path/to/repo/.codeboarding/analysis.json --format html
+```
+
+Output is written to `/path/to/repo/.codeboarding/`.
+
+#### Viewing the analysis file
+
+**Web platform (recommended):** The workspace is bind-mounted, so `.codeboarding/analysis.json`
+is in your host workspace at the corresponding relative path. Open [app.codeboarding.org](https://app.codeboarding.org),
+click **Switch source → File**, and pick the file. In Codespaces, download it first via
+VS Code's Explorer → right-click → Download.
+
+**HTML output in the browser:** If you generated `--render html`, serve it from the container
+and VS Code port-forwards it automatically:
+
+```bash
+python -m http.server 8080 --directory /path/to/repo/.codeboarding
+```
+
+Then open the forwarded port 8080 in your browser.
+
+**VS Code extension:** Install the [CodeBoarding extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding)
+in the container (add `"Codeboarding.codeboarding"` to `customizations.vscode.extensions`
+in `.devcontainer/devcontainer.json`) to browse the analysis directly in the editor.
+
 For active contributors who want to modify the code:
 
 ```bash
