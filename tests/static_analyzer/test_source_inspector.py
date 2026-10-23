@@ -44,7 +44,7 @@ def test_call_site_exposes_human_and_lsp_positions() -> None:
             "package p\nfunc f(x error) { switch x.(type) { case *m.ExpectedOne, ExpectedTwo: }; _ = x.(*ExpectedThree) }",
         ),
         ("go", "package p\nfunc f(x any) { _ = x.([]ExpectedOne) }"),
-        ("rs", "fn f(x: Ignored) { match x { [E::ExpectedOne, bound] => (), _ => () } }"),
+        ("rs", "fn f(x: Ignored) { match x { [E::ExpectedOne, _] => (), _ => () } }"),
         ("rs", "fn f(x: Ignored) { match x { E::ExpectedOne => (), E::ExpectedTwo(_) => (), _ => () } }"),
         ("rs", "fn f(x: Ignored) { match x { E::ExpectedOne { field: E::ExpectedTwo(_) } => (), _ => () } }"),
         ("rs", "fn f(x: Ignored) { match x { bound @ E::ExpectedOne(E::ExpectedTwo) if guard => (), _ => () } }"),
