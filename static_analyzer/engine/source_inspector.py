@@ -202,6 +202,8 @@ _RUNTIME_TYPE_GROUPS = frozenset({"catch_type", "match_pattern"})
 _TYPE_TEST_OPERATORS = frozenset({"instanceof", "is", "!is"})
 _RUNTIME_REFERENCE_WRAPPERS = frozenset(
     {
+        "slice_type",
+        "slice_pattern",
         "tuple",
         "parenthesized_expression",
         "type_list",
