@@ -200,7 +200,7 @@ _RUNTIME_TYPE_FIELDS = {
     "let_condition": "pattern",
     "let_declaration": "pattern",
 }
-_RUNTIME_TYPE_GROUPS = frozenset({"catch_type", "match_pattern", "type_test"})
+_RUNTIME_TYPE_GROUPS = frozenset({"catch_type", "match_pattern", "type_test", "constant_pattern", "case_pattern"})
 # Why: Rust spells a pattern binding in lower case and a unit variant or constant in upper case.
 _LOWERCASE_BINDING_SUFFIXES = frozenset({".rs"})
 _TYPE_TEST_OPERATORS = frozenset({"instanceof", "is", "!is"})
@@ -225,6 +225,9 @@ _RUNTIME_REFERENCE_WRAPPERS = frozenset(
         "binary_pattern",
         "parenthesized_pattern",
         "tuple_pattern",
+        "case_pattern",
+        "union_pattern",
+        "list_pattern",
     }
 )
 _RUNTIME_REFERENCE_NAMES = _NAME_SHAPED_NODE_TYPES | frozenset(
@@ -869,7 +872,16 @@ class SourceInspector:
             return [node]
         if node.type == "as_pattern":
             return self._runtime_reference_names(node.named_children[0])
-        if node.type == "field_pattern":
+        if node.type == "dotted_name":
+            # A bare name in a Python case pattern is a capture; a dotted one is a value pattern.
+            return [node] if node.named_child_count > 1 else []
+        if node.type == "class_pattern":
+            return node.named_children[:1] + [
+                name for child in node.named_children[1:] for name in self._runtime_reference_names(child)
+            ]
+        if node.type == "keyword_pattern":
+            held = node.named_children[1:]
+        elif node.type == "field_pattern":
             held = node.children_by_field_name("pattern")
         elif node.type == "captured_pattern":
             held = node.named_children[-1:]

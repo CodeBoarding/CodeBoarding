@@ -48,6 +48,10 @@ LIMIT = 10
 
 def payload():
     return 2
+
+
+class Color:
+    RED = 1
 """
 
 # (qualified name, kind, name line, name column, declaration end line, declaration end column)
@@ -58,6 +62,8 @@ DECLARATIONS = [
     ("m.solo", NodeType.FUNCTION, 12, 4, 13, 12),
     ("m.LIMIT", NodeType.CONSTANT, 16, 0, 16, 5),
     ("m.payload", NodeType.FUNCTION, 19, 4, 20, 12),
+    ("m.Color", NodeType.CLASS, 23, 6, 24, 11),
+    ("m.Color.RED", NodeType.ENUM_MEMBER, 24, 4, 24, 7),
 ]
 
 # Positions a server can answer with, the declaration each must name, and the nodes a call
@@ -110,7 +116,7 @@ def _symbol_table(module: Path) -> SymbolTable:
             start_char=column,
             end_line=end_line,
             end_char=end_char,
-            parent_chain=[("Box", NodeType.CLASS)] if qualified_name.startswith("m.Box.") else [],
+            parent_chain=[(qualified_name.split(".")[1], NodeType.CLASS)] if qualified_name.count(".") == 2 else [],
         )
     return table
 
@@ -183,7 +189,13 @@ def test_both_resolvers_agree_on_what_a_member_read_reaches(
 
 @pytest.mark.parametrize(
     "position,expected",
-    [((6, 6), ["m.Box"]), ((7, 8), ["m.Box.hold", "m.Box"]), ((0, 4), ["m.head"]), ((16, 0), [])],
+    [
+        ((6, 6), ["m.Box"]),
+        ((7, 8), ["m.Box.hold", "m.Box"]),
+        ((24, 4), ["m.Color.RED", "m.Color"]),
+        ((0, 4), ["m.head"]),
+        ((16, 0), []),
+    ],
 )
 def test_both_resolvers_agree_a_runtime_reference_does_not_dispatch_or_reach_data(
     module: Path, position: tuple[int, int], expected: list[str]
@@ -212,6 +224,25 @@ def test_both_resolvers_agree_a_runtime_reference_does_not_dispatch_or_reach_dat
     assert sink.impl_queries == []
     assert [node.fully_qualified_name for node in result.nodes] == expected
     assert result.implementations == []
+
+
+def test_both_resolvers_add_the_owning_enum_to_an_enum_member_call(module: Path) -> None:
+    # Why: a Rust tuple-variant constructor `E::Foo(x)` is an ordinary call that resolves to an enum member.
+    line, character = 24, 4
+    definition = {"uri": module.as_uri(), "range": {"start": {"line": line, "character": character}}}
+    site = CallSite.from_lsp_position(str(module), line, character)
+    table = _symbol_table(module)
+    sink = CallEdgeSink(PythonAdapter(), table, SourceInspector(), None)
+
+    match = SymbolIndex(table, SourceInspector()).resolve(definition)
+    assert match is not None
+    sink.add(table.symbols["m.payload"], match, site)
+    result = targets_for(
+        _graph_index(module), SourceInspector(), str(module), line, character, CALL, PythonAdapter(), site
+    )
+
+    assert [target for _caller, target in sink.edges] == ["m.Color.RED", "m.Color"]
+    assert [node.fully_qualified_name for node in result.nodes] == ["m.Color.RED", "m.Color"]
 
 
 def test_both_resolvers_take_an_overload_signature_to_its_own_class_implementation(tmp_path: Path) -> None:

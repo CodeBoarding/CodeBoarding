@@ -30,8 +30,20 @@ def test_call_site_exposes_human_and_lsp_positions() -> None:
     [
         ("py", "def f(x: Ignored):\n try: pass\n except (m.ExpectedOne, ExpectedTwo) as bound: pass\n"),
         ("py", "try: pass\nexcept* m.ExpectedOne as bound: pass\ntry: pass\nexcept: pass\n"),
+        (
+            "py",
+            "def f(x):\n    match x:\n        case ExpectedOne(a=1, b=m.ExpectedTwo()):\n            pass\n"
+            "        case E.ExpectedThree | [ExpectedFour(), *rest]:\n            pass\n"
+            "        case ExpectedFive() as bound if guard:\n            pass\n        case capture:\n            pass\n",
+        ),
         ("cs", "class C { void F(Ignored x) { try {} catch (N.ExpectedOne e) {} if (x is ExpectedTwo) {} } }"),
         ("cs", "class C { void F(object x) { if (x is not ExpectedOne) {} if (x is N.ExpectedTwo bound) {} } }"),
+        (
+            "cs",
+            "class C { int F(object x) => x switch { E.ExpectedOne => 1, N.E.ExpectedTwo or E.ExpectedThree => 2,"
+            " _ => 0 }; void G(object x) { switch (x) { case E.ExpectedFour: break;"
+            " case E.ExpectedFive when x != null: break; case 5: break; } } }",
+        ),
         ("java", "class C { void f(Ignored x) { try {} catch (N.ExpectedOne | ExpectedTwo bound) {} } }"),
         ("java", "class C { void f(Object x) { if (x instanceof N.ExpectedOne bound) {} } }"),
         (
