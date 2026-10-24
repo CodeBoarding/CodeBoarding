@@ -34,7 +34,6 @@ from infra.repo_utils.path_utils import to_absolute_path, to_relative_path
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge, StaticAnalysisResults
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
-from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 

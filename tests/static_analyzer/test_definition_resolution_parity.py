@@ -12,7 +12,8 @@ import pytest
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import NodeType
 from static_analyzer.engine.adapters.python_adapter import PythonAdapter
-from static_analyzer.engine.edge_builder import SymbolIndex
+from static_analyzer.engine.edge_builder import CallEdgeSink, SymbolIndex
+from static_analyzer.engine.lsp_constants import RUNTIME_REFERENCE_KINDS
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
@@ -97,7 +98,7 @@ def module(tmp_path: Path) -> Path:
     return path
 
 
-def _symbol_index(module: Path) -> SymbolIndex:
+def _symbol_table(module: Path) -> SymbolTable:
     table = SymbolTable(PythonAdapter())
     for qualified_name, kind, line, column, end_line, end_char in DECLARATIONS:
         table.symbols[qualified_name] = SymbolInfo(
@@ -109,8 +110,13 @@ def _symbol_index(module: Path) -> SymbolIndex:
             start_char=column,
             end_line=end_line,
             end_char=end_char,
+            parent_chain=[("Box", NodeType.CLASS)] if qualified_name.startswith("m.Box.") else [],
         )
-    return SymbolIndex(table, SourceInspector())
+    return table
+
+
+def _symbol_index(module: Path) -> SymbolIndex:
+    return SymbolIndex(_symbol_table(module), SourceInspector())
 
 
 def _graph_index(module: Path) -> GraphIndex:
@@ -175,11 +181,22 @@ def test_both_resolvers_agree_on_what_a_member_read_reaches(
     assert [node.fully_qualified_name for node in nodes] == targets
 
 
-@pytest.mark.parametrize("position,expected", [((6, 6), ["m.Box"]), ((0, 4), ["m.head"]), ((16, 0), [])])
-def test_runtime_reference_does_not_dispatch_or_reach_data(
+@pytest.mark.parametrize(
+    "position,expected",
+    [((6, 6), ["m.Box"]), ((7, 8), ["m.Box.hold", "m.Box"]), ((0, 4), ["m.head"]), ((16, 0), [])],
+)
+def test_both_resolvers_agree_a_runtime_reference_does_not_dispatch_or_reach_data(
     module: Path, position: tuple[int, int], expected: list[str]
 ) -> None:
     line, character = position
+    definition = {"uri": module.as_uri(), "range": {"start": {"line": line, "character": character}}}
+    site = CallSite.from_lsp_position(str(module), line, character)
+    table = _symbol_table(module)
+    sink = CallEdgeSink(PythonAdapter(), table, SourceInspector(), None)
+
+    match = SymbolIndex(table, SourceInspector()).resolve(definition)
+    if match is not None and match.kind in RUNTIME_REFERENCE_KINDS:
+        sink.add(table.symbols["m.payload"], match, site, reference_only=True)
     result = targets_for(
         _graph_index(module),
         SourceInspector(),
@@ -188,8 +205,11 @@ def test_runtime_reference_does_not_dispatch_or_reach_data(
         character,
         RUNTIME_REFERENCE,
         PythonAdapter(),
-        CallSite.from_lsp_position(str(module), line, character),
+        site,
     )
+
+    assert [target for _caller, target in sink.edges] == expected
+    assert sink.impl_queries == []
     assert [node.fully_qualified_name for node in result.nodes] == expected
     assert result.implementations == []
 

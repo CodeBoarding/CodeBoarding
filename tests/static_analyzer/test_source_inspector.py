@@ -34,7 +34,13 @@ def test_call_site_exposes_human_and_lsp_positions() -> None:
         ("cs", "class C { void F(object x) { if (x is not ExpectedOne) {} if (x is N.ExpectedTwo bound) {} } }"),
         ("java", "class C { void f(Ignored x) { try {} catch (N.ExpectedOne | ExpectedTwo bound) {} } }"),
         ("java", "class C { void f(Object x) { if (x instanceof N.ExpectedOne bound) {} } }"),
+        (
+            "java",
+            "class C { void f(Object x) { switch (x) { case N.ExpectedOne b -> {} case ExpectedTwo t when t.ok() -> {}"
+            " default -> {} } switch (x) { case ExpectedThree bound: break; } } }",
+        ),
         ("kt", "fun f(x: Ignored) {\n try {} catch (bound: N.ExpectedOne) {}\n if (x !is ExpectedTwo) {}\n}"),
+        ("kt", "fun f(x: Ignored) = when (x) { is N.ExpectedOne -> 1; !is ExpectedTwo -> 2; else -> 3 }"),
         ("php", "<?php function f(Ignored $x) { try {} catch (N\\ExpectedOne | ExpectedTwo $e) {} }"),
         ("php", "<?php function f($x) { if ($x instanceof N\\ExpectedOne) {} }"),
         ("ts", "function f(x: Ignored) { try {} catch (bound) { if (bound instanceof N.ExpectedOne) {} } }"),
@@ -48,6 +54,12 @@ def test_call_site_exposes_human_and_lsp_positions() -> None:
         ("rs", "fn f(x: Ignored) { match x { E::ExpectedOne => (), E::ExpectedTwo(_) => (), _ => () } }"),
         ("rs", "fn f(x: Ignored) { match x { E::ExpectedOne { field: E::ExpectedTwo(_) } => (), _ => () } }"),
         ("rs", "fn f(x: Ignored) { match x { bound @ E::ExpectedOne(E::ExpectedTwo) if guard => (), _ => () } }"),
+        ("rs", "fn f(x: Ignored) { match x { ExpectedOne => (), [first, rest @ ..] => (), bound => () } }"),
+        (
+            "rs",
+            "fn f(x: Ignored) { if let E::ExpectedOne(bound) = x {} while let E::ExpectedTwo = x {}"
+            " let E::ExpectedThree(y) = x else { return }; let (a, b) = x; }",
+        ),
     ],
 )
 def test_runtime_references_exclude_bindings_and_annotations(tmp_path: Path, suffix: str, source: str) -> None:

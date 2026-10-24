@@ -197,8 +197,12 @@ _RUNTIME_TYPE_FIELDS = {
     "declaration_pattern": "type",
     "type_pattern": "type",
     "recursive_pattern": "type",
+    "let_condition": "pattern",
+    "let_declaration": "pattern",
 }
-_RUNTIME_TYPE_GROUPS = frozenset({"catch_type", "match_pattern"})
+_RUNTIME_TYPE_GROUPS = frozenset({"catch_type", "match_pattern", "type_test"})
+# Why: Rust spells a pattern binding in lower case and a unit variant or constant in upper case.
+_LOWERCASE_BINDING_SUFFIXES = frozenset({".rs"})
 _TYPE_TEST_OPERATORS = frozenset({"instanceof", "is", "!is"})
 _RUNTIME_REFERENCE_WRAPPERS = frozenset(
     {
@@ -208,6 +212,7 @@ _RUNTIME_REFERENCE_WRAPPERS = frozenset(
         "parenthesized_expression",
         "type_list",
         "catch_type",
+        "type_test",
         "named_type",
         "pointer_type",
         "nullable_type",
@@ -768,11 +773,15 @@ class SourceInspector:
         parsed = self._parse(file_path)
         if parsed is None:
             return []
+        lowercase_bindings = file_path.suffix.lower() in _LOWERCASE_BINDING_SUFFIXES
         positions: set[tuple[int, int]] = set()
         for node in self._walk(parsed.tree.root_node):
             field = _RUNTIME_TYPE_FIELDS.get(node.type)
             if field is not None:
                 operands = node.children_by_field_name(field)
+                if not operands and node.type == "type_pattern":
+                    # Java's type pattern holds its type unlabelled, ahead of the binding.
+                    operands = node.named_children[:-1]
             elif node.type in _RUNTIME_TYPE_GROUPS:
                 operands = [node]
             elif node.type == "catch_block":
@@ -785,6 +794,8 @@ class SourceInspector:
                 continue
             for operand in operands:
                 for name in self._runtime_reference_names(operand):
+                    if lowercase_bindings and name.type == "identifier" and not (name.text or b"")[:1].isupper():
+                        continue
                     target = self._select_query_node(name)
                     if target is not None:
                         positions.add(parsed.lsp_position(target.start_point))
