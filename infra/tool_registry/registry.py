@@ -313,3 +313,5 @@ TOOL_REGISTRY: list[ToolDependency] = [
         ),
     ),
 ]
+
+ALL_LANGUAGE_KEYS = frozenset(dep.key for dep in TOOL_REGISTRY if dep.config_section is ConfigSection.LSP_SERVERS)

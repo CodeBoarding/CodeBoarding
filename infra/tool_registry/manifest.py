@@ -28,6 +28,7 @@ from .installers import (
 )
 from .paths import exe_suffix, get_servers_dir, native_binary_ok, platform_bin_dir, preferred_node_path
 from .registry import (
+    ALL_LANGUAGE_KEYS,
     BASE_TOOL_KEYS,
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
@@ -80,19 +81,14 @@ def tool_fingerprint(dep: ToolDependency) -> str:
     return ",".join(parts)
 
 
-def required_tools(languages: Collection[str] | None = None) -> list[ToolDependency]:
-    """The tools analysing *languages* needs: each language's server, plus the base tools. None means every tool.
-
-    *languages* are ``lsp_servers`` keys (``python``, ``typescript``...), which name their server's registry entry.
-    """
-    if languages is None:
-        return list(TOOL_REGISTRY)
+def required_tools(languages: Collection[str] = ALL_LANGUAGE_KEYS) -> list[ToolDependency]:
+    """Select base tools and the requested servers; defaults to all languages, an empty collection to base tools."""
     wanted = BASE_TOOL_KEYS | set(languages)
     return [dep for dep in TOOL_REGISTRY if dep.key in wanted]
 
 
-def write_manifest(deps: Collection[ToolDependency] | None = None) -> None:
-    """Record *deps* (every tool when None) as installed at their current fingerprints.
+def write_manifest(deps: Collection[ToolDependency] = TOOL_REGISTRY) -> None:
+    """Record the selected tools as installed; defaults to every registered tool.
 
     Entries of other tools installed by this package version are kept. Persisted atomically via
     tmp-file + ``os.replace``; ``flush + fsync`` before the rename guarantees the bytes hit disk
@@ -102,7 +98,7 @@ def write_manifest(deps: Collection[ToolDependency] | None = None) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     manifest = read_manifest()
     tools = _recorded_tools(manifest) if manifest.get("version") == installed_version() else {}
-    tools.update({dep.key: tool_fingerprint(dep) for dep in (TOOL_REGISTRY if deps is None else deps)})
+    tools.update({dep.key: tool_fingerprint(dep) for dep in deps})
     payload = json.dumps({"version": installed_version(), "tools": tools}, indent=2)
     tmp = target.with_name(target.name + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
@@ -112,9 +108,8 @@ def write_manifest(deps: Collection[ToolDependency] | None = None) -> None:
     os.replace(tmp, target)
 
 
-def needs_install(languages: Collection[str] | None = None) -> bool:
-    """Whether a tool *languages* need (every tool when None) is missing, or was installed from another pin
-    or by another package version."""
+def needs_install(languages: Collection[str] = ALL_LANGUAGE_KEYS) -> bool:
+    """Check the selected languages' tools for missing or stale installs; defaults to all languages."""
     deps = required_tools(languages)
     manifest = read_manifest()
     if manifest.get("version") != installed_version():
@@ -123,12 +118,6 @@ def needs_install(languages: Collection[str] | None = None) -> bool:
     if any(recorded.get(dep.key) != tool_fingerprint(dep) for dep in deps):
         return True
     return not has_required_tools(get_servers_dir(), deps)
-
-
-def _recorded_tools(manifest: dict) -> dict[str, str]:
-    # A manifest from before per-tool entries holds one fingerprint string, which records no tool.
-    tools = manifest.get("tools")
-    return dict(tools) if isinstance(tools, dict) else {}
 
 
 # -- Concurrency lock ---------------------------------------------------------
@@ -285,8 +274,8 @@ def resolve_config_from_path() -> dict[str, Any]:
     return config
 
 
-def has_required_tools(base_dir: Path, deps: Collection[ToolDependency] | None = None) -> bool:
-    """Return True when every artifact of *deps* (every ``TOOL_REGISTRY`` entry when None) is present on disk.
+def has_required_tools(base_dir: Path, deps: Collection[ToolDependency] = TOOL_REGISTRY) -> bool:
+    """Check the selected tools' artifacts on disk; defaults to every registered tool.
 
     Validation rules are kept in sync with ``resolve_config``:
     NATIVE -> ``platform_bin_dir/<binary><exe>`` exists;
@@ -297,7 +286,7 @@ def has_required_tools(base_dir: Path, deps: Collection[ToolDependency] | None =
     if not base_dir.exists():
         return False
 
-    for dep in TOOL_REGISTRY if deps is None else deps:
+    for dep in deps:
         if dep.kind is ToolKind.NATIVE:
             # Skip the check when the installer would also skip the download,
             # otherwise ``needs_install`` loops forever on unsupported hosts.
@@ -357,3 +346,9 @@ def has_required_tools(base_dir: Path, deps: Collection[ToolDependency] | None =
                 return False
 
     return True
+
+
+def _recorded_tools(manifest: dict) -> dict[str, str]:
+    # A manifest from before per-tool entries holds one fingerprint string, which records no tool.
+    tools = manifest.get("tools")
+    return dict(tools) if isinstance(tools, dict) else {}

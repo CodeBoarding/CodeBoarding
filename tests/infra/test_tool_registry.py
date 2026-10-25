@@ -918,6 +918,15 @@ class TestManifest(unittest.TestCase):
             manifest = json.loads((Path(tmp) / "installed.json").read_text())
             self.assertEqual(set(manifest["tools"]), {"tokei", "python", "go"})
 
+    @patch("infra.tool_registry.manifest.get_servers_dir")
+    def test_empty_selection_records_no_additional_tools(self, mock_servers_dir):
+        with tempfile.TemporaryDirectory() as tmp:
+            mock_servers_dir.return_value = Path(tmp)
+            write_manifest(required_tools(()))
+            write_manifest(())
+            manifest = json.loads((Path(tmp) / "installed.json").read_text())
+            self.assertEqual(set(manifest["tools"]), {"tokei"})
+
     @patch("infra.tool_registry.manifest.has_required_tools", return_value=True)
     @patch("infra.tool_registry.manifest.read_manifest")
     @patch("infra.tool_registry.manifest.installed_version", return_value="1.0.0")
@@ -932,6 +941,9 @@ class TestManifest(unittest.TestCase):
     @patch("infra.tool_registry.manifest.installed_version", return_value="1.0.0")
     def test_needs_install_asks_only_for_the_languages_given(self, mock_version, mock_manifest, mock_tools):
         recorded = _all_recorded()
+        mock_manifest.return_value = {"version": "1.0.0", "tools": {"tokei": recorded["tokei"]}}
+        self.assertFalse(needs_install(()))
+        self.assertTrue(needs_install(["python"]))
         mock_manifest.return_value = {"version": "1.0.0", "tools": {k: recorded[k] for k in ("tokei", "python")}}
         self.assertFalse(needs_install(["python"]))
         self.assertTrue(needs_install(["kotlin"]))

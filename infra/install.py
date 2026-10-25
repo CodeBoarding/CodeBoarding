@@ -14,6 +14,7 @@ from pathlib import Path
 
 import requests
 from infra.tool_registry import (
+    ALL_LANGUAGE_KEYS,
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
     ProgressCallback,
@@ -300,13 +301,13 @@ def get_platform_bin_dir(servers_dir: Path) -> Path:
 
 
 def install_node_servers(
-    target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] | None = None
+    target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] = TOOL_REGISTRY
 ):
-    """Install the Node.js based servers of *deps* (every one when None) using npm in target_dir."""
+    """Install the selected Node.js servers using npm; defaults to every registered Node.js server."""
     print("Step: Node.js servers installation started")
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    node_deps = [d for d in (TOOL_REGISTRY if deps is None else deps) if d.kind is ToolKind.NODE]
+    node_deps = [d for d in deps if d.kind is ToolKind.NODE]
     install_node_tools(target_dir, node_deps, on_progress=on_progress)
 
     # Verify the installation
@@ -466,11 +467,11 @@ def download_binaries(
     target_dir: Path,
     auto_install_vcpp: bool = False,
     on_progress: ProgressCallback | None = None,
-    deps: Collection[ToolDependency] | None = None,
+    deps: Collection[ToolDependency] = TOOL_REGISTRY,
 ):
-    """Download the native binaries of *deps* (every one when None): tokei, gopls, rust-analyzer."""
+    """Download the selected native binaries; defaults to every registered native tool."""
     print("Step: Binary download started")
-    native_deps = [d for d in (TOOL_REGISTRY if deps is None else deps) if d.kind is ToolKind.NATIVE]
+    native_deps = [d for d in deps if d.kind is ToolKind.NATIVE]
     install_native_tools(target_dir, native_deps, on_progress=on_progress)
 
     # Verify downloaded binaries actually work (catch missing DLL issues on Windows)
@@ -510,11 +511,11 @@ def download_binaries(
 
 
 def download_jdtls(
-    target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] | None = None
+    target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] = TOOL_REGISTRY
 ):
-    """Download and extract the archive tools of *deps* (every one when None): JDTLS and kotlin-lsp."""
+    """Download the selected archive tools; defaults to every registered archive tool."""
     print("Step: JDTLS download started")
-    archive_deps = [d for d in (TOOL_REGISTRY if deps is None else deps) if d.kind is ToolKind.ARCHIVE]
+    archive_deps = [d for d in deps if d.kind is ToolKind.ARCHIVE]
     for dep in archive_deps:
         install_archive_tool(target_dir, dep, on_progress=on_progress)
 
@@ -523,14 +524,14 @@ def download_jdtls(
 
 
 def install_package_manager_lsp_servers(
-    target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] | None = None
+    target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] = TOOL_REGISTRY
 ) -> None:
-    """Install the LSP servers of *deps* (every one when None) distributed via user-provided package managers.
+    """Install the selected package-manager servers; defaults to every registered package-manager server.
 
     Skips cleanly when the package manager itself is absent — the adapter raises a meaningful error
     at analysis time.
     """
-    pm_deps = [d for d in (TOOL_REGISTRY if deps is None else deps) if d.kind is ToolKind.PACKAGE_MANAGER]
+    pm_deps = [d for d in deps if d.kind is ToolKind.PACKAGE_MANAGER]
     if not pm_deps:
         return
     print("Step: Package-manager tool installation started")
@@ -601,6 +602,166 @@ def install_pre_commit_hooks():
     except Exception:
         # Silently skip if any other error occurs
         pass
+
+
+def print_language_support_summary(npm_available: bool, target_dir: Path):
+    """Print which language analyses are currently available based on installed tools."""
+    print("Step: Language support summary")
+    for check in _language_checks_from_registry(target_dir):
+        is_available, reason = check.evaluate(npm_available)
+        print(f"  - {check.language}: {'yes' if is_available else 'no'}")
+        if reason:
+            print(f"    reason: {reason}")
+
+
+def ensure_tools(
+    auto_install_npm: bool = False,
+    auto_install_vcpp: bool = False,
+    on_progress: ProgressCallback | None = None,
+    languages: Collection[str] = ALL_LANGUAGE_KEYS,
+) -> None:
+    """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current.
+
+    *languages* are ``lsp_servers`` keys. Defaults to all languages; an empty collection installs only base tools.
+
+    Uses a file lock so that concurrent instances (multiple VSCode windows)
+    don't corrupt binaries by downloading simultaneously.
+
+    Args:
+        on_progress: Optional callback invoked as (tool_name, step, total) during downloads.
+    """
+    servers_dir = get_servers_dir()
+    servers_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = servers_dir / ".download.lock"
+    deps = required_tools(languages)
+
+    with open(lock_path, "w") as lock_fd:
+        acquire_lock(lock_fd)
+        if any(dep.kind is ToolKind.NODE for dep in deps):
+            # Run above needs_install() so a deleted nodeenv/ is always repaired
+            # (fingerprints alone wouldn't detect it).
+            ensure_node_runtime(target_dir=servers_dir, auto_install_npm=auto_install_npm)
+        if not needs_install(languages):
+            return
+        run_install(
+            target_dir=servers_dir,
+            auto_install_npm=auto_install_npm,
+            auto_install_vcpp=auto_install_vcpp,
+            on_progress=on_progress,
+            deps=deps,
+        )
+        write_manifest(deps)
+
+
+_on_demand_install: dict[str, bool] = {}
+
+
+def enable_on_demand_install(auto_install_npm: bool = False, auto_install_vcpp: bool = False) -> None:
+    """Let each analysis install the language servers its repository needs once it has found its languages.
+
+    Why: a run with ``--binary-location`` brings its own servers, so installing stays off unless the
+    entry point turns it on.
+    """
+    _on_demand_install.update(auto_install_npm=auto_install_npm, auto_install_vcpp=auto_install_vcpp)
+
+
+def ensure_language_servers(languages: Collection[str]) -> None:
+    """Install the servers of *languages* (``lsp_servers`` keys) when on-demand installs are enabled."""
+    if not _on_demand_install:
+        return
+    logger.info("Language servers needed: %s", ", ".join(sorted(languages)) or "none")
+    ensure_tools(
+        auto_install_npm=_on_demand_install["auto_install_npm"],
+        auto_install_vcpp=_on_demand_install["auto_install_vcpp"],
+        languages=languages,
+    )
+
+
+def run_install(
+    target_dir: Path | None = None,
+    auto_install_npm: bool = False,
+    auto_install_vcpp: bool = False,
+    on_progress: ProgressCallback | None = None,
+    deps: Collection[ToolDependency] = TOOL_REGISTRY,
+) -> None:
+    """Core installation logic — callable programmatically or via CLI.
+
+    Downloads the selected tools (every registered tool by default) to
+    target_dir (defaults to ~/.codeboarding/servers/). Safe to call multiple times;
+    already-installed tools are skipped.
+
+    The ``on_progress`` callback receives ``(tool_name, step, total)`` where
+    step/total count across *all* tool categories (native, node, archive).
+    """
+    target = (target_dir or get_servers_dir()).resolve()
+    target.mkdir(parents=True, exist_ok=True)
+    selected = list(deps)
+
+    ensure_config_template()
+
+    node_deps = [d for d in selected if d.kind is ToolKind.NODE]
+    if node_deps:
+        # Covers the codeboarding-setup -> run_install path, which bypasses ensure_tools().
+        ensure_node_runtime(target_dir=target, auto_install_npm=auto_install_npm)
+
+    # Compute a unified total so the caller sees a single progress stream.
+    native_count = sum(1 for d in selected if d.kind is ToolKind.NATIVE and d.source)
+    archive_count = sum(1 for d in selected if d.kind is ToolKind.ARCHIVE)
+    pm_count = sum(1 for d in selected if d.kind is ToolKind.PACKAGE_MANAGER)
+    npm_available = bool(node_deps) and resolve_npm_availability(auto_install_npm=auto_install_npm, target_dir=target)
+    total_steps = native_count + (1 if npm_available else 0) + archive_count + pm_count
+
+    step = 0
+
+    def unified_progress(name: str, _i: int, _t: int) -> None:
+        nonlocal step
+        step += 1
+        if on_progress:
+            on_progress(name, step, total_steps)
+
+    tracker = unified_progress if on_progress else None
+
+    if npm_available:
+        install_node_servers(target, on_progress=tracker, deps=selected)
+
+    if native_count:
+        download_binaries(target, auto_install_vcpp=auto_install_vcpp, on_progress=tracker, deps=selected)
+    if archive_count:
+        download_jdtls(target, on_progress=tracker, deps=selected)
+    install_package_manager_lsp_servers(target, on_progress=tracker, deps=selected)
+    if any(d.key == "kotlin" for d in selected):
+        download_grammars(target)
+    install_pre_commit_hooks()
+    if all(dep in selected for dep in TOOL_REGISTRY):
+        print_language_support_summary(npm_available, target)
+
+
+def main() -> None:
+    """Entry point for the `codeboarding-setup` CLI command."""
+    # Windows consoles default to cp1252 which can't encode emojis; force UTF-8.
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
+    args = parse_args()
+
+    print("CodeBoarding Setup")
+    print("=" * 40)
+
+    # Lock at the entry point, not inside run_install() — ensure_tools()
+    # calls run_install() while already holding this lock, and same-process
+    # reentrant acquisition isn't portable across fcntl / msvcrt.
+    servers_dir = get_servers_dir()
+    servers_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = servers_dir / ".download.lock"
+    with open(lock_path, "w") as lock_fd:
+        acquire_lock(lock_fd)
+        run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp)
+        write_manifest()
+
+    print("\n" + "=" * 40)
+    print("Setup complete!")
+    print("Configure your LLM provider key in ~/.codeboarding/config.toml, then run:")
+    print("  codeboarding full --local /path/to/repo")
 
 
 def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportCheck]:
@@ -696,167 +857,6 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 )
             )
     return checks
-
-
-def print_language_support_summary(npm_available: bool, target_dir: Path):
-    """Print which language analyses are currently available based on installed tools."""
-    print("Step: Language support summary")
-    for check in _language_checks_from_registry(target_dir):
-        is_available, reason = check.evaluate(npm_available)
-        print(f"  - {check.language}: {'yes' if is_available else 'no'}")
-        if reason:
-            print(f"    reason: {reason}")
-
-
-def ensure_tools(
-    auto_install_npm: bool = False,
-    auto_install_vcpp: bool = False,
-    on_progress: ProgressCallback | None = None,
-    languages: Collection[str] | None = None,
-) -> None:
-    """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current.
-
-    *languages* are ``lsp_servers`` keys: the base tools plus those languages' servers are
-    installed. None installs every tool.
-
-    Uses a file lock so that concurrent instances (multiple VSCode windows)
-    don't corrupt binaries by downloading simultaneously.
-
-    Args:
-        on_progress: Optional callback invoked as (tool_name, step, total) during downloads.
-    """
-    servers_dir = get_servers_dir()
-    servers_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = servers_dir / ".download.lock"
-    deps = required_tools(languages)
-
-    with open(lock_path, "w") as lock_fd:
-        acquire_lock(lock_fd)
-        if any(dep.kind is ToolKind.NODE for dep in deps):
-            # Run above needs_install() so a deleted nodeenv/ is always repaired
-            # (fingerprints alone wouldn't detect it).
-            ensure_node_runtime(target_dir=servers_dir, auto_install_npm=auto_install_npm)
-        if not needs_install(languages):
-            return
-        run_install(
-            target_dir=servers_dir,
-            auto_install_npm=auto_install_npm,
-            auto_install_vcpp=auto_install_vcpp,
-            on_progress=on_progress,
-            deps=deps,
-        )
-        write_manifest(deps)
-
-
-_on_demand_install: dict[str, bool] = {}
-
-
-def enable_on_demand_install(auto_install_npm: bool = False, auto_install_vcpp: bool = False) -> None:
-    """Let each analysis install the language servers its repository needs once it has found its languages.
-
-    Why: a run with ``--binary-location`` brings its own servers, so installing stays off unless the
-    entry point turns it on.
-    """
-    _on_demand_install.update(auto_install_npm=auto_install_npm, auto_install_vcpp=auto_install_vcpp)
-
-
-def ensure_language_servers(languages: Collection[str]) -> None:
-    """Install the servers of *languages* (``lsp_servers`` keys) when on-demand installs are enabled."""
-    if not _on_demand_install:
-        return
-    logger.info("Language servers needed: %s", ", ".join(sorted(languages)) or "none")
-    ensure_tools(
-        auto_install_npm=_on_demand_install["auto_install_npm"],
-        auto_install_vcpp=_on_demand_install["auto_install_vcpp"],
-        languages=languages,
-    )
-
-
-def run_install(
-    target_dir: Path | None = None,
-    auto_install_npm: bool = False,
-    auto_install_vcpp: bool = False,
-    on_progress: ProgressCallback | None = None,
-    deps: Collection[ToolDependency] | None = None,
-) -> None:
-    """Core installation logic — callable programmatically or via CLI.
-
-    Downloads the language server binaries of *deps* (every registered tool when None) to
-    target_dir (defaults to ~/.codeboarding/servers/). Safe to call multiple times;
-    already-installed tools are skipped.
-
-    The ``on_progress`` callback receives ``(tool_name, step, total)`` where
-    step/total count across *all* tool categories (native, node, archive).
-    """
-    target = (target_dir or get_servers_dir()).resolve()
-    target.mkdir(parents=True, exist_ok=True)
-    selected = list(TOOL_REGISTRY if deps is None else deps)
-
-    ensure_config_template()
-
-    node_deps = [d for d in selected if d.kind is ToolKind.NODE]
-    if node_deps:
-        # Covers the codeboarding-setup -> run_install path, which bypasses ensure_tools().
-        ensure_node_runtime(target_dir=target, auto_install_npm=auto_install_npm)
-
-    # Compute a unified total so the caller sees a single progress stream.
-    native_count = sum(1 for d in selected if d.kind is ToolKind.NATIVE and d.source)
-    archive_count = sum(1 for d in selected if d.kind is ToolKind.ARCHIVE)
-    pm_count = sum(1 for d in selected if d.kind is ToolKind.PACKAGE_MANAGER)
-    npm_available = bool(node_deps) and resolve_npm_availability(auto_install_npm=auto_install_npm, target_dir=target)
-    total_steps = native_count + (1 if npm_available else 0) + archive_count + pm_count
-
-    step = 0
-
-    def unified_progress(name: str, _i: int, _t: int) -> None:
-        nonlocal step
-        step += 1
-        if on_progress:
-            on_progress(name, step, total_steps)
-
-    tracker = unified_progress if on_progress else None
-
-    if npm_available:
-        install_node_servers(target, on_progress=tracker, deps=selected)
-
-    if native_count:
-        download_binaries(target, auto_install_vcpp=auto_install_vcpp, on_progress=tracker, deps=selected)
-    if archive_count:
-        download_jdtls(target, on_progress=tracker, deps=selected)
-    install_package_manager_lsp_servers(target, on_progress=tracker, deps=selected)
-    if any(d.key == "kotlin" for d in selected):
-        download_grammars(target)
-    install_pre_commit_hooks()
-    if deps is None:
-        print_language_support_summary(npm_available, target)
-
-
-def main() -> None:
-    """Entry point for the `codeboarding-setup` CLI command."""
-    # Windows consoles default to cp1252 which can't encode emojis; force UTF-8.
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-
-    args = parse_args()
-
-    print("CodeBoarding Setup")
-    print("=" * 40)
-
-    # Lock at the entry point, not inside run_install() — ensure_tools()
-    # calls run_install() while already holding this lock, and same-process
-    # reentrant acquisition isn't portable across fcntl / msvcrt.
-    servers_dir = get_servers_dir()
-    servers_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = servers_dir / ".download.lock"
-    with open(lock_path, "w") as lock_fd:
-        acquire_lock(lock_fd)
-        run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp)
-        write_manifest()
-
-    print("\n" + "=" * 40)
-    print("Setup complete!")
-    print("Configure your LLM provider key in ~/.codeboarding/config.toml, then run:")
-    print("  codeboarding full --local /path/to/repo")
 
 
 if __name__ == "__main__":
