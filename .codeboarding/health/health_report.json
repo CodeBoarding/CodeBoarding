@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-10-25T17:56:46.340754+00:00",
-  "overall_score": 0.9865556978233034,
+  "timestamp": "2026-10-25T19:33:00.853694+00:00",
+  "overall_score": 0.9061032863849765,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1541,
+      "total_entities_checked": 1544,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -19,9 +19,9 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 21,
-      "findings_count": 21,
-      "warning_count": 1,
+      "total_entities_checked": 160,
+      "findings_count": 160,
+      "warning_count": 69,
       "score": 0.0,
       "finding_groups": [
         {
@@ -142,13 +142,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 320,
-              "line_end": 320,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"_old_dst_node\" is not accessed",
               "file_path": "static_analyzer/incremental_orchestrator.py",
               "line_start": 144,
@@ -168,6 +161,496 @@
               "line_start": 474,
               "line_end": 474,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_i\" is not accessed",
+              "file_path": "infra/install.py",
+              "line_start": 716,
+              "line_end": 716,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ALL_LANGUAGE_KEYS\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"BASE_TOOL_KEYS\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"JDTLS_BUILD\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"JDTLS_URL_TEMPLATE\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"JDTLS_VERSION\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"KOTLIN_LSP_LICENSE_URL\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"KOTLIN_LSP_URL_TEMPLATE\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 13,
+              "line_end": 13,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"KOTLIN_LSP_VERSION\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 14,
+              "line_end": 14,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"PINNED_NODE_VERSION\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 15,
+              "line_end": 15,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"PLATFORM_SUFFIX\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"TOOL_REGISTRY\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 17,
+              "line_end": 17,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"TOOLS_REPO\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 18,
+              "line_end": 18,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"TOOLS_TAG\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 19,
+              "line_end": 19,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ConfigSection\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 20,
+              "line_end": 20,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"GitHubToolSource\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 21,
+              "line_end": 21,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"PackageManagerToolSource\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 22,
+              "line_end": 22,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ProgressCallback\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 23,
+              "line_end": 23,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ToolDependency\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 24,
+              "line_end": 24,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ToolKind\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 25,
+              "line_end": 25,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ToolSource\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 26,
+              "line_end": 26,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"UpstreamToolSource\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 27,
+              "line_end": 27,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MINIMUM_NODE_MAJOR_VERSION\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 30,
+              "line_end": 30,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"embedded_node_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 31,
+              "line_end": 31,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"embedded_npm_cli_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 32,
+              "line_end": 32,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"embedded_npm_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 33,
+              "line_end": 33,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ensure_node_on_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 34,
+              "line_end": 34,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"exe_suffix\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 35,
+              "line_end": 35,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"get_servers_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 36,
+              "line_end": 36,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"node_is_acceptable\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 37,
+              "line_end": 37,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"node_version_tuple\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 38,
+              "line_end": 38,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"nodeenv_bin_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 39,
+              "line_end": 39,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"nodeenv_root_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 40,
+              "line_end": 40,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"npm_subprocess_env\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 41,
+              "line_end": 41,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"platform_bin_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 42,
+              "line_end": 42,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"preferred_node_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 43,
+              "line_end": 43,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"preferred_npm_command\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 44,
+              "line_end": 44,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"sibling_npm_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 45,
+              "line_end": 45,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"user_data_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 46,
+              "line_end": 46,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"acquire_lock\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 49,
+              "line_end": 49,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"build_config\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 50,
+              "line_end": 50,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"has_required_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 51,
+              "line_end": 51,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"installed_version\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 52,
+              "line_end": 52,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"manifest_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 53,
+              "line_end": 53,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"needs_install\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 54,
+              "line_end": 54,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"read_manifest\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 55,
+              "line_end": 55,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"resolve_config\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 56,
+              "line_end": 56,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"resolve_config_from_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 57,
+              "line_end": 57,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"required_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 58,
+              "line_end": 58,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"tool_fingerprint\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 59,
+              "line_end": 59,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"write_manifest\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 60,
+              "line_end": 60,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"NODEENV_VERSION_STAMP\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 63,
+              "line_end": 63,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"archive_launcher_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 64,
+              "line_end": 64,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"archive_tool_is_installed\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 65,
+              "line_end": 65,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"asset_url\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 66,
+              "line_end": 66,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"download_asset\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 67,
+              "line_end": 67,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"embedded_node_is_healthy\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 68,
+              "line_end": 68,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"initialize_nodeenv_globals\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 69,
+              "line_end": 69,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"install_archive_tool\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 70,
+              "line_end": 70,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"install_embedded_node\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 71,
+              "line_end": 71,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"install_native_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 72,
+              "line_end": 72,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"install_node_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 73,
+              "line_end": 73,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"install_package_manager_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 74,
+              "line_end": 74,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"install_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 75,
+              "line_end": 75,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"nodeenv_needs_unofficial_builds\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 76,
+              "line_end": 76,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"package_manager_tool_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 77,
+              "line_end": 77,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"package_manager_tool_is_current\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 78,
+              "line_end": 78,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"package_manager_tool_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 80,
+              "line_end": 80,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"KOTLIN_GRAMMAR\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 81,
+              "line_end": 81,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 322,
+              "line_end": 322,
+              "metric_value": 0.0
             }
           ]
         },
@@ -182,6 +665,503 @@
               "line_start": 29,
               "line_end": 29,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ALL_LANGUAGE_KEYS\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"BASE_TOOL_KEYS\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"JDTLS_BUILD\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"JDTLS_URL_TEMPLATE\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"JDTLS_VERSION\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"KOTLIN_LSP_LICENSE_URL\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"KOTLIN_LSP_URL_TEMPLATE\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 13,
+              "line_end": 13,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"KOTLIN_LSP_VERSION\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 14,
+              "line_end": 14,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"PINNED_NODE_VERSION\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 15,
+              "line_end": 15,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"PLATFORM_SUFFIX\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"TOOL_REGISTRY\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 17,
+              "line_end": 17,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"TOOLS_REPO\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 18,
+              "line_end": 18,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"TOOLS_TAG\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 19,
+              "line_end": 19,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ConfigSection\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 20,
+              "line_end": 20,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"GitHubToolSource\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 21,
+              "line_end": 21,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"PackageManagerToolSource\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 22,
+              "line_end": 22,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ProgressCallback\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 23,
+              "line_end": 23,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ToolDependency\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 24,
+              "line_end": 24,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ToolKind\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 25,
+              "line_end": 25,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ToolSource\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 26,
+              "line_end": 26,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"UpstreamToolSource\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 27,
+              "line_end": 27,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MINIMUM_NODE_MAJOR_VERSION\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 30,
+              "line_end": 30,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"embedded_node_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 31,
+              "line_end": 31,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"embedded_npm_cli_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 32,
+              "line_end": 32,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"embedded_npm_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 33,
+              "line_end": 33,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ensure_node_on_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 34,
+              "line_end": 34,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"exe_suffix\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 35,
+              "line_end": 35,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"get_servers_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 36,
+              "line_end": 36,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"node_is_acceptable\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 37,
+              "line_end": 37,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"node_version_tuple\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 38,
+              "line_end": 38,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"nodeenv_bin_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 39,
+              "line_end": 39,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"nodeenv_root_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 40,
+              "line_end": 40,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"npm_subprocess_env\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 41,
+              "line_end": 41,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"platform_bin_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 42,
+              "line_end": 42,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"preferred_node_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 43,
+              "line_end": 43,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"preferred_npm_command\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 44,
+              "line_end": 44,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"sibling_npm_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 45,
+              "line_end": 45,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"user_data_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 46,
+              "line_end": 46,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"acquire_lock\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 49,
+              "line_end": 49,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"build_config\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 50,
+              "line_end": 50,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"has_required_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 51,
+              "line_end": 51,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"installed_version\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 52,
+              "line_end": 52,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"manifest_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 53,
+              "line_end": 53,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"needs_install\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 54,
+              "line_end": 54,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"read_manifest\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 55,
+              "line_end": 55,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"resolve_config\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 56,
+              "line_end": 56,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"resolve_config_from_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 57,
+              "line_end": 57,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"required_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 58,
+              "line_end": 58,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"tool_fingerprint\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 59,
+              "line_end": 59,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"write_manifest\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 60,
+              "line_end": 60,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"NODEENV_VERSION_STAMP\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 63,
+              "line_end": 63,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"archive_launcher_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 64,
+              "line_end": 64,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"archive_tool_is_installed\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 65,
+              "line_end": 65,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"asset_url\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 66,
+              "line_end": 66,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"download_asset\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 67,
+              "line_end": 67,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"embedded_node_is_healthy\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 68,
+              "line_end": 68,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"initialize_nodeenv_globals\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 69,
+              "line_end": 69,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"install_archive_tool\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 70,
+              "line_end": 70,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"install_embedded_node\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 71,
+              "line_end": 71,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"install_native_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 72,
+              "line_end": 72,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"install_node_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 73,
+              "line_end": 73,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"install_package_manager_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 74,
+              "line_end": 74,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"install_tools\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 75,
+              "line_end": 75,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"nodeenv_needs_unofficial_builds\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 76,
+              "line_end": 76,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"package_manager_tool_dir\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 77,
+              "line_end": 77,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"package_manager_tool_is_current\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 78,
+              "line_end": 78,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"package_manager_tool_path\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 80,
+              "line_end": 80,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"KOTLIN_GRAMMAR\" is not accessed",
+              "file_path": "infra/tool_registry/__init__.py",
+              "line_start": 81,
+              "line_end": 81,
+              "metric_value": 0.0
+            }
+          ]
+        },
+        {
+          "severity": "info",
+          "threshold": 0,
+          "description": "Code that cannot be reached during execution",
+          "entities": [
+            {
+              "entity_name": "[unreachable_code] Code is unreachable",
+              "file_path": "infra/tool_registry/manifest.py",
+              "line_start": 17,
+              "line_end": 17,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Code is unreachable",
+              "file_path": "infra/tool_registry/manifest.py",
+              "line_start": 134,
+              "line_end": 145,
+              "metric_value": 0.0
             }
           ]
         }
@@ -189,6 +1169,12 @@
     }
   ],
   "file_summaries": [
+    {
+      "file_path": "infra/tool_registry/__init__.py",
+      "total_findings": 136,
+      "warning_findings": 68,
+      "composite_risk_score": 100.0
+    },
     {
       "file_path": "diagram_analysis/diagram_generator.py",
       "total_findings": 12,
@@ -203,6 +1189,12 @@
     },
     {
       "file_path": "agents/llm_config.py",
+      "total_findings": 2,
+      "warning_findings": 0,
+      "composite_risk_score": 20.0
+    },
+    {
+      "file_path": "infra/tool_registry/manifest.py",
       "total_findings": 2,
       "warning_findings": 0,
       "composite_risk_score": 20.0
@@ -226,13 +1218,19 @@
       "composite_risk_score": 10.0
     },
     {
-      "file_path": "static_analyzer/__init__.py",
+      "file_path": "static_analyzer/incremental_orchestrator.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
     },
     {
-      "file_path": "static_analyzer/incremental_orchestrator.py",
+      "file_path": "infra/install.py",
+      "total_findings": 1,
+      "warning_findings": 0,
+      "composite_risk_score": 10.0
+    },
+    {
+      "file_path": "static_analyzer/__init__.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
