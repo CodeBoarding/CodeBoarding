@@ -135,6 +135,15 @@ class SymbolTable:
             ):
                 kind = NodeType.METHOD
 
+            # csharp-ls files an enum's members as fields; the parse-tree fallback names them members.
+            if (
+                kind == NodeType.FIELD
+                and parent_chain
+                and parent_chain[-1][1] == NodeType.ENUM
+                and self._naming.reports_enum_members_as_fields
+            ):
+                kind = NodeType.ENUM_MEMBER
+
             file_key = str(file_path)
 
             qualified_name = self._naming.build_qualified_name(
