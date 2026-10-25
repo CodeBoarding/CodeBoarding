@@ -304,3 +304,123 @@ class TestMainCliLock(unittest.TestCase):
         # And it happened before run_install, which happened before
         # write_manifest.  Both must be inside the lock's critical section.
         self.assertEqual(call_order, ["acquire", "run_install", "write_manifest"])
+
+
+class TestEnsureToolsOnDemand(unittest.TestCase):
+    """An analysis installs what its repository's languages need: the base tools and those languages' servers."""
+
+    def test_languages_get_the_base_tools_and_only_their_servers(self):
+        installs, recorded, node, _ = self._ensure({"python"})
+        self.assertEqual(installs, [["tokei", "python"]])
+        self.assertEqual(recorded, installs)
+        node.assert_called_once()
+
+    def test_languages_without_node_servers_need_no_node_runtime(self):
+        installs, _, node, _ = self._ensure({"go", "kotlin"})
+        self.assertEqual(installs, [["tokei", "go", "kotlin"]])
+        node.assert_not_called()
+
+    def test_no_languages_installs_only_the_base_tools(self):
+        installs, _, _, _ = self._ensure(())
+        self.assertEqual(installs, [["tokei"]])
+
+    def test_without_languages_every_tool_is_installed(self):
+        installs, _, _, _ = self._ensure()
+        self.assertEqual(installs, [[d.key for d in install.TOOL_REGISTRY]])
+
+    def test_tools_already_current_are_not_installed_again(self):
+        installs, _, _, needs_install = self._ensure({"typescript"}, needs=False)
+        self.assertEqual(installs, [])
+        needs_install.assert_called_once_with({"typescript"})
+
+    def _ensure(
+        self, languages=install.ALL_LANGUAGE_KEYS, needs: bool = True, **kwargs
+    ) -> tuple[list[list[str]], list[list[str]], Mock, Mock]:
+        installs: list[list[str]] = []
+        recorded: list[list[str]] = []
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("infra.install.get_servers_dir", return_value=Path(tmp)),
+            patch("infra.install.acquire_lock"),
+            patch("infra.install.needs_install", return_value=needs) as needs_install,
+            patch("infra.install.ensure_node_runtime") as node,
+            patch("infra.install.run_install", side_effect=lambda **kw: installs.append([d.key for d in kw["deps"]])),
+            patch("infra.install.write_manifest", side_effect=lambda deps: recorded.append([d.key for d in deps])),
+        ):
+            install.ensure_tools(languages=languages, **kwargs)
+        return installs, recorded, node, needs_install
+
+
+class TestEnsureLanguageServers(unittest.TestCase):
+    """Per-analysis installs happen only once an entry point turns them on."""
+
+    def tearDown(self):
+        install._on_demand_install.clear()
+
+    def test_installs_nothing_until_enabled(self):
+        with patch("infra.install.ensure_tools") as ensure:
+            install.ensure_language_servers({"python"})
+        ensure.assert_not_called()
+
+    def test_once_enabled_installs_the_languages_servers_with_the_entry_points_flags(self):
+        install.enable_on_demand_install(auto_install_npm=True, auto_install_vcpp=False)
+        with patch("infra.install.ensure_tools") as ensure:
+            install.ensure_language_servers({"python", "go"})
+        ensure.assert_called_once_with(auto_install_npm=True, auto_install_vcpp=False, languages={"python", "go"})
+
+
+class TestRunInstallSelection(unittest.TestCase):
+    """``run_install`` hands each installer only the selected tools."""
+
+    def test_empty_selection_installs_no_tools(self):
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("infra.install.ensure_config_template"),
+            patch("infra.install.ensure_node_runtime") as node,
+            patch("infra.install.resolve_npm_availability") as npm,
+            patch("infra.install.install_node_tools") as node_tools,
+            patch("infra.install.install_native_tools") as native,
+            patch("infra.install.install_archive_tool") as archive,
+            patch("infra.install.install_package_manager_tools") as package_manager,
+            patch("infra.install.download_grammars") as grammars,
+            patch("infra.install.install_pre_commit_hooks"),
+            patch("infra.install.print_language_support_summary") as summary,
+        ):
+            install.run_install(target_dir=Path(tmp), deps=())
+        for untouched in (node, npm, node_tools, native, archive, package_manager, grammars, summary):
+            untouched.assert_not_called()
+
+    def test_only_the_selected_tools_reach_the_installers(self):
+        selected = [d for d in install.TOOL_REGISTRY if d.key in ("tokei", "go")]
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("infra.install.ensure_config_template"),
+            patch("infra.install.ensure_node_runtime") as node,
+            patch("infra.install.resolve_npm_availability") as npm,
+            patch("infra.install.install_node_tools") as node_tools,
+            patch("infra.install.install_native_tools") as native,
+            patch("infra.install.install_archive_tool") as archive,
+            patch("infra.install.install_package_manager_tools") as package_manager,
+            patch("infra.install.download_grammars") as grammars,
+            patch("infra.install.install_pre_commit_hooks"),
+            patch("infra.install.print_language_support_summary") as summary,
+        ):
+            install.run_install(target_dir=Path(tmp), deps=selected)
+        self.assertEqual([d.key for d in native.call_args.args[1]], ["tokei", "go"])
+        for untouched in (node, npm, node_tools, archive, package_manager, grammars, summary):
+            untouched.assert_not_called()
+
+    def test_kotlin_brings_its_grammar(self):
+        selected = [d for d in install.TOOL_REGISTRY if d.key in ("tokei", "kotlin")]
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("infra.install.ensure_config_template"),
+            patch("infra.install.install_native_tools"),
+            patch("infra.install.install_archive_tool") as archive,
+            patch("infra.install.install_package_manager_tools"),
+            patch("infra.install.download_grammars") as grammars,
+            patch("infra.install.install_pre_commit_hooks"),
+        ):
+            install.run_install(target_dir=Path(tmp), deps=selected)
+        self.assertEqual([call.args[1].key for call in archive.call_args_list], ["kotlin"])
+        grammars.assert_called_once()

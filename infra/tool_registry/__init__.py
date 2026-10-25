@@ -4,6 +4,8 @@ Layered: registry (data) -> paths -> manifest / installers -> __init__ (re-expor
 """
 
 from .registry import (  # noqa: F401
+    ALL_LANGUAGE_KEYS,
+    BASE_TOOL_KEYS,
     JDTLS_BUILD,
     JDTLS_URL_TEMPLATE,
     JDTLS_VERSION,
@@ -50,11 +52,11 @@ from .manifest import (  # noqa: F401
     installed_version,
     manifest_path,
     needs_install,
-    npm_specs_fingerprint,
     read_manifest,
     resolve_config,
     resolve_config_from_path,
-    tools_fingerprint,
+    required_tools,
+    tool_fingerprint,
     write_manifest,
 )
 from .installers import (  # noqa: F401
