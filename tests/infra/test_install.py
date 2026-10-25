@@ -307,54 +307,64 @@ class TestMainCliLock(unittest.TestCase):
 
 
 class TestEnsureToolsOnDemand(unittest.TestCase):
-    """An analysis installs what its repository's languages need: tokei, which finds them, then their servers."""
+    """An analysis installs what its repository's languages need: the base tools and those languages' servers."""
 
-    def _ensure(self, languages: set[str], **kwargs) -> tuple[list[list[str]], list[list[str]], Mock]:
+    def _ensure(self, languages, needs: bool = True, **kwargs) -> tuple[list[list[str]], list[list[str]], Mock, Mock]:
         installs: list[list[str]] = []
         recorded: list[list[str]] = []
         with (
             tempfile.TemporaryDirectory() as tmp,
             patch("infra.install.get_servers_dir", return_value=Path(tmp)),
             patch("infra.install.acquire_lock"),
-            patch("infra.install.needs_install", return_value=True),
+            patch("infra.install.needs_install", return_value=needs) as needs_install,
             patch("infra.install.ensure_node_runtime") as node,
             patch("infra.install.run_install", side_effect=lambda **kw: installs.append([d.key for d in kw["deps"]])),
             patch("infra.install.write_manifest", side_effect=lambda deps: recorded.append([d.key for d in deps])),
-            patch("infra.install.ProjectScanner") as scanner,
         ):
-            scanner.return_value.lsp_server_keys.return_value = languages
-            install.ensure_tools(**kwargs)
-        return installs, recorded, node
+            install.ensure_tools(languages=languages, **kwargs)
+        return installs, recorded, node, needs_install
 
-    def test_a_repository_gets_tokei_then_only_its_languages_servers(self):
-        installs, recorded, node = self._ensure({"python"}, repo_path=Path("/repo"))
-        self.assertEqual(installs, [["tokei"], ["tokei", "python"]])
+    def test_languages_get_the_base_tools_and_only_their_servers(self):
+        installs, recorded, node, _ = self._ensure({"python"})
+        self.assertEqual(installs, [["tokei", "python"]])
         self.assertEqual(recorded, installs)
         node.assert_called_once()
 
-    def test_a_repository_without_node_languages_needs_no_node_runtime(self):
-        installs, _, node = self._ensure({"go", "kotlin"}, repo_path=Path("/repo"))
-        self.assertEqual(installs, [["tokei"], ["tokei", "go", "kotlin"]])
+    def test_languages_without_node_servers_need_no_node_runtime(self):
+        installs, _, node, _ = self._ensure({"go", "kotlin"})
+        self.assertEqual(installs, [["tokei", "go", "kotlin"]])
         node.assert_not_called()
 
-    def test_without_a_repository_every_tool_is_installed(self):
-        installs, _, _ = self._ensure(set())
+    def test_no_languages_installs_only_the_base_tools(self):
+        installs, _, _, _ = self._ensure(())
+        self.assertEqual(installs, [["tokei"]])
+
+    def test_without_languages_every_tool_is_installed(self):
+        installs, _, _, _ = self._ensure(None)
         self.assertEqual(installs, [[d.key for d in install.TOOL_REGISTRY]])
 
     def test_tools_already_current_are_not_installed_again(self):
-        with (
-            tempfile.TemporaryDirectory() as tmp,
-            patch("infra.install.get_servers_dir", return_value=Path(tmp)),
-            patch("infra.install.acquire_lock"),
-            patch("infra.install.needs_install", return_value=False) as needs,
-            patch("infra.install.ensure_node_runtime"),
-            patch("infra.install.run_install") as run,
-            patch("infra.install.ProjectScanner") as scanner,
-        ):
-            scanner.return_value.lsp_server_keys.return_value = {"typescript"}
-            install.ensure_tools(repo_path=Path("/repo"))
-        run.assert_not_called()
-        self.assertEqual([call.args[0] for call in needs.call_args_list], [["tokei"], ["tokei", "typescript"]])
+        installs, _, _, needs_install = self._ensure({"typescript"}, needs=False)
+        self.assertEqual(installs, [])
+        needs_install.assert_called_once_with({"typescript"})
+
+
+class TestEnsureLanguageServers(unittest.TestCase):
+    """Per-analysis installs happen only once an entry point turns them on."""
+
+    def tearDown(self):
+        install._on_demand_install.clear()
+
+    def test_installs_nothing_until_enabled(self):
+        with patch("infra.install.ensure_tools") as ensure:
+            install.ensure_language_servers({"python"})
+        ensure.assert_not_called()
+
+    def test_once_enabled_installs_the_languages_servers_with_the_entry_points_flags(self):
+        install.enable_on_demand_install(auto_install_npm=True, auto_install_vcpp=False)
+        with patch("infra.install.ensure_tools") as ensure:
+            install.ensure_language_servers({"python", "go"})
+        ensure.assert_called_once_with(auto_install_npm=True, auto_install_vcpp=False, languages={"python", "go"})
 
 
 class TestRunInstallSelection(unittest.TestCase):

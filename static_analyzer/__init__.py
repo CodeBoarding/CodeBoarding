@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from infra.install import ensure_language_servers
 from infra.repo_utils.git_ops import get_changed_files_since
 from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_cache import StaticAnalysisCache
@@ -295,6 +296,7 @@ class StaticAnalyzer:
         self._server_slots = max_concurrent_engines() or (0 if resident_servers else 1)
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
         self.programming_langs = ProjectScanner(self.repository_path).scan()
+        ensure_language_servers({language.lsp_server_key for language in self.programming_langs})
         self._engine_configs = _create_engine_configs(self.programming_langs, self.repository_path, self.ignore_manager)
         self._engine_clients: list[tuple[EngineConfig, LSPClient]] = []
         # (language, project) -> the failure preparation raised, or None.

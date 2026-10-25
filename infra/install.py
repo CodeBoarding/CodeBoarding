@@ -41,8 +41,6 @@ from infra.tool_registry.java import find_java_21_or_later
 from infra.tool_registry.registry import ConfigSection, PackageManagerToolSource
 from infra.vscode_constants import VSCODE_CONFIG
 from infra.user_config import ensure_config_template
-from static_analyzer.config import Language
-from static_analyzer.scanner import ProjectScanner
 
 logger = logging.getLogger(__name__)
 
@@ -714,12 +712,12 @@ def ensure_tools(
     auto_install_npm: bool = False,
     auto_install_vcpp: bool = False,
     on_progress: ProgressCallback | None = None,
-    repo_path: Path | None = None,
+    languages: Collection[str] | None = None,
 ) -> None:
     """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current.
 
-    With *repo_path*, only the tools that repository's languages need: tokei first, which finds
-    them, then each language's server. Without it, every tool.
+    *languages* are ``lsp_servers`` keys: the base tools plus those languages' servers are
+    installed. None installs every tool.
 
     Uses a file lock so that concurrent instances (multiple VSCode windows)
     don't corrupt binaries by downloading simultaneously.
@@ -730,13 +728,15 @@ def ensure_tools(
     servers_dir = get_servers_dir()
     servers_dir.mkdir(parents=True, exist_ok=True)
     lock_path = servers_dir / ".download.lock"
+    deps = required_tools(languages)
 
-    def install(deps: list[ToolDependency]) -> None:
+    with open(lock_path, "w") as lock_fd:
+        acquire_lock(lock_fd)
         if any(dep.kind is ToolKind.NODE for dep in deps):
             # Run above needs_install() so a deleted nodeenv/ is always repaired
             # (fingerprints alone wouldn't detect it).
             ensure_node_runtime(target_dir=servers_dir, auto_install_npm=auto_install_npm)
-        if not needs_install([dep.key for dep in deps]):
+        if not needs_install(languages):
             return
         run_install(
             target_dir=servers_dir,
@@ -747,15 +747,29 @@ def ensure_tools(
         )
         write_manifest(deps)
 
-    with open(lock_path, "w") as lock_fd:
-        acquire_lock(lock_fd)
-        if repo_path is None:
-            install(required_tools())
-            return
-        install(required_tools(()))
-        languages = ProjectScanner(repo_path).lsp_server_keys()
-        logger.info("Tools for %s: tokei%s", repo_path, "".join(f", {key}" for key in sorted(languages)))
-        install(required_tools(languages))
+
+_on_demand_install: dict[str, bool] = {}
+
+
+def enable_on_demand_install(auto_install_npm: bool = False, auto_install_vcpp: bool = False) -> None:
+    """Let each analysis install the language servers its repository needs once it has found its languages.
+
+    Why: a run with ``--binary-location`` brings its own servers, so installing stays off unless the
+    entry point turns it on.
+    """
+    _on_demand_install.update(auto_install_npm=auto_install_npm, auto_install_vcpp=auto_install_vcpp)
+
+
+def ensure_language_servers(languages: Collection[str]) -> None:
+    """Install the servers of *languages* (``lsp_servers`` keys) when on-demand installs are enabled."""
+    if not _on_demand_install:
+        return
+    logger.info("Language servers needed: %s", ", ".join(sorted(languages)) or "none")
+    ensure_tools(
+        auto_install_npm=_on_demand_install["auto_install_npm"],
+        auto_install_vcpp=_on_demand_install["auto_install_vcpp"],
+        languages=languages,
+    )
 
 
 def run_install(

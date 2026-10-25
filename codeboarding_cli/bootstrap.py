@@ -5,7 +5,7 @@ from pathlib import Path
 from agents.llm_config import configure_models, validate_api_key_provided
 from health.plugins import get_registries, load_plugins
 from diagram_analysis.run_context import RunPaths
-from infra.install import ensure_tools
+from infra.install import enable_on_demand_install, ensure_tools
 from infra.logging_config import setup_logging
 from infra.user_config import ensure_config_template, load_user_config
 from infra.utils import CODEBOARDING_DIR_NAME
@@ -26,8 +26,7 @@ def resolve_local_run_paths(args: argparse.Namespace) -> RunPaths:
     return RunPaths(repo_path=repo_path, output_dir=output_dir, project_name=project_name)
 
 
-def bootstrap_environment(output_dir: Path, binary_location: Path | None, repo_path: Path | None = None) -> None:
-    """Set up logging, config and models, and the tools *repo_path* needs (a remote run installs them per clone)."""
+def bootstrap_environment(output_dir: Path, binary_location: Path | None) -> None:
     setup_logging(log_dir=output_dir)
     ensure_config_template()
     user_cfg = load_user_config()
@@ -37,9 +36,11 @@ def bootstrap_environment(output_dir: Path, binary_location: Path | None, repo_p
     load_plugins(get_registries())
     if binary_location is not None:
         update_config(binary_location)
-    elif repo_path is not None:
+    else:
         # Why: ensure_tools() already short-circuits via needs_install() and also
         # repairs a deleted ~/.codeboarding/servers/nodeenv/ independently of the
         # fingerprint check. Pre-gating with needs_install() here would skip that
         # repair when binaries look current but the runtime directory was deleted.
-        ensure_tools(auto_install_npm=True, auto_install_vcpp=True, repo_path=repo_path)
+        # Only the base tools here: the analysis installs its languages' servers once it has found them.
+        ensure_tools(auto_install_npm=True, auto_install_vcpp=True, languages=())
+        enable_on_demand_install(auto_install_npm=True, auto_install_vcpp=True)
