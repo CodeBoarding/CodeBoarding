@@ -873,8 +873,8 @@ class SourceInspector:
         if node.type == "as_pattern":
             return self._runtime_reference_names(node.named_children[0])
         if node.type == "dotted_name":
-            # A bare name in a Python case pattern is a capture; a dotted one is a value pattern.
-            return [node] if node.named_child_count > 1 else []
+            # A bare name in a Python case pattern is a capture and a dotted one a value; only a class pattern names a type.
+            return []
         if node.type == "class_pattern":
             return node.named_children[:1] + [
                 name for child in node.named_children[1:] for name in self._runtime_reference_names(child)

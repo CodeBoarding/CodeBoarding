@@ -33,7 +33,7 @@ def test_call_site_exposes_human_and_lsp_positions() -> None:
         (
             "py",
             "def f(x):\n    match x:\n        case ExpectedOne(a=1, b=m.ExpectedTwo()):\n            pass\n"
-            "        case E.ExpectedThree | [ExpectedFour(), *rest]:\n            pass\n"
+            "        case E.VALUE | ExpectedThree() | [ExpectedFour(), *rest]:\n            pass\n"
             "        case ExpectedFive() as bound if guard:\n            pass\n        case capture:\n            pass\n",
         ),
         ("cs", "class C { void F(Ignored x) { try {} catch (N.ExpectedOne e) {} if (x is ExpectedTwo) {} } }"),
