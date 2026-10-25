@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-10-25T17:12:22.516703+00:00",
-    "source_tree_hash": "edc14e32638ac5d0b52e8658f0348f171255073d70e0e84b1bf3f5142d63b83e",
+    "generated_at": "2026-10-25T17:57:42.472269+00:00",
+    "source_tree_hash": "1b474c45b9bdaaa7b0a10327159e5616045f589f57765b322dfc2c0bbc8df4cf",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -3551,8 +3551,8 @@
         "infra/user_config.py|infra.user_config.ensure_config_template",
         "infra/user_config.py|infra.user_config._append_commented_key"
       ],
-      "content_hash": "55a3151b6e4931ef",
-      "module_hash": "a340d3f4d748c9b0"
+      "content_hash": "9b12873d33c67029",
+      "module_hash": "37e5b761c1abc1fa"
     },
     "infra/utils.py": {
       "method_keys": [
@@ -3722,8 +3722,8 @@
         "agents/llm_config.py|agents.llm_config.supports_prompt_caching",
         "agents/llm_config.py|agents.llm_config.supports_json_mode"
       ],
-      "content_hash": "e7f52fe1a5172f10",
-      "module_hash": "df0e27706ad48abc"
+      "content_hash": "920b11a27b0d9e72",
+      "module_hash": "da77502a29a4d431"
     },
     "agents/llm_errors.py": {
       "method_keys": [
@@ -14041,64 +14041,64 @@
     "infra/user_config.py|infra.user_config.ProviderUserConfig": {
       "file_path": "infra/user_config.py",
       "qualified_name": "infra.user_config.ProviderUserConfig",
-      "start_line": 110,
-      "end_line": 130,
+      "start_line": 112,
+      "end_line": 133,
       "type": "CLASS",
-      "content_hash": "6b71efb985e6b862"
+      "content_hash": "c89ed1c6bed31d7a"
     },
     "infra/user_config.py|infra.user_config.LLMUserConfig": {
       "file_path": "infra/user_config.py",
       "qualified_name": "infra.user_config.LLMUserConfig",
-      "start_line": 134,
-      "end_line": 136,
+      "start_line": 137,
+      "end_line": 139,
       "type": "CLASS",
       "content_hash": "5dc2a7d7857928b0"
     },
     "infra/user_config.py|infra.user_config.ClusteringUserConfig": {
       "file_path": "infra/user_config.py",
       "qualified_name": "infra.user_config.ClusteringUserConfig",
-      "start_line": 140,
-      "end_line": 141,
+      "start_line": 143,
+      "end_line": 144,
       "type": "CLASS",
       "content_hash": "09f3744969725504"
     },
     "infra/user_config.py|infra.user_config.UserConfig": {
       "file_path": "infra/user_config.py",
       "qualified_name": "infra.user_config.UserConfig",
-      "start_line": 145,
-      "end_line": 157,
+      "start_line": 148,
+      "end_line": 160,
       "type": "CLASS",
       "content_hash": "dc36e90cc42d4598"
     },
     "infra/user_config.py|infra.user_config.UserConfig.apply_to_env": {
       "file_path": "infra/user_config.py",
       "qualified_name": "infra.user_config.UserConfig.apply_to_env",
-      "start_line": 150,
-      "end_line": 157,
+      "start_line": 153,
+      "end_line": 160,
       "type": "METHOD",
       "content_hash": "7babecb89a3fe9e8"
     },
     "infra/user_config.py|infra.user_config.load_user_config": {
       "file_path": "infra/user_config.py",
       "qualified_name": "infra.user_config.load_user_config",
-      "start_line": 160,
-      "end_line": 201,
+      "start_line": 163,
+      "end_line": 205,
       "type": "FUNCTION",
-      "content_hash": "3a63c95998b7c5d8"
+      "content_hash": "2533f6bd088d8743"
     },
     "infra/user_config.py|infra.user_config.ensure_config_template": {
       "file_path": "infra/user_config.py",
       "qualified_name": "infra.user_config.ensure_config_template",
-      "start_line": 204,
-      "end_line": 210,
+      "start_line": 208,
+      "end_line": 214,
       "type": "FUNCTION",
       "content_hash": "73f9de07a91b6cca"
     },
     "infra/user_config.py|infra.user_config._append_commented_key": {
       "file_path": "infra/user_config.py",
       "qualified_name": "infra.user_config._append_commented_key",
-      "start_line": 213,
-      "end_line": 222,
+      "start_line": 217,
+      "end_line": 226,
       "type": "FUNCTION",
       "content_hash": "c36cc646fee900c7"
     },
@@ -14881,112 +14881,112 @@
     "agents/llm_config.py|agents.llm_config._all_selection_envs": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._all_selection_envs",
-      "start_line": 332,
-      "end_line": 333,
+      "start_line": 345,
+      "end_line": 346,
       "type": "FUNCTION",
       "content_hash": "cd80e7d32c9c8da2"
     },
     "agents/llm_config.py|agents.llm_config._unselected_key_hints": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._unselected_key_hints",
-      "start_line": 336,
-      "end_line": 343,
+      "start_line": 349,
+      "end_line": 356,
       "type": "FUNCTION",
       "content_hash": "3b7a72d945b128e8"
     },
     "agents/llm_config.py|agents.llm_config.selected_providers": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.selected_providers",
-      "start_line": 346,
-      "end_line": 348,
+      "start_line": 359,
+      "end_line": 361,
       "type": "FUNCTION",
       "content_hash": "fffa8daecdd78b5a"
     },
     "agents/llm_config.py|agents.llm_config._initialize_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._initialize_llm",
-      "start_line": 351,
-      "end_line": 375,
+      "start_line": 364,
+      "end_line": 388,
       "type": "FUNCTION",
       "content_hash": "3a5a9c5b01dc2f71"
     },
     "agents/llm_config.py|agents.llm_config._resolve_selected_provider": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._resolve_selected_provider",
-      "start_line": 378,
-      "end_line": 386,
+      "start_line": 391,
+      "end_line": 399,
       "type": "FUNCTION",
       "content_hash": "1c1e358d62cd95bb"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfigError": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfigError",
-      "start_line": 389,
-      "end_line": 390,
+      "start_line": 402,
+      "end_line": 403,
       "type": "CLASS",
       "content_hash": "0d7294e6a41547e6"
     },
     "agents/llm_config.py|agents.llm_config.validate_api_key_provided": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.validate_api_key_provided",
-      "start_line": 393,
-      "end_line": 429,
+      "start_line": 406,
+      "end_line": 442,
       "type": "FUNCTION",
       "content_hash": "3e976c5f8b3d6f4d"
     },
     "agents/llm_config.py|agents.llm_config.initialize_agent_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.initialize_agent_llm",
-      "start_line": 432,
-      "end_line": 436,
+      "start_line": 445,
+      "end_line": 449,
       "type": "FUNCTION",
       "content_hash": "b99fa2987ab5ddf2"
     },
     "agents/llm_config.py|agents.llm_config.get_current_agent_context_window": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.get_current_agent_context_window",
-      "start_line": 439,
-      "end_line": 453,
+      "start_line": 452,
+      "end_line": 466,
       "type": "FUNCTION",
       "content_hash": "6c2d725bf2a670bc"
     },
     "agents/llm_config.py|agents.llm_config.get_current_agent_model_ref": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.get_current_agent_model_ref",
-      "start_line": 456,
-      "end_line": 462,
+      "start_line": 469,
+      "end_line": 475,
       "type": "FUNCTION",
       "content_hash": "bad96262fba04183"
     },
     "agents/llm_config.py|agents.llm_config.get_current_prompt_profile": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.get_current_prompt_profile",
-      "start_line": 465,
-      "end_line": 471,
+      "start_line": 478,
+      "end_line": 484,
       "type": "FUNCTION",
       "content_hash": "258d3dc8db901dbe"
     },
     "agents/llm_config.py|agents.llm_config.current_provider_key_context": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.current_provider_key_context",
-      "start_line": 483,
-      "end_line": 499,
+      "start_line": 496,
+      "end_line": 512,
       "type": "FUNCTION",
       "content_hash": "71c9283257fb6a27"
     },
     "agents/llm_config.py|agents.llm_config.supports_prompt_caching": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.supports_prompt_caching",
-      "start_line": 502,
-      "end_line": 508,
+      "start_line": 515,
+      "end_line": 521,
       "type": "FUNCTION",
       "content_hash": "26a3423b70fff963"
     },
     "agents/llm_config.py|agents.llm_config.supports_json_mode": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.supports_json_mode",
-      "start_line": 511,
-      "end_line": 513,
+      "start_line": 524,
+      "end_line": 526,
       "type": "FUNCTION",
       "content_hash": "e547499e7e727bab"
     },
@@ -25219,8 +25219,8 @@
         {
           "qualified_name": "infra.user_config.UserConfig",
           "reference_file": "infra/user_config.py",
-          "reference_start_line": 145,
-          "reference_end_line": 157
+          "reference_start_line": 148,
+          "reference_end_line": 160
         },
         {
           "qualified_name": "infra.clustering_ids.is_self_or_descendant",
@@ -26176,13 +26176,19 @@
         },
         {
           "name": "Configuration and Constants",
-          "description": "Defines shared infrastructure constants, user configuration schemas, and logging setup.",
+          "description": "Defines shared infrastructure constants, user configuration schemas and loaders, and logging configuration.",
           "key_entities": [
             {
               "qualified_name": "infra.user_config.ensure_config_template",
               "reference_file": "infra/user_config.py",
-              "reference_start_line": 204,
-              "reference_end_line": 210
+              "reference_start_line": 208,
+              "reference_end_line": 214
+            },
+            {
+              "qualified_name": "infra.user_config.load_user_config",
+              "reference_file": "infra/user_config.py",
+              "reference_start_line": 163,
+              "reference_end_line": 205
             },
             {
               "qualified_name": "infra.vscode_constants.find_runnable",
@@ -26337,17 +26343,6 @@
           "evidence": "",
           "key_edges": [
             {
-              "source": "infra/install.py|infra.install.run_install",
-              "target": "infra/user_config.py|infra.user_config.ensure_config_template",
-              "call_sites": [
-                {
-                  "line": 749,
-                  "column": 5
-                }
-              ],
-              "description": "Initializes configuration templates during tool installation"
-            },
-            {
               "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config",
               "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
               "call_sites": [
@@ -26356,13 +26351,8 @@
                   "column": 32
                 }
               ],
-              "description": "Resolves runnable tool binaries against VS Code and environment constants"
-            }
-          ],
-          "src_id": "2.3",
-          "dst_id": "2.4",
-          "is_static": true,
-          "all_edges": [
+              "description": "Queries runnable tool definitions from VS Code constants"
+            },
             {
               "source": "infra/install.py|infra.install.run_install",
               "target": "infra/user_config.py|infra.user_config.ensure_config_template",
@@ -26372,8 +26362,13 @@
                   "column": 5
                 }
               ],
-              "description": ""
-            },
+              "description": "Ensures user configuration template exists during tool installation"
+            }
+          ],
+          "src_id": "2.3",
+          "dst_id": "2.4",
+          "is_static": true,
+          "all_edges": [
             {
               "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.has_required_tools",
               "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
@@ -26403,6 +26398,17 @@
                 {
                   "line": 277,
                   "column": 28
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "infra/install.py|infra.install.run_install",
+              "target": "infra/user_config.py|infra.user_config.ensure_config_template",
+              "call_sites": [
+                {
+                  "line": 749,
+                  "column": 5
                 }
               ],
               "description": ""
@@ -26982,25 +26988,31 @@
         },
         {
           "name": "LLM Scope Analysis and Execution",
-          "description": "Orchestrates LLM scope analysis execution, runtime configuration, error handling, retries, and context rendering.",
+          "description": "Configures LLM provider selection, context window lookup, retry policies, and executes scope analysis agents.",
           "key_entities": [
             {
-              "qualified_name": "agents.agent_responses.Relation",
-              "reference_file": "agents/agent_responses.py",
-              "reference_start_line": 163,
-              "reference_end_line": 270
+              "qualified_name": "agents.llm_config.initialize_agent_llm",
+              "reference_file": "agents/llm_config.py",
+              "reference_start_line": 445,
+              "reference_end_line": 449
             },
             {
               "qualified_name": "agents.llm_config.get_current_agent_context_window",
               "reference_file": "agents/llm_config.py",
-              "reference_start_line": 439,
-              "reference_end_line": 453
+              "reference_start_line": 452,
+              "reference_end_line": 466
             },
             {
               "qualified_name": "agents.scope_analysis_agent.ScopeAnalysisAgent",
               "reference_file": "agents/scope_analysis_agent.py",
               "reference_start_line": 182,
               "reference_end_line": 267
+            },
+            {
+              "qualified_name": "agents.agent_responses.Relation",
+              "reference_file": "agents/agent_responses.py",
+              "reference_start_line": 163,
+              "reference_end_line": 270
             }
           ],
           "source_cluster_ids": [
@@ -27294,6 +27306,41 @@
       ],
       "components_relations": [
         {
+          "relation": "fetches prompts from",
+          "src_name": "Component Planning and Change Tracking",
+          "dst_name": "Prompt Templates and Profiles",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__",
+              "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_tree_plan_prompts",
+              "call_sites": [
+                {
+                  "line": 57,
+                  "column": 44
+                }
+              ],
+              "description": "Retrieves tree planning system and task prompt templates during agent initialization."
+            }
+          ],
+          "src_id": "3.1",
+          "dst_id": "3.4",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__",
+              "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_tree_plan_prompts",
+              "call_sites": [
+                {
+                  "line": 57,
+                  "column": 44
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
           "relation": "constructs and normalizes",
           "src_name": "Component Planning and Change Tracking",
           "dst_name": "LLM Scope Analysis and Execution",
@@ -27320,7 +27367,7 @@
                   "column": 18
                 }
               ],
-              "description": "Merges and normalizes relation instances and their unique edge endpoints."
+              "description": "Restores baseline wording and merges relation edges using data models"
             }
           ],
           "src_id": "3.1",
@@ -27522,28 +27569,6 @@
               "description": ""
             },
             {
-              "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__",
-              "target": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
-              "call_sites": [
-                {
-                  "line": 57,
-                  "column": 66
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__",
-              "target": "agents/llm_config.py|agents.llm_config.supports_json_mode",
-              "call_sites": [
-                {
-                  "line": 67,
-                  "column": 16
-                }
-              ],
-              "description": ""
-            },
-            {
               "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask",
               "target": "agents/retry.py|agents.retry.with_retries",
               "call_sites": [
@@ -27634,38 +27659,25 @@
                 }
               ],
               "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "fetches prompts from",
-          "src_name": "Component Planning and Change Tracking",
-          "dst_name": "Prompt Templates and Profiles",
-          "evidence": "",
-          "key_edges": [
+            },
             {
               "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__",
-              "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_tree_plan_prompts",
+              "target": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
               "call_sites": [
                 {
                   "line": 57,
-                  "column": 44
+                  "column": 66
                 }
               ],
-              "description": "Retrieves tree planning system and task prompt templates during agent initialization."
-            }
-          ],
-          "src_id": "3.1",
-          "dst_id": "3.4",
-          "is_static": true,
-          "all_edges": [
+              "description": ""
+            },
             {
               "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__",
-              "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_tree_plan_prompts",
+              "target": "agents/llm_config.py|agents.llm_config.supports_json_mode",
               "call_sites": [
                 {
-                  "line": 57,
-                  "column": 44
+                  "line": 67,
+                  "column": 16
                 }
               ],
               "description": ""
@@ -27683,11 +27695,11 @@
               "target": "agents/model_capabilities.py|agents.model_capabilities.get_context_window",
               "call_sites": [
                 {
-                  "line": 449,
+                  "line": 462,
                   "column": 15
                 }
               ],
-              "description": "Resolves context window constraints and capabilities from model capabilities."
+              "description": "Retrieves active provider context limits from capabilities catalog"
             }
           ],
           "src_id": "3.2",
@@ -27699,7 +27711,7 @@
               "target": "agents/model_capabilities.py|agents.model_capabilities.ContextWindow",
               "call_sites": [
                 {
-                  "line": 453,
+                  "line": 466,
                   "column": 12
                 }
               ],
@@ -27710,7 +27722,7 @@
               "target": "agents/model_capabilities.py|agents.model_capabilities.get_context_window",
               "call_sites": [
                 {
-                  "line": 449,
+                  "line": 462,
                   "column": 15
                 }
               ],
@@ -27726,14 +27738,14 @@
           "key_edges": [
             {
               "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
-              "target": "agents/tools/base.py|agents.tools.base.RepoContext",
+              "target": "agents/tools/read_file.py|agents.tools.read_file.ReadFileTool",
               "call_sites": [
                 {
-                  "line": 208,
-                  "column": 19
+                  "line": 216,
+                  "column": 18
                 }
               ],
-              "description": "Instantiates repository context and scoping inspection tools for agent analysis."
+              "description": "Instantiates repository inspection tools for LLM agent execution"
             }
           ],
           "src_id": "3.2",
@@ -27782,15 +27794,19 @@
           "evidence": "",
           "key_edges": [
             {
-              "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
-              "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_scope_analysis_prompts",
+              "source": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
+              "target": "agents/prompts/profiles.py|agents.prompts.profiles.resolve_prompt_profile",
               "call_sites": [
                 {
-                  "line": 195,
-                  "column": 52
+                  "line": 483,
+                  "column": 20
+                },
+                {
+                  "line": 484,
+                  "column": 12
                 }
               ],
-              "description": "Resolves prompt templates and profiles for LLM scope analysis execution."
+              "description": "Resolves model prompt profiles and fetches scope analysis templates"
             }
           ],
           "src_id": "3.2",
@@ -27798,27 +27814,27 @@
           "is_static": true,
           "all_edges": [
             {
-              "source": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
-              "target": "agents/prompts/profiles.py|agents.prompts.profiles.resolve_prompt_profile",
-              "call_sites": [
-                {
-                  "line": 470,
-                  "column": 20
-                },
-                {
-                  "line": 471,
-                  "column": 12
-                }
-              ],
-              "description": ""
-            },
-            {
               "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
               "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_scope_analysis_prompts",
               "call_sites": [
                 {
                   "line": 195,
                   "column": 52
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
+              "target": "agents/prompts/profiles.py|agents.prompts.profiles.resolve_prompt_profile",
+              "call_sites": [
+                {
+                  "line": 483,
+                  "column": 20
+                },
+                {
+                  "line": 484,
+                  "column": 12
                 }
               ],
               "description": ""
@@ -35387,17 +35403,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "infra/install.py|infra.install.run_install",
-          "target": "infra/user_config.py|infra.user_config.ensure_config_template",
-          "call_sites": [
-            {
-              "line": 749,
-              "column": 5
-            }
-          ],
-          "description": "Initializes configuration templates during tool installation"
-        },
-        {
           "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config",
           "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
           "call_sites": [
@@ -35407,12 +35412,7 @@
             }
           ],
           "description": "Resolves runnable tool binaries against VS Code and environment constants"
-        }
-      ],
-      "src_id": "2.3",
-      "dst_id": "2.4",
-      "is_static": true,
-      "all_edges": [
+        },
         {
           "source": "infra/install.py|infra.install.run_install",
           "target": "infra/user_config.py|infra.user_config.ensure_config_template",
@@ -35422,8 +35422,13 @@
               "column": 5
             }
           ],
-          "description": ""
-        },
+          "description": "Initializes configuration templates during tool installation"
+        }
+      ],
+      "src_id": "2.3",
+      "dst_id": "2.4",
+      "is_static": true,
+      "all_edges": [
         {
           "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.has_required_tools",
           "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
@@ -35453,6 +35458,17 @@
             {
               "line": 277,
               "column": 28
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "infra/install.py|infra.install.run_install",
+          "target": "infra/user_config.py|infra.user_config.ensure_config_template",
+          "call_sites": [
+            {
+              "line": 749,
+              "column": 5
             }
           ],
           "description": ""
@@ -35714,17 +35730,6 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "agents/model_capabilities.py|agents.model_capabilities._user_context_window_override",
-          "target": "infra/user_config.py|infra.user_config.load_user_config",
-          "call_sites": [
-            {
-              "line": 79,
-              "column": 12
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "agents/relation_edges.py|agents.relation_edges.edge_crosses_components",
           "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
           "call_sites": [
@@ -35754,6 +35759,17 @@
             {
               "line": 196,
               "column": 59
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/model_capabilities.py|agents.model_capabilities._user_context_window_override",
+          "target": "infra/user_config.py|infra.user_config.load_user_config",
+          "call_sites": [
+            {
+              "line": 79,
+              "column": 12
             }
           ],
           "description": ""
@@ -35989,28 +36005,6 @@
           "description": ""
         },
         {
-          "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__",
-          "target": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
-          "call_sites": [
-            {
-              "line": 57,
-              "column": 66
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__",
-          "target": "agents/llm_config.py|agents.llm_config.supports_json_mode",
-          "call_sites": [
-            {
-              "line": 67,
-              "column": 16
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent._ask",
           "target": "agents/retry.py|agents.retry.with_retries",
           "call_sites": [
@@ -36097,6 +36091,28 @@
           "call_sites": [
             {
               "line": 191,
+              "column": 16
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__",
+          "target": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
+          "call_sites": [
+            {
+              "line": 57,
+              "column": 66
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/tree_planner_agent.py|agents.tree_planner_agent.TreePlannerAgent.__init__",
+          "target": "agents/llm_config.py|agents.llm_config.supports_json_mode",
+          "call_sites": [
+            {
+              "line": 67,
               "column": 16
             }
           ],
@@ -36261,7 +36277,7 @@
           "target": "infra/monitoring/callbacks.py|infra.monitoring.callbacks.MonitoringCallback",
           "call_sites": [
             {
-              "line": 435,
+              "line": 448,
               "column": 25
             }
           ],
@@ -36272,28 +36288,6 @@
       "dst_id": "2.1",
       "is_static": true,
       "all_edges": [
-        {
-          "source": "agents/llm_config.py|agents.llm_config.initialize_agent_llm",
-          "target": "infra/monitoring/callbacks.py|infra.monitoring.callbacks.MonitoringCallback",
-          "call_sites": [
-            {
-              "line": 435,
-              "column": 25
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "agents/llm_config.py|agents.llm_config.initialize_agent_llm",
-          "target": "infra/monitoring/callbacks.py|infra.monitoring.callbacks.MonitoringCallback.model_name",
-          "call_sites": [
-            {
-              "line": 435,
-              "column": 25
-            }
-          ],
-          "description": ""
-        },
         {
           "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
           "target": "infra/monitoring/mixin.py|infra.monitoring.mixin.MonitoringMixin",
@@ -36312,6 +36306,28 @@
             {
               "line": 191,
               "column": 17
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/llm_config.py|agents.llm_config.initialize_agent_llm",
+          "target": "infra/monitoring/callbacks.py|infra.monitoring.callbacks.MonitoringCallback",
+          "call_sites": [
+            {
+              "line": 448,
+              "column": 25
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/llm_config.py|agents.llm_config.initialize_agent_llm",
+          "target": "infra/monitoring/callbacks.py|infra.monitoring.callbacks.MonitoringCallback.model_name",
+          "call_sites": [
+            {
+              "line": 448,
+              "column": 25
             }
           ],
           "description": ""
@@ -36401,7 +36417,7 @@
           "target": "agents/model_capabilities.py|agents.model_capabilities.get_context_window",
           "call_sites": [
             {
-              "line": 449,
+              "line": 462,
               "column": 15
             }
           ],
@@ -36417,7 +36433,7 @@
           "target": "agents/model_capabilities.py|agents.model_capabilities.ContextWindow",
           "call_sites": [
             {
-              "line": 453,
+              "line": 466,
               "column": 12
             }
           ],
@@ -36428,7 +36444,7 @@
           "target": "agents/model_capabilities.py|agents.model_capabilities.get_context_window",
           "call_sites": [
             {
-              "line": 449,
+              "line": 462,
               "column": 15
             }
           ],
@@ -36442,6 +36458,17 @@
       "dst_name": "Repository Inspection Tools",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
+          "target": "agents/tools/read_file.py|agents.tools.read_file.ReadFileTool",
+          "call_sites": [
+            {
+              "line": 216,
+              "column": 18
+            }
+          ],
+          "description": "Instantiates repository inspection tools for LLM agent execution"
+        },
         {
           "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.analyze",
           "target": "agents/tools/base.py|agents.tools.base.RepoContext",
@@ -36500,6 +36527,21 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
+          "target": "agents/prompts/profiles.py|agents.prompts.profiles.resolve_prompt_profile",
+          "call_sites": [
+            {
+              "line": 483,
+              "column": 20
+            },
+            {
+              "line": 484,
+              "column": 12
+            }
+          ],
+          "description": "Resolves model prompt profiles and fetches scope analysis templates"
+        },
+        {
           "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
           "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_scope_analysis_prompts",
           "call_sites": [
@@ -36516,27 +36558,27 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
-          "target": "agents/prompts/profiles.py|agents.prompts.profiles.resolve_prompt_profile",
-          "call_sites": [
-            {
-              "line": 470,
-              "column": 20
-            },
-            {
-              "line": 471,
-              "column": 12
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent.__init__",
           "target": "agents/prompts/__init__.py|agents.prompts.__init__.get_scope_analysis_prompts",
           "call_sites": [
             {
               "line": 195,
               "column": 52
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "agents/llm_config.py|agents.llm_config.get_current_prompt_profile",
+          "target": "agents/prompts/profiles.py|agents.prompts.profiles.resolve_prompt_profile",
+          "call_sites": [
+            {
+              "line": 483,
+              "column": 20
+            },
+            {
+              "line": 484,
+              "column": 12
             }
           ],
           "description": ""
@@ -36929,6 +36971,28 @@
         },
         {
           "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
+          "target": "infra/vscode_constants.py|infra.vscode_constants.update_config",
+          "call_sites": [
+            {
+              "line": 38,
+              "column": 9
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "codeboarding_cli/render.py|codeboarding_cli.render.run_from_args",
+          "target": "infra/logging_config.py|infra.logging_config.setup_logging",
+          "call_sites": [
+            {
+              "line": 55,
+              "column": 5
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
           "target": "infra/user_config.py|infra.user_config.UserConfig",
           "call_sites": [
             {
@@ -36967,28 +37031,6 @@
             {
               "line": 32,
               "column": 16
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
-          "target": "infra/vscode_constants.py|infra.vscode_constants.update_config",
-          "call_sites": [
-            {
-              "line": 38,
-              "column": 9
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "codeboarding_cli/render.py|codeboarding_cli.render.run_from_args",
-          "target": "infra/logging_config.py|infra.logging_config.setup_logging",
-          "call_sites": [
-            {
-              "line": 55,
-              "column": 5
             }
           ],
           "description": ""
@@ -38159,7 +38201,19 @@
       "src_name": "Analysis Workflows and Source Orchestration",
       "dst_name": "Component Planning and Change Tracking",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "codeboarding_workflows/fingerprint_diff.py|codeboarding_workflows.fingerprint_diff.detect_changes_from_fingerprint",
+          "target": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
+          "call_sites": [
+            {
+              "line": 70,
+              "column": 15
+            }
+          ],
+          "description": "Workflow fingerprint diffing hashes repository source files"
+        }
+      ],
       "src_id": "4.3",
       "dst_id": "3.1",
       "is_static": true,
@@ -39663,6 +39717,21 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations.build_global_relations",
+          "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
+          "call_sites": [
+            {
+              "line": 177,
+              "column": 21
+            },
+            {
+              "line": 178,
+              "column": 21
+            }
+          ],
+          "description": "Global relations builder evaluates cluster hierarchy relationships"
+        },
+        {
           "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations._ancestor_relation",
           "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
           "call_sites": [
@@ -40301,17 +40370,6 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "diagram_analysis/__init__.py|diagram_analysis.__init__.__getattr__",
-          "target": "agents/llm_config.py|agents.llm_config.configure_models",
-          "call_sites": [
-            {
-              "line": 29,
-              "column": 16
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
           "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
           "call_sites": [
@@ -40564,28 +40622,6 @@
           "description": ""
         },
         {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._grouper",
-          "target": "agents/llm_config.py|agents.llm_config.initialize_agent_llm",
-          "call_sites": [
-            {
-              "line": 766,
-              "column": 31
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._scope_agent",
-          "target": "agents/llm_config.py|agents.llm_config.initialize_agent_llm",
-          "call_sites": [
-            {
-              "line": 776,
-              "column": 35
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._scope_agent",
           "target": "agents/scope_analysis_agent.py|agents.scope_analysis_agent.ScopeAnalysisAgent",
           "call_sites": [
@@ -40669,6 +40705,39 @@
             {
               "line": 48,
               "column": 86
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/__init__.py|diagram_analysis.__init__.__getattr__",
+          "target": "agents/llm_config.py|agents.llm_config.configure_models",
+          "call_sites": [
+            {
+              "line": 29,
+              "column": 16
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._grouper",
+          "target": "agents/llm_config.py|agents.llm_config.initialize_agent_llm",
+          "call_sites": [
+            {
+              "line": 766,
+              "column": 31
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._scope_agent",
+          "target": "agents/llm_config.py|agents.llm_config.initialize_agent_llm",
+          "call_sites": [
+            {
+              "line": 776,
+              "column": 35
             }
           ],
           "description": ""

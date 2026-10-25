@@ -1,6 +1,6 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-10-25T17:11:07.978056+00:00",
+  "timestamp": "2026-10-25T17:56:46.340754+00:00",
   "overall_score": 0.9865556978233034,
   "check_summaries": [
     {
@@ -29,20 +29,6 @@
           "threshold": 0,
           "description": "Variables declared but never used",
           "entities": [
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 448,
-              "line_end": 448,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 461,
-              "line_end": 461,
-              "metric_value": 0.0
-            },
             {
               "entity_name": "[unused_variable] \"_key_tail\" is not accessed",
               "file_path": "agents/llm_errors.py",
@@ -167,6 +153,20 @@
               "file_path": "static_analyzer/incremental_orchestrator.py",
               "line_start": 144,
               "line_end": 144,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 461,
+              "line_end": 461,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 474,
+              "line_end": 474,
               "metric_value": 0.0
             }
           ]
