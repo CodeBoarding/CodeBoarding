@@ -1,6 +1,9 @@
 """Tests for static_analyzer.engine.source_inspector.SourceInspector."""
 
+import re
 from pathlib import Path
+
+import pytest
 
 from static_analyzer.config import NodeType
 from static_analyzer.engine.models import CallSite
@@ -20,6 +23,68 @@ def test_call_site_exposes_human_and_lsp_positions() -> None:
     assert site.human_column == 5
     assert site.lsp_line == 0
     assert site.lsp_column == 4
+
+
+@pytest.mark.parametrize(
+    "suffix,source",
+    [
+        ("py", "def f(x: Ignored):\n try: pass\n except (m.ExpectedOne, ExpectedTwo) as bound: pass\n"),
+        ("py", "try: pass\nexcept* m.ExpectedOne as bound: pass\ntry: pass\nexcept: pass\n"),
+        (
+            "py",
+            "def f(x):\n    match x:\n        case ExpectedOne(a=1, b=m.ExpectedTwo()):\n            pass\n"
+            "        case E.VALUE | ExpectedThree() | [ExpectedFour(), *rest]:\n            pass\n"
+            "        case ExpectedFive() as bound if guard:\n            pass\n        case capture:\n            pass\n",
+        ),
+        ("cs", "class C { void F(Ignored x) { try {} catch (N.ExpectedOne e) {} if (x is ExpectedTwo) {} } }"),
+        ("cs", "class C { void F(object x) { if (x is not ExpectedOne) {} if (x is N.ExpectedTwo bound) {} } }"),
+        (
+            "cs",
+            "class C { int F(object x) => x switch { E.ExpectedOne => 1, N.E.ExpectedTwo or E.ExpectedThree => 2,"
+            " _ => 0 }; void G(object x) { switch (x) { case E.ExpectedFour: break;"
+            " case E.ExpectedFive when x != null: break; case 5: break; } } }",
+        ),
+        ("java", "class C { void f(Ignored x) { try {} catch (N.ExpectedOne | ExpectedTwo bound) {} } }"),
+        ("java", "class C { void f(Object x) { if (x instanceof N.ExpectedOne bound) {} } }"),
+        (
+            "java",
+            "class C { void f(Object x) { switch (x) { case N.ExpectedOne b -> {} case ExpectedTwo t when t.ok() -> {}"
+            " default -> {} } switch (x) { case ExpectedThree bound: break; } } }",
+        ),
+        ("kt", "fun f(x: Ignored) {\n try {} catch (bound: N.ExpectedOne) {}\n if (x !is ExpectedTwo) {}\n}"),
+        ("kt", "fun f(x: Ignored) = when (x) { is N.ExpectedOne -> 1; !is ExpectedTwo -> 2; else -> 3 }"),
+        ("php", "<?php function f(Ignored $x) { try {} catch (N\\ExpectedOne | ExpectedTwo $e) {} }"),
+        ("php", "<?php function f($x) { if ($x instanceof N\\ExpectedOne) {} }"),
+        ("ts", "function f(x: Ignored) { try {} catch (bound) { if (bound instanceof N.ExpectedOne) {} } }"),
+        ("js", "function f() { try {} catch { } try {} catch (bound) { if (bound instanceof ExpectedOne) {} } }"),
+        (
+            "go",
+            "package p\nfunc f(x error) { switch x.(type) { case *m.ExpectedOne, ExpectedTwo: }; _ = x.(*ExpectedThree) }",
+        ),
+        ("go", "package p\nfunc f(x any) { _ = x.([]ExpectedOne) }"),
+        ("rs", "fn f(x: Ignored) { match x { [E::ExpectedOne, _] => (), _ => () } }"),
+        ("rs", "fn f(x: Ignored) { match x { E::ExpectedOne => (), E::ExpectedTwo(_) => (), _ => () } }"),
+        ("rs", "fn f(x: Ignored) { match x { E::ExpectedOne { field: E::ExpectedTwo(_) } => (), _ => () } }"),
+        ("rs", "fn f(x: Ignored) { match x { bound @ E::ExpectedOne(E::ExpectedTwo) if guard => (), _ => () } }"),
+        ("rs", "fn f(x: Ignored) { match x { ExpectedOne => (), [first, rest @ ..] => (), bound => () } }"),
+        (
+            "rs",
+            "fn f(x: Ignored) { if let E::ExpectedOne(bound) = x {} while let E::ExpectedTwo = x {}"
+            " let E::ExpectedThree(y) = x else { return }; let (a, b) = x; }",
+        ),
+    ],
+)
+def test_runtime_references_exclude_bindings_and_annotations(tmp_path: Path, suffix: str, source: str) -> None:
+    path = tmp_path / f"sample.{suffix}"
+    path.write_text(source)
+    expected = {
+        (source[: match.start()].count("\n") + 1, match.start() - source.rfind("\n", 0, match.start()))
+        for match in re.finditer(r"Expected\w+", source)
+    }
+    inspector = SourceInspector()
+    sites = inspector.find_runtime_reference_sites(path)
+    assert _positions(sites) == expected
+    assert not any(inspector.is_construction_site(site) for site in sites)
 
 
 class TestGetSourceLine:

@@ -369,6 +369,11 @@ class LanguageAdapter(ABC):
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 
     @property
+    def reports_enum_members_as_fields(self) -> bool:
+        """Whether the server files an enum's members as fields, in a language whose enums hold nothing else."""
+        return False
+
+    @property
     def resolves_method_groups(self) -> bool:
         """Whether to also query names passed as values and members read without a call, keeping only
         what resolves to something callable -- ``app.MapGet("/items", GetAllItems)``, ``this.redraw.bind(this)``."""

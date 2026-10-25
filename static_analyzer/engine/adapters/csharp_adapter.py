@@ -411,6 +411,10 @@ class CSharpAdapter(LanguageAdapter):
     def fail_on_empty_symbols(self) -> bool:
         return True
 
+    @property
+    def reports_enum_members_as_fields(self) -> bool:
+        return True
+
     def is_reference_worthy(self, symbol_kind: int) -> bool:
         """Include namespaces in reference tracking (similar to PHP modules)."""
         return super().is_reference_worthy(symbol_kind) or symbol_kind == NodeType.NAMESPACE

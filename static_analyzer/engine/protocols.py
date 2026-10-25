@@ -33,6 +33,9 @@ class SymbolNaming(Protocol):
 
     def is_callable(self, symbol_kind: int) -> bool: ...
 
+    @property
+    def reports_enum_members_as_fields(self) -> bool: ...
+
 
 class EdgeBuildAdapter(Protocol):
     """Methods needed by edge-building strategies to query adapter config."""

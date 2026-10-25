@@ -20,6 +20,9 @@ CALLABLE_KINDS: set[int] = {
     NodeType.CONSTRUCTOR,
 }
 
+# A type check can name a constructor function; a variant pattern names an enum member.
+RUNTIME_REFERENCE_KINDS = CLASS_LIKE_KINDS | CALLABLE_KINDS | {NodeType.ENUM_MEMBER}
+
 # Callables a call can dispatch to an override of. A constructor runs exactly the class it names.
 DISPATCHED_KINDS: set[int] = {
     NodeType.FUNCTION,
