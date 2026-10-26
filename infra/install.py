@@ -23,6 +23,7 @@ from infra.tool_registry import (
     acquire_lock,
     archive_launcher_path,
     download_kotlin_grammar,
+    exe_suffix,
     get_servers_dir,
     install_archive_tool,
     install_embedded_node,
@@ -35,7 +36,9 @@ from infra.tool_registry import (
     platform_bin_dir,
     preferred_node_path,
     preferred_npm_command,
+    read_manifest,
     required_tools,
+    tool_fingerprint,
     write_manifest,
 )
 from infra.tool_registry.java import find_java_21_or_later
@@ -643,6 +646,12 @@ def ensure_tools(
             ensure_node_runtime(target_dir=servers_dir, auto_install_npm=auto_install_npm)
         if not needs_install(languages):
             return
+        recorded = read_manifest().get("tools", {})
+        for dep in deps:
+            if dep.kind is ToolKind.NATIVE and dep.is_available_on_host():
+                if recorded.get(dep.key) != tool_fingerprint(dep):
+                    # Native installers otherwise keep any existing binary, including an outdated one.
+                    (platform_bin_dir(servers_dir) / f"{dep.binary_name}{exe_suffix()}").unlink(missing_ok=True)
         run_install(
             target_dir=servers_dir,
             auto_install_npm=auto_install_npm,

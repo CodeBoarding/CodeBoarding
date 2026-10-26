@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -332,6 +333,42 @@ class TestEnsureToolsOnDemand(unittest.TestCase):
         installs, _, _, needs_install = self._ensure({"typescript"}, needs=False)
         self.assertEqual(installs, [])
         needs_install.assert_called_once_with({"typescript"})
+
+    def test_native_version_change_replaces_only_the_outdated_binary(self):
+        deps = install.required_tools({"go"})
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            binaries = install.platform_bin_dir(target)
+            binaries.mkdir(parents=True)
+            suffix = ".exe" if sys.platform == "win32" else ""
+            stale = binaries / f"tokei{suffix}"
+            current = binaries / f"gopls{suffix}"
+            stale.write_bytes(b"old")
+            current.write_bytes(b"keep")
+            with (
+                patch("infra.install.get_servers_dir", return_value=target),
+                patch("infra.tool_registry.manifest.get_servers_dir", return_value=target),
+            ):
+                install.write_manifest(deps)
+                manifest_path = target / "installed.json"
+                manifest = json.loads(manifest_path.read_text())
+                manifest["tools"]["tokei"] = "previous-version"
+                manifest_path.write_text(json.dumps(manifest))
+
+                def download(_url, destination, **_kwargs):
+                    destination.write_bytes(b"new")
+                    return True
+
+                def run_install(target_dir, deps, **_kwargs):
+                    install.install_native_tools(target_dir, list(deps))
+
+                with (
+                    patch("infra.install.run_install", side_effect=run_install),
+                    patch("infra.tool_registry.installers.download_asset", side_effect=download),
+                ):
+                    install.ensure_tools(languages={"go"})
+                self.assertEqual(stale.read_bytes(), b"new")
+                self.assertEqual(current.read_bytes(), b"keep")
 
     def _ensure(
         self, languages=install.ALL_LANGUAGE_KEYS, needs: bool = True, **kwargs
