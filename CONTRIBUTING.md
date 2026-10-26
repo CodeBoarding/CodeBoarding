@@ -29,6 +29,8 @@ CodeBoarding is an early-stage project, and we love contributors! :heart:
 
 ## 4) Development setup (for contributors)
 
+### Local setup
+
 For active contributors who want to modify the code:
 
 ```bash
@@ -45,6 +47,19 @@ codeboarding-setup
 The pre-commit hooks will automatically format your code with Black before each commit.
 
 For regular users who just want to run the analysis, use `uv sync --frozen` instead (see README).
+
+### Dev Containers / GitHub Codespaces
+
+CodeBoarding provides a development container for VS Code and GitHub Codespaces.
+
+- **VS Code:** with Docker and the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension installed, open the repository and run **Dev Containers: Reopen in Container**.
+- **GitHub Codespaces:** create a Codespace from the repository's **Code → Codespaces** menu.
+
+The container automatically installs the project's development dependencies, language servers, and pre-commit hooks. To run analyses, configure your LLM provider credentials as described in the [README](README.md#configuration).
+
+**Current limitations:** Full analysis is unavailable on ARM64; tests and development checks remain usable. Java, .NET, Go, and Rust toolchains are not bundled.
+
+See [`.devcontainer/README.md`](.devcontainer/README.md) for the local host-mount config, Claude Code and SSH setup, port forwarding, and CI details.
 
 ---
 
