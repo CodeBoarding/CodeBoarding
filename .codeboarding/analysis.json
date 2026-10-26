@@ -1,18 +1,18 @@
 {
   "metadata": {
-    "generated_at": "2026-10-25T19:34:36.686296+00:00",
-    "source_tree_hash": "90b99f5f28193c3ce985aead10f4a19e37882ed464d667f2f216ce4b842e0dbb",
+    "generated_at": "2026-10-26T09:03:06.689971+00:00",
+    "source_tree_hash": "584a4e5df09e4e33d502a4710b040381542c7341ff7ef7ca5ed4115584b4daba",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
     "file_coverage_summary": {
-      "total_files": 345,
+      "total_files": 346,
       "analyzed": 177,
-      "not_analyzed": 168,
+      "not_analyzed": 169,
       "not_analyzed_by_reason": {
         "other": 14,
         "ignored_directory": 2,
-        "codeboardingignore": 152
+        "codeboardingignore": 153
       }
     },
     "tree_spec": {
@@ -32527,17 +32527,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
-          "target": "infra/repo_utils/git_ops.py|infra.repo_utils.git_ops.get_changed_files_since",
-          "call_sites": [
-            {
-              "line": 1001,
-              "column": 24
-            }
-          ],
-          "description": "Detects changed files for incremental language analysis using git operations."
-        },
-        {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
@@ -32547,6 +32536,17 @@
             }
           ],
           "description": "Initializes repository ignore manager to filter static analysis targets"
+        },
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
+          "target": "infra/repo_utils/git_ops.py|infra.repo_utils.git_ops.get_changed_files_since",
+          "call_sites": [
+            {
+              "line": 1001,
+              "column": 24
+            }
+          ],
+          "description": "Detects changed files for incremental language analysis using git operations."
         }
       ],
       "src_id": "1.1",
@@ -39837,21 +39837,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations.build_global_relations",
-          "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
-          "call_sites": [
-            {
-              "line": 177,
-              "column": 21
-            },
-            {
-              "line": 178,
-              "column": 21
-            }
-          ],
-          "description": "Global relations builder evaluates cluster hierarchy relationships"
-        },
-        {
           "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations._ancestor_relation",
           "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
           "call_sites": [
@@ -39865,6 +39850,21 @@
             }
           ],
           "description": "Verifies cluster hierarchy ancestor relationships"
+        },
+        {
+          "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations.build_global_relations",
+          "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
+          "call_sites": [
+            {
+              "line": 177,
+              "column": 21
+            },
+            {
+              "line": 178,
+              "column": 21
+            }
+          ],
+          "description": "Global relations builder evaluates cluster hierarchy relationships"
         }
       ],
       "src_id": "5.1",
