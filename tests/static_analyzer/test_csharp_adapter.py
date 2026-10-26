@@ -55,6 +55,10 @@ class TestStandaloneWorkspace:
         assert [item.attrib["Include"] for item in project.findall("ItemGroup/Compile")] == [str(source)]
         assert project.findtext("PropertyGroup/EnableDefaultCompileItems") == "false"
         assert project.findtext("PropertyGroup/TargetFramework") == "net10.0"
+        for name in ("Directory.Build.props", "Directory.Build.targets"):
+            build_import = ElementTree.parse(solution_path.parent / name).getroot()
+            assert build_import.tag == "Project"
+            assert not build_import.attrib and len(build_import) == 0
         assert set(tmp_path.iterdir()) == {source, ignored, dependencies}
         assert "inferred" in caplog.text
 

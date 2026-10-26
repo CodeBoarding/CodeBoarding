@@ -180,6 +180,9 @@ class CSharpAdapter(LanguageAdapter):
             for character in ("%", "$", "@", "'", ";", "?", "*"):
                 include = include.replace(character, f"%{ord(character):02X}")
             ElementTree.SubElement(items, "Compile", Include=include)
+        # Stop both MSBuild and our injected imports from searching temporary-directory ancestors.
+        for name in ("Directory.Build.props", "Directory.Build.targets"):
+            (workspace / name).write_text("<Project />", encoding="utf-8")
         target = workspace / "Standalone.csproj"
         ElementTree.ElementTree(project).write(target, encoding="utf-8", xml_declaration=True)
         solution = ElementTree.Element("Solution")
