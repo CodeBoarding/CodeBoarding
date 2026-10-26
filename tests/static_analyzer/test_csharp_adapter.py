@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from xml.etree import ElementTree
 
 import pytest
 
@@ -13,10 +14,87 @@ from static_analyzer.config import Language, NodeType
 from static_analyzer.dotnet_sdk import DotnetSdkError, DotnetSdkResolution
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.exceptions import WorkspaceSetupError
 
 
 def _dotnet_resolution(dotnet_path: str = "/usr/bin/dotnet", env: dict[str, str] | None = None) -> DotnetSdkResolution:
     return DotnetSdkResolution(dotnet_path=dotnet_path, env=env or {}, source="system")
+
+
+class TestStandaloneWorkspace:
+    def test_links_only_selected_sources_without_changing_repository(self, tmp_path, caplog):
+        source = tmp_path / "Helper & tools.cs"
+        source.write_text("class Helper { public static void Run() {} }")
+        ignored = tmp_path / "Ignored.cs"
+        ignored.write_text("class Ignored {}")
+        dependencies = tmp_path / "node_modules"
+        dependencies.mkdir()
+        (dependencies / "Unused.csproj").write_text("<Project />")
+        adapter = CSharpAdapter()
+        with (
+            patch(
+                "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+                return_value=_dotnet_resolution(),
+            ),
+            patch(
+                "static_analyzer.engine.adapters.csharp_adapter.subprocess.run", return_value=MagicMock(returncode=0)
+            ),
+            patch.object(adapter, "_ensure_csharp_ls_installed"),
+            caplog.at_level(logging.WARNING),
+        ):
+            folders = adapter.workspace_folders(tmp_path, [source])
+            command = adapter.get_lsp_command(tmp_path)
+
+        assert folders == [tmp_path]
+        solution_path = Path(command[command.index("--solution") + 1])
+        assert not solution_path.is_relative_to(tmp_path)
+        solution = ElementTree.parse(solution_path)
+        project_path = solution.find("Project")
+        assert project_path is not None
+        project = ElementTree.parse(solution_path.parent / project_path.attrib["Path"])
+        assert [item.attrib["Include"] for item in project.findall("ItemGroup/Compile")] == [str(source)]
+        assert project.findtext("PropertyGroup/EnableDefaultCompileItems") == "false"
+        assert project.findtext("PropertyGroup/TargetFramework") == "net10.0"
+        assert set(tmp_path.iterdir()) == {source, ignored, dependencies}
+        assert "inferred" in caplog.text
+
+        (tmp_path / "Real.csproj").write_text("<Project />")
+        assert adapter.workspace_folders(tmp_path, [source]) == []
+        assert not solution_path.exists()
+        with (
+            patch(
+                "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+                return_value=_dotnet_resolution(),
+            ),
+            patch.object(adapter, "_ensure_csharp_ls_installed"),
+        ):
+            assert "--solution" not in adapter.get_lsp_command(tmp_path)
+
+    @pytest.mark.parametrize("name", ["Broken.sln", "Broken.slnx", "Broken.csproj", "nested/Broken.csproj"])
+    def test_existing_project_is_not_replaced(self, tmp_path, name):
+        project = tmp_path / name
+        project.parent.mkdir(parents=True, exist_ok=True)
+        project.write_text("broken project")
+        source = tmp_path / "Helper.cs"
+        source.write_text("class Helper {}")
+        assert CSharpAdapter().workspace_folders(tmp_path, [source]) == []
+
+    def test_restore_failure_is_not_successful_empty_analysis(self, tmp_path):
+        source = tmp_path / "Helper.cs"
+        source.write_text("class Helper {}")
+        adapter = CSharpAdapter()
+        with (
+            patch(
+                "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+                return_value=_dotnet_resolution(),
+            ),
+            patch(
+                "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
+                return_value=MagicMock(returncode=1, stdout="restore failed", stderr=""),
+            ),
+            pytest.raises(WorkspaceSetupError, match="Could not restore the standalone C# analysis project"),
+        ):
+            adapter.workspace_folders(tmp_path, [source])
 
 
 class TestGetLspCommandDotnetCheck:

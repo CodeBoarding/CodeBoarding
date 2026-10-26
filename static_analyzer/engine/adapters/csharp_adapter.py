@@ -9,14 +9,17 @@ import subprocess
 import threading
 from collections.abc import Sequence
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from xml.etree import ElementTree
 
 from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import Language, NodeType
-from static_analyzer.dotnet_sdk import DotnetSdkError, resolve_dotnet_sdk, system_dotnet_env
+from static_analyzer.dotnet_sdk import TOOL_SDK_CHANNEL, DotnetSdkError, resolve_dotnet_sdk, system_dotnet_env
 from static_analyzer.dotnet_solution import analyzer_project_references, solution_projects
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.exceptions import WorkspaceSetupError
 from infra.tool_registry import (
     TOOL_REGISTRY,
     ToolKind,
@@ -141,6 +144,63 @@ class CSharpAdapter(LanguageAdapter):
         # segment. Why the root: this one adapter serves every C# engine config, which the
         # bounded pass can run concurrently, and two roots can hold the same file.
         self._files_with_sibling_types: set[tuple[str, str]] = set()
+        self._standalone_workspaces: dict[Path, TemporaryDirectory[str]] = {}
+
+    def workspace_folders(self, project_root: Path, source_files: Sequence[Path]) -> list[Path]:
+        """Supply an isolated project for sources with no declared .NET project."""
+        ignore_manager = RepoIgnoreManager(project_root)
+        if not source_files or any(
+            not ignore_manager.should_ignore(path)
+            for pattern in ("*.sln", "*.slnx", "*.csproj", "*.fsproj")
+            for path in project_root.rglob(pattern)
+            if path.is_file()
+        ):
+            if temporary := self._standalone_workspaces.pop(project_root, None):
+                temporary.cleanup()
+            return []
+
+        temporary = self._standalone_workspaces.get(project_root)
+        if temporary is None:
+            temporary = TemporaryDirectory(prefix="codeboarding-csharp-")
+            self._standalone_workspaces[project_root] = temporary
+        workspace = Path(temporary.name).resolve()
+        project = ElementTree.Element("Project", Sdk="Microsoft.NET.Sdk")
+        properties = ElementTree.SubElement(project, "PropertyGroup")
+        for name, value in {
+            "TargetFramework": f"net{TOOL_SDK_CHANNEL}",
+            "EnableDefaultCompileItems": "false",
+            "GenerateAssemblyInfo": "false",
+            "GenerateTargetFrameworkAttribute": "false",
+        }.items():
+            ElementTree.SubElement(properties, name).text = value
+        items = ElementTree.SubElement(project, "ItemGroup")
+        for source in source_files:
+            # MSBuild interprets these characters even after XML attribute escaping.
+            include = str(source.resolve())
+            for character in ("%", "$", "@", "'", ";", "?", "*"):
+                include = include.replace(character, f"%{ord(character):02X}")
+            ElementTree.SubElement(items, "Compile", Include=include)
+        target = workspace / "Standalone.csproj"
+        ElementTree.ElementTree(project).write(target, encoding="utf-8", xml_declaration=True)
+        solution = ElementTree.Element("Solution")
+        ElementTree.SubElement(solution, "Project", Path=target.name)
+        ElementTree.ElementTree(solution).write(workspace / "Standalone.slnx", encoding="utf-8", xml_declaration=True)
+
+        logger.warning(
+            "C# sources in %s have no project or solution; using a temporary analysis project targeting net%s. "
+            "Framework, dependencies and compiler options are inferred and may differ from the actual build.",
+            project_root,
+            TOOL_SDK_CHANNEL,
+        )
+        try:
+            resolution = resolve_dotnet_sdk(workspace)
+        except DotnetSdkError as exc:
+            raise WorkspaceSetupError(f"Could not resolve the SDK for standalone C# in {project_root}") from exc
+        env = {**os.environ, **resolution.env, **_single_target_framework_env(workspace)}
+        if not self._dotnet("restore", resolution.dotnet_path, target, workspace, env):
+            raise WorkspaceSetupError(f"Could not restore the standalone C# analysis project for {project_root}")
+        # Definition requests are routed by URI prefix, even for linked source files.
+        return [project_root]
 
     def record_document_symbols(self, file_path: Path, symbols: list[dict], project_root: Path) -> None:
         # Discarded as well as added: the same adapter can re-analyse a file after a sibling
@@ -187,13 +247,18 @@ class CSharpAdapter(LanguageAdapter):
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
         """Resolve the .NET SDK and ensure the managed csharp-ls install is current."""
+        if workspace := self._standalone_workspaces.get(project_root):
+            project_root = Path(workspace.name)
         try:
             resolution = resolve_dotnet_sdk(project_root)
         except DotnetSdkError as exc:
             raise RuntimeError(str(exc)) from exc
 
         self._ensure_csharp_ls_installed(project_root, resolution.dotnet_path, resolution.env)
-        return super().get_lsp_command(project_root)
+        command = super().get_lsp_command(project_root)
+        if workspace:
+            command.extend(["--solution", str(Path(workspace.name) / "Standalone.slnx")])
+        return command
 
     def _ensure_csharp_ls_installed(self, project_root: Path, dotnet_path: str, dotnet_env: dict[str, str]) -> None:
         dep = next((d for d in TOOL_REGISTRY if d.key == "csharp" and d.kind is ToolKind.PACKAGE_MANAGER), None)
@@ -395,6 +460,8 @@ class CSharpAdapter(LanguageAdapter):
         DOTNET_ROOT and DOTNET_ROLL_FORWARD behavior for older callers.
         """
         if project_root is not None:
+            if workspace := self._standalone_workspaces.get(project_root):
+                project_root = Path(workspace.name)
             try:
                 env = resolve_dotnet_sdk(project_root).env
             except DotnetSdkError as exc:
