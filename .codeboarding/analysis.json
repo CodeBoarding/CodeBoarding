@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-10-26T09:03:06.689971+00:00",
-    "source_tree_hash": "584a4e5df09e4e33d502a4710b040381542c7341ff7ef7ca5ed4115584b4daba",
+    "generated_at": "2026-10-26T18:50:12.487026+00:00",
+    "source_tree_hash": "da2a871b48f1536ea33bac1a6dbd5908e0cc1f83c67d6b12d18c37a87702826a",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -2289,6 +2289,7 @@
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.__init__",
+        "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders",
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.record_document_symbols",
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.read_document_symbols",
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
@@ -2319,8 +2320,8 @@
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._build_analyzers",
         "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._dotnet"
       ],
-      "content_hash": "7eab94773a03c60f",
-      "module_hash": "a7216287138c95b4"
+      "content_hash": "082864e2c9a9d428",
+      "module_hash": "649bcff6a8d0634a"
     },
     "static_analyzer/engine/adapters/go_adapter.py": {
       "method_keys": [
@@ -7060,264 +7061,272 @@
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._write_injected_import": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter._write_injected_import",
-      "start_line": 79,
-      "end_line": 89,
+      "start_line": 82,
+      "end_line": 92,
       "type": "FUNCTION",
       "content_hash": "47815fcc10c63804"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
-      "start_line": 92,
-      "end_line": 132,
+      "start_line": 95,
+      "end_line": 135,
       "type": "FUNCTION",
       "content_hash": "1b2b7124c1863686"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
-      "start_line": 135,
-      "end_line": 481,
+      "start_line": 138,
+      "end_line": 551,
       "type": "CLASS",
-      "content_hash": "86ef26dae6f54679"
+      "content_hash": "421d78a99f668a9d"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.__init__": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.__init__",
-      "start_line": 137,
-      "end_line": 143,
+      "start_line": 140,
+      "end_line": 147,
       "type": "METHOD",
-      "content_hash": "3563368955dd6f22"
+      "content_hash": "ce9edfb0adc5d1ee"
+    },
+    "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders": {
+      "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
+      "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders",
+      "start_line": 149,
+      "end_line": 206,
+      "type": "METHOD",
+      "content_hash": "49d67d5869bd5dff"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.record_document_symbols": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.record_document_symbols",
-      "start_line": 145,
-      "end_line": 152,
+      "start_line": 208,
+      "end_line": 215,
       "type": "METHOD",
       "content_hash": "45a13c4e119dd020"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.read_document_symbols": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.read_document_symbols",
-      "start_line": 154,
-      "end_line": 170,
+      "start_line": 217,
+      "end_line": 233,
       "type": "METHOD",
       "content_hash": "26955c0c32e65275"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
-      "start_line": 173,
-      "end_line": 174,
+      "start_line": 236,
+      "end_line": 237,
       "type": "METHOD",
       "content_hash": "2d3b0533d272c1a0"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_enum": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_enum",
-      "start_line": 177,
-      "end_line": 178,
+      "start_line": 240,
+      "end_line": 241,
       "type": "METHOD",
       "content_hash": "a55d3294503af5d9"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.lsp_command": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.lsp_command",
-      "start_line": 181,
-      "end_line": 182,
+      "start_line": 244,
+      "end_line": 245,
       "type": "METHOD",
       "content_hash": "18dc88ab042a2203"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_id": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language_id",
-      "start_line": 185,
-      "end_line": 186,
+      "start_line": 248,
+      "end_line": 249,
       "type": "METHOD",
       "content_hash": "34876d583abc7820"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
-      "start_line": 188,
-      "end_line": 196,
+      "start_line": 251,
+      "end_line": 264,
       "type": "METHOD",
-      "content_hash": "066452bf8b86d022"
+      "content_hash": "4aca96b7f5d9c9ef"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
-      "start_line": 198,
-      "end_line": 230,
+      "start_line": 266,
+      "end_line": 298,
       "type": "METHOD",
       "content_hash": "1788d7b81d615969"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.build_qualified_name": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.build_qualified_name",
-      "start_line": 232,
-      "end_line": 262,
+      "start_line": 300,
+      "end_line": 330,
       "type": "METHOD",
       "content_hash": "cf01fb1aa0801ed3"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.extract_package": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.extract_package",
-      "start_line": 264,
-      "end_line": 269,
+      "start_line": 332,
+      "end_line": 337,
       "type": "METHOD",
       "content_hash": "777cfe8ec0b5c75a"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_init_options": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_init_options",
-      "start_line": 271,
-      "end_line": 280,
+      "start_line": 339,
+      "end_line": 348,
       "type": "METHOD",
       "content_hash": "76902df993ef2827"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_workspace_settings": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_workspace_settings",
-      "start_line": 282,
-      "end_line": 287,
+      "start_line": 350,
+      "end_line": 355,
       "type": "METHOD",
       "content_hash": "18468b55260d5e5d"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.probe_before_open": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.probe_before_open",
-      "start_line": 290,
-      "end_line": 292,
+      "start_line": 358,
+      "end_line": 360,
       "type": "METHOD",
       "content_hash": "1fd7826951621718"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_owns_documents": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_owns_documents",
-      "start_line": 295,
-      "end_line": 297,
+      "start_line": 363,
+      "end_line": 365,
       "type": "METHOD",
       "content_hash": "15ed377658c3bbc3"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.expands_virtual_dispatch": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.expands_virtual_dispatch",
-      "start_line": 300,
-      "end_line": 304,
+      "start_line": 368,
+      "end_line": 372,
       "type": "METHOD",
       "content_hash": "d80bba8a968e42ba"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.resolves_collection_initializers": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.resolves_collection_initializers",
-      "start_line": 307,
-      "end_line": 309,
+      "start_line": 375,
+      "end_line": 377,
       "type": "METHOD",
       "content_hash": "c0713b661e098a17"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.resolves_iterated_types": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.resolves_iterated_types",
-      "start_line": 312,
-      "end_line": 315,
+      "start_line": 380,
+      "end_line": 383,
       "type": "METHOD",
       "content_hash": "9cc9ef7953765360"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_default_timeout": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_default_timeout",
-      "start_line": 317,
-      "end_line": 319,
+      "start_line": 385,
+      "end_line": 387,
       "type": "METHOD",
       "content_hash": "f5dec5d96662b923"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_probe_timeout_minimum": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_probe_timeout_minimum",
-      "start_line": 321,
-      "end_line": 323,
+      "start_line": 389,
+      "end_line": 391,
       "type": "METHOD",
       "content_hash": "660c48bb768dfb27"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.wait_for_diagnostics": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.wait_for_diagnostics",
-      "start_line": 325,
-      "end_line": 336,
+      "start_line": 393,
+      "end_line": 404,
       "type": "METHOD",
       "content_hash": "e46f8ea74ced05cc"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
-      "start_line": 338,
-      "end_line": 388,
+      "start_line": 406,
+      "end_line": 456,
       "type": "METHOD",
       "content_hash": "3a4d41171b2d5d59"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
-      "start_line": 390,
-      "end_line": 408,
+      "start_line": 458,
+      "end_line": 478,
       "type": "METHOD",
-      "content_hash": "646734c397ecfc79"
+      "content_hash": "02d18e1d6d30949d"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.fail_on_empty_symbols": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.fail_on_empty_symbols",
-      "start_line": 411,
-      "end_line": 412,
+      "start_line": 481,
+      "end_line": 482,
       "type": "METHOD",
       "content_hash": "026c95c3088d43b5"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.reports_enum_members_as_fields": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.reports_enum_members_as_fields",
-      "start_line": 415,
-      "end_line": 416,
+      "start_line": 485,
+      "end_line": 486,
       "type": "METHOD",
       "content_hash": "7a37c98ced1b9d3b"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.is_reference_worthy": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.is_reference_worthy",
-      "start_line": 418,
-      "end_line": 420,
+      "start_line": 488,
+      "end_line": 490,
       "type": "METHOD",
       "content_hash": "3f9341e4747ddbbc"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_all_packages": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_all_packages",
-      "start_line": 422,
-      "end_line": 424,
+      "start_line": 492,
+      "end_line": 494,
       "type": "METHOD",
       "content_hash": "3b352f0b59a2871c"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._top_level_types": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._top_level_types",
-      "start_line": 426,
-      "end_line": 435,
+      "start_line": 496,
+      "end_line": 505,
       "type": "METHOD",
       "content_hash": "6ce8e1098cadf192"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._build_analyzers": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._build_analyzers",
-      "start_line": 437,
-      "end_line": 453,
+      "start_line": 507,
+      "end_line": 523,
       "type": "METHOD",
       "content_hash": "64a62080794260c0"
     },
     "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._dotnet": {
       "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._dotnet",
-      "start_line": 455,
-      "end_line": 481,
+      "start_line": 525,
+      "end_line": 551,
       "type": "METHOD",
       "content_hash": "3ac6e0657a2dddf6"
     },
@@ -19596,6 +19605,7 @@
             "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.__init__",
+            "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.record_document_symbols",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.read_document_symbols",
             "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
@@ -20519,6 +20529,7 @@
                 "static_analyzer.engine.adapters.csharp_adapter._single_target_framework_env",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.__init__",
+                "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.record_document_symbols",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.read_document_symbols",
                 "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.language",
@@ -22919,25 +22930,21 @@
           ]
         },
         {
-          "relation": "scans projects and links references via",
+          "relation": "delegates project scanning and external call linking to",
           "src_name": "LSP Engine and Language Adapters",
           "dst_name": "Scanner and Graph Cache Infrastructure",
           "evidence": "",
           "key_edges": [
             {
               "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-              "target": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner",
+              "target": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner.scan",
               "call_sites": [
                 {
                   "line": 298,
                   "column": 71
-                },
-                {
-                  "line": 298,
-                  "column": 34
                 }
               ],
-              "description": "StaticAnalyzer initializes ProjectScanner to detect project languages and external call linking"
+              "description": "Scans repository files and discovers language-specific sources"
             },
             {
               "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
@@ -22948,7 +22955,18 @@
                   "column": 22
                 }
               ],
-              "description": "StaticAnalyzer links external call sites across discovered project symbols"
+              "description": "Links external symbol references across scanned files"
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+              "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.GraphIndex",
+              "call_sites": [
+                {
+                  "line": 1053,
+                  "column": 21
+                }
+              ],
+              "description": "Indexes potential graph calls into the global graph index"
             }
           ],
           "src_id": "1.1",
@@ -23157,76 +23175,6 @@
                 {
                   "line": 171,
                   "column": 12
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._build_analyzers",
-              "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.analyzer_project_references",
-              "call_sites": [
-                {
-                  "line": 444,
-                  "column": 21
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
-              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
-              "call_sites": [
-                {
-                  "line": 191,
-                  "column": 26
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
-              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
-              "call_sites": [
-                {
-                  "line": 399,
-                  "column": 23
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
-              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.system_dotnet_env",
-              "call_sites": [
-                {
-                  "line": 405,
-                  "column": 15
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
-              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
-              "call_sites": [
-                {
-                  "line": 365,
-                  "column": 26
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
-              "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.solution_projects",
-              "call_sites": [
-                {
-                  "line": 376,
-                  "column": 59
-                },
-                {
-                  "line": 383,
-                  "column": 20
                 }
               ],
               "description": ""
@@ -23663,11 +23611,107 @@
                 }
               ],
               "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._build_analyzers",
+              "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.analyzer_project_references",
+              "call_sites": [
+                {
+                  "line": 514,
+                  "column": 21
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
+              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+              "call_sites": [
+                {
+                  "line": 256,
+                  "column": 26
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
+              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+              "call_sites": [
+                {
+                  "line": 469,
+                  "column": 23
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
+              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.system_dotnet_env",
+              "call_sites": [
+                {
+                  "line": 475,
+                  "column": 15
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
+              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+              "call_sites": [
+                {
+                  "line": 433,
+                  "column": 26
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
+              "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.solution_projects",
+              "call_sites": [
+                {
+                  "line": 444,
+                  "column": 59
+                },
+                {
+                  "line": 451,
+                  "column": 20
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders",
+              "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+              "call_sites": [
+                {
+                  "line": 199,
+                  "column": 26
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders",
+              "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.WorkspaceSetupError",
+              "call_sites": [
+                {
+                  "line": 201,
+                  "column": 19
+                },
+                {
+                  "line": 204,
+                  "column": 19
+                }
+              ],
+              "description": ""
             }
           ]
         },
         {
-          "relation": "maps symbol types to",
+          "relation": "maps symbol kinds to node types in",
           "src_name": "LSP Engine and Language Adapters",
           "dst_name": "Clustering and Partitioning Service",
           "evidence": "",
@@ -23681,7 +23725,7 @@
                   "column": 16
                 }
               ],
-              "description": "Result converter maps engine symbol kinds to node classification types"
+              "description": "Maps LSP symbol kinds into node taxonomy types"
             }
           ],
           "src_id": "1.1",
@@ -23702,7 +23746,7 @@
           ]
         },
         {
-          "relation": "populates analysis graphs in",
+          "relation": "populates and queries static analysis results in",
           "src_name": "LSP Engine and Language Adapters",
           "dst_name": "Call Graph and Incremental Orchestration",
           "evidence": "",
@@ -23736,7 +23780,22 @@
                   "column": 44
                 }
               ],
-              "description": "StaticAnalyzer creates and queries static analysis results and CFG instances"
+              "description": "Initializes static analysis result containers for language runs"
+            },
+            {
+              "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+              "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "call_sites": [
+                {
+                  "line": 1043,
+                  "column": 74
+                },
+                {
+                  "line": 1053,
+                  "column": 40
+                }
+              ],
+              "description": "Retrieves CFG models from cumulative static analysis results"
             }
           ],
           "src_id": "1.1",
@@ -24393,18 +24452,33 @@
                   "column": 41
                 }
               ],
-              "description": "Potential call site definitions reference LSP call site models"
+              "description": "Extracts call site metadata from potential call definitions"
             },
             {
               "source": "static_analyzer/external_calls.py|static_analyzer.external_calls.link_external_call_sites",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.expands_virtual_dispatch",
               "call_sites": [
                 {
                   "line": 83,
                   "column": 41
                 }
               ],
-              "description": "External call resolution checks language adapter virtual dispatch and package rules"
+              "description": "Queries language adapters to resolve virtual method dispatching"
+            },
+            {
+              "source": "static_analyzer/external_calls.py|static_analyzer.external_calls.record_package_imports",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.extract_package",
+              "call_sites": [
+                {
+                  "line": 107,
+                  "column": 36
+                },
+                {
+                  "line": 107,
+                  "column": 69
+                }
+              ],
+              "description": "Extracts package definitions through language adapters"
             }
           ],
           "src_id": "1.2",
@@ -24955,23 +25029,26 @@
           "evidence": "",
           "key_edges": [
             {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient",
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._declarations",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.SymbolInfo",
               "call_sites": [
                 {
-                  "line": 156,
-                  "column": 27
-                },
-                {
-                  "line": 180,
-                  "column": 27
-                },
+                  "line": 273,
+                  "column": 13
+                }
+              ],
+              "description": "Inspects symbol information models during incremental re-analysis"
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
+              "call_sites": [
                 {
                   "line": 182,
                   "column": 32
                 }
               ],
-              "description": "Incremental orchestrator queries LSP definitions to restore broken call edges"
+              "description": "Re-queries LSP definition batches to restore invalidated inbound edges"
             }
           ],
           "src_id": "1.4",
@@ -31008,25 +31085,21 @@
   ],
   "components_relations": [
     {
-      "relation": "scans projects and links references via",
+      "relation": "delegates project scanning and external call linking to",
       "src_name": "LSP Engine and Language Adapters",
       "dst_name": "Scanner and Graph Cache Infrastructure",
       "evidence": "",
       "key_edges": [
         {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-          "target": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner",
+          "target": "static_analyzer/scanner.py|static_analyzer.scanner.ProjectScanner.scan",
           "call_sites": [
             {
               "line": 298,
               "column": 71
-            },
-            {
-              "line": 298,
-              "column": 34
             }
           ],
-          "description": "Initializes and runs the project scanner during analyzer initialization."
+          "description": "Scans repository files and discovers language-specific sources"
         },
         {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
@@ -31037,7 +31110,18 @@
               "column": 22
             }
           ],
-          "description": "Links external call sites across discovered project packages."
+          "description": "Links external symbol references across scanned files"
+        },
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+          "target": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.GraphIndex",
+          "call_sites": [
+            {
+              "line": 1053,
+              "column": 21
+            }
+          ],
+          "description": "Indexes potential graph calls into the global graph index"
         }
       ],
       "src_id": "1.1",
@@ -31246,76 +31330,6 @@
             {
               "line": 171,
               "column": 12
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._build_analyzers",
-          "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.analyzer_project_references",
-          "call_sites": [
-            {
-              "line": 444,
-              "column": 21
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
-          "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
-          "call_sites": [
-            {
-              "line": 191,
-              "column": 26
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
-          "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
-          "call_sites": [
-            {
-              "line": 399,
-              "column": 23
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
-          "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.system_dotnet_env",
-          "call_sites": [
-            {
-              "line": 405,
-              "column": 15
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
-          "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
-          "call_sites": [
-            {
-              "line": 365,
-              "column": 26
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
-          "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.solution_projects",
-          "call_sites": [
-            {
-              "line": 376,
-              "column": 59
-            },
-            {
-              "line": 383,
-              "column": 20
             }
           ],
           "description": ""
@@ -31752,6 +31766,102 @@
             }
           ],
           "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._build_analyzers",
+          "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.analyzer_project_references",
+          "call_sites": [
+            {
+              "line": 514,
+              "column": 21
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_command",
+          "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+          "call_sites": [
+            {
+              "line": 256,
+              "column": 26
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
+          "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+          "call_sites": [
+            {
+              "line": 469,
+              "column": 23
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.get_lsp_env",
+          "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.system_dotnet_env",
+          "call_sites": [
+            {
+              "line": 475,
+              "column": 15
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
+          "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+          "call_sites": [
+            {
+              "line": 433,
+              "column": 26
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.prepare_project",
+          "target": "static_analyzer/dotnet_solution.py|static_analyzer.dotnet_solution.solution_projects",
+          "call_sites": [
+            {
+              "line": 444,
+              "column": 59
+            },
+            {
+              "line": 451,
+              "column": 20
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders",
+          "target": "static_analyzer/dotnet_sdk.py|static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
+          "call_sites": [
+            {
+              "line": 199,
+              "column": 26
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders",
+          "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.WorkspaceSetupError",
+          "call_sites": [
+            {
+              "line": 201,
+              "column": 19
+            },
+            {
+              "line": 204,
+              "column": 19
+            }
+          ],
+          "description": ""
         }
       ]
     },
@@ -31826,6 +31936,21 @@
             }
           ],
           "description": "StaticAnalyzer aggregates results into StaticAnalysisResults containers"
+        },
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
+          "target": "static_analyzer/analysis_result.py|static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+          "call_sites": [
+            {
+              "line": 1043,
+              "column": 74
+            },
+            {
+              "line": 1053,
+              "column": 40
+            }
+          ],
+          "description": "Retrieves CFG models from cumulative static analysis results"
         }
       ],
       "src_id": "1.1",
@@ -32521,22 +32646,11 @@
       ]
     },
     {
-      "relation": "uses infrastructure utilities and telemetry",
+      "relation": "uses infrastructure utilities and tool installation from",
       "src_name": "LSP Engine and Language Adapters",
       "dst_name": "Repository Utilities",
       "evidence": "",
       "key_edges": [
-        {
-          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 297,
-              "column": 31
-            }
-          ],
-          "description": "Initializes repository ignore manager to filter static analysis targets"
-        },
         {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
           "target": "infra/repo_utils/git_ops.py|infra.repo_utils.git_ops.get_changed_files_since",
@@ -32546,7 +32660,7 @@
               "column": 24
             }
           ],
-          "description": "Detects changed files for incremental language analysis using git operations."
+          "description": "Queries git operations for modified repository files during incremental analysis."
         }
       ],
       "src_id": "1.1",
@@ -32673,6 +32787,32 @@
             }
           ],
           "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 151,
+              "column": 26
+            },
+            {
+              "line": 153,
+              "column": 32
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.workspace_folders",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
+          "call_sites": [
+            {
+              "line": 153,
+              "column": 32
+            }
+          ],
+          "description": ""
         }
       ]
     },
@@ -32721,58 +32861,6 @@
           "description": ""
         },
         {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
-          "target": "infra/tool_registry/installers.py|infra.tool_registry.installers.install_package_manager_tools",
-          "call_sites": [
-            {
-              "line": 220,
-              "column": 13
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
-          "target": "infra/tool_registry/installers.py|infra.tool_registry.installers.package_manager_tool_is_current",
-          "call_sites": [
-            {
-              "line": 205,
-              "column": 41
-            },
-            {
-              "line": 218,
-              "column": 16
-            },
-            {
-              "line": 226,
-              "column": 16
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
-          "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.get_servers_dir",
-          "call_sites": [
-            {
-              "line": 203,
-              "column": 23
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._write_injected_import",
-          "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.get_servers_dir",
-          "call_sites": [
-            {
-              "line": 81,
-              "column": 12
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
           "target": "infra/install.py|infra.install.ensure_language_servers",
           "call_sites": [
@@ -32796,10 +32884,40 @@
         },
         {
           "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
+          "target": "infra/tool_registry/installers.py|infra.tool_registry.installers.install_package_manager_tools",
+          "call_sites": [
+            {
+              "line": 288,
+              "column": 13
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
+          "target": "infra/tool_registry/installers.py|infra.tool_registry.installers.package_manager_tool_is_current",
+          "call_sites": [
+            {
+              "line": 273,
+              "column": 41
+            },
+            {
+              "line": 286,
+              "column": 16
+            },
+            {
+              "line": 294,
+              "column": 16
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
           "target": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.acquire_lock",
           "call_sites": [
             {
-              "line": 217,
+              "line": 285,
               "column": 13
             }
           ],
@@ -32810,8 +32928,30 @@
           "target": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.package_manager_tool_path",
           "call_sites": [
             {
-              "line": 204,
+              "line": 272,
               "column": 24
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
+          "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.get_servers_dir",
+          "call_sites": [
+            {
+              "line": 271,
+              "column": 23
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._write_injected_import",
+          "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.get_servers_dir",
+          "call_sites": [
+            {
+              "line": 84,
+              "column": 12
             }
           ],
           "description": ""
@@ -32838,6 +32978,32 @@
             }
           ],
           "description": "Obtains call site models for pending cross-package invocations."
+        },
+        {
+          "source": "static_analyzer/external_calls.py|static_analyzer.external_calls.link_external_call_sites",
+          "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.expands_virtual_dispatch",
+          "call_sites": [
+            {
+              "line": 83,
+              "column": 41
+            }
+          ],
+          "description": "Queries language adapters to resolve virtual method dispatching"
+        },
+        {
+          "source": "static_analyzer/external_calls.py|static_analyzer.external_calls.record_package_imports",
+          "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.extract_package",
+          "call_sites": [
+            {
+              "line": 107,
+              "column": 36
+            },
+            {
+              "line": 107,
+              "column": 69
+            }
+          ],
+          "description": "Extracts package definitions through language adapters"
         },
         {
           "source": "static_analyzer/external_calls.py|static_analyzer.external_calls.link_external_call_sites",
@@ -34747,6 +34913,28 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._declarations",
+          "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.SymbolInfo",
+          "call_sites": [
+            {
+              "line": 273,
+              "column": 13
+            }
+          ],
+          "description": "Inspects symbol information models during incremental re-analysis"
+        },
+        {
+          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
+          "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
+          "call_sites": [
+            {
+              "line": 182,
+              "column": 32
+            }
+          ],
+          "description": "Sends batched definition queries through the LSP client to restore inbound edges."
+        },
+        {
           "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
           "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient",
           "call_sites": [
@@ -34764,17 +34952,6 @@
             }
           ],
           "description": "Incremental orchestrator queries LSP definitions and symbols to re-prove invalidated inbound edges"
-        },
-        {
-          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
-          "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
-          "call_sites": [
-            {
-              "line": 182,
-              "column": 32
-            }
-          ],
-          "description": "Sends batched definition queries through the LSP client to restore inbound edges."
         }
       ],
       "src_id": "1.4",

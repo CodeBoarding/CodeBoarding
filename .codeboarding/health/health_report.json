@@ -1,14 +1,14 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-10-26T09:03:03.150595+00:00",
-  "overall_score": 0.9061032863849765,
+  "timestamp": "2026-10-26T18:49:16.841058+00:00",
+  "overall_score": 0.9050966608084359,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1544,
+      "total_entities_checked": 1545,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -19,8 +19,8 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 160,
-      "findings_count": 160,
+      "total_entities_checked": 162,
+      "findings_count": 162,
       "warning_count": 69,
       "score": 0.0,
       "finding_groups": [
@@ -651,6 +651,20 @@
               "line_start": 322,
               "line_end": 322,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
+              "line_start": 339,
+              "line_end": 339,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"source_files\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
+              "line_start": 458,
+              "line_end": 458,
+              "metric_value": 0.0
             }
           ]
         },
@@ -1189,6 +1203,12 @@
     },
     {
       "file_path": "agents/llm_config.py",
+      "total_findings": 2,
+      "warning_findings": 0,
+      "composite_risk_score": 20.0
+    },
+    {
+      "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
       "total_findings": 2,
       "warning_findings": 0,
       "composite_risk_score": 20.0

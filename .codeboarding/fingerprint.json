@@ -71,7 +71,7 @@
     "static_analyzer/engine/adapters/go_adapter.py": "362585352573df22",
     "static_analyzer/engine/adapters/rust_adapter.py": "5f771ccd5cad23cb",
     "static_analyzer/engine/adapters/python_adapter.py": "b0380d15d91dc805",
-    "static_analyzer/engine/adapters/csharp_adapter.py": "7eab94773a03c60f",
+    "static_analyzer/engine/adapters/csharp_adapter.py": "082864e2c9a9d428",
     "static_analyzer/engine/adapters/php_adapter.py": "03dd2b94780da467",
     "static_analyzer/engine/adapters/java_adapter.py": "13043687a1364e99",
     "static_analyzer/engine/adapters/typescript_adapter.py": "1714ba901d2fd51e",
