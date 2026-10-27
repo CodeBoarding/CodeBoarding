@@ -167,6 +167,29 @@ BASE_TOOL_KEYS = frozenset({"tokei"})
 
 TOOL_REGISTRY: list[ToolDependency] = [
     ToolDependency(
+        key="cpp",
+        binary_name="clangd",
+        kind=ToolKind.ARCHIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+        source=GitHubToolSource(
+            tag="23.1.0",
+            repo="clangd/clangd",
+            asset_arch_overrides={
+                ("Linux", "x86_64"): "clangd-linux-23.1.0.zip",
+                ("Darwin", "x86_64"): "clangd-mac-23.1.0.zip",
+                ("Darwin", "arm64"): "clangd-mac-23.1.0.zip",
+                ("Windows", "AMD64"): "clangd-windows-23.1.0.zip",
+            },
+            sha256={
+                "clangd-linux-23.1.0.zip": "e53b1a96196095faedb7642cf64964f7fb9ad4a0c1f00dd2c172a3d9dcbafdfd",
+                "clangd-mac-23.1.0.zip": "1082e6638223b785ca2daf0939f13afcd0bb95c84ee9a4bbaff4745365159253",
+                "clangd-windows-23.1.0.zip": "23412a240756a162e7b98a282f36aa2a23a88db5ce16a0cbc4fef7253768c810",
+            },
+        ),
+        archive_subdir="clangd",
+        archive_entry="bin/clangd",
+    ),
+    ToolDependency(
         key="tokei",
         binary_name="tokei",
         kind=ToolKind.NATIVE,
