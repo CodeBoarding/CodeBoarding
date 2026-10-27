@@ -107,7 +107,7 @@ def test_template_dependencies_follow_each_instantiation(tmp_path: Path, databas
         for namespace in ("left", "right", "unused")
     ]
     header.write_text("\n".join(header_lines), encoding="utf-8")
-    template = "template<class T> int forward(T value) { /* 😀 */ return inspect(value); }"
+    template = "template<class T> int forward(T value) { /* \U0001f600 */ return inspect(value); }"
     source.write_text(
         '#include "api.hpp"\n'
         + template
