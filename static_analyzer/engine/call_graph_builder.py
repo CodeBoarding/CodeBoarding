@@ -76,6 +76,7 @@ class CallGraphBuilder:
         ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
         edge_set = build_edges_via_definitions(self._adapter, ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
+        self._adapter.complete_edges(ctx, source_files, edge_set)
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
 
@@ -199,7 +200,7 @@ class CallGraphBuilder:
                     opened_early.append(file_path)
                     self._lsp.did_open(file_path)
                     symbols = self._lsp.document_symbol(file_path)
-            symbols = self._adapter.refine_document_symbols(file_path, symbols, self._source_inspector)
+            symbols = self._adapter.refine_document_symbols(file_path, symbols, self._source_inspector, self._lsp)
             self._adapter.record_document_symbols(file_path, symbols, self._repository)
             self._symbol_table.register_symbols(
                 file_path,

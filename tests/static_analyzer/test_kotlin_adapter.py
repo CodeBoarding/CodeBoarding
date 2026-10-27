@@ -12,7 +12,7 @@ from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.adapters import kotlin_adapter
 from static_analyzer.engine.adapters.kotlin_adapter import KotlinAdapter
-from static_analyzer.engine.lsp_client import ErrorVerdict
+from static_analyzer.engine.lsp_client import ErrorVerdict, LSPClient
 from static_analyzer.engine.source_inspector import SourceInspector
 
 ROOT = Path("/repo")
@@ -152,7 +152,7 @@ class TestRefineDocumentSymbols:
             _symbol("loudest", NodeType.FUNCTION, 7, 14),
         ]
 
-        refined = KotlinAdapter().refine_document_symbols(source, symbols, SourceInspector())
+        refined = KotlinAdapter().refine_document_symbols(source, symbols, SourceInspector(), MagicMock(spec=LSPClient))
 
         assert [(s["name"], s["kind"]) for s in refined] == [
             ("Shape", NodeType.INTERFACE),
@@ -188,7 +188,7 @@ class TestRefineDocumentSymbols:
             ),
         ]
 
-        refined = KotlinAdapter().refine_document_symbols(source, symbols, SourceInspector())
+        refined = KotlinAdapter().refine_document_symbols(source, symbols, SourceInspector(), MagicMock(spec=LSPClient))
 
         assert refined[0]["kind"] == NodeType.VARIABLE, "a top-level value stays as the server named it"
         shelter = refined[1]["children"]
@@ -200,7 +200,7 @@ class TestRefineDocumentSymbols:
         source.write_text("object Registry {\n    fun all() = 1\n}\n")
         symbols = [_symbol("Registry", NodeType.OBJECT, 0, 7, [_symbol("all", NodeType.METHOD, 1, 8)])]
 
-        refined = KotlinAdapter().refine_document_symbols(source, symbols, SourceInspector())
+        refined = KotlinAdapter().refine_document_symbols(source, symbols, SourceInspector(), MagicMock(spec=LSPClient))
 
         assert refined[0]["kind"] == NodeType.CLASS
         assert refined[0]["children"][0]["name"] == "all()"

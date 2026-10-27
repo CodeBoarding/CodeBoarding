@@ -420,6 +420,29 @@ class LSPClient:
 
     # ---- LSP queries ----
 
+    def document_ast(self, file_path: Path) -> dict:
+        """Read clangd's compiler AST, including active declarations omitted from its outline."""
+        result = self._send_request(
+            "textDocument/ast", {"textDocument": {"uri": file_path.resolve().as_uri()}}, self._default_timeout
+        )
+        if not isinstance(result, dict):
+            raise RuntimeError(f"clangd returned no AST for {file_path}")
+        return result
+
+    def outgoing_calls(self, file_path: Path, line: int, character: int) -> list[dict]:
+        """Resolve compiler-selected callees, including operators and constructor initializers."""
+        items = self._send_request(
+            "textDocument/prepareCallHierarchy",
+            self._position_params(file_path, line, character),
+            self._default_timeout,
+        )
+        calls: list[dict] = []
+        for item in items or []:
+            result = self._send_request("callHierarchy/outgoingCalls", {"item": item}, self._default_timeout)
+            if isinstance(result, list):
+                calls.extend(result)
+        return calls
+
     def document_symbol(self, file_path: Path, timeout: int | None = None) -> list[dict]:
         """Request document symbols for a file."""
         result = self._send_request(
