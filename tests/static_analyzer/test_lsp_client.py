@@ -25,13 +25,13 @@ from static_analyzer.engine.lsp_constants import REQUEST_BATCH_SIZE
 from static_analyzer.exceptions import StaticAnalysisFatalError, WorkspaceSetupError
 
 
-def test_server_requests_do_not_block_output_drain_during_document_open(tmp_path: Path):
+def test_server_requests_do_not_block_output_drain_during_document_open(tmp_path: Path) -> None:
     server = tmp_path / "server.py"
     server.write_text(
         """import json
 import sys
 
-def send(message):
+def send(message: dict) -> None:
     body = json.dumps(message).encode()
     sys.stdout.buffer.write(f"Content-Length: {len(body)}\\r\\n\\r\\n".encode() + body)
     sys.stdout.buffer.flush()
@@ -74,7 +74,7 @@ while True:
     finished = threading.Event()
     errors = []
 
-    def open_document():
+    def open_document() -> None:
         try:
             client.did_open(source)
         except Exception as error:
