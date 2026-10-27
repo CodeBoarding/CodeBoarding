@@ -14,6 +14,23 @@ def _positions(sites: list[CallSite]) -> set[tuple[int, int]]:
     return {(site.line, site.column) for site in sites}
 
 
+@pytest.mark.parametrize("suffix", ["cpp", "hpp", "cu", "cuh"])
+def test_cpp_qualified_template_and_member_calls(tmp_path: Path, suffix: str) -> None:
+    path = tmp_path / f"sample.{suffix}"
+    path.write_text("void run() {\n  ns::convert<int>(1);\n  object.run();\n  pointer->step();\n}\n")
+    assert _positions(SourceInspector().find_call_sites(path)) == {(2, 7), (3, 10), (4, 12)}
+
+
+@pytest.mark.parametrize("suffix", ["cu", "cuh"])
+def test_cuda_launches_and_device_calls(tmp_path: Path, suffix: str) -> None:
+    path = tmp_path / f"sample.{suffix}"
+    path.write_text(
+        "__global__ void kernel(int* p) {\n  helper(p);\n}\n"
+        "void launch(int* p) {\n  kernel<<<blocks(), 32>>>(p);\n  ns::kernel<int><<<1, 64>>>(p);\n}\n"
+    )
+    assert _positions(SourceInspector().find_call_sites(path)) == {(2, 3), (5, 3), (5, 12), (6, 7)}
+
+
 def test_call_site_exposes_human_and_lsp_positions() -> None:
     site = CallSite.from_lsp_position(file="/tmp/app.py", line=0, column=4)
 

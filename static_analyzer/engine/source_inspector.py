@@ -18,6 +18,8 @@ from static_analyzer.engine.models import CallSite
 from infra.tool_registry import kotlin_language
 
 import tree_sitter_c_sharp
+import tree_sitter_cpp
+import tree_sitter_cuda
 import tree_sitter_go
 import tree_sitter_java
 import tree_sitter_javascript
@@ -40,6 +42,7 @@ _LANGUAGE_FACTORY_BY_LANGUAGE: dict[Language, LanguageFactory] = {
     Language.PHP: tree_sitter_php.language_php,
     Language.RUST: tree_sitter_rust.language,
     Language.CSHARP: tree_sitter_c_sharp.language,
+    Language.CPP: tree_sitter_cpp.language,
 }
 _LANGUAGE_BY_SUFFIX: dict[str, LanguageFactory] = {
     suffix: _LANGUAGE_FACTORY_BY_LANGUAGE[language]
@@ -51,6 +54,8 @@ _LANGUAGE_BY_SUFFIX[".ts"] = tree_sitter_typescript.language_typescript
 _LANGUAGE_BY_SUFFIX[".mts"] = tree_sitter_typescript.language_typescript
 _LANGUAGE_BY_SUFFIX[".cts"] = tree_sitter_typescript.language_typescript
 _LANGUAGE_BY_SUFFIX[".tsx"] = tree_sitter_typescript.language_tsx
+_LANGUAGE_BY_SUFFIX[".cu"] = tree_sitter_cuda.language
+_LANGUAGE_BY_SUFFIX[".cuh"] = tree_sitter_cuda.language
 
 _CALL_NODE_TYPES = frozenset(
     {

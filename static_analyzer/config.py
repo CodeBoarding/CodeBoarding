@@ -39,6 +39,7 @@ class AdapterName(StrEnum):
     KOTLIN = "Kotlin"
     PHP = "PHP"
     RUST = "Rust"
+    CPP = "CPP"
 
 
 class SourceSuffix(StrEnum):
@@ -66,6 +67,8 @@ class SourceSuffix(StrEnum):
     HH = ".hh"
     HXX = ".hxx"
     H = ".h"
+    CU = ".cu"
+    CUH = ".cuh"
 
 
 class JsxLanguageId(StrEnum):
@@ -112,6 +115,8 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[SourceSuffix, ...]] = {
         SourceSuffix.HH,
         SourceSuffix.HXX,
         SourceSuffix.H,
+        SourceSuffix.CU,
+        SourceSuffix.CUH,
     ),
 }
 
