@@ -203,7 +203,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
         binary_name="pyright-langserver",
         kind=ToolKind.NODE,
         config_section=ConfigSection.LSP_SERVERS,
-        npm_packages=["pyright@1.1.400"],
+        npm_packages=["pyright@1.1.414"],
         js_entry_file="langserver.index.js",
         js_entry_parent="pyright",
     ),
