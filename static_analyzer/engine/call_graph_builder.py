@@ -76,7 +76,7 @@ class CallGraphBuilder:
         ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
         edge_set = build_edges_via_definitions(self._adapter, ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
-        self._adapter.complete_edges(ctx, source_files, edge_set)
+        self._adapter.complete_edges(ctx, source_files, edge_set, self._root)
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
 

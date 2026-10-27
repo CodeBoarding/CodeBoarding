@@ -261,7 +261,9 @@ For CUDA, use the project's clangd configuration when available (for example CCC
 
 Cross-platform C++ support does not imply every CUDA toolkit/project builds on every OS. CUDA analysis requires compatible headers and compiler flags, but does not execute GPU code. Clangd errors (including missing standard-library/toolkit headers) stop analysis; warnings do not. Supply the correct compiler path and include directories in the build configuration. Macros, inactive preprocessor branches and template-dependent calls can still limit the graph to the selected build configuration.
 
-The analyzer supplements definition queries with clangd's call hierarchy and active AST for constructors, operators, macros, local lambdas and automatic-object destruction. Template-instantiated argument-dependent lookup remains incomplete: clangd 23 can resolve a direct hidden-friend call but return no target for the same call through a dependent template. Such dependencies are not inferred by matching function names.
+The analyzer supplements definition queries with clangd's call hierarchy and active AST for constructors, operators, macros, local lambdas and automatic-object destruction. For unresolved template-dependent calls, bundled libclang 18.1.1 follows actual instantiated bodies and adds their dependencies to the source template. Targets are resolved by compiler declaration locations, never by matching function names. Uninstantiated templates cannot supply concrete targets.
+
+Template completion requires a Clang-compatible `compile_commands.json` or `compile_flags.txt`, including complete SDK and system-header paths. It currently cannot reproduce `.clangd` `CompileFlags` adjustments: export those adjustments into the compilation database instead. Missing headers, unsupported compiler options and incompatible language features fail explicitly rather than produce a guessed graph. Clangd remains the primary language server; libclang is used only when dependent calls remain unresolved.
 
 ## Examples
 

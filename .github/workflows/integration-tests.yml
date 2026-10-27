@@ -23,6 +23,8 @@ on:
           - javascript
           - rust
           - csharp
+          - cpp
+          - cuda
       full_matrix:
         description: 'Run all 3 OSes instead of the smoke subset'
         required: false

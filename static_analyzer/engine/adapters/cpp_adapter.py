@@ -5,6 +5,7 @@ from pathlib import Path
 
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.cpp_templates import complete_template_dependencies
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import SymbolIndex
 from static_analyzer.engine.lsp_client import LSPClient
@@ -65,9 +66,14 @@ class CppAdapter(LanguageAdapter):
         return symbols
 
     def complete_edges(
-        self, ctx: EdgeBuildContext, source_files: list[Path], edges: dict[tuple[str, str], list[CallSite]]
+        self,
+        ctx: EdgeBuildContext,
+        source_files: list[Path],
+        edges: dict[tuple[str, str], list[CallSite]],
+        project_root: Path,
     ) -> None:
         index = SymbolIndex(ctx.symbol_table, ctx.source_inspector)
+        unresolved: set[tuple[str, int, int]] = set()
         destructors: dict[str, list[SymbolInfo]] = {}
         for symbols in ctx.symbol_table.primary_file_symbols.values():
             for symbol in symbols:
@@ -90,17 +96,27 @@ class CppAdapter(LanguageAdapter):
                             edges.setdefault((caller.qualified_name, target.qualified_name), []).append(site)
 
             ast = ctx.lsp.document_ast(file_path)
+            dependent = {
+                _position(node["range"]["start"])
+                for node in _walk_evaluated(ast)
+                if node.get("kind") == "UnresolvedLookup" and "range" in node
+            }
             references = [
                 node["range"]["start"]
                 for node in _walk_evaluated(ast)
                 if node.get("kind") in {"DeclRef", "Member"} and "range" in node
             ]
-            queries = sorted({(file_path, *_position(position)) for position in references})
+            queries = sorted(
+                {(file_path, *position) for position in dependent}
+                | {(file_path, *_position(position)) for position in references}
+            )
             for query, definitions in zip(queries, ctx.lsp.send_definition_batch(queries)):
                 _, line, column = query
                 caller = ctx.symbol_table.find_containing_symbol(file_path, line, column)
                 if caller is None or not self.is_callable(caller.kind):
                     continue
+                if not definitions and (line, column) in dependent:
+                    unresolved.add((str(file_path), line, column))
                 for definition in definitions:
                     target = index.resolve(definition)
                     if target is not None and self.is_callable(target.kind):
@@ -132,6 +148,8 @@ class CppAdapter(LanguageAdapter):
                         site = CallSite.from_lsp_position(str(file_path), line, column)
                         edges.setdefault((caller.qualified_name, destructor.qualified_name), []).append(site)
 
+        if unresolved:
+            complete_template_dependencies(ctx, source_files, project_root, unresolved, edges)
         for edge, sites in edges.items():
             edges[edge] = list({(site.file, site.line, site.column): site for site in sites}.values())
 

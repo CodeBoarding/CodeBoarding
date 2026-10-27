@@ -445,7 +445,11 @@ class LanguageAdapter(ABC):
         return symbols
 
     def complete_edges(
-        self, ctx: EdgeBuildContext, source_files: list[Path], edges: dict[tuple[str, str], list[CallSite]]
+        self,
+        ctx: EdgeBuildContext,
+        source_files: list[Path],
+        edges: dict[tuple[str, str], list[CallSite]],
+        project_root: Path,
     ) -> None:
         """Add compiler-resolved dependencies that position-based definition queries cannot express."""
 

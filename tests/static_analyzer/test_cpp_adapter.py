@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -8,7 +9,11 @@ from infra.vscode_constants import VSCODE_CONFIG
 from static_analyzer import _create_engine_configs
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.adapters.cpp_adapter import CppAdapter
+from static_analyzer.engine.cpp_templates import complete_template_dependencies
+from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.models import CallSite
+from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.exceptions import WorkspaceSetupError
 from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
@@ -89,3 +94,66 @@ def test_cpp_overloads_and_same_stem_header_survive_registration(tmp_path: Path)
         "math.hpp.scale(int)",
         "math.hpp.scale(double)",
     }
+
+
+@pytest.mark.parametrize("database", ["compile_flags.txt", "compile_commands.json"])
+def test_template_dependencies_follow_each_instantiation(tmp_path: Path, database: str) -> None:
+    root = tmp_path / "project with spaces"
+    root.mkdir()
+    header = root / "api.hpp"
+    source = root / "main.cpp"
+    header_lines = [
+        f"namespace {namespace} {{ struct Packet {{ friend int inspect(Packet) {{ return 1; }} }}; }}"
+        for namespace in ("left", "right", "unused")
+    ]
+    header.write_text("\n".join(header_lines), encoding="utf-8")
+    template = "template<class T> int forward(T value) { /* 😀 */ return inspect(value); }"
+    source.write_text(
+        '#include "api.hpp"\n'
+        + template
+        + "\ntemplate<class T> int nested(T value) { return forward(value); }\n"
+        + "int run() { return nested(left::Packet{}) + nested(right::Packet{}); }\n",
+        encoding="utf-8",
+    )
+    flags = ["-std=c++20", "-I."]
+    (root / database).write_text(
+        (
+            "\n".join(flags)
+            if database == "compile_flags.txt"
+            else json.dumps(
+                [{"directory": str(root), "file": "main.cpp", "arguments": ["clang++", *flags, "main.cpp"]}]
+            )
+        ),
+        encoding="utf-8",
+    )
+    table = SymbolTable(CppAdapter())
+    for path, declarations in (
+        (
+            header,
+            [
+                (namespace, line, text, "inspect")
+                for line, (namespace, text) in enumerate(zip(("left", "right", "unused"), header_lines))
+            ],
+        ),
+        (source, [("forward", 1, template, "forward")]),
+    ):
+        table.register_symbols(
+            path,
+            [
+                {
+                    "name": name,
+                    "kind": NodeType.FUNCTION,
+                    "range": {"start": {"line": line, "character": 0}, "end": {"line": line, "character": len(text)}},
+                    "selectionRange": {"start": {"line": line, "character": text.index(spelling)}},
+                }
+                for name, line, text, spelling in declarations
+            ],
+            [],
+            root,
+        )
+    column = len(template[: template.index("inspect")].encode("utf-16-le")) // 2
+    edges: dict[tuple[str, str], list[CallSite]] = {}
+    ctx = EdgeBuildContext(MagicMock(spec=LSPClient), table, SourceInspector())
+    complete_template_dependencies(ctx, [header, source], root, {(str(source), 1, column)}, edges)
+    assert set(edges) == {("main.cpp.forward", "api.hpp.left"), ("main.cpp.forward", "api.hpp.right")}
+    assert all(sites == [CallSite.from_lsp_position(str(source), 1, column)] for sites in edges.values())
