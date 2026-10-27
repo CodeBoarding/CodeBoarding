@@ -116,7 +116,9 @@ class KotlinAdapter(LanguageAdapter):
             return []
         return [self._sources_folder(project_root, source_files)]
 
-    def refine_document_symbols(self, file_path: Path, symbols: list[dict], inspector: SourceInspector) -> list[dict]:
+    def refine_document_symbols(
+        self, file_path: Path, symbols: list[dict], inspector: SourceInspector, client: LSPClient
+    ) -> list[dict]:
         """Give objects, interfaces, enums and enum entries their kinds, and every callable its parameter types."""
         declarations = inspector.kotlin_declarations(file_path)
         return [self._refine(symbol, declarations, parent_kind=None) for symbol in symbols]

@@ -100,7 +100,15 @@ _DECORATION_NODE_TYPES = frozenset({"decorator", "annotation", "marker_annotatio
 _DECORATOR_NAME_NODE_TYPES = frozenset({"identifier", "attribute", "member_expression"})
 # Values that are functions: ``const f = () => ...`` is as callable a target as a declared function.
 _FUNCTION_LITERAL_NODE_TYPES = frozenset(
-    {"arrow_function", "function_expression", "function", "generator_function", "lambda", "func_literal"}
+    {
+        "arrow_function",
+        "function_expression",
+        "function",
+        "generator_function",
+        "lambda",
+        "lambda_expression",
+        "func_literal",
+    }
 )
 # ``receiver.member``, in every grammar's spelling.
 _MEMBER_ACCESS_NODE_TYPES = frozenset(
@@ -170,6 +178,7 @@ _VALUE_FIELD_BY_BINDING = {
     "field_definition": "value",  # JavaScript class field
     "public_field_definition": "value",  # TypeScript class field
     "var_spec": "value",  # Go
+    "init_declarator": "value",  # C++
 }
 # A binding, or an object literal's ``key: value``, can name a function literal.
 _FUNCTION_VALUE_HOLDER_NODE_TYPES = frozenset(_VALUE_FIELD_BY_BINDING) | {"pair"}
@@ -577,6 +586,63 @@ class SourceInspector:
             seen.add(pos)
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
+
+    def cpp_local_callables(self, file_path: Path) -> list[dict]:
+        """Source ranges for lambdas and friend definitions missing from clangd's document outline."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+        symbols = []
+        for node in self._walk(parsed.tree.root_node):
+            detail = ""
+            if node.type == "lambda_expression":
+                name_node = node
+                row, col = parsed.lsp_position(node.start_point)
+                name = f"lambda@{row + 1}:{col + 1}"
+            elif node.type == "function_definition" and node.parent and node.parent.type == "friend_declaration":
+                declarator = node.child_by_field_name("declarator")
+                if declarator is None:
+                    continue
+                name_node = declarator.child_by_field_name("declarator")
+                if name_node is None:
+                    continue
+                name = parsed.content[name_node.start_byte : name_node.end_byte].decode("utf8")
+                detail = parsed.content[declarator.start_byte : declarator.end_byte].decode("utf8")
+            else:
+                continue
+            start = parsed.lsp_position(node.start_point)
+            end = parsed.lsp_position(node.end_point)
+            selected = parsed.lsp_position(name_node.start_point)
+            symbols.append(
+                {
+                    "name": name,
+                    "kind": NodeType.FUNCTION,
+                    "detail": detail,
+                    "range": {
+                        "start": {"line": start[0], "character": start[1]},
+                        "end": {"line": end[0], "character": end[1]},
+                    },
+                    "selectionRange": {
+                        "start": {"line": selected[0], "character": selected[1]},
+                        "end": {"line": selected[0], "character": selected[1] + 1},
+                    },
+                }
+            )
+        return symbols
+
+    def cpp_has_automatic_storage(self, file_path: Path, line: int, character: int) -> bool:
+        """Whether a local declaration owns its object until scope exit, rather than static/thread storage."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return False
+        point = (line, parsed.byte_column(line, character))
+        node = parsed.tree.root_node.named_descendant_for_point_range(point, point)
+        while node is not None and node.type != "declaration":
+            node = node.parent
+        return node is not None and not any(
+            child.type == "storage_class_specifier" and child.text in {b"static", b"thread_local", b"extern"}
+            for child in node.children
+        )
 
     def find_collection_initializer_sites(self, file_path: Path) -> list[CallSite]:
         """Creations whose braces hold elements rather than property assignments.
@@ -1072,7 +1138,12 @@ class SourceInspector:
                 value = value.child_by_field_name(_VALUE_FIELD_BY_BINDING[value.type])
         if value is None or value.type not in _FUNCTION_LITERAL_NODE_TYPES:
             return None
-        name = node.child_by_field_name("name") or node.child_by_field_name("key") or node.child_by_field_name("left")
+        name = (
+            node.child_by_field_name("name")
+            or node.child_by_field_name("key")
+            or node.child_by_field_name("left")
+            or node.child_by_field_name("declarator")
+        )
         if name is not None and name.type in _VALUE_GROUP_NODE_TYPES and len(name.named_children) == 1:
             name = name.named_children[0]
         # ``this.onMove = () => ...`` binds the member.
@@ -1121,6 +1192,9 @@ class SourceInspector:
     def _names_base_receiver(node: TreeSitterNode) -> bool:
         """Whether *node* names its member on the base class: ``super.m``, ``super().m``, ``base.M``, ``parent::m()``."""
         access = node.child_by_field_name("function") or node
+        field = access.child_by_field_name("field")
+        if access.type == "qualified_identifier" or (field is not None and field.type == "qualified_identifier"):
+            return True
         receiver = next(
             (found for field in ("object", "scope", "expression") if (found := access.child_by_field_name(field))),
             # C# leaves ``base`` in ``base.M`` under no field.
