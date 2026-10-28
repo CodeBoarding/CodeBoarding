@@ -1,9 +1,11 @@
+import gzip
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -334,41 +336,65 @@ class TestEnsureToolsOnDemand(unittest.TestCase):
         self.assertEqual(installs, [])
         needs_install.assert_called_once_with({"typescript"})
 
-    def test_native_version_change_replaces_only_the_outdated_binary(self):
-        deps = install.required_tools({"go"})
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp)
-            binaries = install.platform_bin_dir(target)
-            binaries.mkdir(parents=True)
-            suffix = ".exe" if sys.platform == "win32" else ""
-            stale = binaries / f"tokei{suffix}"
-            current = binaries / f"gopls{suffix}"
-            stale.write_bytes(b"old")
-            current.write_bytes(b"keep")
-            with (
-                patch("infra.install.get_servers_dir", return_value=target),
-                patch("infra.tool_registry.manifest.get_servers_dir", return_value=target),
-            ):
-                install.write_manifest(deps)
-                manifest_path = target / "installed.json"
-                manifest = json.loads(manifest_path.read_text())
-                manifest["tools"]["tokei"] = "previous-version"
-                manifest_path.write_text(json.dumps(manifest))
+    def test_native_upgrade_through_automatic_and_cli_setup(self) -> None:
+        deps = install.required_tools({"go", "rust"})
+        for cli in (False, True):
+            for legacy in (False, True):
+                with self.subTest(cli=cli, legacy=legacy), tempfile.TemporaryDirectory() as tmp:
+                    target = Path(tmp)
+                    binaries = install.platform_bin_dir(target)
+                    binaries.mkdir(parents=True)
+                    suffix = install.exe_suffix()
+                    for dep in deps:
+                        (binaries / f"{dep.binary_name}{suffix}").write_bytes(b"old")
 
-                def download(_url, destination, **_kwargs):
-                    destination.write_bytes(b"new")
-                    return True
+                    def download(_url: str, destination: Path, **_kwargs: object) -> bool:
+                        if destination.suffix == ".gz":
+                            destination.write_bytes(gzip.compress(b"new"))
+                        elif destination.suffix == ".zip":
+                            with zipfile.ZipFile(destination, "w") as archive:
+                                archive.writestr(f"rust-analyzer{suffix}", b"new")
+                        else:
+                            destination.write_bytes(b"new")
+                        return True
 
-                def run_install(target_dir, deps, **_kwargs):
-                    install.install_native_tools(target_dir, list(deps))
-
-                with (
-                    patch("infra.install.run_install", side_effect=run_install),
-                    patch("infra.tool_registry.installers.download_asset", side_effect=download),
-                ):
-                    install.ensure_tools(languages={"go"})
-                self.assertEqual(stale.read_bytes(), b"new")
-                self.assertEqual(current.read_bytes(), b"keep")
+                    with (
+                        patch("infra.install.get_servers_dir", return_value=target),
+                        patch("infra.tool_registry.manifest.get_servers_dir", return_value=target),
+                        patch("infra.install.ensure_config_template"),
+                        patch("infra.install.ensure_node_runtime"),
+                        patch("infra.install.resolve_npm_availability", return_value=False),
+                        patch("infra.install.install_archive_tool"),
+                        patch("infra.install.install_package_manager_tools"),
+                        patch("infra.install.download_grammars"),
+                        patch("infra.install.install_pre_commit_hooks"),
+                        patch("infra.install.print_language_support_summary"),
+                        patch("infra.install.verify_binary", return_value=install.BinaryStatus.OK),
+                        patch("infra.tool_registry.installers.download_asset", side_effect=download),
+                    ):
+                        install.write_manifest(deps)
+                        manifest_path = target / "installed.json"
+                        manifest = json.loads(manifest_path.read_text())
+                        if legacy:
+                            manifest["tools"] = "one,string"
+                        else:
+                            manifest["tools"]["rust"] = "previous-version"
+                        manifest_path.write_text(json.dumps(manifest))
+                        if cli:
+                            with (
+                                patch.object(sys, "argv", ["codeboarding-setup"]),
+                                patch.object(sys, "stdout"),
+                                patch.object(sys, "stderr"),
+                                patch("infra.install.io.TextIOWrapper"),
+                            ):
+                                install.main()
+                        else:
+                            install.ensure_tools(languages={"go", "rust"})
+                        self.assertEqual((binaries / f"rust-analyzer{suffix}").read_bytes(), b"new")
+                        self.assertEqual((binaries / f"gopls{suffix}").read_bytes(), b"new" if legacy else b"old")
+                        recorded = json.loads(manifest_path.read_text())["tools"]
+                        for dep in deps:
+                            self.assertEqual(recorded[dep.key], install.tool_fingerprint(dep))
 
     def _ensure(
         self, languages=install.ALL_LANGUAGE_KEYS, needs: bool = True, **kwargs

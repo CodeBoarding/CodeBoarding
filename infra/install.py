@@ -42,6 +42,7 @@ from infra.tool_registry import (
     write_manifest,
 )
 from infra.tool_registry.java import find_java_21_or_later
+from infra.tool_registry.manifest import _recorded_tools
 from infra.tool_registry.registry import ConfigSection, PackageManagerToolSource
 from infra.vscode_constants import VSCODE_CONFIG
 from infra.user_config import ensure_config_template
@@ -646,12 +647,6 @@ def ensure_tools(
             ensure_node_runtime(target_dir=servers_dir, auto_install_npm=auto_install_npm)
         if not needs_install(languages):
             return
-        recorded = read_manifest().get("tools", {})
-        for dep in deps:
-            if dep.kind is ToolKind.NATIVE and dep.is_available_on_host():
-                if recorded.get(dep.key) != tool_fingerprint(dep):
-                    # Native installers otherwise keep any existing binary, including an outdated one.
-                    (platform_bin_dir(servers_dir) / f"{dep.binary_name}{exe_suffix()}").unlink(missing_ok=True)
         run_install(
             target_dir=servers_dir,
             auto_install_npm=auto_install_npm,
@@ -734,6 +729,12 @@ def run_install(
         install_node_servers(target, on_progress=tracker, deps=selected)
 
     if native_count:
+        recorded = _recorded_tools(read_manifest())
+        for dep in selected:
+            if dep.kind is ToolKind.NATIVE and dep.is_available_on_host():
+                if recorded.get(dep.key) != tool_fingerprint(dep):
+                    # Native installers otherwise keep any existing binary, including an outdated one.
+                    (platform_bin_dir(target) / f"{dep.binary_name}{exe_suffix()}").unlink(missing_ok=True)
         download_binaries(target, auto_install_vcpp=auto_install_vcpp, on_progress=tracker, deps=selected)
     if archive_count:
         download_jdtls(target, on_progress=tracker, deps=selected)
