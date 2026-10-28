@@ -435,6 +435,17 @@ class TestEnsureLanguageServers(unittest.TestCase):
 class TestRunInstallSelection(unittest.TestCase):
     """``run_install`` hands each installer only the selected tools."""
 
+    def test_unsupported_native_platform_still_finishes_setup(self) -> None:
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("platform.system", return_value="FreeBSD"),
+            patch("infra.install.ensure_config_template"),
+            patch("infra.install.install_pre_commit_hooks"),
+            self.assertLogs("infra.tool_registry.installers", level="WARNING") as logs,
+        ):
+            install.run_install(target_dir=Path(tmp), deps=install.required_tools(()))
+        self.assertTrue(any("Unsupported platform FreeBSD" in line for line in logs.output))
+
     def test_empty_selection_installs_no_tools(self):
         with (
             tempfile.TemporaryDirectory() as tmp,

@@ -729,12 +729,17 @@ def run_install(
         install_node_servers(target, on_progress=tracker, deps=selected)
 
     if native_count:
-        recorded = _recorded_tools(read_manifest())
-        for dep in selected:
-            if dep.kind is ToolKind.NATIVE and dep.is_available_on_host():
-                if recorded.get(dep.key) != tool_fingerprint(dep):
-                    # Native installers otherwise keep any existing binary, including an outdated one.
-                    (platform_bin_dir(target) / f"{dep.binary_name}{exe_suffix()}").unlink(missing_ok=True)
+        try:
+            bin_dir = platform_bin_dir(target)
+        except RuntimeError:
+            pass  # The native installer logs unsupported platforms and skips them.
+        else:
+            recorded = _recorded_tools(read_manifest())
+            for dep in selected:
+                if dep.kind is ToolKind.NATIVE and dep.is_available_on_host():
+                    if recorded.get(dep.key) != tool_fingerprint(dep):
+                        # Native installers otherwise keep any existing binary, including an outdated one.
+                        (bin_dir / f"{dep.binary_name}{exe_suffix()}").unlink(missing_ok=True)
         download_binaries(target, auto_install_vcpp=auto_install_vcpp, on_progress=tracker, deps=selected)
     if archive_count:
         download_jdtls(target, on_progress=tracker, deps=selected)
