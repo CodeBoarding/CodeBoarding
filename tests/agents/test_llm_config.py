@@ -108,6 +108,7 @@ class TestProviderSelection:
             "orcarouter": "openai/gpt-5.4-mini",
             "requesty": "gemini-3.8-flash",
             "opper": "gemini-3.8-flash",
+            "runcrate": "deepseek-ai/DeepSeek-V4.1-Flash",
             "litellm": "gpt-4o",
         }
 
@@ -125,6 +126,7 @@ class TestProviderSelection:
             ("orcarouter", "ORCAROUTER_BASE_URL", "https://api.orcarouter.ai/v1"),
             ("requesty", "REQUESTY_BASE_URL", "https://router.requesty.ai/v1"),
             ("opper", "OPPER_BASE_URL", "https://api.opper.ai/v3/compat"),
+            ("runcrate", "RUNCRATE_BASE_URL", "https://api.runcrate.ai/v1"),
             ("litellm", "LITELLM_BASE_URL", None),
         ],
     )
@@ -205,6 +207,14 @@ class TestProviderSelection:
             assert opper.is_selected_by_env() is True
             assert opper.has_real_api_key() is True
             assert opper.get_resolved_extra_args()["base_url"] == "https://api.opper.ai/v3/compat"
+
+    def test_runcrate_selected_via_api_key(self):
+        runcrate = LLM_PROVIDERS["runcrate"]
+        env = {"RUNCRATE_API_KEY": "rc_live_test"}
+        with patch.dict(os.environ, env, clear=True):
+            assert runcrate.is_selected_by_env() is True
+            assert runcrate.has_real_api_key() is True
+            assert runcrate.get_resolved_extra_args()["base_url"] == "https://api.runcrate.ai/v1"
 
     def test_aws_has_no_api_key_env(self):
         # botocore consumes AWS_BEARER_TOKEN_BEDROCK directly; it is never passed as a kwarg.

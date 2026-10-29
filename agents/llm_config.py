@@ -315,6 +315,19 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "runcrate": LLMConfig(
+        chat_class=ChatOpenAI,
+        selection_envs=["RUNCRATE_API_KEY"],
+        api_key_env="RUNCRATE_API_KEY",
+        agent_model="deepseek-ai/DeepSeek-V4.1-Flash",
+        base_url_env="RUNCRATE_BASE_URL",
+        default_base_url="https://api.runcrate.ai/v1",
+        extra_args={
+            "max_tokens": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+            "max_retries": 0,
+        },
+    ),
     "litellm": LLMConfig(
         chat_class=ChatOpenAI,
         # Base URL only: a key alone must not select litellm, since there is no
