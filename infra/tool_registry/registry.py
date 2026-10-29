@@ -34,7 +34,7 @@ JDTLS_URL_TEMPLATE = "https://download.eclipse.org/jdtls/snapshots/jdt-language-
 # per platform) rather than mirrored. Bumping the tag triggers a reinstall
 # via ``tool_fingerprint()``.
 RUST_ANALYZER_REPO = "rust-lang/rust-analyzer"
-RUST_ANALYZER_TAG = "2026-03-30"
+RUST_ANALYZER_TAG = "2026-10-26"
 
 # JetBrains' kotlin-lsp ships one archive per platform with its own Java runtime inside.
 KOTLIN_LSP_VERSION = "263.6379.0"

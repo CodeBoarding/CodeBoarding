@@ -190,6 +190,8 @@ class RustAdapter(LanguageAdapter):
         skipping it would silently break diagnostic collection.
         """
         return {
+            # Resolve on demand instead of eagerly retaining dependency-wide semantic caches.
+            "cachePriming": {"enable": False},
             "cargo": {
                 "buildScripts": {"enable": True},
                 "allTargets": True,

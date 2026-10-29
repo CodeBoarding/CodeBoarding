@@ -23,6 +23,7 @@ from infra.tool_registry import (
     acquire_lock,
     archive_launcher_path,
     download_kotlin_grammar,
+    exe_suffix,
     get_servers_dir,
     install_archive_tool,
     install_embedded_node,
@@ -35,10 +36,13 @@ from infra.tool_registry import (
     platform_bin_dir,
     preferred_node_path,
     preferred_npm_command,
+    read_manifest,
     required_tools,
+    tool_fingerprint,
     write_manifest,
 )
 from infra.tool_registry.java import find_java_21_or_later
+from infra.tool_registry.manifest import _recorded_tools
 from infra.tool_registry.registry import ConfigSection, PackageManagerToolSource
 from infra.vscode_constants import VSCODE_CONFIG
 from infra.user_config import ensure_config_template
@@ -725,6 +729,17 @@ def run_install(
         install_node_servers(target, on_progress=tracker, deps=selected)
 
     if native_count:
+        try:
+            bin_dir = platform_bin_dir(target)
+        except RuntimeError:
+            pass  # The native installer logs unsupported platforms and skips them.
+        else:
+            recorded = _recorded_tools(read_manifest())
+            for dep in selected:
+                if dep.kind is ToolKind.NATIVE and dep.is_available_on_host():
+                    if recorded.get(dep.key) != tool_fingerprint(dep):
+                        # Native installers otherwise keep any existing binary, including an outdated one.
+                        (bin_dir / f"{dep.binary_name}{exe_suffix()}").unlink(missing_ok=True)
         download_binaries(target, auto_install_vcpp=auto_install_vcpp, on_progress=tracker, deps=selected)
     if archive_count:
         download_jdtls(target, on_progress=tracker, deps=selected)
