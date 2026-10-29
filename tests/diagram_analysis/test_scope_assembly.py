@@ -194,8 +194,39 @@ class TestScopeAssembler(unittest.TestCase):
             analysis, scope, result, {"1", "2"}, set(), _resolver(scope), reserved_names=("Static Analysis Engine",)
         )
 
-        self.assertEqual([c.name for c in analysis.components], ["engine", "Adapters", "Component 3"])
+        self.assertEqual([c.name for c in analysis.components], ["Engine", "Adapters", "Component 3"])
         self.assertEqual(unnamed, frozenset({"1"}))
+
+    def test_an_identifier_proposal_is_refused_and_the_rule_name_ships_as_words(self) -> None:
+        """The model named root boxes after their directories."""
+        scope = _scope(names={"1": "infrastructure", "2": "order_handlers", "3": "payment_gateway"})
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        result = ScopeAnalysisResult(
+            components=[
+                ScopeComponentSemantics(group_id="1", name="infrastructure", description="Deployment stacks."),
+                ScopeComponentSemantics(group_id="2", name="order_handlers", description="Handlers."),
+                ScopeComponentSemantics(group_id="3", name="Payment Provider Client", description="Proxy."),
+            ],
+        )
+
+        unnamed = assembler.apply_semantics(analysis, scope, result, {"1", "2", "3"}, set(), _resolver(scope))
+
+        self.assertEqual(
+            [c.name for c in analysis.components], ["Infrastructure", "Order Handlers", "Payment Provider Client"]
+        )
+        self.assertEqual(unnamed, frozenset({"1", "2"}))
+
+    def test_an_identifier_name_carried_from_the_baseline_does_not_survive_a_run(self) -> None:
+        """CodeBoarding-action: ``action_scripts`` came back on every PR from 16 Sep to 12 Oct."""
+        scope = _scope(names={"1": "scripts"})
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
+        analysis.components[0].name = "action_scripts"
+
+        assembler.apply_semantics(analysis, scope, ScopeAnalysisResult(components=[]), {"1"}, set(), _resolver(scope))
+
+        self.assertEqual(analysis.components[0].name, "Scripts")
 
     def test_names_components_from_the_clustering_rule_that_claimed_them(self) -> None:
         scope = _scope(names={"1": "Ingestion", "2": "Storage"})

@@ -71,9 +71,9 @@ class ThrottledOnceModel(ToolCallingFakeModel):
         return super()._generate(*args, **kwargs)
 
 
-def _inputs() -> tuple[StaticAnalysisResults, ClusterScopeResult, AnalysisInsights]:
+def _inputs(file_path: str = "pkg.py") -> tuple[StaticAnalysisResults, ClusterScopeResult, AnalysisInsights]:
     graph = CallGraph(language="python")
-    graph.add_node(Node("pkg.run", NodeType.FUNCTION, "pkg.py", 1, 3))
+    graph.add_node(Node("pkg.run", NodeType.FUNCTION, file_path, 1, 3))
     static_analysis = StaticAnalysisResults()
     static_analysis.add_cfg(Language.PYTHON, graph)
     scope = ClusterScopeResult(
@@ -95,12 +95,65 @@ def _inputs() -> tuple[StaticAnalysisResults, ClusterScopeResult, AnalysisInsigh
     return static_analysis, scope, analysis
 
 
-def _answer() -> ScopeAnalysisResult:
+def _answer(name: str = "Runner") -> ScopeAnalysisResult:
     return ScopeAnalysisResult(
         description="scope",
-        components=[ScopeComponentSemantics(group_id="1", name="Runner", description="Runs work")],
+        components=[ScopeComponentSemantics(group_id="1", name=name, description="Runs work")],
         relations=[],
     )
+
+
+def _final(name: str, call_id: str = "final") -> AIMessage:
+    return AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "ScopeAnalysisResult", "args": _answer(name).model_dump(), "id": call_id, "type": "tool_call"}
+        ],
+    )
+
+
+class TestScopeNames(unittest.TestCase):
+    """A new ``billing_jobs/`` directory shipped as a component named after it."""
+
+    def _analyze(
+        self, *names: str, locked: frozenset[str] = frozenset()
+    ) -> tuple[ScopeAnalysisResult, RequestRecorder]:
+        static_analysis, scope, analysis = _inputs("billing_jobs/handler.py")
+        model = ToolCallingFakeModel(responses=[_final(name, f"final-{index}") for index, name in enumerate(names)])
+        recorder = RequestRecorder()
+        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, model)
+        agent.agent_monitoring_callback = recorder
+        result = agent.analyze(scope, analysis, {"1"}, locked_name_ids=locked)
+        assert result is not None
+        return result, recorder
+
+    def test_an_identifier_name_is_asked_for_again(self):
+        result, recorder = self._analyze("billing_jobs", "Invoice Generation Jobs")
+
+        self.assertEqual(result.components[0].name, "Invoice Generation Jobs")
+        self.assertEqual(len(recorder.requests), 2)
+        self.assertIn("- 1: billing_jobs", str(recorder.requests[1][-1].content))
+
+    def test_the_directory_re_cased_is_not_a_name_either(self):
+        result, _ = self._analyze("Billing Jobs", "Invoice Generation Jobs")
+
+        self.assertEqual(result.components[0].name, "Invoice Generation Jobs")
+
+    def test_a_second_identifier_leaves_the_group_unnamed(self):
+        result, _ = self._analyze("billing_jobs", "billingJobs")
+
+        self.assertEqual(result.components[0].name, "")
+
+    def test_a_natural_name_costs_no_second_call(self):
+        result, recorder = self._analyze("Invoice Generation Jobs")
+
+        self.assertEqual(result.components[0].name, "Invoice Generation Jobs")
+        self.assertEqual(len(recorder.requests), 1)
+
+    def test_a_locked_name_is_not_asked_for_again(self):
+        _, recorder = self._analyze("billing_jobs", locked=frozenset({"1"}))
+
+        self.assertEqual(len(recorder.requests), 1)
 
 
 class TestScopeInputBudget(unittest.TestCase):

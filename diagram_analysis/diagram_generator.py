@@ -84,6 +84,7 @@ from static_analyzer.clustering import (
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.names import AffinityGrouper, Grouper, KinshipGrouper, TreeSpec
 from static_analyzer.clustering.names.spec import SPEC_VERSION
+from static_analyzer.clustering.names.tokens import is_natural_name
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
 from agents.tree_planner_agent import TreePlannerAgent
 from infra.user_config import GROUPER_ENV, GROUPERS
@@ -893,10 +894,16 @@ class DiagramGenerator:
             analysis = root_analysis if scope.scope_id == ROOT_SCOPE_ID else sub_analyses.get(scope.scope_id)
             if analysis is None:
                 continue
+            # A baseline name that is a directory or an identifier is renamed even when nothing
+            # changed: locked or carried forward, it would ship on every later run.
+            unnatural_ids = {
+                component.component_id for component in analysis.components if not is_natural_name(component.name)
+            }
             editable_ids = {
                 group.group_id
                 for group in scope.groups
                 if group.group_id in refreshed_ids
+                or group.group_id in unnatural_ids
                 or bool(self._group_files(group, scope) & changed_files)
                 or bool(group.qualified_names & self._changed_members)
             }
@@ -906,6 +913,7 @@ class DiagramGenerator:
                 group.group_id
                 for group in scope.groups
                 if group.group_id in editable_ids
+                and group.group_id not in unnatural_ids
                 and group.group_id in baseline_membership.meta_by_id
                 and self._group_member_keys(group, scope) == baseline_membership.meta_by_id[group.group_id].member_keys
             )
