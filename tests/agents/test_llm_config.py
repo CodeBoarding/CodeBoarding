@@ -208,7 +208,7 @@ class TestProviderSelection:
             assert opper.has_real_api_key() is True
             assert opper.get_resolved_extra_args()["base_url"] == "https://api.opper.ai/v3/compat"
 
-    def test_runcrate_selected_via_api_key(self):
+    def test_runcrate_selected_via_api_key(self) -> None:
         runcrate = LLM_PROVIDERS["runcrate"]
         env = {"RUNCRATE_API_KEY": "rc_live_test"}
         with patch.dict(os.environ, env, clear=True):

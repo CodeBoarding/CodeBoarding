@@ -119,7 +119,7 @@ class TestUserConfigApplyToEnv:
             os.environ.clear()
             os.environ.update(original)
 
-    def test_injects_runcrate_api_key(self):
+    def test_injects_runcrate_api_key(self) -> None:
         cfg = UserConfig(provider=ProviderUserConfig(runcrate_api_key="rc_live_test"))
 
         original = os.environ.copy()
