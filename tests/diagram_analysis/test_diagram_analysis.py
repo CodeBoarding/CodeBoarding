@@ -2373,7 +2373,6 @@ class TestDiagramGenerator(unittest.TestCase):
         )
 
     def test_an_identifier_name_is_renamed_even_when_its_group_did_not_change(self):
-        """CodeBoarding-action: an unchanged, name-locked ``action_scripts`` shipped on every PR."""
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
